@@ -6,6 +6,7 @@ import PromptsPage from './pages/PromptsPage'
 import AccountPage from './pages/AccountPage'
 import ProjectsPage from './pages/ProjectsPage'
 import LearningPage from './pages/LearningPage'
+import ConversationsPage from './pages/ConversationsPage'
 
 // REUSED from main app via @main alias — fix once, fixed everywhere
 import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
@@ -108,6 +109,7 @@ export default function App() {
                 <NavLink to="/crm">CRM</NavLink>
                 <NavLink to="/tasks">Tasks</NavLink>
                 <NavLink to="/learning">Learning</NavLink>
+                <NavLink to="/conversations">Logs</NavLink>
                 <NavLink to="/setup">Setup</NavLink>
                 <NavLink to="/account">Account</NavLink>
               </nav>
@@ -128,6 +130,7 @@ export default function App() {
                   <Route path="/tasks/:tab" element={<TasksPage />} />
                   <Route path="/projects" element={<ProjectsPage />} />
                   <Route path="/learning" element={<LearningPage />} />
+                  <Route path="/conversations" element={<ConversationsPage />} />
                   <Route path="/account" element={<AccountPage />} />
                 </Routes></AuthGuard>} />
               </Routes>
