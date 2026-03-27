@@ -4293,46 +4293,68 @@ async def get_contact_history(
         processed_replies = pr_result.scalars().all()
 
         if processed_replies:
-            # Build a set of existing message fingerprints to avoid duplicates.
-            # Use (direction, truncated body, rounded timestamp) for matching.
-            existing_fingerprints = set()
+            # Build fingerprints to avoid duplicates
+            email_fingerprints = set()
             for msg in email_history:
-                body_snippet = (msg.get("body") or "")[:100].strip().lower()
-                existing_fingerprints.add(("inbound", body_snippet))
-            # Also add fingerprints from local DB activities already in history
+                email_fingerprints.add(("inbound", (msg.get("body") or "")[:100].strip().lower()))
             for a in (a for a in activities if a.channel == "email" and a.direction == "inbound"):
-                body_snippet = (a.body or "")[:100].strip().lower()
-                existing_fingerprints.add(("inbound", body_snippet))
+                email_fingerprints.add(("inbound", (a.body or "")[:100].strip().lower()))
 
+            linkedin_fingerprints = set()
+            for a in linkedin_activities:
+                linkedin_fingerprints.add(("inbound", (a.body or "")[:100].strip().lower()))
+
+            import re as _re
             for pr in processed_replies:
                 body = pr.reply_text or pr.email_body or ""
                 body_clean = _strip_html(body) if "<" in body else body
                 body_snippet = body_clean[:100].strip().lower()
 
-                if ("inbound", body_snippet) in existing_fingerprints:
-                    continue  # already present
                 if not body_clean.strip():
-                    continue  # skip empty
+                    continue
+                # Skip fake SmartLead "Email N sent to..." notifications
+                if _re.match(r"Email \d+ sent to \S+@\S+ for campaign\s*-", body_clean):
+                    continue
 
-                existing_fingerprints.add(("inbound", body_snippet))
-                email_history.append({
-                    "id": pr.id + 2_000_000_000,  # offset to avoid ID collision
-                    "type": "email_reply",
-                    "direction": "inbound",
-                    "subject": pr.email_subject or "",
-                    "body": body_clean,
-                    "snippet": body_clean[:200] if body_clean else None,
-                    "channel": "email",
-                    "source": "processed_reply",
-                    "campaign": pr.campaign_name,
-                    "timestamp": pr.received_at.isoformat() if pr.received_at else None,
-                })
+                pr_source = pr.source or "smartlead"
+                if pr_source == "getsales":
+                    # LinkedIn reply → add to linkedin_activities
+                    if ("inbound", body_snippet) in linkedin_fingerprints:
+                        continue
+                    linkedin_fingerprints.add(("inbound", body_snippet))
+                    from app.models.contact import ContactActivity as CA
+                    fake = CA(
+                        id=pr.id + 2_000_000_000,
+                        contact_id=contact_id,
+                        activity_type="linkedin_replied",
+                        channel="linkedin",
+                        direction="inbound",
+                        source="processed_reply",
+                        body=body_clean,
+                        snippet=body_clean[:200] if body_clean else None,
+                        activity_at=pr.received_at,
+                    )
+                    linkedin_activities.append(fake)
+                else:
+                    # Email reply → add to email_history
+                    if ("inbound", body_snippet) in email_fingerprints:
+                        continue
+                    email_fingerprints.add(("inbound", body_snippet))
+                    email_history.append({
+                        "id": pr.id + 2_000_000_000,
+                        "type": "email_reply",
+                        "direction": "inbound",
+                        "subject": pr.email_subject or "",
+                        "body": body_clean,
+                        "snippet": body_clean[:200] if body_clean else None,
+                        "channel": "email",
+                        "source": "processed_reply",
+                        "campaign": pr.campaign_name,
+                        "timestamp": pr.received_at.isoformat() if pr.received_at else None,
+                    })
 
-            # Re-sort by timestamp descending (newest first) after merging
-            email_history.sort(
-                key=lambda m: m.get("timestamp") or "",
-                reverse=True,
-            )
+            email_history.sort(key=lambda m: m.get("timestamp") or "", reverse=True)
+            linkedin_activities.sort(key=lambda a: a.activity_at or datetime.min, reverse=True)
 
     # Fetch inbox links from ProcessedReply for this contact's email
     inbox_links = {}
