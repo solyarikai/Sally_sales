@@ -184,8 +184,10 @@ export default function PipelinePage() {
   const [companyPage, setCompanyPage] = useState(1)
   const [totalCompanies, setTotalCompanies] = useState(0)
 
-  // Column filters
-  const [filters, setFilters] = useState<Record<string, string>>({})
+  // Column filters — read ?status= from URL on mount
+  const searchParams = new URLSearchParams(window.location.search)
+  const initialStatus = searchParams.get('status') || ''
+  const [filters, setFilters] = useState<Record<string, string>>(initialStatus ? { status: initialStatus } : {})
   const setFilter = (col: string, val: string) => setFilters(prev => ({ ...prev, [col]: val }))
 
   // Sort
