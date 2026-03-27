@@ -1,0 +1,48 @@
+FINDYMAIL ENRICHMENT — REPORT,,
+"March 28, 2026",,
+
+ВОРОНКА,Count,Note
+Input (Google Sheet),835,Source: 1vxnirCo...
+Processed,835,
+With email,552,66.1% hit rate
+Without email,283,→ GetSales
+
+РЕЗУЛЬТАТ,Count,Note
+Verified emails,0,Findymail verified
+Unverified emails,552,Found but not verified
+No email,283,→ GetSales-ready CSV
+Hit rate,66.1%,835 → 552
+
+BY LOCATION,Input,With Email,Without Email,Hit Rate
+United Kingdom,144,109,35,76%
+New York,106,80,26,75%
+India,80,40,40,50%
+California,79,63,16,80%
+France,29,16,13,55%
+Cyprus,23,13,10,57%
+Germany,23,16,7,70%
+Texas,22,15,7,68%
+Illinois,20,14,6,70%
+Canada,20,15,5,75%
+United States,15,12,3,80%
+Florida,14,4,10,29%
+China,12,2,10,17%
+Australia,11,10,1,91%
+US,11,9,2,82%
+
+TOP COMPANIES,Leads Found,
+Kantar,220,
+Mindshare,71,
+Meltwater,45,
+inDrive,31,
+VaynerMedia,27,
+Spotter,25,
+Patreon,19,
+LTK,17,
+Influential,12,
+Acceleration Partners,9,
+
+OUTPUT FILES,,
+Google Sheets (Leads),OS | Leads | IMAGENCY — 2026-03-28,552 contacts
+Google Sheets (No Email),OS | Import | Without Email — IMAGENCY — 2026-03-28,283 contacts
+GetSales CSV,get_sales_hub/28_03/GetSales — IMAGENCY_without_email — 28.03.csv,283 contacts
