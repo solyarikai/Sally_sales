@@ -567,4 +567,87 @@ Returns contacts + a CRM link with filters applied so the user can view them in 
             "required": ["project_name"],
         },
     },
+    # ── User Feedback & Editing Tools ──
+    {
+        "name": "edit_sequence_step",
+        "description": """Edit a specific step of a generated sequence. User can change subject, body, or both.
+Changes are saved to DB and pushed to SmartLead if campaign already created.
+
+Use when user says: "change the subject of email 1", "rewrite email 3 body", "add a case study to email 2".""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_id": {"type": "integer", "description": "The generated sequence ID"},
+                "step_number": {"type": "integer", "description": "Which email step to edit (1-5)"},
+                "subject": {"type": "string", "description": "New subject line (omit to keep current)"},
+                "body": {"type": "string", "description": "New email body (omit to keep current). Use <br> for line breaks."},
+            },
+            "required": ["sequence_id", "step_number"],
+        },
+    },
+    {
+        "name": "edit_campaign_accounts",
+        "description": "Change the email sending accounts on a SmartLead campaign. User can add or replace accounts.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {"type": "integer", "description": "SmartLead campaign ID (external_id)"},
+                "email_account_ids": {"type": "array", "items": {"type": "integer"}, "description": "New list of SmartLead email account IDs"},
+            },
+            "required": ["campaign_id", "email_account_ids"],
+        },
+    },
+    {
+        "name": "override_company_target",
+        "description": """Override a company's target/not-target status with user feedback.
+
+Use when user says: "this company IS a target" or "remove this, not a match".
+Stores override + reasoning for learning.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "company_id": {"type": "integer", "description": "DiscoveredCompany ID"},
+                "is_target": {"type": "boolean", "description": "True = target, False = not target"},
+                "reasoning": {"type": "string", "description": "Why the user thinks this should be changed"},
+            },
+            "required": ["company_id", "is_target"],
+        },
+    },
+    {
+        "name": "provide_feedback",
+        "description": """Store user feedback about any pipeline aspect. General-purpose feedback tool.
+
+Use when user says: "Apollo filters should include X", "sequence tone is too formal", "focus more on Y segment".
+Stored per-project, used to improve future runs. Most recent feedback takes priority over older.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer"},
+                "feedback_type": {"type": "string", "enum": ["sequence", "filters", "analysis", "targets", "general"]},
+                "feedback_text": {"type": "string", "description": "The user's feedback in their own words"},
+                "context": {"type": "object", "description": "Optional: step_number, company_id, filter_name, etc."},
+            },
+            "required": ["project_id", "feedback_type", "feedback_text"],
+        },
+    },
+    {
+        "name": "activate_campaign",
+        "description": """Activate a SmartLead campaign — START sending emails to real leads.
+
+CRITICAL: NEVER call without EXPLICIT user approval. User must confirm they reviewed:
+1. Sequence content (all steps)
+2. Leads list (target companies)
+3. Campaign settings (timezone, accounts)
+4. Test email (received and correct)
+
+Only call when user explicitly says "activate", "start", or "go live".""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {"type": "integer", "description": "SmartLead campaign ID"},
+                "user_confirmation": {"type": "string", "description": "Quote user's exact words confirming activation"},
+            },
+            "required": ["campaign_id", "user_confirmation"],
+        },
+    },
 ]
