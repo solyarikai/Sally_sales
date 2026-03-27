@@ -4,17 +4,14 @@ This CLAUDE.md applies to ALL projects under sales_engineer/ (magnum-opus, sofia
 
 ## Google Sheets — READ & WRITE
 
-**Use the `google-sheets` MCP server for ALL Google Sheets operations.** This is an OAuth2 MCP server with the user's own credentials — full access to all their sheets.
+**Google Sheets MCP server is NOT currently connected.** Use `python3.11` with OAuth2 credentials from `.claude/google-sheets/token.json` directly.
+- Scopes: `spreadsheets` + `drive` (NOT `drive.readonly` — token will fail to refresh)
+- Auth pattern: `Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)` → refresh if expired → `build('sheets', 'v4', credentials=creds)`
+- Create: `spreadsheets().create(body={'properties': {'title': name}})`
+- Write: `spreadsheets().values().update(spreadsheetId=id, range='A1', valueInputOption='RAW', body={'values': data})`
+- Read: `spreadsheets().values().get(spreadsheetId=id, range='A1:Z5000')`
 
-**NEVER use service account / Docker for Google Sheets.** Always use the MCP tools.
-
-### When to use
-
-- **Reading** a Google Sheet by URL or ID (e.g., user shares a link)
-- **Creating** a new sheet with data
-- **Writing/appending** rows to an existing sheet
-- **Searching** across sheets
-- Any other Google Sheets operation
+**NEVER use service account / Docker for Google Sheets.**
 
 ### Naming Convention
 
