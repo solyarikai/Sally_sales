@@ -246,9 +246,17 @@ async def _get_company_detail(company, session):
 async def list_iterations(
     project_id: Optional[int] = Query(None),
     session: AsyncSession = Depends(get_session),
+    user: MCPUser = Depends(get_optional_user),
 ):
-    """List all gathering runs (iterations) with target counts for the pipeline page."""
+    """List gathering runs (iterations) scoped to user's projects."""
     query = select(GatheringRun).order_by(GatheringRun.created_at.desc())
+    if user:
+        user_projects = await session.execute(select(Project.id).where(Project.user_id == user.id))
+        pids = [pid for (pid,) in user_projects.all()]
+        if pids:
+            query = query.where(GatheringRun.project_id.in_(pids))
+        else:
+            return []
     if project_id is not None:
         query = query.where(GatheringRun.project_id == project_id)
     query = query.limit(50)
