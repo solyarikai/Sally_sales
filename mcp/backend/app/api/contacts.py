@@ -14,6 +14,8 @@ from app.db import get_session
 from app.models.pipeline import DiscoveredCompany, ExtractedContact
 from app.models.project import Project
 from app.models.campaign import Campaign
+from app.models.user import MCPUser
+from app.auth.dependencies import get_optional_user
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +102,7 @@ async def list_contacts(
     created_after: Optional[str] = None,
     created_before: Optional[str] = None,
     session: AsyncSession = Depends(get_session),
+    user: MCPUser = Depends(get_optional_user),
 ):
     """List contacts — same contract as main app's GET /api/contacts."""
 
@@ -108,6 +111,15 @@ async def list_contacts(
         select(ExtractedContact, DiscoveredCompany)
         .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
     )
+
+    # User-scope: only show contacts from user's projects
+    if user:
+        user_projects = await session.execute(select(Project.id).where(Project.user_id == user.id))
+        pids = [pid for (pid,) in user_projects.all()]
+        if pids:
+            query = query.where(ExtractedContact.project_id.in_(pids))
+        else:
+            return {"contacts": [], "total": 0, "page": page, "page_size": page_size, "total_pages": 0}
 
     # Filters
     if project_id:

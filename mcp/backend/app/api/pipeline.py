@@ -481,14 +481,25 @@ async def get_sequence(
 @router.get("/runs")
 async def list_runs(
     session: AsyncSession = Depends(get_session),
+    user: MCPUser = Depends(get_optional_user),
 ):
-    result = await session.execute(
-        select(GatheringRun).order_by(GatheringRun.created_at.desc()).limit(20)
-    )
+    query = select(GatheringRun).order_by(GatheringRun.created_at.desc()).limit(20)
+    # User-scope: only show runs from user's projects
+    if user:
+        from app.models.project import Project
+        user_projects = await session.execute(select(Project.id).where(Project.user_id == user.id))
+        pids = [pid for (pid,) in user_projects.all()]
+        if pids:
+            query = query.where(GatheringRun.project_id.in_(pids))
+        else:
+            return []
+    result = await session.execute(query)
     runs = result.scalars().all()
     return [
         {"id": r.id, "status": r.status, "phase": r.current_phase,
          "source_type": r.source_type, "new_companies": r.new_companies_count,
+         "credits_used": r.credits_used or 0,
+         "target_rate": f"{(r.target_rate or 0)*100:.0f}%" if r.target_rate else None,
          "created_at": str(r.created_at)}
         for r in runs
     ]
