@@ -25,8 +25,6 @@ claude
 | **OpenAI** | `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` |
 | **Gemini** | `AIzaSyDAQhKyQcca249QVhOXY2nyZ5pNF-N5Y9o` |
 
-FindyMail is disabled for testing. Key for production: `dSxRrqArQIsG2E5zba36HLTy0pBk1bGZra5ZDtykea70c139`
-
 ## 3. First Session
 
 ```
