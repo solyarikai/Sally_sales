@@ -128,7 +128,10 @@ export default function App() {
 // Pipeline runs list
 function PipelineRunsPage() {
   const [runs, setRuns] = useState<any[]>([])
-  useEffect(() => { fetch('/api/pipeline/runs').then(r => r.json()).then(setRuns).catch(() => {}) }, [])
+  useEffect(() => {
+    const t = localStorage.getItem('mcp_token')
+    fetch('/api/pipeline/runs', { headers: t ? { 'X-MCP-Token': t } : {} }).then(r => r.json()).then(setRuns).catch(() => {})
+  }, [])
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
       <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 12 }}>Pipeline Runs</div>
