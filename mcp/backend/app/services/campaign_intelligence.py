@@ -17,6 +17,37 @@ from app.models.project import Project
 
 logger = logging.getLogger(__name__)
 
+
+async def _get_user_feedback(session: AsyncSession, project_id: int, feedback_type: str) -> Optional[str]:
+    """Get user feedback for a specific project and type, ordered by most recent first.
+
+    Returns concatenated feedback strings, most recent at top (highest priority).
+    Used to inject user preferences into AI prompts.
+    """
+    from app.models.usage import MCPUsageLog
+    result = await session.execute(
+        select(MCPUsageLog).where(
+            MCPUsageLog.tool_name == "user_feedback",
+            MCPUsageLog.action == feedback_type,
+            MCPUsageLog.extra_data["project_id"].as_integer() == project_id,
+        ).order_by(desc(MCPUsageLog.created_at)).limit(10)
+    )
+    logs = result.scalars().all()
+    if not logs:
+        return None
+
+    parts = []
+    for log in logs:
+        ed = log.extra_data or {}
+        text = ed.get("feedback_text", "")
+        ts = ed.get("timestamp", "")
+        ctx = ed.get("context", {})
+        ctx_str = f" (context: {ctx})" if ctx else ""
+        parts.append(f"[{ts}] {text}{ctx_str}")
+
+    return "\n".join(parts)
+
+
 # Default timing pattern from top campaigns
 DEFAULT_TIMING = [0, 3, 4, 7, 7]  # Days: send, follow-up 1, 2, 3, 4
 
@@ -117,6 +148,11 @@ class CampaignIntelligenceService:
 
         if instructions:
             context_parts.append(f"Additional instructions: {instructions}")
+
+        # Inject user feedback — most recent first, highest priority
+        feedback = await _get_user_feedback(session, project_id, "sequence")
+        if feedback:
+            context_parts.append(f"\n--- USER FEEDBACK (HIGHEST PRIORITY — follow these instructions exactly) ---\n{feedback}")
 
         generation_prompt = "\n".join(context_parts)
         name = campaign_name or f"{project.name} - Generated"
