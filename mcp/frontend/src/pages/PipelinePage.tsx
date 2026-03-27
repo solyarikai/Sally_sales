@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { authHeaders } from '../App'
 
 const API = '/api'
 const PAGE_SIZE = 50
@@ -192,10 +193,11 @@ export default function PipelinePage() {
 
   const load = async () => {
     setLoading(true)
+    const h = authHeaders()
     const [r1, r2, r3] = await Promise.all([
-      runId ? fetch(`${API}/pipeline/runs/${runId}`).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
-      fetch(`${API}/pipeline/runs/${runId || ''}/companies`).then(r => r.ok ? r.json() : null),
-      fetch(`${API}/pipeline/iterations`).then(r => r.ok ? r.json() : []),
+      runId ? fetch(`${API}/pipeline/runs/${runId}`, {headers: h}).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
+      fetch(`${API}/pipeline/runs/${runId || ''}/companies`, {headers: h}).then(r => r.ok ? r.json() : null),
+      fetch(`${API}/pipeline/iterations`, {headers: h}).then(r => r.ok ? r.json() : []),
     ])
     if (r1) setRun(r1)
     if (r2 && r2.companies) {
@@ -215,7 +217,7 @@ export default function PipelinePage() {
   // Load usage logs when panel opens
   useEffect(() => {
     if (showPromptHistory && runId) {
-      fetch(`${API}/pipeline/usage-logs?run_id=${runId}`).then(r => r.ok ? r.json() : []).then(setUsageLogs)
+      fetch(`${API}/pipeline/usage-logs?run_id=${runId}`, {headers: authHeaders()}).then(r => r.ok ? r.json() : []).then(setUsageLogs)
     }
   }, [showPromptHistory, runId])
 
