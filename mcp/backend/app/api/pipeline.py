@@ -47,7 +47,7 @@ async def direct_tool_call(
     start = _time.monotonic()
 
     try:
-        result = await _dispatch(req.tool_name, req.arguments, None, session)
+        result = await _dispatch(req.tool_name, req.arguments, token, session)
         latency = int((_time.monotonic() - start) * 1000)
 
         # Log to conversation history
