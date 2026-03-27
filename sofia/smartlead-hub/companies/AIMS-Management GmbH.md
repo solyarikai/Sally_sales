@@ -1,0 +1,19 @@
+# AIMS-Management GmbH
+
+**Лидов:** 2  
+**Кампаний:** 1
+
+## Кампании
+
+- **c-OnSocial_IM_PLATFORMS** — 2 лид(ов)
+
+## Статусы лидов
+
+- `INPROGRESS` — 2
+
+## Контакты
+
+| Имя | Email | Должность | Кампания | Статус |
+|-----|-------|-----------|----------|--------|
+| Madina Saleh | madina@aims-management.com | — | c-OnSocial_IM_PLATFORMS | `INPROGRESS` |
+| Ilia Shayesteh | ilia@aims-management.com | — | c-OnSocial_IM_PLATFORMS | `INPROGRESS` |

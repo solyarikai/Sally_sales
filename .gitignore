@@ -1,0 +1,5 @@
+.DS_Store
+.sofia-sync-backup/
+.claude/worktrees/
+sofia/archive/Apollo.mp4
+sofia/archive/data/conversations_export.json

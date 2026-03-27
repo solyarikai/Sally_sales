@@ -1,0 +1,230 @@
+{
+  "2947684": {
+    "campaign_name": "IM agencies & SaaS_US&EU",
+    "campaign_id": 2947684,
+    "steps": [
+      {
+        "seq_number": 1,
+        "id": 6113090,
+        "variants": [
+          {
+            "label": "A",
+            "subject": "{{first_name}}, 450M influencer profiles are ready for your API",
+            "body_html": "<div>Hi&nbsp;{{first_name}},</div><div><br></div><div>We provide creator and audience data via API for influencer marketing platforms: 450M+ profiles across Instagram, TikTok, and YouTube. Credibility scoring, audience demographics down to city level, fraud signals, audience overlap between creators.</div><div><br></div><div>Bottom line: your clients pick creators blindly — or they use your platform to see exactly who's real, where the audience actually is, and how much overlap there is between creators before spending a dollar. That's the difference between a campaign that works and one that burns budget.</div><div><br></div><div>Who at {{company_name}} handles product or data partnerships?</div><div><br></div><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Viral Nation, Whalar and Billion Dollar Boy</div><div><br></div>",
+            "body_text": "Hi&nbsp;{{first_name}}, We provide creator and audience data via API for influencer marketing platforms: 450M+ profiles across Instagram, TikTok, and YouTube. Credibility scoring, audience demographics down to city level, fraud signals, audience overlap between creators. Bottom line: your clients pick creators blindly — or they use your platform to see exactly who's real, where the audience actually is, and how much overlap there is between creators before spending a dollar. That's the difference between a campaign that works and one that burns budget. Who at {{company_name}} handles product or data partnerships? Kind regards, Bhaskar Vishnu from OnSocial Trusted by Viral Nation, Whalar and Billion Dollar Boy"
+          },
+          {
+            "label": "B",
+            "subject": "450M influencer profiles for {{company_name}}",
+            "body_html": "<div>Hi {{first_name}},</div><div><br></div><div>We provide creator and audience data via API for influencer marketing platforms: 450M+ profiles across Instagram, TikTok, and YouTube. Credibility scoring, audience demographics down to city level, fraud signals, audience overlap.</div><div><br></div><div>Your clients see exactly who's real, where the audience is, and how much overlap there is between creators — before spending a dollar.</div><div><br></div><div>Who at {{company_name}} handles product or data partnerships?</div><div><br></div><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Viral Nation, Whalar and Billion Dollar Boy</div>",
+            "body_text": "Hi {{first_name}}, We provide creator and audience data via API for influencer marketing platforms: 450M+ profiles across Instagram, TikTok, and YouTube. Credibility scoring, audience demographics down to city level, fraud signals, audience overlap. Your clients see exactly who's real, where the audience is, and how much overlap there is between creators — before spending a dollar. Who at {{company_name}} handles product or data partnerships? Kind regards, Bhaskar Vishnu from OnSocial Trusted by Viral Nation, Whalar and Billion Dollar Boy"
+          }
+        ]
+      },
+      {
+        "seq_number": 2,
+        "id": 6113091,
+        "variants": [
+          {
+            "label": "A",
+            "subject": "",
+            "body_html": "<div>Hey {{first_name}},<br><br>Two things that usually matter most to platforms we talk to:<br><br>— You keep your UI, your brand, your workflows. Our data layer plugs in via API — most integrations go live in days, not months.<br>— We cover the data your clients actually ask about: real vs. fake followers, audience location, age, gender, brand affinities, and creator overlap — so you ship features instead of building data pipelines.<br><br>Open to a 15-min walkthrough based on your current product?</div><div><br></div><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Viral Nation, Whalar and Billion Dollar Boy</div>",
+            "body_text": "Hey {{first_name}}, Two things that usually matter most to platforms we talk to: — You keep your UI, your brand, your workflows. Our data layer plugs in via API — most integrations go live in days, not months. — We cover the data your clients actually ask about: real vs. fake followers, audience location, age, gender, brand affinities, and creator overlap — so you ship features instead of building data pipelines. Open to a 15-min walkthrough based on your current product? Kind regards, Bhaskar Vishnu from OnSocial Trusted by Viral Nation, Whalar and Billion Dollar Boy"
+          },
+          {
+            "label": "B",
+            "subject": "",
+            "body_html": "Hey {{first_name}},<br><br>Two things that matter most:<br><br>— Our data plugs into your platform via API. You keep your UI, your brand, your workflows. Most integrations go live in days.<br>— We cover what your clients actually ask about: real vs. fake followers, audience location, age, gender, brand affinities, creator overlap.<br><br>Open to a 15-min walkthrough?<br><br><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Viral Nation, Whalar and Billion Dollar Boy</div>",
+            "body_text": "Hey {{first_name}}, Two things that matter most: — Our data plugs into your platform via API. You keep your UI, your brand, your workflows. Most integrations go live in days. — We cover what your clients actually ask about: real vs. fake followers, audience location, age, gender, brand affinities, creator overlap. Open to a 15-min walkthrough? Kind regards, Bhaskar Vishnu from OnSocial Trusted by Viral Nation, Whalar and Billion Dollar Boy"
+          }
+        ]
+      },
+      {
+        "seq_number": 3,
+        "id": 6113092,
+        "variants": [
+          {
+            "label": "A",
+            "subject": "",
+            "body_html": "<div>Hey {{first_name}},<br><br>Quick note on how it actually works:<br><br>You connect to our API. For any creator profile, you get back: follower credibility breakdown (real people vs. mass followers vs. bots), audience split by country, city, age, gender, language, brand affinities, engagement metrics, and audience overlap with other creators. All real-time, all through one endpoint.<br><br>Your team wraps it in your own UI — your clients see it as your feature.<br><br>15 min to look at the actual API output together?</div><div><br></div><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Viral Nation, Whalar and Billion Dollar Boy</div>",
+            "body_text": "Hey {{first_name}}, Quick note on how it actually works: You connect to our API. For any creator profile, you get back: follower credibility breakdown (real people vs. mass followers vs. bots), audience split by country, city, age, gender, language, brand affinities, engagement metrics, and audience overlap with other creators. All real-time, all through one endpoint. Your team wraps it in your own UI — your clients see it as your feature. 15 min to look at the actual API output together? Kind regards, Bhaskar Vishnu from OnSocial Trusted by Viral Nation, Whalar and Billion Dollar Boy"
+          },
+          {
+            "label": "B",
+            "subject": "",
+            "body_html": "Hey {{first_name}},<br><br>How it works: you connect to one API endpoint and get back credibility breakdown, audience split by country/city/age/gender/language, brand affinities, engagement metrics, and creator overlap. All real-time.<br><br>Your team wraps it in your UI — your clients see it as your feature.<br><br>15 min to look at the actual output?<br><br><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Viral Nation, Whalar and Billion Dollar Boy</div>",
+            "body_text": "Hey {{first_name}}, How it works: you connect to one API endpoint and get back credibility breakdown, audience split by country/city/age/gender/language, brand affinities, engagement metrics, and creator overlap. All real-time. Your team wraps it in your UI — your clients see it as your feature. 15 min to look at the actual output? Kind regards, Bhaskar Vishnu from OnSocial Trusted by Viral Nation, Whalar and Billion Dollar Boy"
+          }
+        ]
+      },
+      {
+        "seq_number": 4,
+        "id": 6113093,
+        "variants": [
+          {
+            "label": "A",
+            "subject": "",
+            "body_html": "<div>Hey {{first_name}},<br><br>Are you the right person to discuss creator data integration, or could you point me to whoever owns product or data partnerships at {{company_name}}?</div><div><br></div><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Viral Nation, Whalar and Billion Dollar Boy</div>",
+            "body_text": "Hey {{first_name}}, Are you the right person to discuss creator data integration, or could you point me to whoever owns product or data partnerships at {{company_name}}? Kind regards, Bhaskar Vishnu from OnSocial Trusted by Viral Nation, Whalar and Billion Dollar Boy"
+          }
+        ]
+      }
+    ]
+  },
+  "2990385": {
+    "campaign_name": "IM_PLATFORMS",
+    "campaign_id": 2990385,
+    "steps": [
+      {
+        "seq_number": 1,
+        "id": 6361806,
+        "variants": [
+          {
+            "label": "A",
+            "subject": "{{first_name}}, 450M influencer profiles ready for your API",
+            "body_html": "<div>Hi {{first_name}},</div><div><br></div><div>We power creator data for platforms like {{company_name}} — Modash, Captiv8, Kolsquare, Influencity, Phyllo and Lefty all run on our API.</div><div><br></div><div>450M+ profiles across Instagram, TikTok, and YouTube with truly global coverage. Credibility scoring, audience demographics down to city level, fraud detection, audience overlap between creators. Your team wraps it in your UI, your clients see it as your feature.</div><div><br></div><div>You'll get more data at a better cost than whatever provider you're using today.</div><div><br></div><div>I can pull a live demo with your required volume, geo, and other filters on a call — worth a look?</div><div><br></div><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Traackr, Audiense, and Upfluence</div>",
+            "body_text": "Hi {{first_name}}, We power creator data for platforms like {{company_name}} — Modash, Captiv8, Kolsquare, Influencity, Phyllo and Lefty all run on our API. 450M+ profiles across Instagram, TikTok, and YouTube with truly global coverage. Credibility scoring, audience demographics down to city level, fraud detection, audience overlap between creators. Your team wraps it in your UI, your clients see it as your feature. You'll get more data at a better cost than whatever provider you're using today. I can pull a live demo with your required volume, geo, and other filters on a call — worth a look? Kind regards, Bhaskar Vishnu from OnSocial Trusted by Traackr, Audiense, and Upfluence"
+          },
+          {
+            "label": "B",
+            "subject": "{{first_name}}, 450M influencer profiles ready for your API",
+            "body_html": "<div>Hi {{first_name}},</div><div><br></div><div>We power creator data for platforms like {{company_name}} — Modash, Captiv8, Kolsquare, Influencity, Phyllo and Lefty all run on our API.</div><div><br></div><div>450M+ profiles across Instagram, TikTok, and YouTube with truly global coverage. Credibility scoring, audience demographics down to city level, fraud detection, audience overlap between creators. Your team wraps it in your UI, your clients see it as your feature.</div><div><br></div><div>You'll get more data at a better cost than whatever provider you're using today.</div><div><br></div><div>Pick a creator you're evaluating right now — I'll pull the full breakdown on a call, takes 10 minutes.</div><div><br></div><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Traackr, Audiense, and Upfluence</div>",
+            "body_text": "Hi {{first_name}}, We power creator data for platforms like {{company_name}} — Modash, Captiv8, Kolsquare, Influencity, Phyllo and Lefty all run on our API. 450M+ profiles across Instagram, TikTok, and YouTube with truly global coverage. Credibility scoring, audience demographics down to city level, fraud detection, audience overlap between creators. Your team wraps it in your UI, your clients see it as your feature. You'll get more data at a better cost than whatever provider you're using today. Pick a creator you're evaluating right now — I'll pull the full breakdown on a call, takes 10 minutes. Kind regards, Bhaskar Vishnu from OnSocial Trusted by Traackr, Audiense, and Upfluence"
+          }
+        ]
+      },
+      {
+        "seq_number": 2,
+        "id": 6425726,
+        "variants": []
+      },
+      {
+        "seq_number": 3,
+        "id": 6425727,
+        "variants": []
+      },
+      {
+        "seq_number": 4,
+        "id": 6425728,
+        "variants": []
+      }
+    ]
+  },
+  "2990380": {
+    "campaign_name": "MARKETING_AGENCIES",
+    "campaign_id": 2990380,
+    "steps": [
+      {
+        "seq_number": 1,
+        "id": 6361795,
+        "variants": [
+          {
+            "label": "A",
+            "subject": "{{first_name}}, 450M influencer profiles ready for your API",
+            "body_html": "<div>Hi {{first_name}},</div><div><br></div><div>We power creator data for agencies like {{company_name}} — Modash, Captiv8, Obviously, Ykone and InfluencerUK all run on our API.</div><div><br></div><div>450M+ profiles across Instagram, TikTok, and YouTube with truly global coverage. Credibility scoring, audience demographics down to city level, fraud detection, audience overlap between creators. Your team wraps it in your UI, your clients see it as your feature.</div><div><br></div><div>You'll get more data at a better cost than whatever provider you're using today.</div><div><br></div><div>I can pull a live demo with your required volume, geo, and other filters on a call — worth a look?</div><div><br></div><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Viral Nation, Whalar and Billion Dollar Boy</div>",
+            "body_text": "Hi {{first_name}}, We power creator data for agencies like {{company_name}} — Modash, Captiv8, Obviously, Ykone and InfluencerUK all run on our API. 450M+ profiles across Instagram, TikTok, and YouTube with truly global coverage. Credibility scoring, audience demographics down to city level, fraud detection, audience overlap between creators. Your team wraps it in your UI, your clients see it as your feature. You'll get more data at a better cost than whatever provider you're using today. I can pull a live demo with your required volume, geo, and other filters on a call — worth a look? Kind regards, Bhaskar Vishnu from OnSocial Trusted by Viral Nation, Whalar and Billion Dollar Boy"
+          },
+          {
+            "label": "B",
+            "subject": "{{first_name}}, 450M influencer profiles ready for your API",
+            "body_html": "<div>Hi {{first_name}},</div><div><br></div><div>We power creator data for agencies like {{company_name}} — Modash, Captiv8, Obviously, Ykone and InfluencerUK all run on our API.</div><div><br></div><div>450M+ profiles across Instagram, TikTok, and YouTube with truly global coverage. Credibility scoring, audience demographics down to city level, fraud detection, audience overlap between creators. Your team wraps it in your UI, your clients see it as your feature.</div><div><br></div><div>You'll get more data at a better cost than whatever provider you're using today.</div><div><br></div><div>Pick a creator you're evaluating right now — I'll pull the full breakdown on a call, takes 10 minutes.</div><div><br></div><div>Kind regards,</div><div>Bhaskar Vishnu from OnSocial</div><div>Trusted by Viral Nation, Whalar and Billion Dollar Boy</div>",
+            "body_text": "Hi {{first_name}}, We power creator data for agencies like {{company_name}} — Modash, Captiv8, Obviously, Ykone and InfluencerUK all run on our API. 450M+ profiles across Instagram, TikTok, and YouTube with truly global coverage. Credibility scoring, audience demographics down to city level, fraud detection, audience overlap between creators. Your team wraps it in your UI, your clients see it as your feature. You'll get more data at a better cost than whatever provider you're using today. Pick a creator you're evaluating right now — I'll pull the full breakdown on a call, takes 10 minutes. Kind regards, Bhaskar Vishnu from OnSocial Trusted by Viral Nation, Whalar and Billion Dollar Boy"
+          }
+        ]
+      },
+      {
+        "seq_number": 2,
+        "id": 6425756,
+        "variants": []
+      },
+      {
+        "seq_number": 3,
+        "id": 6425757,
+        "variants": []
+      },
+      {
+        "seq_number": 4,
+        "id": 6425758,
+        "variants": []
+      }
+    ]
+  },
+  "3012864": {
+    "campaign_name": "0903_AGENCIES",
+    "campaign_id": 3012864,
+    "steps": [
+      {
+        "seq_number": 1,
+        "id": 6486981,
+        "variants": []
+      },
+      {
+        "seq_number": 2,
+        "id": 6486982,
+        "variants": []
+      },
+      {
+        "seq_number": 3,
+        "id": 6486983,
+        "variants": []
+      },
+      {
+        "seq_number": 4,
+        "id": 6486984,
+        "variants": []
+      }
+    ]
+  },
+  "3012806": {
+    "campaign_name": "0903_PLATFORMS",
+    "campaign_id": 3012806,
+    "steps": [
+      {
+        "seq_number": 1,
+        "id": 6486667,
+        "variants": []
+      },
+      {
+        "seq_number": 2,
+        "id": 6486668,
+        "variants": []
+      },
+      {
+        "seq_number": 3,
+        "id": 6486669,
+        "variants": []
+      },
+      {
+        "seq_number": 4,
+        "id": 6486670,
+        "variants": []
+      }
+    ]
+  },
+  "3022952": {
+    "campaign_name": "1103_PR_firms",
+    "campaign_id": 3022952,
+    "steps": [
+      {
+        "seq_number": 1,
+        "id": 6566368,
+        "variants": []
+      },
+      {
+        "seq_number": 2,
+        "id": 6566369,
+        "variants": []
+      },
+      {
+        "seq_number": 3,
+        "id": 6566367,
+        "variants": []
+      },
+      {
+        "seq_number": 4,
+        "id": 6566370,
+        "variants": []
+      }
+    ]
+  }
+}

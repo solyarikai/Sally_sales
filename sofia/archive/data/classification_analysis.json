@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "total_processed": 4900,
+    "total_targets": 657,
+    "total_blacklisted": 4243,
+    "prompt_version": "v2",
+    "runs": {
+      "run1": {
+        "count": 30,
+        "type": "priority",
+        "prompt": "v1"
+      },
+      "run2": {
+        "count": 200,
+        "type": "priority",
+        "prompt": "v1"
+      },
+      "run3": {
+        "count": 2000,
+        "type": "priority",
+        "prompt": "v1, rechecked v2"
+      },
+      "run4": {
+        "count": 670,
+        "type": "priority",
+        "prompt": "v2"
+      },
+      "run5": {
+        "count": 2000,
+        "type": "normal",
+        "prompt": "v2"
+      }
+    },
+    "conversion_rates": {
+      "priority_queue": "22% (v2)",
+      "normal_queue": "0.9% (v2)"
+    },
+    "date": "2026-03-18"
+  },
+  "segments": {
+    "IM_FIRST_AGENCIES": 303,
+    "INFLUENCER_PLATFORMS": 214,
+    "AFFILIATE_PERFORMANCE": 134,
+    "NEW:CATEGORY_NAME": 4,
+    "NEW:SOCIAL_COMMERCE_TOOLS": 1,
+    "NEW: SOCIAL_COMMERCE_TOOLS": 1
+  },
+  "normal_queue_analysis": {
+    "processed": 2000,
+    "targets_found": 17,
+    "conversion": "0.9%",
+    "remaining": 21911,
+    "expected_targets": 197,
+    "cost_to_process": "$11.61",
+    "recommendation": "Low ROI. 0.9% conversion means ~197 targets from 21,911 companies for ~$11.60. Consider processing only if targets < goal."
+  },
+  "prompt_improvements_v2": {
+    "changes": "Tightened IM_FIRST_AGENCIES with strict exclusions (PR, sports, FSA, global networks). 71% of v1 IM_FIRST were reclassified to OTHER.",
+    "false_positive_rate": "v1: ~20% → v2: TBD (needs manual check)"
+  }
+}

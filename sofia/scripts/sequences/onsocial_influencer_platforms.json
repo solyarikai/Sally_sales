@@ -1,0 +1,20 @@
+[
+  {
+    "seq_number": 1,
+    "seq_delay_details": {"delay_in_days": 0},
+    "subject": "creator data - {{company_name}}",
+    "email_body": "Hey {{first_name}},\n\nQuick question — when your team is looking for creators, where does the data come from? Is it your own layer or a vendor?\n\nWe work with influencer platforms like yours and see a gap pretty often: the platform runs on vendor data, so when clients ask for transparency or custom segments, there's not much to show.\n\nOnSocial builds the data layer directly — 450M+ creators, real engagement metrics, audience insights. Some platforms use it to power their own search and reporting instead of renting access.\n\nWorth a look?\n\nBest,\n{{sender_name}}"
+  },
+  {
+    "seq_number": 2,
+    "seq_delay_details": {"delay_in_days": 3},
+    "subject": "Re: creator data - {{company_name}}",
+    "email_body": "Hey {{first_name}},\n\nFollowing up — did the question about your data layer land at a good time?\n\nIf you're already building in-house, happy to leave it there. If not, might be worth 15 min to see what we've built for similar platforms.\n\nBest,\n{{sender_name}}"
+  },
+  {
+    "seq_number": 3,
+    "seq_delay_details": {"delay_in_days": 3},
+    "subject": "Re: creator data - {{company_name}}",
+    "email_body": "Hey {{first_name}},\n\nLast note — if creator data infrastructure isn't on the radar right now, no worries at all.\n\nIf timing changes, happy to reconnect. Either way, good luck with what you're building.\n\nBest,\n{{sender_name}}"
+  }
+]

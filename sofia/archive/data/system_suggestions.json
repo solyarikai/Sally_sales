@@ -1,0 +1,692 @@
+{
+  "version": "1.0",
+  "description": "Auto-reply suggestion configuration based on conversation analysis",
+  "generated_from": "36,192 conversations (SmartLead email + GetSales LinkedIn)",
+  "category_definitions": {
+    "interested": {
+      "description": "Lead expresses interest in learning more, seeing a demo, or getting pricing",
+      "subcategories": [
+        {
+          "id": "wants_demo",
+          "keywords": [
+            "demo",
+            "walkthrough",
+            "show me",
+            "see it",
+            "presentation",
+            "demo account"
+          ],
+          "response_strategy": "send_calendar_link",
+          "tone": "enthusiastic, action-oriented",
+          "priority": "critical",
+          "response_time_target_hours": 2
+        },
+        {
+          "id": "asks_pricing",
+          "keywords": [
+            "pricing",
+            "price",
+            "cost",
+            "how much",
+            "rate",
+            "fee",
+            "budget"
+          ],
+          "response_strategy": "share_framework_redirect_to_call",
+          "tone": "helpful, transparent but redirecting",
+          "priority": "critical",
+          "response_time_target_hours": 2
+        },
+        {
+          "id": "wants_materials",
+          "keywords": [
+            "send",
+            "share",
+            "more info",
+            "more details",
+            "material",
+            "documentation",
+            "pdf",
+            "one pager",
+            "deck"
+          ],
+          "response_strategy": "attach_materials_with_context",
+          "tone": "helpful, personalized",
+          "priority": "high",
+          "response_time_target_hours": 4
+        },
+        {
+          "id": "positive_general",
+          "keywords": [
+            "let's",
+            "sure",
+            "happy to",
+            "love to",
+            "sounds good",
+            "sounds interesting",
+            "let's do it",
+            "interested"
+          ],
+          "response_strategy": "propose_meeting_immediately",
+          "tone": "brief, action-oriented",
+          "priority": "critical",
+          "response_time_target_hours": 1
+        },
+        {
+          "id": "redirects_to_colleague",
+          "keywords": [
+            "colleague",
+            "team",
+            "forward",
+            "cc",
+            "adding",
+            "connect with",
+            "reach out to"
+          ],
+          "response_strategy": "thank_and_contact_referral",
+          "tone": "grateful, professional",
+          "priority": "high",
+          "response_time_target_hours": 4
+        },
+        {
+          "id": "wants_trial",
+          "keywords": [
+            "test",
+            "trial",
+            "try",
+            "validate",
+            "pilot",
+            "sandbox"
+          ],
+          "response_strategy": "setup_trial_with_onboarding",
+          "tone": "supportive, hands-on",
+          "priority": "critical",
+          "response_time_target_hours": 2
+        }
+      ]
+    },
+    "meeting_request": {
+      "description": "Lead explicitly wants to schedule a meeting or call",
+      "subcategories": [
+        {
+          "id": "proposes_specific_time",
+          "keywords": [
+            "tomorrow",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "next week",
+            "this week",
+            "am",
+            "pm",
+            "pst",
+            "est",
+            "gmt",
+            "cet"
+          ],
+          "response_strategy": "confirm_or_counter_immediately",
+          "tone": "direct, confirming",
+          "priority": "critical",
+          "response_time_target_hours": 1
+        },
+        {
+          "id": "proposes_calendar",
+          "keywords": [
+            "calendar",
+            "calendly",
+            "book",
+            "schedule",
+            "availability"
+          ],
+          "response_strategy": "send_calendar_link",
+          "tone": "brief, action-oriented",
+          "priority": "critical",
+          "response_time_target_hours": 1
+        },
+        {
+          "id": "wants_call_generic",
+          "keywords": [
+            "call",
+            "chat",
+            "talk",
+            "discuss",
+            "zoom",
+            "meet",
+            "teams",
+            "google meet"
+          ],
+          "response_strategy": "send_calendar_link_with_slots",
+          "tone": "friendly, flexible",
+          "priority": "critical",
+          "response_time_target_hours": 1
+        }
+      ]
+    },
+    "question": {
+      "description": "Lead asks a specific question about the product or service",
+      "subcategories": [
+        {
+          "id": "pricing_question",
+          "keywords": [
+            "pricing",
+            "price",
+            "cost",
+            "how much",
+            "fee",
+            "rate"
+          ],
+          "response_strategy": "share_framework_redirect_to_call",
+          "tone": "transparent, value-focused",
+          "priority": "high",
+          "response_time_target_hours": 4
+        },
+        {
+          "id": "how_it_works",
+          "keywords": [
+            "how does",
+            "how do",
+            "how is",
+            "how it works",
+            "explain",
+            "what is",
+            "what does",
+            "what are"
+          ],
+          "response_strategy": "answer_concisely_offer_demo",
+          "tone": "educational, concise",
+          "priority": "high",
+          "response_time_target_hours": 4
+        },
+        {
+          "id": "technical_question",
+          "keywords": [
+            "data",
+            "api",
+            "endpoint",
+            "integration",
+            "integrate",
+            "sdk",
+            "webhook",
+            "format",
+            "json"
+          ],
+          "response_strategy": "answer_with_docs_offer_tech_call",
+          "tone": "technical, precise",
+          "priority": "high",
+          "response_time_target_hours": 4
+        },
+        {
+          "id": "competitor_comparison",
+          "keywords": [
+            "hypeauditor",
+            "modash",
+            "phyllo",
+            "socialdata",
+            "instrack",
+            "different from",
+            "compared to",
+            "vs",
+            "competitor",
+            "alternative"
+          ],
+          "response_strategy": "differentiate_offer_comparison",
+          "tone": "confident, factual, never negative about competitors",
+          "priority": "high",
+          "response_time_target_hours": 4
+        },
+        {
+          "id": "coverage_question",
+          "keywords": [
+            "coverage",
+            "country",
+            "region",
+            "platform",
+            "instagram",
+            "tiktok",
+            "youtube",
+            "twitter",
+            "linkedin",
+            "creators",
+            "influencers",
+            "how many"
+          ],
+          "response_strategy": "share_specific_numbers",
+          "tone": "data-driven, impressive",
+          "priority": "high",
+          "response_time_target_hours": 4
+        }
+      ]
+    },
+    "not_interested": {
+      "description": "Lead declines or says they're not interested",
+      "subcategories": [
+        {
+          "id": "has_existing_solution",
+          "keywords": [
+            "already have",
+            "already use",
+            "current solution",
+            "current provider",
+            "partner",
+            "vendor"
+          ],
+          "response_strategy": "acknowledge_offer_comparison_later",
+          "tone": "respectful, no pressure",
+          "priority": "low"
+        },
+        {
+          "id": "polite_decline",
+          "keywords": [
+            "no thank",
+            "no thanks",
+            "pass",
+            "decline",
+            "not right now"
+          ],
+          "response_strategy": "thank_and_close",
+          "tone": "warm, brief",
+          "priority": "low"
+        },
+        {
+          "id": "aggressive_decline",
+          "keywords": [
+            "stop",
+            "remove",
+            "spam",
+            "unsubscribe",
+            "don't contact",
+            "don't email",
+            "harassment",
+            "report"
+          ],
+          "response_strategy": "apologize_and_remove_immediately",
+          "tone": "apologetic, immediate",
+          "priority": "urgent_removal"
+        },
+        {
+          "id": "not_relevant",
+          "keywords": [
+            "not relevant",
+            "not a fit",
+            "not applicable",
+            "doesn't apply",
+            "wrong industry"
+          ],
+          "response_strategy": "thank_and_note_icp_mismatch",
+          "tone": "understanding",
+          "priority": "low"
+        }
+      ]
+    },
+    "out_of_office": {
+      "description": "Auto-reply indicating the person is temporarily unavailable",
+      "auto_action": "schedule_follow_up",
+      "follow_up_delay_days": 2,
+      "extract_return_date": true,
+      "extract_alternate_contact": true
+    },
+    "wrong_person": {
+      "description": "Person no longer works there or redirects to someone else",
+      "subcategories": [
+        {
+          "id": "left_company",
+          "keywords": [
+            "no longer",
+            "left",
+            "moved on",
+            "don't work",
+            "ended my role"
+          ],
+          "auto_action": "mark_contact_inactive_find_replacement"
+        },
+        {
+          "id": "redirects_to_other",
+          "keywords": [
+            "contact",
+            "reach out",
+            "email",
+            "forward",
+            "colleague"
+          ],
+          "auto_action": "extract_new_contact_and_outreach"
+        }
+      ]
+    },
+    "unsubscribe": {
+      "description": "Explicit request to be removed from mailing list",
+      "auto_action": "remove_from_all_campaigns",
+      "no_reply_needed": true
+    }
+  },
+  "response_strategies": {
+    "send_calendar_link": {
+      "description": "Send calendar booking link for a demo/meeting",
+      "must_include": [
+        "calendar_link"
+      ],
+      "should_include": [
+        "personalized_hook",
+        "time_suggestions"
+      ],
+      "max_length_chars": 500,
+      "cta": "book a time"
+    },
+    "share_framework_redirect_to_call": {
+      "description": "Share pricing framework without exact numbers, redirect to call",
+      "must_include": [
+        "general_pricing_range",
+        "qualifying_questions",
+        "calendar_link"
+      ],
+      "should_include": [
+        "value_proposition"
+      ],
+      "max_length_chars": 800,
+      "never_include": [
+        "exact_pricing_in_email"
+      ]
+    },
+    "attach_materials_with_context": {
+      "description": "Send materials with personalized context about relevance",
+      "must_include": [
+        "attachment_reference",
+        "personalized_relevance"
+      ],
+      "should_include": [
+        "follow_up_offer"
+      ],
+      "max_length_chars": 600
+    },
+    "propose_meeting_immediately": {
+      "description": "Strike while iron is hot — minimal text, calendar link",
+      "must_include": [
+        "calendar_link"
+      ],
+      "max_length_chars": 300,
+      "tone": "brief, excited"
+    },
+    "thank_and_contact_referral": {
+      "description": "Thank the referrer and prepare outreach to the referred person",
+      "must_include": [
+        "thank_referrer"
+      ],
+      "auto_action": "create_new_contact_from_referral"
+    },
+    "setup_trial_with_onboarding": {
+      "description": "Set up trial account and offer guided onboarding",
+      "must_include": [
+        "trial_access_details",
+        "onboarding_offer"
+      ],
+      "should_include": [
+        "check_in_schedule"
+      ]
+    },
+    "confirm_or_counter_immediately": {
+      "description": "Confirm the proposed time or suggest alternative within 24h",
+      "must_include": [
+        "confirmation_or_alternative"
+      ],
+      "max_length_chars": 200
+    },
+    "answer_concisely_offer_demo": {
+      "description": "Answer the question in 2-3 sentences, then offer to show in demo",
+      "must_include": [
+        "direct_answer",
+        "demo_offer"
+      ],
+      "max_length_chars": 600
+    },
+    "answer_with_docs_offer_tech_call": {
+      "description": "Provide technical answer with doc links, offer call with tech team",
+      "must_include": [
+        "technical_answer",
+        "documentation_links"
+      ],
+      "should_include": [
+        "tech_team_call_offer"
+      ]
+    },
+    "differentiate_offer_comparison": {
+      "description": "Highlight differentiators, offer side-by-side comparison",
+      "must_include": [
+        "key_differentiators",
+        "comparison_offer"
+      ],
+      "never_include": [
+        "negative_competitor_language"
+      ],
+      "max_length_chars": 700
+    },
+    "acknowledge_offer_comparison_later": {
+      "description": "Respect their choice, offer to be available later",
+      "must_include": [
+        "acknowledgment"
+      ],
+      "max_length_chars": 300,
+      "follow_up_months": 3
+    },
+    "thank_and_close": {
+      "description": "Brief, warm thank you. No further action.",
+      "max_length_chars": 150
+    },
+    "apologize_and_remove_immediately": {
+      "description": "Apologize sincerely and confirm removal from all lists",
+      "must_include": [
+        "apology",
+        "removal_confirmation"
+      ],
+      "auto_action": "blacklist_email"
+    }
+  },
+  "draft_generation_rules": {
+    "general": [
+      "Always match the language of the lead's message (if they write in Spanish, reply in Spanish)",
+      "Keep replies under 150 words for email, under 100 words for LinkedIn",
+      "Always include a clear CTA (call-to-action)",
+      "Never use generic openers like 'I hope this finds you well'",
+      "Mirror the lead's formality level",
+      "For LinkedIn: be more casual and shorter than email",
+      "Always reference something specific from their message or company"
+    ],
+    "by_channel": {
+      "email": {
+        "max_words": 150,
+        "include_signature": true,
+        "can_attach_files": true
+      },
+      "linkedin": {
+        "max_words": 100,
+        "include_signature": false,
+        "can_attach_files": false,
+        "more_casual": true
+      }
+    },
+    "quality_signals": {
+      "good_draft": [
+        "Addresses the lead's specific question/request",
+        "Includes a clear next step",
+        "Personalized to their company/role",
+        "Appropriate length for channel",
+        "Matches lead's language"
+      ],
+      "bad_draft": [
+        "Generic template response",
+        "Too long (>200 words)",
+        "No clear CTA",
+        "Ignores lead's specific ask",
+        "Wrong language",
+        "Overly salesy tone"
+      ]
+    }
+  },
+  "classification_improvements": {
+    "reclassify_rules": [
+      {
+        "from": "other",
+        "to": "interested",
+        "condition": "Message contains product-specific questions implying interest but classified as 'other' due to lack of explicit interest signals"
+      },
+      {
+        "from": "not_interested",
+        "to": "question",
+        "condition": "Lead asks 'how does it differ from X' — this is curiosity, not rejection"
+      },
+      {
+        "from": "other",
+        "to": "wrong_person",
+        "condition": "Message is a bounce notification or delivery failure"
+      }
+    ],
+    "confidence_thresholds": {
+      "auto_draft": "high",
+      "require_review": "medium",
+      "flag_for_manual": "low"
+    }
+  },
+  "follow_up_automation": {
+    "interested_no_response": {
+      "delay_days": 3,
+      "max_follow_ups": 2,
+      "strategy": "gentle_nudge_with_value"
+    },
+    "ooo_return": {
+      "delay_after_return_days": 2,
+      "strategy": "re_engage_with_original_pitch"
+    },
+    "materials_sent_no_response": {
+      "delay_days": 5,
+      "strategy": "check_in_on_materials"
+    }
+  },
+  "training_examples": {
+    "meeting_request": [
+      {
+        "lead_message": "Давайте. Но заплатим процент от выручки. Давайте? вс, 13 апр. 2025 г., 05:50 Maxim Samoylov : Здравствуйте, Сергей! Я из Sally AI, решил написать - интересно как вы работаете с аутбаунд продажами. Мы привлекаем квал. лидов через аутрич, нашим клиентам в разных вертикалях и приводим 10-40 квал лидов в месяц. Можем обсудить, как сделать тоже самое для вас. Давайте познакомимся? Максим Самойлов BDR @ Sally AI TG channel: rinatkhat",
+        "ideal_reply": "Здравствуйте, Сергей!\n\nСпасибо за ваш ответ и интерес к нашей работе. Мы можем обсудить модель оплаты с процентом от выручки и найти оптимальное решение, которое будет выгодно для обеих сторон. Давайте назначим встречу, чтобы подробнее обсудить, как мы можем помочь вам в генерации качественных лидов.\n\nПожалуйста, дайте знать, когда вам будет удобно встретиться, и я подберу время, которое подойдет лучше всего.\n\nС уважением,\nМаксим Самойлов\nBDR @ Sally AI",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Ваш номер вотсапп? Best regards 12 июня 2025 г., в 12:47, Anastasia Simonets написал(а): ﻿ RE: выплаты за рубеж Добрый день, Алексей, Работа с международными контракторами часто связана с серьезными сложностями: - Подготовка договоров и счетов для каждого. - Банки запрашивают доп. документы (KYC, счета, акты), задерживая платежи. - Высокие комиссии SWIFT — до 20% при небольших суммах. Finboo.io решает эти проблемы: один договор на всех контракторов, автоматические документы и выплаты в любой вал",
+        "ideal_reply": "Добрый день, Алексей!  \nСпасибо за ваш интерес. Мой номер WhatsApp: [ваш номер]. Буду рада обсудить, как Finboo.io может облегчить вашу работу с международными контрактами.  \nПредлагаю назначить короткий звонок, чтобы подробнее обсудить наши решения. Пожалуйста, дайте знать, когда вам будет удобно.  \nС уважением,  \nАнастасия Симонец  \nBDM @ Finboo.io",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Добрый день, Анастасия,\n\nЗавтра в 14 или 15 мск могу.\n\nМаршрут такой: компания платит $ со счета в США. Есть 2-3 контрактора, которые хотели бы получать рубли на счета в РФ. Если этот вариант совсем не работает либо очень дорогой - крипта (USDT) тоже ок. Объемы небольшие, т.к. большинство сотрудников и контракторов не в РФ и получают доллары-евро без проблем.\n\nСпасибо,\nДмитрий",
+        "ideal_reply": "Добрый день, Дмитрий,\n\nСпасибо за ваш ответ! Завтра в 14:00 МСК отлично подходит для меня. Я рад обсудить варианты, которые подойдут для вашей компании, включая возможность использования криптовалюты, если это будет более удобно.\n\nПожалуйста, подтвердите время, и я отправлю ссылку на встречу.\n\nС уважением,\nАнастасия",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Да позвоните пожалуйста в понедельник\n\n\"\r\n\r\nТакже подскажите, пожалуйста, откуда / куда обычно платите и какой примерный объем выплат?\"\n\nПока не знаю .Получу от вас информацию потом решу",
+        "ideal_reply": "Здравствуйте, Нина!\n\nСпасибо за ваш ответ. Я позвоню вам в понедельник, чтобы обсудить все детали, включая информацию о том, откуда и куда мы обычно производим выплаты, а также примерный объем. Это поможет вам лучше понять, как мы можем сотрудничать.\n\nЕсли у вас есть дополнительные вопросы или пожелания, не стесняйтесь сообщить мне. Жду нашего разговора!\n\nС уважением,\n[Ваше имя]  \n[Ваша должность]  \n[Ваша компания]  \n[Ваш телефон]  \n[Ваш email]",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Здравствуйте, Анастасия!\n\nЯ пересылал ваше письмо Надежде из моей команды. Насколько я знаю, у вас сегодня должен был быть звонок. Но его не случилось.\n\nДмитрий",
+        "ideal_reply": "Здравствуйте, Дмитрий!\n\nСпасибо за ваше письмо. Я приношу извинения за то, что наш запланированный звонок не состоялся. Давайте перенесем его на удобное для вас время. Я готова обсудить детали и ответить на все ваши вопросы.\n\nПожалуйста, дайте знать, когда вам будет удобно провести встречу.\n\nС уважением,\nАнастасия",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Здравствуйте. В пнд в это же время С Уважением, Плигин Евгений 3 июля 2025 г., в 13:57, Anastasia Simonets написал(а): ﻿ Евгений, прошу прощения, только увидела ваш ответ. Вам будет удобно завтра в это же время или в понедельник?",
+        "ideal_reply": "Здравствуйте, Евгений.\n\nСпасибо за ваш ответ. Подтверждаю нашу встречу в понедельник в это же время. Если у вас возникнут какие-либо вопросы до встречи, пожалуйста, дайте знать. \n\nС уважением,\nАнастасия Симонец",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Анастасия, добрый день! Можем ли мы сделать повторный звонок с моей коллегой с Филиппин, кто непосредственно будет заниматься выплатами? Я бы хотела, чтобы она также ознакомилась с вашей платформой и задала свои вопросы Alina Shafagutdinova От: Alina Shafagutdinova Отправлено: Monday, June 16, 2025 4:24:13 PM Кому: Anastasia Simonets Тема: RE: выплаты за рубеж Спасибо большое! Best regards, Alina Shafagutdinova HR Team Lead APAC Digital Finance International Mob +84327996070 From: Anastasia Simo",
+        "ideal_reply": "Добрый день, Алина!  \nСпасибо за ваш ответ. Я рад(а) слышать, что ваша коллега с Филиппин сможет присоединиться к нашему звонку. Встреча назначена на среду в 13:00 МСК, и я уверен(а), что это будет отличная возможность обсудить все вопросы касательно нашей платформы и выплат.  \nЕсли у вас или вашей коллеги есть какие-либо конкретные темы или вопросы, которые вы хотели бы обсудить во время звонка, пожалуйста, дайте знать. С нетерпением жду встречи!  \nС уважением,  \nАнастасия Симонец  \nBDM @ Finboo.io",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Презентацию скиньте payler.com Копыльцов Константин , CBDO Telegram @payler 5 авг. 2025 г., 16:54 +0300, Rinat Khatipov , писал: Константин, привет! Скажите, для компании Payler актуально принимать и отправлять криптоплатежи от клиентов и обратно с опциональной конвертацией в фиат? Возможно, вы готовы рассмотреть внедрение платежей в крипте? Мы в SquareFi создали единую платформу, которая закрывает все узкие места: Легальный On/Off-Ramp для бесшовной конвертации криптовалют в фиат (и обратно) Ко",
+        "ideal_reply": "Константин, доброе утро!Да, конечно, презентацию прилагаю Если ничего не смущает и в целом актуально, предлагаю пообщаться более предметно в понедельник начиная с 16.30 или во вторник начиная с 15.30 по Лондону - если удобно, пришлите, пожалуйста, 2-3 подходящих опции - пришлю Вам инвайтС уважением,Ринат",
+        "channel": "email"
+      }
+    ],
+    "interested": [
+      {
+        "lead_message": "Привет\n\nНам интересен такой транзит\n\nUK USD wire transfer -> TikTok Singapore USD wire transfer.\n\nТолько платить вам будет одна UK компания в USD\nА ваше юрилцо будет платить в TikTok, НО за другое юрилцо, не UK а Грузинскую компанию\n\nОжидаем комиссию за транзит до 2%",
+        "ideal_reply": "Привет, Антон!\n\nСпасибо за ваш интерес к транзиту между UK и TikTok Singapore. Мы можем предложить комиссию в пределах 2%, как вы и ожидали. Для того чтобы двигаться вперед, давайте обсудим детали и согласуем все необходимые шаги.\n\nКогда вам будет удобно провести короткий звонок или встречу для уточнения всех нюансов? Жду вашего ответа!\n\nС уважением,\n[Ваше имя]  \n[Ваша должность]  \n[Ваша компания]  \n[Ваши контактные данные]",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Здравствуйте, пришлите презентацию, пожалуйста ___________ С уважением, Евгения Сотина, CEO, BOGG.ART TG @zhe_sotina Ср, 25 июня 2025 г. в 13:47, Anastasia Simonets : Евгения, могу я отправить презентацию, чтобы вы ознакомились, если для вас это актуально? Напомню, мы можем помочь вам с выплатами международным контракторам. Комиссия от 2% с очень выгодным курсом. Sent from my iPhone",
+        "ideal_reply": "Здравствуйте, Евгения,\n\nСпасибо за ваш интерес! Я с удовольствием прикладываю презентацию, чтобы вы могли ознакомиться с нашими услугами по международным выплатам. Если у вас возникнут вопросы или вы захотите обсудить детали, пожалуйста, дайте знать. Мы также можем назначить встречу для более подробного обсуждения.\n\nС уважением,\nАнастасия Симонец",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Hello Rinat,\r\n\r\nPlease share more info!\r\n\r\nThanks",
+        "ideal_reply": "Hello Stavros,\n\nThank you for your interest! I would be happy to share more information about our lead generation services tailored for Rollblock Partners. We specialize in providing customized solutions that can help enhance your outreach and engagement with potential clients.\n\nCould we schedule a brief call to discuss your specific needs and how we can assist you? Please let me know your availability, and I’ll do my best to accommodate.\n\nLooking forward to your response!\n\nBest regards,\nRinat",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Евгений, добрый день!\n\r\n\nСпасибо за Ваше письмо. Вкратце представлюсь: мы являемся финтех-консалтинговой компанией и одновременно владельцами лицензированного платёжного бизнеса, поэтому многие из описанных Вами сервисов у нас уже реализованы внутри компании.\n\r\n\nТем не менее, для наших клиентов — регулируемых финансовых институтов — нам интересно сотрудничество с эмитентами карт. В частности, мы рассматриваем Mastercard или Visa-эмитентов, базирующихся в Гонконге или Панаме, которые могут предло",
+        "ideal_reply": "Давид, доброе утро!\n\nС огромным огорчением обнаружил, что не отправился Вам мой ответ полгода назад - прошу прощения!\n\nПо Вашим вопросам хотел бы запланировать звонок с нашим CEO - я показал ему Ваше письмо и он видит внятный потенциал в звонке - есть возможность запланировать звонок на Пн, 19.30, Вт - 18.30/19/19.30 или среду 19.30 по Израилю, Давид?\n\nБыл бы очень признателен Вам, если получится подстроиться под один из слотов выше\n\nС уважением,\nЕвгений",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Добрый день, да,,отправьте, пожалуйста, презентацию. С уважением, С. Водолагин Отправлено с устройства Galaxy -------- Исходное сообщение -------- От: Katya Khoroshilova Дата: 06.10.2025 09:41 (GMT+03:00) Кому: vodolagin@wslaw.ru Тема: RE: выплаты фрилансерам Сергей, могу я отправить презентацию, чтобы вы ознакомились, если для вас это актуально? Напомню, если вы уже используете решение для выплат, можем рассчитать экономию на вашем примере. Sent from my iPhone Katya Khoroshilova BDM @ EasyStaff",
+        "ideal_reply": "Добрый день, Сергей,Добавлю, что компании часто сталкиваются с высокими налогами или сложностями при выплатах в сложные регионы.Мы в Easystaff решаем это: выплаты из СНГ и в СНГ в EUR, USDT и локальной валюте, с закрывающими документами и НДС только на комиссию для УСН. Настройка - 10 минут, а поддержка всегда готова помочь.Будет ли у вас 15 минут на звонок, чтобы обсудить ваш кейс?Katya KhoroshilovaBDM @ EasyStaff.io",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Добрый день! Пришлите, пожалуйста, презентацию. С уважением, Команда GloberLand GloberLand - поиск гидов-переводчиков за рубежом Тел: +7 499 350-88-78 (10:00 - 20:00 МСК) E-mail: info@globerland.com FB , vk , blog вт, 7 окт. 2025 г. в 14:31, Katya Khoroshilova : Мария, могу я отправить презентацию, чтобы вы ознакомились, если для вас это актуально? Напомню, если вы уже используете решение для выплат, можем рассчитать экономию на вашем примере. Sent from my iPhone Katya Khoroshilova BDM @ EasySta",
+        "ideal_reply": "Добрый день, Мария,Добавлю, что компании часто сталкиваются с высокими налогами или сложностями при выплатах в сложные регионы.Мы в Easystaff решаем это: выплаты из СНГ и в СНГ в EUR, USDT и локальной валюте, с закрывающими документами и НДС только на комиссию для УСН. Настройка - 10 минут, а поддержка всегда готова помочь.Будет ли у вас 15 минут на звонок, чтобы обсудить ваш кейс?Katya KhoroshilovaBDM @ EasyStaff.io",
+        "channel": "email"
+      },
+      {
+        "lead_message": "RE: выплаты фрилансерам Данила, добрый день! Ваши письма уходили в нежелательную почту. Пришлите пожалуйста презентацию. Спасибо! Best regards, Murat Omarov / Мурат Омаров Head of Financial Institutions / Начальник Управления финансовых институтов _________________________________________________________ Altyn Bank JSC (Subsidiary of China CITIC Bank Corporation Ltd) АО «Altyn Bank» ( ДБ China CITIC Bank Corporation Ltd) Republic of Kazakhstan, A05A1B9, Almaty, Abay ave. 109 ‘V’ Республика Казах",
+        "ideal_reply": "Добрый день, Мурат,Добавлю, что компании часто сталкиваются с высокими налогами или сложностями при выплатах в сложные регионы.Мы в Easystaff решаем это: выплаты из СНГ и в СНГ в EUR, USDT и локальной валюте, с закрывающими документами и НДС только на комиссию для УСН. Настройка - 10 минут, а поддержка всегда готова помочь.Будет ли у вас 15 минут на звонок, чтобы обсудить ваш кейс?Danila SokolovPartner @ EasyStaff.ioTelegram: @sokolovvdan",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Здравствуйте Илья, \n\nНа данный момент не очень актуально, но в среднесрочном будущем вопрос может стать более актуальным. Можете пожалуйста отправить видео демо чтобы можно было глянуть на досуге?\n\nᐧ",
+        "ideal_reply": "Здравствуйте, Андрей! Спасибо за ваш ответ и интерес к сервису Easystaff. Я с радостью отправлю вам видео демо, чтобы вы могли ознакомиться с нашими решениями для управления фрилансерами. Пожалуйста, дайте знать, если у вас возникнут дополнительные вопросы или если вы захотите обсудить это подробнее в будущем!",
+        "channel": "email"
+      }
+    ],
+    "question": [
+      {
+        "lead_message": "&Dcy;&ocy;&bcy;&rcy;&ycy;&jcy; &dcy;&iecy;&ncy;&softcy;! &Ncy;&acy;&mcy; &ncy;&iecy; &acy;&kcy;&tcy;&ucy;&acy;&lcy;&softcy;&ncy;&ocy;, &mcy;&ycy; &ncy;&iecy; &pcy;&lcy;&acy;&tcy;&icy;&mcy; &zcy;&acy; &rcy;&ucy;&bcy;&iecy;&zhcy; &ncy;&icy;&kcy;&ocy;&mcy;&ucy;. &Acy;&ncy;&dcy;&rcy;&iecy;&jcy; &Ocy;&bcy;&lcy;&ocy;&vcy; ---------------- &Kcy;&ocy;&mcy;&ucy;: andrey@oblov.ru ( andrey@oblov.ru ); &Tcy;&iecy;&mcy;&acy;: &vcy;&ycy;&pcy;&lcy;&acy;&tcy;&ycy; &zcy;&acy; &rcy;&ucy;&bcy;&iecy;&zhcy;; 23.06.2",
+        "ideal_reply": "Здравствуйте, Андрей!  \n  \nСпасибо за ваш ответ. Я рад услышать от вас. Если вам нужна дополнительная информация о международных выплатах или есть какие-либо вопросы, пожалуйста, дайте мне знать. Мы можем организовать встречу, чтобы обсудить детали и найти наилучшее решение для вашей компании.  \n  \nС нетерпением жду вашего ответа!  \n  \nС уважением,  \nАнастасия Симоноц",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Евгений, добрый день!\n\nВы можете помочь с переводом денег в Россию для оплаты услуг разработчиков софта?\n\nСпасибо, Александр",
+        "ideal_reply": "Александр, спасибо за Ваш вопрос!К сожалению, с российскими юрлицами, а также с рублём как с валютой мы не работаем и переводы в фиате в РФ/РБ не делаемЕсли юрлицо не российское, сможем предложить переводы в крипте - в таком случае, для нас не имеет значения, где географически находятся получатели криптопереводовЕсли такое вариант для вас актуален, дайте знать, пожалуйстаС уважением,Евгений",
+        "channel": "email"
+      },
+      {
+        "lead_message": "English?",
+        "ideal_reply": "Hello Irina,Yes, English is not a problem, apologies for Russian!Actually, I wanted to give you a brief overview of how our service works as an all-in-one financial platform for your businessOur solution is called SquareFi and is built on three core elements:1. On/Off-RampA service for instant and compliant conversion between cryptocurrency and fiatThis allows you to easily pay partners, settle with contractors, or withdraw profits2. Multi-Currency AccountsManage both fiat (USD, EUR, etc.) and crypto assets on our single, unified platform3. Corporate CardsWe can issue physical and virtual VISA cards for your teamThe key feature is the ability to top them up directly from your crypto balance, making them perfect for paying for ad accounts, subscriptions, and other corporate expensesIf these",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Привет\n\nЕсть другая задача из UK компании по wire transfer отправлять USD на какое-то ваше юрлицо, которое связано с разработкой ПО или Ad Networks...\n\nИ получать usdt на один кошелек. \n\nКакая у вас комиссия в таком случае?",
+        "ideal_reply": "Антон, доброе утро!Смотрите, при таком запросе Вы можете заонбордить к нам свою какую-то компанию с разработкой ПО и отправлять такие платежи в среднем за 0,8% Если же как услуга на нашу компанию, то зависит от обьема - надо обсуждать напрямуюЕсли в целом интересно рассмотреть, можем назначить звонок с нашим CEO?Мы с Вами как-то общались по другому проекту и я запомнил, что Вам часто удобно общаться вечеромНа завтра есть слот 21.30/22На пятницу - 20, 20.30, 21.30На понедельник - 20, 20.30, 21Время по МскПодскажите, пожалуйста, когда было бы удобно, Антон?С уважением,Евгений",
+        "channel": "email"
+      },
+      {
+        "lead_message": "&IEcy;&vcy;&gcy;&iecy;&ncy;&icy;&jcy;, &dcy;&ocy;&bcy;&rcy;&ycy;&jcy; &dcy;&iecy;&ncy;&softcy;. &Bcy;&lcy;&acy;&gcy;&ocy;&dcy;&acy;&rcy;&yucy; &zcy;&acy; &pcy;&rcy;&iecy;&dcy;&lcy;&ocy;&zhcy;&iecy;&ncy;&icy;&iecy;. &Mcy;&ocy;&icy; &kcy;&ocy;&lcy;&lcy;&iecy;&gcy;&icy; &pcy;&ocy;&scy;&mcy;&ocy;&tcy;&rcy;&iecy;&lcy;&icy; &icy; &pcy;&rcy;&icy;&shcy;&lcy;&icy; &kcy; &vcy;&ycy;&vcy;&ocy;&dcy;&ucy;, &chcy;&tcy;&ocy; &dcy;&acy;&ncy;&ncy;&ocy;&iecy; &pcy;&rcy;&iecy;&dcy;&lcy;&ocy;&zhcy;&iecy;&ncy;&icy;&i",
+        "ideal_reply": "Здравствуйте, Майк!Если позволите, ещё несколько слов о нашем решенииГлавные преимущества нашей инфраструктуры: универсальность, скорость и гибкостьВы можете запустить готовые решения для крипто-фиатных платежей и выпуска карт всего за 1-3 недели, интегрировав их через API или запустив White Label продукт под вашим брендомЭто позволяет избежать долгой и дорогой внутренней разработкиПодскажите, пожалуйста, найдется 15 минут чтобы пообщаться более предметно?С уважением,ЕвгенийPartner Manager @ SquareFi",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Денис, а какие варианты пополнения баланса в USDT? Заинтересовала схема с корп картами. Созвониться можно, но пока давайте в почте обсудим -- To: tn@imprice.ai ; Subject: Удобные крипто-фиатные платежи и корпоративные карты; 20.08.2025, 17:34, \"Denis Spasibo\" : Добрый день, Никита! Да, конечно - работа с исходящими платежами в USDT - ключевая задача, которую мы решаем для бизнеса Можем предложить вам два гибких и эффективных решения, в зависимости от того, что удобнее для ваших получателей Вариа",
+        "ideal_reply": "Добрый день, Никита!Да, конечно - работа с исходящими платежами в USDT - ключевая задача, которую мы решаем для бизнесаМожем предложить вам два гибких и эффективных решения, в зависимости от того, что удобнее для ваших получателейВариант 1Прямые выплаты на банковские счета (Off-Ramp + Global Payouts)Решение для автоматизации выплат, при котором получатели получают фиатВы предоставляете нам реестр платежей (кому и сколько выплатить) и банковские реквизиты получателей. Наша система автоматически выполняет всю цепочку:Берет USDT с вашего баланса.Конвертирует (off-ramp) их в нужную фиатную валюту (USD, EUR).Отправляет фиатные средства напрямую на банковские счета ваших получателей через SEPA/SWIFT.Лучше всего подходит, если получатели - фрилансеры или контрагенты, которые предпочитают получать",
+        "channel": "email"
+      },
+      {
+        "lead_message": "&Zcy;&dcy;&rcy;&acy;&vcy;&scy;&tcy;&vcy;&ucy;&jcy;&tcy;&iecy;, Eugene, &Scy;&pcy;&acy;&scy;&icy;&bcy;&ocy; &zcy;&acy; &pcy;&rcy;&iecy;&dcy;&lcy;&ocy;&zhcy;&iecy;&ncy;&icy;&iecy;, &ncy;&ocy; &ncy;&acy; &dcy;&acy;&ncy;&ncy;&ycy;&jcy; &mcy;&ocy;&mcy;&iecy;&ncy;&tcy; &ncy;&acy;&mcy; &ecy;&tcy;&ocy; &ncy;&iecy; &icy;&ncy;&tcy;&iecy;&rcy;&iecy;&scy;&ncy;&ocy;. &Scy; &ucy;&vcy;&acy;&zhcy;&iecy;&ncy;&icy;&iecy;&mcy;, &Acy;&ncy;&tcy;&ocy;&ncy;&icy;&ncy;&acy; Am Mo., 25. Aug. 2025 um 10:21 Uhr schrieb Eug",
+        "ideal_reply": "Антонина, здравствуйте!Если позволите, ещё несколько слов о нашем решенииГлавные преимущества нашей инфраструктуры: универсальность, скорость и гибкостьВы можете запустить готовые решения для крипто-фиатных платежей и выпуска карт всего за 1-3 недели, интегрировав их через API или запустив White Label продукт под вашим брендомЭто позволяет избежать долгой и дорогой внутренней разработкиСкажите, пожалуйста, было бы интересно созвониться и пообщаться более предметно? С уважением,Eugene SukhoiPartner Manager @ SquareFi",
+        "channel": "email"
+      },
+      {
+        "lead_message": "Привет, Денис!\n\nЗвучит интересно. Скажите, мы сможем пройти KYC если 50% акций владеет гражданин Беларуси?\n\nСпасибо",
+        "ideal_reply": "Илья, приветствую!\n\nСкажите, пожалуйста, а у гражданина Беларуси, владеющего 50% акций, есть ВНЖ другой страны? \nЕсли да, могли бы, пожалуйста, уточнить юрисдикцию?\n\nЗаодно могли бы уточнить, носитель какой юрисдикции владеет оставшимися 50% акций?\n\nС уважением,\n\nДенис Спасибо\nCEO @ SquareFi",
+        "channel": "email"
+      }
+    ]
+  }
+}

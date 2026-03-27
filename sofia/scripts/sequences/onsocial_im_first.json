@@ -1,0 +1,20 @@
+[
+  {
+    "seq_number": 1,
+    "seq_delay_details": {"delay_in_days": 0},
+    "subject": "{{first_name}}, quick question about {{company_name}}'s influencer campaigns",
+    "email_body": "Hi {{first_name}},\n\nChecked {{company_name}} — looks like you work with influencer campaigns across multiple platforms.\n\nQuick question: how do you currently handle cross-platform data when a brand asks you to compare performance across Instagram, TikTok, and YouTube in one report?\n\nAsking because we built OnSocial specifically for agencies — 450M+ creator profiles, unified analytics across 10+ networks, white-label reporting.\n\nWorth a 20-min call to see if it fits what you're doing?\n\nBest,\n{{sender_name}}"
+  },
+  {
+    "seq_number": 2,
+    "seq_delay_details": {"delay_in_days": 3},
+    "subject": "Re: {{first_name}}, quick question about {{company_name}}'s influencer campaigns",
+    "email_body": "Hi {{first_name}},\n\nFollowing up — one thing that tends to resonate with agencies like {{company_name}}:\n\nLefty (influencer marketing platform) switched to OnSocial's API and freed up 2 engineering roles that were maintaining their own data scrapers. They also expanded from 3 to 5 networks in one week.\n\nIf you're spending time stitching together data from multiple sources, it might be worth a look.\n\nStill interested in a quick call?\n\nBest,\n{{sender_name}}"
+  },
+  {
+    "seq_number": 3,
+    "seq_delay_details": {"delay_in_days": 6},
+    "subject": "Re: {{first_name}}, quick question about {{company_name}}'s influencer campaigns",
+    "email_body": "Hi {{first_name}},\n\nLast note — if influencer data infrastructure isn't a priority right now, totally understand.\n\nIf things change and you need unified creator data across platforms without the scraping overhead, feel free to reach out.\n\nBest,\n{{sender_name}}"
+  }
+]

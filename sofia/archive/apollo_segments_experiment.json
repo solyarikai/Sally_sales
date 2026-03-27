@@ -1,0 +1,5600 @@
+{
+  "seg1_no_email": [
+    {
+      "first_name": "Haoran",
+      "last_name_obfuscated": "Zh***g",
+      "title": "Director of Engineering",
+      "company": "Pearpop",
+      "has_email": false,
+      "apollo_id": "685020e1fae4ff000169e386"
+    },
+    {
+      "first_name": "Ashley",
+      "last_name_obfuscated": "Al***n",
+      "title": "VP, Product Management",
+      "company": "Collective Voice",
+      "has_email": false,
+      "apollo_id": "66edaa84b9b99d0001e4bfde"
+    },
+    {
+      "first_name": "Amin",
+      "last_name_obfuscated": "Az***n",
+      "title": "Chief Technology Officer",
+      "company": "Elevista.ai | The AI-powered Audience Growth Platform",
+      "has_email": false,
+      "apollo_id": "61043e5b10675600012f47b3"
+    },
+    {
+      "first_name": "Joseph",
+      "last_name_obfuscated": "Le***g",
+      "title": "Chief Technology Officer | Chief Product Officer",
+      "company": "NoiseMaker.xyz",
+      "has_email": false,
+      "apollo_id": "5d38b69380f93edd8b29434d"
+    },
+    {
+      "first_name": "Peter",
+      "last_name_obfuscated": "Ca***y",
+      "title": "Chief Product Officer",
+      "company": "angelic talent management",
+      "has_email": false,
+      "apollo_id": "6852ab4c26bd1f0001923065"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Fi***e",
+      "title": "Chief Product Officer",
+      "company": "Yuga Labs",
+      "has_email": false,
+      "apollo_id": "6864dc83da1dc2000185ad62"
+    },
+    {
+      "first_name": "Rastr",
+      "last_name_obfuscated": "Te***s",
+      "title": "Chief Technology Officer",
+      "company": "Rast·r Technologies",
+      "has_email": false,
+      "apollo_id": "64f18066dcdbbf00019c3438"
+    },
+    {
+      "first_name": "Zachary",
+      "last_name_obfuscated": "Pa***y",
+      "title": "CTO",
+      "company": "Nifty Island 🏝",
+      "has_email": false,
+      "apollo_id": "57ddb4bda6da987af122a1c1"
+    },
+    {
+      "first_name": "Zahir",
+      "last_name_obfuscated": null,
+      "title": "Chief Technology Officer",
+      "company": "Stream Engine",
+      "has_email": false,
+      "apollo_id": "64edcaf96d0aa00001a00c12"
+    },
+    {
+      "first_name": "Konstantin",
+      "last_name_obfuscated": "Pa***v",
+      "title": "Chief Product Officer",
+      "company": "Amazy.uk",
+      "has_email": false,
+      "apollo_id": "54a80dfa74686965d977155e"
+    },
+    {
+      "first_name": "Belal",
+      "last_name_obfuscated": "Ri***d",
+      "title": "Fractional Chief Product Officer",
+      "company": "Audience Genomics",
+      "has_email": false,
+      "apollo_id": "54a22d067468693318c83213"
+    },
+    {
+      "first_name": "Monwar",
+      "last_name_obfuscated": "Ho***n",
+      "title": "Founder & Business Owner",
+      "company": "Team Whistle",
+      "has_email": false,
+      "apollo_id": "54aa29187468693399bf521e"
+    },
+    {
+      "first_name": "Hamideh",
+      "last_name_obfuscated": "Ir***i",
+      "title": "CPO and UX-UI Lead",
+      "company": "Elevista.ai | The AI-powered Audience Growth Platform",
+      "has_email": false,
+      "apollo_id": "65027d19ef05aa000187d6c5"
+    },
+    {
+      "first_name": "Calvin",
+      "last_name_obfuscated": "Fi***r",
+      "title": "VP of Engineering",
+      "company": "Unvale",
+      "has_email": false,
+      "apollo_id": "60faf0ede268ef00015e0134"
+    },
+    {
+      "first_name": "Joshua",
+      "last_name_obfuscated": "En***h",
+      "title": "VP Engineering",
+      "company": "Chronicle Studios",
+      "has_email": false,
+      "apollo_id": "66f2872b9ee109000117a348"
+    },
+    {
+      "first_name": "Ken",
+      "last_name_obfuscated": "Hu***g",
+      "title": "Chief Technology Officer",
+      "company": "GETTR",
+      "has_email": false,
+      "apollo_id": "63b31910ea24ea00011f820d"
+    },
+    {
+      "first_name": "Nicholas",
+      "last_name_obfuscated": "Ko***i",
+      "title": "Chief Technology Officer",
+      "company": "Speed Society LLC",
+      "has_email": false,
+      "apollo_id": "66f3ba34d4293400017b683c"
+    },
+    {
+      "first_name": "Brian",
+      "last_name_obfuscated": "Sm***h",
+      "title": "VP Engineering",
+      "company": "PreSonus",
+      "has_email": false,
+      "apollo_id": "68de7a0d16f40d0001ee32cc"
+    },
+    {
+      "first_name": "Jose",
+      "last_name_obfuscated": "Ma***a",
+      "title": "VP of Engineering",
+      "company": "Decentraland",
+      "has_email": false,
+      "apollo_id": "6889ec9189022d0001586ef4"
+    },
+    {
+      "first_name": "Mariana",
+      "last_name_obfuscated": "Kn***t",
+      "title": "CTO",
+      "company": "BlaGirls",
+      "has_email": false,
+      "apollo_id": "5a1e0733a6da98054001b35c"
+    },
+    {
+      "first_name": "Shanshan",
+      "last_name_obfuscated": "Ch***n",
+      "title": "VP of Engineering",
+      "company": "Hookit",
+      "has_email": false,
+      "apollo_id": "675d6aec895f7a00010e9552"
+    },
+    {
+      "first_name": "Pitambar",
+      "last_name_obfuscated": "Jha",
+      "title": "Chief Technology Officer",
+      "company": "Supercraft",
+      "has_email": false,
+      "apollo_id": "60694b133f0bfb000179f02a"
+    },
+    {
+      "first_name": "Omogbolade",
+      "last_name_obfuscated": "Aj***i",
+      "title": "CTO",
+      "company": "Tykoon AI",
+      "has_email": false,
+      "apollo_id": "54a70fa27468696de7bba611"
+    },
+    {
+      "first_name": "Ama",
+      "last_name_obfuscated": "Di***i",
+      "title": "Chief Technology Officer",
+      "company": "Decentraland",
+      "has_email": false,
+      "apollo_id": "65358bf7a57fd80001b71e20"
+    },
+    {
+      "first_name": "Aljosha",
+      "last_name_obfuscated": "No***c",
+      "title": "Director of Engineering",
+      "company": "Heretic",
+      "has_email": false,
+      "apollo_id": "60cd1281a3b56800014a070c"
+    },
+    {
+      "first_name": "Dominic",
+      "last_name_obfuscated": "Cao",
+      "title": "Director of Engineering",
+      "company": "Rally",
+      "has_email": false,
+      "apollo_id": "694b9c07b9d754000122297a"
+    },
+    {
+      "first_name": "Coltrane",
+      "last_name_obfuscated": "Na***r",
+      "title": "Chief Technology Officer",
+      "company": "Game Over Media",
+      "has_email": false,
+      "apollo_id": "617fbbca6d0d1f00014181fc"
+    },
+    {
+      "first_name": "Jacques",
+      "last_name_obfuscated": "Ba***l",
+      "title": "Chief Product Officer",
+      "company": "Music Video Marketplace",
+      "has_email": false,
+      "apollo_id": "63fc8b567c292400014c27cc"
+    },
+    {
+      "first_name": "Chris",
+      "last_name_obfuscated": "Bo***n",
+      "title": "Chief Product and Technology Officer",
+      "company": "Fragment Media Group",
+      "has_email": false,
+      "apollo_id": "66f2acb897d1f600015afc19"
+    },
+    {
+      "first_name": "Vlad",
+      "last_name_obfuscated": "Em***i",
+      "title": "Chief Technology Officer",
+      "company": "Foam",
+      "has_email": false,
+      "apollo_id": "61054bcc6093400001b57351"
+    },
+    {
+      "first_name": "Olayiwola",
+      "last_name_obfuscated": "Ay***a",
+      "title": "Chief Technology Officer",
+      "company": "Afridol",
+      "has_email": false,
+      "apollo_id": "5d5ce57680f93ef6753089e0"
+    },
+    {
+      "first_name": "Bernice",
+      "last_name_obfuscated": "Th***s",
+      "title": "CTO",
+      "company": "XCAD Network",
+      "has_email": false,
+      "apollo_id": "609a0b68d1ce1d000166911c"
+    },
+    {
+      "first_name": "Fredrick",
+      "last_name_obfuscated": "Ok***h",
+      "title": "Director of Engineering",
+      "company": "cfg",
+      "has_email": false,
+      "apollo_id": "5ad6f839a6da98e38fb3bc93"
+    },
+    {
+      "first_name": "Jared",
+      "last_name_obfuscated": "Mo***n",
+      "title": "Chief Product Officer",
+      "company": "Whop",
+      "has_email": false,
+      "apollo_id": "66fc2fd45ad80e00018bf3fe"
+    },
+    {
+      "first_name": "Martin",
+      "last_name_obfuscated": "Ow***s",
+      "title": "Chief Technology Officer",
+      "company": "Scrybe Streaming",
+      "has_email": false,
+      "apollo_id": "6171e93bc977d600016833c7"
+    },
+    {
+      "first_name": "Reza",
+      "last_name_obfuscated": "Ro***n",
+      "title": "Chief Technology Officer",
+      "company": "GOAT Platform",
+      "has_email": false,
+      "apollo_id": "645a501183e6fe0001e919b9"
+    },
+    {
+      "first_name": "Christina",
+      "last_name_obfuscated": "Ve***l",
+      "title": "Owner, Founder",
+      "company": "Run With It Marketing",
+      "has_email": false,
+      "apollo_id": "66f7d3ad152ddf0001329752"
+    },
+    {
+      "first_name": "Kirill",
+      "last_name_obfuscated": "Ku***n",
+      "title": "Chief Technology Officer",
+      "company": "RIZZULT",
+      "has_email": false,
+      "apollo_id": "57e026b3a6da980ad8f57e44"
+    },
+    {
+      "first_name": "Quy",
+      "last_name_obfuscated": "Ho***g",
+      "title": "Chief Technology Officer",
+      "company": "BEEPR",
+      "has_email": false,
+      "apollo_id": "5da9b9cb2187980001b95fac"
+    },
+    {
+      "first_name": "Oleksandr",
+      "last_name_obfuscated": "Ba***k",
+      "title": "CTO",
+      "company": "RMRK",
+      "has_email": false,
+      "apollo_id": "691b4c445ecbc50001a39976"
+    },
+    {
+      "first_name": "Kirill",
+      "last_name_obfuscated": "Z",
+      "title": "Chief Product Officer",
+      "company": "ZiMAD",
+      "has_email": false,
+      "apollo_id": "687f0d0308b09e0001db03f9"
+    },
+    {
+      "first_name": "Jonathan",
+      "last_name_obfuscated": "Wi***n",
+      "title": "CTO",
+      "company": "Flexion",
+      "has_email": false,
+      "apollo_id": "5f7c0b6d6c8f8100010498c4"
+    },
+    {
+      "first_name": "Dylan",
+      "last_name_obfuscated": "Ca***i",
+      "title": "Director of Data Engineering and Emerging Tech",
+      "company": "ATTN:",
+      "has_email": false,
+      "apollo_id": "57d85c4aa6da98788b27dd3b"
+    },
+    {
+      "first_name": "Seb",
+      "last_name_obfuscated": "La***i",
+      "title": "Chief Technology Officer",
+      "company": "xex Influencers",
+      "has_email": false,
+      "apollo_id": "60cbfb5c57bcef00010722f1"
+    },
+    {
+      "first_name": "Waqas",
+      "last_name_obfuscated": "Ah***d",
+      "title": "Chief Technology Officer",
+      "company": "AI For Productivity",
+      "has_email": false,
+      "apollo_id": "643e8a2c1e943900017ca751"
+    },
+    {
+      "first_name": "Henrique",
+      "last_name_obfuscated": "Ba***a",
+      "title": "CTO",
+      "company": "Superfiliate",
+      "has_email": false,
+      "apollo_id": "68090036f7830e00012372f7"
+    },
+    {
+      "first_name": "Colleen",
+      "last_name_obfuscated": "O'***n",
+      "title": "Owner/Founder",
+      "company": "Wanderful",
+      "has_email": false,
+      "apollo_id": "5ad1dc6ea6da9883f4a6af1f"
+    },
+    {
+      "first_name": "Kevin",
+      "last_name_obfuscated": "Lee",
+      "title": "Chief Technology Officer",
+      "company": "Keychain Social",
+      "has_email": false,
+      "apollo_id": "5c78bf2d80f93e7d49c11b23"
+    },
+    {
+      "first_name": "David",
+      "last_name_obfuscated": "Wi***n",
+      "title": "CTO: Pets On Q",
+      "company": "Pets on Q",
+      "has_email": false,
+      "apollo_id": "66f556c30b8fa9000104e28f"
+    },
+    {
+      "first_name": "Kyler",
+      "last_name_obfuscated": "Be***r",
+      "title": "Chief Executive & Product Officer",
+      "company": "Game Rogue, LLC",
+      "has_email": false,
+      "apollo_id": "631c8a3586f28b00017a7664"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Pe***h",
+      "title": "Chief Technology Officer",
+      "company": "Ambassador Software",
+      "has_email": false,
+      "apollo_id": "67b361da95ef45000185d186"
+    },
+    {
+      "first_name": "Emily",
+      "last_name_obfuscated": "Mu***s",
+      "title": "VP of Product",
+      "company": "WIN Brands Group",
+      "has_email": false,
+      "apollo_id": "66f68617f588730001ecd708"
+    },
+    {
+      "first_name": "Charles",
+      "last_name_obfuscated": "Cr***n",
+      "title": "Chief Technology Officer",
+      "company": "SuperRare Labs",
+      "has_email": false,
+      "apollo_id": "66f16be62362850001bb5e67"
+    },
+    {
+      "first_name": "Zain",
+      "last_name_obfuscated": "Ma***k",
+      "title": "Chief Technology Officer",
+      "company": "Vonza",
+      "has_email": false,
+      "apollo_id": "60ae449aef7b8f0001182568"
+    },
+    {
+      "first_name": "Robert",
+      "last_name_obfuscated": "Wa***l",
+      "title": "Chief Technology Officer",
+      "company": "Surveill by 3Si",
+      "has_email": false,
+      "apollo_id": "66ffa2456b913a000145dc5c"
+    },
+    {
+      "first_name": "Conor",
+      "last_name_obfuscated": "Od***l",
+      "title": "VP of Engineering",
+      "company": "Athlete Studio",
+      "has_email": false,
+      "apollo_id": "66f2d2e31b6e2c000115dae8"
+    },
+    {
+      "first_name": "Jordan",
+      "last_name_obfuscated": "Br***r",
+      "title": "Vice President of Product",
+      "company": "Social Standards",
+      "has_email": false,
+      "apollo_id": "604941bb2b85ec0001541a62"
+    },
+    {
+      "first_name": "Timothy",
+      "last_name_obfuscated": "De***e",
+      "title": "Chief Technology Officer",
+      "company": "Pure Technology | Empowering People Through AI",
+      "has_email": false,
+      "apollo_id": "64e8102e25b8f10001acc208"
+    },
+    {
+      "first_name": "Stewart",
+      "last_name_obfuscated": "Bi***r",
+      "title": "CTO",
+      "company": "Cluster",
+      "has_email": false,
+      "apollo_id": "54a3fd687468693b8c490123"
+    },
+    {
+      "first_name": "Nina",
+      "last_name_obfuscated": "Il***a",
+      "title": "Chief Product Officer",
+      "company": "GlamAI",
+      "has_email": false,
+      "apollo_id": "6835adc69034860001724a19"
+    },
+    {
+      "first_name": "Zargham",
+      "last_name_obfuscated": "Ir***a",
+      "title": "Chief Technology Officer",
+      "company": "UniSoftwares",
+      "has_email": false,
+      "apollo_id": "63af574b8b604600014ba5c1"
+    },
+    {
+      "first_name": "Pedro",
+      "last_name_obfuscated": "Lo***a",
+      "title": "CTO",
+      "company": "New Company",
+      "has_email": false,
+      "apollo_id": "66f976ad9901a20001b57798"
+    },
+    {
+      "first_name": "Anton",
+      "last_name_obfuscated": "Er***k",
+      "title": "VP of Engineering",
+      "company": "FameFlow",
+      "has_email": false,
+      "apollo_id": "66f67b6fe89e940001108720"
+    },
+    {
+      "first_name": "Asad",
+      "last_name_obfuscated": "Re***n",
+      "title": "Chief Technology Officer",
+      "company": "Beup Outsourcing",
+      "has_email": false,
+      "apollo_id": "5634150ea6da983f9a001909"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Ro***n",
+      "title": "Chief Technology Officer",
+      "company": "Ideas + Outcomes",
+      "has_email": false,
+      "apollo_id": "57d9948fa6da98727a88cfa4"
+    },
+    {
+      "first_name": "Micah",
+      "last_name_obfuscated": "Sm***h",
+      "title": "Chief Technology Officer",
+      "company": "Ignite Tournaments",
+      "has_email": false,
+      "apollo_id": "60e2ccea7f9cfd0001c27391"
+    },
+    {
+      "first_name": "David",
+      "last_name_obfuscated": "S",
+      "title": "Chief Technology Officer",
+      "company": "AdSynergiX.",
+      "has_email": false,
+      "apollo_id": "663177386982f60007182d2a"
+    },
+    {
+      "first_name": "Choy",
+      "last_name_obfuscated": "Ko***g",
+      "title": "Chief Technology Officer",
+      "company": "Summer International",
+      "has_email": false,
+      "apollo_id": "61076c8dfca6a00001f223f9"
+    },
+    {
+      "first_name": "Daniel",
+      "last_name_obfuscated": "Bu***s",
+      "title": "Chief Technology Officer",
+      "company": "The Digital Marketing Studio",
+      "has_email": false,
+      "apollo_id": "5f6f30f80733260001651340"
+    },
+    {
+      "first_name": "Usman",
+      "last_name_obfuscated": "Ch***i",
+      "title": "Chief Technology Officer",
+      "company": "OrangeShine",
+      "has_email": false,
+      "apollo_id": "60cb75b3b7284e000162f5c5"
+    },
+    {
+      "first_name": "Neeraj",
+      "last_name_obfuscated": "Ra***n",
+      "title": "Chief Technology Officer",
+      "company": "Muffin Media",
+      "has_email": false,
+      "apollo_id": "55d7f2cff3e5bb6bd8000dfc"
+    },
+    {
+      "first_name": "Calvin",
+      "last_name_obfuscated": "Al***n",
+      "title": "CTO",
+      "company": "Albatross",
+      "has_email": false,
+      "apollo_id": "698b8059032050000146e2ee"
+    },
+    {
+      "first_name": "Zachary",
+      "last_name_obfuscated": "Ti***t",
+      "title": "Chief Technology Officer",
+      "company": "Sandhill Digital",
+      "has_email": false,
+      "apollo_id": "65b228f114ea450001bfdabb"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Te***y",
+      "title": "Chief Technology Officer",
+      "company": "VisCap Media",
+      "has_email": false,
+      "apollo_id": "63f872f74aeb690001766b7f"
+    },
+    {
+      "first_name": "Zaheer",
+      "last_name_obfuscated": "Fi***z",
+      "title": "CTO",
+      "company": "Shopex",
+      "has_email": false,
+      "apollo_id": "6979eb0141a6350001c4c77d"
+    },
+    {
+      "first_name": "Daniel",
+      "last_name_obfuscated": "Au***n",
+      "title": "Chief Technology Officer",
+      "company": "Ghost Brands",
+      "has_email": false,
+      "apollo_id": "5abf837ba6da98cf7c4d235e"
+    },
+    {
+      "first_name": "Hesham",
+      "last_name_obfuscated": "Ma***y",
+      "title": "Chief Technology Officer",
+      "company": "eureka digital",
+      "has_email": false,
+      "apollo_id": "664462629f363e0001a83a97"
+    },
+    {
+      "first_name": "Dawn",
+      "last_name_obfuscated": "Te***e",
+      "title": "CTO",
+      "company": "Undisclosed Location",
+      "has_email": false,
+      "apollo_id": "6218e2c5fe43d700010bd658"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Te***y",
+      "title": "Chief Technology Officer",
+      "company": "VisCap Media",
+      "has_email": false,
+      "apollo_id": "63f872f74aeb690001766b7f"
+    },
+    {
+      "first_name": "Jason",
+      "last_name_obfuscated": "Ke***g",
+      "title": "Director of Engineering",
+      "company": "Irreverent Labs",
+      "has_email": false,
+      "apollo_id": "54a466417468692cf0905b44"
+    },
+    {
+      "first_name": "Zack",
+      "last_name_obfuscated": "Jo***n",
+      "title": "Chief Technology Officer",
+      "company": "Bindery Books",
+      "has_email": false,
+      "apollo_id": "54a2efe674686935be1c0248"
+    },
+    {
+      "first_name": "Ferdinand",
+      "last_name_obfuscated": "We***n",
+      "title": "Chief Technology Officer",
+      "company": "Mission",
+      "has_email": false,
+      "apollo_id": "68df9674677a9800012f4e64"
+    },
+    {
+      "first_name": "Hesham",
+      "last_name_obfuscated": "Ma***y",
+      "title": "Chief Technology Officer",
+      "company": "eureka digital",
+      "has_email": false,
+      "apollo_id": "664462629f363e0001a83a97"
+    },
+    {
+      "first_name": "Haresh",
+      "last_name_obfuscated": "Po***a",
+      "title": "Director of Engineering",
+      "company": "utobo Inc.",
+      "has_email": false,
+      "apollo_id": "60004d3d6b23f90001095fa0"
+    },
+    {
+      "first_name": "Bill",
+      "last_name_obfuscated": "Ea***r",
+      "title": "Chief Technology Officer",
+      "company": "Peerspace",
+      "has_email": false,
+      "apollo_id": "677eaa944c04c10001c5c3e5"
+    },
+    {
+      "first_name": "Chang-Ha",
+      "last_name_obfuscated": "Kim",
+      "title": "CTO",
+      "company": "Frankly Media, A GameSquare Holdings Company",
+      "has_email": false,
+      "apollo_id": "54a6fc75746869705affa60a"
+    },
+    {
+      "first_name": "Daria",
+      "last_name_obfuscated": "Sm***a",
+      "title": "CTO",
+      "company": "TwinTone",
+      "has_email": false,
+      "apollo_id": "68c3dbaef0e38700014ed054"
+    },
+    {
+      "first_name": "Timothy",
+      "last_name_obfuscated": "Da***y",
+      "title": "Chief Product Officer",
+      "company": "Liquipel",
+      "has_email": false,
+      "apollo_id": "54a3c8de7468692fa2639f12"
+    },
+    {
+      "first_name": "Kyle",
+      "last_name_obfuscated": "Ch***g",
+      "title": "CTO",
+      "company": "Midwest Design Lab (MWDL)",
+      "has_email": false,
+      "apollo_id": "5b29ae72a6da988a7f572f2b"
+    },
+    {
+      "first_name": "Life",
+      "last_name_obfuscated": "Un***d",
+      "title": "Vice President Product Marketing",
+      "company": "CTRL",
+      "has_email": false,
+      "apollo_id": "698d84ea251d3f000113e9ab"
+    },
+    {
+      "first_name": "Ryder",
+      "last_name_obfuscated": "Sp***n",
+      "title": "Vice President of Product Development",
+      "company": "BEEPR",
+      "has_email": false,
+      "apollo_id": "684ea4ae130d6e0001425260"
+    },
+    {
+      "first_name": "Valerii",
+      "last_name_obfuscated": "Bi***o",
+      "title": "Deputy CTO",
+      "company": "V-Art",
+      "has_email": false,
+      "apollo_id": "57dca7e7a6da987d98867b3b"
+    },
+    {
+      "first_name": "Ewan",
+      "last_name_obfuscated": "Le***h",
+      "title": "Chief Technology Officer",
+      "company": "RealityMine",
+      "has_email": false,
+      "apollo_id": "62cd590d25ecd000014510a9"
+    },
+    {
+      "first_name": "Odi",
+      "last_name_obfuscated": "Ab***m",
+      "title": "Chief Technology Officer",
+      "company": "Mindstream Media Group",
+      "has_email": false,
+      "apollo_id": "57df53d9a6da980b2ff8ad3a"
+    },
+    {
+      "first_name": "Rakesh",
+      "last_name_obfuscated": "Ku***r",
+      "title": "Chief Technology Officer",
+      "company": "MagicCo.",
+      "has_email": false,
+      "apollo_id": "629d32d7d9dc0a00010e1aed"
+    },
+    {
+      "first_name": "Alex",
+      "last_name_obfuscated": "Os***i",
+      "title": "VP Product",
+      "company": "Avaturn",
+      "has_email": false,
+      "apollo_id": "61368d78a280a8000187f1d5"
+    },
+    {
+      "first_name": "Zainatul",
+      "last_name_obfuscated": "Ma***h",
+      "title": "Chief Technology Officer",
+      "company": "VBOUT",
+      "has_email": false,
+      "apollo_id": "64218f53584f52000162b9e3"
+    },
+    {
+      "first_name": "Hans-Martin",
+      "last_name_obfuscated": "Fo***d",
+      "title": "Chief Product Officer",
+      "company": "Spotlite",
+      "has_email": false,
+      "apollo_id": "61d9afa8e068dc00011d00d1"
+    },
+    {
+      "first_name": "Ian",
+      "last_name_obfuscated": "Sc***d",
+      "title": "Chief Technology Officer",
+      "company": "Push Property",
+      "has_email": false,
+      "apollo_id": "66f7c9c60a0a800001e28610"
+    },
+    {
+      "first_name": "Chun",
+      "last_name_obfuscated": "Su***n",
+      "title": "Technical Lead/CTO",
+      "company": "Blink AI",
+      "has_email": false,
+      "apollo_id": "54a226de7468692e71658111"
+    },
+    {
+      "first_name": "Reut",
+      "last_name_obfuscated": "At***s",
+      "title": "Director of Engineering",
+      "company": "D-ID",
+      "has_email": false,
+      "apollo_id": "6199ab092e1ec20001ae9c73"
+    },
+    {
+      "first_name": "Brad",
+      "last_name_obfuscated": "Wi***n",
+      "title": "Chief Technology Officer",
+      "company": "Ferguson",
+      "has_email": false,
+      "apollo_id": "66ffa0406b913a0001454193"
+    },
+    {
+      "first_name": "David",
+      "last_name_obfuscated": "Sh***n",
+      "title": "Chief Technology Officer",
+      "company": "GlamAI",
+      "has_email": false,
+      "apollo_id": "6666a26af1539900012975dd"
+    },
+    {
+      "first_name": "Delwar",
+      "last_name_obfuscated": "Sh***d",
+      "title": "Chief Technology Officer",
+      "company": "Savasaachi Marketing Agency",
+      "has_email": false,
+      "apollo_id": "612a4fcf61e68d0001e0e1bb"
+    },
+    {
+      "first_name": "Ryan",
+      "last_name_obfuscated": "Ta***r",
+      "title": "Chief Technology Officer",
+      "company": "Voir Agency",
+      "has_email": false,
+      "apollo_id": "678d31e3327ca80001bc4553"
+    },
+    {
+      "first_name": "William",
+      "last_name_obfuscated": "Sc***r",
+      "title": "VP of Product",
+      "company": "P10 Foods",
+      "has_email": false,
+      "apollo_id": "5f8d9b8c26444b0001df1228"
+    },
+    {
+      "first_name": "Tristan",
+      "last_name_obfuscated": "M",
+      "title": "Fractional CTO",
+      "company": "Presspool.ai",
+      "has_email": false,
+      "apollo_id": "6296f30afea59500017dfb44"
+    },
+    {
+      "first_name": "Andriy",
+      "last_name_obfuscated": "Za***o",
+      "title": "Chief Technology Officer",
+      "company": "Rollun LC",
+      "has_email": false,
+      "apollo_id": "64c02d697cf4a50001a8fe25"
+    },
+    {
+      "first_name": "Mariam",
+      "last_name_obfuscated": "Al***i",
+      "title": "Managing Owner",
+      "company": "Jade Group",
+      "has_email": false,
+      "apollo_id": "61273c50480bb800017192aa"
+    },
+    {
+      "first_name": "Oluwasola",
+      "last_name_obfuscated": "Pe***r",
+      "title": "CTO / Backend Developer",
+      "company": "Clapmi HQ",
+      "has_email": false,
+      "apollo_id": "66ee779eb077bb000108c1ef"
+    },
+    {
+      "first_name": "Ben",
+      "last_name_obfuscated": "Te***y",
+      "title": "CTO",
+      "company": "Journey Further",
+      "has_email": false,
+      "apollo_id": "66f995d283ba0c000157b82e"
+    },
+    {
+      "first_name": "Imran",
+      "last_name_obfuscated": "Kh***n",
+      "title": "CTO",
+      "company": "ShoppingSpout Global a company of UBM Technologies Inc",
+      "has_email": false,
+      "apollo_id": "6065a66cacde97000156bba1"
+    },
+    {
+      "first_name": "Erik",
+      "last_name_obfuscated": "Sa***e",
+      "title": "Chief Technology Officer",
+      "company": "Something Massive",
+      "has_email": false,
+      "apollo_id": "602fcb37553cce00014fb55e"
+    },
+    {
+      "first_name": "Scott",
+      "last_name_obfuscated": null,
+      "title": "Fractional CTO",
+      "company": "iYuga",
+      "has_email": false,
+      "apollo_id": "66f287c69e4b1e00013d1929"
+    },
+    {
+      "first_name": "Adam",
+      "last_name_obfuscated": "Or***i",
+      "title": "Vice President & Head of Product Development",
+      "company": "ListenFirst",
+      "has_email": false,
+      "apollo_id": "5878783df651258291d6edbe"
+    },
+    {
+      "first_name": "Thomas",
+      "last_name_obfuscated": "Ha***n",
+      "title": "Director of Engineering",
+      "company": "Hydro Flask",
+      "has_email": false,
+      "apollo_id": "6475dfd2c0222f0001669857"
+    },
+    {
+      "first_name": "Suhaib",
+      "last_name_obfuscated": "A",
+      "title": "Chief Technology Officer",
+      "company": "Ephanti Inc",
+      "has_email": false,
+      "apollo_id": "60e57b9da0634100011416f8"
+    },
+    {
+      "first_name": "Raymond",
+      "last_name_obfuscated": "Ag***r",
+      "title": "CTO / Fixer",
+      "company": "FunnelDash",
+      "has_email": false,
+      "apollo_id": "610176ae895c840001a0b5e0"
+    },
+    {
+      "first_name": "Hans",
+      "last_name_obfuscated": "Me***r",
+      "title": "Founder and Owner",
+      "company": "HNW",
+      "has_email": false,
+      "apollo_id": "611b475164920e0001b137c0"
+    },
+    {
+      "first_name": "Muhammad",
+      "last_name_obfuscated": "Sa***d",
+      "title": "Chief Technology Officer",
+      "company": "Aridian Technologies LLC",
+      "has_email": false,
+      "apollo_id": "63db91378ca0c500010e80f3"
+    },
+    {
+      "first_name": "James",
+      "last_name_obfuscated": "Pe***g",
+      "title": "Technology partner&CTO",
+      "company": "New Company",
+      "has_email": false,
+      "apollo_id": "5655c55aa6da986d24011d10"
+    },
+    {
+      "first_name": "Jin",
+      "last_name_obfuscated": "Joo",
+      "title": "Director of Engineering",
+      "company": "FKQ Advertising",
+      "has_email": false,
+      "apollo_id": "57de2f12a6da987b6db3935c"
+    },
+    {
+      "first_name": "Mahi",
+      "last_name_obfuscated": "Sam",
+      "title": "Chief Technology Officer",
+      "company": "Rainsoftglobal Technology Services",
+      "has_email": false,
+      "apollo_id": "63bdea33ab107d0001fec822"
+    },
+    {
+      "first_name": "Vijay",
+      "last_name_obfuscated": "Va***i",
+      "title": "CTO",
+      "company": "Nestingale",
+      "has_email": false,
+      "apollo_id": "60cfad5822f26e00015a6a0a"
+    },
+    {
+      "first_name": "Cassandra",
+      "last_name_obfuscated": "Ba***r",
+      "title": "Social Media, Co-Owner, Co-Founder",
+      "company": "The Bargain Sisters",
+      "has_email": false,
+      "apollo_id": "642706a3211b35000111001d"
+    },
+    {
+      "first_name": "Justin",
+      "last_name_obfuscated": "Ra***w",
+      "title": "CTO",
+      "company": "Supurb",
+      "has_email": false,
+      "apollo_id": "54a5e25c7468692abf3fa8b0"
+    },
+    {
+      "first_name": "Otutuloro",
+      "last_name_obfuscated": "Ad***a",
+      "title": "Vice President of Product Design",
+      "company": "Naxum Online Marketing Services, LLC",
+      "has_email": false,
+      "apollo_id": "64958de53913d90001662c73"
+    },
+    {
+      "first_name": "Fred",
+      "last_name_obfuscated": "Ba***a",
+      "title": "VP of Engineering",
+      "company": "NTWRK",
+      "has_email": false,
+      "apollo_id": "5b1a4071a6da9828b15e08b8"
+    },
+    {
+      "first_name": "Jeff",
+      "last_name_obfuscated": "Ra***i",
+      "title": "Chief Technology Officer",
+      "company": "Whalerock Industries",
+      "has_email": false,
+      "apollo_id": "611acf79f8242100012b45d8"
+    },
+    {
+      "first_name": "Tatyana",
+      "last_name_obfuscated": "Ko***n",
+      "title": "Chief Product Officer/Senior Software Engineer",
+      "company": "PRAI.co",
+      "has_email": false,
+      "apollo_id": "54a7da227468696220a48c54"
+    },
+    {
+      "first_name": "Chirag",
+      "last_name_obfuscated": "Pa***l",
+      "title": "VP of Engineering",
+      "company": "Ebates",
+      "has_email": false,
+      "apollo_id": "604112694c2383000160ab1f"
+    },
+    {
+      "first_name": "Jarod",
+      "last_name_obfuscated": "Cu***a",
+      "title": "Director of Engineering",
+      "company": "Pier",
+      "has_email": false,
+      "apollo_id": "68de54231fd08c0001d38c11"
+    },
+    {
+      "first_name": "Bob",
+      "last_name_obfuscated": "G",
+      "title": "Director of Engineering",
+      "company": "Oodle",
+      "has_email": false,
+      "apollo_id": "696c2b932072420001a27ff6"
+    },
+    {
+      "first_name": "Jerry",
+      "last_name_obfuscated": "Sn***r",
+      "title": "Vice President - Product Sales",
+      "company": "Savi",
+      "has_email": false,
+      "apollo_id": "6558419620ea4300018a0091"
+    },
+    {
+      "first_name": "Dwight",
+      "last_name_obfuscated": "Ri***l",
+      "title": "SVP Engineering",
+      "company": "RhythmOne",
+      "has_email": false,
+      "apollo_id": "5c519a8580f93e28a70e7186"
+    },
+    {
+      "first_name": "Zohair",
+      "last_name_obfuscated": "K",
+      "title": "CEO & CTO",
+      "company": "Shopex",
+      "has_email": false,
+      "apollo_id": "696810bf9579cc0001d7da32"
+    },
+    {
+      "first_name": "Fahad",
+      "last_name_obfuscated": "Mu***z",
+      "title": "Chief Technology Officer",
+      "company": "Coffee Meets Bagel",
+      "has_email": false,
+      "apollo_id": "557144517369642bc1660900"
+    },
+    {
+      "first_name": "Amna",
+      "last_name_obfuscated": "Wa***m",
+      "title": "Founder and Owner of Skin_serenity",
+      "company": "Instagram Businesses",
+      "has_email": false,
+      "apollo_id": "685d71a902eda80001b55c1b"
+    },
+    {
+      "first_name": "Donald",
+      "last_name_obfuscated": "Ba***s",
+      "title": "Director of Engineering",
+      "company": "Vista Host Hotels Management & Development",
+      "has_email": false,
+      "apollo_id": "57d861faa6da987867393dea"
+    },
+    {
+      "first_name": "Rubaiyat",
+      "last_name_obfuscated": "Mo***a",
+      "title": "Chief Technology Officer",
+      "company": "Markopolo AI INC",
+      "has_email": false,
+      "apollo_id": "66e2eafb7c0da800012374aa"
+    },
+    {
+      "first_name": "Martin",
+      "last_name_obfuscated": "Ro***i",
+      "title": "Chief Technology Officer",
+      "company": "DREST",
+      "has_email": false,
+      "apollo_id": "611c005e1b250e0001af0405"
+    },
+    {
+      "first_name": "Anthony",
+      "last_name_obfuscated": "O'***n",
+      "title": "VP of Engineering",
+      "company": "GIPHY",
+      "has_email": false,
+      "apollo_id": "66ff3d2e3f12c90001d8ce70"
+    },
+    {
+      "first_name": "Rick",
+      "last_name_obfuscated": "Ro***k",
+      "title": "CTO",
+      "company": "Unitea",
+      "has_email": false,
+      "apollo_id": "57d593a7a6da985386c6b0fe"
+    },
+    {
+      "first_name": "Joseph",
+      "last_name_obfuscated": "Ru***l",
+      "title": "Coo/cto",
+      "company": "Naxum Online Marketing Services, LLC",
+      "has_email": false,
+      "apollo_id": "5abfab6ca6da98cf30faf854"
+    },
+    {
+      "first_name": "Martha",
+      "last_name_obfuscated": "Ho***e",
+      "title": "Founder & Owner",
+      "company": "Fast Horse",
+      "has_email": false,
+      "apollo_id": "54a4d24e74686938ac2d6766"
+    },
+    {
+      "first_name": "Mehdi",
+      "last_name_obfuscated": "Ba***h",
+      "title": "Chief Technology Officer",
+      "company": "Gold House",
+      "has_email": false,
+      "apollo_id": "54a3bdcb7468693b8cecea0e"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Le",
+      "title": "Owner/Founder",
+      "company": "Engage Media",
+      "has_email": false,
+      "apollo_id": "68a5619bb639f900010c889a"
+    },
+    {
+      "first_name": "Larry",
+      "last_name_obfuscated": "Sp***n",
+      "title": "Director of Engineering",
+      "company": "Musselman Hotels",
+      "has_email": false,
+      "apollo_id": "6549f2f45311ed0001072b62"
+    },
+    {
+      "first_name": "Chirayu",
+      "last_name_obfuscated": "Kr***a",
+      "title": "Chief Technology Officer",
+      "company": "Miles",
+      "has_email": false,
+      "apollo_id": "66f1b945ca4f180001d109ae"
+    },
+    {
+      "first_name": "Victor",
+      "last_name_obfuscated": "Ba***o",
+      "title": "Chief Technology Officer at GameCo",
+      "company": "Official Media",
+      "has_email": false,
+      "apollo_id": "5e820f271af0d90001e84360"
+    },
+    {
+      "first_name": "Bill",
+      "last_name_obfuscated": "Ju***e",
+      "title": "Director of Engineering",
+      "company": "Murphco Of Florida Inc",
+      "has_email": false,
+      "apollo_id": "645be7ed6c01d70001d17563"
+    },
+    {
+      "first_name": "Karim",
+      "last_name_obfuscated": "Ez***t",
+      "title": "Owner & Founder",
+      "company": "Imagine Advertising",
+      "has_email": false,
+      "apollo_id": "66f615bc6b1549000118fb8e"
+    },
+    {
+      "first_name": "Yair",
+      "last_name_obfuscated": "Ya***v",
+      "title": "Founder and Owner",
+      "company": "Brandify",
+      "has_email": false,
+      "apollo_id": "6769071101abdf00010eae74"
+    },
+    {
+      "first_name": "Zara",
+      "last_name_obfuscated": "St***n",
+      "title": "Owner and Founder",
+      "company": "spottydog communications",
+      "has_email": false,
+      "apollo_id": "57d37faff651252c51be77b2"
+    },
+    {
+      "first_name": "Amber",
+      "last_name_obfuscated": "A",
+      "title": "Founder & Owner",
+      "company": "Blitz Rocket (FKA VYPER)",
+      "has_email": false,
+      "apollo_id": "6430cb05d2c90400017029d0"
+    },
+    {
+      "first_name": "Karim",
+      "last_name_obfuscated": "Ez***t",
+      "title": "Owner & Founder",
+      "company": "Imagine Advertising",
+      "has_email": false,
+      "apollo_id": "66f615bc6b1549000118fb8e"
+    },
+    {
+      "first_name": "Clay",
+      "last_name_obfuscated": "Ma***l",
+      "title": "Director of Engineering",
+      "company": "Ascent Hospitality",
+      "has_email": false,
+      "apollo_id": "636376c9fc8201000137b2ae"
+    },
+    {
+      "first_name": "David",
+      "last_name_obfuscated": "Ad***s",
+      "title": "Director of Engineering",
+      "company": "Emerald Hospitality Associates, Inc.",
+      "has_email": false,
+      "apollo_id": "5e7d6a4eff6d8700017ad7b4"
+    },
+    {
+      "first_name": "Sean",
+      "last_name_obfuscated": "Wa***h",
+      "title": "Engineering Director",
+      "company": "Fragment Media Group",
+      "has_email": false,
+      "apollo_id": "5ab9ce46a6da98b74ca485ac"
+    },
+    {
+      "first_name": "Christina",
+      "last_name_obfuscated": "Bl***p",
+      "title": "Vice President, Product Excellence",
+      "company": "VaynerX",
+      "has_email": false,
+      "apollo_id": "66f72bc457bcd700016681ed"
+    },
+    {
+      "first_name": "Joshua",
+      "last_name_obfuscated": "Jo***h",
+      "title": "Vice President of Product Development",
+      "company": "OUAI",
+      "has_email": false,
+      "apollo_id": "5b395301a6da98fc4d8e89db"
+    },
+    {
+      "first_name": "John",
+      "last_name_obfuscated": "Bo***u",
+      "title": "SVP Product Marketing",
+      "company": "Mackie - LOUD Audio, LLC",
+      "has_email": false,
+      "apollo_id": "6788527682ea0300013fbe1d"
+    },
+    {
+      "first_name": "Matt",
+      "last_name_obfuscated": "Th***s",
+      "title": "VP Product Development",
+      "company": "Ready For Social",
+      "has_email": false,
+      "apollo_id": "6011012758eaaf0001a47f57"
+    },
+    {
+      "first_name": "Alec",
+      "last_name_obfuscated": "Bo***e",
+      "title": "President & Founding Father",
+      "company": "Sigma Chi Fraternity",
+      "has_email": false,
+      "apollo_id": "681edb62b8733a000116752b"
+    },
+    {
+      "first_name": "Ethan",
+      "last_name_obfuscated": "Ov***y",
+      "title": "Founding Father and Vice - President (Pro - Consul)",
+      "company": "Sigma Chi Fraternity",
+      "has_email": false,
+      "apollo_id": "68c5cc95b2b5e50001bcc378"
+    },
+    {
+      "first_name": "Devon",
+      "last_name_obfuscated": "Kl***r",
+      "title": "Director of Engineering",
+      "company": "Red Games Co.",
+      "has_email": false,
+      "apollo_id": "5f0fc50f1c7e98000185f06f"
+    },
+    {
+      "first_name": "Steven",
+      "last_name_obfuscated": "Wu",
+      "title": "Owner / CTO / Project Manager / Producer / Consultant",
+      "company": "Media Hive",
+      "has_email": false,
+      "apollo_id": "6099eca8f7631c000146f734"
+    },
+    {
+      "first_name": "Danielle",
+      "last_name_obfuscated": "Ja***l",
+      "title": "Vice President of Product Development, New Brands",
+      "company": "FORMA Brands",
+      "has_email": false,
+      "apollo_id": "60d31903b88c330001d2a0ab"
+    },
+    {
+      "first_name": "Kevin",
+      "last_name_obfuscated": "Ka***i",
+      "title": "Director of Engineering",
+      "company": "Dealers United",
+      "has_email": false,
+      "apollo_id": "62668293249a6f00013dbf60"
+    },
+    {
+      "first_name": "Barbara",
+      "last_name_obfuscated": "Me***a",
+      "title": "VP Product - Mass Division",
+      "company": "Westport Corporation",
+      "has_email": false,
+      "apollo_id": "54a200737468692e711f7504"
+    },
+    {
+      "first_name": "Abby",
+      "last_name_obfuscated": "Br***n",
+      "title": "Founder/Owner",
+      "company": "broadhead.",
+      "has_email": false,
+      "apollo_id": "54a786287468696829aa993c"
+    },
+    {
+      "first_name": "Lester",
+      "last_name_obfuscated": "St***e",
+      "title": "Director of Engineering",
+      "company": "Noble Investment Group",
+      "has_email": false,
+      "apollo_id": "54a220957468693fda49f60e"
+    },
+    {
+      "first_name": "Prem",
+      "last_name_obfuscated": "Jo***i",
+      "title": "VP of Product & Technology",
+      "company": "Omaze",
+      "has_email": false,
+      "apollo_id": "54a747a37468696220fde225"
+    },
+    {
+      "first_name": "Christina",
+      "last_name_obfuscated": "Mi***s",
+      "title": "Owner/Founder",
+      "company": "Audiologic",
+      "has_email": false,
+      "apollo_id": "65967bca5a1f430001550e82"
+    },
+    {
+      "first_name": "Guy",
+      "last_name_obfuscated": "Mu***y",
+      "title": "Corporate Director Engineering",
+      "company": "Premier Hospitality Management, Inc.",
+      "has_email": false,
+      "apollo_id": "54a8ded37468692d1c859107"
+    },
+    {
+      "first_name": "Gauthier",
+      "last_name_obfuscated": "Gr***t",
+      "title": "Sr. Director, Ads Engineering and Devops",
+      "company": "BitTorrent, Inc.",
+      "has_email": false,
+      "apollo_id": "54a51b6c7468693209cd0c7d"
+    },
+    {
+      "first_name": "Christopher",
+      "last_name_obfuscated": "Ga***o",
+      "title": "SVP of Product",
+      "company": "PrimaLoft",
+      "has_email": false,
+      "apollo_id": "54a56d337468693676b57f95"
+    },
+    {
+      "first_name": "Lawrence",
+      "last_name_obfuscated": "Je***r",
+      "title": "Director, Engineering",
+      "company": "Archive",
+      "has_email": false,
+      "apollo_id": "54ec299f746869444c8b545c"
+    },
+    {
+      "first_name": "Eduardo",
+      "last_name_obfuscated": "Ri***s",
+      "title": "Engineering Director",
+      "company": "LWT",
+      "has_email": false,
+      "apollo_id": "5f4c1df58be8cf00011030aa"
+    },
+    {
+      "first_name": "Ibnu",
+      "last_name_obfuscated": "Wa***i",
+      "title": "Owner & Founder",
+      "company": "IW Group Inc.",
+      "has_email": false,
+      "apollo_id": "66f75adc513dba0001fcf310"
+    },
+    {
+      "first_name": "Robin",
+      "last_name_obfuscated": "Me***i",
+      "title": "SVP Product Development",
+      "company": "Rebecca Minkoff",
+      "has_email": false,
+      "apollo_id": "5f58b406e22f49000130d21b"
+    },
+    {
+      "first_name": "James",
+      "last_name_obfuscated": "Ba***k",
+      "title": "Owner/CEO/Founder",
+      "company": "Limelight Media LLC",
+      "has_email": false,
+      "apollo_id": "557147697369642c1d1c2600"
+    },
+    {
+      "first_name": "Becca",
+      "last_name_obfuscated": "Ga***r",
+      "title": "Owner/Founder",
+      "company": "Yellowbrick",
+      "has_email": false,
+      "apollo_id": "60c3ad6afcede100014ff92f"
+    },
+    {
+      "first_name": "James",
+      "last_name_obfuscated": "Pa***k",
+      "title": "Owner/Founder",
+      "company": "Hurleys",
+      "has_email": false,
+      "apollo_id": "638dfed6774a4a0001548fad"
+    },
+    {
+      "first_name": "Karen",
+      "last_name_obfuscated": "So***n",
+      "title": "Founder, Owner of Heart & Soul",
+      "company": "Heart & Soul Marketing",
+      "has_email": false,
+      "apollo_id": "54a3068e7468693a7eb7054f"
+    },
+    {
+      "first_name": "Michelle",
+      "last_name_obfuscated": "Ca***e",
+      "title": "Owner, Founder",
+      "company": "DA SPOT NYC",
+      "has_email": false,
+      "apollo_id": "5f75d3031b13b200f8bb1377"
+    },
+    {
+      "first_name": "Johnnie",
+      "last_name_obfuscated": "Mo***e",
+      "title": "Engineering Director",
+      "company": "Papier",
+      "has_email": false,
+      "apollo_id": "62a34e763cf1c800012c33b4"
+    },
+    {
+      "first_name": "Nick",
+      "last_name_obfuscated": "Mc***l",
+      "title": "Chief Technology and Interactive Officer",
+      "company": "EVOQ Group",
+      "has_email": false,
+      "apollo_id": "54a329507468693cdd060259"
+    },
+    {
+      "first_name": "Joe",
+      "last_name_obfuscated": "Er***o",
+      "title": "Director of Industrial Design|Mechanical Engineering",
+      "company": "PreSonus",
+      "has_email": false,
+      "apollo_id": "54a4e5337468692abfecec6b"
+    },
+    {
+      "first_name": "Dan",
+      "last_name_obfuscated": "Ca***y",
+      "title": "Master Blender / Vice President Product Development",
+      "company": "Lofted Spirits",
+      "has_email": false,
+      "apollo_id": "60cc617ac647000001a2b23d"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Sz***i",
+      "title": "Co-founder; Chief Operating Officer (COO)",
+      "company": "ReadyM",
+      "has_email": false,
+      "apollo_id": "57dfce5da6da980b1dde0c1a"
+    },
+    {
+      "first_name": "David",
+      "last_name_obfuscated": "Ec***g",
+      "title": "Founder, Owner, Manager",
+      "company": "Contract Design",
+      "has_email": false,
+      "apollo_id": "54a4bfc074686932092c2060"
+    },
+    {
+      "first_name": "Zach",
+      "last_name_obfuscated": "Ma***r",
+      "title": "Creative Director of Engineering",
+      "company": "Stoopid Buddy Stoodios",
+      "has_email": false,
+      "apollo_id": "60b06b2cb129b50001161003"
+    },
+    {
+      "first_name": "Johnathan",
+      "last_name_obfuscated": "Ma***o",
+      "title": "Engineering Director",
+      "company": "Super League",
+      "has_email": false,
+      "apollo_id": "64247a5cdbacf100018de1ac"
+    },
+    {
+      "first_name": "Matson",
+      "last_name_obfuscated": "Fr***k",
+      "title": "Regional Director of Engineering",
+      "company": "Twenty Four Seven Hotels",
+      "has_email": false,
+      "apollo_id": "57dfd225a6da980af97c284b"
+    },
+    {
+      "first_name": "Sofia",
+      "last_name_obfuscated": "Mu***z",
+      "title": "Founding Director",
+      "company": "Sando",
+      "has_email": false,
+      "apollo_id": "611e1a66966c6d00013863c9"
+    },
+    {
+      "first_name": "Anna",
+      "last_name_obfuscated": "Ga***i",
+      "title": "Founder and Owner of Mesha Craft Studio",
+      "company": "mesha",
+      "has_email": false,
+      "apollo_id": "54a4df357468692fa2d83b6a"
+    },
+    {
+      "first_name": "Christen",
+      "last_name_obfuscated": "Ma***x",
+      "title": "Small Business Owner/Founder/Proprietor--E-commerce",
+      "company": "CMM",
+      "has_email": false,
+      "apollo_id": "63dac8be3f8462000126871c"
+    },
+    {
+      "first_name": "Aqib",
+      "last_name_obfuscated": "Ta***b",
+      "title": "Podcast Host, On Air Talent, Owner, Founder",
+      "company": "The Volume",
+      "has_email": false,
+      "apollo_id": "61f4e98fdd06d5000100199e"
+    },
+    {
+      "first_name": "Jason",
+      "last_name_obfuscated": "Be***t",
+      "title": "Director, International Engineering",
+      "company": "[HOONIGAN]",
+      "has_email": false,
+      "apollo_id": "5ff0531a2a465b0001db741a"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Ba***l",
+      "title": "Director, Software Engineering",
+      "company": "World of Good Brands",
+      "has_email": false,
+      "apollo_id": "647a03ab0bda650001d80ad2"
+    },
+    {
+      "first_name": "Matthew",
+      "last_name_obfuscated": "Be***n",
+      "title": "Interim Chief Technology Officer for Portfolio Company",
+      "company": "TSG Consumer Partners",
+      "has_email": false,
+      "apollo_id": "60e4cb4aef5c710001b7dcb6"
+    },
+    {
+      "first_name": "Huruli",
+      "last_name_obfuscated": "Ki***e",
+      "title": "Director, Equipment Engineering",
+      "company": "Superconductor®",
+      "has_email": false,
+      "apollo_id": "54a70bc974686965d9113410"
+    },
+    {
+      "first_name": "Mark",
+      "last_name_obfuscated": "Th***a",
+      "title": "Chief Product & Marketing Officer",
+      "company": "EastPoint Sports",
+      "has_email": false,
+      "apollo_id": "60ee9f3b79a1b7000107063f"
+    },
+    {
+      "first_name": "Mohamed",
+      "last_name_obfuscated": "El***y",
+      "title": "Clinical & Biomedical Engineering Director",
+      "company": "Dar Al Teb",
+      "has_email": false,
+      "apollo_id": "64807fc6462d4e0001789f6a"
+    },
+    {
+      "first_name": "Jennie",
+      "last_name_obfuscated": "Co***n",
+      "title": "VP Data Engineering",
+      "company": "Leaf Group",
+      "has_email": false,
+      "apollo_id": "60f5ba527e90b000014330bc"
+    },
+    {
+      "first_name": "Oleksandr",
+      "last_name_obfuscated": "Za***i",
+      "title": "COO / CPO",
+      "company": "VlogBox",
+      "has_email": false,
+      "apollo_id": "688613f94d18aa0001bc297f"
+    },
+    {
+      "first_name": "You",
+      "last_name_obfuscated": "Lei",
+      "title": "Vice President of Software Engineering",
+      "company": "Samarkand Group",
+      "has_email": false,
+      "apollo_id": "54ec0ca5746869444c830845"
+    },
+    {
+      "first_name": "David",
+      "last_name_obfuscated": "Ju***g",
+      "title": "Senior Director, Solutions Engineering",
+      "company": "RhythmOne",
+      "has_email": false,
+      "apollo_id": "54a736da74686965d98fae1f"
+    },
+    {
+      "first_name": "Kevin",
+      "last_name_obfuscated": "Cr***z",
+      "title": "VP of Solutions Engineering",
+      "company": "Avenue Z",
+      "has_email": false,
+      "apollo_id": "63591898abb97500010d12dd"
+    },
+    {
+      "first_name": "Kobby",
+      "last_name_obfuscated": "Ga***a",
+      "title": "CIO | Head of IT",
+      "company": "MSQ",
+      "has_email": false,
+      "apollo_id": "67fcde5c7e0b670001a3f78c"
+    },
+    {
+      "first_name": "Shekhar",
+      "last_name_obfuscated": "Gr***r",
+      "title": "VP Software Engineering",
+      "company": "Mobile & Cloud Labs",
+      "has_email": false,
+      "apollo_id": "5ff07e565768d70001e980aa"
+    },
+    {
+      "first_name": "Kathryn",
+      "last_name_obfuscated": "Le***s",
+      "title": "President Data Center Engineering",
+      "company": "Energi People",
+      "has_email": false,
+      "apollo_id": "664831ee3141b00001585e31"
+    },
+    {
+      "first_name": "Mohammad",
+      "last_name_obfuscated": "Ra***b",
+      "title": "Director of Generative AI App Engineering, EVU",
+      "company": "Evu",
+      "has_email": false,
+      "apollo_id": "676fc29fc8a44e00016d67e7"
+    },
+    {
+      "first_name": "Chris",
+      "last_name_obfuscated": "Ne***n",
+      "title": "Senior Vice President, Lighting (Product, Brand, Marketing, B2C)",
+      "company": "Driven Lighting Group",
+      "has_email": false,
+      "apollo_id": "60f95dd1b0e94f0001acc214"
+    },
+    {
+      "first_name": "Erin",
+      "last_name_obfuscated": "Du***n",
+      "title": "Vice President Global Sales, Brand Management & Product Marketing",
+      "company": "Biossance",
+      "has_email": false,
+      "apollo_id": "66f6ed7eb1a4b9000146d600"
+    },
+    {
+      "first_name": "Tristan",
+      "last_name_obfuscated": "So***x",
+      "title": "Founding Director",
+      "company": "TSA",
+      "has_email": false,
+      "apollo_id": "648065f838c02f0001dae4be"
+    },
+    {
+      "first_name": "Neenu",
+      "last_name_obfuscated": "Ra***n",
+      "title": "Director QA Engineering",
+      "company": "Skimlinks",
+      "has_email": false,
+      "apollo_id": "54a6fb38746869682966180a"
+    },
+    {
+      "first_name": "Alex",
+      "last_name_obfuscated": "Ro***z",
+      "title": "Chairman and CEO, Co-Owner, Co-Founder, CEO",
+      "company": "A-Rod Corp",
+      "has_email": false,
+      "apollo_id": "648859abe1c34a0001f423db"
+    },
+    {
+      "first_name": "Whei-Wen",
+      "last_name_obfuscated": "Co***o",
+      "title": "SVP of IT and Engineering",
+      "company": "Nasty Gal",
+      "has_email": false,
+      "apollo_id": "681766bbfa37cb00011e13be"
+    },
+    {
+      "first_name": "Amit",
+      "last_name_obfuscated": "Pa***l",
+      "title": "VP of Marketing and Product Owner",
+      "company": "MadBid.com",
+      "has_email": false,
+      "apollo_id": "60f1bfc3f5fd1a0001bd2581"
+    },
+    {
+      "first_name": "Thomas",
+      "last_name_obfuscated": "To***i",
+      "title": "Fondateur - CEO",
+      "company": "Peak Media Marketing",
+      "has_email": false,
+      "apollo_id": "66f655e36a60a800011939be"
+    },
+    {
+      "first_name": "Pablo",
+      "last_name_obfuscated": "Ve***o",
+      "title": "Director of Software Engineering",
+      "company": "Trove",
+      "has_email": false,
+      "apollo_id": "6430082774da3900018d9797"
+    },
+    {
+      "first_name": "Enrique",
+      "last_name_obfuscated": "In***z",
+      "title": "Director De Operaciones y CooFaunder (mercuri)",
+      "company": "Mercuri",
+      "has_email": false,
+      "apollo_id": "6971b2ace9be9800010de08e"
+    },
+    {
+      "first_name": "John",
+      "last_name_obfuscated": "Mo***z",
+      "title": "FR Product Manager, President",
+      "company": "NWP",
+      "has_email": false,
+      "apollo_id": "54a53d4d7468693676770888"
+    },
+    {
+      "first_name": "Divine",
+      "last_name_obfuscated": "Fu***a",
+      "title": "Managing Owner",
+      "company": "clickasnap",
+      "has_email": false,
+      "apollo_id": "6871640952119d0001382b81"
+    },
+    {
+      "first_name": "Roshunda",
+      "last_name_obfuscated": "Wh***e",
+      "title": "Speaker/ CEO/ Domestic Violence Prevention Advocate/The May Foundation",
+      "company": "Houston",
+      "has_email": false,
+      "apollo_id": "677c134af444a90001015fc7"
+    },
+    {
+      "first_name": "Christopher",
+      "last_name_obfuscated": "Ma***i",
+      "title": "HND, Bsc. MEng in Engineering Management. Post Graduate Certification in CyberSecurity . Director of Research",
+      "company": "iExplore",
+      "has_email": false,
+      "apollo_id": "686006632b94d300018c7532"
+    },
+    {
+      "first_name": "Ken",
+      "last_name_obfuscated": "Ru***d",
+      "title": "Managing Owner",
+      "company": "Advanced Marketing Strategies",
+      "has_email": false,
+      "apollo_id": "54a7a9e874686962202b5c4a"
+    },
+    {
+      "first_name": "King",
+      "last_name_obfuscated": "Li***n",
+      "title": "Founder& CEO of The King Group LLC & APS Investments & ActivePlay Surfacing LLC",
+      "company": "The King Group",
+      "has_email": false,
+      "apollo_id": "54eae05374686931e2a5e402"
+    },
+    {
+      "first_name": "Laurence",
+      "last_name_obfuscated": "G",
+      "title": "Director of API Engineering",
+      "company": "GIPHY",
+      "has_email": false,
+      "apollo_id": "65f460786144ec0007baea9e"
+    },
+    {
+      "first_name": "Anwar",
+      "last_name_obfuscated": "Ah***d",
+      "title": "VP Global Merchandising & Product Development",
+      "company": "Designers Linen Inc.",
+      "has_email": false,
+      "apollo_id": "68c5a5428f3d460001702956"
+    },
+    {
+      "first_name": "Leslie",
+      "last_name_obfuscated": "Pin",
+      "title": "Vice President of Design, Product Development, and Sourcing",
+      "company": "H3 Sportgear",
+      "has_email": false,
+      "apollo_id": "54a27e3574686930c20c1827"
+    }
+  ],
+  "seg2_all": [
+    {
+      "first_name": "Alessandro",
+      "last_name_obfuscated": "Bo***i",
+      "title": "Chief Executive Officer",
+      "company": "The Influencer Marketing Factory - Influencer Marketing Agency",
+      "has_email": true,
+      "apollo_id": "680a6f4bc1b8770001f873af"
+    },
+    {
+      "first_name": "Sebastian",
+      "last_name_obfuscated": "Ja***y",
+      "title": "CEO",
+      "company": "FLUVIP - Influencer Marketing Leader",
+      "has_email": true,
+      "apollo_id": "5e37f2077915370001a1e291"
+    },
+    {
+      "first_name": "Hannah",
+      "last_name_obfuscated": "Ho***d",
+      "title": "Chief Executive Officer",
+      "company": "HLD Talent",
+      "has_email": true,
+      "apollo_id": "57e0fa16a6da987d60b70437"
+    },
+    {
+      "first_name": "Jean-Paul",
+      "last_name_obfuscated": "Ye***r",
+      "title": "CEO",
+      "company": "Void",
+      "has_email": false,
+      "apollo_id": "65104fa69a4a1f00011fabd4"
+    },
+    {
+      "first_name": "Stephany",
+      "last_name_obfuscated": "Co***y",
+      "title": "Director of Influencer Marketing and Partnerships",
+      "company": "PD Talent",
+      "has_email": true,
+      "apollo_id": "5f778b638352c50001062502"
+    },
+    {
+      "first_name": "Chelsea",
+      "last_name_obfuscated": "Ma***s",
+      "title": "Director of Strategy",
+      "company": "Obviously",
+      "has_email": true,
+      "apollo_id": "54c234aa7468691639592283"
+    },
+    {
+      "first_name": "Fernanda",
+      "last_name_obfuscated": "Go***t",
+      "title": "Director of Strategy",
+      "company": "Obviously",
+      "has_email": true,
+      "apollo_id": "60e4a281e7e0b300019cd6ae"
+    },
+    {
+      "first_name": "Sydney",
+      "last_name_obfuscated": "Mo***e",
+      "title": "Director of Strategy",
+      "company": "Obviously",
+      "has_email": true,
+      "apollo_id": "60f22eb9f0c5860001bd3ee7"
+    },
+    {
+      "first_name": "Silvio",
+      "last_name_obfuscated": "To***n",
+      "title": "Country Managing Director",
+      "company": "FLUVIP - Influencer Marketing Leader",
+      "has_email": true,
+      "apollo_id": "611b77067441c2000183b239"
+    },
+    {
+      "first_name": "Ella",
+      "last_name_obfuscated": "Yo***g",
+      "title": "Managing Director",
+      "company": "HLD Talent",
+      "has_email": true,
+      "apollo_id": "5ad29637a6da988446b9b068"
+    },
+    {
+      "first_name": "Benjamin",
+      "last_name_obfuscated": "Ke***r",
+      "title": "Ceo/cmo",
+      "company": "Global Social Media Marketing",
+      "has_email": true,
+      "apollo_id": "66f3148ad25a690001c7ac26"
+    },
+    {
+      "first_name": "Ray",
+      "last_name_obfuscated": "Us***a",
+      "title": "Managing Director, the Americas",
+      "company": "round.",
+      "has_email": true,
+      "apollo_id": "66fa33e2954fa90001ea9e7d"
+    },
+    {
+      "first_name": "Charlie",
+      "last_name_obfuscated": "El***t",
+      "title": "Freelance Social Media & Influencer Strategy Director",
+      "company": "Billion Dollar Boy",
+      "has_email": false,
+      "apollo_id": "609d47ee27dde30001c68ade"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "As***a",
+      "title": "Managing Director, Influencer Investment",
+      "company": "Creo",
+      "has_email": true,
+      "apollo_id": "6108decf4ff63f0001eb43ba"
+    },
+    {
+      "first_name": "Charlie",
+      "last_name_obfuscated": "Hu***l",
+      "title": "Managing Director",
+      "company": "Billion Dollar Boy",
+      "has_email": true,
+      "apollo_id": "5570ad06736964194bc34600"
+    },
+    {
+      "first_name": "Maria",
+      "last_name_obfuscated": "Co***o",
+      "title": "Creative and Strategy Director",
+      "company": "Billion Dollar Boy",
+      "has_email": false,
+      "apollo_id": "5beadcce80f93ecabe09275d"
+    },
+    {
+      "first_name": "Jamie",
+      "last_name_obfuscated": "Ma***e",
+      "title": "Strategy & Creative Director",
+      "company": "Wilderness - The Social Media Agency",
+      "has_email": true,
+      "apollo_id": "613306376b7d890001a7790a"
+    },
+    {
+      "first_name": "Alyssa",
+      "last_name_obfuscated": "Sm***h",
+      "title": "Director of Influencer Relations",
+      "company": "Brilliant Agency",
+      "has_email": true,
+      "apollo_id": "66c3fe83c7277c0001458de5"
+    },
+    {
+      "first_name": "Natasha",
+      "last_name_obfuscated": "Ma***l",
+      "title": "Growth Strategy Director",
+      "company": "Billion Dollar Boy",
+      "has_email": true,
+      "apollo_id": "66ff4dffc672d90001a12b41"
+    },
+    {
+      "first_name": "Lauren",
+      "last_name_obfuscated": "Gi***b",
+      "title": "Content Strategy Director",
+      "company": "Billion Dollar Boy",
+      "has_email": true,
+      "apollo_id": "60ee93a6bafd630001cad0ac"
+    },
+    {
+      "first_name": "Harris",
+      "last_name_obfuscated": "Pr***a",
+      "title": "Chief Executive Officer (CEO)",
+      "company": "DID",
+      "has_email": false,
+      "apollo_id": "6053645c54be55000165d9d4"
+    },
+    {
+      "first_name": "Steven",
+      "last_name_obfuscated": "Wh***g",
+      "title": "Content Strategy Director",
+      "company": "Billion Dollar Boy",
+      "has_email": false,
+      "apollo_id": "54a42b387468693209884432"
+    },
+    {
+      "first_name": "Abid",
+      "last_name_obfuscated": "Hu***n",
+      "title": "Chief Executive Officer",
+      "company": "Digital Marketing Agile INC ( Local SEO Company | Social Media Marketing Agency | Web Design Agency)",
+      "has_email": false,
+      "apollo_id": "6492da87d69f200001c224fd"
+    },
+    {
+      "first_name": "Sarah",
+      "last_name_obfuscated": "Do***s",
+      "title": "Managing Director",
+      "company": "Storm Model Management",
+      "has_email": true,
+      "apollo_id": "60b647675f09720001c10057"
+    },
+    {
+      "first_name": "Oli",
+      "last_name_obfuscated": "Hi***s",
+      "title": "CEO",
+      "company": "Nonsensical | The TikTok Agency",
+      "has_email": true,
+      "apollo_id": "66f54a3d5b9c010001667c18"
+    },
+    {
+      "first_name": "Piet",
+      "last_name_obfuscated": "So***y",
+      "title": "Managing Director, US",
+      "company": "Billion Dollar Boy",
+      "has_email": true,
+      "apollo_id": "5cb55699f3e5bb9b4b42a553"
+    },
+    {
+      "first_name": "Jim",
+      "last_name_obfuscated": "Si***r",
+      "title": "Chief Executive Officer",
+      "company": "FamFluence Talent Management",
+      "has_email": true,
+      "apollo_id": "6950a9fb5e926d000125b449"
+    },
+    {
+      "first_name": "Navin",
+      "last_name_obfuscated": "Ma***n",
+      "title": "Chief Executive Officer",
+      "company": "Leadtap Digi Solutions",
+      "has_email": true,
+      "apollo_id": "689ef6399fca6e0001fa1134"
+    },
+    {
+      "first_name": "Bukky",
+      "last_name_obfuscated": "Ma***i",
+      "title": "CEO",
+      "company": "PLASTIC",
+      "has_email": false,
+      "apollo_id": "54c20b4d7468691639d5a870"
+    },
+    {
+      "first_name": "JC",
+      "last_name_obfuscated": "Ce***o",
+      "title": "Managing Director - CEO",
+      "company": "PALM ERA",
+      "has_email": true,
+      "apollo_id": "60461dcd6d63ce00017d820e"
+    },
+    {
+      "first_name": "Lance",
+      "last_name_obfuscated": "Wi***n",
+      "title": "Chief Executive Officer",
+      "company": "lilikoi agency",
+      "has_email": true,
+      "apollo_id": "69824ce6813b300001694781"
+    },
+    {
+      "first_name": "Princess",
+      "last_name_obfuscated": "Ik***e",
+      "title": "Chief Executive Officer",
+      "company": "Spark Media",
+      "has_email": false,
+      "apollo_id": "675f45979182600001dd1746"
+    },
+    {
+      "first_name": "Dark",
+      "last_name_obfuscated": "Us***e",
+      "title": "Chief Executive Officer",
+      "company": "Influencer",
+      "has_email": false,
+      "apollo_id": "6736f8c072189c00011b3761"
+    },
+    {
+      "first_name": "Daequan",
+      "last_name_obfuscated": "Me***s",
+      "title": "CEO",
+      "company": "Influencer",
+      "has_email": false,
+      "apollo_id": "60759e13a408aa000149b773"
+    },
+    {
+      "first_name": "Jessica",
+      "last_name_obfuscated": "Ma***n",
+      "title": "Director, Influencer Marketing & Campaign Strategy",
+      "company": "Onefluent Inc.",
+      "has_email": true,
+      "apollo_id": "658ad7c9a859960001940a37"
+    },
+    {
+      "first_name": "Persephone",
+      "last_name_obfuscated": "Ma***a",
+      "title": "Chief Executive Officer",
+      "company": "The Media Socialites",
+      "has_email": true,
+      "apollo_id": "66fb4e0ba8908c000183bf47"
+    },
+    {
+      "first_name": "Ursula",
+      "last_name_obfuscated": "Hu***l",
+      "title": "Managing Director",
+      "company": "Chic Model Management",
+      "has_email": true,
+      "apollo_id": "62ce964ce4bad5000111ed3b"
+    },
+    {
+      "first_name": "Samuel",
+      "last_name_obfuscated": "Sp***n",
+      "title": "Strategy Director",
+      "company": "Trunk",
+      "has_email": false,
+      "apollo_id": "6603c54a3609820007fdb389"
+    },
+    {
+      "first_name": "Ike",
+      "last_name_obfuscated": "To***o",
+      "title": "Chief Executive Officer",
+      "company": "Social Media Marketing Agency",
+      "has_email": false,
+      "apollo_id": "6686507340ae630001b63cde"
+    },
+    {
+      "first_name": "Chloe",
+      "last_name_obfuscated": "Cl***r",
+      "title": "Chief Executive Officer",
+      "company": "WANDER",
+      "has_email": true,
+      "apollo_id": "66f6ea286ff7440001b1d1f3"
+    },
+    {
+      "first_name": "Parker",
+      "last_name_obfuscated": "Ma***t",
+      "title": "CEO",
+      "company": "Parker Management",
+      "has_email": true,
+      "apollo_id": "66fb09751a14980001dfe8e7"
+    },
+    {
+      "first_name": "Angelina",
+      "last_name_obfuscated": "Mu***y",
+      "title": "Director of Influencer Marketing",
+      "company": "GateMaker Community Marketing",
+      "has_email": true,
+      "apollo_id": "630e86a3cb5eaa000123a37d"
+    },
+    {
+      "first_name": "Manuel",
+      "last_name_obfuscated": "Su***z",
+      "title": "CEO",
+      "company": "Attention Grabbing Media",
+      "has_email": true,
+      "apollo_id": "6990fa7488c7670001e9c9ac"
+    },
+    {
+      "first_name": "Amanda",
+      "last_name_obfuscated": "Is***n",
+      "title": "CEO",
+      "company": "Swan Studio",
+      "has_email": false,
+      "apollo_id": "57da9f77a6da984aa7c70d44"
+    },
+    {
+      "first_name": "Tony",
+      "last_name_obfuscated": "Gu",
+      "title": "Founder&ceo",
+      "company": "Sailing Marketing",
+      "has_email": true,
+      "apollo_id": "670632da27c8ee0001b375d5"
+    },
+    {
+      "first_name": "Patrick",
+      "last_name_obfuscated": "Wh***l",
+      "title": "Managing Director",
+      "company": "AiMCO – Australian Influencer Marketing Council",
+      "has_email": true,
+      "apollo_id": "54a4e6b074686934425b8f6c"
+    },
+    {
+      "first_name": "Sarah",
+      "last_name_obfuscated": "Pl***t",
+      "title": "Managing Director",
+      "company": "The Social Shepherd",
+      "has_email": true,
+      "apollo_id": "66f3de6b31c7f400018598fe"
+    },
+    {
+      "first_name": "Muhammad",
+      "last_name_obfuscated": "Ah***n",
+      "title": "CEO",
+      "company": "Social Media Marketing Agency",
+      "has_email": false,
+      "apollo_id": "659a5445bb5ee500015660b3"
+    },
+    {
+      "first_name": "Rida",
+      "last_name_obfuscated": "Fa***q",
+      "title": "Director, Strategy and Insights",
+      "company": "The Shelf Influencer Marketing Agency",
+      "has_email": true,
+      "apollo_id": "60d4c066f6aab200013ad12a"
+    },
+    {
+      "first_name": "Perry",
+      "last_name_obfuscated": "He***r",
+      "title": "Chief Executive Officer",
+      "company": "Wonderkind Co",
+      "has_email": true,
+      "apollo_id": "6114cddfbf23ac0001e45336"
+    },
+    {
+      "first_name": "Erica",
+      "last_name_obfuscated": "Ke***r",
+      "title": "Director, Influencer Marketing",
+      "company": "Brilliant Agency",
+      "has_email": true,
+      "apollo_id": "67c805f2c066250001a6d16b"
+    },
+    {
+      "first_name": "Stewart",
+      "last_name_obfuscated": "Ga***f",
+      "title": "Chief Executive Officer",
+      "company": "Healthcare Success",
+      "has_email": true,
+      "apollo_id": "67cebc1fa5858900017be82d"
+    },
+    {
+      "first_name": "Becca",
+      "last_name_obfuscated": "Bu***h",
+      "title": "Owner & CEO",
+      "company": "Homemade Social",
+      "has_email": true,
+      "apollo_id": "66f6f42e9290440001f25be6"
+    },
+    {
+      "first_name": "Bryan",
+      "last_name_obfuscated": "Ho***g",
+      "title": "Strategy Director",
+      "company": "Bicycle | B Corp",
+      "has_email": true,
+      "apollo_id": "66f9cd5d83ba0c00016a7fb0"
+    },
+    {
+      "first_name": "Nishita",
+      "last_name_obfuscated": "Kh***r",
+      "title": "Managing Director",
+      "company": "Blue Moon Marketing",
+      "has_email": true,
+      "apollo_id": "66f695709c737700010ae84d"
+    },
+    {
+      "first_name": "Gene",
+      "last_name_obfuscated": "Ze***r",
+      "title": "Chief Executive Officer",
+      "company": "Queen Bee",
+      "has_email": false,
+      "apollo_id": "68d79bc8c1e8a00001030b9d"
+    },
+    {
+      "first_name": "Gunjan",
+      "last_name_obfuscated": "Sa***i",
+      "title": "Managing Director",
+      "company": "Spark Media",
+      "has_email": false,
+      "apollo_id": "5d58fda480f93eb6c85540f0"
+    },
+    {
+      "first_name": "Pace",
+      "last_name_obfuscated": "Co***s",
+      "title": "CEO",
+      "company": "Pace",
+      "has_email": true,
+      "apollo_id": "57da9e3aa6da984ab7c5143f"
+    },
+    {
+      "first_name": "Ryan",
+      "last_name_obfuscated": "De***m",
+      "title": "CEO",
+      "company": "GRIN",
+      "has_email": true,
+      "apollo_id": "66f64a3a65a00700015791ba"
+    },
+    {
+      "first_name": "Martha",
+      "last_name_obfuscated": "Ho***e",
+      "title": "Founder & Owner",
+      "company": "Fast Horse",
+      "has_email": false,
+      "apollo_id": "54a4d24e74686938ac2d6766"
+    },
+    {
+      "first_name": "Alex",
+      "last_name_obfuscated": "At***d",
+      "title": "Managing Director",
+      "company": "Simply Social",
+      "has_email": true,
+      "apollo_id": "66fa26ea83ba0c0001854913"
+    },
+    {
+      "first_name": "Adnetwork",
+      "last_name_obfuscated": "Mag",
+      "title": "CEO",
+      "company": "RankingGrow",
+      "has_email": false,
+      "apollo_id": "67092887d2f2060001039bc5"
+    },
+    {
+      "first_name": "Rich",
+      "last_name_obfuscated": "Un***d",
+      "title": "Chief Executive Officer",
+      "company": "Trend",
+      "has_email": false,
+      "apollo_id": "69537aab16efe6000168f59f"
+    },
+    {
+      "first_name": "Hannah",
+      "last_name_obfuscated": "Ev***t",
+      "title": "Managing Director",
+      "company": "Trunk",
+      "has_email": false,
+      "apollo_id": "54a7a28b746869730a9af647"
+    },
+    {
+      "first_name": "Ttc",
+      "last_name_obfuscated": "In***a",
+      "title": "Chief Executive Officer",
+      "company": "Codeglo",
+      "has_email": false,
+      "apollo_id": "61580f0aa53ad90001302af3"
+    },
+    {
+      "first_name": "Leeza",
+      "last_name_obfuscated": "Cu***y",
+      "title": "Director: Influencer Relations",
+      "company": "Talent Resources",
+      "has_email": true,
+      "apollo_id": "563d912ca6da980132009493"
+    },
+    {
+      "first_name": "Kevin",
+      "last_name_obfuscated": "Al***a",
+      "title": "Managing Director",
+      "company": "Creative Digital Agency",
+      "has_email": false,
+      "apollo_id": "67ac69771d3d0b0001bb0920"
+    },
+    {
+      "first_name": "Natasha",
+      "last_name_obfuscated": "Na***r",
+      "title": "Creative Strategy Director",
+      "company": "Influencer",
+      "has_email": true,
+      "apollo_id": "61015182cc04410001f16007"
+    },
+    {
+      "first_name": "Tonya",
+      "last_name_obfuscated": "Me***t",
+      "title": "CEO and Managing Director",
+      "company": "Merritt Group",
+      "has_email": true,
+      "apollo_id": "54a3e0417468693442812c1a"
+    },
+    {
+      "first_name": "Tracy",
+      "last_name_obfuscated": "Ca***l",
+      "title": "Founder, Owner & CEO",
+      "company": "Media Bridge",
+      "has_email": true,
+      "apollo_id": "6700eae83bb8c20001b5dca2"
+    },
+    {
+      "first_name": "Goran",
+      "last_name_obfuscated": "Br***c",
+      "title": "Chief Executive Officer",
+      "company": "TSA",
+      "has_email": false,
+      "apollo_id": "54a55c2a7468693b8c1cfe91"
+    },
+    {
+      "first_name": "Ela",
+      "last_name_obfuscated": "Es***a",
+      "title": "CEO",
+      "company": "10 MGMT",
+      "has_email": false,
+      "apollo_id": "610815b8c063cf000120d711"
+    },
+    {
+      "first_name": "Thales",
+      "last_name_obfuscated": "An***e",
+      "title": "CEO",
+      "company": "TSA",
+      "has_email": true,
+      "apollo_id": "66ed25b081cba700016ed3aa"
+    },
+    {
+      "first_name": "Gina",
+      "last_name_obfuscated": "Nu***o",
+      "title": "CEO",
+      "company": "RSA Entertainment",
+      "has_email": true,
+      "apollo_id": "66fcaa4975743d0001913cdf"
+    },
+    {
+      "first_name": "Collectively",
+      "last_name_obfuscated": "Joy",
+      "title": "Chief Executive Officer",
+      "company": "Collectively",
+      "has_email": false,
+      "apollo_id": "641067be7f3593000189475e"
+    },
+    {
+      "first_name": "Mark",
+      "last_name_obfuscated": "Be***o",
+      "title": "Chief Executive Officer",
+      "company": "the JRT agency",
+      "has_email": true,
+      "apollo_id": "60cc3fffb921c000011a3362"
+    },
+    {
+      "first_name": "Sara",
+      "last_name_obfuscated": "Ko***b",
+      "title": "Director of Influencer Marketing",
+      "company": "The Outloud Group",
+      "has_email": true,
+      "apollo_id": "67894a3f03e6cd00016282a8"
+    },
+    {
+      "first_name": "Jaclyn",
+      "last_name_obfuscated": "Co***r",
+      "title": "Director, Influencer Marketing",
+      "company": "The Outloud Group",
+      "has_email": true,
+      "apollo_id": "54a5ac61746869367622c59f"
+    },
+    {
+      "first_name": "Lindsay",
+      "last_name_obfuscated": "Jo***n",
+      "title": "CEO | Managing Director",
+      "company": "Wordbank",
+      "has_email": true,
+      "apollo_id": "66f33b012fdcce0001499336"
+    },
+    {
+      "first_name": "Lindsay",
+      "last_name_obfuscated": "Jo***n",
+      "title": "CEO | Managing Director",
+      "company": "Wordbank",
+      "has_email": true,
+      "apollo_id": "66f33b012fdcce0001499336"
+    },
+    {
+      "first_name": "Fiona",
+      "last_name_obfuscated": "Ja***n",
+      "title": "Strategy Director",
+      "company": "We Are Hydrogen",
+      "has_email": true,
+      "apollo_id": "66fed1122a32540001920e9e"
+    },
+    {
+      "first_name": "Hyuncheol",
+      "last_name_obfuscated": "Bae",
+      "title": "Chief Executive Officer",
+      "company": "TSA",
+      "has_email": false,
+      "apollo_id": "66f869452cbde3000169f16d"
+    },
+    {
+      "first_name": "Tanya",
+      "last_name_obfuscated": "Ra***l",
+      "title": "Strategy Director",
+      "company": "U  DOX",
+      "has_email": true,
+      "apollo_id": "61a08187ef13930001807411"
+    },
+    {
+      "first_name": "Ardalan",
+      "last_name_obfuscated": "Af***r",
+      "title": "CEO",
+      "company": "PxP Media",
+      "has_email": false,
+      "apollo_id": "670cf07b58078100014758f8"
+    },
+    {
+      "first_name": "Syed",
+      "last_name_obfuscated": "Ma***d",
+      "title": "CEO",
+      "company": "AdMark Digital Solutions",
+      "has_email": true,
+      "apollo_id": "697ae4605dbc0b0001f54b71"
+    },
+    {
+      "first_name": "Nik",
+      "last_name_obfuscated": "Sp***r",
+      "title": "Managing Director, UK",
+      "company": "Influencer",
+      "has_email": true,
+      "apollo_id": "60a5e0306b2976000199aa95"
+    },
+    {
+      "first_name": "Mayumi",
+      "last_name_obfuscated": "Sk***i",
+      "title": "Director of Influencer Marketing",
+      "company": "The Outloud Group",
+      "has_email": true,
+      "apollo_id": "5b227bdaa6da98791694c50d"
+    },
+    {
+      "first_name": "Fusion",
+      "last_name_obfuscated": "Me***a",
+      "title": "Chief Executive Officer",
+      "company": "Fusion Media",
+      "has_email": false,
+      "apollo_id": "697418f425f60b000161a188"
+    },
+    {
+      "first_name": "Adam",
+      "last_name_obfuscated": "Wa***d",
+      "title": "Digital Strategy Director",
+      "company": "Navigator",
+      "has_email": true,
+      "apollo_id": "610bea749fdb2b00017bc8ee"
+    },
+    {
+      "first_name": "Rabah",
+      "last_name_obfuscated": "As***f",
+      "title": "Managing Director, MENA",
+      "company": "Influencer",
+      "has_email": true,
+      "apollo_id": "54a9067974686930ad4d3a0a"
+    },
+    {
+      "first_name": "Juan",
+      "last_name_obfuscated": "Sa***r",
+      "title": "CEO",
+      "company": "WeAreContent",
+      "has_email": false,
+      "apollo_id": "6733857478d13500017e2da5"
+    },
+    {
+      "first_name": "Paul",
+      "last_name_obfuscated": "Gee",
+      "title": "Chief Executive Officer",
+      "company": "TSA",
+      "has_email": false,
+      "apollo_id": "66fa335a954fa90001ea711c"
+    },
+    {
+      "first_name": "Gaby",
+      "last_name_obfuscated": "Co***n",
+      "title": "Managing Director (Agency)",
+      "company": "Connect Management",
+      "has_email": true,
+      "apollo_id": "6605aabe3e598800071a0fcd"
+    },
+    {
+      "first_name": "Kyle",
+      "last_name_obfuscated": "Go***i",
+      "title": "President/CEO",
+      "company": "Old Soul",
+      "has_email": true,
+      "apollo_id": "66fb470da8908c0001816aaa"
+    },
+    {
+      "first_name": "Tayo",
+      "last_name_obfuscated": "Ar***a",
+      "title": "Managing Director",
+      "company": "EXTREME",
+      "has_email": false,
+      "apollo_id": "57ddfd3fa6da987b65e6fb0c"
+    },
+    {
+      "first_name": "Jonathan",
+      "last_name_obfuscated": "Lo***g",
+      "title": "Chief Executive Officer",
+      "company": "Leads Near Me",
+      "has_email": true,
+      "apollo_id": "60702b0df9aea000014a2b78"
+    },
+    {
+      "first_name": "Valentina",
+      "last_name_obfuscated": "Pa***o",
+      "title": "CEO",
+      "company": "Valentina",
+      "has_email": false,
+      "apollo_id": "5ac74adca6da9840d4c0f1a5"
+    },
+    {
+      "first_name": "Jim",
+      "last_name_obfuscated": "Ma***a",
+      "title": "President and CEO",
+      "company": "Manzella Marketing",
+      "has_email": true,
+      "apollo_id": "66f52b0b9f3b710001d406a8"
+    },
+    {
+      "first_name": "Jad",
+      "last_name_obfuscated": "Ch***a",
+      "title": "Associate Creative Strategy Director",
+      "company": "Influencer",
+      "has_email": true,
+      "apollo_id": "54aa65c67468690630f1de03"
+    },
+    {
+      "first_name": "Danielle",
+      "last_name_obfuscated": "Wi***y",
+      "title": "CEO",
+      "company": "Sway Group",
+      "has_email": true,
+      "apollo_id": "66f5add0fba8ce0001fc03f5"
+    },
+    {
+      "first_name": "Alessandra",
+      "last_name_obfuscated": "An***i",
+      "title": "Chief Executive Officer",
+      "company": "Influur",
+      "has_email": true,
+      "apollo_id": "687514940c0c140001fb97f5"
+    },
+    {
+      "first_name": "Anantharaman",
+      "last_name_obfuscated": "Ba***n",
+      "title": "Managing Director",
+      "company": "Tidal Labs",
+      "has_email": true,
+      "apollo_id": "5e64f607a20ec30001b5b7cb"
+    },
+    {
+      "first_name": "Melissa",
+      "last_name_obfuscated": "Tu***r",
+      "title": "Chief Executive Officer",
+      "company": "MAVENO DIGITAL",
+      "has_email": false,
+      "apollo_id": "6813a3af7b5f450001ec5f5a"
+    },
+    {
+      "first_name": "Ella",
+      "last_name_obfuscated": "Br***d",
+      "title": "Client Strategy Director",
+      "company": "Trunk",
+      "has_email": false,
+      "apollo_id": "66fbc0436231450001fa0ab7"
+    },
+    {
+      "first_name": "Chuck",
+      "last_name_obfuscated": "Pe***n",
+      "title": "Chief Executive Officer",
+      "company": "Rareview®",
+      "has_email": true,
+      "apollo_id": "66f4312ff418ba00016a7ad9"
+    },
+    {
+      "first_name": "Bradley",
+      "last_name_obfuscated": "Ho***s",
+      "title": "Chief Executive Officer",
+      "company": "The Outloud Group",
+      "has_email": true,
+      "apollo_id": "66fdc1043ca4f70001f438c9"
+    },
+    {
+      "first_name": "Shannon",
+      "last_name_obfuscated": "Go***e",
+      "title": "Creative Director, Influencer",
+      "company": "SOCIAL HOUSE, INC.®",
+      "has_email": true,
+      "apollo_id": "60b8b0c470545c00013ea045"
+    },
+    {
+      "first_name": "Chelsea",
+      "last_name_obfuscated": "Cl***r",
+      "title": "Strategy Director",
+      "company": "MIRIMAR",
+      "has_email": true,
+      "apollo_id": "5570aa8673696464b7ab2000"
+    },
+    {
+      "first_name": "Steve",
+      "last_name_obfuscated": "Kim",
+      "title": "Chief Executive Officer",
+      "company": "The Cut",
+      "has_email": true,
+      "apollo_id": "66f99c9883ba0c000159d682"
+    },
+    {
+      "first_name": "Apisan",
+      "last_name_obfuscated": "Ma***i",
+      "title": "Chief Executive Officer",
+      "company": "Genflow",
+      "has_email": false,
+      "apollo_id": "63dad3cc5a34890001f0f403"
+    },
+    {
+      "first_name": "Kendall",
+      "last_name_obfuscated": "H",
+      "title": "CEO",
+      "company": "CreativeWorks Systems",
+      "has_email": false,
+      "apollo_id": "66f65cdc62b7390001521c81"
+    },
+    {
+      "first_name": "Tymir",
+      "last_name_obfuscated": "Ba***e",
+      "title": "CEO",
+      "company": "TRNDY®",
+      "has_email": false,
+      "apollo_id": "57dde8aaa6da987b0d8dc767"
+    },
+    {
+      "first_name": "Keondre",
+      "last_name_obfuscated": "Di***s",
+      "title": "Chief Executive Officer",
+      "company": "TRNDY®",
+      "has_email": false,
+      "apollo_id": "694d8fc32e31c70001756f24"
+    },
+    {
+      "first_name": "Anastasia",
+      "last_name_obfuscated": "Di***z",
+      "title": "Managing Director",
+      "company": "CGM-Caroline Gleason Management & CGMsocial",
+      "has_email": true,
+      "apollo_id": "65c5bf16084179000149806e"
+    },
+    {
+      "first_name": "Marlie",
+      "last_name_obfuscated": "Ka***r",
+      "title": "Director of Influencer Marketing",
+      "company": "Sircle Media",
+      "has_email": true,
+      "apollo_id": "5e7ffdcf8494af0001e168ca"
+    },
+    {
+      "first_name": "Peter",
+      "last_name_obfuscated": "Mi***i",
+      "title": "Chief Executive Officer",
+      "company": "Range Media Partners",
+      "has_email": true,
+      "apollo_id": "5edfb647c4ffc5008cd9a04a"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Wi***z",
+      "title": "Chief Executive Officer",
+      "company": "EMW3",
+      "has_email": false,
+      "apollo_id": "60ceadb97ba07600012aa295"
+    },
+    {
+      "first_name": "Enrique",
+      "last_name_obfuscated": "Ar***s",
+      "title": "CEO",
+      "company": "Engine Gaming & Media",
+      "has_email": false,
+      "apollo_id": "5abaf4d8a6da9840e4349102"
+    },
+    {
+      "first_name": "Bonnie",
+      "last_name_obfuscated": "Mc***r",
+      "title": "President and CEO",
+      "company": "Pace",
+      "has_email": true,
+      "apollo_id": "6089a0143e76a0000120f91a"
+    },
+    {
+      "first_name": "Roman",
+      "last_name_obfuscated": "Sc***r",
+      "title": "CEO",
+      "company": "Found.",
+      "has_email": false,
+      "apollo_id": "65ef56bfab69b70007591b61"
+    },
+    {
+      "first_name": "Wiesia",
+      "last_name_obfuscated": "Ku***j",
+      "title": "Managing Director",
+      "company": "Fusion Media",
+      "has_email": true,
+      "apollo_id": "54a541257468693442634789"
+    },
+    {
+      "first_name": "Pearl",
+      "last_name_obfuscated": "Ow***n",
+      "title": "Managing Director of Strategy",
+      "company": "Sensis",
+      "has_email": true,
+      "apollo_id": "61e7e3ac1a3c8700019f5ef8"
+    },
+    {
+      "first_name": "Dayna",
+      "last_name_obfuscated": "Gh***s",
+      "title": "Owner / CEO / Founder / Publicist",
+      "company": "Big Picture Media",
+      "has_email": true,
+      "apollo_id": "54a444647468692cf073e539"
+    },
+    {
+      "first_name": "Ashwath",
+      "last_name_obfuscated": "Na***n",
+      "title": "CEO",
+      "company": "Social Currant",
+      "has_email": true,
+      "apollo_id": "684c7dca4359f500018279d0"
+    },
+    {
+      "first_name": "Nicky",
+      "last_name_obfuscated": "Lo***e",
+      "title": "Managing Director",
+      "company": "We Are Hydrogen",
+      "has_email": true,
+      "apollo_id": "66fa312e954fa90001e9ad95"
+    },
+    {
+      "first_name": "Ines",
+      "last_name_obfuscated": "Be***i",
+      "title": "Managing Director",
+      "company": "Influencer Hero",
+      "has_email": true,
+      "apollo_id": "6704b30f95b3350001cd7a3f"
+    },
+    {
+      "first_name": "Jitesh",
+      "last_name_obfuscated": "Ke***i",
+      "title": "CEO & Managing Director",
+      "company": "e intelligence",
+      "has_email": true,
+      "apollo_id": "68ccb870c1d4320001a1e165"
+    },
+    {
+      "first_name": "Richard",
+      "last_name_obfuscated": "Ge***l",
+      "title": "Managing Director",
+      "company": "RGC Digital Marketing",
+      "has_email": false,
+      "apollo_id": "60cb484eccb0d30001e77ba2"
+    },
+    {
+      "first_name": "Olga",
+      "last_name_obfuscated": "Gu***s",
+      "title": "Managing Director",
+      "company": "U  DOX",
+      "has_email": true,
+      "apollo_id": "6494463867b86d00011db924"
+    },
+    {
+      "first_name": "Yousef",
+      "last_name_obfuscated": "Ni***h",
+      "title": "CEO - Shareholders",
+      "company": "TSA",
+      "has_email": false,
+      "apollo_id": "54a522a1746869344268b87f"
+    },
+    {
+      "first_name": "Sam",
+      "last_name_obfuscated": "Fu***a",
+      "title": "Managing Director, Influencer & Celebrity Relations",
+      "company": "BPCM",
+      "has_email": true,
+      "apollo_id": "66f59057303518000158e8c3"
+    },
+    {
+      "first_name": "Misha",
+      "last_name_obfuscated": "Li***r",
+      "title": "Director, Influencer Marketing",
+      "company": "THE MRKT",
+      "has_email": true,
+      "apollo_id": "6358b8db29c5fb0001ceb0cc"
+    },
+    {
+      "first_name": "Maxwell",
+      "last_name_obfuscated": "Br***n",
+      "title": "CEO",
+      "company": "Fat Media Limited (Now Reading Room)",
+      "has_email": false,
+      "apollo_id": "6068467d3b18300001d5ab13"
+    },
+    {
+      "first_name": "Jill",
+      "last_name_obfuscated": "Sm***h",
+      "title": "CEO, Americas",
+      "company": "Iris North America",
+      "has_email": true,
+      "apollo_id": "60eeb1a868312f00013c9c77"
+    },
+    {
+      "first_name": "BJ",
+      "last_name_obfuscated": "Be***y",
+      "title": "Chief Executive Officer",
+      "company": "1SEO Digital Agency",
+      "has_email": true,
+      "apollo_id": "604125f7e0e6c70001bc8b31"
+    },
+    {
+      "first_name": "Geoff",
+      "last_name_obfuscated": "Mc***d",
+      "title": "CEO",
+      "company": "Ambassador Software",
+      "has_email": true,
+      "apollo_id": "66edb4ad28c5160001aa8601"
+    },
+    {
+      "first_name": "Paula",
+      "last_name_obfuscated": "Ca***s",
+      "title": "Chief Executive Officer",
+      "company": "DRAGO",
+      "has_email": true,
+      "apollo_id": "66fa6d11f61c0200019a0e11"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Pr***e",
+      "title": "CEO",
+      "company": "GSE Worldwide",
+      "has_email": true,
+      "apollo_id": "66f8e8e85c5ea10001576d02"
+    },
+    {
+      "first_name": "Weijie",
+      "last_name_obfuscated": "Li***g",
+      "title": "Group CEO",
+      "company": "Evins PR",
+      "has_email": false,
+      "apollo_id": "68c253956986780001e9659d"
+    },
+    {
+      "first_name": "Noel",
+      "last_name_obfuscated": "Pe***o",
+      "title": "Director, Influencer Marketing",
+      "company": "Gallery Media Group",
+      "has_email": true,
+      "apollo_id": "60bfc27a232f4400010ccfa7"
+    },
+    {
+      "first_name": "Joel",
+      "last_name_obfuscated": "Ro***n",
+      "title": "CEO",
+      "company": "InfluenceLogic",
+      "has_email": true,
+      "apollo_id": "66fd1c0de219f500016eab86"
+    },
+    {
+      "first_name": "Peyton",
+      "last_name_obfuscated": "Fa***r",
+      "title": "Director of Influencer Relations",
+      "company": "Main Hill Media",
+      "has_email": false,
+      "apollo_id": "67751ba4e6fec30001abd183"
+    },
+    {
+      "first_name": "Nicholas",
+      "last_name_obfuscated": "Ul***a",
+      "title": "Chief Executive Officer",
+      "company": "Socksfor1",
+      "has_email": true,
+      "apollo_id": "631c647e9408a800015f17db"
+    },
+    {
+      "first_name": "Zachary",
+      "last_name_obfuscated": "Ta***n",
+      "title": "CEO",
+      "company": "Embassy",
+      "has_email": true,
+      "apollo_id": "66f517fcc33fa10001da1046"
+    },
+    {
+      "first_name": "Scott",
+      "last_name_obfuscated": "Pi***e",
+      "title": "CEO",
+      "company": "Pipitone",
+      "has_email": true,
+      "apollo_id": "6700b0a21cdec90001381c8b"
+    },
+    {
+      "first_name": "Jennifer",
+      "last_name_obfuscated": "Mo***l",
+      "title": "CEO",
+      "company": "Lilo Social",
+      "has_email": false,
+      "apollo_id": "666bc5286cb7a200013bcc5f"
+    },
+    {
+      "first_name": "Thomas",
+      "last_name_obfuscated": "Ke***e",
+      "title": "CEO",
+      "company": "Chef's Roll, Inc.",
+      "has_email": true,
+      "apollo_id": "66fb3c1a0ae2360001320200"
+    },
+    {
+      "first_name": "Stephen",
+      "last_name_obfuscated": "Pi***e",
+      "title": "Chief Executive Officer",
+      "company": "Pipitone",
+      "has_email": true,
+      "apollo_id": "54a7cd9a74686965d98b3f52"
+    },
+    {
+      "first_name": "Chase",
+      "last_name_obfuscated": "La***e",
+      "title": "Chief Executive Officer",
+      "company": "LT",
+      "has_email": true,
+      "apollo_id": "66f7c76751a3650001a431b7"
+    },
+    {
+      "first_name": "Ali",
+      "last_name_obfuscated": "Wo***d",
+      "title": "Director of Strategy",
+      "company": "Unruly Agency",
+      "has_email": true,
+      "apollo_id": "611556df34e72e0001f7157d"
+    },
+    {
+      "first_name": "Natalie",
+      "last_name_obfuscated": "Pa***l",
+      "title": "Managing Director",
+      "company": "Found.",
+      "has_email": true,
+      "apollo_id": "66f8b51c1cc13a0001f6a912"
+    },
+    {
+      "first_name": "Visionteam",
+      "last_name_obfuscated": "Ne***k",
+      "title": "CEO",
+      "company": "Team Vision Marketing",
+      "has_email": false,
+      "apollo_id": "54a4965d7468693442873e53"
+    },
+    {
+      "first_name": "Laura",
+      "last_name_obfuscated": "Mu***n",
+      "title": "Director of Influencer and Public Relations",
+      "company": "Go Social",
+      "has_email": true,
+      "apollo_id": "61d987b53f1e1100011a157b"
+    },
+    {
+      "first_name": "Reoche",
+      "last_name_obfuscated": "Si***s",
+      "title": "Chief Executive Officer",
+      "company": "People First",
+      "has_email": false,
+      "apollo_id": "6390d71582a2220001436ba3"
+    },
+    {
+      "first_name": "Zach",
+      "last_name_obfuscated": "Ki***g",
+      "title": "Chief Executive Officer",
+      "company": "King Studio",
+      "has_email": true,
+      "apollo_id": "66f462361ec133000149382a"
+    },
+    {
+      "first_name": "Anna",
+      "last_name_obfuscated": "Be***y",
+      "title": "Group Strategy Director",
+      "company": "Iris North America",
+      "has_email": true,
+      "apollo_id": "644d89ed4cb84c00011ba84d"
+    },
+    {
+      "first_name": "Jake",
+      "last_name_obfuscated": "Sk***k",
+      "title": "Chief Executive Officer",
+      "company": "SOCIAL HOUSE, INC.®",
+      "has_email": false,
+      "apollo_id": "66f5c53a46183c0001a11fab"
+    },
+    {
+      "first_name": "Barry",
+      "last_name_obfuscated": "Ha***t",
+      "title": "Managing Director",
+      "company": "Greenlight",
+      "has_email": false,
+      "apollo_id": "5c4df8f1a3ae6125f3c05a88"
+    },
+    {
+      "first_name": "Cara",
+      "last_name_obfuscated": "Sc***f",
+      "title": "CEO",
+      "company": "Cara Cara New York",
+      "has_email": false,
+      "apollo_id": "66fa53bc9ff651000186174b"
+    },
+    {
+      "first_name": "Henry",
+      "last_name_obfuscated": "Ch***c",
+      "title": "Chief Executive Officer",
+      "company": "Zehnder Communications",
+      "has_email": true,
+      "apollo_id": "6114daf96698d500017035db"
+    },
+    {
+      "first_name": "Jake",
+      "last_name_obfuscated": "Sk***k",
+      "title": "Chief Executive Officer",
+      "company": "SOCIAL HOUSE, INC.®",
+      "has_email": false,
+      "apollo_id": "66f5c53a46183c0001a11fab"
+    },
+    {
+      "first_name": "Stephanie",
+      "last_name_obfuscated": "Th***l",
+      "title": "Managing Director",
+      "company": "MIRIMAR",
+      "has_email": true,
+      "apollo_id": "64ede51eb538bc0001e67a06"
+    },
+    {
+      "first_name": "Nicole",
+      "last_name_obfuscated": "Ne***e",
+      "title": "Chief Executive Officer",
+      "company": "Qantm Creative",
+      "has_email": true,
+      "apollo_id": "54a82878746869622093a263"
+    },
+    {
+      "first_name": "Nick",
+      "last_name_obfuscated": "Br***w",
+      "title": "CEO",
+      "company": "Refinery Marketing Communications",
+      "has_email": true,
+      "apollo_id": "6566de9584c6040001008b90"
+    },
+    {
+      "first_name": "Dean",
+      "last_name_obfuscated": "We***r",
+      "title": "Chief Executive Officer",
+      "company": "Generation Media",
+      "has_email": true,
+      "apollo_id": "66f6fd8d535ef50001a331f8"
+    },
+    {
+      "first_name": "Jon",
+      "last_name_obfuscated": "Da***h",
+      "title": "Managing Director",
+      "company": "Uprated",
+      "has_email": true,
+      "apollo_id": "54a791ae74686962202f3641"
+    },
+    {
+      "first_name": "Kira",
+      "last_name_obfuscated": "Du***r",
+      "title": "Strategy Director",
+      "company": "Cartwright",
+      "has_email": true,
+      "apollo_id": "5ab1eb30a6da98f8254d28a5"
+    },
+    {
+      "first_name": "Veronica",
+      "last_name_obfuscated": "Ne***n",
+      "title": "Chief Executive Officer",
+      "company": "Amie",
+      "has_email": true,
+      "apollo_id": "5efb7d925d21b10001f5a95e"
+    },
+    {
+      "first_name": "Kyle",
+      "last_name_obfuscated": "Ho***k",
+      "title": "Chief Executive Officer",
+      "company": "Sapphire Studios",
+      "has_email": true,
+      "apollo_id": "61f146e3e349e60001c77067"
+    },
+    {
+      "first_name": "Zeb",
+      "last_name_obfuscated": "Ki***d",
+      "title": "Strategy Director",
+      "company": "Arcade",
+      "has_email": true,
+      "apollo_id": "5aa82b8ba6da98ce1eccaa98"
+    },
+    {
+      "first_name": "Suzy",
+      "last_name_obfuscated": "Da***a",
+      "title": "CEO Competitive Edge",
+      "company": "Competitive Edge",
+      "has_email": true,
+      "apollo_id": "683004b68554580001e8418b"
+    },
+    {
+      "first_name": "Shannon",
+      "last_name_obfuscated": "De***e",
+      "title": "CEO",
+      "company": "GLAMGLOW",
+      "has_email": false,
+      "apollo_id": "60ced11b0f8a480001143965"
+    },
+    {
+      "first_name": "Jo",
+      "last_name_obfuscated": "Va***n",
+      "title": "Strategy Director",
+      "company": "Team Eleven",
+      "has_email": true,
+      "apollo_id": "66f671e36b4fd1000101e199"
+    },
+    {
+      "first_name": "Zhenhai",
+      "last_name_obfuscated": "Sh***n",
+      "title": "CEO",
+      "company": "NewBay Media",
+      "has_email": true,
+      "apollo_id": "651254be64b5d800017eff94"
+    },
+    {
+      "first_name": "Roseline",
+      "last_name_obfuscated": "Co***r",
+      "title": "CEO",
+      "company": "Online Marketer",
+      "has_email": false,
+      "apollo_id": "54a81c50746869730a3d9561"
+    },
+    {
+      "first_name": "Brad",
+      "last_name_obfuscated": "Ca***r",
+      "title": "Chief Executive Officer",
+      "company": "Heart & Soul Marketing",
+      "has_email": false,
+      "apollo_id": "67c3431b99e3500001a33a82"
+    },
+    {
+      "first_name": "Kevin",
+      "last_name_obfuscated": "Pe***y",
+      "title": "Chief Executive Officer",
+      "company": "Hey Social",
+      "has_email": false,
+      "apollo_id": "64e846fdf3255900014efe55"
+    },
+    {
+      "first_name": "Naomi",
+      "last_name_obfuscated": "Br***n",
+      "title": "CEO - Managing Director",
+      "company": "Global Marketing Firm",
+      "has_email": false,
+      "apollo_id": "66fa32a8954fa90001ea367b"
+    },
+    {
+      "first_name": "Benjamin",
+      "last_name_obfuscated": "Sun",
+      "title": "Managing Director",
+      "company": "THINK CHINA | Digital Marketing Consulting",
+      "has_email": true,
+      "apollo_id": "61c540dbbb8a0100016fd0c1"
+    },
+    {
+      "first_name": "Emily",
+      "last_name_obfuscated": "Br***n",
+      "title": "Associate Director, Strategy",
+      "company": "Billion Dollar Boy",
+      "has_email": false,
+      "apollo_id": "5b322e9ca6da98714dbfc587"
+    },
+    {
+      "first_name": "Gerard",
+      "last_name_obfuscated": "Bo***r",
+      "title": "Chief Executive Officer",
+      "company": "Boucher + Co.",
+      "has_email": true,
+      "apollo_id": "66f9a34037fd450001a92fc8"
+    },
+    {
+      "first_name": "Sina",
+      "last_name_obfuscated": "Nu***z",
+      "title": "Strategy Director",
+      "company": "FRUKT",
+      "has_email": true,
+      "apollo_id": "66f51d5ec33fa10001dbb5ec"
+    },
+    {
+      "first_name": "Lauren",
+      "last_name_obfuscated": "Ta***n",
+      "title": "Chief Executive Officer",
+      "company": "Agent42",
+      "has_email": true,
+      "apollo_id": "66f544f1c5d7820001004455"
+    },
+    {
+      "first_name": "Allison",
+      "last_name_obfuscated": "Ko***r",
+      "title": "Strategy Director",
+      "company": "1HQ Brand Agency",
+      "has_email": true,
+      "apollo_id": "54a4c22274686932095ee160"
+    },
+    {
+      "first_name": "Robyn",
+      "last_name_obfuscated": "Da***n",
+      "title": "Managing Director of Strategy",
+      "company": "Exverus by Brainlabs",
+      "has_email": true,
+      "apollo_id": "681933b9e876630001c6af0d"
+    },
+    {
+      "first_name": "Khalil",
+      "last_name_obfuscated": "Ma***r",
+      "title": "CEO",
+      "company": "Habibi Acquisitions",
+      "has_email": true,
+      "apollo_id": "66f5aeb4d73c6300013baa5b"
+    },
+    {
+      "first_name": "Big",
+      "last_name_obfuscated": "Mo***s",
+      "title": "C.E.O",
+      "company": "bigdog Agency",
+      "has_email": false,
+      "apollo_id": "5570ca057369641c5c506901"
+    },
+    {
+      "first_name": "Jim",
+      "last_name_obfuscated": "Mo***r",
+      "title": "Managing Director/CEO",
+      "company": "Clemenger BBDO",
+      "has_email": false,
+      "apollo_id": "671f7ba22bea5c0001c58714"
+    },
+    {
+      "first_name": "Imogen",
+      "last_name_obfuscated": "Ju***d",
+      "title": "Strategy Director",
+      "company": "Team Eleven",
+      "has_email": true,
+      "apollo_id": "66fd800ca60ce4000180d066"
+    },
+    {
+      "first_name": "Jonathan",
+      "last_name_obfuscated": "Mu***e",
+      "title": "Chief Executive Officer",
+      "company": "jellybean",
+      "has_email": false,
+      "apollo_id": "54a51d187468692cf06d0d7e"
+    },
+    {
+      "first_name": "James",
+      "last_name_obfuscated": "Ne***n",
+      "title": "Strategy Director",
+      "company": "1HQ Brand Agency",
+      "has_email": true,
+      "apollo_id": "672cbc30f2c6270001d298e4"
+    },
+    {
+      "first_name": "Zack",
+      "last_name_obfuscated": "Gr***r",
+      "title": "Chief Executive Officer",
+      "company": "Code 11",
+      "has_email": true,
+      "apollo_id": "66f9c41b9901a20001cc8afd"
+    },
+    {
+      "first_name": "Thomas",
+      "last_name_obfuscated": "Ke***g",
+      "title": "Director of Influencer Marketing",
+      "company": "Exclusive",
+      "has_email": true,
+      "apollo_id": "63b021b8363b2c0001f515b9"
+    },
+    {
+      "first_name": "Chaminda",
+      "last_name_obfuscated": "Te***n",
+      "title": "Chief Executive Officer",
+      "company": "CT Marketing",
+      "has_email": false,
+      "apollo_id": "667bce41ccafc10001464f87"
+    },
+    {
+      "first_name": "Hannan",
+      "last_name_obfuscated": "Sh***r",
+      "title": "Co-Chief Executive Officer",
+      "company": "Inceptives Digital",
+      "has_email": true,
+      "apollo_id": "694235e519037c00017e6757"
+    },
+    {
+      "first_name": "Gil",
+      "last_name_obfuscated": "Sa***l",
+      "title": "CEO",
+      "company": "Sandoval Agency",
+      "has_email": true,
+      "apollo_id": "6115c911e5129a00019a4711"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Ba***t",
+      "title": "CEO",
+      "company": "InGo",
+      "has_email": true,
+      "apollo_id": "6927d1dfa13b7c000116123a"
+    },
+    {
+      "first_name": "Young",
+      "last_name_obfuscated": "Co***y",
+      "title": "CEO",
+      "company": "Young Company | Creative Marketing Communications",
+      "has_email": true,
+      "apollo_id": "66f3cc7a950cfc000145db11"
+    },
+    {
+      "first_name": "Dave",
+      "last_name_obfuscated": "Ru***n",
+      "title": "CEO",
+      "company": "ProSites",
+      "has_email": true,
+      "apollo_id": "66f1cea902acb900017bd065"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Sa***o",
+      "title": "CEO",
+      "company": "Nilson Sports",
+      "has_email": true,
+      "apollo_id": "610c487630f2f50001fb26fc"
+    },
+    {
+      "first_name": "Joshua",
+      "last_name_obfuscated": "Ba***t",
+      "title": "Chief Executive Officer",
+      "company": "After Party Studios",
+      "has_email": true,
+      "apollo_id": "680d12a53b138300014fd23c"
+    },
+    {
+      "first_name": "Brad",
+      "last_name_obfuscated": "Cu***r",
+      "title": "President / CEO",
+      "company": "The Cut",
+      "has_email": true,
+      "apollo_id": "66f3243ac10c6d0001329ced"
+    },
+    {
+      "first_name": "Erin",
+      "last_name_obfuscated": "Va***n",
+      "title": "Chief Executive Officer",
+      "company": "Field Scout",
+      "has_email": true,
+      "apollo_id": "54a3b6e0746869344229ed0c"
+    },
+    {
+      "first_name": "Luke",
+      "last_name_obfuscated": "Mi***i",
+      "title": "Managing Director",
+      "company": "DL Group",
+      "has_email": false,
+      "apollo_id": "66ee4f486ccb37000175c95d"
+    },
+    {
+      "first_name": "Veronika",
+      "last_name_obfuscated": "Ko***a",
+      "title": "CEO-1",
+      "company": "OST",
+      "has_email": false,
+      "apollo_id": "61f56d7cab68460001fef74c"
+    },
+    {
+      "first_name": "Jose",
+      "last_name_obfuscated": "Jo***n",
+      "title": "Managing Director",
+      "company": "OST",
+      "has_email": false,
+      "apollo_id": "5f76eea4e6ab140001c7c0cb"
+    },
+    {
+      "first_name": "Seb",
+      "last_name_obfuscated": "We***r",
+      "title": "Founder, Owner & Global CEO",
+      "company": "WMA",
+      "has_email": true,
+      "apollo_id": "60d14be99b7f64000156c44a"
+    },
+    {
+      "first_name": "Ryan",
+      "last_name_obfuscated": "Ha***d",
+      "title": "CEO",
+      "company": "Gallery Media Group",
+      "has_email": true,
+      "apollo_id": "66f1dc2f16680e0001eb13aa"
+    },
+    {
+      "first_name": "Doug",
+      "last_name_obfuscated": "Sh***n",
+      "title": "Chief Executive Officer",
+      "company": "Burns Entertainment",
+      "has_email": true,
+      "apollo_id": "66fb5989a8908c0001876726"
+    },
+    {
+      "first_name": "Peter",
+      "last_name_obfuscated": "Le***e",
+      "title": "Chief Executive Officer",
+      "company": "Embassy",
+      "has_email": true,
+      "apollo_id": "6941377a407be50001f1c746"
+    },
+    {
+      "first_name": "Jacob",
+      "last_name_obfuscated": "Cl***n",
+      "title": "Chief Executive Officer",
+      "company": "Aurora Group",
+      "has_email": true,
+      "apollo_id": "5c6f01d8f6512568e4e3d771"
+    },
+    {
+      "first_name": "Salman",
+      "last_name_obfuscated": "Kh***n",
+      "title": "Chief Executive Officer",
+      "company": "Digicorns Technologies",
+      "has_email": true,
+      "apollo_id": "6468476e90d7a90001e3fcb5"
+    },
+    {
+      "first_name": "Uresa",
+      "last_name_obfuscated": "Da***d",
+      "title": "Chief Executive Officer",
+      "company": "Online Marketer",
+      "has_email": false,
+      "apollo_id": "5de4819be8a724000137ae9f"
+    },
+    {
+      "first_name": "Tinku",
+      "last_name_obfuscated": "Ke***i",
+      "title": "Chief Executive Officer",
+      "company": "FPO Marketing & Advertising",
+      "has_email": false,
+      "apollo_id": "667c3c1bf9c72b0001e813c5"
+    },
+    {
+      "first_name": "Cruz",
+      "last_name_obfuscated": "Wh***g",
+      "title": "Director of Paid Strategy",
+      "company": "Suppertime",
+      "has_email": true,
+      "apollo_id": "645e353d1a8761000121ef50"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Wh***e",
+      "title": "Chief Executive Officer (CEO)",
+      "company": "CloudMellow",
+      "has_email": true,
+      "apollo_id": "66ef05ffd567c300016ecb58"
+    },
+    {
+      "first_name": "Mike",
+      "last_name_obfuscated": "Jo***y",
+      "title": "Strategy Director",
+      "company": "DEJAN MARKETING",
+      "has_email": true,
+      "apollo_id": "5b25c964a6da98e876f10eb6"
+    },
+    {
+      "first_name": "Ivan",
+      "last_name_obfuscated": "Ch***k",
+      "title": "CEO",
+      "company": "Meanwhile",
+      "has_email": false,
+      "apollo_id": "6317bf2d5c04e5000164c05a"
+    },
+    {
+      "first_name": "Kyle",
+      "last_name_obfuscated": "Mc***n",
+      "title": "CEO",
+      "company": "iFrog Marketing Solutions",
+      "has_email": true,
+      "apollo_id": "66f18dd9833941000130ac1e"
+    },
+    {
+      "first_name": "Adam",
+      "last_name_obfuscated": "Da***r",
+      "title": "Chief Executive Officer",
+      "company": "The Golden State Company",
+      "has_email": false,
+      "apollo_id": "68b9dea7ada074000180a34c"
+    },
+    {
+      "first_name": "Tim",
+      "last_name_obfuscated": "O'***y",
+      "title": "CEO",
+      "company": "Ateema Media & Marketing, LLC",
+      "has_email": true,
+      "apollo_id": "66f8faea0c96aa0001200684"
+    },
+    {
+      "first_name": "Kevin",
+      "last_name_obfuscated": "Si***n",
+      "title": "Chief Executive Officer",
+      "company": "adMixt",
+      "has_email": true,
+      "apollo_id": "66f4752cb9703d00011b157e"
+    },
+    {
+      "first_name": "Rebecca",
+      "last_name_obfuscated": "St***w",
+      "title": "Director of Influencer",
+      "company": "VCCP Roar",
+      "has_email": true,
+      "apollo_id": "5b33662ca6da9871152a764f"
+    },
+    {
+      "first_name": "Kristen",
+      "last_name_obfuscated": "St***h",
+      "title": "Chief Executive Officer",
+      "company": "VizSense",
+      "has_email": true,
+      "apollo_id": "60f14eeb97d01b0001d508a7"
+    },
+    {
+      "first_name": "Uzma",
+      "last_name_obfuscated": "So***o",
+      "title": "Chief Executive Officer",
+      "company": "Creative Marketing Services",
+      "has_email": false,
+      "apollo_id": "635e6550d62e4e00017fe446"
+    },
+    {
+      "first_name": "Saad",
+      "last_name_obfuscated": "Al***f",
+      "title": "CEO",
+      "company": "Mediareach Advertising",
+      "has_email": true,
+      "apollo_id": "66ed7fa04e33b50001e8f16a"
+    },
+    {
+      "first_name": "Maria",
+      "last_name_obfuscated": "An***n",
+      "title": "CEO",
+      "company": "Brand Marketing",
+      "has_email": false,
+      "apollo_id": "61143a353ecf840001593f14"
+    },
+    {
+      "first_name": "Jamie",
+      "last_name_obfuscated": "Le***n",
+      "title": "Strategy Director",
+      "company": "Cream | Certified B Corp",
+      "has_email": true,
+      "apollo_id": "67171bdf03c8080001122d1f"
+    },
+    {
+      "first_name": "Rita",
+      "last_name_obfuscated": "Bo***o",
+      "title": "CEO",
+      "company": "Elevate Agency",
+      "has_email": false,
+      "apollo_id": "54a3b1d87468692cf055650b"
+    },
+    {
+      "first_name": "Billy",
+      "last_name_obfuscated": "Ha***s",
+      "title": "Chief Executive Officer",
+      "company": "Arsenic",
+      "has_email": true,
+      "apollo_id": "66f5beb79384f50001261775"
+    },
+    {
+      "first_name": "Joseph",
+      "last_name_obfuscated": "Mc***e",
+      "title": "Chief Executive Officer",
+      "company": "Swell Media",
+      "has_email": true,
+      "apollo_id": "66fa7aa2676dfc0001f68f81"
+    },
+    {
+      "first_name": "Ahtisham",
+      "last_name_obfuscated": "Mu***l",
+      "title": "Principal Chief Executive Officer",
+      "company": "First call solutions",
+      "has_email": true,
+      "apollo_id": "68116a905357d10001fb05ba"
+    },
+    {
+      "first_name": "Victor",
+      "last_name_obfuscated": "P",
+      "title": "Managing Director",
+      "company": "TBP",
+      "has_email": false,
+      "apollo_id": "66f651db6a60a8000117f4e5"
+    }
+  ],
+  "seg3_all": [
+    {
+      "first_name": "Rick",
+      "last_name_obfuscated": "Mo***o",
+      "title": "Social Media Director",
+      "company": "Packable",
+      "has_email": false,
+      "apollo_id": "606c0b8b266564000130a1df"
+    },
+    {
+      "first_name": "Dana",
+      "last_name_obfuscated": "Fl***s",
+      "title": "Influencer Marketing Manager",
+      "company": "unybrands",
+      "has_email": true,
+      "apollo_id": "60ed3e1379d1ee00017a7754"
+    },
+    {
+      "first_name": "Alex",
+      "last_name_obfuscated": "Tu***y",
+      "title": "Social Media Director",
+      "company": "Nectar Life",
+      "has_email": true,
+      "apollo_id": "64f4cf8f03106800011bcc09"
+    },
+    {
+      "first_name": "Casey",
+      "last_name_obfuscated": "Kr***s",
+      "title": "Social Media Director",
+      "company": "Authentic Brands Group",
+      "has_email": true,
+      "apollo_id": "66ff101934f152000191f837"
+    },
+    {
+      "first_name": "Millie",
+      "last_name_obfuscated": "Kn***t",
+      "title": "Social Media Director",
+      "company": "Princess Polly",
+      "has_email": false,
+      "apollo_id": "67001a8af4c7410001c8e1e1"
+    },
+    {
+      "first_name": "Gina",
+      "last_name_obfuscated": "Mom",
+      "title": "Social Media Director",
+      "company": "MOTHER Denim",
+      "has_email": true,
+      "apollo_id": "66f5c100e26af50001ed389e"
+    },
+    {
+      "first_name": "Patsi",
+      "last_name_obfuscated": "Wa***n",
+      "title": "Social Media Director",
+      "company": "McCANN Birmingham",
+      "has_email": true,
+      "apollo_id": "57d558d8a6da9853e64dfbdc"
+    },
+    {
+      "first_name": "Jenna",
+      "last_name_obfuscated": "Th***i",
+      "title": "President and Chief Marketing Officer",
+      "company": "Guthy|Renker",
+      "has_email": false,
+      "apollo_id": "6597913ef9111e000179c769"
+    },
+    {
+      "first_name": "Parker",
+      "last_name_obfuscated": "Da***o",
+      "title": "Influencer Marketing Manager",
+      "company": "Glossier, Inc.",
+      "has_email": false,
+      "apollo_id": "57d43277a6da98538e75cd50"
+    },
+    {
+      "first_name": "Raleigh",
+      "last_name_obfuscated": "Ax***r",
+      "title": "Social Media Director",
+      "company": "Baseball Lifestyle 101",
+      "has_email": true,
+      "apollo_id": "668b75ab84124a0001f69f5b"
+    },
+    {
+      "first_name": "Yania",
+      "last_name_obfuscated": "Ma***z",
+      "title": "Social Media Director",
+      "company": "Pura Vida Miami",
+      "has_email": true,
+      "apollo_id": "66faf4b163ea3b000127567a"
+    },
+    {
+      "first_name": "Bryanna",
+      "last_name_obfuscated": "Ha***n",
+      "title": "Director of Social Media",
+      "company": "Fabletics",
+      "has_email": true,
+      "apollo_id": "660b5caa8110b200072c7538"
+    },
+    {
+      "first_name": "Sheiva",
+      "last_name_obfuscated": "So***i",
+      "title": "Director of Social Media",
+      "company": "Fabletics",
+      "has_email": true,
+      "apollo_id": "60e77e311252f40001f62afe"
+    },
+    {
+      "first_name": "Mimi",
+      "last_name_obfuscated": "Po***o",
+      "title": "Social Media Director",
+      "company": "Who What Wear",
+      "has_email": true,
+      "apollo_id": "6078a1b18f65390001ef2ad1"
+    },
+    {
+      "first_name": "Zack",
+      "last_name_obfuscated": "Ir***s",
+      "title": "Director, Social Media",
+      "company": "johnnie-O",
+      "has_email": true,
+      "apollo_id": "54aac5a87468690b759be217"
+    },
+    {
+      "first_name": "Micaela",
+      "last_name_obfuscated": "Ve***o",
+      "title": "Director, Social Media",
+      "company": "Authentic Brands Group",
+      "has_email": true,
+      "apollo_id": "5f5e2091a1bbb90001dbb9b0"
+    },
+    {
+      "first_name": "Davide",
+      "last_name_obfuscated": "Ma***i",
+      "title": "Chief Marketing Officer",
+      "company": "BYLT Basics",
+      "has_email": true,
+      "apollo_id": "611b3d5cab08e1000129f6cb"
+    },
+    {
+      "first_name": "Amanda",
+      "last_name_obfuscated": "Ri***o",
+      "title": "Social Media Director",
+      "company": "Paragon",
+      "has_email": false,
+      "apollo_id": "5acaa1dca6da984014197d65"
+    },
+    {
+      "first_name": "Johanna",
+      "last_name_obfuscated": "Si***r",
+      "title": "VP, Marketing",
+      "company": "Spanx",
+      "has_email": true,
+      "apollo_id": "60d0c3f8f5def000013d2160"
+    },
+    {
+      "first_name": "Felis",
+      "last_name_obfuscated": "Az***a",
+      "title": "Influencer Marketing Manager",
+      "company": "Dossier Perfumes",
+      "has_email": true,
+      "apollo_id": "66bcf4a9996e16000174e72e"
+    },
+    {
+      "first_name": "Sophie",
+      "last_name_obfuscated": "Ka***n",
+      "title": "Senior Social Media and Influencer Marketing Manager",
+      "company": "Spanx",
+      "has_email": false,
+      "apollo_id": "6353a4b22e8710000196bb53"
+    },
+    {
+      "first_name": "Erin",
+      "last_name_obfuscated": "Be***r",
+      "title": "CMO",
+      "company": "Bucked Up",
+      "has_email": true,
+      "apollo_id": "66f54f075d452d0001e65c76"
+    },
+    {
+      "first_name": "John",
+      "last_name_obfuscated": "Wh***m",
+      "title": "Social Media Director",
+      "company": "Inizio Evoke",
+      "has_email": true,
+      "apollo_id": "687208ceade61b0001423ea0"
+    },
+    {
+      "first_name": "Michelle",
+      "last_name_obfuscated": "Li***n",
+      "title": "Social Media Director",
+      "company": "Inizio Evoke",
+      "has_email": true,
+      "apollo_id": "6536d37e088e4500019419d7"
+    },
+    {
+      "first_name": "Alex",
+      "last_name_obfuscated": "Go***k",
+      "title": "Director, Social Media & Content",
+      "company": "Kenneth Cole Productions",
+      "has_email": true,
+      "apollo_id": "66f798c226ca48000132e93e"
+    },
+    {
+      "first_name": "Gueven",
+      "last_name_obfuscated": "Yo***z",
+      "title": "Social Media Director",
+      "company": "Barbour",
+      "has_email": false,
+      "apollo_id": "640aecb8d28cc40001cf68c2"
+    },
+    {
+      "first_name": "Chloe",
+      "last_name_obfuscated": "Ba***a",
+      "title": "Influencer Marketing Manager",
+      "company": "MOTHER Denim",
+      "has_email": true,
+      "apollo_id": "57d577f6a6da9853de00f794"
+    },
+    {
+      "first_name": "Marissa",
+      "last_name_obfuscated": "Fe***l",
+      "title": "Influencer Marketing Manager",
+      "company": "Portland Leather Goods",
+      "has_email": true,
+      "apollo_id": "54a3aa4674686932099fed08"
+    },
+    {
+      "first_name": "Francine",
+      "last_name_obfuscated": "Li",
+      "title": "Chief Marketing Officer",
+      "company": "IPSY",
+      "has_email": true,
+      "apollo_id": "54a433cd7468692cf0348134"
+    },
+    {
+      "first_name": "Astou",
+      "last_name_obfuscated": "Di***p",
+      "title": "Influencer Marketing Manager, East",
+      "company": "E.L.F. BEAUTY",
+      "has_email": true,
+      "apollo_id": "694a6673635e7e0001b86d17"
+    },
+    {
+      "first_name": "Stacey",
+      "last_name_obfuscated": "Po***i",
+      "title": "Chief Marketing Officer",
+      "company": "IPSY",
+      "has_email": true,
+      "apollo_id": "66f4714ebe983f0001b5d714"
+    },
+    {
+      "first_name": "Sydney",
+      "last_name_obfuscated": "Mc***n",
+      "title": "Influencer Marketing Manager",
+      "company": "Brooklinen",
+      "has_email": true,
+      "apollo_id": "603d6d252bbddd0001f8ff1e"
+    },
+    {
+      "first_name": "Ilana",
+      "last_name_obfuscated": "Wu***n",
+      "title": "Director of Social Media",
+      "company": "Vocal Media",
+      "has_email": true,
+      "apollo_id": "65dc5656337b1f0001370546"
+    },
+    {
+      "first_name": "Taylor",
+      "last_name_obfuscated": "Hi***s",
+      "title": "Director of Social Media",
+      "company": "Autumn Communications",
+      "has_email": true,
+      "apollo_id": "62c94f868bc4b30001a37268"
+    },
+    {
+      "first_name": "Nick",
+      "last_name_obfuscated": "Wo***e",
+      "title": "President and CMO",
+      "company": "Authentic Brands Group",
+      "has_email": true,
+      "apollo_id": "60ff8d4b3fd6170001be1428"
+    },
+    {
+      "first_name": "Kayla",
+      "last_name_obfuscated": "Mc***n",
+      "title": "Influencer Marketing Manager",
+      "company": "Thrasio",
+      "has_email": true,
+      "apollo_id": "66fa999734ff8c0001a3f224"
+    },
+    {
+      "first_name": "Holly",
+      "last_name_obfuscated": "Kr***z",
+      "title": "Social Media Director",
+      "company": "The Adcom Group",
+      "has_email": true,
+      "apollo_id": "615d87615267290001ea8489"
+    },
+    {
+      "first_name": "Amy",
+      "last_name_obfuscated": "Gi***t",
+      "title": "Director of Social Media",
+      "company": "Mindgruve",
+      "has_email": true,
+      "apollo_id": "6667f188d1e3e70001193695"
+    },
+    {
+      "first_name": "Kelsey",
+      "last_name_obfuscated": "De***o",
+      "title": "Social Media Director",
+      "company": "Field & Stream",
+      "has_email": true,
+      "apollo_id": "63e4bd88224ca600015d8caa"
+    },
+    {
+      "first_name": "Brenna",
+      "last_name_obfuscated": "Ta***r",
+      "title": "Influencer Marketing Manager",
+      "company": "CELSIUS",
+      "has_email": true,
+      "apollo_id": "5d47f4f080f93e7a0719e97c"
+    },
+    {
+      "first_name": "Will",
+      "last_name_obfuscated": "Co***r",
+      "title": "Social Media Director",
+      "company": "GSM Outdoors",
+      "has_email": true,
+      "apollo_id": "66f54f39b3b92c0001f6a478"
+    },
+    {
+      "first_name": "Erwan",
+      "last_name_obfuscated": "Be***d",
+      "title": "Chief Marketing Officer",
+      "company": "NEST NEW YORK",
+      "has_email": true,
+      "apollo_id": "66ed9ca04c2cdd00017e1d1a"
+    },
+    {
+      "first_name": "Daniel",
+      "last_name_obfuscated": "Lo***n",
+      "title": "Chief Marketing Officer",
+      "company": "Club L London",
+      "has_email": false,
+      "apollo_id": "6139d930de5190000171e574"
+    },
+    {
+      "first_name": "Zoe",
+      "last_name_obfuscated": "Me***n",
+      "title": "Fractional CMO / Growth Lead",
+      "company": "Spanx",
+      "has_email": true,
+      "apollo_id": "682eef34a04112000191737e"
+    },
+    {
+      "first_name": "Mariam",
+      "last_name_obfuscated": "Ab***f",
+      "title": "Social Media Director",
+      "company": "Assembly Global",
+      "has_email": true,
+      "apollo_id": "690fbb689fd26c000147a1f9"
+    },
+    {
+      "first_name": "Sharon",
+      "last_name_obfuscated": "Br***w",
+      "title": "Social Media Director",
+      "company": "Handy HQ",
+      "has_email": false,
+      "apollo_id": "60ddb658821b3f0001018a16"
+    },
+    {
+      "first_name": "Jeffrey",
+      "last_name_obfuscated": "Vi***o",
+      "title": "Social Media Director",
+      "company": "Playbill",
+      "has_email": true,
+      "apollo_id": "66e1169f272ff40001116e0a"
+    },
+    {
+      "first_name": "Elena",
+      "last_name_obfuscated": "Cr***i",
+      "title": "Influencer Marketing Manager Europe",
+      "company": "Fabletics",
+      "has_email": true,
+      "apollo_id": "605dd70066c2c300010fdcd8"
+    },
+    {
+      "first_name": "Neria",
+      "last_name_obfuscated": "Ba***h",
+      "title": "Social Media Director",
+      "company": "Moburst - Growth Done Right",
+      "has_email": false,
+      "apollo_id": "61680187a31d8f00013daef5"
+    },
+    {
+      "first_name": "Mandy",
+      "last_name_obfuscated": "Fa***l",
+      "title": "Director, Social Media",
+      "company": "goop",
+      "has_email": true,
+      "apollo_id": "66f5101cb8b672000192db20"
+    },
+    {
+      "first_name": "Eileen",
+      "last_name_obfuscated": "Le***t",
+      "title": "Influencer Marketing Manager",
+      "company": "Mammoth Brands",
+      "has_email": true,
+      "apollo_id": "60bb02c786f2db000116231e"
+    },
+    {
+      "first_name": "Emily",
+      "last_name_obfuscated": "Al***n",
+      "title": "Social Media Director",
+      "company": "Lawyer's Title Company",
+      "has_email": true,
+      "apollo_id": "61306a993ab7400001355de8"
+    },
+    {
+      "first_name": "Amanda",
+      "last_name_obfuscated": "Mi***d",
+      "title": "Social Media Director",
+      "company": "Greenpark",
+      "has_email": true,
+      "apollo_id": "624ec3eb15f071000108b28e"
+    },
+    {
+      "first_name": "Alicia",
+      "last_name_obfuscated": "Co***e",
+      "title": "Social Media Director",
+      "company": "Greenpark",
+      "has_email": true,
+      "apollo_id": "65ce070f392efc0001c6a282"
+    },
+    {
+      "first_name": "Rommel",
+      "last_name_obfuscated": "We***s",
+      "title": "Social Media Director",
+      "company": "Rhinegeist Brewery",
+      "has_email": true,
+      "apollo_id": "613079d875b2e100017bd5b1"
+    },
+    {
+      "first_name": "Jennifer",
+      "last_name_obfuscated": "Sh***e",
+      "title": "Social Media Director",
+      "company": "Greenpark",
+      "has_email": true,
+      "apollo_id": "60f971f0cb714f0001c22f17"
+    },
+    {
+      "first_name": "Amber",
+      "last_name_obfuscated": "Ki***r",
+      "title": "Social Media Director",
+      "company": "Auffenberg Dealer Group",
+      "has_email": true,
+      "apollo_id": "54a4ee907468693209eda16e"
+    },
+    {
+      "first_name": "Jason",
+      "last_name_obfuscated": "Sm***h",
+      "title": "Social Media Director",
+      "company": "Backbone Media",
+      "has_email": true,
+      "apollo_id": "60b88362bd844500015e4962"
+    },
+    {
+      "first_name": "Ashley",
+      "last_name_obfuscated": "Mo***o",
+      "title": "Social Media Director",
+      "company": "Ole Mexican Foods Inc",
+      "has_email": true,
+      "apollo_id": "5fdb3863eefd1d0001f748a6"
+    },
+    {
+      "first_name": "Brandon",
+      "last_name_obfuscated": "Mo***s",
+      "title": "Social Media Director",
+      "company": "Camelback Toyota",
+      "has_email": true,
+      "apollo_id": "6653a7c781dd59000119f11b"
+    },
+    {
+      "first_name": "Safarullah",
+      "last_name_obfuscated": "Ju***t",
+      "title": "Social Media Director",
+      "company": "SEO Expert",
+      "has_email": false,
+      "apollo_id": "68877d9212f8d40001300cc3"
+    },
+    {
+      "first_name": "Devyn",
+      "last_name_obfuscated": "Ho***d",
+      "title": "Director of Social & Influencer",
+      "company": "Guthy|Renker",
+      "has_email": true,
+      "apollo_id": "64eeb503b55a1c00018bb01e"
+    },
+    {
+      "first_name": "Noah",
+      "last_name_obfuscated": "La***i",
+      "title": "Social Media Director",
+      "company": "Powerhouse Gym",
+      "has_email": false,
+      "apollo_id": "5d64e93480f93ecaf09c24a5"
+    },
+    {
+      "first_name": "Jay",
+      "last_name_obfuscated": "Sp***r",
+      "title": "Social Media Director",
+      "company": "Crimtan",
+      "has_email": true,
+      "apollo_id": "57d39d52a6da985b8af4f2c6"
+    },
+    {
+      "first_name": "Joey",
+      "last_name_obfuscated": "So***s",
+      "title": "Social Media Director",
+      "company": "McCANN New York",
+      "has_email": true,
+      "apollo_id": "6014b094bac1dc0001fa4842"
+    },
+    {
+      "first_name": "Kylie",
+      "last_name_obfuscated": "Fr***k",
+      "title": "Social Media Director",
+      "company": "Walker Sands",
+      "has_email": true,
+      "apollo_id": "66f57dc56ee25b0001d164de"
+    },
+    {
+      "first_name": "Spencer",
+      "last_name_obfuscated": "Ni***z",
+      "title": "Social Media Director",
+      "company": "World of Wonder",
+      "has_email": true,
+      "apollo_id": "610966a0805c8d0001360210"
+    },
+    {
+      "first_name": "Brittnee",
+      "last_name_obfuscated": "Co***r",
+      "title": "Social Media Director",
+      "company": "Uphold",
+      "has_email": true,
+      "apollo_id": "60da232554dea90001a96523"
+    },
+    {
+      "first_name": "Ivan",
+      "last_name_obfuscated": "Tr***o",
+      "title": "Social Media Director",
+      "company": "Stream Companies",
+      "has_email": true,
+      "apollo_id": "5ad425cfa6da9867a53f8551"
+    },
+    {
+      "first_name": "Elaina",
+      "last_name_obfuscated": "Ma***o",
+      "title": "Social Media Director",
+      "company": "Seed Health",
+      "has_email": true,
+      "apollo_id": "57d6ef00a6da985421ad1c90"
+    },
+    {
+      "first_name": "Ian",
+      "last_name_obfuscated": "Wi***p",
+      "title": "Social Media Director",
+      "company": "The CE Shop",
+      "has_email": true,
+      "apollo_id": "54c2480b7468697af73e5d8b"
+    },
+    {
+      "first_name": "Dustin",
+      "last_name_obfuscated": "Sm***h",
+      "title": "Social Media Director",
+      "company": "Grace Bible Church",
+      "has_email": false,
+      "apollo_id": "5e75e3050c5df800011a91bd"
+    },
+    {
+      "first_name": "Talha",
+      "last_name_obfuscated": "Wo***d",
+      "title": "Social Media Director",
+      "company": "Fiverr",
+      "has_email": true,
+      "apollo_id": "63553c958370a40001e06ee0"
+    },
+    {
+      "first_name": "Eva",
+      "last_name_obfuscated": "Lee",
+      "title": "Social Media Director",
+      "company": "Pokeworks",
+      "has_email": true,
+      "apollo_id": "69141a11be4ac90001d7217d"
+    },
+    {
+      "first_name": "Jacob",
+      "last_name_obfuscated": "Cu***s",
+      "title": "Social Media Director",
+      "company": "R\\West",
+      "has_email": true,
+      "apollo_id": "5bb59201f6e08585ba917124"
+    },
+    {
+      "first_name": "Irekpitan",
+      "last_name_obfuscated": "Uk***e",
+      "title": "Social Media Director",
+      "company": "Freelance Web Developer / Designer",
+      "has_email": false,
+      "apollo_id": "5ad50eaea6da98678980b948"
+    },
+    {
+      "first_name": "Andre",
+      "last_name_obfuscated": "Ha***s",
+      "title": "Social Media Director",
+      "company": "The Magnet Group",
+      "has_email": true,
+      "apollo_id": "5ad6a9bba6da98e35c3bffbe"
+    },
+    {
+      "first_name": "Taylor",
+      "last_name_obfuscated": "Ma***c",
+      "title": "Social Media Director",
+      "company": "Vertical Raise",
+      "has_email": true,
+      "apollo_id": "6841368f88332000010b975e"
+    },
+    {
+      "first_name": "Meredith",
+      "last_name_obfuscated": "Jo***n",
+      "title": "Social Media Director",
+      "company": "Entangled Publishing, LLC",
+      "has_email": true,
+      "apollo_id": "6655da3bc3d4b50001ee24c6"
+    },
+    {
+      "first_name": "Stephanie",
+      "last_name_obfuscated": "El***r",
+      "title": "Social Media Director",
+      "company": "MAC Group",
+      "has_email": true,
+      "apollo_id": "651b21aeac431e00010819e4"
+    },
+    {
+      "first_name": "Megan",
+      "last_name_obfuscated": "Pa***n",
+      "title": "Social Media Director",
+      "company": "AutoFair Automotive Group",
+      "has_email": false,
+      "apollo_id": "57d91870a6da9872625f999a"
+    },
+    {
+      "first_name": "Omer",
+      "last_name_obfuscated": "En***n",
+      "title": "Executive VP, Marketing",
+      "company": "Scale Media",
+      "has_email": true,
+      "apollo_id": "54a40fa174686938ac049329"
+    },
+    {
+      "first_name": "Jae",
+      "last_name_obfuscated": "Jo***n",
+      "title": "Director, Social Media - Sports & Lifestyle",
+      "company": "Authentic Brands Group",
+      "has_email": true,
+      "apollo_id": "61f050f8ebbb410001ec63d4"
+    },
+    {
+      "first_name": "Tarver",
+      "last_name_obfuscated": "Re***r",
+      "title": "Social Media Director",
+      "company": "The Orchard",
+      "has_email": true,
+      "apollo_id": "66fa811f1b28910001de7ab1"
+    },
+    {
+      "first_name": "Laura",
+      "last_name_obfuscated": "Se***d",
+      "title": "Director, Social Media",
+      "company": "Rise, a Quad agency",
+      "has_email": true,
+      "apollo_id": "60ec96b39c3711000136f213"
+    },
+    {
+      "first_name": "Juan",
+      "last_name_obfuscated": "Ll***s",
+      "title": "Social Media Director",
+      "company": "Canela Media",
+      "has_email": true,
+      "apollo_id": "57e1930ca6da987d5c403ae9"
+    },
+    {
+      "first_name": "Tori",
+      "last_name_obfuscated": "Ol***r",
+      "title": "Social Media Director",
+      "company": "Hunter",
+      "has_email": true,
+      "apollo_id": "57d9b25ba6da987ffddbe9cc"
+    },
+    {
+      "first_name": "Kamei",
+      "last_name_obfuscated": "Ba***s",
+      "title": "Social Media Director",
+      "company": "Better Being Co.",
+      "has_email": true,
+      "apollo_id": "68f48849b5d1350001c3b153"
+    },
+    {
+      "first_name": "Kameron",
+      "last_name_obfuscated": "Kh***m",
+      "title": "Associate Influencer Marketing Manager",
+      "company": "Azazie, Inc.",
+      "has_email": true,
+      "apollo_id": "606f5e54b3fcc30001289602"
+    },
+    {
+      "first_name": "Dana",
+      "last_name_obfuscated": "Wa***e",
+      "title": "Social Media Director",
+      "company": "eos Products",
+      "has_email": true,
+      "apollo_id": "61168087f49e290001557143"
+    },
+    {
+      "first_name": "Chuck",
+      "last_name_obfuscated": "Na***o",
+      "title": "Social Media Director",
+      "company": "Barstool Sports",
+      "has_email": true,
+      "apollo_id": "611d596cc62e2c0001f41e5d"
+    },
+    {
+      "first_name": "Ravneet",
+      "last_name_obfuscated": "Ka***r",
+      "title": "Influencer Marketing Manager",
+      "company": "Influencer",
+      "has_email": false,
+      "apollo_id": "62e0cf218bf7300001d08195"
+    },
+    {
+      "first_name": "Tyler",
+      "last_name_obfuscated": "Ja***e",
+      "title": "Social Media Director",
+      "company": "East Bay Restaurant Supply, Inc.",
+      "has_email": false,
+      "apollo_id": "54c25acf74686916397ee88f"
+    },
+    {
+      "first_name": "Major",
+      "last_name_obfuscated": "Ta***r",
+      "title": "Social Media Director",
+      "company": "Detroit Pistons",
+      "has_email": true,
+      "apollo_id": "57d8e7e9a6da9872625e0ac3"
+    },
+    {
+      "first_name": "Yana",
+      "last_name_obfuscated": "Za***a",
+      "title": "Social Media Director",
+      "company": "Team Liquid",
+      "has_email": true,
+      "apollo_id": "606abeddb90ec6000132e47c"
+    },
+    {
+      "first_name": "William",
+      "last_name_obfuscated": "Sa***z",
+      "title": "Art Director, Social Media",
+      "company": "Shopbop",
+      "has_email": true,
+      "apollo_id": "5b39d88fa6da98556812b09f"
+    },
+    {
+      "first_name": "Isobel",
+      "last_name_obfuscated": "Co***n",
+      "title": "Junior Influencer Marketing Manager",
+      "company": "Cult Beauty",
+      "has_email": false,
+      "apollo_id": "61ea5e7916381b0001603f54"
+    },
+    {
+      "first_name": "Elliot",
+      "last_name_obfuscated": "Ca***y",
+      "title": "Social Media Director",
+      "company": "Healf",
+      "has_email": true,
+      "apollo_id": "62185e5795f8f800010dfd49"
+    },
+    {
+      "first_name": "Jodi",
+      "last_name_obfuscated": "La***e",
+      "title": "Social Media Director",
+      "company": "Lodge Cast Iron",
+      "has_email": true,
+      "apollo_id": "60ccc08ec72bbc00015e76e1"
+    },
+    {
+      "first_name": "Camila",
+      "last_name_obfuscated": "Se***a",
+      "title": "Social Media Director",
+      "company": "Studio 3 Marketing",
+      "has_email": false,
+      "apollo_id": "5d527447f6512587173dee0c"
+    },
+    {
+      "first_name": "Cyndy",
+      "last_name_obfuscated": "Go***z",
+      "title": "Influencer Marketing Manager",
+      "company": "EBY",
+      "has_email": true,
+      "apollo_id": "67003cecdafc4100011db97f"
+    },
+    {
+      "first_name": "Daniel",
+      "last_name_obfuscated": "Za***o",
+      "title": "Influencer Marketing Manager",
+      "company": "BENlabs",
+      "has_email": true,
+      "apollo_id": "5b2b20b3a6da988a7c1f3c23"
+    },
+    {
+      "first_name": "Rachel",
+      "last_name_obfuscated": "Ot***o",
+      "title": "Social Media Director",
+      "company": "Apartment Therapy Media",
+      "has_email": true,
+      "apollo_id": "54a55ded74686938ac85b592"
+    },
+    {
+      "first_name": "Lauren",
+      "last_name_obfuscated": "Ol***m",
+      "title": "Social Media Director",
+      "company": "Eventbrite",
+      "has_email": false,
+      "apollo_id": "5f8ea65c1551f400016ba930"
+    },
+    {
+      "first_name": "Nicole",
+      "last_name_obfuscated": "La***y",
+      "title": "Social Media Director",
+      "company": "Therabody",
+      "has_email": true,
+      "apollo_id": "6045b8979b93260001988f58"
+    },
+    {
+      "first_name": "Jordan",
+      "last_name_obfuscated": "Tu***r",
+      "title": "Social Media Director",
+      "company": "Footprint",
+      "has_email": false,
+      "apollo_id": "6045f2dcf8bd2200011a9cf4"
+    },
+    {
+      "first_name": "Steven",
+      "last_name_obfuscated": "Da***s",
+      "title": "Social Media Director",
+      "company": "Tombras",
+      "has_email": true,
+      "apollo_id": "6700c0e9c8d63b000172c40a"
+    },
+    {
+      "first_name": "Danielle",
+      "last_name_obfuscated": "Re***a",
+      "title": "Social Media Director",
+      "company": "Hone Health",
+      "has_email": true,
+      "apollo_id": "57df735ca6da980ae7a7fc31"
+    },
+    {
+      "first_name": "Aditya",
+      "last_name_obfuscated": "Me***a",
+      "title": "Influencer Marketing Manager",
+      "company": "Influencer",
+      "has_email": false,
+      "apollo_id": "67ce76cb6874b80001644c4a"
+    },
+    {
+      "first_name": "Jakub",
+      "last_name_obfuscated": "Lu***k",
+      "title": "Social Media Director",
+      "company": "DigitalOcean",
+      "has_email": true,
+      "apollo_id": "60fb02fdc525980001ea8886"
+    },
+    {
+      "first_name": "Sachin",
+      "last_name_obfuscated": "Up***a",
+      "title": "Social Media Director",
+      "company": "International Society for Krishna Consciousness (ISKCON)",
+      "has_email": false,
+      "apollo_id": "6915c9066c567c00014442a1"
+    },
+    {
+      "first_name": "Taylor",
+      "last_name_obfuscated": "Fo***d",
+      "title": "Social Media Director",
+      "company": "InStyle",
+      "has_email": false,
+      "apollo_id": "64ccf5ecdce9f9000182adef"
+    },
+    {
+      "first_name": "Hyacinth",
+      "last_name_obfuscated": "To***o",
+      "title": "Influencer Marketing Manager",
+      "company": "BENlabs",
+      "has_email": true,
+      "apollo_id": "64c40d21d1c8990001a28b10"
+    },
+    {
+      "first_name": "Rose",
+      "last_name_obfuscated": "Ne***z",
+      "title": "Social Media Director",
+      "company": "Sigma Kappa Sorority",
+      "has_email": false,
+      "apollo_id": "6953a7c01d56e30001eff7b6"
+    },
+    {
+      "first_name": "Ting",
+      "last_name_obfuscated": "Ne***l",
+      "title": "Social Media Director",
+      "company": "dentsu X",
+      "has_email": true,
+      "apollo_id": "54a229e87468693318952412"
+    },
+    {
+      "first_name": "Annette",
+      "last_name_obfuscated": "Os***o",
+      "title": "Social Media Director",
+      "company": "Aroma360",
+      "has_email": true,
+      "apollo_id": "63dd162d0b281f0001258178"
+    },
+    {
+      "first_name": "Nicole",
+      "last_name_obfuscated": "Kh***r",
+      "title": "VP of Marketing Operations",
+      "company": "Scale Media",
+      "has_email": true,
+      "apollo_id": "64f7f2526c88570001c224cd"
+    },
+    {
+      "first_name": "Bene",
+      "last_name_obfuscated": "Ea***n",
+      "title": "Chief Marketing Officer",
+      "company": "FIGS",
+      "has_email": true,
+      "apollo_id": "66f3567af953c70001bd2eb3"
+    },
+    {
+      "first_name": "Marlena",
+      "last_name_obfuscated": "Fa***y",
+      "title": "Social Media Director",
+      "company": "TicketManager",
+      "has_email": true,
+      "apollo_id": "5f4a79e5c30da5000185e3d3"
+    },
+    {
+      "first_name": "Emily",
+      "last_name_obfuscated": "Gr***e",
+      "title": "Influencer Marketing Manager",
+      "company": "Blue Wheel",
+      "has_email": true,
+      "apollo_id": "66f9effa9901a20001db1673"
+    },
+    {
+      "first_name": "Kate",
+      "last_name_obfuscated": "La***e",
+      "title": "Social Media Director",
+      "company": "dentsu X",
+      "has_email": true,
+      "apollo_id": "635a723ac780de00017b5eaf"
+    },
+    {
+      "first_name": "Alexandra",
+      "last_name_obfuscated": "An***a",
+      "title": "Social Media Director",
+      "company": "Appcast, Inc",
+      "has_email": true,
+      "apollo_id": "65ed4dcc29322b0007f432c5"
+    },
+    {
+      "first_name": "Jenna",
+      "last_name_obfuscated": "Fr***e",
+      "title": "Social Media Director",
+      "company": "5-hour ENERGY®",
+      "has_email": true,
+      "apollo_id": "6405e74f362409000162bdaf"
+    },
+    {
+      "first_name": "Kennedy",
+      "last_name_obfuscated": "Sm***h",
+      "title": "Director of Social Media and Creator",
+      "company": "Hill House Home",
+      "has_email": false,
+      "apollo_id": "60f79e2707d55000012549da"
+    },
+    {
+      "first_name": "Madison",
+      "last_name_obfuscated": "We***r",
+      "title": "Influencer Marketing Manager",
+      "company": "Athletic Brewing Co.",
+      "has_email": true,
+      "apollo_id": "686fcc61387191000175afb0"
+    },
+    {
+      "first_name": "Mel",
+      "last_name_obfuscated": "Sc***z",
+      "title": "Social Media Director",
+      "company": "TMB (Trusted Media Brands)",
+      "has_email": false,
+      "apollo_id": "6513f3df35c51b0001bacfbc"
+    },
+    {
+      "first_name": "Nadege",
+      "last_name_obfuscated": "Ph***e",
+      "title": "Influencer Marketing Manager",
+      "company": "Viral Nation",
+      "has_email": true,
+      "apollo_id": "5b3df3f8a6da98a1169c8d41"
+    },
+    {
+      "first_name": "Angel",
+      "last_name_obfuscated": "Ro***o",
+      "title": "Social Media Director",
+      "company": "Getty Images",
+      "has_email": false,
+      "apollo_id": "60af16c198ef3e0001ab90bd"
+    },
+    {
+      "first_name": "Charlie",
+      "last_name_obfuscated": "Mc***a",
+      "title": "Influencer Marketing Manager",
+      "company": "The Beauty Tech Group (CurrentBody, ZIIP, Tria)",
+      "has_email": true,
+      "apollo_id": "67e102d4de387f000113c1d3"
+    },
+    {
+      "first_name": "Connie",
+      "last_name_obfuscated": "Ch***g",
+      "title": "Director, Social Media",
+      "company": "Haus Labs",
+      "has_email": true,
+      "apollo_id": "66f6b0cc5497d800019d1e05"
+    },
+    {
+      "first_name": "Seiya",
+      "last_name_obfuscated": "Vo***t",
+      "title": "Chief Marketing Officer",
+      "company": "Health-E Commerce",
+      "has_email": true,
+      "apollo_id": "66f3e4c3880ff5000162cc53"
+    },
+    {
+      "first_name": "Cassandra",
+      "last_name_obfuscated": "Fr***s",
+      "title": "Influencer Marketing Manager",
+      "company": "Grüns",
+      "has_email": false,
+      "apollo_id": "686395da193b7a000137b2fd"
+    },
+    {
+      "first_name": "Michelle",
+      "last_name_obfuscated": "Ma***s",
+      "title": "Chief Marketing Officer",
+      "company": "Trinny London",
+      "has_email": true,
+      "apollo_id": "66235c9a6dae3f0007623b88"
+    },
+    {
+      "first_name": "Joel",
+      "last_name_obfuscated": "De***y",
+      "title": "Chief Marketing Officer",
+      "company": "Malouf Home",
+      "has_email": true,
+      "apollo_id": "66f54aa6b1aa630001ff712e"
+    },
+    {
+      "first_name": "Marcy",
+      "last_name_obfuscated": "Fo***a",
+      "title": "Social Media Director",
+      "company": "Aroma360",
+      "has_email": true,
+      "apollo_id": "683485c8f31338000163d268"
+    },
+    {
+      "first_name": "Eleanor",
+      "last_name_obfuscated": "Bi***p",
+      "title": "Senior Social Media Director",
+      "company": "Inizio Evoke",
+      "has_email": true,
+      "apollo_id": "66fe448c34b8ca0001afbe05"
+    },
+    {
+      "first_name": "Joellen",
+      "last_name_obfuscated": "Lu",
+      "title": "Director of Social Media",
+      "company": "OUAI",
+      "has_email": true,
+      "apollo_id": "65d0768dcb170a0001f8ed8a"
+    },
+    {
+      "first_name": "Carlota",
+      "last_name_obfuscated": "Do***o",
+      "title": "Influencer Marketing Manager",
+      "company": "FLUVIP - Influencer Marketing Leader",
+      "has_email": true,
+      "apollo_id": "64ecaa2e36ea4900019d54f6"
+    },
+    {
+      "first_name": "Emma",
+      "last_name_obfuscated": "Pr***e",
+      "title": "Influencer Marketing Manager",
+      "company": "Bloom Nutrition",
+      "has_email": true,
+      "apollo_id": "6560d4236cc3860001d7673a"
+    },
+    {
+      "first_name": "Loreni",
+      "last_name_obfuscated": "Ye***n",
+      "title": "Influencer Marketing Manager",
+      "company": "Bloom Nutrition",
+      "has_email": true,
+      "apollo_id": "5f4cc92649e9150001f39171"
+    },
+    {
+      "first_name": "Meagan",
+      "last_name_obfuscated": "Do***d",
+      "title": "Paid Social Media Director",
+      "company": "Inizio Evoke",
+      "has_email": true,
+      "apollo_id": "6101a2ebecfb8c000191b951"
+    },
+    {
+      "first_name": "Hillary",
+      "last_name_obfuscated": "Be***n",
+      "title": "Chief Marketing Officer",
+      "company": "Ollie",
+      "has_email": true,
+      "apollo_id": "66f3be90e8882800010a0f96"
+    },
+    {
+      "first_name": "C",
+      "last_name_obfuscated": "Pa***e",
+      "title": "Social Media Director",
+      "company": "Virtuoso Travel",
+      "has_email": false,
+      "apollo_id": "64f3ac14573714000194e047"
+    },
+    {
+      "first_name": "Bradford",
+      "last_name_obfuscated": "Ob***n",
+      "title": "Vice President Marketing",
+      "company": "NEST NEW YORK",
+      "has_email": true,
+      "apollo_id": "69a5b136de8d7e0001af8e60"
+    },
+    {
+      "first_name": "Brittany",
+      "last_name_obfuscated": "Bin",
+      "title": "Influencer Marketing Manager",
+      "company": "Seed Beauty/ColourPop",
+      "has_email": true,
+      "apollo_id": "66f594d3b6a26900013a61e0"
+    },
+    {
+      "first_name": "Susan",
+      "last_name_obfuscated": "Bo***n",
+      "title": "Group Director, Social Media & Content",
+      "company": "Tracy-Locke",
+      "has_email": true,
+      "apollo_id": "66e00f60f502930001a2f942"
+    },
+    {
+      "first_name": "Hannah",
+      "last_name_obfuscated": "Ro***s",
+      "title": "Vice President Marketing",
+      "company": "E.L.F. BEAUTY",
+      "has_email": true,
+      "apollo_id": "66ed273fa1b4010001c50668"
+    },
+    {
+      "first_name": "Elsa",
+      "last_name_obfuscated": "Le***y",
+      "title": "CMO",
+      "company": "Dossier Perfumes",
+      "has_email": true,
+      "apollo_id": "66f53894cdef1500019e2a4a"
+    },
+    {
+      "first_name": "Paula",
+      "last_name_obfuscated": "Qu***z",
+      "title": "Influencer Marketing Manager",
+      "company": "OSEA Malibu",
+      "has_email": true,
+      "apollo_id": "66eda27d09af400001149bb2"
+    },
+    {
+      "first_name": "Kaethy",
+      "last_name_obfuscated": "Ke***y",
+      "title": "Senior Vice President, Marketing Operations",
+      "company": "Guthy|Renker",
+      "has_email": true,
+      "apollo_id": "602439ba6d157b0001811bfe"
+    },
+    {
+      "first_name": "Katie",
+      "last_name_obfuscated": "Kr***l",
+      "title": "Manager, Influencer Marketing - Brand Marketing",
+      "company": "Spanx",
+      "has_email": true,
+      "apollo_id": "608059945367d10001cfb671"
+    },
+    {
+      "first_name": "Dane",
+      "last_name_obfuscated": "Wa***r",
+      "title": "Chief Marketing Officer",
+      "company": "Princess Polly",
+      "has_email": true,
+      "apollo_id": "66ed25baa1b4010001c4dc69"
+    },
+    {
+      "first_name": "Muhammad",
+      "last_name_obfuscated": "Ma***d",
+      "title": "Influencer Marketing Manager",
+      "company": "FabFitFun",
+      "has_email": false,
+      "apollo_id": "6853a1f9ce55f500019555a6"
+    },
+    {
+      "first_name": "Nathan",
+      "last_name_obfuscated": "Jo***y",
+      "title": "VP, Marketing",
+      "company": "Alike",
+      "has_email": true,
+      "apollo_id": "60fea300e1af450001fa6967"
+    },
+    {
+      "first_name": "Ryan",
+      "last_name_obfuscated": "He***r",
+      "title": "Chief Marketing Officer",
+      "company": "Fabletics",
+      "has_email": true,
+      "apollo_id": "66ec2e4831dbc000019174db"
+    },
+    {
+      "first_name": "Lauren",
+      "last_name_obfuscated": "Wy***r",
+      "title": "Influencer Marketing Manager",
+      "company": "Recess",
+      "has_email": true,
+      "apollo_id": "60ba3435a45eb80001db6531"
+    },
+    {
+      "first_name": "Meike",
+      "last_name_obfuscated": "He***n",
+      "title": "Influencer Marketing Manager (Branding)",
+      "company": "Kapten & Son",
+      "has_email": true,
+      "apollo_id": "641e834cd4747a00017e9bc5"
+    },
+    {
+      "first_name": "Liam",
+      "last_name_obfuscated": "Mc***r",
+      "title": "Chief Marketing Officer",
+      "company": "ANINE BING",
+      "has_email": true,
+      "apollo_id": "61153e177956460001cd1b92"
+    },
+    {
+      "first_name": "Matthew",
+      "last_name_obfuscated": "Gi***t",
+      "title": "SVP of Marketing",
+      "company": "Publicis Commerce",
+      "has_email": false,
+      "apollo_id": "5ac2368fa6da981ca40bf6e9"
+    },
+    {
+      "first_name": "Carlo",
+      "last_name_obfuscated": "Mu***o",
+      "title": "Associate Director, Social Media Strategy",
+      "company": "NEON",
+      "has_email": true,
+      "apollo_id": "608b3fd58b3133000177921c"
+    },
+    {
+      "first_name": "Casey",
+      "last_name_obfuscated": "Su***n",
+      "title": "Influencer Marketing Manager - International",
+      "company": "MANSCAPED",
+      "has_email": false,
+      "apollo_id": "66f70abade9c030001e875a4"
+    },
+    {
+      "first_name": "Kelly",
+      "last_name_obfuscated": "G",
+      "title": "VP Marketing",
+      "company": "e-Commerce Solutions",
+      "has_email": false,
+      "apollo_id": "6425cae1fc991e0001d44c7d"
+    },
+    {
+      "first_name": "Arielle",
+      "last_name_obfuscated": "St***i",
+      "title": "Sr. Influencer Marketing Manager",
+      "company": "Shopbop",
+      "has_email": true,
+      "apollo_id": "66709b23c616e30001bd31f4"
+    },
+    {
+      "first_name": "Jacqueline",
+      "last_name_obfuscated": "Wa***h",
+      "title": "VP of Marketing",
+      "company": "Kenneth Cole Productions",
+      "has_email": false,
+      "apollo_id": "607f3ed6b2c1c100019f2202"
+    },
+    {
+      "first_name": "Hsin",
+      "last_name_obfuscated": "He***d",
+      "title": "Influencer Marketing Manager",
+      "company": "Freddie's Flowers",
+      "has_email": true,
+      "apollo_id": "61dc884d8f171200019be343"
+    },
+    {
+      "first_name": "Shira",
+      "last_name_obfuscated": "Fe***r",
+      "title": "Chief Marketing Officer",
+      "company": "Beauty Pie",
+      "has_email": true,
+      "apollo_id": "66f3ca6dabd5d50001b1419c"
+    },
+    {
+      "first_name": "Dom",
+      "last_name_obfuscated": "Bi***e",
+      "title": "Chief Marketing Officer",
+      "company": "Summit Group",
+      "has_email": false,
+      "apollo_id": "64b822fb11901e00011d12d2"
+    },
+    {
+      "first_name": "Molly",
+      "last_name_obfuscated": "Gl***s",
+      "title": "Manager & Social Media Director",
+      "company": "Mixology Clothing Company",
+      "has_email": true,
+      "apollo_id": "60f91e58aa1c07000173c95d"
+    },
+    {
+      "first_name": "Jason",
+      "last_name_obfuscated": "Ty",
+      "title": "Social Media Director (APAC)",
+      "company": "Greenpark",
+      "has_email": true,
+      "apollo_id": "57d43cdfa6da9853e643f3ed"
+    },
+    {
+      "first_name": "Devyn",
+      "last_name_obfuscated": "Jo***n",
+      "title": "Vice President of Marketing",
+      "company": "Jordache",
+      "has_email": true,
+      "apollo_id": "61159087eb05d70001a1b24c"
+    },
+    {
+      "first_name": "Maccoy",
+      "last_name_obfuscated": "Me***y",
+      "title": "CMO",
+      "company": "Portland Leather Goods",
+      "has_email": true,
+      "apollo_id": "66f710b1ee739400011c6620"
+    },
+    {
+      "first_name": "Ryan",
+      "last_name_obfuscated": "Ro***i",
+      "title": "Director of Social Media",
+      "company": "Overtime",
+      "has_email": true,
+      "apollo_id": "66f70c72268714000123a1ca"
+    },
+    {
+      "first_name": "Alicia",
+      "last_name_obfuscated": "Pe***z",
+      "title": "Influencer Marketing Manager",
+      "company": "ghd",
+      "has_email": true,
+      "apollo_id": "60cb35de7770930001442900"
+    },
+    {
+      "first_name": "Pete",
+      "last_name_obfuscated": "Fi***s",
+      "title": "Director of Social Media",
+      "company": "Wings Over",
+      "has_email": true,
+      "apollo_id": "646e6d3f4a7129000184d52d"
+    },
+    {
+      "first_name": "Samantha",
+      "last_name_obfuscated": "Ba***n",
+      "title": "Director of Social Media",
+      "company": "SmartSites 💡",
+      "has_email": true,
+      "apollo_id": "60d3e56d34bfa20001d8864d"
+    },
+    {
+      "first_name": "Elyse",
+      "last_name_obfuscated": "Es***a",
+      "title": "Director of Social Media",
+      "company": "Wine Enthusiast",
+      "has_email": true,
+      "apollo_id": "54eb1cda74686931e273fe08"
+    },
+    {
+      "first_name": "John",
+      "last_name_obfuscated": "Fr***h",
+      "title": "Director of Social Media",
+      "company": "Opry Entertainment Group",
+      "has_email": true,
+      "apollo_id": "60f053b72c98da00012e505d"
+    },
+    {
+      "first_name": "Alexandra",
+      "last_name_obfuscated": "Ce***a",
+      "title": "Communications & Social Media Director",
+      "company": "Penhaligon's",
+      "has_email": true,
+      "apollo_id": "60d587543b16650001a66dba"
+    },
+    {
+      "first_name": "Alexandra",
+      "last_name_obfuscated": "Be***n",
+      "title": "Director of Social Media",
+      "company": "Moburst - Growth Done Right",
+      "has_email": false,
+      "apollo_id": "6363bb37429a790001665efb"
+    },
+    {
+      "first_name": "Annie",
+      "last_name_obfuscated": "Ra***o",
+      "title": "Director of Social Media",
+      "company": "HART",
+      "has_email": false,
+      "apollo_id": "6598a6e39c54e100011e39b7"
+    },
+    {
+      "first_name": "Andrea",
+      "last_name_obfuscated": "Di***z",
+      "title": "Director of Social Media",
+      "company": "Columbus Clippers",
+      "has_email": true,
+      "apollo_id": "6156447f779395000144a83b"
+    },
+    {
+      "first_name": "Steven",
+      "last_name_obfuscated": "Go***d",
+      "title": "Director of Social Media",
+      "company": "Houston Texans",
+      "has_email": true,
+      "apollo_id": "5aa73823a6da9847b3b004d1"
+    },
+    {
+      "first_name": "Kathy",
+      "last_name_obfuscated": "Ju***e",
+      "title": "Marketing & Social Media Director",
+      "company": "Liverpool Football Club",
+      "has_email": true,
+      "apollo_id": "644e1d168574790001509579"
+    },
+    {
+      "first_name": "Nicole",
+      "last_name_obfuscated": "Ph***s",
+      "title": "Senior Social Media Director",
+      "company": "Nogin",
+      "has_email": false,
+      "apollo_id": "670256f9d714c0000137f2c1"
+    },
+    {
+      "first_name": "Breann",
+      "last_name_obfuscated": "Mc***e",
+      "title": "Director of Social Media",
+      "company": "Automattic",
+      "has_email": true,
+      "apollo_id": "5ae8c4b8a6da98ea65396e59"
+    },
+    {
+      "first_name": "Alex",
+      "last_name_obfuscated": "Ka***i",
+      "title": "Director of Social Media",
+      "company": "Built Brands",
+      "has_email": true,
+      "apollo_id": "60e7514b7d2f910001688f7b"
+    },
+    {
+      "first_name": "Aaron",
+      "last_name_obfuscated": "Yin",
+      "title": "VP of Marketing",
+      "company": "Dealmoon Group",
+      "has_email": true,
+      "apollo_id": "60fb539b663c65000135f6eb"
+    },
+    {
+      "first_name": "Katie",
+      "last_name_obfuscated": "Ba***u",
+      "title": "CMO & VP Marketing",
+      "company": "Beyond Yoga",
+      "has_email": true,
+      "apollo_id": "66f2b1a37ea8af000191a85f"
+    },
+    {
+      "first_name": "Krista",
+      "last_name_obfuscated": "Da***n",
+      "title": "CMO & CDO",
+      "company": "Tecovas",
+      "has_email": true,
+      "apollo_id": "68610fe321a7e30001eb4ec1"
+    },
+    {
+      "first_name": "Liz",
+      "last_name_obfuscated": "Ad***y",
+      "title": "Director of Social Media",
+      "company": "Cousins Maine Lobster",
+      "has_email": true,
+      "apollo_id": "66f5b83e2cb09a00017cb567"
+    },
+    {
+      "first_name": "Tori",
+      "last_name_obfuscated": "Pa***n",
+      "title": "Director of Social Media",
+      "company": "Morrison",
+      "has_email": true,
+      "apollo_id": "6168f9538cf85e00010df888"
+    },
+    {
+      "first_name": "Luisa",
+      "last_name_obfuscated": "Ep***s",
+      "title": "Influencer Marketing Manager, UKI & EMEA",
+      "company": "Hourglass Cosmetics",
+      "has_email": true,
+      "apollo_id": "58c0a254f651252a17e39929"
+    },
+    {
+      "first_name": "Krista",
+      "last_name_obfuscated": "Da***n",
+      "title": "CMO & CDO",
+      "company": "Tecovas",
+      "has_email": true,
+      "apollo_id": "68610fe321a7e30001eb4ec1"
+    },
+    {
+      "first_name": "Kylie",
+      "last_name_obfuscated": "Ba***s",
+      "title": "Director of Social Media",
+      "company": "Hart",
+      "has_email": true,
+      "apollo_id": "644e4473aae0db00013b71f4"
+    },
+    {
+      "first_name": "Caroline",
+      "last_name_obfuscated": "De***y",
+      "title": "Director of Social Media",
+      "company": "Denver Broncos Football Club",
+      "has_email": true,
+      "apollo_id": "54a72d4a746869705a26a71c"
+    },
+    {
+      "first_name": "Iris",
+      "last_name_obfuscated": "Yen",
+      "title": "Chief Marketing Officer",
+      "company": "CUPSHE",
+      "has_email": true,
+      "apollo_id": "60ec4253b33132000100fa24"
+    },
+    {
+      "first_name": "Kevin",
+      "last_name_obfuscated": "Di***s",
+      "title": "Chief Marketing Officer",
+      "company": "JML",
+      "has_email": true,
+      "apollo_id": "610be7d5cf17a00001dba144"
+    },
+    {
+      "first_name": "Patryk",
+      "last_name_obfuscated": "Tr***z",
+      "title": "CMO",
+      "company": "Jeeter - a DreamFields Brand",
+      "has_email": true,
+      "apollo_id": "557042b97369641af7851700"
+    },
+    {
+      "first_name": "Kory",
+      "last_name_obfuscated": "Ma***o",
+      "title": "Global Chief Marketing Officer, e.l.f. Beauty & President, Keys Soulcare",
+      "company": "E.L.F. BEAUTY",
+      "has_email": true,
+      "apollo_id": "66f5114cb8b672000193000c"
+    },
+    {
+      "first_name": "Katie",
+      "last_name_obfuscated": "Du***'",
+      "title": "Director of Social Media",
+      "company": "Atlanta Hawks",
+      "has_email": true,
+      "apollo_id": "64131f0fefb4ae0001a2e3fd"
+    },
+    {
+      "first_name": "Sarah",
+      "last_name_obfuscated": "Co***y",
+      "title": "US Influencer Marketing Manager",
+      "company": "The Beauty Tech Group (CurrentBody, ZIIP, Tria)",
+      "has_email": true,
+      "apollo_id": "66fc0430df7b91000118dd9b"
+    },
+    {
+      "first_name": "Bri",
+      "last_name_obfuscated": "Ga***n",
+      "title": "Director of Social Media",
+      "company": "Indianapolis Colts",
+      "has_email": true,
+      "apollo_id": "65167215602dd9000113ff1f"
+    },
+    {
+      "first_name": "Shames",
+      "last_name_obfuscated": "Ka***y",
+      "title": "Junior Influencer Marketing Manager",
+      "company": "The Beauty Tech Group (CurrentBody, ZIIP, Tria)",
+      "has_email": true,
+      "apollo_id": "62d0cd3227d1ac0001062e9d"
+    },
+    {
+      "first_name": "Sam",
+      "last_name_obfuscated": "Be***z",
+      "title": "Director, Social Media",
+      "company": "Golden State Valkyries",
+      "has_email": true,
+      "apollo_id": "54ebb9ef7468694311ee1a17"
+    },
+    {
+      "first_name": "Michael",
+      "last_name_obfuscated": "Ga***y",
+      "title": "Influencer Marketing Manager",
+      "company": "GLD",
+      "has_email": true,
+      "apollo_id": "6513aeb93b1248000131fba3"
+    },
+    {
+      "first_name": "Emily",
+      "last_name_obfuscated": "Fi***n",
+      "title": "Influencer Marketing Manager | Grüns",
+      "company": "Grüns",
+      "has_email": true,
+      "apollo_id": "62739af521066c0001181c8d"
+    },
+    {
+      "first_name": "Marcelo",
+      "last_name_obfuscated": "Ke***z",
+      "title": "Chief Marketing Officer",
+      "company": "MANSCAPED",
+      "has_email": true,
+      "apollo_id": "66f1c2846c71330001ee096b"
+    },
+    {
+      "first_name": "Jonathan",
+      "last_name_obfuscated": "Br***y",
+      "title": "Director Social Media",
+      "company": "Baltimore Orioles",
+      "has_email": true,
+      "apollo_id": "5b403bc2a6da984b8f143600"
+    },
+    {
+      "first_name": "Kristen",
+      "last_name_obfuscated": "Sa***y",
+      "title": "Vice President Marketing Operations",
+      "company": "E.L.F. BEAUTY",
+      "has_email": true,
+      "apollo_id": "66f2fbf13c2f6c00011fdc6c"
+    },
+    {
+      "first_name": "Jen",
+      "last_name_obfuscated": "Ei***n",
+      "title": "Director, Social Media",
+      "company": "San Francisco Giants",
+      "has_email": true,
+      "apollo_id": "54a4eb7e7468693b8cdafe6d"
+    },
+    {
+      "first_name": "James",
+      "last_name_obfuscated": "Pr***e",
+      "title": "Director of Social Media",
+      "company": "Oklahoma City Thunder",
+      "has_email": true,
+      "apollo_id": "564ec2f2a6da98256e00e5e5"
+    },
+    {
+      "first_name": "Emma",
+      "last_name_obfuscated": "Nye",
+      "title": "Director, Social Media",
+      "company": "Detroit Tigers",
+      "has_email": true,
+      "apollo_id": "695d72e0612fa5000194c7b3"
+    },
+    {
+      "first_name": "Kaitlyn",
+      "last_name_obfuscated": "Ka***d",
+      "title": "Director, Social Media",
+      "company": "Arizona Diamondbacks",
+      "has_email": true,
+      "apollo_id": "60f1fe53d032ae00015fc8f4"
+    },
+    {
+      "first_name": "Thy",
+      "last_name_obfuscated": "Ng***n",
+      "title": "Influencer Marketing Manager",
+      "company": "CLD PR & Experiential Productions",
+      "has_email": true,
+      "apollo_id": "5b6791c5f874f7791aef0d1a"
+    },
+    {
+      "first_name": "Olivia",
+      "last_name_obfuscated": "Bl***m",
+      "title": "Assistant Social Media Director",
+      "company": "VIM Magazine",
+      "has_email": false,
+      "apollo_id": "662f2baa2c115400075c090a"
+    },
+    {
+      "first_name": "Eden",
+      "last_name_obfuscated": "Hu***s",
+      "title": "Senior Influencer Marketing Manager",
+      "company": "The Beauty Tech Group (CurrentBody, ZIIP, Tria)",
+      "has_email": true,
+      "apollo_id": "6068da67f257c200010ff48a"
+    },
+    {
+      "first_name": "Casey",
+      "last_name_obfuscated": "Wa***n",
+      "title": "Influencer Marketing Manager, Fenty Beauty",
+      "company": "Kendo Brands, Inc.",
+      "has_email": true,
+      "apollo_id": "66f7ef3bae47ef00016b4ddf"
+    },
+    {
+      "first_name": "Elia",
+      "last_name_obfuscated": "Ba***a",
+      "title": "Chief Marketing Officer",
+      "company": "E.J. PAPADOPOULOS SA",
+      "has_email": true,
+      "apollo_id": "66a0cb5209a94e0001aafd15"
+    },
+    {
+      "first_name": "Clarisse",
+      "last_name_obfuscated": "Gl***w",
+      "title": "Influencer Marketing Manager, Fenty Skin",
+      "company": "Kendo Brands, Inc.",
+      "has_email": true,
+      "apollo_id": "67b8e2789ce5340001da549a"
+    },
+    {
+      "first_name": "Rishi",
+      "last_name_obfuscated": "Da***g",
+      "title": "Chief Marketing Officer",
+      "company": "CELSIUS",
+      "has_email": true,
+      "apollo_id": "6053da141c2eb5000148ca70"
+    },
+    {
+      "first_name": "Emilie",
+      "last_name_obfuscated": "Ru***d",
+      "title": "Senior Vice President, Marketing and Communications",
+      "company": "Carolina Herrera",
+      "has_email": true,
+      "apollo_id": "619f9091195f5800018eee30"
+    },
+    {
+      "first_name": "Jamie",
+      "last_name_obfuscated": "Ca***a",
+      "title": "Freelance Social Media Director",
+      "company": "Rumble Boxing",
+      "has_email": false,
+      "apollo_id": "65624933fb7c0e0001cbccb4"
+    },
+    {
+      "first_name": "Brittany",
+      "last_name_obfuscated": "Jo***n",
+      "title": "Director of Social Media",
+      "company": "Dallas Cowboys",
+      "has_email": true,
+      "apollo_id": "60cbf0c526966c00017f7807"
+    },
+    {
+      "first_name": "Hiren",
+      "last_name_obfuscated": "Jo***i",
+      "title": "Director of Social Media",
+      "company": "Houston Rockets",
+      "has_email": false,
+      "apollo_id": "54a201a074686935bec2c904"
+    },
+    {
+      "first_name": "Amela",
+      "last_name_obfuscated": "Ka***c",
+      "title": "Social Media Director DACH",
+      "company": "Incubeta",
+      "has_email": false,
+      "apollo_id": "5d5126f980f93e37eff9e432"
+    },
+    {
+      "first_name": "Alexis",
+      "last_name_obfuscated": "Di***h",
+      "title": "Director of Social Media",
+      "company": "Bubble",
+      "has_email": true,
+      "apollo_id": "614d6574a5be0f0001a0a07c"
+    },
+    {
+      "first_name": "Kate",
+      "last_name_obfuscated": "St***y",
+      "title": "Senior Influencer Marketing Manager",
+      "company": "The Beauty Tech Group (CurrentBody, ZIIP, Tria)",
+      "has_email": false,
+      "apollo_id": "642ace625c97f30001a2fff0"
+    },
+    {
+      "first_name": "Mike",
+      "last_name_obfuscated": "Co***n",
+      "title": "Director, Social Media",
+      "company": "Washington Wizards",
+      "has_email": true,
+      "apollo_id": "6809248758a2650001c312e0"
+    },
+    {
+      "first_name": "Matt",
+      "last_name_obfuscated": "Ja***s",
+      "title": "Senior Influencer Marketing Manager",
+      "company": "Made In",
+      "has_email": true,
+      "apollo_id": "65aea402fb081a00018d6db6"
+    },
+    {
+      "first_name": "Julie",
+      "last_name_obfuscated": "Ba***s",
+      "title": "Director of Social Media",
+      "company": "Philadelphia Eagles",
+      "has_email": false,
+      "apollo_id": "54a603b474686934426751bb"
+    },
+    {
+      "first_name": "Tameka",
+      "last_name_obfuscated": "Ab***m",
+      "title": "Director of Social Media",
+      "company": "Sovereign Brands",
+      "has_email": true,
+      "apollo_id": "57d958c4a6da98725adad989"
+    },
+    {
+      "first_name": "Ry",
+      "last_name_obfuscated": "Cr***r",
+      "title": "Director, Social Media",
+      "company": "VIZ Media",
+      "has_email": true,
+      "apollo_id": "6069b47074f6300001d6d4d8"
+    },
+    {
+      "first_name": "Amy",
+      "last_name_obfuscated": "Pl***r",
+      "title": "Global Social Media Director",
+      "company": "Wellhub",
+      "has_email": true,
+      "apollo_id": "6111eb824fe74a0001ec2c53"
+    }
+  ]
+}

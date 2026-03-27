@@ -1,0 +1,20 @@
+# Rubikon GRAL
+
+**Лидов:** 2  
+**Кампаний:** 1
+
+## Кампании
+
+- **c-OnSocial_IM-FIRST AGENCIES EUROPE #C** — 2 лид(ов)
+
+## Статусы лидов
+
+- `INPROGRESS` — 1
+- `STARTED` — 1
+
+## Контакты
+
+| Имя | Email | Должность | Кампания | Статус |
+|-----|-------|-----------|----------|--------|
+| Gregor Graf | grega.graf@digigral.si | — | c-OnSocial_IM-FIRST AGENCIES EUROPE #C | `INPROGRESS` |
+| Denis Pucelj | denis@rubikongral.si | — | c-OnSocial_IM-FIRST AGENCIES EUROPE #C | `STARTED` |

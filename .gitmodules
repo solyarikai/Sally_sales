@@ -1,0 +1,3 @@
+[submodule "magnum-opus"]
+	path = magnum-opus
+	url = git@gitlab.com:sally-saas/magnum-opus.git
