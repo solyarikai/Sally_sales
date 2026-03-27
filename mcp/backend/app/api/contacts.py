@@ -26,13 +26,18 @@ def _contact_to_response(c: ExtractedContact, company: Optional[DiscoveredCompan
     """Convert ExtractedContact to main app's Contact response shape."""
     sd = c.source_data or {}
 
-    # Build campaigns list from source_data (stored during SmartLead import)
+    # Build campaigns list with clickable links
     campaigns = []
     if sd.get("campaign"):
+        camp_id = sd.get("campaign_id", "")
+        camp_link = None
+        if camp_id:
+            camp_link = f"https://app.smartlead.ai/app/email-campaigns-v2/{camp_id}/analytics"
         campaigns.append({
-            "id": str(sd.get("campaign_id", "")),
+            "id": str(camp_id),
             "name": sd["campaign"],
             "source": "smartlead",
+            "url": camp_link,
         })
 
     # Domain from company or email
@@ -99,6 +104,7 @@ async def list_contacts(
     geo: Optional[str] = None,
     domain: Optional[str] = None,
     reply_category: Optional[str] = None,
+    pipeline: Optional[int] = None,
     created_after: Optional[str] = None,
     created_before: Optional[str] = None,
     session: AsyncSession = Depends(get_session),
@@ -154,6 +160,13 @@ async def list_contacts(
                 query = query.where(ExtractedContact.source_data["reply_category"].astext == cat)
     if campaign:
         query = query.where(ExtractedContact.source_data["campaign"].astext.ilike(f"%{campaign}%"))
+    if pipeline:
+        # Filter contacts from a specific pipeline run (via discovered_company → source_links)
+        from app.models.gathering import CompanySourceLink
+        pipeline_companies = select(CompanySourceLink.discovered_company_id).where(
+            CompanySourceLink.gathering_run_id == pipeline
+        ).distinct()
+        query = query.where(ExtractedContact.discovered_company_id.in_(pipeline_companies))
     if geo:
         query = query.where(DiscoveredCompany.country.ilike(f"%{geo}%"))
 

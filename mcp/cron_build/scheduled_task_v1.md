@@ -292,8 +292,35 @@ If ANY setting doesn't match → fix it via API and re-verify. Do NOT proceed un
 **Step 7 — Email Verification**
 - For simplicity in this test: skip FindyMail, use Apollo verified emails only for contacts
 
-**Step 8 — Link Sharing**
-- Verify that MCP shares all relevant links per requirements (SmartLead campaign link, CRM deep links, pipeline page link)
+**Step 8 — Link Sharing & UI Verification (MANDATORY SCREENSHOT TEST)**
+
+The pipeline UI must show campaign destination links. Verify ALL of these in Puppeteer screenshots:
+
+1. **Pipeline page top panel**: After campaign creation, the pipeline page (`/pipeline/{runId}`) MUST show:
+   - SmartLead campaign link (purple badge, clickable, opens SmartLead in new tab)
+   - "View N people in CRM" button (green, links to `/crm?pipeline={runId}`)
+   - Both links must appear in the screenshot — if missing, the feature is broken
+
+2. **Run status API**: `GET /api/pipeline/runs/{runId}` must return a `campaign` object with:
+   - `smartlead_id`: the SmartLead campaign ID
+   - `smartlead_url`: clickable URL like `https://app.smartlead.ai/app/email-campaigns-v2/{id}/analytics`
+   - `name`: campaign name
+   - `status`: campaign status
+
+3. **CRM pipeline filter**: `/crm?pipeline={runId}` must show ONLY contacts from that pipeline run (not all contacts)
+   - Take screenshot of CRM page with pipeline filter active
+   - Verify contacts shown match the pipeline's discovered companies
+
+4. **CRM campaign links**: Each contact in CRM must have:
+   - Campaign name visible
+   - Campaign name should include a `url` field linking to SmartLead
+   - Format: `https://app.smartlead.ai/app/email-campaigns-v2/{id}/analytics`
+
+Log in `testruns2603.md`:
+- Pipeline page screenshot path (with SmartLead link visible)
+- CRM filtered screenshot path (with pipeline filter active)
+- Run status API response showing campaign object
+- All link URLs generated
 
 **Step 9 — Reply Tracking & Autoreply Integration**
 - Verify that the newly created campaign's replies are tracked in the autoreply system
