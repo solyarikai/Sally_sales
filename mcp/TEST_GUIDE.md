@@ -3,23 +3,24 @@
 ## 1. Access
 
 - **MCP Frontend**: http://46.62.210.24:3000
-- **MCP Backend**: http://46.62.210.24:8002
+- **MCP Backend API**: http://46.62.210.24:8002
 
-## 2. Create Account
+## 2. Authorization
 
-Go to http://46.62.210.24:3000/setup → "New Account"
+### In Browser (UI)
+1. Go to http://46.62.210.24:3000 → redirected to Setup page
+2. **Existing user**: Click **"Log In"** → email + password → done
+3. **New user**: Click **"New Account"** → email + name + password → token shown once
+4. After login: all pages accessible, token stored in browser
 
-| Field | Value |
-|-------|-------|
-| Email | `petru4o144@gmail.com` (or your email) |
-| Name | Your name |
-| Password | `qweqweqwe` |
-
-Click "Create Account" → you'll get an API token. Save it.
+### For MCP (Claude Desktop / Cursor)
+- The MCP only needs your **API token** (starts with `mcp_...`)
+- Get it from the UI after login (Setup page → your token is shown)
+- Paste into Claude Desktop MCP config
 
 ## 3. Connect Integrations
 
-On the Setup page, connect these services using the shared API keys:
+After login, on the Setup page connect these services:
 
 | Service | API Key |
 |---------|---------|
@@ -29,62 +30,90 @@ On the Setup page, connect these services using the shared API keys:
 
 Each key: paste → click Connect → should show green "Connected".
 
-## 4. Test Flow A: New User (No Existing Campaigns)
+## 4. Test Flow A: Existing Campaigns (pn@getsally.io)
 
-This flow is for users who don't have SmartLead campaigns yet.
+For users who already have SmartLead campaigns.
 
-### Step 1: Create Project
-Tell the MCP: "I want to find fashion brands in Italy for EasyStaff outreach"
+### Step 1: Login
+- Email: `pn@getsally.io`, Password: `qweqweqwe`
 
-### Step 2: Gathering
-The system will:
-- Search Apollo for Italian fashion companies
-- Scrape websites
-- Analyze with GPT-4o-mini (via negativa)
-- Show you targets at Checkpoint 2
+### Step 2: Import Campaigns
+Tell MCP: "Take 'petr' including campaigns as my EasyStaff-Global project setup"
+- System imports contacts as blacklist
+- Background reply analysis runs (3-tier: SmartLead → OOO filter → GPT-4o-mini)
 
-### Step 3: Campaign Creation
-After approving targets:
-- System generates GOD_SEQUENCE (Gemini 2.5 Pro)
-- Creates SmartLead campaign with proper settings
-- Uploads verified contacts
-- Sends test email to your address
+### Step 3: Provide Company Context
+Tell MCP: "My company website is https://easystaff.io/"
+- System scrapes website, extracts offer (payroll/freelance payments)
+- Stored in project knowledge for sequence generation
 
-### Step 4: Verify
-- Check SmartLead for the campaign
-- Check your inbox for the test email
-- Pipeline page shows SmartLead link (purple badge)
+### Step 4: Gathering
+Tell MCP: "Find IT consulting companies in Miami"
+- Full pipeline: gather → blacklist → analyze → targets
 
-## 5. Test Flow B: Existing Campaigns (e.g., pn@getsally.io)
+### Step 5: Campaign Creation (DRAFT)
+- System generates GOD_SEQUENCE with Gemini 2.5 Pro
+- Creates SmartLead campaign as **DRAFT** (never auto-activated)
+- Sends test email to your inbox
+- Says: "Check your email — tell me to run once ready"
 
-This flow is for users who already have SmartLead campaigns.
+### Step 6: Review & Activate
+- Check test email in inbox
+- Review sequence in SmartLead
+- Tell MCP: "activate the campaign" → only then it starts sending
 
-### Step 1: Import Campaigns
-Tell the MCP: "Take 'petr' including campaigns as my EasyStaff-Global project setup"
+### Step 7: Intelligence Questions
+- "Which leads need follow-ups?" → specific leads with CRM links
+- "Which replies are warm?" → filtered list + deep link
+- Replies scoped to YOUR campaigns only (~119 for "petr", not 38K)
 
-### Step 2: Reply Analysis
-System automatically:
-- Imports contacts from matching campaigns as blacklist
-- Runs background reply analysis (3-tier: SmartLead → OOO filter → GPT-4o-mini)
+## 5. Test Flow B: New User (services@getsally.io)
 
-### Step 3: Intelligence Questions
-Ask:
-- "Which leads need follow-ups?" → returns leads from YOUR campaigns only
-- "Which replies are warm?" → returns interested/meeting leads with CRM link
-- "Show me a CRM link for warm replies" → clickable deep link
+For users with NO existing SmartLead campaigns.
 
-### Step 4: New Gathering
-Tell the MCP: "Find IT consulting companies in Miami"
-→ Full pipeline: gather → blacklist → analyze → campaign creation
+### Step 1: Signup
+- Email: `services@getsally.io`, Password: `qweqweqwe`
 
-## 6. What to Check
+### Step 2: Provide Company Context
+Tell MCP: "My company website is https://thefashionpeople.com/"
+- System discovers offer blindly from URL (branded resale platform)
 
-- [ ] All data is USER-SCOPED (you only see YOUR projects and campaigns)
-- [ ] Pipeline page shows SmartLead link after campaign creation
-- [ ] CRM shows contacts filtered by pipeline
-- [ ] Reply tools only show replies from YOUR campaigns
-- [ ] Test email arrives in your inbox
-- [ ] Campaign settings match reference (no tracking, 1500 leads/day, AI ESP matching)
+### Step 3: Gathering
+Tell MCP: "Find fashion brands in Italy"
+- No blacklist (no existing campaigns)
+- Full pipeline: gather → analyze → targets
+
+### Step 4: Email Accounts
+- MCP asks: "Which email accounts should I use?"
+- You select from available SmartLead accounts
+
+### Step 5: Campaign (DRAFT) + Test Email
+- GOD_SEQUENCE generated referencing YOUR offer (resale, not generic)
+- Campaign created as DRAFT
+- Test email sent to services@getsally.io
+- "Check your email — tell me to run once ready"
+
+### Step 6: Second Project (OnSocial)
+Tell MCP: "I also need to find influencer platforms in UK for https://onsocial.ai/"
+- New project created, different offer discovered
+- Both projects visible, independent pipelines
+
+## 6. Verification Checklist
+
+- [ ] Unauthorized users redirect to /setup
+- [ ] Login with email + password works
+- [ ] Signup creates account + shows token
+- [ ] All data is USER-SCOPED (only YOUR projects/contacts/replies)
+- [ ] Pipeline page shows SmartLead campaign link (purple badge)
+- [ ] CRM shows contacts filtered by pipeline (?pipeline=X)
+- [ ] Campaign created as DRAFT (never auto-activated)
+- [ ] Test email arrives in inbox with GOD_SEQUENCE content
+- [ ] Activation requires explicit user confirmation
+- [ ] Reply tools scoped to project's campaigns only
+- [ ] Blind offer discovery extracts correct value proposition from URL
+- [ ] Sequence references actual offer (not generic)
+- [ ] Campaign settings match reference (no tracking, 1500/day, AI ESP)
+- [ ] User feedback stored and used in next generation
 
 ## 7. Test Accounts
 
@@ -92,3 +121,24 @@ Tell the MCP: "Find IT consulting companies in Miami"
 |-------|----------|------|
 | `pn@getsally.io` | `qweqweqwe` | Admin (has "petr" campaigns) |
 | `services@getsally.io` | `qweqweqwe` | New user (no campaigns) |
+
+## 8. SmartLead Campaign Links
+
+| Campaign | URL |
+|----------|-----|
+| EasyStaff - Miami IT Services | https://app.smartlead.ai/app/email-campaigns-v2/3090921/sequences |
+| TFP - Fashion Brands Italy | https://app.smartlead.ai/app/email-campaigns-v2/3093035/sequences |
+| OnSocial - UK Influencer Platforms | https://app.smartlead.ai/app/email-campaigns-v2/3093040/sequences |
+
+SmartLead login: services@getsally.io / SallySarrh7231
+
+## 9. Ground Truth (for test evaluation only)
+
+Located in `mcp/test_ground_truth/`:
+- `offers/easystaff.json` — EasyStaff offer
+- `offers/thefashionpeople.json` — The Fashion People offer
+- `offers/onsocial.json` — OnSocial offer
+- `sequences/reference_3070919.json` — GOD_SEQUENCE structure
+- `settings/reference_campaign.json` — SmartLead settings
+
+**RULE**: Ground truth used ONLY for comparing system output vs reality. Never injected into system prompts.
