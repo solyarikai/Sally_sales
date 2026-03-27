@@ -14,6 +14,7 @@ import io
 import re
 import asyncio
 import logging
+import os
 import httpx
 
 from app.db import get_session
@@ -4192,6 +4193,59 @@ async def get_contact_history(
     )
     activities = result.scalars().all()
     linkedin_activities = [a for a in activities if a.channel == "linkedin"]
+
+    # Fetch live GetSales history if local linkedin activities are incomplete
+    if contact and contact.platform_state and "getsales" in (contact.platform_state or {}):
+        try:
+            gs_key = os.getenv("GETSALES_API_KEY")
+            if gs_key:
+                from app.services.crm_sync_service import GetSalesClient
+                gs_client = GetSalesClient(gs_key)
+                try:
+                    # Try lead_uuid from getsales_id or platform_state
+                    lead_uuid = contact.getsales_id
+                    if not lead_uuid:
+                        gs_state = contact.platform_state.get("getsales", {})
+                        gs_campaigns = gs_state.get("campaigns", [])
+                        if gs_campaigns and isinstance(gs_campaigns[0], dict):
+                            lead_uuid = gs_campaigns[0].get("lead_uuid")
+                    if lead_uuid:
+                        gs_messages = await gs_client.get_messages_by_lead(lead_uuid)
+                        if gs_messages:
+                            existing_bodies = {(a.body or "")[:80].strip().lower() for a in linkedin_activities}
+                            from app.models.contact import ContactActivity as CA
+                            for msg in gs_messages:
+                                body = msg.get("body") or msg.get("text") or ""
+                                if body[:80].strip().lower() in existing_bodies:
+                                    continue
+                                existing_bodies.add(body[:80].strip().lower())
+                                direction = "outbound" if msg.get("type") == "outbox" else "inbound"
+                                ts_str = msg.get("created_at") or msg.get("sent_at")
+                                ts = None
+                                if ts_str:
+                                    try:
+                                        from dateutil.parser import parse as dt_parse
+                                        ts = dt_parse(ts_str).replace(tzinfo=None)
+                                    except Exception:
+                                        pass
+                                # Create a fake activity object for rendering
+                                fake = CA(
+                                    id=hash(ts_str or body) & 0x7FFFFFFF,
+                                    contact_id=contact_id,
+                                    activity_type="linkedin_sent" if direction == "outbound" else "linkedin_replied",
+                                    channel="linkedin",
+                                    direction=direction,
+                                    source="getsales_live",
+                                    body=body,
+                                    snippet=body[:200] if body else None,
+                                    activity_at=ts,
+                                )
+                                linkedin_activities.append(fake)
+                            linkedin_activities.sort(key=lambda a: a.activity_at or datetime.min, reverse=True)
+                finally:
+                    await gs_client.close()
+        except Exception as e:
+            logger.warning(f"Failed to fetch live GetSales history for contact {contact_id}: {e}")
 
     # Fetch live Smartlead history if contact has email
     email_history = []
