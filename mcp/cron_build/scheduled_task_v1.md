@@ -169,12 +169,34 @@ Simulate a new user registering and running their first campaign:
 - The system must: detect SmartLead campaigns matching "petr", import contacts as blacklist, create the EasyStaff-Global project
 - **KNOWLEDGE REQUIREMENT**: Before the pipeline can generate sequences or analyze companies, the system MUST know the user's offer. The MCP must:
   1. Ask the user: "What is your company's website?" (or "What do you offer?")
-  2. Scrape the website to extract: company description, value proposition, target audience, pricing model
-  3. Store this in the project's knowledge (target_segments, sender_company, or a dedicated knowledge field)
+  2. Scrape the website to extract offer context — the system must DISCOVER the offer independently:
+     - Company name, value proposition, target audience, pricing model, key metrics
+     - The system gets ONLY the URL. No hints. No hardcoded descriptions.
+  3. Store extracted context in the project's knowledge
   4. Use this context for: ICP definition, GPT analysis prompts, sequence generation
-  - Without this context, sequences will be generic garbage (no specific value prop, no case study numbers)
-  - For test user 1 (pn@getsally.io): website = easystaff.io (already known from reference campaigns)
-  - For test user 2 (petru4o144@gmail.com): website = https://thefashionpeople.com/ (branded resale platform — monetizes returns, old stock & pre-owned for fashion brands; NOT fashion staffing)
+
+**BLIND OFFER DISCOVERY TEST (MANDATORY)**:
+The test agent MUST NOT use any pre-knowledge about what each company does. The flow is:
+1. Pass ONLY the website URL to the MCP (e.g. `create_project` with `website="https://easystaff.io/"`)
+2. The system scrapes the website and extracts the offer INDEPENDENTLY
+3. Log what the system extracted in `testruns2603.md` — the FULL extracted context
+4. The test agent then SEPARATELY scrapes the same website to get the ground truth
+5. Compare: does the system's understanding match reality?
+6. Grade the extraction:
+   - What does the company do? (core offer)
+   - Who are their customers? (target audience)
+   - What value do they deliver? (key metrics/benefits)
+   - What's the pricing model?
+7. If the system got it WRONG → log the failure, fix the scraping/extraction logic, re-test
+8. Iterate until the system can correctly identify ANY company's offer from just a URL
+
+Test websites (provide ONLY the URL, no descriptions):
+- User 1: `https://easystaff.io/`
+- User 2: `https://thefashionpeople.com/`
+
+Ground truth for COMPARISON ONLY (never inject into prompts):
+- easystaff.io: global payroll & contractor payments platform
+- thefashionpeople.com: branded P2P resale platform for fashion brands
 - The system should ask which company the user is launching outreach from — add this to the required onboarding questions
 - The user provides the company website — the MCP scrapes the website, extracts context, and uses it to build the project ICP
 - The system must ask the user to connect their Telegram account to receive notifications on replies. This is part of the onboarding flow — reply notifications go to Telegram so the operator doesn't miss warm leads.
@@ -323,8 +345,9 @@ Log the comparison. The sequence doesn't need to be identical but MUST match the
 
 **CRITICAL — Context-Dependent Sequences**:
 - The sequence MUST reference the user's actual offer, NOT a generic template
-- For EasyStaff-Global: global payroll/contractor payments (https://easystaff.io/) — pay freelancers globally, fees under 1%, Deel/Upwork competitor, B2B invoicing
-- For Fashion Brands Italy: branded resale platform (https://thefashionpeople.com/) — monetize returns, old stock & pre-owned for fashion brands, 2.5x higher LTV, 40% new customers via resale, 10-day launch
+- The sequence MUST reflect the offer the system EXTRACTED from the website — not a pre-known description
+- Compare the sequence content against the scraped website context stored in the project
+- If the sequence mentions things NOT on the website, or misses the core offer → FAIL
 - If the system doesn't know the offer → it MUST ask before generating the sequence
 - A sequence that says "we help companies streamline their operations" = FAIL (too generic)
 
@@ -476,10 +499,12 @@ If the background reply analysis cache is empty (first run), the tools fall back
 **Steps:**
 1. Register `petru4o144@gmail.com` as a new MCP account (password: `qweqweqwe`)
 2. Connect SmartLead + Apollo using the same shared API keys
-3. **Provide company context**: "My company is The Fashion People (https://thefashionpeople.com/). We build branded resale platforms for fashion brands."
-   - The MCP MUST scrape the website and extract the value proposition before proceeding
-   - Store in project knowledge: company description, target audience, services offered
-   - The Fashion People offer: branded P2P resale platform, monetize returns/old stock/pre-owned, 2.5x higher LTV with store credits, 40% new customers via resale, launch in 10 days, 20+ European countries
+3. **Provide company context (BLIND — URL ONLY)**: "My company website is https://thefashionpeople.com/"
+   - The MCP MUST scrape the website and extract the value proposition INDEPENDENTLY
+   - DO NOT tell the system what the company does — let it discover from the website
+   - Log what the system extracted in `testruns2603.md`
+   - Compare extracted context against ground truth (see Step 2 blind test)
+   - If the system describes the offer WRONG → this is a critical failure, fix extraction logic
 4. Create project: "Fashion Brands Italy" with ICP from scraped website
 5. Run gathering: "fashion brands in Italy" (Apollo search)
 6. Verify: this user sees ONLY their project — NOT the pn@getsally.io projects
@@ -490,7 +515,7 @@ If the background reply analysis cache is empty (first run), the tools fall back
 
 **Sequence Quality Check for User 2:**
 The generated sequence for "Fashion Brands Italy" MUST:
-- Reference branded resale/P2P/returns monetization (not generic B2B)
+- Reference the ACTUAL offer extracted from the website (not generic B2B — verify against scraped content)
 - Use {{first_name}}, {{company}}, {{city}} merge tags
 - Have geo case study: "Recently helped a {{city}} fashion brand..." (with numbers)
 - NOT be a copy of the EasyStaff sequence (different ICP = different offer)
