@@ -1053,12 +1053,29 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         await session.flush()
 
         # START BACKGROUND REPLY ANALYSIS — runs in parallel, doesn't block
+        # Uses 3-tier funnel: SmartLead FREE → keyword OOO filter → GPT-4o-mini for real conversations
         campaign_id_map = {camp.get("id"): camp.get("name", "") for camp in matched}
         matched_ids = [camp.get("id") for camp in matched if camp.get("id")]
         try:
             from app.services.reply_analysis_service import start_reply_analysis_background
-            start_reply_analysis_background(sl, matched_ids, campaign_id_map, project.id)
-            reply_analysis_status = f"Reply analysis started in background for {len(matched_ids)} campaigns."
+            # Pass OpenAI key for Tier 3 AI classification
+            openai_key = None
+            from app.models.integration import MCPIntegrationSetting
+            from app.services.encryption import decrypt_value
+            openai_setting = await session.execute(
+                select(MCPIntegrationSetting).where(
+                    MCPIntegrationSetting.user_id == user.id,
+                    MCPIntegrationSetting.integration_name == "openai",
+                )
+            )
+            openai_row = openai_setting.scalar_one_or_none()
+            if openai_row and openai_row.api_key_encrypted:
+                try:
+                    openai_key = decrypt_value(openai_row.api_key_encrypted)
+                except Exception:
+                    pass
+            start_reply_analysis_background(sl, matched_ids, campaign_id_map, project.id, openai_key)
+            reply_analysis_status = f"Reply analysis started in background for {len(matched_ids)} campaigns (3-tier: SmartLead→OOO filter→GPT-4o-mini)."
         except Exception as e:
             reply_analysis_status = f"Reply analysis failed to start: {e}"
 
@@ -1145,7 +1162,16 @@ async def _call_replies_api(path: str, params: dict | None = None) -> dict:
 
 
 async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
-    """Handle all reply-related tool calls."""
+    """Handle all reply-related tool calls.
+
+    Two data sources:
+    1. MCP's own reply analysis cache (from background analysis)
+    2. Main backend via nginx proxy (for projects tracked by main app)
+
+    MCP cache is preferred — it has classified data from the 3-tier funnel.
+    Falls back to main backend proxy if cache is empty.
+    """
+    from app.services.reply_analysis_service import get_cached_analysis
 
     UI_BASE = "http://46.62.210.24:3000"
 
@@ -1155,7 +1181,38 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
         if not project_id:
             return {"error": f"Project '{project_name}' not found"}
 
-        # Get counts with include_all=true to get all categories
+        # Try MCP cache first
+        cached = get_cached_analysis(project_id)
+        if cached and cached.get("replies"):
+            replies = cached["replies"]
+            summary = cached.get("summary", {})
+            cats = summary.get("by_category", {})
+            total = len(replies)
+            warm = sum(1 for r in replies if r.get("category") in ("interested", "meeting_request"))
+            needs_reply = sum(1 for r in replies if r.get("needs_reply"))
+            return {
+                "project": project_name,
+                "total_replies": total,
+                "categories": cats,
+                "warm_leads": warm,
+                "needs_reply": needs_reply,
+                "ooo_filtered": summary.get("ooo_skipped", 0),
+                "ai_classified": summary.get("ai_classified", 0),
+                "analysis_duration": f"{summary.get('duration_seconds', 0)}s",
+                "analyzed_at": cached.get("analyzed_at", ""),
+                "campaigns_analyzed": cached.get("campaigns", []),
+                "message": f"Reply summary for '{project_name}': {total} total replies across {len(cached.get('campaigns', []))} campaigns. "
+                           f"{warm} warm leads, {needs_reply} need reply. "
+                           f"({summary.get('ooo_skipped', 0)} OOO auto-filtered, {summary.get('ai_classified', 0)} AI-classified).",
+                "_links": {
+                    "replies_ui": f"{UI_BASE}/tasks?project={project_name}",
+                    "warm_replies": f"{UI_BASE}/crm?reply_category=interested&project={project_name}",
+                    "meetings": f"{UI_BASE}/crm?reply_category=meeting_request&project={project_name}",
+                    "followups": f"{UI_BASE}/crm?needs_followup=true&project={project_name}",
+                },
+            }
+
+        # Fallback to main backend proxy
         data = await _call_replies_api("replies/counts", {
             "project_id": project_id,
             "include_all": "true",
@@ -1166,108 +1223,158 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
 
         counts = data.get("categories", data)
         total = data.get("total", sum(v for v in counts.values() if isinstance(v, int)))
-
         return {
             "project": project_name,
             "total_replies": total,
             "categories": counts,
             "message": f"Reply summary for '{project_name}': {total} total replies.",
-            "_links": {
-                "replies_ui": f"{UI_BASE}/tasks?project={project_name}",
-            },
+            "_links": {"replies_ui": f"{UI_BASE}/tasks?project={project_name}"},
         }
 
     if tool_name == "replies_list":
-        params: dict = {
-            "received_since": "all",
-            "page_size": 30,
-            "group_by_contact": "true",
-        }
         project_name = args.get("project_name")
+        category_filter = args.get("category")
+        search_filter = args.get("search")
+        needs_reply_filter = args.get("needs_reply")
+
         if project_name:
             project_id = await _resolve_project_id(project_name, user, session)
             if not project_id:
                 return {"error": f"Project '{project_name}' not found"}
-            params["project_id"] = project_id
 
-        if args.get("category"):
-            params["category"] = args["category"]
-        if args.get("search"):
-            params["lead_email"] = args["search"]
-        if args.get("needs_reply") is not None:
-            params["needs_reply"] = str(args["needs_reply"]).lower()
+            # Try MCP cache
+            cached = get_cached_analysis(project_id)
+            if cached and cached.get("replies"):
+                replies = cached["replies"]
+
+                # Apply filters
+                if category_filter:
+                    replies = [r for r in replies if r.get("category") == category_filter]
+                if search_filter:
+                    s = search_filter.lower()
+                    replies = [r for r in replies if s in (r.get("email", "") + r.get("name", "") + r.get("company", "")).lower()]
+                if needs_reply_filter is not None:
+                    val = str(needs_reply_filter).lower() == "true"
+                    replies = [r for r in replies if r.get("needs_reply") == val]
+
+                # Sort by received_at desc
+                replies.sort(key=lambda r: r.get("received_at", ""), reverse=True)
+
+                cards = []
+                for r in replies[:30]:
+                    cards.append({
+                        "lead_name": r.get("name", ""),
+                        "lead_email": r.get("email", ""),
+                        "company": r.get("company", ""),
+                        "category": r.get("category", "other"),
+                        "confidence": r.get("confidence", 0),
+                        "campaign": r.get("campaign_name", ""),
+                        "message_preview": r.get("reply_text", "")[:200],
+                        "received_at": r.get("received_at", ""),
+                        "needs_reply": r.get("needs_reply", False),
+                        "reasoning": r.get("reasoning", ""),
+                    })
+
+                return {
+                    "total": len(replies),
+                    "replies": cards,
+                    "message": f"Found {len(replies)} replies" + (f" in category '{category_filter}'" if category_filter else ""),
+                    "_links": {
+                        "replies_ui": f"{UI_BASE}/tasks?project={project_name}" + (f"&category={category_filter}" if category_filter else ""),
+                        "crm_filtered": f"{UI_BASE}/crm?reply_category={category_filter}&project={project_name}" if category_filter else f"{UI_BASE}/crm?project={project_name}",
+                    },
+                }
+
+        # Fallback to main backend
+        params: dict = {"received_since": "all", "page_size": 30, "group_by_contact": "true"}
+        if project_name and project_id:
+            params["project_id"] = project_id
+        if category_filter:
+            params["category"] = category_filter
+        if search_filter:
+            params["lead_email"] = search_filter
+        if needs_reply_filter is not None:
+            params["needs_reply"] = str(needs_reply_filter).lower()
         if args.get("page"):
             params["page"] = args["page"]
 
         data = await _call_replies_api("replies/", params)
         if "error" in data:
             return data
-
         replies = data.get("replies", [])
-        cards = []
-        for r in replies[:30]:
-            cards.append({
-                "id": r.get("id"),
-                "lead_name": r.get("lead_name") or r.get("lead_email", ""),
-                "lead_email": r.get("lead_email", ""),
-                "company": r.get("company_name") or r.get("lead_company", ""),
-                "category": r.get("category", "unknown"),
-                "campaign": r.get("campaign_name", ""),
-                "message_preview": (r.get("email_body") or r.get("reply_text") or "")[:200],
-                "received_at": r.get("received_at", ""),
-                "channel": r.get("channel", "email"),
-            })
+        cards = [{
+            "lead_name": r.get("lead_name") or r.get("lead_email", ""),
+            "lead_email": r.get("lead_email", ""),
+            "company": r.get("company_name") or r.get("lead_company", ""),
+            "category": r.get("category", "unknown"),
+            "campaign": r.get("campaign_name", ""),
+            "message_preview": (r.get("email_body") or r.get("reply_text") or "")[:200],
+            "received_at": r.get("received_at", ""),
+        } for r in replies[:30]]
 
         return {
             "total": data.get("total", len(cards)),
-            "page": data.get("page", args.get("page", 1)),
             "replies": cards,
-            "message": f"Found {data.get('total', len(cards))} replies" + (f" in category '{args.get('category')}'" if args.get("category") else ""),
-            "_links": {
-                "replies_ui": f"{UI_BASE}/tasks" + (f"?project={project_name}" if project_name else ""),
-            },
+            "message": f"Found {data.get('total', len(cards))} replies",
+            "_links": {"replies_ui": f"{UI_BASE}/tasks" + (f"?project={project_name}" if project_name else "")},
         }
 
     if tool_name == "replies_followups":
-        params = {
-            "needs_followup": "true",
-            "received_since": "all",
-            "page_size": 30,
-        }
         project_name = args.get("project_name")
+
         if project_name:
             project_id = await _resolve_project_id(project_name, user, session)
             if not project_id:
                 return {"error": f"Project '{project_name}' not found"}
-            params["project_id"] = project_id
-        if args.get("page"):
-            params["page"] = args["page"]
 
+            # Try MCP cache — followups = needs_reply=true
+            cached = get_cached_analysis(project_id)
+            if cached and cached.get("replies"):
+                replies = [r for r in cached["replies"] if r.get("needs_reply")]
+                replies.sort(key=lambda r: r.get("received_at", ""), reverse=True)
+
+                cards = [{
+                    "lead_name": r.get("name", ""),
+                    "lead_email": r.get("email", ""),
+                    "company": r.get("company", ""),
+                    "category": r.get("category", ""),
+                    "campaign": r.get("campaign_name", ""),
+                    "received_at": r.get("received_at", ""),
+                    "reasoning": r.get("reasoning", ""),
+                } for r in replies[:30]]
+
+                return {
+                    "total": len(replies),
+                    "replies": cards,
+                    "message": f"{len(replies)} leads need follow-up for '{project_name}'. "
+                               f"These are interested, meeting requests, and questions that haven't been replied to yet.",
+                    "_links": {
+                        "followups_ui": f"{UI_BASE}/crm?needs_followup=true&project={project_name}",
+                        "warm_leads": f"{UI_BASE}/crm?reply_category=interested&project={project_name}",
+                    },
+                }
+
+        # Fallback
+        params = {"needs_followup": "true", "received_since": "all", "page_size": 30}
+        if project_name and project_id:
+            params["project_id"] = project_id
         data = await _call_replies_api("replies/", params)
         if "error" in data:
             return data
-
         replies = data.get("replies", [])
-        cards = []
-        for r in replies[:30]:
-            cards.append({
-                "id": r.get("id"),
-                "lead_name": r.get("lead_name") or r.get("lead_email", ""),
-                "lead_email": r.get("lead_email", ""),
-                "company": r.get("company_name") or r.get("lead_company", ""),
-                "category": r.get("category", ""),
-                "campaign": r.get("campaign_name", ""),
-                "approved_at": r.get("approved_at", ""),
-                "received_at": r.get("received_at", ""),
-            })
-
+        cards = [{
+            "lead_name": r.get("lead_name") or r.get("lead_email", ""),
+            "lead_email": r.get("lead_email", ""),
+            "company": r.get("company_name", ""),
+            "category": r.get("category", ""),
+            "campaign": r.get("campaign_name", ""),
+            "received_at": r.get("received_at", ""),
+        } for r in replies[:30]]
         return {
             "total": data.get("total", len(cards)),
             "replies": cards,
-            "message": f"{data.get('total', len(cards))} leads need follow-up" + (f" for '{project_name}'" if project_name else ""),
-            "_links": {
-                "followups_ui": f"{UI_BASE}/tasks/followups" + (f"?project={project_name}" if project_name else ""),
-            },
+            "message": f"{data.get('total', len(cards))} leads need follow-up",
+            "_links": {"followups_ui": f"{UI_BASE}/tasks/followups"},
         }
 
     if tool_name == "replies_deep_link":
@@ -1275,20 +1382,19 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
         category = args.get("category", "")
         tab = args.get("tab", "")
 
-        url_parts = [f"{UI_BASE}/tasks"]
-        if tab:
-            url_parts[0] = f"{UI_BASE}/tasks/{tab}"
-
+        # Build CRM deep link (more useful than tasks page)
         query_params = [f"project={project_name}"]
         if category:
-            query_params.append(f"category={category}")
+            query_params.append(f"reply_category={category}")
 
-        url = url_parts[0] + "?" + "&".join(query_params)
+        crm_url = f"{UI_BASE}/crm?" + "&".join(query_params)
+        tasks_url = f"{UI_BASE}/tasks?" + "&".join(query_params)
 
         return {
-            "url": url,
+            "crm_url": crm_url,
+            "tasks_url": tasks_url,
             "message": f"Open replies for '{project_name}' in the browser",
-            "_links": {"open": url},
+            "_links": {"crm": crm_url, "tasks": tasks_url},
         }
 
     return {"error": f"Unknown reply tool: {tool_name}"}
