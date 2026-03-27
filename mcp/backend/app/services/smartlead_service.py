@@ -183,3 +183,45 @@ class SmartLeadService:
         """Get full message thread for one lead."""
         data = await self._api_call("GET", f"/campaigns/{campaign_id}/leads/{email}/message-history")
         return data if isinstance(data, list) else []
+
+    async def send_test_email(
+        self,
+        campaign_id: int,
+        lead_id: int,
+        sequence_number: int = 1,
+    ) -> Dict[str, Any]:
+        """Send a test email for a campaign sequence step to a specific lead.
+
+        SmartLead API: POST /campaigns/{id}/send-test-email
+        Required body: { leadId, sequenceNumber }
+        The email is sent FROM the campaign's assigned email account TO the lead's email.
+
+        Returns dict with success status and any error details.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    f"{self.base_url}/campaigns/{campaign_id}/send-test-email",
+                    params={"api_key": self.api_key},
+                    json={
+                        "leadId": lead_id,
+                        "sequenceNumber": sequence_number,
+                    },
+                )
+                body = resp.text
+                try:
+                    body = resp.json()
+                except Exception:
+                    pass
+
+                if resp.status_code == 200:
+                    return {"ok": True, "response": body}
+                else:
+                    return {
+                        "ok": False,
+                        "status_code": resp.status_code,
+                        "error": body,
+                    }
+        except Exception as e:
+            logger.error(f"SmartLead send_test_email campaign={campaign_id}: {e}")
+            return {"ok": False, "error": str(e)}
