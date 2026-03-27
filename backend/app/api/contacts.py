@@ -134,6 +134,12 @@ class ContactResponse(BaseModel):
             return True
         return bool(v)
 
+    @staticmethod
+    def _decode_unicode_escapes(s: str) -> str:
+        """Decode broken unicode escapes like 'u0411u0438' → 'Би'."""
+        import re
+        return re.sub(r'u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), s)
+
     @model_validator(mode='after')
     def derive_campaigns(self):
         """Derive campaigns list from platform_state since the campaigns column was dropped.
@@ -143,7 +149,7 @@ class ContactResponse(BaseModel):
             return self
         if not isinstance(self.platform_state, dict):
             return self
-        result = []
+        seen = {}  # deduplicate by campaign id
         for plat_name, plat_data in self.platform_state.items():
             if isinstance(plat_data, dict):
                 for camp in plat_data.get("campaigns", []):
@@ -154,8 +160,23 @@ class ContactResponse(BaseModel):
                             camp_copy["name"] = camp_copy.pop("campaign_name")
                         if "id" not in camp_copy and "campaign_id" in camp_copy:
                             camp_copy["id"] = camp_copy.pop("campaign_id")
+                        # Fix broken unicode escapes in campaign name
+                        if camp_copy.get("name") and "u0" in camp_copy["name"]:
+                            camp_copy["name"] = self._decode_unicode_escapes(camp_copy["name"])
                         camp_copy.setdefault("source", plat_name)
-                        result.append(camp_copy)
+                        # Deduplicate: keep the entry with a proper name
+                        cid = camp_copy.get("id")
+                        if cid:
+                            if cid not in seen:
+                                seen[cid] = camp_copy
+                            else:
+                                # prefer entry with decoded (non-escape) name
+                                existing = seen[cid]
+                                if "u0" in (existing.get("name") or ""):
+                                    seen[cid] = camp_copy
+                        else:
+                            seen[id(camp_copy)] = camp_copy
+        result = list(seen.values())
         self.campaigns = result or None
         return self
 
