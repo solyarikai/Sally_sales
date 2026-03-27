@@ -184,44 +184,64 @@ class SmartLeadService:
         data = await self._api_call("GET", f"/campaigns/{campaign_id}/leads/{email}/message-history")
         return data if isinstance(data, list) else []
 
-    async def send_test_email(
+    async def add_leads_to_campaign(self, campaign_id: int, leads: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Add leads to a SmartLead campaign.
+
+        Each lead dict: {email, first_name, last_name, company_name, custom_fields?}
+        """
+        formatted = []
+        for lead in leads:
+            entry = {
+                "email": lead["email"],
+                "first_name": lead.get("first_name", "Test"),
+                "last_name": lead.get("last_name", "Lead"),
+                "company_name": lead.get("company_name", "TEST - DELETE"),
+            }
+            if lead.get("custom_fields"):
+                entry["custom_fields"] = lead["custom_fields"]
+            formatted.append(entry)
+
+        return await self._api_call("POST", f"/campaigns/{campaign_id}/leads", {"lead_list": formatted})
+
+    async def update_campaign_status(self, campaign_id: int, status: str = "START") -> Optional[Dict[str, Any]]:
+        """Start/pause/stop a campaign. Status: START, PAUSE, STOP."""
+        return await self._api_call("POST", f"/campaigns/{campaign_id}/status", {"status": status})
+
+    async def add_test_lead_and_activate(
         self,
         campaign_id: int,
-        lead_id: int,
-        sequence_number: int = 1,
+        test_email: str = "pn@getsally.io",
+        sample_custom_fields: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-        """Send a test email for a campaign sequence step to a specific lead.
+        """Add a test lead to campaign and activate it so SmartLead sends the email.
 
-        SmartLead API: POST /campaigns/{id}/send-test-email
-        Required body: { leadId, sequenceNumber }
-        The email is sent FROM the campaign's assigned email account TO the lead's email.
-
-        Returns dict with success status and any error details.
+        This mirrors the existing platform's battle-tested approach:
+        instead of using SmartLead's buggy /send-test-email API,
+        we add the user as a real lead and let SmartLead send normally.
         """
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    f"{self.base_url}/campaigns/{campaign_id}/send-test-email",
-                    params={"api_key": self.api_key},
-                    json={
-                        "leadId": lead_id,
-                        "sequenceNumber": sequence_number,
-                    },
-                )
-                body = resp.text
-                try:
-                    body = resp.json()
-                except Exception:
-                    pass
+        # Build test lead with sample custom fields for proper variable substitution
+        test_lead = {
+            "email": test_email,
+            "first_name": "Test",
+            "last_name": "Lead",
+            "company_name": "TEST - DELETE",
+        }
+        if sample_custom_fields:
+            # Copy custom fields from a real lead so merge tags resolve
+            test_lead["custom_fields"] = {
+                **sample_custom_fields,
+                "is_test_lead": "true",
+            }
+        else:
+            test_lead["custom_fields"] = {"is_test_lead": "true"}
 
-                if resp.status_code == 200:
-                    return {"ok": True, "response": body}
-                else:
-                    return {
-                        "ok": False,
-                        "status_code": resp.status_code,
-                        "error": body,
-                    }
-        except Exception as e:
-            logger.error(f"SmartLead send_test_email campaign={campaign_id}: {e}")
-            return {"ok": False, "error": str(e)}
+        result = await self.add_leads_to_campaign(campaign_id, [test_lead])
+        if not result:
+            return {"ok": False, "error": "Failed to add test lead to campaign"}
+
+        # Activate the campaign so SmartLead sends
+        status_result = await self.update_campaign_status(campaign_id, "START")
+        if not status_result:
+            return {"ok": False, "error": "Test lead added but failed to activate campaign", "lead_added": True}
+
+        return {"ok": True, "test_email": test_email, "campaign_activated": True}

@@ -475,7 +475,7 @@ Rules:
                 if dc.is_target:
                     targets_found += 1
                     target_list.append({
-                        "domain": dc.domain, "name": dc.name,
+                        "dc_id": dc.id, "domain": dc.domain, "name": dc.name,
                         "confidence": dc.analysis_confidence,
                         "segment": dc.analysis_segment,
                         "reasoning": dc.analysis_reasoning,
@@ -496,6 +496,19 @@ Rules:
         # Sort target list by confidence DESC
         target_list.sort(key=lambda x: -x.get("confidence", 0))
         borderline_rejections.sort(key=lambda x: -x.get("confidence", 0))
+
+        # Normalize company names for targets only (GPT-4o-mini, cheap)
+        target_dc_ids = [t.get("dc_id") for t in target_list if t.get("dc_id")]
+        if target_dc_ids and openai_key:
+            target_dcs = [dc_map[dc_id] for dc_id in target_dc_ids if dc_id in dc_map]
+            normalized = await self._normalize_company_names(target_dcs, openai_key)
+            # Update target_list names to reflect normalization
+            name_map = {dc.id: dc.name for dc in target_dcs}
+            for t in target_list:
+                if t.get("dc_id") in name_map:
+                    t["name"] = name_map[t["dc_id"]]
+            await session.flush()
+            logger.info(f"Normalized {normalized} target company names")
 
         gate = self._create_checkpoint2_gate(
             session, run, targets_found, total_analyzed, skipped_no_text,
@@ -544,6 +557,72 @@ Rules:
         )
         session.add(gate)
         return gate
+
+    # ── Company Name Normalization (targets only) ──
+
+    NORMALIZE_BATCH_SIZE = 20
+    NORMALIZE_CONCURRENCY = 10
+
+    NORMALIZE_SYSTEM_PROMPT = (
+        "You are a data normalization expert. Normalize the company name to its clean, "
+        "canonical brand form. Strip legal suffixes (Inc, LLC, Ltd, GmbH, etc.), "
+        "remove location/office tails after separators, drop parenthetical notes. "
+        "Keep meaningful brand terms. Title Case output, preserve acronyms. "
+        "Return ONLY the normalized name, nothing else."
+    )
+
+    async def _normalize_company_names(
+        self, companies: List[DiscoveredCompany], openai_key: str
+    ) -> int:
+        """Normalize company names via GPT-4o-mini. Only called for confirmed targets.
+
+        Updates dc.name in-place (original preserved in source_data).
+        Returns count of names actually changed.
+        """
+        import asyncio
+        import httpx
+
+        semaphore = asyncio.Semaphore(self.NORMALIZE_CONCURRENCY)
+        changed = 0
+
+        async def normalize_one(dc: DiscoveredCompany) -> Optional[str]:
+            if not dc.name or len(dc.name) < 3:
+                return None
+            async with semaphore:
+                try:
+                    async with httpx.AsyncClient(timeout=15) as client:
+                        resp = await client.post(
+                            "https://api.openai.com/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                            json={
+                                "model": "gpt-4o-mini",
+                                "messages": [
+                                    {"role": "system", "content": self.NORMALIZE_SYSTEM_PROMPT},
+                                    {"role": "user", "content": dc.name},
+                                ],
+                                "max_tokens": 60,
+                                "temperature": 0,
+                            },
+                        )
+                        data = resp.json()
+                        normalized = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                        if normalized and normalized != dc.name:
+                            return normalized
+                except Exception as e:
+                    logger.debug(f"Name normalization failed for {dc.domain}: {e}")
+            return None
+
+        for batch_start in range(0, len(companies), self.NORMALIZE_BATCH_SIZE):
+            batch = companies[batch_start:batch_start + self.NORMALIZE_BATCH_SIZE]
+            tasks = [normalize_one(dc) for dc in batch]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for dc, result in zip(batch, results):
+                if isinstance(result, str) and result:
+                    dc.name = result
+                    changed += 1
+
+        return changed
 
     # ── Phase 6: Prepare Verification ──
 
