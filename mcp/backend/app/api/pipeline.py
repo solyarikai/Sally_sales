@@ -513,6 +513,33 @@ async def list_runs(
     ]
 
 
+# ── Deep links helper ──
+
+@router.get("/deep-links")
+async def get_deep_links(
+    project_id: int = Query(...),
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate CRM/Tasks deep links for a project."""
+    project = await session.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    base = "/tasks"
+    crm_base = "/crm"
+    name = project.name
+    return {
+        "all_replies": f"{base}?project={name}",
+        "warm_replies": f"{base}?project={name}&category=interested",
+        "meetings": f"{base}?project={name}&tab=meetings",
+        "questions": f"{base}?project={name}&tab=questions",
+        "followups": f"{base}?project={name}&tab=follow-ups",
+        "crm_all": f"{crm_base}?project_id={project_id}",
+        "crm_targets": f"{crm_base}?project_id={project_id}&is_target=true",
+        "pipeline": f"/pipeline",
+        "projects": f"/projects",
+    }
+
+
 # ── Gate approval + pipeline actions (auth required) ──
 
 
