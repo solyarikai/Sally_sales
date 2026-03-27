@@ -6,9 +6,13 @@ import { Search, Check, X } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 
 export const SegmentColumnFilter = forwardRef((props: IFilterParams, ref) => {
-  const { segmentFilters, toggleSegment, setSegmentFilters, filterOptions, resetPage } = useContactsFilter();
+  const { segmentFilters, setSegmentFilters, filterOptions, resetPage } = useContactsFilter();
   const { isDark } = useTheme();
   const [query, setQuery] = useState('');
+  const [working, setWorking] = useState<string[]>(segmentFilters);
+
+  // Sync working state when context changes externally
+  useEffect(() => { setWorking(segmentFilters); }, [segmentFilters]);
 
   useImperativeHandle(ref, () => ({
     isFilterActive: () => segmentFilters.length > 0,
@@ -32,67 +36,76 @@ export const SegmentColumnFilter = forwardRef((props: IFilterParams, ref) => {
   }, [segments, query]);
 
   const handleToggle = (seg: string) => {
-    toggleSegment(seg);
+    setWorking(prev => prev.includes(seg) ? prev.filter(s => s !== seg) : [...prev, seg]);
+  };
+
+  const handleApply = () => {
+    setSegmentFilters(working);
     resetPage();
   };
 
   const clearAll = () => {
+    setWorking([]);
     setSegmentFilters([]);
     resetPage();
     setQuery('');
   };
 
+  const hasChanges = JSON.stringify([...working].sort()) !== JSON.stringify([...segmentFilters].sort());
+
   return (
-    <div className={cn("p-3 min-w-[200px] max-w-[280px]", isDark && "bg-neutral-800")}>
-      <div className="flex items-center justify-between mb-2">
-        <span className={cn("text-xs font-medium", isDark ? "text-neutral-400" : "text-neutral-500")}>SEGMENT</span>
-        {segmentFilters.length > 0 && (
-          <button onClick={clearAll} className="text-[10px] text-red-500 hover:text-red-700">
-            Clear all ({segmentFilters.length})
-          </button>
+    <div className={cn("min-w-[200px] max-w-[280px] flex flex-col", isDark && "bg-neutral-800")}>
+      <div className="p-3 pb-0">
+        <div className="flex items-center justify-between mb-2">
+          <span className={cn("text-xs font-medium", isDark ? "text-neutral-400" : "text-neutral-500")}>SEGMENT</span>
+          {(working.length > 0 || segmentFilters.length > 0) && (
+            <button onClick={clearAll} className="text-[10px] text-red-500 hover:text-red-700">
+              Clear all ({working.length})
+            </button>
+          )}
+        </div>
+
+        {/* Selected segment chips */}
+        {working.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {working.map(seg => (
+              <div key={seg} className={cn(
+                "inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] max-w-[140px]",
+                isDark ? "bg-blue-900/40 border-blue-700 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-700"
+              )}>
+                <span className="truncate">{seg.replace(/_/g, ' ')}</span>
+                <button onClick={() => handleToggle(seg)} className={cn("shrink-0", isDark ? "text-blue-400 hover:text-blue-200" : "text-blue-400 hover:text-blue-700")}>
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {segments.length > 5 && (
+          <div className="relative mb-2">
+            <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <input
+              type="text"
+              placeholder="Search segments..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className={cn(
+                "w-full pl-7 pr-2 py-1.5 rounded-md border text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500",
+                isDark ? "bg-neutral-700 border-neutral-600 text-neutral-200 placeholder-neutral-500" : "border-neutral-200"
+              )}
+            />
+          </div>
         )}
       </div>
-
-      {/* Selected segment chips */}
-      {segmentFilters.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {segmentFilters.map(seg => (
-            <div key={seg} className={cn(
-              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] max-w-[140px]",
-              isDark ? "bg-blue-900/40 border-blue-700 text-blue-300" : "bg-blue-50 border-blue-200 text-blue-700"
-            )}>
-              <span className="truncate">{seg.replace(/_/g, ' ')}</span>
-              <button onClick={() => handleToggle(seg)} className={cn("shrink-0", isDark ? "text-blue-400 hover:text-blue-200" : "text-blue-400 hover:text-blue-700")}>
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {segments.length > 5 && (
-        <div className="relative mb-2">
-          <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" />
-          <input
-            type="text"
-            placeholder="Search segments..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className={cn(
-              "w-full pl-7 pr-2 py-1.5 rounded-md border text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500",
-              isDark ? "bg-neutral-700 border-neutral-600 text-neutral-200 placeholder-neutral-500" : "border-neutral-200"
-            )}
-          />
-        </div>
-      )}
-      <div className="flex flex-col gap-1 max-h-[240px] overflow-y-auto">
+      <div className="flex flex-col gap-1 max-h-[240px] overflow-y-auto px-3">
         {filtered.length === 0 ? (
           <div className={cn("text-xs px-2 py-3 text-center", isDark ? "text-neutral-500" : "text-neutral-400")}>
             {query ? 'No segments match' : 'No segments'}
           </div>
         ) : (
           filtered.map((seg) => {
-            const isActive = segmentFilters.includes(seg);
+            const isActive = working.includes(seg);
             return (
               <button
                 key={seg}
@@ -115,6 +128,23 @@ export const SegmentColumnFilter = forwardRef((props: IFilterParams, ref) => {
             );
           })
         )}
+      </div>
+      <div className={cn(
+        "sticky bottom-0 border-t p-2 flex justify-end",
+        isDark ? "border-neutral-700 bg-neutral-800" : "border-neutral-200 bg-white"
+      )}>
+        <button
+          onClick={handleApply}
+          disabled={!hasChanges}
+          className={cn(
+            "px-4 py-1.5 rounded text-xs font-medium transition-colors",
+            hasChanges
+              ? "bg-indigo-600 text-white hover:bg-indigo-700"
+              : (isDark ? "bg-neutral-700 text-neutral-500 cursor-not-allowed" : "bg-neutral-100 text-neutral-400 cursor-not-allowed")
+          )}
+        >
+          OK
+        </button>
       </div>
     </div>
   );
