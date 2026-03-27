@@ -653,6 +653,7 @@ async def create_campaign(
 
 class SendTestEmailRequest(BaseModel):
     test_email: str = "pn@getsally.io"
+    sequence_number: int = 1
 
 
 @router.post("/runs/{run_id}/send-test-email")
@@ -662,11 +663,10 @@ async def send_test_email(
     user: MCPUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Send a test email for a pipeline run's SmartLead campaign.
+    """Send a test email via SmartLead's native send-test-email API.
 
-    Uses the same pattern as the existing platform: adds the user as a test
-    lead to the campaign and activates it. SmartLead sends naturally — no
-    reliance on SmartLead's buggy /send-test-email API.
+    Uses the proper API: POST /campaigns/{id}/send-test-email with
+    leadId + sequenceNumber + selectedEmailAccountId + customEmailAddress.
     """
     from app.services.smartlead_service import SmartLeadService
 
@@ -696,19 +696,11 @@ async def send_test_email(
     if not sl.is_configured():
         raise HTTPException(500, "SmartLead API key not configured")
 
-    # Get custom fields from first real lead for proper merge tag substitution
-    sample_custom_fields = None
-    leads = await sl.get_campaign_leads_with_status(smartlead_campaign_id, limit=1)
-    if leads:
-        first = leads[0]
-        lead_obj = first.get("lead", first)
-        sample_custom_fields = lead_obj.get("custom_fields")
-
-    # Add test lead + activate campaign (battle-tested pattern from main platform)
-    result = await sl.add_test_lead_and_activate(
+    # Use native SmartLead send-test-email API (auto-resolves account + lead)
+    result = await sl.send_test_email(
         campaign_id=smartlead_campaign_id,
         test_email=req.test_email,
-        sample_custom_fields=sample_custom_fields,
+        sequence_number=req.sequence_number,
     )
 
     return {
