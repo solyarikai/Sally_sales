@@ -335,7 +335,7 @@ async def fetch_smartlead_replies(
                             elif contact.last_reply_at is None:
                                 contact.mark_replied("email")
                                 from app.services.status_machine import transition_status
-                                new_st, ok, _msg = transition_status(contact.status, "interested")
+                                new_st, ok, _msg = transition_status(contact.status, "replied")
                                 if ok:
                                     contact.status = new_st
                                 reply_time_str = reply.get("reply_time")
