@@ -174,7 +174,7 @@ Simulate a new user registering and running their first campaign:
   4. Use this context for: ICP definition, GPT analysis prompts, sequence generation
   - Without this context, sequences will be generic garbage (no specific value prop, no case study numbers)
   - For test user 1 (pn@getsally.io): website = easystaff.io (already known from reference campaigns)
-  - For test user 2 (petru4o144@gmail.com): website = https://thefashionpeople.com/ (fashion staffing)
+  - For test user 2 (petru4o144@gmail.com): website = https://thefashionpeople.com/ (branded resale platform — monetizes returns, old stock & pre-owned for fashion brands; NOT fashion staffing)
 - The system should ask which company the user is launching outreach from — add this to the required onboarding questions
 - The user provides the company website — the MCP scrapes the website, extracts context, and uses it to build the project ICP
 - The system must ask the user to connect their Telegram account to receive notifications on replies. This is part of the onboarding flow — reply notifications go to Telegram so the operator doesn't miss warm leads.
@@ -323,8 +323,8 @@ Log the comparison. The sequence doesn't need to be identical but MUST match the
 
 **CRITICAL — Context-Dependent Sequences**:
 - The sequence MUST reference the user's actual offer, NOT a generic template
-- For EasyStaff-Global: contractor payments, payroll, Deel/Upwork competitor
-- For Fashion Brands Italy: fashion staffing from https://thefashionpeople.com/
+- For EasyStaff-Global: global payroll/contractor payments (https://easystaff.io/) — pay freelancers globally, fees under 1%, Deel/Upwork competitor, B2B invoicing
+- For Fashion Brands Italy: branded resale platform (https://thefashionpeople.com/) — monetize returns, old stock & pre-owned for fashion brands, 2.5x higher LTV, 40% new customers via resale, 10-day launch
 - If the system doesn't know the offer → it MUST ask before generating the sequence
 - A sequence that says "we help companies streamline their operations" = FAIL (too generic)
 
@@ -476,9 +476,10 @@ If the background reply analysis cache is empty (first run), the tools fall back
 **Steps:**
 1. Register `petru4o144@gmail.com` as a new MCP account (password: `qweqweqwe`)
 2. Connect SmartLead + Apollo using the same shared API keys
-3. **Provide company context**: "My company is The Fashion People (https://thefashionpeople.com/). We provide fashion staffing and recruitment services."
+3. **Provide company context**: "My company is The Fashion People (https://thefashionpeople.com/). We build branded resale platforms for fashion brands."
    - The MCP MUST scrape the website and extract the value proposition before proceeding
    - Store in project knowledge: company description, target audience, services offered
+   - The Fashion People offer: branded P2P resale platform, monetize returns/old stock/pre-owned, 2.5x higher LTV with store credits, 40% new customers via resale, launch in 10 days, 20+ European countries
 4. Create project: "Fashion Brands Italy" with ICP from scraped website
 5. Run gathering: "fashion brands in Italy" (Apollo search)
 6. Verify: this user sees ONLY their project — NOT the pn@getsally.io projects
@@ -489,7 +490,7 @@ If the background reply analysis cache is empty (first run), the tools fall back
 
 **Sequence Quality Check for User 2:**
 The generated sequence for "Fashion Brands Italy" MUST:
-- Reference fashion/staffing/recruitment (not generic B2B)
+- Reference branded resale/P2P/returns monetization (not generic B2B)
 - Use {{first_name}}, {{company}}, {{city}} merge tags
 - Have geo case study: "Recently helped a {{city}} fashion brand..." (with numbers)
 - NOT be a copy of the EasyStaff sequence (different ICP = different offer)
