@@ -326,13 +326,17 @@ async def _send_meeting_notification(
     # Get domain from email
     domain = email.split("@")[-1] if "@" in email else ""
 
+    # Campaign from meeting record
+    campaign = escape(meeting.campaign_name) if meeting.campaign_name else ""
+    campaign_line = f"\n<b>Кампания:</b> {campaign}" if campaign else ""
+
     message = f"""📅 <b>Новый звонок забукан!</b>
 
 <b>Кто:</b> {name}
 <b>Email:</b> {email}
 <b>Компания:</b> {company}
 <b>Сайт:</b> {domain}
-<b>Когда:</b> {time_str}"""
+<b>Когда:</b> {time_str}{campaign_line}"""
 
     # Get conversation summary
     summary = await _get_conversation_summary(session, meeting.invitee_email, project_id)
@@ -489,25 +493,35 @@ async def sync_calendly_events_for_project(
 
             user_data = me_resp.json().get("resource", {})
             org_uri = user_data.get("current_organization")
-            if not org_uri:
-                return {"synced": 0, "skipped": 0, "errors": ["No organization found"]}
+            user_uri = user_data.get("uri")
+            if not org_uri and not user_uri:
+                return {"synced": 0, "skipped": 0, "errors": ["No organization or user URI found"]}
 
             # Fetch events: past 7 days + next 30 days
             now = datetime.now(timezone.utc)
             min_start = (now - timedelta(days=7)).strftime("%Y-%m-%dT00:00:00Z")
             max_start = (now + timedelta(days=30)).strftime("%Y-%m-%dT23:59:59Z")
 
+            base_params = {
+                "min_start_time": min_start,
+                "max_start_time": max_start,
+                "status": "active",
+                "count": 100,
+            }
+
+            # Try org-level query first, fall back to user-level if 403
             events_resp = await client.get(
                 f"{CALENDLY_API}/scheduled_events",
                 headers={"Authorization": f"Bearer {token}"},
-                params={
-                    "organization": org_uri,
-                    "min_start_time": min_start,
-                    "max_start_time": max_start,
-                    "status": "active",
-                    "count": 100,
-                },
+                params={"organization": org_uri, **base_params} if org_uri else {"user": user_uri, **base_params},
             )
+            if events_resp.status_code == 403 and user_uri:
+                logger.info(f"[CALENDLY SYNC] {project_name}: org-level query returned 403, falling back to user-level")
+                events_resp = await client.get(
+                    f"{CALENDLY_API}/scheduled_events",
+                    headers={"Authorization": f"Bearer {token}"},
+                    params={"user": user_uri, **base_params},
+                )
             if events_resp.status_code != 200:
                 return {"synced": 0, "skipped": 0, "errors": [f"Events API error: {events_resp.status_code}"]}
 
