@@ -1170,6 +1170,12 @@ async def process_reply_webhook(
             if "On " in body and " wrote:" in body:
                 body = body.split("On ")[0].strip()
         
+        # Skip SmartLead "Email N sent to X for campaign Y" notifications — not real replies
+        import re as _re
+        if body and _re.match(r"Email \d+ sent to \S+@\S+ for campaign\s*-", body):
+            logger.info(f"[PROCESSOR] Skipping SmartLead send-notification for {lead_email}: {body[:80]}")
+            return None
+
         # Lead name - prioritize first_name/last_name from lead_data (SmartLead DB),
         # fall back to to_name only if it's a real person (not a system sender like bounces)
         _SYSTEM_SENDERS = {"mail delivery subsystem", "mailer-daemon", "postmaster", "mail delivery system", "automated message"}
