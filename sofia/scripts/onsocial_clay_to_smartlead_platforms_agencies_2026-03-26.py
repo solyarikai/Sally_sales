@@ -1240,9 +1240,6 @@ def _export_getsales(without_email: list[dict], today: str) -> Path:
     return out_path
 
 
-SOFIA_DIR = SCRIPT_DIR.parent  # needed for get_sales_hub path
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 11: FINDYMAIL
 # ══════════════════════════════════════════════════════════════════════════════
