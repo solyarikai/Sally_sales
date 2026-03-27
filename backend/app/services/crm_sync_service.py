@@ -497,7 +497,8 @@ class SmartleadClient:
         try:
             data = await self._get(f"/campaigns/{campaign_id}/leads", {"limit": 1, "offset": 0})
             if isinstance(data, dict):
-                return data.get("total_leads", data.get("total", 0))
+                raw = data.get("total_leads", data.get("total", 0))
+                return int(raw) if raw is not None else 0
             return len(data) if isinstance(data, list) else 0
         except Exception as e:
             logger.warning(f"Failed to get lead count for campaign {campaign_id}: {e}")
