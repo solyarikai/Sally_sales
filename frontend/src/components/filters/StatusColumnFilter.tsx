@@ -13,7 +13,6 @@ const STATUSES = [
   { key: 'not_interested',      label: 'Not Interested',      dot: 'bg-red-500',     colors: 'bg-red-100 text-red-700 border-red-300' },
   { key: 'ooo',                 label: 'Out of Office',       dot: 'bg-yellow-400',  colors: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
   { key: 'unsubscribed',        label: 'Unsubscribed',        dot: 'bg-red-400',     colors: 'bg-red-100 text-red-700 border-red-300' },
-  { key: 'warm',                label: 'Warm',                dot: 'bg-amber-500',   colors: 'bg-amber-100 text-amber-700 border-amber-300' },
   { key: 'calendly_sent',       label: 'Calendly Sent',       dot: 'bg-orange-400',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
   { key: 'negotiating_meeting', label: 'Negotiating Meeting', dot: 'bg-orange-500',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
   { key: 'meeting_booked',      label: 'Meeting Booked',      dot: 'bg-orange-500',  colors: 'bg-orange-100 text-orange-700 border-orange-300' },
