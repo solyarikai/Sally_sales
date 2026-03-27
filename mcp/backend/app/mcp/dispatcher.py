@@ -260,6 +260,61 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 setattr(project, field, args[field])
         return {"updated": True, "project_id": project.id}
 
+    # ── Intent Parsing ──
+    if tool_name == "parse_gathering_intent":
+        user = await _get_user(token, session)
+        project = await session.get(Project, args["project_id"])
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        # Get user's offer from project context (for competitor exclusion)
+        user_offer = project.target_segments or ""
+        if project.sender_company:
+            user_offer = f"{project.sender_company}: {user_offer}"
+
+        # Get API keys
+        from app.models.integration import MCPIntegrationSetting
+        from app.services.encryption import decrypt_value
+        openai_key = gemini_key = None
+        for svc_name in ("openai", "gemini"):
+            r = await session.execute(
+                select(MCPIntegrationSetting).where(
+                    MCPIntegrationSetting.user_id == user.id,
+                    MCPIntegrationSetting.integration_name == svc_name,
+                )
+            )
+            row = r.scalar_one_or_none()
+            if row and row.api_key_encrypted:
+                try:
+                    key = decrypt_value(row.api_key_encrypted)
+                    if svc_name == "openai":
+                        openai_key = key
+                    else:
+                        gemini_key = key
+                except Exception:
+                    pass
+
+        from app.services.intent_parser import parse_gathering_intent
+        result = await parse_gathering_intent(
+            query=args["query"],
+            user_offer=user_offer,
+            openai_key=openai_key,
+            gemini_key=gemini_key,
+        )
+
+        segments = result.get("segments", [])
+        n = result.get("pipelines_needed", len(segments))
+
+        return {
+            **result,
+            "message": (
+                f"Parsed query into {n} segment{'s' if n > 1 else ''}: "
+                + ", ".join(s.get("label", "?") for s in segments)
+                + (f". Competitor exclusions: {result.get('competitor_exclusions', [])}" if result.get("competitor_exclusions") else "")
+                + f"\n\n{'Call tam_gather ONCE per segment.' if n > 1 else 'Call tam_gather with this segment.'}"
+            ),
+        }
+
     # ── Pipeline tools ──
     if tool_name == "tam_gather":
         user = await _get_user(token, session)

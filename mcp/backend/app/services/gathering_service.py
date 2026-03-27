@@ -400,6 +400,13 @@ class GatheringService:
             elif len(icp_text) < 50:
                 target_segment_label = re.sub(r'[^a-z0-9]+', '_', icp_lower).upper().strip('_')[:30]
 
+        # Build competitor exclusion from project context
+        competitor_exclusion = ""
+        if project and project.sender_company and project.target_segments:
+            offer_snippet = (project.target_segments or "")[:300]
+            competitor_exclusion = f"""
+- Company is a COMPETITOR to {project.sender_company} (offers the same/similar service). {project.sender_company}'s offer: {offer_snippet[:150]}. If the company being analyzed provides the SAME service → NOT a target (you don't sell to competitors)."""
+
         via_negativa_system = f"""{icp_text}
 
 Analyze the company website below using VIA NEGATIVA — focus on what RULES IT OUT.
@@ -410,7 +417,7 @@ Exclusion criteria (reject if ANY apply):
 - Company is in a completely unrelated industry (e.g., restaurant, retail, personal blog)
 - Company has shut down or is clearly inactive
 - Website is not in a relevant language for the target market
-- Company is too large (enterprise/multinational) if targeting SMB
+- Company is too large (enterprise/multinational) if targeting SMB{competitor_exclusion}
 
 If NONE of these exclusions apply → the company survives. Label it as target.
 {user_feedback_section}

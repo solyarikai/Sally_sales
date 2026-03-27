@@ -244,8 +244,14 @@ Test websites (provide ONLY the URL, no descriptions):
 - This background analysis enables the system to answer questions later (see Step 9)
 - Track how long this background analysis takes — log the duration in `testruns2603.md`
 
-**Step 3 — Gathering (with Probe-and-Iterate Quality Loop)**
-- Search for: "IT consulting companies in Miami"
+**Step 3 — Gathering (MULTI-SEGMENT with Intent Parsing)**
+- Search for: "IT consulting and media production companies in Miami"
+- **FIRST call `parse_gathering_intent`** — this MUST split into 2 segments:
+  - Segment 1: IT_CONSULTING (Apollo keywords: IT consulting, technology consulting)
+  - Segment 2: MEDIA_PRODUCTION (Apollo keywords: media production, video production)
+- **Then call `tam_gather` TWICE** — once per segment, creating 2 separate pipeline runs
+- Both runs visible on Pipeline page with different segment labels
+- Competitor exclusion: EasyStaff (payroll) companies should NOT appear as targets
 - GEO filter is REQUIRED before initiating the pipeline — the system must collect geographic context (country, city, timezone) from the user's search query. This is mandatory, not optional. The gathered contacts' timezone determines campaign timing (see Step 5).
 - Apollo budget: max 20 credits per test run (companies + people combined)
 - Target: 50 companies, up to 3 people per company (this is a HARD LIMIT — make it a configurable requirement, user can override explicitly if they want more)
