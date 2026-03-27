@@ -184,6 +184,19 @@ Simulate a new user registering and running their first campaign:
 - Register fresh, obtain token via UI or API
 - Log in `testruns2603.md`: timestamps for all auth actions
 
+**AFTER SIGNUP — PAUSE AND NOTIFY:**
+After creating the test account, IMMEDIATELY send a Telegram message:
+"Account created: {email}. You can now log in at http://46.62.210.24:3000/setup with password qweqweqwe to watch the test live. Reply when ready, or I'll continue in 60 seconds."
+Wait 60 seconds, then proceed. This lets the operator open the UI and watch pipeline/CRM/conversations pages update in real-time while the test runs.
+
+**CONVERSATIONS PAGE VERIFICATION (MANDATORY):**
+After EVERY MCP tool call during the test:
+1. The call must appear in the Conversations page (/conversations)
+2. At the END of the test, take screenshot: `test_conversations.png`
+3. Verify: messages show direction (→ MCP / ← Response), method, summary, timestamp
+4. Verify: messages are user-scoped (only this user's messages, not others')
+5. Count total messages — must be > 0 and match the number of tool calls made during test
+
 **Step 2 — Project Setup & Knowledge Context (CRITICAL)**
 - Tell the MCP: "Take 'petr' including campaigns as my EasyStaff-Global project setup"
 - The system must: detect SmartLead campaigns matching "petr", import contacts as blacklist, create the EasyStaff-Global project
@@ -563,13 +576,15 @@ The generated sequence for "Fashion Brands Italy" MUST:
 - NOT be a copy of the EasyStaff sequence (different ICP = different offer)
 - Pass the same 10-point GOD_SEQUENCE checklist as User 1
 
-**Screenshots (minimum):**
+**Screenshots (minimum — ALL pages for BOTH users):**
 - `test_user2_setup.png` — second user's setup page (clean, no projects)
 - `test_user2_projects.png` — only "Fashion Brands Italy" visible (NOT EasyStaff-Global)
 - `test_user2_pipeline.png` — only their pipeline runs visible
 - `test_user2_pipeline_campaign_link.png` — pipeline page showing SmartLead campaign link
 - `test_user2_crm.png` — CRM with contacts from Fashion Brands pipeline
 - `test_user2_learning.png` — Learning page showing this user's data only
+- `test_user2_conversations.png` — Conversations/Logs page showing MCP tool calls for this user
+- `test_user1_conversations.png` — User 1's conversations (different from User 2's)
 - `test_user1_unchanged.png` — pn@getsally.io still sees only their data
 
 **CRITICAL USER-SCOPING CHECKS:**
@@ -651,6 +666,8 @@ User 2 (services@getsally.io) already has "Fashion Brands Italy" from Phase 4b. 
   - `test_crm_warm_filter.png` — CRM filtered to warm replies via deep link
   - `test_learning_page.png` — Learning page with tool usage, pipeline accuracy, reply analysis section
   - `test_contact_conversation.png` — click a contact in CRM → conversation tab shows planned sequence steps
+  - `test_conversations_page.png` — /conversations page showing MCP tool calls with direction, method, timestamp
+  - `test_conversations_detail.png` — expanded message showing raw JSON payload
 - Verify in EACH screenshot: page renders correctly, data appears in tables, filters work, no console errors, no blank sections
 - If ANY page is broken, blank, or shows errors — log in `suck.md`, fix it, re-screenshot to confirm fix
 
