@@ -194,9 +194,11 @@ Test websites (provide ONLY the URL, no descriptions):
 - User 1: `https://easystaff.io/`
 - User 2: `https://thefashionpeople.com/`
 
-Ground truth for COMPARISON ONLY (never inject into prompts):
-- easystaff.io: global payroll & contractor payments platform
-- thefashionpeople.com: branded P2P resale platform for fashion brands
+**Ground truth location**: `mcp/test_ground_truth/offers/` — JSON files with verified correct answers.
+- Read these ONLY during evaluation step (step 5 above)
+- NEVER pass ground truth content to the system
+- Compare field by field: core_offer, target_audience, value_proposition, key_metrics, pricing_model
+- Also check the "NOT" field — if system says something in the NOT list, it's WRONG
 - The system should ask which company the user is launching outreach from — add this to the required onboarding questions
 - The user provides the company website — the MCP scrapes the website, extracts context, and uses it to build the project ICP
 - The system must ask the user to connect their Telegram account to receive notifications on replies. This is part of the onboarding flow — reply notifications go to Telegram so the operator doesn't miss warm leads.
