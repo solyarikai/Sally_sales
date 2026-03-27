@@ -808,7 +808,54 @@ async function main() {
     await screenshot(page, 'tam_03c_states_applied');
   }
 
+  // Close any open dropdowns before checking results
+  await page.keyboard.press('Escape');
+  await humanDelay(1000, 1500);
+  await page.mouse.click(700, 400); // Click neutral area
   await humanDelay(2000, 3000);
+
+  // Handle rate limiting: Clay shows "We couldn't load results" with a Retry button
+  // Retry up to 5 times with increasing delays
+  for (let retryAttempt = 0; retryAttempt < 5; retryAttempt++) {
+    const pageState = await page.evaluate(() => {
+      const bodyText = document.body.textContent || '';
+      const hasError = bodyText.includes("couldn't load results") || bodyText.includes('Too many requests');
+      const hasResults = !!bodyText.match(/\d[\d,]*\s*(?:of\s+[\d,]+\s+)?results/i);
+      const retryBtn = [...document.querySelectorAll('button')].find(
+        b => b.textContent?.trim() === 'Retry' && b.offsetParent !== null
+      );
+      let retryCoords = null;
+      if (retryBtn) {
+        const rect = retryBtn.getBoundingClientRect();
+        retryCoords = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      }
+      return { hasError, hasResults, retryCoords };
+    });
+
+    if (pageState.hasResults) {
+      console.log('  Results loaded successfully.');
+      break;
+    }
+
+    if (pageState.hasError) {
+      const waitSecs = 10 + retryAttempt * 10; // 10s, 20s, 30s, 40s, 50s
+      console.log(`  Rate limited (attempt ${retryAttempt + 1}/5). Waiting ${waitSecs}s...`);
+      await sleep(waitSecs * 1000);
+
+      if (pageState.retryCoords) {
+        console.log('  Clicking Retry button...');
+        await page.mouse.click(pageState.retryCoords.x, pageState.retryCoords.y);
+      } else {
+        console.log('  No Retry button found, reloading page...');
+        await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+      }
+      await humanDelay(3000, 5000);
+    } else {
+      // No error, no results — might still be loading
+      console.log(`  Waiting for results to load (attempt ${retryAttempt + 1}/5)...`);
+      await humanDelay(5000, 8000);
+    }
+  }
 
   // Log result count after filters to verify location filter is working
   const resultCountText = await page.evaluate(() => {
