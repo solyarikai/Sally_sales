@@ -671,6 +671,57 @@ async def list_runs(
     ]
 
 
+@router.get("/runs/{run_id}/prompts")
+async def get_run_prompts(
+    run_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Get analysis prompts used for this pipeline run."""
+    # Check usage logs for analysis prompts
+    result = await session.execute(
+        select(MCPUsageLog).where(
+            MCPUsageLog.tool_name == "analysis_prompt",
+            MCPUsageLog.extra_data["run_id"].as_integer() == run_id,
+        ).order_by(MCPUsageLog.created_at.desc())
+    )
+    logs = result.scalars().all()
+
+    # Also check dispatcher tool calls for this run
+    tool_calls = await session.execute(
+        select(MCPUsageLog).where(
+            MCPUsageLog.extra_data["args"].astext.contains(str(run_id)),
+            MCPUsageLog.tool_name.in_(["tam_gather", "tam_analyze", "tam_blacklist_check", "tam_scrape"]),
+        ).order_by(MCPUsageLog.created_at)
+    )
+    calls = tool_calls.scalars().all()
+
+    prompts = []
+    for log in logs:
+        ed = log.extra_data or {}
+        prompts.append({
+            "id": log.id,
+            "type": "analysis",
+            "segment": ed.get("target_segment", ""),
+            "prompt_text": ed.get("prompt_text", ""),
+            "model": ed.get("model", "gpt-4o-mini"),
+            "targets_found": ed.get("targets_found", 0),
+            "total_analyzed": ed.get("total_analyzed", 0),
+            "created_at": str(log.created_at),
+        })
+
+    for call in calls:
+        ed = call.extra_data or {}
+        prompts.append({
+            "id": call.id,
+            "type": "tool_call",
+            "tool": call.tool_name,
+            "args": ed.get("args", {}),
+            "created_at": str(call.created_at),
+        })
+
+    return prompts
+
+
 # ── Deep links helper ──
 
 @router.get("/deep-links")

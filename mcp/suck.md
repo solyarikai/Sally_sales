@@ -221,6 +221,40 @@ Format:
 - **Prevention**: how to avoid in future
 ```
 
+## SEGMENT LABELING + PROMPT VISIBILITY + CONVERSATIONS — 2026-03-27T17:00:00Z
+
+### 19. Segment label IT_OUTSOURCING when user asked for IT_CONSULTING
+- **Error**: User asked "IT consulting companies in Miami" but GPT labeled ALL targets as IT_OUTSOURCING (a wider category). IT consulting IS a subset of IT outsourcing, but the label should match what the user asked for.
+- **Location**: `mcp/backend/app/services/gathering_service.py` — via negativa prompt hardcodes "IT_OUTSOURCING" as example segment
+- **Cause**: The GPT analysis prompt has no knowledge of what the user actually asked for. It uses generic segment labels from the example in the prompt, not from the user's query.
+- **Fix needed**:
+  1. Parse user's query to extract target segments (e.g. "IT consulting" → IT_CONSULTING)
+  2. Pass the user's segment labels into the via negativa prompt
+  3. GPT should label companies using the user's terminology, not its own
+  4. If user asks for multiple segments → multiple pipelines with different labels
+  5. Store the user's query and extracted segments on the GatheringRun for reference
+
+### 20. Prompts page empty — analysis prompt not saved
+- **Error**: `/pipeline/14/prompts` shows "No prompts used yet" — but GPT-4o-mini WAS used for analysis with a via negativa prompt
+- **Location**: `mcp/backend/app/services/gathering_service.py` — `analyze()` method
+- **Cause**: The analysis phase uses GPT but doesn't save the prompt to any table that the Prompts page reads from
+- **Fix needed**: Save the via negativa system prompt + ICP text to `gathering_prompts` table (or `mcp_usage_logs`) so the Prompts page can display it
+
+### 21. Conversations page empty — direct API calls don't create logs
+- **Error**: `/conversations` shows "0 messages" even though tool calls were made
+- **Location**: Conversation logging only captures MCP SSE protocol messages, not direct dispatcher calls
+- **Cause**: The test ran `dispatch_tool()` directly inside the container via `docker exec python3`, bypassing the MCP SSE server which is where conversation logging middleware runs
+- **Fix**: For real MCP usage (Claude Desktop / Telegram bot), conversations WILL be logged. For testing via direct API calls, need to also log in the dispatcher itself.
+
+### 22. User query should define segment labels for the pipeline
+- **Error**: The system doesn't use the user's query to define what segments to look for
+- **Cause**: The user's search query ("IT consulting companies in Miami") is only used for Apollo filters, not for GPT segment labeling
+- **Fix needed**:
+  1. Extract segment from user query (GPT-4o-mini: "IT consulting" → IT_CONSULTING)
+  2. Store on GatheringRun as `target_segment`
+  3. Pass to via negativa prompt: "Label matching companies as IT_CONSULTING"
+  4. Multi-segment queries → multiple pipeline runs
+
 ## CAMPAIGN ACTIVATION SAFETY — 2026-03-27T13:20:00Z
 
 ### 18. Campaign 3090921 was activated without user approval

@@ -385,6 +385,21 @@ class GatheringService:
         except Exception as e:
             logger.debug(f"Failed to load user feedback: {e}")
 
+        # Derive target segment label from user's query/ICP
+        target_segment_label = "TARGET"
+        if icp_text:
+            # Extract a clean segment label from the ICP text
+            icp_lower = icp_text.lower()
+            # Common patterns: "IT consulting" → IT_CONSULTING, "fashion brands" → FASHION_BRAND
+            import re
+            # Take first meaningful phrase (before "companies", "in", geo, etc.)
+            match = re.match(r'^([A-Za-z\s&/]+?)(?:\s+companies|\s+firms|\s+agencies|\s+brands|\s+in\s|\s+from\s|\s+based\s|\,)', icp_lower)
+            if match:
+                raw = match.group(1).strip()
+                target_segment_label = re.sub(r'[^a-z0-9]+', '_', raw).upper().strip('_')
+            elif len(icp_text) < 50:
+                target_segment_label = re.sub(r'[^a-z0-9]+', '_', icp_lower).upper().strip('_')[:30]
+
         via_negativa_system = f"""{icp_text}
 
 Analyze the company website below using VIA NEGATIVA — focus on what RULES IT OUT.
@@ -404,7 +419,7 @@ Respond ONLY with valid JSON:
 {{
   "is_target": true,
   "confidence": 0.85,
-  "segment": "IT_OUTSOURCING",
+  "segment": "{target_segment_label}",
   "reasoning": "1-2 sentence explanation of WHY target or WHY excluded"
 }}
 
@@ -412,7 +427,7 @@ Rules:
 - confidence 0.8+: clear match, no exclusions triggered
 - confidence 0.5-0.79: likely match but some uncertainty
 - confidence <0.5: exclusion triggered → is_target: false
-- segment: short CAPS_LOCKED label (e.g. IT_OUTSOURCING, SAAS_COMPANY, AGENCY, ECOMMERCE, NOT_A_MATCH)
+- segment: use "{target_segment_label}" for matching companies. Use sub-segments if appropriate (e.g. {target_segment_label}_AGENCY). Use NOT_A_MATCH for rejected companies.
 - is_target: true only if confidence >= 0.6"""
 
         if not openai_key:
@@ -526,6 +541,28 @@ Rules:
             await session.flush()
             logger.info(f"Analysis batch {batch_start//self.ANALYSIS_BATCH_SIZE + 1}: "
                         f"{targets_found} targets / {total_analyzed} analyzed")
+
+        # Save analysis prompt + results for visibility (Prompts page, Learning page)
+        try:
+            from app.models.usage import MCPUsageLog
+            prompt_log = MCPUsageLog(
+                user_id=run.project_id,  # project as context
+                tool_name="analysis_prompt",
+                action="via_negativa_analysis",
+                extra_data={
+                    "run_id": run.id,
+                    "project_id": run.project_id,
+                    "target_segment": target_segment_label,
+                    "prompt_text": via_negativa_system[:3000],
+                    "targets_found": targets_found,
+                    "total_analyzed": total_analyzed,
+                    "skipped_no_text": skipped_no_text,
+                    "model": "gpt-4o-mini",
+                },
+            )
+            session.add(prompt_log)
+        except Exception as e:
+            logger.debug(f"Failed to save prompt log: {e}")
 
         # Sort target list by confidence DESC
         target_list.sort(key=lambda x: -x.get("confidence", 0))
