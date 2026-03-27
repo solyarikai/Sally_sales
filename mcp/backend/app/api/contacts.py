@@ -376,6 +376,85 @@ async def update_contact(
 async def contact_history(
     contact_id: int,
     session: AsyncSession = Depends(get_session),
+    user: MCPUser = Depends(get_optional_user),
 ):
-    """Contact conversation history — stub."""
-    return {"email_history": [], "linkedin_history": [], "inbox_links": {}}
+    """Contact conversation history — shows planned sequence steps + any replies.
+
+    The @main CRM contact detail uses this to show conversation tab.
+    For MCP contacts: shows the generated sequence that will be/was sent.
+    """
+    from app.models.campaign import GeneratedSequence
+
+    contact = await session.get(ExtractedContact, contact_id)
+    if not contact:
+        return {"email_history": [], "linkedin_history": [], "inbox_links": {}, "planned_sequence": []}
+
+    # User-scope
+    if user and contact.project_id:
+        project = await session.get(Project, contact.project_id)
+        if project and project.user_id != user.id:
+            return {"email_history": [], "linkedin_history": [], "inbox_links": {}, "planned_sequence": []}
+
+    # Get the sequence for this contact's project
+    planned_steps = []
+    seq_result = await session.execute(
+        select(GeneratedSequence).where(
+            GeneratedSequence.project_id == contact.project_id,
+        ).order_by(GeneratedSequence.created_at.desc()).limit(1)
+    )
+    seq = seq_result.scalar_one_or_none()
+    if seq and seq.sequence_steps:
+        steps = seq.sequence_steps
+        if isinstance(steps, list):
+            for step in steps:
+                # Substitute merge tags with contact's actual data
+                subject = step.get("subject", "")
+                body = step.get("body", "")
+                if contact.first_name:
+                    subject = subject.replace("{{first_name}}", contact.first_name)
+                    body = body.replace("{{first_name}}", contact.first_name)
+                if contact.source_data and contact.source_data.get("company_name"):
+                    company = contact.source_data["company_name"]
+                    subject = subject.replace("{{company}}", company)
+                    body = body.replace("{{company}}", company)
+
+                # Get city from discovered company
+                if contact.discovered_company_id:
+                    dc = await session.get(DiscoveredCompany, contact.discovered_company_id)
+                    if dc and dc.city:
+                        subject = subject.replace("{{city}}", dc.city)
+                        body = body.replace("{{city}}", dc.city)
+
+                planned_steps.append({
+                    "step": step.get("step", 0),
+                    "day": step.get("day", 0),
+                    "subject": subject,
+                    "body": body,
+                    "type": "planned",
+                })
+
+    # Get reply data from source_data (if analyzed)
+    email_history = []
+    sd = contact.source_data or {}
+    if sd.get("has_replied"):
+        email_history.append({
+            "direction": "inbound",
+            "body": sd.get("reply_text_preview", ""),
+            "category": sd.get("reply_category", ""),
+            "received_at": sd.get("reply_time", ""),
+            "campaign": sd.get("reply_campaign", ""),
+        })
+
+    # SmartLead campaign link
+    inbox_links = {}
+    if sd.get("campaign_id"):
+        inbox_links["smartlead"] = f"https://app.smartlead.ai/app/email-campaigns-v2/{sd['campaign_id']}/analytics"
+
+    return {
+        "email_history": email_history,
+        "linkedin_history": [],
+        "inbox_links": inbox_links,
+        "planned_sequence": planned_steps,
+        "sequence_name": seq.campaign_name if seq else None,
+        "sequence_status": seq.status if seq else None,
+    }
