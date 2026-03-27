@@ -572,7 +572,11 @@ async def list_contacts(
                 ProcessedReply.category_confidence,
             )
             .distinct(ProcessedReply.lead_email)
-            .where(ProcessedReply.lead_email.in_(contact_emails))
+            .where(
+                ProcessedReply.lead_email.in_(contact_emails),
+                # Exclude fake SmartLead "Email N sent to..." notifications
+                ~ProcessedReply.reply_text.like("Email % sent to %@% for campaign -%"),
+            )
             .order_by(ProcessedReply.lead_email, desc(ProcessedReply.received_at))
         ).subquery()
         cat_result = await session.execute(select(latest_reply_sub))
