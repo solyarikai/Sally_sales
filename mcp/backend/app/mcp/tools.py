@@ -445,13 +445,12 @@ Returns contacts + a CRM link with filters applied so the user can view them in 
     # ── SmartLead Campaign Import (3) ──
     {
         "name": "list_smartlead_campaigns",
-        "description": "Browse your SmartLead campaigns. Use this to help the user identify which campaigns belong to their project for blacklisting. Shows campaign name, lead count, status.",
+        "description": "Browse your SmartLead campaigns. Use this to help the user identify which campaigns belong to their project for blacklisting. Shows campaign name, lead count, status. Pass 'search' to filter by name.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "search": {"type": "string", "description": "Search campaigns by name (optional)"},
+                "search": {"type": "string"},
             },
-            "required": [],
         },
     },
     {
