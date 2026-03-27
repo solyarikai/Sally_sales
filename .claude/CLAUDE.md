@@ -58,6 +58,17 @@ Every time data is saved to a CSV locally, it MUST also be uploaded to Google Sh
 - **sofia/ scripts are NOT on Hetzner by default.** SCP script + dependencies (sequences/) before running: `scp sofia/scripts/foo.py hetzner:~/magnum-opus-project/repo/sofia/scripts/`
 - Hetzner repo path: `~/magnum-opus-project/repo`
 
+## GetSales Export
+
+Contacts without email from Findymail → auto-export to GetSales-ready CSV in `sofia/get_sales_hub/{dd_mm}/`.
+- 49 columns matching GetSales import format (full_name, first_name, last_name, position, linkedin_nickname, linkedin_url, company_name, cf_location, list_name, tags, etc.)
+- Built into both `findymail_to_smartlead.py` and `onsocial_clay_to_smartlead...py`
+
+## Local Python
+
+- Use `python3.11` (homebrew) for local scripts — has google-auth, google-api-python-client installed
+- System `python3` (3.9) lacks most dependencies and has no write access to site-packages
+
 ## Project Structure
 
 | Directory | What |
