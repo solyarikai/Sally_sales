@@ -30,6 +30,7 @@ async def _get_user_project_ids(user, session) -> list[int]:
 
 class ProjectCreateRequest(BaseModel):
     name: str
+    website: Optional[str] = None
     target_segments: Optional[str] = None
     target_industries: Optional[str] = None
     sender_name: Optional[str] = None
@@ -49,15 +50,39 @@ async def create_project(
         company = Company(name=f"{user.name}'s Company")
         session.add(company)
         await session.flush()
+
+    # Scrape website to extract offer context (blind discovery)
+    target_segments = req.target_segments or ""
+    website_scraped = False
+    if req.website:
+        import httpx, re
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                resp = await client.get(req.website)
+                if resp.status_code == 200:
+                    html = resp.text
+                    text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+                    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+                    text = re.sub(r'<[^>]+>', ' ', text)
+                    text = re.sub(r'\s+', ' ', text).strip()[:2000]
+                    target_segments = (target_segments + f"\n\nCompany website ({req.website}): {text}").strip()
+                    website_scraped = True
+        except Exception as e:
+            logger.warning(f"Website scrape failed for {req.website}: {e}")
+
     project = Project(
         company_id=company.id, user_id=user.id, name=req.name,
-        target_segments=req.target_segments, target_industries=req.target_industries,
+        target_segments=target_segments or None, target_industries=req.target_industries,
         sender_name=req.sender_name, sender_company=req.sender_company,
         sender_position=req.sender_position,
     )
     session.add(project)
     await session.flush()
-    return {"project_id": project.id, "name": project.name}
+    return {
+        "project_id": project.id, "name": project.name,
+        "website_scraped": website_scraped,
+        "context_length": len(target_segments) if target_segments else 0,
+    }
 
 
 @router.get("/projects")
