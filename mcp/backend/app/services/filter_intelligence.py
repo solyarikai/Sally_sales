@@ -96,7 +96,7 @@ async def suggest_filters(
         website_texts = {d: t[:2000] for d, t in raw_texts.items()}
         credits_spent["websites_scraped"] = len(website_texts)
 
-        logger.info(f"Probe attempt {attempt}: scraped {len(website_texts)}/{len(scrape_tasks)} websites")
+        logger.info(f"Probe attempt {attempt}: scraped {len(website_texts)}/{len(domains_to_scrape)} websites")
 
         # 2c. Evaluate with user's model using REAL website content
         evaluation = await _model_evaluate_probe(query, companies[:10], website_texts, eval_model)
