@@ -1195,20 +1195,51 @@ async def _resolve_project(project_name: str, user, session):
 def _get_campaign_name_filter(project) -> str | None:
     """Extract a campaign name substring filter from project's campaign_filters.
 
-    The project stores campaign_filters as a list of campaign names (e.g. ["petr", "Petr ES"]).
-    For the main backend query, we find the shortest common substring that matches all.
-    Usually this is the search term the user used (e.g. "petr").
+    campaign_filters is a list of full campaign names (e.g. ["Petr ES Australia", "Petr ES Gulf"]).
+    We find the longest common prefix across all names — that's the search pattern.
+    For ["Petr ES Australia", "Petr ES Gulf", "UAE-Pakistan Petr 16/03"] → "Petr" (appears in all).
     """
     if not project or not project.campaign_filters:
         return None
     filters = project.campaign_filters
     if isinstance(filters, list) and filters:
-        # Find shortest filter — it's the most general match
         str_filters = [f for f in filters if isinstance(f, str) and len(f) > 2]
-        if str_filters:
-            return min(str_filters, key=len)
+        if not str_filters:
+            return None
+
+        # Find common words across all campaign names
+        # Split each name into words, find words that appear in most names
+        from collections import Counter
+        word_counts = Counter()
+        for name in str_filters:
+            words = set(w.lower() for w in name.split() if len(w) > 2)
+            for w in words:
+                word_counts[w] += 1
+
+        # Find the word that appears in the most campaign names
+        if word_counts:
+            best_word, count = word_counts.most_common(1)[0]
+            # Only use if it appears in at least 60% of campaigns
+            if count >= len(str_filters) * 0.6:
+                return best_word
+
+        # Fallback: use longest common prefix
+        sorted_filters = sorted(str_filters)
+        first, last = sorted_filters[0], sorted_filters[-1]
+        prefix = ""
+        for a, b in zip(first, last):
+            if a.lower() == b.lower():
+                prefix += a
+            else:
+                break
+        prefix = prefix.strip(" -_")
+        if len(prefix) >= 3:
+            return prefix
+
+        # Last resort: shortest filter
+        return min(str_filters, key=len)
+
     if isinstance(filters, dict):
-        # Rules-based: check prefixes, contains
         prefixes = filters.get("prefixes", [])
         contains = filters.get("contains", [])
         candidates = prefixes + contains
