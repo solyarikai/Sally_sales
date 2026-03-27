@@ -1516,9 +1516,13 @@ def main():
     print(f"State: {STATE_DIR}")
 
     prompt_text = DEFAULT_ANALYSIS_PROMPT
+    prompt_id = args.prompt_id
     if args.prompt_file:
         prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
+        prompt_id = None  # custom file overrides prompt_id
         print(f"Custom prompt loaded: {args.prompt_file}")
+    elif prompt_id:
+        print(f"Using prompt_id={prompt_id} from gathering_prompts")
 
     run_id = args.run_id or load_state().get("run_id")
 
@@ -1527,7 +1531,7 @@ def main():
         if not run_id:
             print("ERROR: --run-id required for --re-analyze")
             sys.exit(1)
-        step5_reanalyze(run_id, prompt_text)
+        step5_reanalyze(run_id, prompt_text=prompt_text, prompt_id=prompt_id)
         return
 
     steps = STEPS[STEPS.index(args.from_step):]
