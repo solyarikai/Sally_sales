@@ -70,7 +70,8 @@ async def list_projects(
         query = query.where(Project.user_id == user.id)
     result = await session.execute(query)
     return [{"id": p.id, "name": p.name, "target_segments": p.target_segments,
-             "sender_name": p.sender_name, "sender_company": p.sender_company} for p in result.scalars().all()]
+             "sender_name": p.sender_name, "sender_company": p.sender_company,
+             "campaign_filters": p.campaign_filters or []} for p in result.scalars().all()]
 
 
 # ── Read-only endpoints (no auth required — shared via links) ──

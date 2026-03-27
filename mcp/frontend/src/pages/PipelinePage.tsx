@@ -347,6 +347,16 @@ export default function PipelinePage() {
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <button onClick={() => setShowFilters(!showFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Apollo Filters</button>
           <button onClick={() => setShowPromptHistory(!showPromptHistory)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPromptHistory ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Prompt History</button>
+          {filtered.length > 0 && (
+            <button onClick={() => {
+              const headers = ['Domain','Name','Industry','Employees','Country','City','Segment','Confidence','Status','Reasoning'];
+              const rows = filtered.map((c: any) => [c.domain, c.name, c.industry, c.employee_count, c.country, c.city, c.analysis_segment, c.analysis_confidence, c.status, (c.analysis_reasoning||'').replace(/"/g,"'")].map(v => `"${v||''}"`).join(','));
+              const csv = [headers.join(','), ...rows].join('\n');
+              const blob = new Blob([csv], {type: 'text/csv'});
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = `pipeline_${runId}_companies.csv`; a.click(); URL.revokeObjectURL(url);
+            }} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Export CSV</button>
+          )}
         </div>
       </div>
 

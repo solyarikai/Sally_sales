@@ -2,6 +2,18 @@
 
 Decisions and rationales for every question, concern, or "decide yourself" raised.
 
+## Implementation Log (timestamps)
+- 2026-03-27 01:20 — Initial answers written (Run 1)
+- 2026-03-27 08:20 — #14 Background reply analysis: IMPLEMENTED (3-tier funnel, 38K+ replies)
+- 2026-03-27 08:35 — #19 Subject normalization: IMPLEMENTED (_normalize_subjects + company name normalization)
+- 2026-03-27 08:35 — #20 Test email: IMPLEMENTED (SmartLead native API with customEmailAddress)
+- 2026-03-27 09:22 — #13 Apollo filter intelligence: VERIFIED WORKING (probe-and-iterate)
+- 2026-03-27 09:30 — #15 CRM deep links: IMPLEMENTED (pipeline filter, campaign URLs, SmartLead links)
+- 2026-03-27 09:30 — GOD_SEQUENCE: IMPLEMENTED (Gemini 2.5 Pro + reference + 10-point checklist + A/B subjects)
+- 2026-03-27 10:15 — #25 Conversation logging: IMPLEMENTED (full MCP protocol logging by another agent)
+- 2026-03-27 10:17 — User-scoping: 6 CRITICAL security fixes deployed
+- 2026-03-27 10:30 — #21 Sequence preview in contact detail: IMPLEMENTING NOW
+
 ---
 
 ## 1. Cloud vs local deployment
@@ -165,9 +177,11 @@ Flow: User says "find IT consulting in London." Agent calls `suggest_apollo_filt
 
 > "AFTER KNOWING USER'S CAMPAIGNS THE SYSTEM MUST LAUNCH ANALYSIS OF CONNECTED CAMPAIGNS REPLIES IN BACKGROUND"
 
-**Decision**: `reply_analysis_service.py` exists (140 lines) with keyword-based classification. It classifies replies into: meeting, interested, question, not_interested, out_of_office, wrong_person, unsubscribe.
-
-**Remaining gap**: NOT wired to run automatically when campaigns are imported. Currently a standalone service that needs to be called. Needs: (a) trigger from `import_smartlead_campaigns`, (b) actual SmartLead reply fetching (currently just classification logic), (c) storing results in DB so CRM can filter by reply type.
+**Decision**: ✅ IMPLEMENTED (2026-03-27 08:20). GOD-tier 3-layer funnel:
+- Tier 0 (FREE): SmartLead status=REPLIED
+- Tier 1 (FREE): Regex OOO/unsub pre-filter
+- Tier 3 ($0.002): GPT-4o-mini for real conversations only
+Auto-triggered from `import_smartlead_campaigns`. Results scoped by `campaign_name_contains` from project's `campaign_filters`. 119 replies for "petr" campaigns (not 38K).
 
 ---
 
@@ -218,9 +232,7 @@ Flow: User says "find IT consulting in London." Agent calls `suggest_apollo_filt
 
 > "subject either company names or person first names ALL NORMALIZED, names without any shit, human readable"
 
-**Decision**: This is a gap in `campaign_intelligence.py`. The sequence generation uses Gemini 2.5 Pro which should produce clean names, but there is no explicit post-processing step to normalize `{{first_name}}` or `{{company}}` merge tags.
-
-**Action needed**: Add normalization in `push_to_smartlead` — strip special chars, capitalize properly, verify merge tag syntax matches SmartLead's expected format.
+**Decision**: ✅ IMPLEMENTED (2026-03-27 08:35). `_normalize_subjects()` strips asterisks, backticks, brackets. `_normalize_company_names()` uses GPT-4o-mini to clean company names (strips Inc/LLC/GmbH) — only for confirmed targets.
 
 ---
 
@@ -228,9 +240,7 @@ Flow: User says "find IT consulting in London." Agent calls `suggest_apollo_filt
 
 > "AFTER CREATING TEST CAMPAIGN SEND TEST EMAIL TO THE ACCOUNT OF THE USER"
 
-**Decision**: Not implemented. SmartLead has `POST /api/v1/campaigns/{id}/test-email` endpoint.
-
-**Action needed**: Add `send_test_email` call after `god_push_to_smartlead` succeeds. Use the user's signup email as the test recipient.
+**Decision**: ✅ IMPLEMENTED (2026-03-27 08:35). SmartLead native `send_test_email` API with `customEmailAddress` + auto-resolve `emailAccountId` + `leadId`. Endpoint: `POST /api/pipeline/runs/{id}/send-test-email`.
 
 ---
 
@@ -278,4 +288,4 @@ Flow: User says "find IT consulting in London." Agent calls `suggest_apollo_filt
 
 **Decision**: Implemented via `MCPUsageLog` table. Every MCP tool call is logged with: user_id, tool_name, action, metadata (input params, result summary), timestamp. Visible via `GET /api/pipeline/usage-logs`.
 
-**Remaining gap**: The raw conversation text (what user typed to Claude) is NOT stored — only the tool calls. Full conversation logging would require MCP protocol-level middleware.
+**Remaining gap**: ✅ FIXED (2026-03-27 10:15). Full conversation logging implemented by another agent — every MCP message stored with user_id, session_id, direction, method, raw_json, content_summary, created_at. API: `GET /api/account/conversations`.

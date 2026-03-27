@@ -99,11 +99,40 @@ This lets any agent (or human) understand the full history.
 
 ---
 
-## PHASE 2: ANSWER ALL QUESTIONS
+## PHASE 2: ANSWER ALL QUESTIONS + IMPLEMENT
 
-Read `requirements_source.md` line by line. Every question, concern, or "decide yourself" directive in that file needs an answer.
+Read `requirements_source.md` line by line. Every question, concern, or "decide yourself" directive needs:
+1. An ANSWER (written to `mcp/answers2603.md` with timestamp)
+2. **IMPLEMENTATION** — if the answer requires code changes, BUILD IT. Don't just answer — DO IT.
 
-**Output**: Write all answers to `mcp/answers2603.md`. Format: quote the original question/concern, then provide your answer with rationale.
+**CRITICAL**: `answers2603.md` is a LIVING document. NEVER overwrite existing entries. Only APPEND:
+- New answers get a timestamp: `## N. Title — 2026-03-27T10:30:00Z`
+- Updated answers get an update line: `**Updated 2026-03-27T10:30**: now IMPLEMENTED, see commit xyz`
+- Track the full history of each question's lifecycle
+
+**Output**: `mcp/answers2603.md` with answers AND implementation status for each.
+
+---
+
+## PHASE 2b: IMPLEMENT ALL "Action needed" ITEMS
+
+Read `mcp/answers2603.md` top to bottom. Every item marked "Action needed" or "Remaining gap" that is NOT marked ✅ IMPLEMENTED must be built NOW. Priority order:
+
+1. **REQUIRED UI flows** (highest priority):
+   - Contact detail: conversation tab shows planned sequence + replies
+   - Pipeline page: SmartLead campaign link in top panel ✅
+   - CRM: pipeline filter, clickable campaign links ✅
+   - CRM: contacts show campaign with link to SmartLead ✅
+
+2. **Required backend features**:
+   - Background reply analysis ✅
+   - Test email ✅
+   - User-scoping on ALL endpoints ✅
+   - Conversation logging ✅
+
+3. **Nice-to-have** (implement if time allows):
+   - Learning page corrections (not just prompt iterations)
+   - Telegram bot token in Setup page
 
 ---
 
@@ -111,9 +140,9 @@ Read `requirements_source.md` line by line. Every question, concern, or "decide 
 
 Compare what `requirements_source.md` asks for against what's ALREADY BUILT in the codebase. Do NOT list completed work as TODO.
 
-**How to check what's done**: Read the actual source code in `mcp/backend/` and `mcp/frontend/`. Read `suck.md` for fixed issues. Read `test_mcp_flow.py` for tested flows. If a feature exists in code, it's DONE — mark it as such.
+**How to check what's done**: Read the actual source code in `mcp/backend/` and `mcp/frontend/`. Read `suck.md` for fixed issues. Read `answers2603.md` for implementation status. If a feature has ✅ IMPLEMENTED — skip it.
 
-**Output**: Write or extend `mcp/implementation_plan.md` with only what's LEFT to build. Group by priority. For each item: what it is, which files need changes, estimated complexity.
+**Output**: Write or extend `mcp/implementation_plan.md` with only what's LEFT to build. Group by priority.
 
 ---
 
