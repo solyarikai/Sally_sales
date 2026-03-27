@@ -444,11 +444,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         run = await session.get(GatheringRun, args["run_id"])
         if not run:
             raise ValueError("Run not found")
-        # Get OpenAI key for GPT analysis
+        # Get OpenAI key for GPT-4o-mini analysis (cheap workhorse)
         ctx = UserServiceContext(user.id, session)
         openai_key = await ctx.get_key("openai")
         if not openai_key:
-            # Fallback to env
             from app.config import settings
             openai_key = settings.OPENAI_API_KEY
         from app.services.gathering_service import GatheringService
@@ -460,14 +459,67 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             target_accuracy=args.get("target_accuracy", 0.9),
             openai_key=openai_key,
         )
+        scope = gate.scope or {}
         return {
             "gate_id": gate.id, "type": "checkpoint_2",
-            "scope": gate.scope,
-            "message": "CHECKPOINT 2: Review target list. Approve to proceed to verification.",
+            "targets_found": scope.get("targets_found", 0),
+            "total_analyzed": scope.get("total_analyzed", 0),
+            "skipped_no_text": scope.get("skipped_no_scraped_text", 0),
+            "target_rate": scope.get("target_rate", "0%"),
+            "avg_confidence": scope.get("avg_confidence", 0),
+            "segment_distribution": scope.get("segment_distribution", {}),
+            "target_list": scope.get("target_list", []),
+            "borderline_rejections": scope.get("borderline_rejections", []),
+            "message": (
+                f"CHECKPOINT 2: GPT-4o-mini analyzed {scope.get('total_analyzed', 0)} companies. "
+                f"TARGETS: {scope.get('targets_found', 0)} ({scope.get('target_rate', '0%')} target rate, "
+                f"avg confidence {scope.get('avg_confidence', 0):.2f}). "
+                f"Segments: {scope.get('segment_distribution', {})}. "
+                f"Review the target list below. Check for false positives. "
+                f"If accuracy < 90%, re-analyze with adjusted prompt via tam_re_analyze."
+            ),
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "targets": f"http://46.62.210.24:3000/pipeline/{run.id}/targets",
             },
+        }
+
+    if tool_name == "tam_re_analyze":
+        user = await _get_user(token, session)
+        run = await session.get(GatheringRun, args["run_id"])
+        if not run:
+            raise ValueError("Run not found")
+        # Reset to scraped phase for re-analysis
+        run.current_phase = "analyze"
+        # Reject current CP2 gate
+        from sqlalchemy import update
+        await session.execute(
+            update(ApprovalGate)
+            .where(ApprovalGate.gathering_run_id == run.id, ApprovalGate.gate_type == "checkpoint_2", ApprovalGate.status == "pending")
+            .values(status="rejected", decision_notes="Re-analyzing with adjusted prompt")
+        )
+        # Re-run analysis with new prompt
+        ctx = UserServiceContext(user.id, session)
+        openai_key = await ctx.get_key("openai")
+        if not openai_key:
+            from app.config import settings
+            openai_key = settings.OPENAI_API_KEY
+        from app.services.gathering_service import GatheringService
+        svc = GatheringService()
+        gate = await svc.analyze(session, run, prompt_text=args["prompt_text"], openai_key=openai_key)
+        scope = gate.scope or {}
+        return {
+            "gate_id": gate.id, "type": "checkpoint_2_retry",
+            "targets_found": scope.get("targets_found", 0),
+            "total_analyzed": scope.get("total_analyzed", 0),
+            "target_rate": scope.get("target_rate", "0%"),
+            "avg_confidence": scope.get("avg_confidence", 0),
+            "segment_distribution": scope.get("segment_distribution", {}),
+            "target_list": scope.get("target_list", []),
+            "borderline_rejections": scope.get("borderline_rejections", []),
+            "message": (
+                f"Re-analysis complete. TARGETS: {scope.get('targets_found', 0)} "
+                f"({scope.get('target_rate', '0%')}). Review again."
+            ),
         }
 
     if tool_name == "tam_prepare_verification":

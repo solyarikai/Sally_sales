@@ -178,16 +178,36 @@ You figure out the Apollo filters automatically. Never show filter details to th
     },
     {
         "name": "tam_analyze",
-        "description": "Phase 5: AI analysis to identify target companies. Optionally auto-refines until target accuracy reached. Creates Checkpoint 2 gate.",
+        "description": """Phase 5: GPT-4o-mini analyzes scraped companies via negativa. Labels segments, creates Checkpoint 2.
+
+GPT is the cheap workhorse ($0.003/company). YOU (the agent = Opus) are the QA.
+After this returns, review the target_list and borderline_rejections.
+If GPT's accuracy < 90% (false positives), call tam_re_analyze with an adjusted prompt.
+
+Via negativa: GPT focuses on EXCLUDING shit, not confirming matches.
+Segments: CAPS_LOCKED labels (IT_OUTSOURCING, SAAS_COMPANY, AGENCY, etc.)""",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "run_id": {"type": "integer"},
-                "prompt_text": {"type": "string", "description": "ICP analysis prompt (built from project knowledge if omitted)"},
-                "auto_refine": {"type": "boolean", "default": False, "description": "Enable self-refinement loop"},
-                "target_accuracy": {"type": "number", "default": 0.9, "description": "Target accuracy for refinement (0-1)"},
+                "prompt_text": {"type": "string", "description": "ICP description for via negativa analysis. Built from project knowledge if omitted."},
             },
             "required": ["run_id"],
+        },
+    },
+    {
+        "name": "tam_re_analyze",
+        "description": """Re-run Phase 5 with an adjusted prompt. Use when YOU (Opus) reviewed GPT's target list at Checkpoint 2 and found accuracy < 90%.
+
+Resets the run to scraped phase and re-analyzes all companies with the new prompt.
+Iterate until GPT's results meet your quality bar.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer"},
+                "prompt_text": {"type": "string", "description": "Improved ICP prompt based on what GPT got wrong"},
+            },
+            "required": ["run_id", "prompt_text"],
         },
     },
     {
