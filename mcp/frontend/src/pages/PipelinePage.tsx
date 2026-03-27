@@ -436,10 +436,17 @@ export default function PipelinePage() {
         </table>
       </div>
 
-      {/* Loading / gathering indicator */}
+      {/* Loading / gathering indicator with spinner */}
       {isGathering && (
-        <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--info)', fontSize: 13 }}>
+        <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--info)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid var(--info)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
           Gathering in progress... {companies.length} companies found so far
+        </div>
+      )}
+      {loading && !isGathering && companies.length === 0 && (
+        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid var(--text-muted)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          Loading companies...
         </div>
       )}
 
