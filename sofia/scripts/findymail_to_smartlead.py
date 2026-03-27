@@ -559,7 +559,8 @@ async def main():
     print(f"Input:    {input_csv}")
     print(f"Progress: {progress_file}")
     with_email = await enrich(input_csv, emails_csv, with_email_csv,
-                              progress_file, args.max_contacts)
+                              progress_file, args.max_contacts,
+                              seg_label=seg_label, date_tag=date_tag)
 
     if not with_email:
         print("No emails found — stopping")
