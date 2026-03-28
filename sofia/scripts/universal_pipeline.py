@@ -471,15 +471,16 @@ def step4_scrape(run_id: int) -> dict:
 
 
 def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -> dict:
-    """Run GPT classification. Uses prompt_id from DB by default."""
+    """Run GPT classification. Uses prompt_text from gathering_prompts.
+    Note: backend API requires prompt_text, not prompt_id."""
     print(f"\n  Step 5: Analyze (run #{run_id})")
-    params = {"model": "gpt-4o-mini"}
-    if config.prompt_id:
-        params["prompt_id"] = config.prompt_id
-        print(f"  Prompt ID: {config.prompt_id}")
-    elif prompt_text:
-        params["prompt_text"] = prompt_text
-        print(f"  Prompt: {prompt_text[:80]}...")
+    # Resolve prompt text: argument > config > error
+    text = prompt_text or config.prompt_text
+    if not text:
+        print("  ERROR: No prompt text available. Create a prompt via API first.")
+        sys.exit(1)
+    params = {"model": "gpt-4o-mini", "prompt_text": text}
+    print(f"  Prompt: #{config.prompt_id or '?'} ({len(text)} chars)")
 
     result = api("post", f"/pipeline/gathering/runs/{run_id}/analyze", params=params)
     targets = result.get("targets_found", 0)
