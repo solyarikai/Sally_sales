@@ -517,7 +517,9 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 "max_pages": filters.get("max_pages"),
                 "funding_stages": filters.get("organization_latest_funding_stage_cd"),
             },
-            "message": f"Gathering complete for '{project.name}'. "
+            "source_type": source_type,
+            "message": f"Gathered {run.new_companies_count} companies from {source_type.split('.')[0].upper()} "
+                       f"for project '{project.name}'. "
                        f"{run.new_companies_count} new, {run.duplicate_count} duplicates.",
             "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
         }
@@ -530,10 +532,17 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         from app.services.gathering_service import GatheringService
         svc = GatheringService()
         gate = await svc.blacklist_check(session, run)
+        project = await session.get(Project, run.project_id)
+        scope = gate.scope or {}
         return {
             "gate_id": gate.id, "type": "checkpoint_1",
-            "scope": gate.scope,
-            "message": "CHECKPOINT 1: Review project scope and blacklist results. Approve to continue.",
+            "project_name": project.name if project else "Unknown",
+            "scope": scope,
+            "message": f"CHECKPOINT 1: Blacklist check complete for project '{project.name if project else 'Unknown'}'. "
+                       f"Checked {scope.get('companies_checked', 0)} companies, "
+                       f"{scope.get('companies_passed', 0)} passed, "
+                       f"{scope.get('companies_rejected', 0)} rejected. "
+                       f"Approve to continue.",
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
             },
