@@ -90,10 +90,10 @@
 | #7 Performance timing | ⚠️ TODO | Need to add timing to all tool calls |
 | #8 Multi-project prompt | ⚠️ TODO | Not tested yet |
 | #9 CRM reply columns | ⚠️ PARTIAL | Reply data via proxy, CRM from main app shows columns |
-| #10 Prompts page content | ⚠️ TODO | Content stored but display truncated |
+| #10 Prompts page content | ✅ CLOSED | Segment badge + 52 companies + 34 targets + 65% accuracy |
 
-## STATUS SUMMARY
-- **CLOSED**: 6/10 critical gaps
-- **PARTIAL**: 2/10 (work but not perfect)
-- **TODO**: 2/10 (timing + multi-project)
-- **KPI honest estimate**: ~85%
+## STATUS SUMMARY — 2026-03-28T16:00
+- **CLOSED**: 8/10 critical gaps
+- **PARTIAL**: 1/10 (#5 replies per-contact)
+- **TODO**: 1/10 (#7 timing)
+- **KPI estimate**: ~90%
