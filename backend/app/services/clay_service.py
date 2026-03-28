@@ -163,6 +163,8 @@ class ClayService:
         test_mode: bool = False,
         on_progress: Optional[Any] = None,
         filters_override: Optional[Dict[str, Any]] = None,
+        save_search_name: Optional[str] = None,
+        save_filter_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Run full TAM export pipeline.
 
@@ -173,6 +175,8 @@ class ClayService:
         Returns dict with {filters, companies, credits_spent, table_id}.
         on_progress: optional async callback(message: str) for live status updates.
         filters_override: if provided, skip GPT mapping and use these filters directly.
+        save_search_name: if provided, save the search in Clay with this name after export.
+        save_filter_types: which filter types to include in saved search (e.g. ['industries']).
         """
         async def _emit(msg: str):
             if on_progress:
@@ -213,6 +217,13 @@ class ClayService:
             args.append("--test")
         else:
             args.append(icp_text)
+
+        if save_search_name:
+            args.extend(["--save-search", save_search_name])
+            logger.info(f"Clay TAM: will save search as '{save_search_name}'")
+        if save_filter_types:
+            args.extend(["--save-filters", ",".join(save_filter_types)])
+            logger.info(f"Clay TAM: save filter types = {save_filter_types}")
 
         env = {
             **os.environ,
@@ -409,6 +420,7 @@ class ClayService:
         on_progress: Optional[Any] = None,
         use_titles: bool = False,
         countries: Optional[List[str]] = None,
+        countries_exclude: Optional[List[str]] = None,
         schools: Optional[List[str]] = None,
         name: Optional[str] = None,
         job_title: Optional[str] = None,
@@ -424,6 +436,7 @@ class ClayService:
         on_progress: optional async callback(message: str) for live status updates.
         use_titles: if True, pass --titles flag to filter for decision-makers only.
         countries: if provided, filter by country (uses "Countries to include" field).
+        countries_exclude: if provided, exclude people in these countries (uses "Exclude" location field).
         cities: if provided, filter by city (uses "Cities to include" field).
            CRITICAL: cities and countries are SEPARATE Clay fields. Passing city
            names via --countries silently fails — Clay ignores unrecognized country names.
@@ -471,6 +484,10 @@ class ClayService:
         if countries:
             args.extend(["--countries", ",".join(countries)])
             logger.info(f"Clay People: country filter = {countries}")
+
+        if countries_exclude:
+            args.extend(["--countries-exclude", ",".join(countries_exclude)])
+            logger.info(f"Clay People: country EXCLUDE filter = {countries_exclude}")
 
         if cities:
             args.extend(["--cities", ",".join(cities)])

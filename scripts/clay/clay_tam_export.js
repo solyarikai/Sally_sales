@@ -298,6 +298,11 @@ async function main() {
   const isTest = args.includes('--test');
   const isLoginOnly = args.includes('--login-only');
   const headless = args.includes('--headless');
+  const saveSearchIdx = args.indexOf('--save-search');
+  const saveSearchName = saveSearchIdx >= 0 ? args[saveSearchIdx + 1] : null;
+  const saveFiltersIdx = args.indexOf('--save-filters');
+  const saveFiltersArg = saveFiltersIdx >= 0 ? args[saveFiltersIdx + 1] : null;
+  const saveFilterTypes = saveFiltersArg ? saveFiltersArg.split(',').map(f => f.trim()) : null;
   const maxExport = isTest ? 5 : 50;
   const icpText = isTest || isLoginOnly
     ? 'Companies selling gaming skins, virtual items, loot boxes for games like CS2, CSGO, Dota2, Roblox, WoW, FIFA. Gaming marketplace platforms. Skin trading sites.'
@@ -1199,6 +1204,137 @@ async function main() {
   const endCookies = await page.cookies('https://api.clay.com');
   const endSession = endCookies.find(c => c.name === 'claysession');
   if (endSession) saveSession(endSession.value);
+
+  // === Save Search Feature ===
+  // After main export, optionally save a subset of filters as a named search in Clay.
+  // Usage: --save-search "My Search Name" --save-filters "industries"
+  // This navigates back to Find Companies, applies only the specified filter types, and saves.
+  if (saveSearchName) {
+    console.log(`\n[SAVE] Saving search as "${saveSearchName}"...`);
+
+    // Build the subset of filters to save
+    const filtersToSave = {};
+    const allowedTypes = saveFilterTypes || Object.keys(filters);
+    for (const key of allowedTypes) {
+      if (filters[key] !== undefined && filters[key] !== null) {
+        filtersToSave[key] = filters[key];
+      }
+    }
+    console.log(`  Filter types to save: ${Object.keys(filtersToSave).join(', ')}`);
+
+    // Navigate back to Find Companies
+    await page.goto(`https://app.clay.com/workspaces/${WORKSPACE_ID}/find`, { waitUntil: 'networkidle2', timeout: 30000 });
+    await humanDelay(2000, 3000);
+
+    // Click Companies tab
+    const compBtnSave = await findByText(page, 'Companies');
+    if (compBtnSave) {
+      await page.mouse.click(compBtnSave.x, compBtnSave.y);
+      await humanDelay(1500, 2500);
+    }
+
+    // Apply only the specified filter subset
+    if (filtersToSave.industries?.length) {
+      await fillFilterField(page, 'Software development', filtersToSave.industries);
+    }
+    if (filtersToSave.industries_exclude?.length) {
+      await fillFilterField(page, 'Advertising services', filtersToSave.industries_exclude);
+    }
+    if (filtersToSave.sizes?.length) {
+      await fillFilterField(page, '11-50 employees', filtersToSave.sizes);
+    }
+    if (filtersToSave.description_keywords?.length) {
+      await fillFilterField(page, 'sales, data, outbound', filtersToSave.description_keywords);
+    }
+    if (filtersToSave.description_keywords_exclude?.length) {
+      await fillFilterField(page, 'agency, marketing', filtersToSave.description_keywords_exclude);
+    }
+
+    await humanDelay(1000, 1500);
+    await page.keyboard.press('Escape');
+    await humanDelay(500, 800);
+
+    // Click "Save search" button — Clay shows this in the filter panel or toolbar
+    // Look for a save icon/button near the filter area
+    const saveBtn = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll('button, div[role="button"]')].filter(b => b.offsetParent !== null);
+      for (const btn of buttons) {
+        const text = (btn.textContent || '').trim().toLowerCase();
+        if (text.includes('save search') || text.includes('save this search') || text === 'save') {
+          const rect = btn.getBoundingClientRect();
+          if (rect.x < 500) {
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: btn.textContent.trim() };
+          }
+        }
+      }
+      // Also look for bookmark/save icon near the search area
+      const icons = [...document.querySelectorAll('svg, [data-icon], [aria-label*="save"], [aria-label*="Save"]')];
+      for (const icon of icons) {
+        const parent = icon.closest('button') || icon.parentElement;
+        if (parent?.offsetParent) {
+          const ariaLabel = (parent.getAttribute('aria-label') || '').toLowerCase();
+          const title = (parent.getAttribute('title') || '').toLowerCase();
+          if (ariaLabel.includes('save') || title.includes('save')) {
+            const rect = parent.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: 'icon-save' };
+          }
+        }
+      }
+      return null;
+    });
+
+    if (saveBtn) {
+      console.log(`  Found save button: "${saveBtn.text}" — clicking...`);
+      await page.mouse.click(saveBtn.x, saveBtn.y);
+      await humanDelay(1500, 2500);
+
+      // Type the search name into the dialog/input that appears
+      const nameInput = await page.$('input[placeholder*="name"]')
+        || await page.$('input[placeholder*="Name"]')
+        || await page.$('input[placeholder*="search name"]');
+      if (nameInput) {
+        await nameInput.click();
+        await nameInput.type(saveSearchName, { delay: 30 + Math.random() * 40 });
+        await humanDelay(500, 800);
+      } else {
+        // Try typing into the focused element
+        await page.keyboard.type(saveSearchName, { delay: 30 + Math.random() * 40 });
+        await humanDelay(500, 800);
+      }
+
+      // Confirm save — click Save/OK/Done button in the dialog
+      const confirmBtn = await page.evaluate(() => {
+        const buttons = [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null);
+        for (const btn of buttons) {
+          const text = (btn.textContent || '').trim().toLowerCase();
+          if (text === 'save' || text === 'done' || text === 'ok' || text === 'confirm') {
+            const rect = btn.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+          }
+        }
+        return null;
+      });
+      if (confirmBtn) {
+        await page.mouse.click(confirmBtn.x, confirmBtn.y);
+        await humanDelay(1500, 2000);
+        console.log(`  Search saved as "${saveSearchName}"`);
+      } else {
+        // Try Enter key as fallback
+        await page.keyboard.press('Enter');
+        await humanDelay(1500, 2000);
+        console.log(`  Search saved (via Enter) as "${saveSearchName}"`);
+      }
+    } else {
+      console.log('  WARNING: Save search button not found. Dumping nearby buttons...');
+      const allBtns = await page.evaluate(() => {
+        return [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null && b.getBoundingClientRect().x < 500)
+          .map(b => ({ text: b.textContent?.trim()?.substring(0, 50), y: Math.round(b.getBoundingClientRect().y) }));
+      });
+      console.log(`  Buttons: ${JSON.stringify(allBtns)}`);
+    }
+
+    await screenshot(page, 'tam_save_search');
+  }
 
   console.log('\n=== Pipeline complete! ===');
   console.log(`Results saved to ${OUT_DIR}/`);

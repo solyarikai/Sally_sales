@@ -27,6 +27,8 @@ class ClayCompaniesFilters(BaseModel):
     maximum_member_count: Optional[int] = None
     icp_text: Optional[str] = None
     max_results: int = Field(default=5000, ge=1, le=50000)
+    save_search_name: Optional[str] = Field(default=None, description="Save search in Clay with this name after export")
+    save_filter_types: Optional[List[str]] = Field(default=None, description="Which filter types to include in saved search (e.g. ['industries'])")
 
     class Config:
         extra = "allow"
@@ -64,6 +66,8 @@ class ClayCompaniesAdapter(GatheringAdapter):
                     icp_text=validated.icp_text,
                     max_results=validated.max_results,
                     on_progress=on_progress,
+                    save_search_name=validated.save_search_name,
+                    save_filter_types=validated.save_filter_types,
                 )
             else:
                 # Structured filters: pass directly to Puppeteer, skip GPT round-trip
@@ -110,6 +114,8 @@ class ClayCompaniesAdapter(GatheringAdapter):
                     max_results=validated.max_results,
                     on_progress=on_progress,
                     filters_override=direct_filters,
+                    save_search_name=validated.save_search_name,
+                    save_filter_types=validated.save_filter_types,
                 )
 
             clay_companies = result.get("companies", [])
