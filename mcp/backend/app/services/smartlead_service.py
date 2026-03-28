@@ -234,9 +234,12 @@ class SmartLeadService:
             return []
         return data if isinstance(data, list) else data.get("data", data.get("leads", []))
 
-    async def get_lead_message_history(self, campaign_id: int, email: str) -> List[Dict[str, Any]]:
-        """Get full message thread for one lead."""
-        data = await self._api_call("GET", f"/campaigns/{campaign_id}/leads/{email}/message-history")
+    async def get_lead_message_history(self, campaign_id: int, lead_id_or_email: str) -> Any:
+        """Get full message thread for one lead. Pass numeric lead ID or email."""
+        data = await self._api_call("GET", f"/campaigns/{campaign_id}/leads/{lead_id_or_email}/message-history")
+        # Returns {"history": [...]} or list directly
+        if isinstance(data, dict):
+            return data  # caller handles .get("history", [])
         return data if isinstance(data, list) else []
 
     async def add_leads_to_campaign(self, campaign_id: int, leads: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
