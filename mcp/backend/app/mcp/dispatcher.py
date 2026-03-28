@@ -855,6 +855,17 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         except Exception as e:
             logger.warning(f"Failed to upload contacts to SmartLead: {e}")
 
+        # 7b. Always add test leads for reply testing (not in CRM, just in SmartLead)
+        test_leads = [
+            {"email": "pn@getsally.io", "first_name": "Petr", "last_name": "Test", "company_name": "TEST - DELETE", "custom_fields": {"is_test_lead": "true"}},
+            {"email": "services@getsally.io", "first_name": "Services", "last_name": "Test", "company_name": "TEST - DELETE", "custom_fields": {"is_test_lead": "true"}},
+        ]
+        try:
+            await svc.add_leads_to_campaign(campaign_id, test_leads)
+            leads_uploaded += len(test_leads)
+        except Exception as e:
+            logger.debug(f"Test leads add failed: {e}")
+
         # 8. Auto-send test email to the user's own email
         test_email_result = None
         try:
@@ -922,6 +933,294 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
     if tool_name in ("god_score_campaigns", "god_extract_patterns"):
         user = await _get_user(token, session)
         return {"message": f"{tool_name} — coming in next iteration"}
+
+    # ── GetSales LinkedIn Automation ──
+
+    if tool_name == "gs_generate_flow":
+        user = await _get_user(token, session)
+        project = await session.get(Project, args["project_id"])
+        if not project:
+            raise ValueError("Project not found")
+
+        from app.config import settings as _cfg
+        from app.services.getsales_automation import GetSalesAutomationService
+        gs_key = _cfg.GETSALES_API_KEY
+        gs_team = _cfg.GETSALES_TEAM_ID
+        if not gs_key:
+            raise ValueError("GetSales not configured (GETSALES_API_KEY missing)")
+
+        svc = GetSalesAutomationService(gs_key, gs_team or "7430")
+        gemini_key = getattr(_cfg, "GEMINI_API_KEY", None)
+        openai_key = getattr(_cfg, "OPENAI_API_KEY", None)
+
+        seq = await svc.generate_flow(
+            session, project.id,
+            flow_name=args.get("flow_name"),
+            flow_type=args.get("flow_type", "standard"),
+            instructions=args.get("instructions"),
+            gemini_key=gemini_key,
+            openai_key=openai_key,
+        )
+
+        flow_data = seq.sequence_steps or {}
+        messages = flow_data.get("messages", [])
+        conn_note = flow_data.get("connection_note", "")
+
+        preview = []
+        if conn_note:
+            preview.append(f"Connection note: {conn_note[:100]}...")
+        for i, msg in enumerate(messages):
+            preview.append(f"MSG{i+1}: {msg[:100]}...")
+
+        return {
+            "sequence_id": seq.id,
+            "flow_name": seq.campaign_name,
+            "flow_type": flow_data.get("flow_type", "standard"),
+            "messages": len(messages),
+            "status": "draft",
+            "rationale": seq.rationale,
+            "preview": preview,
+            "connection_note": conn_note,
+            "full_messages": messages,
+            "include_inmail": flow_data.get("include_inmail", False),
+            "message": (
+                f"Generated LinkedIn flow '{seq.campaign_name}' ({flow_data.get('flow_type', 'standard')} type).\n\n"
+                f"Connection note: {conn_note[:150] if conn_note else '(none — networking style)'}\n"
+                f"Messages: {len(messages)} follow-ups\n"
+                f"InMail fallback: {'Yes' if flow_data.get('include_inmail') else 'No'}\n\n"
+                f"Review the messages above. You can:\n"
+                f"- Edit any message (tell me which to change)\n"
+                f"- Change flow type (standard/networking/product/volume/event)\n"
+                f"- Say 'approve' when ready to push to GetSales"
+            ),
+        }
+
+    if tool_name == "gs_approve_flow":
+        user = await _get_user(token, session)
+        seq = await session.get(GeneratedSequence, args["sequence_id"])
+        if not seq:
+            raise ValueError("Flow not found")
+        from datetime import datetime
+        seq.status = "approved"
+        seq.reviewed_by = f"mcp:user:{user.id}"
+        seq.reviewed_at = datetime.utcnow()
+        return {"approved": True, "sequence_id": seq.id}
+
+    if tool_name == "gs_list_sender_profiles":
+        user = await _get_user(token, session)
+        from app.config import settings as _cfg
+        from app.services.getsales_automation import GetSalesAutomationService
+        gs_key = _cfg.GETSALES_API_KEY
+        gs_team = _cfg.GETSALES_TEAM_ID
+        if not gs_key:
+            raise ValueError("GetSales not configured")
+        svc = GetSalesAutomationService(gs_key, gs_team or "7430")
+
+        profiles = await svc.get_sender_profiles()
+        workspaces = await svc.get_workspaces()
+
+        return {
+            "sender_profiles": [
+                {
+                    "uuid": p.get("uuid", ""),
+                    "name": f"{p.get('first_name', '')} {p.get('last_name', '')}".strip(),
+                    "status": p.get("status", ""),
+                    "linkedin_url": p.get("linkedin_url", ""),
+                }
+                for p in (profiles or [])
+            ],
+            "workspaces": [
+                {"uuid": w.get("uuid", ""), "name": w.get("name", "")}
+                for w in (workspaces or [])
+            ],
+            "message": "Select sender profile UUIDs and optionally a workspace UUID for the flow.",
+        }
+
+    if tool_name == "gs_push_to_getsales":
+        user = await _get_user(token, session)
+        seq = await session.get(GeneratedSequence, args["sequence_id"])
+        if not seq:
+            raise ValueError("Flow not found")
+        if seq.status != "approved":
+            raise ValueError("Flow must be approved first. Call gs_approve_flow.")
+
+        from app.config import settings as _cfg
+        from app.services.getsales_automation import (
+            GetSalesAutomationService, get_timezone_for_country,
+            TIMING_STANDARD, TIMING_NETWORKING, TIMING_VOLUME,
+        )
+        gs_key = _cfg.GETSALES_API_KEY
+        gs_team = _cfg.GETSALES_TEAM_ID
+        if not gs_key:
+            raise ValueError("GetSales not configured")
+        svc = GetSalesAutomationService(gs_key, gs_team or "7430")
+
+        flow_data = seq.sequence_steps or {}
+        flow_type = flow_data.get("flow_type", "standard")
+
+        # Select timing based on flow type
+        timing = {
+            "standard": TIMING_STANDARD,
+            "product": TIMING_STANDARD,
+            "networking": TIMING_NETWORKING,
+            "event": TIMING_NETWORKING,
+            "volume": TIMING_VOLUME,
+        }.get(flow_type, TIMING_STANDARD)
+
+        # Resolve timezone
+        target_country = args.get("target_country", "")
+        if not target_country and seq.project_id:
+            project = await session.get(Project, seq.project_id)
+            if project and project.target_segments:
+                for country in ["United States", "Germany", "United Kingdom", "India", "Australia", "UAE", "Russia"]:
+                    if country.lower() in (project.target_segments or "").lower():
+                        target_country = country
+                        break
+        timezone = get_timezone_for_country(target_country)
+
+        # Build node tree
+        node_tree = svc.build_node_tree(
+            connection_note=flow_data.get("connection_note", ""),
+            messages=flow_data.get("messages", []),
+            timing=timing,
+            include_inmail=flow_data.get("include_inmail", False),
+            inmail_text=flow_data.get("inmail_text"),
+        )
+
+        # 1. Create flow
+        flow_result = await svc.create_flow(
+            name=seq.campaign_name or "MCP Generated",
+            workspace_uuid=args.get("workspace_uuid"),
+            timezone=timezone,
+        )
+        if not flow_result:
+            raise ValueError("Failed to create GetSales flow")
+        flow_uuid = flow_result.get("uuid")
+        if not flow_uuid:
+            raise ValueError(f"GetSales returned no UUID: {flow_result}")
+
+        # 2. Save flow version with nodes
+        sender_uuids = args.get("sender_profile_uuids", [])
+        rotation = args.get("rotation_strategy", "fair")
+
+        version_result = await svc.save_flow_version(
+            flow_uuid=flow_uuid,
+            nodes=node_tree,
+            sender_profile_uuids=sender_uuids,
+            rotation_strategy=rotation,
+        )
+
+        # 3. Upload target contacts from pipeline
+        leads_uploaded = 0
+        try:
+            from app.models.pipeline import ExtractedContact, DiscoveredCompany
+            contacts_result = await session.execute(
+                select(ExtractedContact, DiscoveredCompany)
+                .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
+                .where(
+                    ExtractedContact.project_id == seq.project_id,
+                    DiscoveredCompany.is_target == True,
+                )
+            )
+            contacts = contacts_result.all()
+            for contact, company in contacts:
+                linkedin_url = contact.linkedin_url if hasattr(contact, 'linkedin_url') else None
+                if not linkedin_url:
+                    continue
+                lead_data = {
+                    "linkedin_url": linkedin_url,
+                    "first_name": contact.first_name or "",
+                    "last_name": contact.last_name or "",
+                    "company_name": company.name if company else "",
+                }
+                result = await svc.add_lead_to_flow(flow_uuid, lead_data)
+                if result:
+                    leads_uploaded += 1
+        except Exception as e:
+            logger.warning(f"Failed to upload contacts to GetSales: {e}")
+
+        # 4. Save campaign to DB
+        campaign = Campaign(
+            project_id=seq.project_id,
+            company_id=seq.company_id,
+            name=seq.campaign_name,
+            external_id=flow_uuid,
+            platform="getsales",
+            status="draft",
+            leads_count=leads_uploaded,
+        )
+        session.add(campaign)
+        from datetime import datetime
+        seq.pushed_at = datetime.utcnow()
+        seq.status = "pushed"
+        await session.flush()
+
+        getsales_url = f"https://amazing.getsales.io/flow/{flow_uuid}/builder"
+
+        return {
+            "pushed": True,
+            "flow_uuid": flow_uuid,
+            "status": "DRAFT",
+            "settings": {
+                "timezone": timezone,
+                "schedule": "Mon-Fri 09:00-18:00",
+                "sender_profiles": len(sender_uuids),
+                "rotation_strategy": rotation,
+                "flow_type": flow_type,
+                "messages": len(flow_data.get("messages", [])),
+                "include_inmail": flow_data.get("include_inmail", False),
+            },
+            "leads_uploaded": leads_uploaded,
+            "version_saved": version_result is not None,
+            "message": (
+                f"Flow '{seq.campaign_name}' created as DRAFT in GetSales.\n\n"
+                f"GetSales: {getsales_url}\n"
+                f"Schedule: Mon-Fri 9:00-18:00 {timezone}\n"
+                f"Sender profiles: {len(sender_uuids)} assigned ({rotation} rotation)\n"
+                f"Leads uploaded: {leads_uploaded} target contacts\n\n"
+                f"Review the flow in GetSales Builder, then say 'activate' when ready to start."
+            ),
+            "_links": {
+                "getsales_builder": getsales_url,
+                "getsales_flow": f"https://amazing.getsales.io/flow/{flow_uuid}",
+            },
+        }
+
+    if tool_name == "gs_activate_flow":
+        user = await _get_user(token, session)
+        if not args.get("user_confirmation"):
+            raise ValueError("SAFETY: user_confirmation required. Quote the user's exact words confirming activation.")
+
+        from app.config import settings as _cfg
+        from app.services.getsales_automation import GetSalesAutomationService
+        gs_key = _cfg.GETSALES_API_KEY
+        gs_team = _cfg.GETSALES_TEAM_ID
+        if not gs_key:
+            raise ValueError("GetSales not configured")
+        svc = GetSalesAutomationService(gs_key, gs_team or "7430")
+
+        result = await svc.start_flow(args["flow_uuid"])
+
+        from app.models.usage import MCPUsageLog
+        from datetime import datetime
+        session.add(MCPUsageLog(
+            user_id=user.id,
+            tool_name="gs_activate_flow",
+            action="flow_activated",
+            extra_data={
+                "flow_uuid": args["flow_uuid"],
+                "user_confirmation": args["user_confirmation"],
+                "timestamp": str(datetime.utcnow()),
+            },
+        ))
+
+        return {
+            "activated": True,
+            "flow_uuid": args["flow_uuid"],
+            "status": "ACTIVE",
+            "message": f"Flow {args['flow_uuid']} is now ACTIVE. LinkedIn outreach will begin.",
+            "_links": {"getsales": f"https://amazing.getsales.io/flow/{args['flow_uuid']}/builder"},
+        }
 
     # ── Orchestration ──
     if tool_name == "pipeline_status":

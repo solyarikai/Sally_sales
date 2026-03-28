@@ -139,21 +139,27 @@ async def sync_campaign_replies(
 
             lead_name = lead_data.get("lead_name", "")
 
-            # Try to get reply text via message history (may fail for some campaigns)
+            # Get numeric lead ID for message history (SmartLead requires numeric ID, not email)
             reply_text = ""
             try:
-                messages = await smartlead_service.get_lead_message_history(campaign_ext_id, email)
-                if messages:
-                    for msg in reversed(messages if isinstance(messages, list) else []):
-                        if (msg.get("type") or "").upper() == "REPLY":
-                            reply_text = _strip_html(msg.get("email_body") or msg.get("body") or "")
-                            break
-            except Exception:
-                pass
+                lead_info = await smartlead_service.get_lead_by_email(email)
+                if lead_info and lead_info.get("id"):
+                    numeric_id = lead_info["id"]
+                    history = await smartlead_service.get_lead_message_history(campaign_ext_id, str(numeric_id))
+                    # Handle both list and dict with "history" key
+                    msgs = history
+                    if isinstance(history, dict):
+                        msgs = history.get("history", [])
+                    if isinstance(msgs, list):
+                        for msg in reversed(msgs):
+                            if (msg.get("type") or "").upper() == "REPLY":
+                                reply_text = _strip_html(msg.get("email_body") or msg.get("body") or "")
+                                break
+            except Exception as e:
+                logger.debug(f"Message history failed for {email}: {e}")
 
-            # If no reply text from history, still record the reply (we know they replied from statistics)
             if not reply_text:
-                reply_text = "(Reply received — content not available via API)"
+                reply_text = "(Reply content unavailable)"
 
             # Dedup check
             msg_hash = _message_hash(reply_text)
