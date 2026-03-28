@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """
+DEPRECATED — replaced by universal_pipeline.py
+This script is OnSocial-specific with hardcoded config. Use universal_pipeline.py instead:
+  python3 universal_pipeline.py --project-id 42 --mode structured --segment influencer_platforms
+
 OnSocial Clay→SmartLead Pipeline (Platforms + Agencies, 2026-03-26)
 
 Full pipeline: Clay discovery → GPT classification → Apollo People Search →
