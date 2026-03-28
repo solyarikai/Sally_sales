@@ -129,8 +129,8 @@ async def sync_campaign_replies(
             return stats
 
         # Use statistics endpoint — returns reply_time for leads that replied
-        stats = await smartlead_service.get_campaign_statistics(campaign_ext_id)
-        replied_stats = [s for s in (stats or []) if s.get("reply_time")]
+        sl_stats = await smartlead_service.get_campaign_statistics(campaign_ext_id)
+        replied_stats = [s for s in (sl_stats or []) if s.get("reply_time")]
 
         for lead_data in replied_stats:
             email = lead_data.get("lead_email", "")
