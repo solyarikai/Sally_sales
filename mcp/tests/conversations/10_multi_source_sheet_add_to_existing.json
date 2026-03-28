@@ -1,0 +1,116 @@
+{
+  "id": "10_multi_source_sheet_add_to_existing",
+  "description": "User 2 (services@getsally.io): Adds Google Sheet data to EXISTING pipeline run from step 09. MCP must ask 'new pipeline or add to existing?' and user chooses existing. Tests dedup: 40 overlapping with CSV run.",
+  "user_email": "services@getsally.io",
+  "user_password": "qweqweqwe",
+  "project_name": "Result",
+  "depends_on": "09_multi_source_csv_first",
+
+  "preconditions": {
+    "user_authenticated": true,
+    "project_selected": "Result",
+    "existing_run_id": "from step 09",
+    "existing_companies_count": 110,
+    "existing_source": "csv.companies.file"
+  },
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "source_addition",
+      "description": "User provides Google Sheet URL. MCP MUST ask whether to create new pipeline or add to existing.",
+      "user_prompt": "I also have companies in this Google Sheet: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit",
+      "user_prompt_variants": [
+        "Here's another batch from Google Sheets: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit#gid=0",
+        "Analyze this sheet too: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit",
+        "I have more leads in Google Sheets: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+      ],
+      "expected_behavior": {
+        "mcp_detects_google_sheet": true,
+        "mcp_sees_existing_run": true,
+        "mcp_asks_new_or_existing": true,
+        "response_must_contain": ["existing", "pipeline", "new"],
+        "response_must_contain_any": [
+          "add to existing",
+          "create a new pipeline",
+          "existing run",
+          "already have a pipeline"
+        ],
+        "mcp_shows_existing_run_link": true,
+        "mcp_does_NOT_auto_create_new_run": true
+      },
+      "critical_requirement": "MCP MUST NOT auto-launch a new pipeline. It MUST ask the user whether to add to existing or create new. This is because blacklisting is per-project: adding to the same project deduplicates automatically."
+    },
+    {
+      "step": 2,
+      "phase": "user_chooses_existing",
+      "description": "User explicitly says to add to existing pipeline.",
+      "user_prompt": "Add to the existing one",
+      "user_prompt_variants": [
+        "Add to existing pipeline",
+        "Same pipeline, just add these companies",
+        "Use the existing run, add the sheet data there",
+        "Don't create a new one, add to the current pipeline"
+      ],
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "source_type": "google_sheets.companies.sheet",
+        "reuses_existing_project": true,
+        "filters_contain": {"sheet_url": "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit"},
+        "response_must_contain": ["companies", "gathered"],
+        "new_companies_added": 70,
+        "duplicates_detected": 40,
+        "response_must_contain_any": ["70 new", "40 duplicate", "40 already", "overlap"]
+      },
+      "critical_requirement": "The gather call uses the SAME project_id as the CSV run. Dedup happens at the project level: 40 companies that were already discovered from CSV are detected as duplicates."
+    },
+    {
+      "step": 3,
+      "phase": "blacklist_with_overlap",
+      "description": "Blacklist check — should show the 40 overlap as already existing",
+      "expected_tool_calls": ["tam_blacklist_check", "tam_approve_checkpoint"],
+      "expected_behavior": {
+        "checkpoint_type": "checkpoint_1",
+        "total_in_project_now": 180,
+        "mcp_reports_dedup_correctly": true,
+        "response_must_contain": ["blacklist", "approved"]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "full_pipeline",
+      "description": "Pre-filter, scrape, analyze the new 70 companies",
+      "expected_tool_calls": ["tam_pre_filter", "tam_scrape", "tam_analyze"],
+      "expected_behavior": {
+        "analysis_uses_same_prompt_as_csv_run": true,
+        "or_mcp_asks_about_prompt": true,
+        "checkpoint_type": "checkpoint_2",
+        "target_list_returned": true,
+        "response_must_contain": ["targets", "checkpoint"]
+      }
+    },
+    {
+      "step": 5,
+      "phase": "checkpoint2_approval",
+      "user_prompt": "Approve targets",
+      "expected_tool_calls": ["tam_approve_checkpoint"],
+      "expected_behavior": {
+        "gate_approved": true
+      }
+    }
+  ],
+
+  "final_verification": {
+    "db_checks": [
+      "gathering_runs has 2 runs for Result project (CSV + Sheet)",
+      "discovered_companies has exactly 180 unique domains for Result project (110 from CSV + 70 new from Sheet)",
+      "40 companies from Sheet were detected as duplicates (already in project from CSV run)",
+      "blacklist is project-scoped: companies blacklisted in CSV run are also blacklisted for Sheet run",
+      "both runs share the same classification prompt (or MCP asked if user wants to change it)"
+    ],
+    "ui_checks": [
+      {"page": "/pipeline", "check": "2 iterations visible in dropdown"},
+      {"page": "/pipeline/{run_id}", "check": "Sheet run shows 70 new + 40 duplicate"}
+    ]
+  }
+}

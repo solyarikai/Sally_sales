@@ -1,0 +1,114 @@
+{
+  "id": "12_custom_prompt_chain",
+  "description": "User 2 (services@getsally.io): Provides a custom multi-step classification prompt chain. MCP improves the user's draft prompts to god-level. Tests prompt_steps execution, filter steps, and prompt tracking in UI.",
+  "user_email": "services@getsally.io",
+  "user_password": "qweqweqwe",
+  "project_name": "Result",
+  "depends_on": "11_multi_source_drive_add_to_existing",
+
+  "preconditions": {
+    "user_authenticated": true,
+    "project_selected": "Result",
+    "companies_in_project": 215,
+    "companies_analyzed_with_default_prompt": true
+  },
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "user_provides_custom_prompt",
+      "description": "User provides a multi-step prompt chain inspired by the Drive JSON enricher format",
+      "user_prompt": "I want to re-classify with my own prompts. Step 1: Classify as FASHION_BRAND or TEXTILE_PRODUCER or RETAIL_ONLY or OTHER based on their website. Step 2: Filter out OTHER. Step 3: For remaining, classify as LARGE (100+ employees), MEDIUM (20-99), or SMALL (<20).",
+      "user_prompt_variants": [
+        "Re-analyze with custom prompts: First classify the industry (FASHION_BRAND, TEXTILE_PRODUCER, RETAIL_ONLY, OTHER), then remove OTHERs, then segment by company size.",
+        "I need multi-step classification: 1) Segment by business type (fashion brand, textile producer, retailer, other), 2) Drop others, 3) Tag by size.",
+        "Custom pipeline: classify into fashion/textile/retail/other → filter out other → size segmentation"
+      ],
+      "expected_behavior": {
+        "mcp_understands_multi_step": true,
+        "mcp_builds_prompt_steps": true,
+        "mcp_improves_each_step": true,
+        "prompt_steps_count": 3,
+        "step_1_type": "classify",
+        "step_2_type": "filter",
+        "step_3_type": "classify",
+        "mcp_shows_improved_prompts_for_approval": true,
+        "response_must_contain": ["step", "classify", "filter"]
+      },
+      "critical_requirement": "MCP should: 1) Parse user's rough description into prompt_steps format, 2) Build god-level prompts for each classify step (detailed criteria, exclusions, examples — like the Drive JSON prompts), 3) Show the improved prompts to user for approval before running."
+    },
+    {
+      "step": 2,
+      "phase": "user_approves_prompts",
+      "user_prompt": "Looks good, run it",
+      "user_prompt_variants": [
+        "Go ahead with those prompts",
+        "Perfect, analyze with these",
+        "Run the classification"
+      ],
+      "expected_tool_calls": ["tam_re_analyze"],
+      "expected_behavior": {
+        "uses_prompt_steps": true,
+        "step_1_runs_on_all_companies": true,
+        "step_2_filters_others": true,
+        "step_3_runs_on_remaining": true,
+        "checkpoint_type": "checkpoint_2",
+        "target_list_has_sub_segments": true,
+        "sub_segments_include": ["FASHION_BRAND", "TEXTILE_PRODUCER"],
+        "size_segments_include_any": ["LARGE", "MEDIUM", "SMALL"],
+        "response_must_contain": ["targets", "classified", "segments"]
+      },
+      "critical_requirement": "tam_re_analyze (or tam_analyze with prompt_steps) runs all 3 steps sequentially. Step 1 classifies all companies. Step 2 filters out OTHER. Step 3 adds size classification. Results stored in source_data.custom_analysis."
+    },
+    {
+      "step": 3,
+      "phase": "review_results",
+      "description": "User reviews the multi-step results",
+      "user_prompt": "Show me the breakdown by segment and size",
+      "user_prompt_variants": [
+        "What's the distribution?",
+        "How many in each segment?",
+        "Breakdown please"
+      ],
+      "expected_behavior": {
+        "shows_segment_distribution": true,
+        "distribution_includes": {
+          "FASHION_BRAND": "count > 0",
+          "TEXTILE_PRODUCER": "count > 0",
+          "RETAIL_ONLY": "filtered_out"
+        },
+        "shows_size_distribution": true,
+        "response_must_contain": ["FASHION_BRAND", "segment"]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "approve",
+      "user_prompt": "Approve targets",
+      "expected_tool_calls": ["tam_approve_checkpoint"],
+      "expected_behavior": {
+        "gate_approved": true
+      }
+    }
+  ],
+
+  "prompt_improvement_examples": {
+    "user_draft_step1": "Classify as FASHION_BRAND or TEXTILE_PRODUCER or RETAIL_ONLY or OTHER",
+    "mcp_improved_step1": "Classify companies into business model segments. Return exactly ONE segment.\n\nFASHION_BRAND — Companies that design, produce, and sell their own fashion/apparel brand directly to consumers or wholesale. Must have their OWN brand name on products. Evidence: branded collections, lookbooks, seasonal lines, own-brand e-commerce.\n\nTEXTILE_PRODUCER — Companies that manufacture textiles, fabrics, or garments for OTHER brands (contract manufacturing, CMT, private label). They do NOT sell under their own brand name. Evidence: manufacturing capabilities, B2B focus, factory/production mentions.\n\nRETAIL_ONLY — Companies that only RESELL other brands' products without their own brand. Multi-brand retailers, department stores, marketplace sellers. Evidence: carries multiple external brands, no own-brand production.\n\nOTHER — Companies NOT in fashion/apparel industry at all. Marketing agencies, IT companies, logistics, food, etc.\n\nCRITICAL RULES:\n- If company designs AND manufactures → FASHION_BRAND (they have their own brand)\n- If company manufactures for others → TEXTILE_PRODUCER\n- If company only sells others' brands → RETAIL_ONLY\n- When in doubt between FASHION_BRAND and TEXTILE_PRODUCER → check if they have their own brand name on products\n- Empty/error website → OTHER\n\nOutput: Segment: [FASHION_BRAND/TEXTILE_PRODUCER/RETAIL_ONLY/OTHER]\nReasoning: [1-2 sentences]",
+    "notes": "MCP must transform user's 1-line classification into a detailed prompt with: clear definitions per segment, decision rules for ambiguous cases, critical checks, output format. This is what makes MCP a 'god of classification prompts'."
+  },
+
+  "final_verification": {
+    "db_checks": [
+      "gathering_prompts has new entries for the multi-step chain",
+      "analysis_results have segment values from Step 1 (FASHION_BRAND, TEXTILE_PRODUCER, etc.)",
+      "discovered_companies.source_data.custom_analysis contains step results",
+      "companies classified as OTHER in Step 1 have is_target=false after Step 2 filter",
+      "companies that passed Step 2 have size classification in Step 3"
+    ],
+    "ui_checks": [
+      {"page": "/pipeline/{run_id}/prompts", "check": "Shows 3-step prompt chain with step numbers and types"},
+      {"page": "/pipeline/{run_id}", "check": "Companies show multi-segment badges (FASHION_BRAND + MEDIUM)"}
+    ]
+  }
+}
