@@ -461,13 +461,21 @@ def create_batched_runs(config: ProjectConfig, domains: list[str],
 
 def process_run_pipeline(config: ProjectConfig, run_id: int,
                          prompt_text: str = None, skip_gather_wait: bool = False):
-    """Process a single run through full pipeline: gather → blacklist → scrape → analyze.
-    Resilient to disconnects via api_long polling."""
+    """Прогоняет один ран через полный pipeline автоматически:
+    1. Ждём завершения сбора компаний (gather)
+    2. Проверяем по blacklist — убираем тех, кому уже писали
+    3. Pre-filter — убираем офлайн-бизнесы и мусорные домены
+    4. Scrape — скачиваем сайты компаний (resilient к падению backend)
+    5. Analyze — GPT классифицирует каждую компанию (resilient к падению)
+    6. Одобряем таргеты и добавляем в blacklist для будущих ранов
+
+    Используется вместе с create_batched_runs() — каждый батч по 500 компаний
+    проходит этот pipeline отдельно, не перегружая backend."""
     print(f"\n{'─'*40}")
     print(f"  Processing Run #{run_id}")
     print(f"{'─'*40}")
 
-    # Wait for gather if needed
+    # Ждём пока backend соберёт компании (manual source — быстро, dedup)
     if not skip_gather_wait:
         for i in range(60):
             time.sleep(10)
