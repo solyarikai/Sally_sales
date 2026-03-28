@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+DEPRECATED — replaced by universal_pipeline.py (sofia/scripts/universal_pipeline.py)
+This was the old standalone pipeline that doesn't use the backend API.
+
 OnSocial Enrichment & Segmentation Pipeline — unified script
 Steps 0-8: Blacklist → Load → Dedup → Filter → DNS → Scrape → Classify → Output
 
