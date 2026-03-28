@@ -1602,6 +1602,9 @@ def main():
             return
 
     if "verify" in steps and run_id:
+        # После CP2 approve — добавляем таргеты в blacklist,
+        # чтобы следующий gathering run не подобрал те же компании.
+        blacklist_approved_targets(config, run_id)
         cp3 = step6_prepare_verify(run_id)
         if cp3.get("gate_id"):
             print(f"  Pausing at CP3. Approve then: --from-step export --run-id {run_id}")
