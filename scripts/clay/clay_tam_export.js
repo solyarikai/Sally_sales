@@ -303,7 +303,7 @@ async function main() {
   const saveFiltersIdx = args.indexOf('--save-filters');
   const saveFiltersArg = saveFiltersIdx >= 0 ? args[saveFiltersIdx + 1] : null;
   const saveFilterTypes = saveFiltersArg ? saveFiltersArg.split(',').map(f => f.trim()) : null;
-  const maxExport = isTest ? 5 : 50;
+  const maxExport = isTest ? 5 : 5000;
   const icpText = isTest || isLoginOnly
     ? 'Companies selling gaming skins, virtual items, loot boxes for games like CS2, CSGO, Dota2, Roblox, WoW, FIFA. Gaming marketplace platforms. Skin trading sites.'
     : args.filter(a => !a.startsWith('--')).join(' ');
@@ -413,7 +413,28 @@ async function main() {
     await fillFilterField(page, 'Advertising services', filters.industries_exclude);
   }
   if (filters.sizes?.length) {
-    await fillFilterField(page, '11-50 employees', filters.sizes);
+    let sizeApplied = await fillFilterField(page, '11-50 employees', filters.sizes);
+    if (!sizeApplied) sizeApplied = await fillFilterField(page, '11-50', filters.sizes);
+    if (!sizeApplied) sizeApplied = await fillFilterField(page, 'employees', filters.sizes);
+    if (!sizeApplied) sizeApplied = await fillFilterField(page, 'Company size', filters.sizes);
+    if (!sizeApplied) {
+      // Last resort: scan all sidebar inputs for anything related to size/employees
+      const sizeInput = await page.evaluate(() => {
+        const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null && i.getBoundingClientRect().x < 400);
+        for (const inp of inputs) {
+          const ph = (inp.placeholder || '').toLowerCase();
+          if (ph.includes('employee') || ph.includes('size') || ph.includes('1-10') || ph.includes('11-')) {
+            return { placeholder: inp.placeholder };
+          }
+        }
+        return null;
+      });
+      if (sizeInput) {
+        console.log(`    Size fallback: found input with placeholder "${sizeInput.placeholder}"`);
+        sizeApplied = await fillFilterField(page, sizeInput.placeholder, filters.sizes);
+      }
+      if (!sizeApplied) console.log('    ERROR: Company size filter could NOT be applied!');
+    }
   }
   if (filters.annual_revenues?.length) {
     await fillFilterField(page, '$1M - $5M', filters.annual_revenues);
@@ -817,7 +838,7 @@ async function main() {
   await page.keyboard.press('Escape');
   await humanDelay(1000, 1500);
   await page.mouse.click(700, 400); // Click neutral area
-  await humanDelay(2000, 3000);
+  await humanDelay(3000, 5000); // Extra wait for results to refresh after state filter
 
   // Handle rate limiting: Clay shows "We couldn't load results" with a Retry button
   // Retry up to 5 times with increasing delays
