@@ -1075,13 +1075,13 @@ def _export_targets_db(project_id: int) -> list[dict]:
 
 # Apollo People CSV column mapping (standard Apollo export)
 APOLLO_CSV_COLUMNS = {
-    "first_name": ["First Name", "first_name"],
+    "first_name": ["First Name", "first_name", "Name"],  # "Name" = full name, split later
     "last_name": ["Last Name", "last_name"],
     "email": ["Email", "email", "Email Address"],
     "title": ["Title", "title", "Job Title"],
     "company_name": ["Company", "company", "Company Name", "Organization Name"],
     "domain": ["Website", "website", "Company Domain", "domain", "Domain"],
-    "linkedin_url": ["Person Linkedin Url", "LinkedIn URL", "linkedin_url", "LinkedIn", "Person LinkedIn URL"],
+    "linkedin_url": ["Person Linkedin Url", "LinkedIn URL", "linkedin_url", "LinkedIn", "Person LinkedIn URL", "Profile URL"],
     "country": ["Country", "country", "Person Country"],
     "employees": ["# Employees", "employees", "Number of Employees", "Company Size"],
 }
