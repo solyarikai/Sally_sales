@@ -633,17 +633,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         return {"status": "verification_complete", "run_id": run.id}
 
     if tool_name == "tam_list_sources":
-        return {
-            "sources": [
-                {"type": "apollo.companies.api", "description": "Apollo org search API", "cost": "1 credit/page"},
-                {"type": "apollo.people.emulator", "description": "Apollo People tab via Puppeteer", "cost": "Free"},
-                {"type": "apollo.companies.emulator", "description": "Apollo Companies tab via Puppeteer", "cost": "Free"},
-                {"type": "clay.companies.emulator", "description": "Clay TAM export", "cost": "~$0.01/company"},
-                {"type": "google_sheets.companies.manual", "description": "Google Sheet import", "cost": "Free"},
-                {"type": "csv.companies.manual", "description": "CSV import", "cost": "Free"},
-                {"type": "manual.companies.manual", "description": "Direct domain list", "cost": "Free"},
-            ]
-        }
+        from app.services.gathering_adapters.source_router import list_sources
+        return {"sources": list_sources()}
 
     # ── Refinement tools ──
     if tool_name == "refinement_status":
@@ -734,7 +725,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         user_campaigns = (await session.execute(
             select(Campaign).where(Campaign.project_id.in_(
                 select(Project.id).where(Project.user_id == user.id)
-            )).limit(5)
+            ))
         )).scalars().all()
 
         campaign_accounts = {}
