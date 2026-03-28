@@ -663,7 +663,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         await session.execute(
             update(ApprovalGate)
             .where(ApprovalGate.gathering_run_id == run.id, ApprovalGate.gate_type == "checkpoint_2", ApprovalGate.status == "pending")
-            .values(status="rejected", decision_notes="Re-analyzing with adjusted prompt")
+            .values(status="rejected", decision_note="Re-analyzing with adjusted prompt")
         )
         # Re-run analysis with new prompt
         ctx = UserServiceContext(user.id, session)
