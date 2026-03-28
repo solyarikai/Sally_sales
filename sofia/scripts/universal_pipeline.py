@@ -685,8 +685,9 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
 
 
 def blacklist_approved_targets(config: ProjectConfig, run_id: int):
-    """Add approved target domains to project_blacklist after CP2.
-    Prevents next gathering run from picking up the same companies."""
+    """Добавляет домены классифицированных компаний в project_blacklist.
+    Blacklist = все компании, которые уже прошли сбор и обработку (не только те, кому писали).
+    Следующий gathering run не будет тратить время на повторную обработку этих доменов."""
     import subprocess
     sql = (f"SELECT DISTINCT dc.domain FROM discovered_companies dc "
            f"JOIN company_source_links csl ON csl.discovered_company_id = dc.id "
