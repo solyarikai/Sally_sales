@@ -488,11 +488,11 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
             except Exception:
                 pass
 
-    # Check current phase
+    # Проверяем на какой фазе ран — чтобы не повторять уже пройденные шаги
     run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
     phase = run_info.get("current_phase", "")
 
-    # Blacklist
+    # Blacklist — проверяем домены против списка уже обработанных компаний
     if phase == "gathered":
         api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
         approve_pending_gate(config, run_id)
