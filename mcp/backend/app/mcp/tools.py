@@ -325,20 +325,21 @@ Iterate until GPT's results meet your quality bar.""",
         "name": "god_push_to_smartlead",
         "description": """Push an approved sequence to SmartLead as a DRAFT campaign with FULL configuration.
 
-BEFORE calling this, you MUST ask the user:
-1. "Which email accounts should I use?" — call list_email_accounts first to show options
-2. The schedule will be set to 9:00-18:00 Mon-Fri in the TARGET country's timezone (from the gathering geo filter)
+BEFORE calling this, you MUST:
+1. Ask the user: "Which email accounts should I use for this campaign?"
+2. Call list_email_accounts to show available accounts
+3. Wait for user to select accounts — NEVER proceed without their choice
+4. Pass the selected account IDs in email_account_ids parameter
 
-The campaign is created with production settings:
-- Plain text emails (no HTML)
-- No open/click tracking (deliverability)
-- Stop on reply
-- 40% follow-up rate
-- 3 min between emails
-- 100 max new leads/day
-- Mon-Fri 9:00-18:00 in target timezone
+Without email accounts: campaign is created but test email CANNOT be sent.
+The user might say: "Use Eleonora's accounts from my petr campaigns" or provide a specific email.
 
-Campaign is ALWAYS DRAFT — never activated, never adds leads.""",
+Campaign settings (production-grade):
+- Plain text, no tracking, stop on reply, 40% follow-up, Mon-Fri 9-18 target timezone
+- Target contacts auto-uploaded with normalized company names + segment as custom fields
+- Test email auto-sent to user's email after creation
+
+Campaign is ALWAYS DRAFT — never activated without explicit user approval.""",
         "inputSchema": {
             "type": "object",
             "properties": {

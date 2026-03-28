@@ -82,10 +82,22 @@
     {
       "step": 6,
       "phase": "email_accounts",
-      "description": "MCP asks user which email accounts to use (user didn't specify)",
-      "expected_behavior": {
-        "mcp_asks_for_accounts": true,
-        "message_must_contain": ["email account", "which"]
+      "description": "MCP MUST ask user which email accounts — user provides specific email",
+      "expected_mcp_behavior": {
+        "mcp_asks_user": true,
+        "message_must_contain": ["email account", "which"],
+        "waits_for_user_response": true
+      },
+      "user_prompt": "Use elnar@thefashionpeopletech.com as the sending email",
+      "user_prompt_variants": [
+        "Send from elnar@thefashionpeopletech.com",
+        "The email account is elnar@thefashionpeopletech.com",
+        "Use elnar at thefashionpeopletech.com"
+      ],
+      "expected_after_user_response": {
+        "account_email": "elnar@thefashionpeopletech.com",
+        "agent_finds_account_id_by_email": true,
+        "passes_to_god_push_to_smartlead": true
       }
     },
     {

@@ -131,31 +131,41 @@
     {
       "step": 9,
       "phase": "email_accounts",
-      "description": "MCP asks which email accounts to use",
-      "user_prompt": "Use Eleonora's email accounts from the petr campaigns",
-      "user_prompt_variants": [
-        "Use the same accounts from my existing campaigns, but only Eleonora's",
-        "Eleonora's email accounts please"
-      ],
+      "description": "MCP MUST ask which email accounts to use — NEVER auto-pick",
       "expected_mcp_behavior": {
+        "mcp_asks_user": true,
         "tool_calls": ["list_email_accounts"],
-        "filters_to_eleonora": true,
-        "shows_account_list": true
+        "shows_account_list": true,
+        "message_must_contain": ["email account", "which"],
+        "waits_for_user_response": true
+      },
+      "user_prompt": "Use all email accounts from my petr campaigns that have Eleonora in the name",
+      "user_prompt_variants": [
+        "Use Eleonora's sending accounts from the petr campaigns",
+        "Pick accounts with eleonora in the email from my existing campaigns",
+        "Use the Eleonora accounts, the ones from petr campaigns"
+      ],
+      "expected_after_user_response": {
+        "filters_accounts_by": "eleonora",
+        "accounts_from_campaigns_matching": "petr",
+        "accounts_selected_min": 3
       }
     },
     {
       "step": 10,
       "phase": "sequence_and_campaign",
-      "description": "Generate sequence, push to SmartLead as DRAFT",
+      "description": "Generate sequence, push to SmartLead as DRAFT with user-selected accounts",
       "expected_mcp_behavior": {
         "tool_calls": ["god_generate_sequence", "god_approve_sequence", "god_push_to_smartlead"],
+        "god_push_includes_email_account_ids": true,
         "campaign_status": "DRAFT",
         "campaign_never_activated": true,
+        "contacts_auto_uploaded": true,
+        "test_email_auto_sent": true,
         "sequence_has_personalization": ["{{first_name}}", "{{city}}"],
         "sequence_references_easystaff_offer": true,
-        "must_provide_links": ["smartlead.ai"],
-        "smartlead_campaign_name_contains": ["EasyStaff", "IT Consulting", "Miami"],
-        "message_must_contain": ["DRAFT", "campaign", "created", "check your email"]
+        "must_provide_links": ["smartlead.ai", "/campaigns"],
+        "message_must_contain": ["DRAFT", "campaign", "check your inbox", "approval"]
       }
     },
     {
