@@ -1697,10 +1697,14 @@ def main():
         step5_reanalyze(run_id, prompt_text=prompt_text, prompt_id=prompt_id)
         return
 
-    # ── Resolve filters based on mode ──────────────────────────────────────
+    # ── Resolve filters based on mode (only needed for "start" step) ─────
     mode_config = None  # {"segment": ..., "filters": {...}}
+    steps = STEPS[STEPS.index(args.from_step):]
+    needs_filters = "start" in steps
 
-    if args.mode == "natural":
+    if not needs_filters:
+        pass  # Skip mode validation — resuming from later step
+    elif args.mode == "natural":
         # Mode 1: Claude generates filters in conversation, passes as --filters JSON
         if not args.filters:
             print("ERROR: --filters JSON required for --mode natural")
