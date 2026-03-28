@@ -941,6 +941,41 @@ def step5_reanalyze(run_id: int, prompt_text: str = None, prompt_id: int = None,
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# BLACKLIST UPDATE — add approved targets to project_blacklist
+# ══════════════════════════════════════════════════════════════════════════════
+
+def blacklist_approved_targets(run_id: int, project_id: int = PROJECT_ID):
+    """Add approved target domains to project_blacklist after CP2.
+    Prevents next gathering run from picking up the same companies."""
+    import subprocess
+    sql = (f"SELECT DISTINCT dc.domain FROM discovered_companies dc "
+           f"JOIN company_source_links csl ON csl.discovered_company_id = dc.id "
+           f"WHERE csl.gathering_run_id = {run_id} AND dc.is_target = true "
+           f"AND dc.domain IS NOT NULL AND dc.domain != ''")
+    r = subprocess.run(
+        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+         "-d", "leadgen", "-t", "-A", "-c", sql],
+        capture_output=True, text=True, timeout=15,
+    )
+    domains = [d.strip() for d in r.stdout.strip().split("\n") if d.strip()]
+    if not domains:
+        return
+
+    values = ", ".join(
+        f"({project_id}, '{d}', 'target_approved_run_{run_id}', 'pipeline', now())"
+        for d in domains
+    )
+    insert_sql = (f"INSERT INTO project_blacklist (project_id, domain, reason, source, created_at) "
+                  f"VALUES {values} ON CONFLICT DO NOTHING")
+    subprocess.run(
+        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+         "-d", "leadgen", "-c", insert_sql],
+        capture_output=True, text=True, timeout=30,
+    )
+    print(f"  Blacklist: +{len(domains)} target domains added (run #{run_id})")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # STEP 6-8: VERIFY (FindyMail via backend) → CP3
 # ══════════════════════════════════════════════════════════════════════════════
 
