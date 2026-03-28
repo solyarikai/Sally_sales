@@ -128,19 +128,18 @@ async def sync_campaign_replies(
         if not campaign_ext_id:
             return stats
 
-        # Fetch replied leads from SmartLead
-        replied_leads = await smartlead_service.get_campaign_leads_with_status(
-            campaign_ext_id, status="REPLIED", limit=500
-        )
+        # Use statistics endpoint — returns reply_time for leads that replied
+        stats = await smartlead_service.get_campaign_statistics(campaign_ext_id)
+        replied_stats = [s for s in (stats or []) if s.get("reply_time")]
 
-        for lead_data in (replied_leads or []):
-            lead = lead_data.get("lead", lead_data)
-            email = lead.get("email", "")
+        for lead_data in replied_stats:
+            email = lead_data.get("lead_email", "")
             if not email:
                 continue
 
-            # Get reply text
+            # Get reply text via message history
             reply_text = ""
+            lead_name = lead_data.get("lead_name", "")
             try:
                 messages = await smartlead_service.get_lead_message_history(campaign_ext_id, email)
                 if messages:
@@ -170,7 +169,7 @@ async def sync_campaign_replies(
             # Classify
             classification = {"category": "other", "confidence": "low", "reasoning": ""}
             if openai_key:
-                subject = lead.get("email_subject", "")
+                subject = lead_data.get("email_subject", "")
                 classification = await classify_reply(subject, reply_text, openai_key)
                 stats["classified"] += 1
 
@@ -181,20 +180,20 @@ async def sync_campaign_replies(
                 project_id=project.id,
                 campaign_id=campaign.id,
                 lead_email=email,
-                lead_name=f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip(),
-                lead_company=lead.get("company_name", ""),
+                lead_name=lead_name,
+                lead_company="",
                 campaign_name=campaign.name,
                 campaign_external_id=str(campaign_ext_id),
                 source="smartlead",
                 channel="email",
-                email_subject=lead.get("email_subject", ""),
+                email_subject=lead_data.get("email_subject", ""),
                 reply_text=reply_text[:5000],
-                received_at=lead.get("reply_time") or lead.get("replied_at"),
+                received_at=lead_data.get("reply_time"),
                 category=cat,
                 category_confidence=classification.get("confidence", "low"),
                 classification_reasoning=classification.get("reasoning", ""),
                 needs_reply=cat in ("interested", "meeting_request", "question"),
-                smartlead_lead_id=str(lead.get("id", "")),
+                smartlead_lead_id=lead_data.get("stats_id", ""),
                 message_hash=msg_hash,
             )
             session.add(reply)
