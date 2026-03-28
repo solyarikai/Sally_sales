@@ -874,10 +874,12 @@ def step3_prefilter(run_id: int) -> dict:
 def step4_scrape(run_id: int) -> dict:
     print(f"\n{'='*60}")
     print(f"STEP 4: Scrape websites (run #{run_id})")
-    print(f"  This may take 10-30 minutes...")
+    print(f"  This may take 10-60 min. Resilient to backend restarts.")
     print(f"{'='*60}")
-    result = api("post", f"/pipeline/gathering/runs/{run_id}/scrape")
-    print(f"  Phase: {result.get('current_phase', '?')}")
+    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/scrape",
+                      expected_phase="scraped", run_id=run_id, timeout=3600)
+    if not result.get("_timeout"):
+        print(f"  Scraped: {result.get('scraped', '?')}, Skipped: {result.get('skipped', '?')}")
     save_state(run_id, "scraped")
     return result
 
