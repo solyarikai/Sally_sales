@@ -1387,7 +1387,9 @@ async def step11_findymail(contacts: list[dict], max_contacts: int = 1500,
     if without_email:
         _export_getsales(without_email, today)
 
+    cost = len(with_email) * 0.01
     print(f"\n  Done in {time.time()-t0:.0f}s. With email: {len(with_email)}, without: {len(without_email)}")
+    print(f"  FindyMail cost: ${cost:.2f} ({len(with_email)} credits, charged per found email only)")
     return all_enriched
 
 
