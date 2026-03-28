@@ -280,9 +280,51 @@ async function fillFilterField(page, placeholder, values) {
 // Type into a number input
 async function fillNumberField(page, placeholder, value) {
   if (value === null || value === undefined) return false;
-  const input = await page.$(`input[placeholder="${placeholder}"]`);
-  if (!input) return false;
+
+  // Try exact match first
+  let input = await page.$(`input[placeholder="${placeholder}"]`);
+
+  // Try case-insensitive partial match
+  if (!input) {
+    input = await page.$(`input[placeholder*="${placeholder}"]`);
+  }
+
+  // Last resort: find by scanning all sidebar number inputs
+  if (!input) {
+    const inputCoords = await page.evaluate((ph) => {
+      const inputs = [...document.querySelectorAll('input[type="number"], input[inputmode="numeric"], input')].filter(i => {
+        if (!i.offsetParent) return false;
+        const r = i.getBoundingClientRect();
+        if (r.x > 400) return false;
+        const p = (i.placeholder || '').toLowerCase();
+        return p === ph.toLowerCase() || p.includes(ph.toLowerCase());
+      });
+      if (inputs.length > 0) {
+        const rect = inputs[0].getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: inputs[0].placeholder };
+      }
+      return null;
+    }, placeholder);
+
+    if (inputCoords) {
+      console.log(`    fillNumberField fallback: found "${inputCoords.placeholder}" via scan`);
+      await page.mouse.click(inputCoords.x, inputCoords.y);
+      await humanDelay(100, 200);
+      // Select all existing text then type new value
+      await page.keyboard.down('Control');
+      await page.keyboard.press('a');
+      await page.keyboard.up('Control');
+      await page.keyboard.type(String(value), { delay: 40 });
+      await humanDelay(200, 400);
+      console.log(`    ${placeholder}: ${value}`);
+      return true;
+    }
+    console.log(`    fillNumberField: "${placeholder}" input NOT FOUND`);
+    return false;
+  }
+
   await input.click({ clickCount: 3 });
+  await humanDelay(100, 200);
   await input.type(String(value), { delay: 40 });
   await humanDelay(200, 400);
   console.log(`    ${placeholder}: ${value}`);
@@ -402,6 +444,27 @@ async function main() {
     await humanDelay(1500, 2500);
   }
   await screenshot(page, 'tam_02_find_companies');
+
+  // Set up response listener to capture Clay's Find API request/response bodies
+  // Clay calls POST /v3/find/companies every time a filter changes
+  let capturedFindRequest = null;
+  let capturedFindResponse = null;
+  page.on('response', async (response) => {
+    const url = response.url();
+    if (url.includes('/v3/find/companies') || url.includes('/v3/find-companies')) {
+      try {
+        const req = response.request();
+        if (req.method() === 'POST' && req.postData()) {
+          capturedFindRequest = JSON.parse(req.postData());
+        }
+        if (response.ok()) {
+          const body = await response.json();
+          capturedFindResponse = body;
+          console.log(`  [INTERCEPT] Captured Find API response: ${JSON.stringify(body).substring(0, 200)}`);
+        }
+      } catch {}
+    }
+  });
 
   // Step 5: Apply filters
   console.log('\n[5] Applying filters...');
@@ -905,73 +968,54 @@ async function main() {
   console.log(`  Results after filters: ${resultCountText}`);
   await screenshot(page, 'tam_03_filters_applied');
 
-  // Step 6: Extract companies via Clay's Find API (intercept + paginate)
-  // Instead of "Save to new workbook" (which limits to ~100 rows),
-  // we intercept the API request Clay makes to load the preview, then paginate through ALL results.
+  // Step 6: Extract companies via Clay's Find API (paginate using captured request)
+  // The response listener (set up before Step 5) captures the Find API request/response
+  // that Clay automatically makes as filters change. We replay that API call with pagination.
   console.log('\n[6] Extracting companies via Clay Find API...');
 
-  // Step 6a: Intercept the Find API request to capture search parameters
-  // Clay's preview table loads data from POST https://api.clay.com/v3/find/companies
-  // We need to capture the request body (which contains the compiled filters)
-  let capturedSearchBody = null;
-
-  // Set up request interception to capture the Find API call
-  await page.setRequestInterception(true);
-  const interceptHandler = (request) => {
-    const url = request.url();
-    if (url.includes('/v3/find/companies') && request.method() === 'POST') {
-      try {
-        capturedSearchBody = JSON.parse(request.postData());
-        console.log(`  Captured Find API request body`);
-      } catch {}
-    }
-    request.continue();
-  };
-  page.on('request', interceptHandler);
-
-  // Trigger a refresh to capture the API call
-  await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
-  await humanDelay(5000, 8000);
-
-  // Remove interception to avoid issues
-  page.off('request', interceptHandler);
-  await page.setRequestInterception(false);
-
-  // Step 6b: If we didn't capture the request, build it from our filters
-  if (!capturedSearchBody) {
-    console.log('  Could not capture Find API request. Building from filters...');
-    capturedSearchBody = {};
-  }
-
-  // Step 6c: Parse total result count from the page
+  // Parse total result count from the page
   const totalResultCount = await page.evaluate(() => {
     const el = [...document.querySelectorAll('*')].find(e => {
       const t = e.innerText?.trim() || '';
       return t.match(/\d[\d,]*\s*results/i) && t.length < 50;
     });
     if (!el) return 0;
-    const match = el.innerText.match(/([\d,]+)\s*results/i);
+    const match = el.innerText.match(/of\s+([\d,]+)/i);
     if (match) return parseInt(match[1].replace(/,/g, ''));
-    const ofMatch = el.innerText.match(/of\s+([\d,]+)/i);
-    if (ofMatch) return parseInt(ofMatch[1].replace(/,/g, ''));
+    const match2 = el.innerText.match(/([\d,]+)\s*results/i);
+    if (match2) return parseInt(match2[1].replace(/,/g, ''));
     return 0;
   });
-  console.log(`  Total results to fetch: ${totalResultCount}`);
+  console.log(`  Total results: ${totalResultCount}`);
+  console.log(`  Captured Find API request: ${capturedFindRequest ? 'YES' : 'NO'}`);
+  if (capturedFindRequest) {
+    console.log(`  Request keys: ${Object.keys(capturedFindRequest).join(', ')}`);
+    console.log(`  Request sample: ${JSON.stringify(capturedFindRequest).substring(0, 300)}`);
+  }
+  if (capturedFindResponse) {
+    console.log(`  Response keys: ${Object.keys(capturedFindResponse).join(', ')}`);
+    const responseDataKey = capturedFindResponse.results ? 'results' :
+      capturedFindResponse.companies ? 'companies' :
+      capturedFindResponse.data ? 'data' : 'unknown';
+    const responseDataLen = (capturedFindResponse[responseDataKey] || []).length;
+    console.log(`  Response data key: "${responseDataKey}", count: ${responseDataLen}`);
+  }
 
-  // Step 6d: Paginate through all results using the Find API
   const allCompanies = [];
-  const pageSize = 50; // Clay uses 50 per page in the preview
   const maxToFetch = Math.min(totalResultCount || maxExport, maxExport);
-  let offset = 0;
   let tableId = null;
 
-  if (totalResultCount > 0) {
+  // Strategy 1: If we captured the Find API request, replay it with pagination
+  if (capturedFindRequest && totalResultCount > 0) {
+    const pageSize = 50;
+    let offset = 0;
+    let consecutiveErrors = 0;
+
     console.log(`  Fetching up to ${maxToFetch} companies in batches of ${pageSize}...`);
 
-    while (offset < maxToFetch) {
+    while (offset < maxToFetch && consecutiveErrors < 3) {
       const batchResult = await page.evaluate(async (searchBody, pgSize, pgOffset) => {
         try {
-          // Build the request — Clay's Find API accepts various filter params
           const body = { ...searchBody, limit: pgSize, offset: pgOffset };
           const res = await fetch('https://api.clay.com/v3/find/companies', {
             method: 'POST',
@@ -979,22 +1023,29 @@ async function main() {
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
           });
-          if (!res.ok) return { error: `HTTP ${res.status}`, status: res.status };
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            return { error: `HTTP ${res.status}: ${text.substring(0, 200)}`, status: res.status };
+          }
           return await res.json();
         } catch (e) { return { error: e.message }; }
-      }, capturedSearchBody, pageSize, offset);
+      }, capturedFindRequest, pageSize, offset);
 
       if (batchResult.error) {
-        // Rate limited — wait and retry
         if (batchResult.status === 429) {
           console.log(`  Rate limited at offset ${offset}. Waiting 15s...`);
           await sleep(15000);
-          continue; // Retry same offset
+          continue;
         }
         console.log(`  API error at offset ${offset}: ${batchResult.error}`);
-        break;
+        consecutiveErrors++;
+        if (consecutiveErrors >= 3) break;
+        await sleep(5000);
+        continue;
       }
+      consecutiveErrors = 0;
 
+      // Try various response shapes
       const results = batchResult.results || batchResult.companies || batchResult.data || [];
       if (results.length === 0) {
         console.log(`  No more results at offset ${offset}`);
@@ -1006,43 +1057,46 @@ async function main() {
       const pct = Math.min(100, Math.round(offset / maxToFetch * 100));
       console.log(`  Fetched ${allCompanies.length}/${maxToFetch} (${pct}%)`);
 
-      // Throttle to avoid rate limiting
       await humanDelay(1500, 3000);
     }
   }
 
-  // Step 6e: If Find API didn't work (returns errors or no data), fall back to preview scraping
-  if (allCompanies.length === 0) {
-    console.log('  Find API returned no data. Falling back to preview + scroll scraping...');
+  // Strategy 2: If we have the response data from initial load, use it directly
+  if (allCompanies.length === 0 && capturedFindResponse) {
+    const responseData = capturedFindResponse.results || capturedFindResponse.companies || capturedFindResponse.data || [];
+    if (responseData.length > 0) {
+      console.log(`  Using ${responseData.length} companies from captured initial response`);
+      allCompanies.push(...responseData);
+    }
+  }
 
-    // Scrape visible preview rows, then scroll to load more
-    const maxScrollAttempts = 100;
+  // Strategy 3: Fall back to scraping the preview table by scrolling
+  if (allCompanies.length === 0) {
+    console.log('  Find API unavailable. Scraping preview table...');
+    const maxScrollAttempts = 60;
     let lastCount = 0;
     let noNewDataCount = 0;
 
     for (let scrollAttempt = 0; scrollAttempt < maxScrollAttempts; scrollAttempt++) {
       const previewBatch = await page.evaluate(() => {
         const companies = [];
-        // Find the preview table
         const rows = document.querySelectorAll('table tbody tr, [role="row"]');
+        const headers = [...document.querySelectorAll('table thead th, [role="columnheader"]')]
+          .map(h => h.textContent?.trim());
         for (const row of rows) {
           const cells = row.querySelectorAll('td, [role="cell"]');
           if (cells.length < 2) continue;
-          const texts = [...cells].map(c => c.textContent?.trim()?.substring(0, 500));
-          // Build company from cells — Name is typically first column
           const company = {};
-          const headers = document.querySelectorAll('table thead th, [role="columnheader"]');
-          const headerTexts = [...headers].map(h => h.textContent?.trim());
-          texts.forEach((t, i) => {
-            const key = headerTexts[i] || `col${i}`;
-            if (t) company[key] = t;
+          [...cells].forEach((cell, i) => {
+            const key = headers[i] || `col${i}`;
+            const val = cell.textContent?.trim()?.substring(0, 500);
+            if (val) company[key] = val;
           });
           if (Object.keys(company).length > 0) companies.push(company);
         }
         return companies;
       });
 
-      // Merge unique companies (by Name + Domain combination)
       for (const co of previewBatch) {
         const key = `${co.Name || co.name || ''}_${co.Domain || co.domain || ''}`;
         if (!allCompanies.find(c => `${c.Name || c.name || ''}_${c.Domain || c.domain || ''}` === key)) {
@@ -1052,36 +1106,30 @@ async function main() {
 
       if (allCompanies.length === lastCount) {
         noNewDataCount++;
-        if (noNewDataCount >= 3) break; // No new data after 3 scroll attempts
+        if (noNewDataCount >= 3) break;
       } else {
         noNewDataCount = 0;
         lastCount = allCompanies.length;
-        console.log(`  Scroll ${scrollAttempt + 1}: ${allCompanies.length} companies so far`);
+        if (scrollAttempt % 5 === 0) console.log(`  Scroll ${scrollAttempt + 1}: ${allCompanies.length} companies`);
       }
 
-      // Scroll the results table down
       await page.evaluate(() => {
-        const scrollContainers = [...document.querySelectorAll('*')].filter(el => {
+        const containers = [...document.querySelectorAll('*')].filter(el => {
           const style = window.getComputedStyle(el);
           const rect = el.getBoundingClientRect();
           return (style.overflowY === 'auto' || style.overflowY === 'scroll')
             && rect.x > 350 && rect.width > 300 && rect.height > 200;
         });
-        for (const el of scrollContainers) {
-          el.scrollTop += 500;
-        }
+        for (const el of containers) el.scrollTop += 500;
       });
-      await humanDelay(1000, 2000);
+      await humanDelay(800, 1500);
     }
   }
 
   console.log(`  Total companies extracted: ${allCompanies.length}`);
 
-  // Save companies
   if (allCompanies.length > 0) {
-    if (allCompanies[0].Name || allCompanies[0].name || allCompanies[0].Domain || allCompanies[0].domain) {
-      console.log('  Sample:', JSON.stringify(allCompanies[0]).substring(0, 400));
-    }
+    console.log('  Sample:', JSON.stringify(allCompanies[0]).substring(0, 400));
     fs.writeFileSync(path.join(OUT_DIR, 'tam_companies.json'), JSON.stringify(allCompanies, null, 2));
     console.log(`  Saved ${allCompanies.length} companies to tam_companies.json`);
   }
