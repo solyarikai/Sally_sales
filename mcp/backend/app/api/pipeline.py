@@ -995,6 +995,134 @@ async def reply_analysis_status(
     return {}
 
 
+# ── Campaigns ──
+
+@router.get("/campaigns")
+async def list_campaigns_full(
+    project_id: Optional[int] = None,
+    status: Optional[str] = None,
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """List campaigns with sequence data for Campaigns page."""
+    if not user:
+        return []
+    user_pids = await _get_user_project_ids(user, session)
+    if not user_pids:
+        return []
+
+    query = select(Campaign).where(Campaign.project_id.in_(user_pids)).order_by(Campaign.id.desc())
+    if project_id:
+        query = query.where(Campaign.project_id == project_id)
+    if status:
+        query = query.where(Campaign.status == status)
+
+    result = await session.execute(query)
+    campaigns = result.scalars().all()
+
+    # Get project names + sequence data
+    project_names = {}
+    if user_pids:
+        pn = await session.execute(select(Project.id, Project.name).where(Project.id.in_(user_pids)))
+        project_names = {pid: pname for pid, pname in pn.all()}
+
+    out = []
+    for c in campaigns:
+        # Get sequence
+        seq_result = await session.execute(
+            select(GeneratedSequence).where(
+                GeneratedSequence.pushed_campaign_id == c.id
+            ).order_by(GeneratedSequence.created_at.desc()).limit(1)
+        )
+        seq = seq_result.scalar_one_or_none()
+
+        # Get run that produced this campaign
+        run_id = None
+        if seq:
+            run_result = await session.execute(
+                select(GatheringRun.id).where(
+                    GatheringRun.project_id == c.project_id
+                ).order_by(GatheringRun.created_at.desc()).limit(1)
+            )
+            run_row = run_result.first()
+            if run_row:
+                run_id = run_row[0]
+
+        out.append({
+            "id": c.id,
+            "name": c.name,
+            "project_id": c.project_id,
+            "project_name": project_names.get(c.project_id, ""),
+            "platform": c.platform or "smartlead",
+            "status": c.status,
+            "external_id": c.external_id,
+            "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None,
+            "leads_count": c.leads_count or 0,
+            "sequence_steps": seq.sequence_steps if seq else [],
+            "sequence_id": seq.id if seq else None,
+            "pipeline_run_id": run_id,
+            "timezone": "America/New_York",
+            "created_at": str(c.created_at) if hasattr(c, 'created_at') and c.created_at else None,
+        })
+
+    return out
+
+
+@router.post("/campaigns/{campaign_id}/activate")
+async def activate_campaign_rest(
+    campaign_id: int,
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Activate a DRAFT campaign — starts sending emails."""
+    campaign = await session.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+    project = await session.get(Project, campaign.project_id)
+    if not project or project.user_id != user.id:
+        raise HTTPException(404, "Campaign not found")
+    if not campaign.external_id:
+        raise HTTPException(400, "Campaign has no SmartLead ID")
+
+    from app.services.smartlead_service import SmartLeadService
+    sl = SmartLeadService()
+    await sl.update_campaign_status(int(campaign.external_id), "START")
+    campaign.status = "active"
+
+    # Audit log
+    session.add(MCPUsageLog(
+        user_id=user.id,
+        tool_name="activate_campaign",
+        action="campaign_activated_via_ui",
+        extra_data={"campaign_id": campaign.id, "external_id": campaign.external_id},
+    ))
+    await session.commit()
+
+    return {"activated": True, "status": "active"}
+
+
+@router.post("/campaigns/{campaign_id}/pause")
+async def pause_campaign_rest(
+    campaign_id: int,
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Pause an active campaign."""
+    campaign = await session.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404)
+    project = await session.get(Project, campaign.project_id)
+    if not project or project.user_id != user.id:
+        raise HTTPException(404)
+
+    from app.services.smartlead_service import SmartLeadService
+    sl = SmartLeadService()
+    await sl.update_campaign_status(int(campaign.external_id), "PAUSED")
+    campaign.status = "paused"
+    await session.commit()
+    return {"paused": True}
+
+
 # ── CRM: all companies across all pipelines ──
 
 @router.get("/crm/companies")

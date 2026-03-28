@@ -8,6 +8,7 @@ import AccountPage from './pages/AccountPage'
 import ProjectsPage from './pages/ProjectsPage'
 import LearningPage from './pages/LearningPage'
 import ConversationsPage from './pages/ConversationsPage'
+import CampaignsPage from './pages/CampaignsPage'
 
 // REUSED from main app via @main alias — fix once, fixed everywhere
 import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
@@ -110,6 +111,7 @@ export default function App() {
               <nav style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <NavLink to="/pipeline">Pipeline</NavLink>
                 <NavLink to="/projects">Projects</NavLink>
+                <NavLink to="/campaigns">Campaigns</NavLink>
                 <NavLink to="/crm">CRM</NavLink>
                 <NavLink to="/tasks">Tasks</NavLink>
                 <NavLink to="/learning">Learning</NavLink>
@@ -128,6 +130,7 @@ export default function App() {
                 <Route path="/pipeline" element={<PipelineRunsPage />} />
                 <Route path="/pipeline/:runId" element={<PipelinePage />} />
                 <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
+                <Route path="/campaigns" element={<CampaignsPage />} />
                 <Route path="/crm" element={<CRMPage />} />
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tasks/:tab" element={<TasksPage />} />
