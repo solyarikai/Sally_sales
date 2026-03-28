@@ -1640,9 +1640,11 @@ def step12_upload(contacts: list[dict]):
             else:
                 print(f"  ⚠ Schedule error: {r.status_code} {r.text[:200]}")
 
-        # ── Step 12f: Activate ──
+        # ── Step 12f: Activate (NEVER auto-approve) ──
         print(f"\n  ⚠ Campaign '{name}' is in DRAFTED status.")
-        if not _checkpoint(f"ACTIVATE campaign '{name}'? THIS WILL START SENDING EMAILS."):
+        if not sys.stdin.isatty():
+            print(f"  ✗ Activation blocked — requires interactive confirmation. Activate manually.")
+        elif not _checkpoint(f"ACTIVATE campaign '{name}'? THIS WILL START SENDING EMAILS."):
             print(f"  Campaign stays in DRAFTED. Activate manually in SmartLead UI.")
         else:
             r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/status",
