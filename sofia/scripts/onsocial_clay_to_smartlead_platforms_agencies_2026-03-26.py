@@ -736,8 +736,9 @@ def get_social_proof(country: str, segment: str) -> str:
     table = SOCIAL_PROOF.get(segment, SOCIAL_PROOF["INFLUENCER_PLATFORMS"])
     return table.get(country, table["_default"])
 
-def get_latest_prompt_id(project_id: int = PROJECT_ID) -> int | None:
-    """Get the latest active prompt_id for this project from gathering_prompts."""
+def get_latest_prompt(project_id: int = PROJECT_ID) -> tuple[int | None, str | None]:
+    """Get the latest active prompt (id + text) for this project.
+    API requires prompt_text, not prompt_id."""
     result = api("get", f"/pipeline/gathering/prompts?project_id={project_id}", raise_on_error=False)
     prompts = result if isinstance(result, list) else result.get("items", [])
     active = [p for p in prompts if p.get("is_active", True)]
@@ -745,8 +746,8 @@ def get_latest_prompt_id(project_id: int = PROJECT_ID) -> int | None:
         latest = max(active, key=lambda p: p["id"])
         print(f"  Using prompt: #{latest['id']} '{latest.get('name', '?')}' "
               f"(usage={latest.get('usage_count', 0)}, avg_target_rate={latest.get('avg_target_rate', '?')})")
-        return latest["id"]
-    return None
+        return latest["id"], latest.get("prompt_text", "")
+    return None, None
 
 def save_state(run_id: int, phase: str, gate_id: int = None, config_key: str = ""):
     save_json(RUN_STATE, {"run_id": run_id, "phase": phase, "gate_id": gate_id,
