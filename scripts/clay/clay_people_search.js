@@ -604,27 +604,63 @@ async function runPeopleSearch(page, filters, label = 'default') {
         await humanDelay(800, 1200);
       }
 
-      // Find the exclude country input — it appears after clicking Exclude.
-      // Clay labels it differently: look for "exclude" in placeholder or a second country-like input.
+      // Find the exclude country input.
+      // Clay People Location section has labeled fields:
+      //   "Countries to include" → placeholder "e.g. United States, Canada"
+      //   "Countries to exclude" → placeholder "e.g. France, Spain"
+      // Strategy: find the label "Countries to exclude" text, then find the nearest input below it.
       const excludeInput = await page.evaluate(() => {
         const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
-        for (const input of inputs) {
-          const ph = (input.placeholder || '').toLowerCase();
-          if (ph.includes('exclude') && (ph.includes('countr') || ph.includes('united') || ph.includes('location'))) {
-            const rect = input.getBoundingClientRect();
-            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder };
+
+        // Strategy 1: Find "Countries to exclude" label and get the nearest input
+        const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        while (walk.nextNode()) {
+          const text = walk.currentNode.textContent.trim();
+          if (text === 'Countries to exclude') {
+            const labelEl = walk.currentNode.parentElement;
+            if (!labelEl || labelEl.offsetParent === null) continue;
+            const labelRect = labelEl.getBoundingClientRect();
+            if (labelRect.x > 400) continue;
+            // Find the closest input below this label
+            let closestInput = null;
+            let closestDist = 999;
+            for (const inp of inputs) {
+              const inpRect = inp.getBoundingClientRect();
+              if (inpRect.x > 400) continue;
+              const dist = inpRect.y - labelRect.y;
+              if (dist > 0 && dist < closestDist && dist < 80) {
+                closestDist = dist;
+                closestInput = inp;
+              }
+            }
+            if (closestInput) {
+              const rect = closestInput.getBoundingClientRect();
+              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: closestInput.placeholder, method: 'label' };
+            }
           }
         }
-        // Fallback: find the second country-style input (the first is "include", second is "exclude")
+
+        // Strategy 2: Look for input with placeholder "e.g. France, Spain" (Clay's default for exclude)
+        for (const input of inputs) {
+          const ph = (input.placeholder || '').toLowerCase();
+          if (ph.includes('france') && ph.includes('spain') && input.getBoundingClientRect().x < 400) {
+            const rect = input.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder, method: 'placeholder' };
+          }
+        }
+
+        // Strategy 3: Find the second country-style input (first = include, second = exclude)
         const countryInputs = inputs.filter(i => {
           const ph = (i.placeholder || '').toLowerCase();
-          return (ph.includes('united states') || ph.includes('countr')) && i.getBoundingClientRect().x < 400;
+          return (ph.includes('united states') || ph.includes('france') || ph.includes('e.g.'))
+            && i.getBoundingClientRect().x < 400
+            && i.getBoundingClientRect().width > 100;
         });
         if (countryInputs.length >= 2) {
           const rect = countryInputs[1].getBoundingClientRect();
-          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: countryInputs[1].placeholder };
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: countryInputs[1].placeholder, method: 'second-input' };
         }
-        // Last fallback: any input near the Exclude text
+
         return null;
       });
 
