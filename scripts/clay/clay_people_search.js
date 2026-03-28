@@ -553,8 +553,8 @@ async function runPeopleSearch(page, filters, label = 'default') {
     await screenshot(page, `${label}_02d_language`);
   }
 
-  // Location section (for geo splits)
-  if (filters.countries?.length || filters.cities?.length) {
+  // Location section (for geo splits and exclude)
+  if (filters.countries?.length || filters.cities?.length || filters.countries_exclude?.length) {
     const locSection = await findByText(page, 'Location', true);
     if (locSection) {
       await page.mouse.click(locSection.x, locSection.y);
@@ -577,6 +577,94 @@ async function runPeopleSearch(page, filters, label = 'default') {
       } else {
         console.log('    WARNING: Country input not found');
       }
+    }
+
+    // Countries EXCLUDE filter — Clay People has an "Exclude" toggle/section in Location
+    // that reveals a separate input for countries to exclude.
+    if (filters.countries_exclude?.length) {
+      // Look for "Exclude" text/button in the Location section to expand exclude inputs
+      const excludeToggle = await page.evaluate(() => {
+        const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        while (walk.nextNode()) {
+          const node = walk.currentNode;
+          const text = node.textContent.trim().toLowerCase();
+          if ((text === 'exclude' || text === 'exclude locations' || text === 'exclude location') && node.parentElement?.offsetParent !== null) {
+            const rect = node.parentElement.getBoundingClientRect();
+            if (rect.x < 400 && rect.width > 10) {
+              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: node.textContent.trim() };
+            }
+          }
+        }
+        return null;
+      });
+
+      if (excludeToggle) {
+        console.log(`    Found exclude toggle: "${excludeToggle.text}" — clicking...`);
+        await page.mouse.click(excludeToggle.x, excludeToggle.y);
+        await humanDelay(800, 1200);
+      }
+
+      // Find the exclude country input — it appears after clicking Exclude.
+      // Clay labels it differently: look for "exclude" in placeholder or a second country-like input.
+      const excludeInput = await page.evaluate(() => {
+        const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
+        for (const input of inputs) {
+          const ph = (input.placeholder || '').toLowerCase();
+          if (ph.includes('exclude') && (ph.includes('countr') || ph.includes('united') || ph.includes('location'))) {
+            const rect = input.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder };
+          }
+        }
+        // Fallback: find the second country-style input (the first is "include", second is "exclude")
+        const countryInputs = inputs.filter(i => {
+          const ph = (i.placeholder || '').toLowerCase();
+          return (ph.includes('united states') || ph.includes('countr')) && i.getBoundingClientRect().x < 400;
+        });
+        if (countryInputs.length >= 2) {
+          const rect = countryInputs[1].getBoundingClientRect();
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: countryInputs[1].placeholder };
+        }
+        // Last fallback: any input near the Exclude text
+        return null;
+      });
+
+      if (excludeInput) {
+        console.log(`    Exclude country input: "${excludeInput.placeholder}"`);
+        for (const country of filters.countries_exclude) {
+          await page.mouse.click(excludeInput.x, excludeInput.y);
+          await humanDelay(200, 400);
+          await page.keyboard.type(country, { delay: 25 + Math.random() * 30 });
+          await humanDelay(600, 1000);
+          await page.keyboard.press('Enter');
+          await humanDelay(300, 500);
+        }
+        console.log(`    Countries EXCLUDED: ${filters.countries_exclude.join(', ')}`);
+      } else {
+        // Try direct Puppeteer selector as last resort
+        const directExclude = await page.$('input[placeholder*="Exclude"]')
+          || await page.$('input[placeholder*="exclude"]');
+        if (directExclude) {
+          for (const country of filters.countries_exclude) {
+            await directExclude.click();
+            await directExclude.type(country, { delay: 25 });
+            await humanDelay(600, 1000);
+            await page.keyboard.press('Enter');
+            await humanDelay(300, 500);
+          }
+          console.log(`    Countries EXCLUDED (direct): ${filters.countries_exclude.join(', ')}`);
+        } else {
+          console.log('    WARNING: Exclude country input not found');
+          // Dump all sidebar inputs for debugging
+          const allInputs = await page.evaluate(() => {
+            return [...document.querySelectorAll('input')].filter(i => {
+              const r = i.getBoundingClientRect();
+              return i.offsetParent !== null && r.x < 400;
+            }).map(i => ({ placeholder: i.placeholder, y: Math.round(i.getBoundingClientRect().y) }));
+          });
+          console.log(`    Sidebar inputs: ${JSON.stringify(allInputs)}`);
+        }
+      }
+      await screenshot(page, `${label}_02c_exclude_location`);
     }
 
     // Cities filter — "Cities to include" field (placeholder: "New York, Paris" etc.)
@@ -961,6 +1049,9 @@ async function main() {
   const citiesIdx = args.indexOf('--cities');
   const citiesArg = citiesIdx >= 0 ? args[citiesIdx + 1] : null;
   const customCities = citiesArg ? citiesArg.split(',').map(c => c.trim()) : null;
+  const countriesExIdx = args.indexOf('--countries-exclude');
+  const countriesExArg = countriesExIdx >= 0 ? args[countriesExIdx + 1] : null;
+  const customCountriesExclude = countriesExArg ? countriesExArg.split(',').map(c => c.trim()) : null;
 
   // Custom titles via env var (for orchestration scripts)
   const envTitles = process.env.CLAY_CUSTOM_TITLES;
@@ -1081,6 +1172,10 @@ async function main() {
   if (customCities) {
     GAMING_ICP_FILTERS.cities = customCities;
     console.log(`  City filter: ${customCities.join(', ')}`);
+  }
+  if (customCountriesExclude) {
+    GAMING_ICP_FILTERS.countries_exclude = customCountriesExclude;
+    console.log(`  Country EXCLUDE filter: ${customCountriesExclude.join(', ')}`);
   }
 
   if (allDomains.length === 0) {

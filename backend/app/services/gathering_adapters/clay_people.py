@@ -17,6 +17,7 @@ class ClayPeopleFilters(BaseModel):
     job_title: Optional[str] = None
     name: Optional[str] = None
     countries: List[str] = Field(default_factory=list)
+    countries_exclude: List[str] = Field(default_factory=list, description="Countries to exclude from results")
     cities: List[str] = Field(default_factory=list)
     schools: List[str] = Field(default_factory=list)
     languages: List[str] = Field(default_factory=list)
@@ -59,6 +60,7 @@ class ClayPeopleAdapter(GatheringAdapter):
                 job_title=validated.job_title,
                 name=validated.name,
                 countries=validated.countries,
+                countries_exclude=validated.countries_exclude,
                 cities=validated.cities,
                 schools=validated.schools,
                 languages=validated.languages,
