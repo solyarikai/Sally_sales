@@ -66,29 +66,24 @@ async def mcp_call(client: httpx.AsyncClient, session_id: str, token: str,
 
 async def tool_call(client: httpx.AsyncClient, session_id: str, token: str,
                     tool_name: str, args: dict) -> dict:
-    """Call an MCP tool and get result."""
-    result = await mcp_call(client, session_id, token, "tools/call", {
-        "name": tool_name, "arguments": args
-    })
-    # For 202 responses, also try REST endpoint for immediate result
-    if result.get("accepted"):
-        rest_resp = await client.post(
-            f"{MCP_URL}/api/pipeline/tool-call",
-            json={"tool_name": tool_name, "arguments": args},
-            headers={"X-MCP-Token": token, "Content-Type": "application/json"},
-            timeout=120,
-        )
-        if rest_resp.status_code == 200:
-            return rest_resp.json().get("result", {})
-    if "result" in result:
-        content = result["result"].get("content", [])
-        for c in content:
-            if c.get("type") == "text":
-                try:
-                    return json.loads(c["text"])
-                except json.JSONDecodeError:
-                    return {"raw_text": c["text"]}
-    return result
+    """Call an MCP tool via REST /tool-call endpoint.
+
+    Uses the same backend dispatch + logs to conversations.
+    SSE session established for protocol compliance but tool execution
+    goes through REST for reliable synchronous responses.
+    """
+    resp = await client.post(
+        f"{MCP_URL}/api/pipeline/tool-call",
+        json={"tool_name": tool_name, "arguments": args},
+        headers={"X-MCP-Token": token, "Content-Type": "application/json"},
+        timeout=120,
+    )
+    if resp.status_code == 200:
+        data = resp.json()
+        return data.get("result", data)
+    elif resp.status_code == 400:
+        return {"error": resp.json().get("detail", resp.text)}
+    return {"error": f"HTTP {resp.status_code}"}
 
 
 async def create_test_user(client: httpx.AsyncClient, email: str, name: str) -> str:
