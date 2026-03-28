@@ -673,12 +673,9 @@ async function runPeopleSearch(page, filters, label = 'default') {
           await humanDelay(800, 1200);
           // Don't press Enter — it selects the first highlighted option which may be wrong
           // (e.g. "United States Minor Outlying Islands" instead of "United States").
-          // Instead, find and click the exact matching dropdown option.
-          const clicked = await page.evaluate((targetCountry) => {
-            // Find dropdown options — Clay uses divs/spans in a popover/dropdown
-            const options = [...document.querySelectorAll('[role="option"], [role="listbox"] > *, [class*="option"], [class*="menu-item"]')]
-              .filter(el => el.offsetParent !== null);
-            // Also try general text walk for dropdown items
+          // Instead, find the exact matching dropdown option and click via page.mouse.click()
+          // (page.evaluate el.click() doesn't trigger React event handlers properly).
+          const optionCoords = await page.evaluate((targetCountry) => {
             const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
             const candidates = [];
             while (walk.nextNode()) {
@@ -687,25 +684,29 @@ async function runPeopleSearch(page, filters, label = 'default') {
                 const el = walk.currentNode.parentElement;
                 if (el?.offsetParent !== null) {
                   const rect = el.getBoundingClientRect();
-                  // Must be in a dropdown (not the sidebar label text "Countries to exclude")
-                  if (rect.height > 5 && rect.height < 60) {
-                    candidates.push({ el, rect, text });
+                  // Must be in a dropdown area (reasonable height, visible)
+                  if (rect.height > 5 && rect.height < 60 && rect.width > 50) {
+                    candidates.push({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text, h: rect.height, w: rect.width });
                   }
                 }
               }
             }
-            // Click the best candidate (prefer ones that look like dropdown items)
-            for (const c of candidates) {
-              // Click the element or its parent (which might be the clickable row)
-              const clickTarget = c.el.closest('[role="option"]') || c.el.closest('li') || c.el;
-              clickTarget.click();
-              return { clicked: true, text: c.text, y: Math.round(c.rect.y) };
+            // Return the best candidate — prefer the one that looks like a dropdown item
+            // (typically has a clickable row parent with reasonable dimensions)
+            if (candidates.length > 0) {
+              // If multiple exact matches, prefer ones lower on the page (dropdown items)
+              // over sidebar labels that might also say "United States"
+              candidates.sort((a, b) => b.y - a.y);
+              // The dropdown item is usually narrower than the sidebar
+              const dropdownItem = candidates.find(c => c.w < 350) || candidates[0];
+              return dropdownItem;
             }
-            return { clicked: false };
+            return null;
           }, country);
 
-          if (clicked.clicked) {
-            console.log(`      Selected "${country}" from dropdown (y=${clicked.y})`);
+          if (optionCoords) {
+            console.log(`      Clicking "${country}" at (${Math.round(optionCoords.x)}, ${Math.round(optionCoords.y)})`);
+            await page.mouse.click(optionCoords.x, optionCoords.y);
           } else {
             // Fallback: press Enter and hope for the best
             console.log(`      WARNING: Could not find exact "${country}" in dropdown, pressing Enter`);
@@ -723,26 +724,27 @@ async function runPeopleSearch(page, filters, label = 'default') {
             await directExclude.click();
             await directExclude.type(country, { delay: 25 });
             await humanDelay(800, 1200);
-            // Same dropdown click approach
-            const clicked = await page.evaluate((targetCountry) => {
+            // Same dropdown click approach via page.mouse.click
+            const fallbackCoords = await page.evaluate((targetCountry) => {
               const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
               while (walk.nextNode()) {
-                const text = walk.currentNode.textContent.trim();
-                if (text === targetCountry) {
+                if (walk.currentNode.textContent.trim() === targetCountry) {
                   const el = walk.currentNode.parentElement;
                   if (el?.offsetParent !== null) {
                     const rect = el.getBoundingClientRect();
-                    if (rect.height > 5 && rect.height < 60) {
-                      const clickTarget = el.closest('[role="option"]') || el.closest('li') || el;
-                      clickTarget.click();
-                      return true;
+                    if (rect.height > 5 && rect.height < 60 && rect.width > 50) {
+                      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
                     }
                   }
                 }
               }
-              return false;
+              return null;
             }, country);
-            if (!clicked) await page.keyboard.press('Enter');
+            if (fallbackCoords) {
+              await page.mouse.click(fallbackCoords.x, fallbackCoords.y);
+            } else {
+              await page.keyboard.press('Enter');
+            }
             await humanDelay(300, 500);
           }
           console.log(`    Countries EXCLUDED (direct): ${filters.countries_exclude.join(', ')}`);
