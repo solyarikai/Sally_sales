@@ -27,14 +27,18 @@ TEST_TOKENS = {}
 
 
 async def get_session(client: httpx.AsyncClient) -> str:
-    """Get SSE session ID."""
+    """Get SSE session ID by reading first event from stream."""
+    import subprocess
     try:
-        resp = await client.get(f"{MCP_URL}/mcp/sse", timeout=3)
-        for line in resp.text.split("\n"):
+        result = subprocess.run(
+            ["timeout", "3", "curl", "-s", "-N", f"{MCP_URL}/mcp/sse"],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in result.stdout.split("\n"):
             m = re.search(r"session_id=([a-f0-9]+)", line)
             if m:
                 return m.group(1)
-    except httpx.ReadTimeout:
+    except Exception:
         pass
     return ""
 
