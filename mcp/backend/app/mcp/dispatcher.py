@@ -673,7 +673,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             openai_key = settings.OPENAI_API_KEY
         from app.services.gathering_service import GatheringService
         svc = GatheringService()
-        gate = await svc.analyze(session, run, prompt_text=args["prompt_text"], openai_key=openai_key)
+        prompt_text = args.get("prompt_text")
+        prompt_steps = args.get("prompt_steps")
+        if prompt_steps and isinstance(prompt_steps, list):
+            gate = await svc.analyze_multi_step(session, run, prompt_steps=prompt_steps, openai_key=openai_key)
+        else:
+            gate = await svc.analyze(session, run, prompt_text=prompt_text, openai_key=openai_key)
         scope = gate.scope or {}
         return {
             "gate_id": gate.id, "type": "checkpoint_2_retry",
