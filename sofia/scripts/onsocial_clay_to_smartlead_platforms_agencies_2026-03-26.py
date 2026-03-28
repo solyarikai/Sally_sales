@@ -851,24 +851,18 @@ def step4_scrape(run_id: int) -> dict:
 
 def step5_analyze(run_id: int, prompt_text: str = None, prompt_id: int = None,
                    model: str = "gpt-4o-mini") -> dict:
-    """Run GPT analysis. Uses prompt_id by default (tracks metrics in gathering_prompts).
-    Falls back to prompt_text if prompt_id is None."""
+    """Run GPT analysis. Always uses prompt_text (API requires it).
+    prompt_id is stored for tracking but text must be provided."""
     print(f"\n{'='*60}")
     print(f"STEP 5: Analyze (run #{run_id})")
     print(f"  Model: {model}")
-    if prompt_id:
-        print(f"  Prompt ID: {prompt_id}")
-    else:
-        print(f"  Prompt: {prompt_text[:100]}...")
+
+    # Always send prompt_text — API doesn't support prompt_id lookup
+    text = prompt_text or DEFAULT_ANALYSIS_PROMPT
+    print(f"  Prompt: {text[:100]}...")
     print(f"{'='*60}")
 
-    params = {"model": model}
-    if prompt_id:
-        params["prompt_id"] = prompt_id
-    elif prompt_text:
-        params["prompt_text"] = prompt_text
-    else:
-        params["prompt_text"] = DEFAULT_ANALYSIS_PROMPT
+    params = {"model": model, "prompt_text": text}
 
     result = api("post", f"/pipeline/gathering/runs/{run_id}/analyze",
                  params=params)
