@@ -342,8 +342,9 @@ def api(method: str, path: str, raise_on_error: bool = True, **kwargs) -> dict:
     return r.json()
 
 
-def get_latest_prompt_id(project_id: int) -> int | None:
-    """Get the latest active prompt_id for this project from gathering_prompts."""
+def get_latest_prompt(project_id: int) -> tuple[int | None, str | None]:
+    """Get the latest active prompt (id + text) for this project.
+    Returns (prompt_id, prompt_text). API requires prompt_text, not prompt_id."""
     result = api("get", f"/pipeline/gathering/prompts?project_id={project_id}", raise_on_error=False)
     prompts = result if isinstance(result, list) else result.get("items", [])
     active = [p for p in prompts if p.get("is_active", True)]
@@ -351,8 +352,8 @@ def get_latest_prompt_id(project_id: int) -> int | None:
         latest = max(active, key=lambda p: p["id"])
         print(f"  Prompt: #{latest['id']} '{latest.get('name', '?')}' "
               f"(usage={latest.get('usage_count', 0)}, avg_target_rate={latest.get('avg_target_rate', '?')})")
-        return latest["id"]
-    return None
+        return latest["id"], latest.get("prompt_text", "")
+    return None, None
 
 
 def save_state(state_dir: Path, run_id: int, phase: str, gate_id: int = None, config_key: str = ""):
