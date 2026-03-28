@@ -102,6 +102,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
     if tool_name == "get_context":
         user = await _get_user(token, session)
+        from sqlalchemy import func
 
         # Projects
         projects = (await session.execute(
