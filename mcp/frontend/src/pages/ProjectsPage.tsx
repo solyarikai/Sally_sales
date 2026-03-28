@@ -66,8 +66,24 @@ function ProjectCard({ project }: { project: any }) {
             )}
           </div>
 
+          {/* Quick Links */}
+          <div style={{ marginBottom: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Link to={`/pipeline`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-link)', textDecoration: 'none' }}>
+              Pipeline runs ({runs.length}) →
+            </Link>
+            <Link to={`/campaigns`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-link)', textDecoration: 'none' }}>
+              Campaigns →
+            </Link>
+            <Link to={`/crm`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-link)', textDecoration: 'none' }}>
+              CRM contacts →
+            </Link>
+            <Link to={`/crm?reply_category=interested`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', textDecoration: 'none' }}>
+              Warm leads →
+            </Link>
+          </div>
+
           {/* Pipeline Runs */}
-          <div>
+          <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Pipeline Runs ({runs.length})</div>
             {runs.length > 0 ? (
               <div style={{ display: 'grid', gap: 4 }}>
