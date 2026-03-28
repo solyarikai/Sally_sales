@@ -508,13 +508,13 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
         r = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter")
         print(f"  Pre-filter: passed={r.get('passed', '?')}")
 
-    # Scrape (resilient)
+    # Scrape — скачиваем сайты. Если backend упадёт, polling дождётся восстановления
     run_info3 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
     phase = run_info3.get("current_phase", "")
     if phase == "filtered":
         step4_scrape(run_id)
 
-    # Analyze (resilient)
+    # Analyze — GPT-4o-mini классифицирует каждую компанию по скрейпнутому тексту
     run_info4 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
     phase = run_info4.get("current_phase", "")
     if phase == "scraped":
