@@ -324,7 +324,13 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
         }
 
     if tool_name == "edit_sequence_step":
-        seq_id = session.latest_sequence_id or 1
+        seq_id = session.latest_sequence_id
+        if not seq_id:
+            # Check if sequences exist in context
+            drafts = session.ctx.get("draft_sequences", [])
+            if drafts and isinstance(drafts[0], dict):
+                seq_id = drafts[0].get("id")
+        seq_id = seq_id or 1
         subject = step.get("user_prompt", "")
         # Extract subject from prompt like "Change email 1 subject to: ..."
         m = re.search(r'subject to:\s*(.+)', subject)
@@ -383,6 +389,52 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
         return {"project_name": project_name}
 
     return {}
+
+
+async def ensure_prerequisites(test: dict, client: httpx.AsyncClient, session: UserSession):
+    """Auto-create missing prerequisites for tests that depend on earlier state.
+
+    This is the god-level approach: if a test needs a sequence but none exists,
+    generate one. If it needs companies but none exist, the earlier tests
+    in the continuous session should have created them.
+    """
+    test_id = test.get("id", "")
+    tools_needed = set()
+    for step in test.get("steps", []):
+        for t in step.get("expected_tool_calls", []):
+            tools_needed.add(t)
+
+    # If test needs edit_sequence_step but no sequence exists → generate one
+    if "edit_sequence_step" in tools_needed and not session.latest_sequence_id:
+        pid = session.latest_project_id
+        if pid:
+            print(f"  [prereq] Generating sequence for project {pid}...")
+            result = await tool_call(client, session, "god_generate_sequence", {"project_id": pid})
+            if not result.get("error"):
+                print(f"  [prereq] Sequence generated: id={session.latest_sequence_id}")
+
+    # If test needs override_company_target but no companies exist
+    if "override_company_target" in tools_needed and not session.company_ids:
+        # Companies come from pipeline runs — get them from the latest run
+        rid = session.latest_run_id
+        if rid:
+            print(f"  [prereq] Fetching companies from run {rid}...")
+            # Get companies via the pipeline API
+            try:
+                resp = await client.get(
+                    f"{MCP_URL}/api/pipeline/runs/{rid}/companies",
+                    headers={"X-MCP-Token": session.token},
+                    params={"page_size": 5},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    companies = data.get("companies", data.get("items", []))
+                    for c in companies:
+                        if isinstance(c, dict) and c.get("id"):
+                            session.company_ids.append(c["id"])
+                    print(f"  [prereq] Got {len(session.company_ids)} companies")
+            except Exception as e:
+                print(f"  [prereq] Company fetch failed: {e}")
 
 
 def score_step(expected: dict, actual: dict) -> dict:
@@ -492,6 +544,9 @@ async def run_test(test: dict, client: httpx.AsyncClient, session: UserSession) 
                           "details": {"skipped": f"depends on {depends}"}},
             })
             return results
+
+    # Auto-create missing prerequisites (sequences, companies)
+    await ensure_prerequisites(test, client, session)
 
     # Run each step
     for step in test.get("steps", []):
