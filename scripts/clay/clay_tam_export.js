@@ -479,14 +479,10 @@ async function main() {
   });
 
   // Step 5: Apply filters
+  // IMPORTANT: Apply size filter BEFORE industries. After typing 80+ industries,
+  // the sidebar scrolls and the "Company sizes" dropdown gets pushed off-screen.
   console.log('\n[5] Applying filters...');
 
-  if (filters.industries?.length) {
-    await fillFilterField(page, 'Software development', filters.industries);
-  }
-  if (filters.industries_exclude?.length) {
-    await fillFilterField(page, 'Advertising services', filters.industries_exclude);
-  }
   if (filters.sizes?.length) {
     // Clay's "Company sizes" is a dropdown with placeholder "e.g. 11-50 employees"
     // It may be an <input> or a clickable div. Try fillFilterField first, then fallback.
@@ -551,6 +547,13 @@ async function main() {
       });
       console.log(`    Sidebar inputs: ${JSON.stringify(debugInputs)}`);
     }
+  }
+  // Now apply industries (AFTER size, so size isn't pushed off-screen)
+  if (filters.industries?.length) {
+    await fillFilterField(page, 'Software development', filters.industries);
+  }
+  if (filters.industries_exclude?.length) {
+    await fillFilterField(page, 'Advertising services', filters.industries_exclude);
   }
   if (filters.annual_revenues?.length) {
     await fillFilterField(page, '$1M - $5M', filters.annual_revenues);
