@@ -732,6 +732,42 @@ def api(method: str, path: str, raise_on_error: bool = True, **kwargs) -> dict:
         return {"_error": r.status_code, "_detail": r.text[:500]}
     return r.json()
 
+
+def api_long(method: str, path: str, expected_phase: str, run_id: int,
+             timeout: int = 3600, poll_interval: int = 30, **kwargs) -> dict:
+    """Call a long-running API endpoint (scrape, analyze) with resilience.
+    If HTTP connection drops — polls run phase until it advances.
+    Backend saves results incrementally, we just wait."""
+    url = f"{BACKEND_BASE}/api{path}"
+    try:
+        r = getattr(httpx, method)(url, headers=BACKEND_HEADERS, timeout=timeout, **kwargs)
+        if r.status_code >= 400:
+            return {"_error": r.status_code, "_detail": r.text[:500]}
+        return r.json()
+    except (httpx.ReadTimeout, httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadError) as e:
+        print(f"  Connection lost ({type(e).__name__}). Backend may still be working...")
+        print(f"  Polling until phase reaches '{expected_phase}'...")
+
+        start = time.time()
+        while time.time() - start < timeout:
+            time.sleep(poll_interval)
+            try:
+                r2 = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                               headers=BACKEND_HEADERS, timeout=30)
+                if r2.status_code == 200:
+                    phase = r2.json().get("current_phase", "")
+                    elapsed = int(time.time() - start)
+                    print(f"  [{elapsed}s] Phase: {phase}")
+                    if phase == expected_phase or phase.startswith("awaiting_"):
+                        print(f"  Backend finished — phase is now '{phase}'")
+                        return r2.json()
+            except Exception:
+                print(f"  [{int(time.time()-start)}s] Backend unreachable, waiting...")
+
+        print(f"  Timeout after {timeout}s. Check manually.")
+        return {"_timeout": True}
+
+
 def get_social_proof(country: str, segment: str) -> str:
     table = SOCIAL_PROOF.get(segment, SOCIAL_PROOF["INFLUENCER_PLATFORMS"])
     return table.get(country, table["_default"])
