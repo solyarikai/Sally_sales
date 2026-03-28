@@ -1,0 +1,72 @@
+{
+  "id": "04_edit_sequence",
+  "description": "User reviews sequence and provides feedback — tests editing and feedback tools",
+  "user_email": "pn@getsally.io",
+  "prerequisite": "01_new_user_easystaff completed with campaign",
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "review_sequence",
+      "user_prompt": "Show me the sequence for the IT consulting campaign",
+      "user_prompt_variants": [
+        "What emails will be sent in the IT consulting campaign?",
+        "Let me see the email sequence",
+        "Show the campaign sequence for review"
+      ],
+      "expected_behavior": {
+        "response_must_contain": ["Email 1", "subject", "body"],
+        "shows_all_steps": true
+      }
+    },
+    {
+      "step": 2,
+      "phase": "edit_subject",
+      "user_prompt": "Change email 1 subject to: {{first_name}} — contractors abroad?",
+      "user_prompt_variants": [
+        "Update the first email subject to: {{first_name}} — contractors abroad?",
+        "I want email 1 to have subject: {{first_name}} — contractors abroad?",
+        "Edit step 1 subject: {{first_name}} — contractors abroad?"
+      ],
+      "expected_tool_calls": ["edit_sequence_step"],
+      "expected_behavior": {
+        "step_number": 1,
+        "subject_changed": true,
+        "smartlead_synced": true,
+        "response_must_contain": ["updated", "synced"]
+      }
+    },
+    {
+      "step": 3,
+      "phase": "provide_feedback",
+      "user_prompt": "The tone is too formal, make it more casual and friendly",
+      "user_prompt_variants": [
+        "Emails are too stiff, relax the tone",
+        "Can you make the sequence more conversational? Less corporate-speak",
+        "The wording feels robotic, humanize it"
+      ],
+      "expected_tool_calls": ["provide_feedback"],
+      "expected_behavior": {
+        "feedback_type": "sequence",
+        "feedback_stored": true,
+        "response_must_contain": ["feedback", "stored", "future"]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "override_target",
+      "user_prompt": "Arcee AI should be a target — they do consulting too, not just AI",
+      "user_prompt_variants": [
+        "Mark Arcee AI as target, they're relevant",
+        "arcee.ai is actually a consulting firm, make it a target",
+        "Override Arcee AI — it IS a target"
+      ],
+      "expected_tool_calls": ["override_company_target"],
+      "expected_behavior": {
+        "is_target": true,
+        "reasoning_stored": true,
+        "response_must_contain": ["target", "override", "Arcee"]
+      }
+    }
+  ]
+}

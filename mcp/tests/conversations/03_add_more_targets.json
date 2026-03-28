@@ -1,0 +1,67 @@
+{
+  "id": "03_add_more_targets",
+  "description": "User asks to gather more targets for existing pipeline — tests incremental gathering",
+  "user_email": "pn@getsally.io",
+  "prerequisite": "01_new_user_easystaff completed",
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "add_targets",
+      "user_prompt": "Gather 10 more target companies for the IT consulting segment",
+      "user_prompt_variants": [
+        "Add 10 more IT consulting targets to the pipeline",
+        "I need more companies — get me 10 additional IT consulting firms in Miami",
+        "Can you find 10 more targets for the IT consulting pipeline?",
+        "Get me more leads, 10 more IT consulting companies"
+      ],
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "uses_existing_project": true,
+        "same_segment": "IT_CONSULTING",
+        "same_geo": "Miami",
+        "new_pipeline_run_created": true,
+        "dedup_against_existing": true,
+        "response_must_contain": ["companies", "gathered"]
+      }
+    },
+    {
+      "step": 2,
+      "phase": "process_new",
+      "description": "Full pipeline on new companies (blacklist → scrape → analyze)",
+      "expected_tool_calls": [
+        "tam_blacklist_check",
+        "tam_approve_checkpoint",
+        "tam_pre_filter",
+        "tam_scrape",
+        "tam_analyze"
+      ],
+      "expected_behavior": {
+        "new_targets_added": true,
+        "no_duplicate_domains_with_previous_run": true
+      }
+    },
+    {
+      "step": 3,
+      "phase": "update_campaign",
+      "description": "New contacts should be added to existing SmartLead campaign",
+      "expected_behavior": {
+        "existing_campaign_updated": true,
+        "new_leads_added_to_smartlead": true,
+        "campaign_still_draft": true,
+        "response_must_contain": ["added", "campaign"]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "pending_campaigns_prompt",
+      "description": "MCP should ask about pending DRAFT campaigns",
+      "expected_behavior": {
+        "mcp_asks_about_activation": true,
+        "message_must_contain": ["campaign", "launch", "ready", "activate"],
+        "links_expected": true,
+        "link_must_contain": "smartlead.ai"
+      }
+    }
+  ]
+}
