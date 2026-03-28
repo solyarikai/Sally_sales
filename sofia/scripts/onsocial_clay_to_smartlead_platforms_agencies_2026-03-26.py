@@ -903,8 +903,9 @@ def step5_analyze(run_id: int, prompt_text: str = None, prompt_id: int = None,
 
     params = {"model": model, "prompt_text": text}
 
-    result = api("post", f"/pipeline/gathering/runs/{run_id}/analyze",
-                 params=params)
+    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
+                      expected_phase="analyzed", run_id=run_id, timeout=3600,
+                      params=params)
 
     target_rate = result.get("target_rate", 0)
     targets_count = result.get("targets_count", 0)
