@@ -1742,8 +1742,6 @@ def main():
             sys.exit(1)
         mode_config = mode4_expand(args.base_run, args.override)
 
-    steps = STEPS[STEPS.index(args.from_step):]
-
     if args.dry_run:
         filters = mode_config["filters"] if mode_config else {}
         print(f"\n  DRY RUN — no API calls")
