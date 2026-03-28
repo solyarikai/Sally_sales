@@ -501,7 +501,7 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
     if phase in ("awaiting_scope_ok", "scope_approved"):
         approve_pending_gate(config, run_id)
 
-    # Pre-filter
+    # Pre-filter — убираем офлайн-индустрии, мусорные домены (.gov, .edu)
     run_info2 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
     phase = run_info2.get("current_phase", "")
     if phase == "scope_approved":
