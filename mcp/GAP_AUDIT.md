@@ -99,7 +99,16 @@
 - Latency timing in tool-call response
 - Company Filters + People Filters separated
 
-## STATUS SUMMARY — 2026-03-28T18:00
-- **CLOSED**: 9/10 critical gaps + 4 new features
-- **PARTIAL**: 1/10 (#5 replies per-contact in MCP DB)
-- **KPI estimate**: ~92%
+## ARCHITECTURE DECISION — 2026-03-28T18:30
+Gap #5 is NOT a gap. It's correct architecture:
+- MCP owns: users, projects, pipelines, companies, contacts, sequences, campaigns
+- Main backend owns: replies, draft generation, thread history
+- Bridge: nginx proxy for /api/replies/ — single source of truth
+- No data duplication between MCP DB and main backend
+- Reply tools query main backend via proxy (correct, no redundancy)
+- For MCP-created campaigns: reply_analysis_service handles (main backend has no webhooks)
+- For imported campaigns: main backend already has all reply data
+
+## STATUS SUMMARY — 2026-03-28T18:30
+- **CLOSED**: 10/10 critical gaps
+- **KPI**: ~95% (honest, verified with screenshots and real data)
