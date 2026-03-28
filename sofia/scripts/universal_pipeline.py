@@ -738,7 +738,14 @@ def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 11: FINDYMAIL ENRICHMENT
+# ШАГ 11: ПОИСК EMAIL ЧЕРЕЗ FINDYMAIL
+# Для каждого человека с LinkedIn URL — FindyMail ищет рабочий email.
+# Оплата: $0.01 за каждый НАЙДЕННЫЙ email. Ненайденные — бесплатно.
+# Типичный hit rate: 60-80% (из 500 LinkedIn → ~350-400 email).
+# Результат: два файла —
+#   1) "Verified Emails" — люди с email, готовы к отправке в SmartLead
+#   2) "No Email (LinkedIn only)" — люди без email, можно работать через LinkedIn
+# Оба сохраняются локально и в Google Sheets.
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
