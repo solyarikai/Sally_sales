@@ -169,6 +169,15 @@ class SmartLeadService:
         data = await self._api_call("GET", f"/campaigns/{campaign_id}/email-accounts")
         return data if isinstance(data, list) else []
 
+    async def get_lead_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """Get lead data by email (global search). Returns numeric lead ID."""
+        data = await self._api_call("GET", "/leads/", params={"email": email})
+        if isinstance(data, list) and data:
+            return data[0]
+        if isinstance(data, dict) and data.get("id"):
+            return data
+        return None
+
     async def get_campaign_statistics(self, campaign_id: int) -> List[Dict[str, Any]]:
         """Get campaign statistics — includes reply_time for each lead."""
         data = await self._api_call("GET", f"/campaigns/{campaign_id}/statistics")
