@@ -527,10 +527,10 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
             total = result.get("total_analyzed", "?")
             print(f"  Analyze: {targets}/{total} targets")
 
-    # Approve CP2
+    # Одобряем таргеты (CP2) — после classify все target компании утверждены
     approve_pending_gate(config, run_id)
 
-    # Blacklist approved targets
+    # Добавляем утверждённые домены в blacklist — следующий ран их не подберёт
     blacklist_approved_targets(config, run_id)
 
 
