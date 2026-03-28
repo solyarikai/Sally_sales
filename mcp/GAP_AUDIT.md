@@ -92,8 +92,14 @@
 | #9 CRM reply columns | ⚠️ PARTIAL | Reply data via proxy, CRM from main app shows columns |
 | #10 Prompts page content | ✅ CLOSED | Segment badge + 52 companies + 34 targets + 65% accuracy |
 
-## STATUS SUMMARY — 2026-03-28T16:00
-- **CLOSED**: 8/10 critical gaps
-- **PARTIAL**: 1/10 (#5 replies per-contact)
-- **TODO**: 1/10 (#7 timing)
-- **KPI estimate**: ~90%
+## ADDITIONAL FEATURES BUILT — 2026-03-28T18:00
+- People filters dropdown on pipeline page (titles, seniority, max per company)
+- Prompt source badges: system (green), tool (blue), user feedback (amber)
+- Contact source_filters in CRM response
+- Latency timing in tool-call response
+- Company Filters + People Filters separated
+
+## STATUS SUMMARY — 2026-03-28T18:00
+- **CLOSED**: 9/10 critical gaps + 4 new features
+- **PARTIAL**: 1/10 (#5 replies per-contact in MCP DB)
+- **KPI estimate**: ~92%
