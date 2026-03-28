@@ -665,14 +665,53 @@ async function runPeopleSearch(page, filters, label = 'default') {
       });
 
       if (excludeInput) {
-        console.log(`    Exclude country input: "${excludeInput.placeholder}"`);
+        console.log(`    Exclude country input: "${excludeInput.placeholder}" (method: ${excludeInput.method})`);
         for (const country of filters.countries_exclude) {
           await page.mouse.click(excludeInput.x, excludeInput.y);
           await humanDelay(200, 400);
           await page.keyboard.type(country, { delay: 25 + Math.random() * 30 });
-          await humanDelay(600, 1000);
-          await page.keyboard.press('Enter');
-          await humanDelay(300, 500);
+          await humanDelay(800, 1200);
+          // Don't press Enter — it selects the first highlighted option which may be wrong
+          // (e.g. "United States Minor Outlying Islands" instead of "United States").
+          // Instead, find and click the exact matching dropdown option.
+          const clicked = await page.evaluate((targetCountry) => {
+            // Find dropdown options — Clay uses divs/spans in a popover/dropdown
+            const options = [...document.querySelectorAll('[role="option"], [role="listbox"] > *, [class*="option"], [class*="menu-item"]')]
+              .filter(el => el.offsetParent !== null);
+            // Also try general text walk for dropdown items
+            const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            const candidates = [];
+            while (walk.nextNode()) {
+              const text = walk.currentNode.textContent.trim();
+              if (text === targetCountry) {
+                const el = walk.currentNode.parentElement;
+                if (el?.offsetParent !== null) {
+                  const rect = el.getBoundingClientRect();
+                  // Must be in a dropdown (not the sidebar label text "Countries to exclude")
+                  if (rect.height > 5 && rect.height < 60) {
+                    candidates.push({ el, rect, text });
+                  }
+                }
+              }
+            }
+            // Click the best candidate (prefer ones that look like dropdown items)
+            for (const c of candidates) {
+              // Click the element or its parent (which might be the clickable row)
+              const clickTarget = c.el.closest('[role="option"]') || c.el.closest('li') || c.el;
+              clickTarget.click();
+              return { clicked: true, text: c.text, y: Math.round(c.rect.y) };
+            }
+            return { clicked: false };
+          }, country);
+
+          if (clicked.clicked) {
+            console.log(`      Selected "${country}" from dropdown (y=${clicked.y})`);
+          } else {
+            // Fallback: press Enter and hope for the best
+            console.log(`      WARNING: Could not find exact "${country}" in dropdown, pressing Enter`);
+            await page.keyboard.press('Enter');
+          }
+          await humanDelay(400, 700);
         }
         console.log(`    Countries EXCLUDED: ${filters.countries_exclude.join(', ')}`);
       } else {
@@ -683,8 +722,27 @@ async function runPeopleSearch(page, filters, label = 'default') {
           for (const country of filters.countries_exclude) {
             await directExclude.click();
             await directExclude.type(country, { delay: 25 });
-            await humanDelay(600, 1000);
-            await page.keyboard.press('Enter');
+            await humanDelay(800, 1200);
+            // Same dropdown click approach
+            const clicked = await page.evaluate((targetCountry) => {
+              const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+              while (walk.nextNode()) {
+                const text = walk.currentNode.textContent.trim();
+                if (text === targetCountry) {
+                  const el = walk.currentNode.parentElement;
+                  if (el?.offsetParent !== null) {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.height > 5 && rect.height < 60) {
+                      const clickTarget = el.closest('[role="option"]') || el.closest('li') || el;
+                      clickTarget.click();
+                      return true;
+                    }
+                  }
+                }
+              }
+              return false;
+            }, country);
+            if (!clicked) await page.keyboard.press('Enter');
             await humanDelay(300, 500);
           }
           console.log(`    Countries EXCLUDED (direct): ${filters.countries_exclude.join(', ')}`);
