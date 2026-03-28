@@ -344,16 +344,20 @@ def api(method: str, path: str, raise_on_error: bool = True, **kwargs) -> dict:
 
 def api_long(method: str, path: str, expected_phase: str, run_id: int,
              timeout: int = 3600, poll_interval: int = 30, **kwargs) -> dict:
-    """Call a long-running API endpoint (scrape, analyze) with resilience.
-    If the HTTP connection drops (timeout, backend restart), polls the run
-    phase until it advances past expected_phase. Backend saves results
-    incrementally — we just need to wait for it to finish.
+    """Устойчивый вызов долгих API операций (scrape, analyze).
+
+    Проблема: scrape 500 сайтов занимает 5-15 минут, analyze 500 компаний — 10-20 мин.
+    За это время HTTP соединение может разорваться (timeout, backend restart).
+    Но backend сохраняет результаты в DB инкрементально — данные не теряются.
+
+    Решение: если соединение упало — не паникуем, а опрашиваем (poll) статус рана
+    каждые 30 сек, пока фаза не продвинется. Backend закончит работу сам.
 
     Args:
-        expected_phase: the phase AFTER this step completes (e.g. "scraped" for scrape)
-        run_id: gathering run ID to poll
-        timeout: max total wait time in seconds
-        poll_interval: seconds between polls
+        expected_phase: фаза ПОСЛЕ завершения шага (напр. "scraped" для scrape)
+        run_id: ID рана для опроса статуса
+        timeout: макс. время ожидания (по умолчанию 1 час)
+        poll_interval: интервал опроса в секундах
     """
     url = f"{BACKEND_BASE}/api{path}"
     try:
