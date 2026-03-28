@@ -1,0 +1,46 @@
+{
+  "id": "06_campaigns_page",
+  "description": "Verify Campaigns page shows campaign details, sequence, status, activate flow",
+  "prerequisite": "01_new_user_easystaff completed with DRAFT campaign",
+
+  "ui_tests": [
+    {
+      "test": "campaigns_list",
+      "page": "/campaigns",
+      "screenshot": "test_campaigns_list.png",
+      "checks": [
+        "page renders with CAMPAIGNS header",
+        "at least 1 campaign row visible",
+        "columns: Campaign name, Project, Status, Leads, Pipeline source",
+        "DRAFT campaigns show amber status badge",
+        "SmartLead external link button visible",
+        "project filter dropdown works"
+      ]
+    },
+    {
+      "test": "campaign_detail_sequence",
+      "page": "/campaigns/{id}",
+      "screenshot": "test_campaign_sequence.png",
+      "checks": [
+        "campaign name in header",
+        "status badge (DRAFT = amber)",
+        "Sequence tab active by default",
+        "4 email step cards visible",
+        "each step shows: subject, body preview, wait days",
+        "{{first_name}} and {{city}} visible in step 1",
+        "NO Send Test button (auto-sent)"
+      ]
+    },
+    {
+      "test": "campaign_activate_flow",
+      "page": "/campaigns/{id}",
+      "screenshot": "test_campaign_activate.png",
+      "checks": [
+        "Activate button visible (only for DRAFT)",
+        "clicking Activate shows confirmation dialog",
+        "confirmation dialog warns about sending to real leads",
+        "after activation: status changes to ACTIVE (green)"
+      ]
+    }
+  ]
+}
