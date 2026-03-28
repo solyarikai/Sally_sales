@@ -1270,12 +1270,32 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
         print(f"\n  ✓ Campaign '{campaign_name}' готова в DRAFTED статусе.")
         print(f"  → Активируйте вручную в SmartLead UI после проверки.")
 
+    # ── 12g: Добавить обработанные домены в project_blacklist ──
+    # Чтобы следующий запуск pipeline не обработал эти компании повторно.
+    all_domains = set(c.get("domain", "").strip().lower() for c in deduped if c.get("domain"))
+    if all_domains:
+        import subprocess
+        values = ", ".join(
+            f"({config.project_id}, '{d}', 'uploaded_to_smartlead', 'pipeline', now())"
+            for d in all_domains
+        )
+        sql = (f"INSERT INTO project_blacklist (project_id, domain, reason, source, created_at) "
+               f"VALUES {values} "
+               f"ON CONFLICT DO NOTHING")
+        subprocess.run(
+            ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+             "-d", "leadgen", "-c", sql],
+            capture_output=True, text=True, timeout=30,
+        )
+        print(f"\n  Blacklist: +{len(all_domains)} domains added to project_blacklist")
+
     # Final summary
     print(f"\n{'='*60}")
     print(f"  SUMMARY")
     for seg, info in upload_log.items():
         seqs = "✅" if info.get("sequences_uploaded") else "❌"
         print(f"    {info.get('campaign_name', seg)}: {info.get('leads', 0)} leads, sequences={seqs}")
+    print(f"  Blacklisted: {len(all_domains)} domains")
     print(f"{'='*60}")
 
 
