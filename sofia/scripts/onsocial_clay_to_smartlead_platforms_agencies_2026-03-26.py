@@ -1568,7 +1568,7 @@ def step12_upload(contacts: list[dict]):
             print("  Skipping email accounts.")
         else:
             r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/email-accounts", params=sl_params(),
-                           json={"emailAccountIDs": SMARTLEAD_EMAIL_ACCOUNTS}, timeout=30)
+                           json={"email_account_ids": SMARTLEAD_EMAIL_ACCOUNTS}, timeout=30)
             if r.status_code == 200:
                 print(f"  Attached {len(SMARTLEAD_EMAIL_ACCOUNTS)} email accounts")
             else:
