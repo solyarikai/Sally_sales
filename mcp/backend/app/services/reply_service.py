@@ -137,9 +137,10 @@ async def sync_campaign_replies(
             if not email:
                 continue
 
-            # Get reply text via message history
-            reply_text = ""
             lead_name = lead_data.get("lead_name", "")
+
+            # Try to get reply text via message history (may fail for some campaigns)
+            reply_text = ""
             try:
                 messages = await smartlead_service.get_lead_message_history(campaign_ext_id, email)
                 if messages:
@@ -150,8 +151,9 @@ async def sync_campaign_replies(
             except Exception:
                 pass
 
+            # If no reply text from history, still record the reply (we know they replied from statistics)
             if not reply_text:
-                continue
+                reply_text = "(Reply received — content not available via API)"
 
             # Dedup check
             msg_hash = _message_hash(reply_text)
