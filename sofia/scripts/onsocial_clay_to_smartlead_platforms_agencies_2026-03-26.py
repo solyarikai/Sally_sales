@@ -1097,7 +1097,7 @@ def _normalize_domain(raw: str) -> str:
     return d
 
 
-def _map_csv_row(row: dict, targets_by_domain: dict, targets_by_company: dict = None) -> dict:
+def _map_csv_row(row: dict, targets_by_domain: dict) -> dict:
     """Map an Apollo CSV row to our contact format."""
     def _get(field: str) -> str:
         for col in APOLLO_CSV_COLUMNS.get(field, [field]):
@@ -1105,29 +1105,13 @@ def _map_csv_row(row: dict, targets_by_domain: dict, targets_by_company: dict = 
                 return row[col].strip()
         return ""
 
-    domain = _normalize_domain(_get("domain") or (_get("email").split("@")[-1] if "@" in _get("email") else ""))
+    domain = _normalize_domain(_get("domain") or _get("email").split("@")[-1] if "@" in _get("email") else "")
     target = targets_by_domain.get(domain, {})
-
-    # Fallback: lookup domain by company name if no domain/email in CSV
-    if not domain and targets_by_company:
-        company_name = _get("company_name")
-        if company_name:
-            company_key = company_name.lower().strip()
-            target = targets_by_company.get(company_key, {})
-            domain = target.get("domain", "")
     segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
 
-    # Handle "Name" column (full name) — split into first/last
-    first_name = _get("first_name")
-    last_name = _get("last_name")
-    if first_name and not last_name and " " in first_name:
-        parts = first_name.split(" ", 1)
-        first_name = parts[0]
-        last_name = parts[1]
-
     return {
-        "first_name": first_name,
-        "last_name": last_name,
+        "first_name": _get("first_name"),
+        "last_name": _get("last_name"),
         "email": _get("email"),
         "title": _get("title"),
         "company_name": normalize_company(_get("company_name") or target.get("company_name", domain)),
