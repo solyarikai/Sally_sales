@@ -1105,7 +1105,7 @@ def _map_csv_row(row: dict, targets_by_domain: dict) -> dict:
                 return row[col].strip()
         return ""
 
-    domain = _normalize_domain(_get("domain") or _get("email").split("@")[-1] if "@" in _get("email") else "")
+    domain = _normalize_domain(_get("domain") or (_get("email").split("@")[-1] if "@" in _get("email") else ""))
     target = targets_by_domain.get(domain, {})
     segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
 
