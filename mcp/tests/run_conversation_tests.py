@@ -57,6 +57,13 @@ class UserSession:
             pid = result["active_project"]["id"]
             if pid not in self.project_ids:
                 self.project_ids.append(pid)
+        # From get_context response
+        if result.get("projects"):
+            for p in result["projects"]:
+                if isinstance(p, dict) and p.get("id"):
+                    pid = p["id"]
+                    if pid not in self.project_ids:
+                        self.project_ids.append(pid)
 
         # Pipeline run
         if result.get("run_id"):
@@ -65,6 +72,13 @@ class UserSession:
                 self.run_ids.append(rid)
         if result.get("runs"):
             for r in result["runs"]:
+                if isinstance(r, dict) and r.get("id"):
+                    rid = r["id"]
+                    if rid not in self.run_ids:
+                        self.run_ids.append(rid)
+        # From get_context response
+        if result.get("pipeline_runs"):
+            for r in result["pipeline_runs"]:
                 if isinstance(r, dict) and r.get("id"):
                     rid = r["id"]
                     if rid not in self.run_ids:
@@ -228,9 +242,21 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
         return {}
 
     if tool_name == "create_project":
+        # Extract project name and website from step context
+        name = test.get("project_name") or step.get("project_name", "Test Project")
+        website = step.get("website", "")
+        prompt = step.get("user_prompt", "")
+        # Try to extract website from prompt
+        if not website:
+            import re as _re
+            url_match = _re.search(r'https?://[^\s,)]+', prompt)
+            if url_match:
+                website = url_match.group(0).rstrip('.')
+        if not website:
+            website = "https://easystaff.io/"
         return {
-            "name": test.get("project_name", "Test Project"),
-            "website": step.get("website", "https://easystaff.io/"),
+            "name": name,
+            "website": website,
             "sender_name": "Test",
             "sender_company": "Test Co",
         }
@@ -242,8 +268,13 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
         for p in projects:
             if isinstance(p, dict) and p.get("name") == target_name:
                 return {"project_id": p["id"]}
-        # Fallback to latest
-        return {"project_id": project_id or 1}
+        # Fallback to latest project for this user
+        if project_id:
+            return {"project_id": project_id}
+        # If no project found, return first available
+        if projects:
+            return {"project_id": projects[0]["id"]}
+        return {"project_id": 1}
 
     if tool_name == "parse_gathering_intent":
         query = step.get("user_prompt", "IT consulting companies in Miami")
