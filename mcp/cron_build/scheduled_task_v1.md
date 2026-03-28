@@ -658,18 +658,27 @@ User 2 (services@getsally.io) already has "Fashion Brands Italy" from Phase 4b. 
 - Take a REAL screenshot at EVERY step and save to `mcp/tmp/` directory (create it if it doesn't exist)
 - Screenshot naming: `mcp/tmp/test_{step}_{description}_{timestamp}.png`
 - Required screenshots — EVERY page must be screenshotted and verified:
-  - `test_setup_page.png` — setup/login page after registration
-  - `test_project_created.png` — project page with expandable card (campaigns + runs visible)
-  - `test_pipeline_running.png` — pipeline page during gathering (loading spinner visible)
-  - `test_pipeline_complete.png` — pipeline page after all phases (companies table populated)
-  - `test_pipeline_campaign_link.png` — pipeline page showing SmartLead campaign link (purple badge) + "View in CRM" button
-  - `test_pipeline_csv_export.png` — verify CSV export button exists in toolbar
-  - `test_pipeline_company_modal.png` — click a company row → modal with 4 tabs (Details/Analysis/Scrape/Source)
+  - `test_setup_page.png` — setup/login page with integrations connected
+  - `test_project_stats.png` — project page with blacklist stats, reply analysis, CRM/campaign links
+  - `test_pipeline_stepper.png` — pipeline detail with horizontal stepper (NOT dropdown)
+  - `test_pipeline_targets.png` — pipeline filtered to targets only (?status=target)
+  - `test_pipeline_company_modal.png` — click company row → modal with 4 tabs
+  - `test_campaigns_list.png` — campaigns page with campaign rows (status, leads, project)
+  - `test_campaign_sequence.png` — campaign detail showing 4 email steps with personalization
+  - `test_campaign_activate.png` — campaign activate confirmation dialog
   - `test_crm_contacts.png` — CRM page showing gathered contacts
   - `test_crm_pipeline_filter.png` — CRM filtered by ?pipeline={runId}
-  - `test_campaign_created.png` — SmartLead campaign confirmation
-  - `test_replies_page.png` — Tasks/Replies page showing campaign replies
-  - `test_crm_warm_filter.png` — CRM filtered to warm replies via deep link
+  - `test_crm_warm_filter.png` — CRM filtered to warm replies
+  - `test_conversations.png` — logs page with tool calls (both directions)
+  - `test_learning.png` — learning page with pipeline accuracy
+
+  **Cross-page link verification** — click each link and verify destination loads:
+  - Pipeline targets count → /pipeline/{id}?status=target ✓
+  - Pipeline "View Campaign" → /campaigns/{id} ✓
+  - Project "View in CRM" → /crm?project={id} ✓
+  - Project "Warm leads" → /crm?project={id}&reply_category=interested ✓
+  - Campaign "View Leads" → /crm?campaign={id} ✓
+  - Campaign "Source Pipeline" → /pipeline/{runId} ✓
   - `test_learning_page.png` — Learning page with tool usage, pipeline accuracy, reply analysis section
   - `test_contact_conversation.png` — click a contact in CRM → conversation tab shows planned sequence steps
   - `test_conversations_page.png` — /conversations page showing MCP tool calls with direction, method, timestamp
@@ -689,6 +698,31 @@ User 2 (services@getsally.io) already has "Fashion Brands Italy" from Phase 4b. 
 - Do NOT stop until every step above is tested and passes WITH screenshots
 - Do NOT stop if you hit an error — fix it and continue
 - Do NOT leave partial results — either everything passes or `suck.md` explains what's broken and why
+
+#### RULE 5: CONTINUOUS IMPROVEMENT — FIND NEW SHIT EVERY RUN
+- Each cron run MUST try to find at least ONE new issue not in `suck.md`
+- Re-read `requirements_source.md` every run — it's the source of truth
+- Re-read `mcp/tests/conversations/*.json` — run tests with SHUFFLED prompts
+- Compare actual MCP responses against expected behavior in test files
+- Score each test dimension (tools called, response structure, links, segments, errors)
+- Log scores in `testruns2603.md` with timestamps
+- If score < 95% on any dimension → investigate, fix, re-test
+- If ALL tests pass at 95%+ → look for EDGE CASES:
+  - What if user misspells a segment name?
+  - What if user asks for the same segment twice?
+  - What if Apollo returns 0 results?
+  - What if website scrape fails?
+  - What if SmartLead API is down?
+- Track issue discovery rate in `progress.md`: "Run N found X new issues"
+- If 3 consecutive runs find 0 issues → the system is reaching stability
+
+#### RULE 6: TRACK EVERYTHING WITH TIMESTAMPS
+- Every test result: timestamp + pass/fail + screenshot path
+- Every issue found: timestamp + description + location + fix status
+- Every fix deployed: timestamp + commit hash + what changed
+- Every cron run: start time + end time + issues found + issues fixed
+- NEVER overwrite historical data — always APPEND
+- Use ISO 8601 timestamps (2026-03-28T10:30:00Z)
 
 ---
 
