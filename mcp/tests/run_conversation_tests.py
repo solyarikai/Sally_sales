@@ -305,8 +305,14 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
             "filters": filters,
         }
 
-    if tool_name in ("tam_blacklist_check", "tam_pre_filter", "tam_scrape", "tam_analyze", "tam_re_analyze"):
+    if tool_name in ("tam_blacklist_check", "tam_pre_filter", "tam_scrape", "tam_analyze"):
         return {"run_id": run_id or 1}
+
+    if tool_name == "tam_re_analyze":
+        return {
+            "run_id": run_id or 1,
+            "prompt_text": step.get("user_prompt", "Classify companies as targets or not targets"),
+        }
 
     if tool_name == "tam_approve_checkpoint":
         return {"gate_id": gate_id or 1}
