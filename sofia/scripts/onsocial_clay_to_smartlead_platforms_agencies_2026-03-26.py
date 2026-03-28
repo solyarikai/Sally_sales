@@ -1450,6 +1450,65 @@ def upload_leads(campaign_id: int, contacts: list[dict]) -> int:
     print(f"  Uploaded: {total}/{len(leads)}")
     return total
 
+def _checkpoint(message: str) -> bool:
+    """Show checkpoint, wait for operator confirmation. Returns True if approved."""
+    print(f"\n  ★ CHECKPOINT: {message}")
+    if sys.stdin.isatty():
+        print("  [Enter] to continue, [s] to skip, [Ctrl+C] to abort.")
+        resp = input("  > ").strip().lower()
+        return resp != "s"
+    else:
+        print("  Non-interactive mode — proceeding.")
+        return True
+
+
+def _show_social_proof_stats(contacts: list[dict], segment: str):
+    """Show social_proof distribution for validation before upload."""
+    from collections import Counter
+    sp_counts = Counter(c.get("social_proof", "NO_PROOF") for c in contacts)
+    country_counts = Counter(c.get("country", "UNKNOWN") for c in contacts)
+    print(f"\n  Social proof distribution ({segment}):")
+    for sp, cnt in sp_counts.most_common():
+        print(f"    {cnt:3d}  {sp}")
+    print(f"  Top countries:")
+    for co, cnt in country_counts.most_common(8):
+        print(f"    {cnt:3d}  {co}")
+
+
+def _load_sequences(segment: str) -> list[dict] | None:
+    """Load v4 sequence from markdown file. Returns list of steps or None."""
+    seq_files = {
+        "INFLUENCER_PLATFORMS": SCRIPT_DIR.parent / "projects" / "OnSocial" / "sequences" / "v4_influencer_platforms.md",
+        "IM_FIRST_AGENCIES": SCRIPT_DIR.parent / "projects" / "OnSocial" / "sequences" / "v4_im_first_agencies.md",
+    }
+    seq_file = seq_files.get(segment)
+    if not seq_file or not seq_file.exists():
+        print(f"  ⚠ Sequence file not found for {segment}")
+        return None
+
+    text = seq_file.read_text(encoding="utf-8")
+
+    # Parse emails from markdown — extract subject + body between ## headers
+    import re as _re
+    steps = []
+    # Find all email sections
+    email_pattern = _re.compile(
+        r'## Email (\d+[AB]?) — .+?\n\n\*\*Subject:\*\* (.+?)\n\n(.*?)(?=\n---|\n## |\Z)',
+        _re.DOTALL
+    )
+    for match in email_pattern.finditer(text):
+        label, subject, body = match.group(1), match.group(2), match.group(3).strip()
+        # Remove word count markers
+        body = _re.sub(r'\n`\d+ words`', '', body).strip()
+        steps.append({"label": label, "subject": subject, "body": body})
+
+    if steps:
+        print(f"  Loaded {len(steps)} email steps from {seq_file.name}")
+        for s in steps:
+            print(f"    {s['label']}: {s['subject'][:50]}")
+    return steps if steps else None
+
+
 def step12_upload(contacts: list[dict]):
     print(f"\n{'='*60}")
     print(f"STEP 12: SmartLead Upload")
@@ -1477,36 +1536,131 @@ def step12_upload(contacts: list[dict]):
         "INFLUENCER_PLATFORMS": "INFLUENCER PLATFORMS v4",
         "IM_FIRST_AGENCIES": "IM-FIRST AGENCIES v4",
     }
+    TIMING = [0, 4, 4, 6, 7]  # Day offsets between emails
+
     log = load_json(UPLOAD_LOG) or {}
 
     for seg, seg_contacts in sorted(by_segment.items()):
         name = NAMES.get(seg, f"OnSocial {seg} v4")
-        print(f"\n  --- {name}: {len(seg_contacts)} leads ---")
-        print(f"  ★ CHECKPOINT: Create '{name}'?")
-        if sys.stdin.isatty():
-            print("  Enter to continue, Ctrl+C to abort.")
-            input()
-        else:
-            print("  Non-interactive mode — proceeding.")
+        print(f"\n{'─'*50}")
+        print(f"  Campaign: {name} ({len(seg_contacts)} leads)")
+        print(f"{'─'*50}")
 
+        # ── Social proof validation ──
+        _show_social_proof_stats(seg_contacts, seg)
+        if not _checkpoint(f"Social proof distribution OK for '{name}'?"):
+            print("  Skipping this segment.")
+            continue
+
+        # ── Step 12a: Create campaign ──
         cid = log.get(seg, {}).get("campaign_id")
-        if not cid:
+        if cid:
+            print(f"  Campaign already exists: {cid}")
+        else:
+            if not _checkpoint(f"Create campaign '{name}'?"):
+                continue
             cid = create_campaign(name)
-            httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/email-accounts", params=sl_params(),
-                       json={"emailAccountIDs": SMARTLEAD_EMAIL_ACCOUNTS}, timeout=30)
-            httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/schedule", params=sl_params(), json={
-                "timezone": "America/New_York", "days_of_the_week": [1,2,3,4,5],
+            log[seg] = {"campaign_id": cid, "campaign_name": name, "at": ts()}
+            save_json(UPLOAD_LOG, log)
+
+        # ── Step 12b: Attach email accounts ──
+        if not _checkpoint(f"Attach {len(SMARTLEAD_EMAIL_ACCOUNTS)} email accounts to '{name}'?"):
+            print("  Skipping email accounts.")
+        else:
+            r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/email-accounts", params=sl_params(),
+                           json={"emailAccountIDs": SMARTLEAD_EMAIL_ACCOUNTS}, timeout=30)
+            if r.status_code == 200:
+                print(f"  Attached {len(SMARTLEAD_EMAIL_ACCOUNTS)} email accounts")
+            else:
+                print(f"  ⚠ Email accounts error: {r.status_code} {r.text[:200]}")
+
+        # ── Step 12c: Upload leads ──
+        if not _checkpoint(f"Upload {len(seg_contacts)} leads to '{name}'?"):
+            print("  Skipping leads upload.")
+        else:
+            uploaded = upload_leads(cid, seg_contacts)
+            log[seg]["leads"] = uploaded
+            log[seg]["uploaded_at"] = ts()
+            save_json(UPLOAD_LOG, log)
+
+        # ── Step 12d: Load and upload sequences ──
+        sequences = _load_sequences(seg)
+        if sequences:
+            if not _checkpoint(f"Upload {len(sequences)} email steps to '{name}'?"):
+                print("  Skipping sequences.")
+            else:
+                # Group A/B variants: 1A+1B → step 1, 2A+2B → step 2, etc.
+                import re as _re
+                step_groups = {}
+                for s in sequences:
+                    step_num = _re.match(r'(\d+)', s["label"]).group(1)
+                    step_groups.setdefault(step_num, []).append(s)
+
+                for i, (step_num, variants) in enumerate(sorted(step_groups.items())):
+                    wait_days = TIMING[i] if i < len(TIMING) else 7
+                    seq_payload = {
+                        "seq_number": i + 1,
+                        "seq_delay_details": {"delay_in_days": wait_days},
+                        "variant_distribution_type": "EQUAL" if len(variants) > 1 else None,
+                    }
+                    # Add variants
+                    variant_payloads = []
+                    for vi, v in enumerate(variants):
+                        variant_payloads.append({
+                            "subject": v["subject"],
+                            "email_body": v["body"],
+                            "variant_label": chr(65 + vi) if len(variants) > 1 else None,
+                        })
+                    seq_payload["variants"] = variant_payloads
+
+                    r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/sequences",
+                                   params=sl_params(), json=seq_payload, timeout=30)
+                    if r.status_code == 200:
+                        ab = f" (A/B)" if len(variants) > 1 else ""
+                        print(f"    Step {step_num}{ab}: {variants[0]['subject'][:40]}...")
+                    else:
+                        print(f"    ⚠ Step {step_num} error: {r.status_code} {r.text[:200]}")
+
+                log[seg]["sequences_uploaded"] = True
+                save_json(UPLOAD_LOG, log)
+        else:
+            print("  ⚠ No sequences loaded — add manually in SmartLead UI.")
+
+        # ── Step 12e: Set schedule ──
+        if not _checkpoint(f"Set schedule Mon-Fri 8am-6pm EST for '{name}'?"):
+            print("  Skipping schedule.")
+        else:
+            r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/schedule", params=sl_params(), json={
+                "timezone": "America/New_York", "days_of_the_week": [1, 2, 3, 4, 5],
                 "start_hour": "08:00", "end_hour": "18:00",
                 "min_time_btw_emails": 15, "max_new_leads_per_day": 500,
             }, timeout=30)
+            if r.status_code == 200:
+                print(f"  Schedule set: Mon-Fri 8am-6pm EST")
+            else:
+                print(f"  ⚠ Schedule error: {r.status_code} {r.text[:200]}")
 
-        uploaded = upload_leads(cid, seg_contacts)
-        log[seg] = {"campaign_id": cid, "campaign_name": name,
-                     "leads": uploaded, "at": ts()}
-        save_json(UPLOAD_LOG, log)
+        # ── Step 12f: Activate ──
+        print(f"\n  ⚠ Campaign '{name}' is in DRAFTED status.")
+        if not _checkpoint(f"ACTIVATE campaign '{name}'? THIS WILL START SENDING EMAILS."):
+            print(f"  Campaign stays in DRAFTED. Activate manually in SmartLead UI.")
+        else:
+            r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/status",
+                           params=sl_params(), json={"status": "START"}, timeout=30)
+            if r.status_code == 200:
+                print(f"  ✓ Campaign '{name}' ACTIVATED")
+            else:
+                print(f"  ⚠ Activation error: {r.status_code} {r.text[:200]}")
 
-    print(f"\n  ⚠ Campaigns in DRAFTED status. Add v4 sequences + activate manually.")
-    print(f"  ⚠ Use {{{{social_proof}}}} variable in sequences.")
+        print(f"\n  Campaign '{name}' — done.")
+
+    # Final summary
+    print(f"\n{'='*60}")
+    print(f"  SUMMARY")
+    for seg, info in log.items():
+        print(f"    {info.get('campaign_name', seg)}: {info.get('leads', 0)} leads, "
+              f"sequences={'✅' if info.get('sequences_uploaded') else '❌'}")
+    print(f"{'='*60}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
