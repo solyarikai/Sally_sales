@@ -413,27 +413,39 @@ async function main() {
     await fillFilterField(page, 'Advertising services', filters.industries_exclude);
   }
   if (filters.sizes?.length) {
-    let sizeApplied = await fillFilterField(page, '11-50 employees', filters.sizes);
-    if (!sizeApplied) sizeApplied = await fillFilterField(page, '11-50', filters.sizes);
-    if (!sizeApplied) sizeApplied = await fillFilterField(page, 'employees', filters.sizes);
-    if (!sizeApplied) sizeApplied = await fillFilterField(page, 'Company size', filters.sizes);
-    if (!sizeApplied) {
-      // Last resort: scan all sidebar inputs for anything related to size/employees
-      const sizeInput = await page.evaluate(() => {
-        const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null && i.getBoundingClientRect().x < 400);
-        for (const inp of inputs) {
-          const ph = (inp.placeholder || '').toLowerCase();
-          if (ph.includes('employee') || ph.includes('size') || ph.includes('1-10') || ph.includes('11-')) {
-            return { placeholder: inp.placeholder };
-          }
-        }
-        return null;
-      });
-      if (sizeInput) {
-        console.log(`    Size fallback: found input with placeholder "${sizeInput.placeholder}"`);
-        sizeApplied = await fillFilterField(page, sizeInput.placeholder, filters.sizes);
+    // Clay's Find Companies uses Min/Max number inputs for employee count,
+    // NOT a dropdown. Parse size ranges like "11-50" into min/max values.
+    // Supported formats: "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5001-10000", "10001+"
+    let minVal = null;
+    let maxVal = null;
+    for (const size of filters.sizes) {
+      const match = size.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+      if (match) {
+        const lo = parseInt(match[1]);
+        const hi = parseInt(match[2]);
+        if (minVal === null || lo < minVal) minVal = lo;
+        if (maxVal === null || hi > maxVal) maxVal = hi;
+      } else if (size.match(/^(\d+)\+$/)) {
+        const lo = parseInt(size);
+        if (minVal === null || lo < minVal) minVal = lo;
+        // No max for "X+" ranges
       }
-      if (!sizeApplied) console.log('    ERROR: Company size filter could NOT be applied!');
+    }
+    if (minVal != null) {
+      // Don't override if minimum_member_count was explicitly set
+      if (filters.minimum_member_count == null) {
+        await fillNumberField(page, 'Min', minVal);
+        console.log(`    Size → Min: ${minVal}`);
+      }
+    }
+    if (maxVal != null) {
+      if (filters.maximum_member_count == null) {
+        await fillNumberField(page, 'Max', maxVal);
+        console.log(`    Size → Max: ${maxVal}`);
+      }
+    }
+    if (minVal == null && maxVal == null) {
+      console.log(`    WARNING: Could not parse size ranges: ${filters.sizes.join(', ')}`);
     }
   }
   if (filters.annual_revenues?.length) {
@@ -893,303 +905,185 @@ async function main() {
   console.log(`  Results after filters: ${resultCountText}`);
   await screenshot(page, 'tam_03_filters_applied');
 
-  // Step 6: Click Continue dropdown → "Save to new workbook and table"
-  console.log('\n[6] Opening Continue dropdown...');
+  // Step 6: Extract companies via Clay's Find API (intercept + paginate)
+  // Instead of "Save to new workbook" (which limits to ~100 rows),
+  // we intercept the API request Clay makes to load the preview, then paginate through ALL results.
+  console.log('\n[6] Extracting companies via Clay Find API...');
 
-  // Find the Continue button
-  const continueBtnInfo = await page.evaluate(() => {
-    const buttons = [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null);
-    const btn = buttons.find(b => b.textContent?.trim().startsWith('Continue'));
-    if (!btn) return null;
-    const rect = btn.getBoundingClientRect();
-    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, right: rect.x + rect.width - 8 };
-  });
+  // Step 6a: Intercept the Find API request to capture search parameters
+  // Clay's preview table loads data from POST https://api.clay.com/v3/find/companies
+  // We need to capture the request body (which contains the compiled filters)
+  let capturedSearchBody = null;
 
-  if (continueBtnInfo) {
-    // Helper to find the dropdown option
-    async function findDropdownOption() {
-      return page.evaluate(() => {
-        const allEls = [...document.querySelectorAll('button, div[role="menuitem"], div[role="option"], li, a')];
-        for (const el of allEls) {
-          const t = el.textContent?.trim().toLowerCase() || '';
-          if ((t.includes('new workbook') || t.includes('new table')) && el.offsetParent !== null) {
-            const rect = el.getBoundingClientRect();
-            if (rect.width > 50) {
-              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: el.textContent.trim() };
-            }
-          }
-        }
-        return null;
-      });
+  // Set up request interception to capture the Find API call
+  await page.setRequestInterception(true);
+  const interceptHandler = (request) => {
+    const url = request.url();
+    if (url.includes('/v3/find/companies') && request.method() === 'POST') {
+      try {
+        capturedSearchBody = JSON.parse(request.postData());
+        console.log(`  Captured Find API request body`);
+      } catch {}
     }
+    request.continue();
+  };
+  page.on('request', interceptHandler);
 
-    // Try multiple approaches to get the dropdown to appear
-    let option = null;
-    for (let attempt = 0; attempt < 4 && !option; attempt++) {
-      if (attempt > 0) {
-        await page.keyboard.press('Escape');
-        await humanDelay(500, 800);
-      }
-
-      if (attempt < 2) {
-        // Click dropdown arrow area (right edge)
-        console.log(`  Attempt ${attempt + 1}: clicking dropdown arrow...`);
-        await page.mouse.click(continueBtnInfo.right, continueBtnInfo.y);
-      } else {
-        // Click main Continue button
-        console.log(`  Attempt ${attempt + 1}: clicking Continue main...`);
-        await page.mouse.click(continueBtnInfo.x, continueBtnInfo.y);
-      }
-      await humanDelay(1200, 2000);
-      option = await findDropdownOption();
-    }
-
-    if (option) {
-      console.log(`  Found: "${option.text}" — clicking...`);
-      await page.mouse.click(option.x, option.y);
-    } else {
-      console.log('  Dropdown not found after retries. Will scrape preview data.');
-    }
-  }
-
-  // Wait for navigation to "Enrich Companies" page
-  console.log('  Waiting for enrichment page...');
+  // Trigger a refresh to capture the API call
+  await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
   await humanDelay(5000, 8000);
-  await screenshot(page, 'tam_05_after_save');
 
-  // Extract table ID from URL query params (Clay uses ?tableId=xxx format)
-  let tableId = null;
-  let workbookId = null;
+  // Remove interception to avoid issues
+  page.off('request', interceptHandler);
+  await page.setRequestInterception(false);
 
-  function extractIdsFromUrl(url) {
-    const tableMatch = url.match(/tableId=([^&]+)/);
-    const wbMatch = url.match(/workbookId=([^&]+)/);
-    return { tableId: tableMatch?.[1], workbookId: wbMatch?.[1] };
+  // Step 6b: If we didn't capture the request, build it from our filters
+  if (!capturedSearchBody) {
+    console.log('  Could not capture Find API request. Building from filters...');
+    capturedSearchBody = {};
   }
 
-  // Wait for URL to contain tableId
-  for (let i = 0; i < 15; i++) {
-    const currentUrl = page.url();
-    const ids = extractIdsFromUrl(currentUrl);
-    if (ids.tableId) {
-      tableId = ids.tableId;
-      workbookId = ids.workbookId;
-      console.log(`  Table ID: ${tableId}, Workbook: ${workbookId}`);
-      break;
-    }
-    // Also check path-based table URL
-    const pathMatch = currentUrl.match(/tables\/([^/?]+)/);
-    if (pathMatch) {
-      tableId = pathMatch[1];
-      break;
-    }
-    await sleep(2000);
-    console.log(`  Waiting for table... (${i + 1}/15)`);
-  }
-
-  // Step 7: Handle "Enrich Companies" page — skip enrichments, click "Create table"
-  console.log('\n[7] Handling enrichment page...');
-  const isEnrichPage = await page.evaluate(() => {
-    return document.body.textContent?.includes('Enrich Companies') ||
-           document.body.textContent?.includes('Select enrichments') ||
-           document.body.textContent?.includes('enrich-companies');
+  // Step 6c: Parse total result count from the page
+  const totalResultCount = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('*')].find(e => {
+      const t = e.innerText?.trim() || '';
+      return t.match(/\d[\d,]*\s*results/i) && t.length < 50;
+    });
+    if (!el) return 0;
+    const match = el.innerText.match(/([\d,]+)\s*results/i);
+    if (match) return parseInt(match[1].replace(/,/g, ''));
+    const ofMatch = el.innerText.match(/of\s+([\d,]+)/i);
+    if (ofMatch) return parseInt(ofMatch[1].replace(/,/g, ''));
+    return 0;
   });
+  console.log(`  Total results to fetch: ${totalResultCount}`);
 
-  if (isEnrichPage) {
-    console.log('  On Enrich Companies page — skipping enrichments...');
-    await screenshot(page, 'tam_06_enrich_page');
+  // Step 6d: Paginate through all results using the Find API
+  const allCompanies = [];
+  const pageSize = 50; // Clay uses 50 per page in the preview
+  const maxToFetch = Math.min(totalResultCount || maxExport, maxExport);
+  let offset = 0;
+  let tableId = null;
 
-    // Don't select any enrichments (saves credits). Just click "Create table"
-    await humanDelay(1500, 2500);
-    const createTableBtn = await findByText(page, 'Create table', false);
-    if (createTableBtn) {
-      console.log('  Clicking "Create table"...');
-      await page.mouse.click(createTableBtn.x, createTableBtn.y);
-      await humanDelay(8000, 12000);
-      await screenshot(page, 'tam_07_table_created');
+  if (totalResultCount > 0) {
+    console.log(`  Fetching up to ${maxToFetch} companies in batches of ${pageSize}...`);
 
-      // Update table ID from new URL if needed
-      const newUrl = page.url();
-      console.log(`  URL after create: ${newUrl}`);
-      const newIds = extractIdsFromUrl(newUrl);
-      if (newIds.tableId) {
-        tableId = newIds.tableId;
-        workbookId = newIds.workbookId;
-      }
-      const pathMatch = newUrl.match(/tables\/([^/?]+)/);
-      if (pathMatch) tableId = pathMatch[1];
-    } else {
-      console.log('  "Create table" button not found');
-      // List available buttons
-      const btns = await page.evaluate(() =>
-        [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null)
-          .map(b => b.textContent?.trim().substring(0, 50)).filter(t => t)
-      );
-      console.log('  Buttons:', btns.join(' | '));
-    }
-  }
-
-  // Step 8: Read table data via API
-  console.log(`\n[8] Reading table data (${tableId})...`);
-
-  if (tableId) {
-    // Wait for table data to load fully
-    console.log('  Waiting for data to populate...');
-    await humanDelay(10000, 15000);
-
-    // Reload to ensure data is loaded
-    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
-    await humanDelay(5000, 8000);
-    await screenshot(page, 'tam_08_table_data');
-
-    // Step 8a: Get table metadata (field ID → name mapping)
-    console.log('  Fetching table metadata...');
-    const tableMeta = await page.evaluate(async (tid) => {
-      try {
-        const res = await fetch(`https://api.clay.com/v3/tables/${tid}`, {
-          credentials: 'include', headers: { 'Accept': 'application/json' },
-        });
-        return await res.json();
-      } catch (e) { return { error: e.message }; }
-    }, tableId);
-
-    // Build field ID → name mapping
-    const fieldMap = {};
-    const fields = tableMeta?.table?.fields || [];
-    for (const field of fields) {
-      fieldMap[field.id] = field.name;
-    }
-    console.log(`  Fields: ${Object.values(fieldMap).join(', ')}`);
-
-    // Step 8b: Get record count
-    const countData = await page.evaluate(async (tid) => {
-      try {
-        const res = await fetch(`https://api.clay.com/v3/tables/${tid}/count`, {
-          credentials: 'include', headers: { 'Accept': 'application/json' },
-        });
-        return await res.json();
-      } catch (e) { return { error: e.message }; }
-    }, tableId);
-    const totalRecords = countData?.tableTotalRecordsCount || 0;
-    console.log(`  Total records: ${totalRecords}`);
-
-    // Step 8c: Get record IDs from the view, then fetch via bulk-fetch-records (POST)
-    console.log('  Fetching record IDs from view...');
-
-    // Get the view ID from the URL
-    const viewIdMatch = page.url().match(/views\/([^/?&]+)/);
-    const viewId = viewIdMatch?.[1] || tableMeta?.table?.firstViewId;
-    console.log(`  View ID: ${viewId}`);
-
-    let recordIds = [];
-    if (viewId) {
-      const idsData = await page.evaluate(async (tid, vid) => {
+    while (offset < maxToFetch) {
+      const batchResult = await page.evaluate(async (searchBody, pgSize, pgOffset) => {
         try {
-          const res = await fetch(`https://api.clay.com/v3/tables/${tid}/views/${vid}/records/ids`, {
-            credentials: 'include', headers: { 'Accept': 'application/json' },
-          });
-          return await res.json();
-        } catch (e) { return { error: e.message }; }
-      }, tableId, viewId);
-      recordIds = idsData?.results || [];
-      console.log(`  Record IDs: ${recordIds.length}`);
-    }
-
-    // Fetch records in batches using POST with record IDs
-    console.log('  Fetching records via bulk-fetch-records (POST)...');
-    const allRawRecords = [];
-    const batchSize = 200;
-
-    for (let i = 0; i < recordIds.length; i += batchSize) {
-      const batch = recordIds.slice(i, i + batchSize);
-      const batchData = await page.evaluate(async (tid, ids) => {
-        try {
-          const res = await fetch(`https://api.clay.com/v3/tables/${tid}/bulk-fetch-records`, {
+          // Build the request — Clay's Find API accepts various filter params
+          const body = { ...searchBody, limit: pgSize, offset: pgOffset };
+          const res = await fetch('https://api.clay.com/v3/find/companies', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ recordIds: ids }),
+            body: JSON.stringify(body),
           });
+          if (!res.ok) return { error: `HTTP ${res.status}`, status: res.status };
           return await res.json();
         } catch (e) { return { error: e.message }; }
-      }, tableId, batch);
+      }, capturedSearchBody, pageSize, offset);
 
-      const batchRecords = batchData?.results || [];
-      allRawRecords.push(...batchRecords);
-      console.log(`  Batch ${Math.floor(i / batchSize) + 1}: +${batchRecords.length} (total: ${allRawRecords.length})`);
-      await humanDelay(500, 1000);
-    }
-
-    const rawRecords = allRawRecords;
-    console.log(`  Raw records: ${rawRecords.length}`);
-
-    // Step 8d: Parse records — map field IDs to names, extract values
-    const companies = rawRecords.map(record => {
-      const company = {};
-      for (const [fieldId, cell] of Object.entries(record.cells || {})) {
-        const fieldName = fieldMap[fieldId] || fieldId;
-        let value = cell?.value;
-        // Handle option values (e.g. industry, size)
-        if (value && typeof value === 'object' && value.optionIds) {
-          value = (cell?.metadata?.valueDisplay || cell?.metadata?.display || JSON.stringify(value.optionIds));
+      if (batchResult.error) {
+        // Rate limited — wait and retry
+        if (batchResult.status === 429) {
+          console.log(`  Rate limited at offset ${offset}. Waiting 15s...`);
+          await sleep(15000);
+          continue; // Retry same offset
         }
-        if (value !== null && value !== undefined) {
-          company[fieldName] = String(value).substring(0, 1000);
+        console.log(`  API error at offset ${offset}: ${batchResult.error}`);
+        break;
+      }
+
+      const results = batchResult.results || batchResult.companies || batchResult.data || [];
+      if (results.length === 0) {
+        console.log(`  No more results at offset ${offset}`);
+        break;
+      }
+
+      allCompanies.push(...results);
+      offset += results.length;
+      const pct = Math.min(100, Math.round(offset / maxToFetch * 100));
+      console.log(`  Fetched ${allCompanies.length}/${maxToFetch} (${pct}%)`);
+
+      // Throttle to avoid rate limiting
+      await humanDelay(1500, 3000);
+    }
+  }
+
+  // Step 6e: If Find API didn't work (returns errors or no data), fall back to preview scraping
+  if (allCompanies.length === 0) {
+    console.log('  Find API returned no data. Falling back to preview + scroll scraping...');
+
+    // Scrape visible preview rows, then scroll to load more
+    const maxScrollAttempts = 100;
+    let lastCount = 0;
+    let noNewDataCount = 0;
+
+    for (let scrollAttempt = 0; scrollAttempt < maxScrollAttempts; scrollAttempt++) {
+      const previewBatch = await page.evaluate(() => {
+        const companies = [];
+        // Find the preview table
+        const rows = document.querySelectorAll('table tbody tr, [role="row"]');
+        for (const row of rows) {
+          const cells = row.querySelectorAll('td, [role="cell"]');
+          if (cells.length < 2) continue;
+          const texts = [...cells].map(c => c.textContent?.trim()?.substring(0, 500));
+          // Build company from cells — Name is typically first column
+          const company = {};
+          const headers = document.querySelectorAll('table thead th, [role="columnheader"]');
+          const headerTexts = [...headers].map(h => h.textContent?.trim());
+          texts.forEach((t, i) => {
+            const key = headerTexts[i] || `col${i}`;
+            if (t) company[key] = t;
+          });
+          if (Object.keys(company).length > 0) companies.push(company);
+        }
+        return companies;
+      });
+
+      // Merge unique companies (by Name + Domain combination)
+      for (const co of previewBatch) {
+        const key = `${co.Name || co.name || ''}_${co.Domain || co.domain || ''}`;
+        if (!allCompanies.find(c => `${c.Name || c.name || ''}_${c.Domain || c.domain || ''}` === key)) {
+          allCompanies.push(co);
         }
       }
-      company._id = record.id;
-      return company;
-    });
 
-    console.log(`  Parsed companies: ${companies.length}`);
-    if (companies.length > 0) {
-      console.log('  Columns:', Object.keys(companies[0]).join(', '));
-      console.log('  Sample:', JSON.stringify(companies[0]).substring(0, 400));
-    }
+      if (allCompanies.length === lastCount) {
+        noNewDataCount++;
+        if (noNewDataCount >= 3) break; // No new data after 3 scroll attempts
+      } else {
+        noNewDataCount = 0;
+        lastCount = allCompanies.length;
+        console.log(`  Scroll ${scrollAttempt + 1}: ${allCompanies.length} companies so far`);
+      }
 
-    // Save all data
-    fs.writeFileSync(path.join(OUT_DIR, 'tam_companies.json'), JSON.stringify(companies, null, 2));
-    fs.writeFileSync(path.join(OUT_DIR, 'tam_table_meta.json'), JSON.stringify({ tableMeta, fieldMap, totalRecords }, null, 2));
-    console.log(`  Saved ${companies.length} companies to tam_companies.json`);
-  } else {
-    console.log('  No table ID — scraping preview data from search results...');
-
-    // Navigate back to Find Companies if needed
-    const onSearch = await page.evaluate(() =>
-      document.body.textContent?.includes('Refine with filters') || document.body.textContent?.includes('Find Companies')
-    );
-
-    if (!onSearch) {
-      console.log('  Navigating back to search results...');
-      await page.goBack();
-      await humanDelay(3000, 5000);
-    }
-
-    // Scrape all visible companies from the preview table
-    const previewCompanies = await page.evaluate(() => {
-      const companies = [];
-      const table = document.querySelector('table');
-      if (!table) return companies;
-      const headers = [...table.querySelectorAll('th')].map(h => h.textContent?.trim());
-      const rows = table.querySelectorAll('tbody tr');
-      rows.forEach(row => {
-        const cells = [...row.querySelectorAll('td')];
-        const company = {};
-        cells.forEach((cell, i) => {
-          const key = headers[i] || `col${i}`;
-          company[key] = cell.textContent?.trim().substring(0, 500);
+      // Scroll the results table down
+      await page.evaluate(() => {
+        const scrollContainers = [...document.querySelectorAll('*')].filter(el => {
+          const style = window.getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          return (style.overflowY === 'auto' || style.overflowY === 'scroll')
+            && rect.x > 350 && rect.width > 300 && rect.height > 200;
         });
-        if (company['Name'] || Object.values(company).some(v => v && v.length > 5)) {
-          companies.push(company);
+        for (const el of scrollContainers) {
+          el.scrollTop += 500;
         }
       });
-      return companies;
-    });
-    console.log(`  Scraped ${previewCompanies.length} companies from preview`);
-    if (previewCompanies.length > 0) {
-      console.log('  Sample:', JSON.stringify(previewCompanies[0]).substring(0, 300));
-      fs.writeFileSync(path.join(OUT_DIR, 'tam_companies.json'), JSON.stringify(previewCompanies, null, 2));
+      await humanDelay(1000, 2000);
     }
+  }
+
+  console.log(`  Total companies extracted: ${allCompanies.length}`);
+
+  // Save companies
+  if (allCompanies.length > 0) {
+    if (allCompanies[0].Name || allCompanies[0].name || allCompanies[0].Domain || allCompanies[0].domain) {
+      console.log('  Sample:', JSON.stringify(allCompanies[0]).substring(0, 400));
+    }
+    fs.writeFileSync(path.join(OUT_DIR, 'tam_companies.json'), JSON.stringify(allCompanies, null, 2));
+    console.log(`  Saved ${allCompanies.length} companies to tam_companies.json`);
   }
 
   await screenshot(page, 'tam_09_final');
@@ -1216,8 +1110,9 @@ async function main() {
     filters,
     creditsBefore,
     creditsAfter,
-    tableUrl: page.url(),
-    tableId: tableId || null,
+    companiesCount: allCompanies.length,
+    totalResultCount,
+    url: page.url(),
     timestamp: new Date().toISOString(),
   }, null, 2));
 
