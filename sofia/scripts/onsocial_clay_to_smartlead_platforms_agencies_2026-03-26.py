@@ -1634,7 +1634,7 @@ def step12_upload(contacts: list[dict]):
             r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/schedule", params=sl_params(), json={
                 "timezone": "America/New_York", "days_of_the_week": [1, 2, 3, 4, 5],
                 "start_hour": "08:00", "end_hour": "18:00",
-                "min_time_btw_emails": 15, "max_new_leads_per_day": 500,
+                "min_time_btw_emails": 5, "max_new_leads_per_day": 500,
             }, timeout=30)
             if r.status_code == 200:
                 print(f"  Schedule set: Mon-Fri 8am-6pm EST")
