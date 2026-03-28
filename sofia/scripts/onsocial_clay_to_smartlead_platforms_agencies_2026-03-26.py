@@ -910,11 +910,8 @@ def step5_reanalyze(run_id: int, prompt_text: str = None, prompt_id: int = None,
         print(f"  New prompt: {prompt_text[:100]}...")
     print(f"{'='*60}")
 
-    params = {"model": model}
-    if prompt_id:
-        params["prompt_id"] = prompt_id
-    elif prompt_text:
-        params["prompt_text"] = prompt_text
+    text = prompt_text or DEFAULT_ANALYSIS_PROMPT
+    params = {"model": model, "prompt_text": text}
 
     result = api("post", f"/pipeline/gathering/runs/{run_id}/re-analyze",
                  params=params)
