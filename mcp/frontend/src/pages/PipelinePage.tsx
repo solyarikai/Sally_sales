@@ -348,20 +348,28 @@ export default function PipelinePage() {
           )}
         </div>
 
-        {/* Stage indicator */}
-        <div style={{ position: 'relative' }}>
-          <button onClick={() => setStageDropOpen(!stageDropOpen)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 6, fontSize: 13, fontWeight: 500, background: run?.current_phase?.startsWith('awaiting') ? 'var(--warning)' : 'var(--info)', color: 'white', border: 'none', cursor: 'pointer' }}>
-            {STAGE_LABELS[run?.current_phase] || run?.current_phase || 'N/A'} <span style={{ fontSize: 10, opacity: 0.7 }}>▼</span>
-          </button>
-          {stageDropOpen && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 4, minWidth: 200, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
-              {STAGES.map((s, i) => (
-                <div key={s} style={{ padding: '4px 10px', fontSize: 12, color: i < currentStageIdx ? 'var(--success)' : i === currentStageIdx ? 'var(--text)' : 'var(--text-muted)' }}>
-                  {i < currentStageIdx ? '✓ ' : i === currentStageIdx ? '→ ' : '  '}{STAGE_LABELS[s]}
+        {/* Visual stepper — no clicking, just shows progress */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+          {STAGES.filter(s => !s.startsWith('awaiting')).map((s, i, arr) => {
+            const stageIdx = STAGES.indexOf(s)
+            const done = stageIdx < currentStageIdx
+            const current = stageIdx === currentStageIdx || (s === 'analyze' && run?.current_phase?.startsWith('awaiting_targets'))
+            const checkpoint = run?.current_phase?.startsWith('awaiting') && current
+            const color = done ? '#22c55e' : current ? (checkpoint ? '#f59e0b' : '#3b82f6') : 'var(--border)'
+            const label = STAGE_LABELS[s] || s
+            const shortLabel = label.replace('Pre-', '').replace('Prepare ', '').substring(0, 8)
+            return (
+              <div key={s} style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {done && <span style={{ fontSize: 7, color: 'white' }}>✓</span>}
+                  </div>
+                  <span style={{ fontSize: 9, color: current ? 'var(--text)' : 'var(--text-muted)', fontWeight: current ? 600 : 400 }}>{shortLabel}</span>
                 </div>
-              ))}
-            </div>
-          )}
+                {i < arr.length - 1 && <div style={{ width: 12, height: 1, background: done ? '#22c55e' : 'var(--border)', marginBottom: 12 }} />}
+              </div>
+            )
+          })}
         </div>
 
         {/* Prompts link */}
@@ -388,11 +396,11 @@ export default function PipelinePage() {
           </Link>
         )}
 
-        {/* SmartLead campaign link — appears when campaign created */}
-        {run?.campaign?.smartlead_url && (
-          <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: 'rgba(99,102,241,0.15)', color: '#6366f1', textDecoration: 'none', fontWeight: 500, border: '1px solid rgba(99,102,241,0.3)' }}>
-            📬 {run.campaign.name || 'SmartLead Campaign'}
-          </a>
+        {/* Campaign link — points to Campaigns page, not direct SmartLead */}
+        {run?.campaign?.id && (
+          <Link to={`/campaigns`} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: 'rgba(99,102,241,0.15)', color: '#6366f1', textDecoration: 'none', fontWeight: 500, border: '1px solid rgba(99,102,241,0.3)' }}>
+            View Campaign
+          </Link>
         )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
