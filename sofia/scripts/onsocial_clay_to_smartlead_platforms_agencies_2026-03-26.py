@@ -1426,16 +1426,24 @@ def upload_leads(campaign_id: int, contacts: list[dict]) -> int:
     total = 0
     for i in range(0, len(leads), 100):
         batch = leads[i:i+100]
-        r = httpx.post(f"{SMARTLEAD_BASE}/leads", params={**sl_params(), "campaign_id": campaign_id},
+        r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{campaign_id}/leads", params=sl_params(),
                        json={"lead_list": batch}, timeout=60)
         if r.status_code == 200:
-            total += len(batch)
+            data = r.json()
+            uploaded = data.get("upload_count", len(batch))
+            total += uploaded
+            blocked = data.get("block_count", 0)
+            dupes = data.get("duplicate_count", 0)
+            if blocked or dupes:
+                print(f"    Batch: +{uploaded}, blocked={blocked}, dupes={dupes}")
         elif r.status_code == 429:
             time.sleep(70)
-            r2 = httpx.post(f"{SMARTLEAD_BASE}/leads", params={**sl_params(), "campaign_id": campaign_id},
+            r2 = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{campaign_id}/leads", params=sl_params(),
                             json={"lead_list": batch}, timeout=60)
             if r2.status_code == 200:
-                total += len(batch)
+                total += r2.json().get("upload_count", len(batch))
+        else:
+            print(f"    Upload error: {r.status_code} {r.text[:200]}")
         time.sleep(1)
     print(f"  Uploaded: {total}/{len(leads)}")
     return total
