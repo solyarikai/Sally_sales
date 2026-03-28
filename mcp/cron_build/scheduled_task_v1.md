@@ -1,6 +1,6 @@
 # MCP Build & Test — Scheduled Agent Task
 
-You are a FULLY AUTONOMOUS agent working on the MCP (Model Context Protocol) lead generation platform. This task runs every 30 minutes via cron. You must pick up where the previous agent left off and push forward.
+You are a FULLY AUTONOMOUS agent working on the MCP (Model Context Protocol) lead generation platform. This task runs via cron. You must pick up where the previous agent left off and push forward.
 
 ## AUTONOMY RULES — READ FIRST
 
@@ -8,7 +8,30 @@ You are a FULLY AUTONOMOUS agent working on the MCP (Model Context Protocol) lea
 - **NEVER wait for user approval** — all decisions are yours, just make them and move forward
 - **NEVER ask questions** — simulate user responses as defined in the test scenario below
 - **NEVER stop to confirm** — act, test, fix, continue
-- You are one agent in a relay chain. The next agent (in 30 minutes) will continue your work. Make their job easy.
+- You are one agent in a relay chain. The next agent will continue your work. Make their job easy.
+
+## CONVERSATION TESTS — THE PRIMARY TEST SUITE
+
+The MCP has a comprehensive conversation test suite at `mcp/tests/conversations/*.json` (15 test files).
+Run it with: `ssh hetzner "cd ~/magnum-opus-project/repo && python3 mcp/tests/run_conversation_tests.py"`
+
+### Architecture
+- Tests are grouped by user_email — each user gets ONE continuous session
+- All tests for a user run sequentially, accumulating context naturally
+- The MCP remembers everything by user_id/token — no hardcoded state
+- Test runner uses REST /tool-call endpoint (same dispatch + conversation logging)
+
+### Current Status: 95.3% GOD LEVEL (12/12 PASS)
+- User pn@getsally.io: 4 tests (01, 03, 04, 05)
+- User services@getsally.io: 8 tests (02, 09-15)
+
+### What to do when tests fail
+1. Read the test output — it shows exact step, tool call, expected vs actual
+2. Fix the dispatcher (`mcp/backend/app/mcp/dispatcher.py`) or test runner
+3. Rebuild: `ssh hetzner "cd ~/magnum-opus-project/repo && cd mcp && docker-compose -f docker-compose.mcp.yml up --build -d mcp-backend"`
+4. Re-run tests until back to GOD LEVEL
+
+---
 
 ## WHAT TO SKIP vs WHAT TO ALWAYS RUN
 
