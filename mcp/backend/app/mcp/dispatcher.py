@@ -845,15 +845,25 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 "email_accounts": len(email_account_ids),
             },
             "test_email": test_email_result,
+            "user_email": user.email,
             "message": (
-                f"Campaign '{seq.campaign_name}' created as DRAFT with production settings.\n"
+                f"Campaign '{seq.campaign_name}' created as DRAFT.\n\n"
+                f"SmartLead: {smartlead_url}\n"
                 f"Schedule: Mon-Fri 9:00-18:00 {timezone}\n"
-                f"Email accounts: {len(email_account_ids)} assigned\n"
-                + (f"Test email sent to {user.email} — check your inbox!\n" if test_email_result and test_email_result.get("ok") else
-                   f"Test email failed: {test_email_result.get('error', 'unknown') if test_email_result else 'skipped'}\n")
-                + f"Next: review the test email, add leads, then activate."
+                f"Email accounts: {len(email_account_ids)} assigned\n\n"
+                + (f"Check your inbox at {user.email} — test email sent!\n\n" if test_email_result and test_email_result.get("ok") else
+                   f"Test email could not be sent ({test_email_result.get('error', 'no email accounts') if test_email_result else 'no accounts assigned'}). Assign email accounts first.\n\n")
+                + f"I'll launch the campaign after your approval. You can:\n"
+                + f"- Review the sequence in SmartLead\n"
+                + f"- Edit any email step (tell me which to change)\n"
+                + f"- Override target companies (tell me which to add/remove)\n"
+                + f"- Say 'activate' when ready to start sending"
             ),
-            "_links": {"smartlead": smartlead_url},
+            "_links": {
+                "smartlead": smartlead_url,
+                "campaigns": "http://46.62.210.24:3000/campaigns",
+                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id if 'run' in dir() else ''}",
+            },
         }
 
     if tool_name == "send_test_email":
