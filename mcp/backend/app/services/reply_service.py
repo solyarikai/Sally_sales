@@ -190,7 +190,7 @@ async def sync_campaign_replies(
                 channel="email",
                 email_subject=lead_data.get("email_subject", ""),
                 reply_text=reply_text[:5000],
-                received_at=lead_data.get("reply_time"),
+                received_at=datetime.fromisoformat(lead_data["reply_time"].replace("Z", "+00:00")) if lead_data.get("reply_time") else None,
                 category=cat,
                 category_confidence=classification.get("confidence", "low"),
                 classification_reasoning=classification.get("reasoning", ""),
