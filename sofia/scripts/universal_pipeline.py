@@ -500,6 +500,37 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
     return {"targets_found": targets, "total_analyzed": total}
 
 
+def blacklist_approved_targets(config: ProjectConfig, run_id: int):
+    """Add approved target domains to project_blacklist after CP2.
+    Prevents next gathering run from picking up the same companies."""
+    import subprocess
+    sql = (f"SELECT DISTINCT dc.domain FROM discovered_companies dc "
+           f"JOIN company_source_links csl ON csl.discovered_company_id = dc.id "
+           f"WHERE csl.gathering_run_id = {run_id} AND dc.is_target = true "
+           f"AND dc.domain IS NOT NULL AND dc.domain != ''")
+    r = subprocess.run(
+        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+         "-d", "leadgen", "-t", "-A", "-c", sql],
+        capture_output=True, text=True, timeout=15,
+    )
+    domains = [d.strip() for d in r.stdout.strip().split("\n") if d.strip()]
+    if not domains:
+        return
+
+    values = ", ".join(
+        f"({config.project_id}, '{d}', 'target_approved_run_{run_id}', 'pipeline', now())"
+        for d in domains
+    )
+    insert_sql = (f"INSERT INTO project_blacklist (project_id, domain, reason, source, created_at) "
+                  f"VALUES {values} ON CONFLICT DO NOTHING")
+    subprocess.run(
+        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+         "-d", "leadgen", "-c", insert_sql],
+        capture_output=True, text=True, timeout=30,
+    )
+    print(f"  Blacklist: +{len(domains)} target domains added (run #{run_id})")
+
+
 def step6_prepare_verify(run_id: int) -> dict:
     """Prepare FindyMail verification → creates CP3 with cost estimate."""
     print(f"\n  Step 6: Prepare Verification (run #{run_id})")
