@@ -1109,9 +1109,17 @@ def _map_csv_row(row: dict, targets_by_domain: dict) -> dict:
     target = targets_by_domain.get(domain, {})
     segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
 
+    # Handle "Name" column (full name) — split into first/last
+    first_name = _get("first_name")
+    last_name = _get("last_name")
+    if first_name and not last_name and " " in first_name:
+        parts = first_name.split(" ", 1)
+        first_name = parts[0]
+        last_name = parts[1]
+
     return {
-        "first_name": _get("first_name"),
-        "last_name": _get("last_name"),
+        "first_name": first_name,
+        "last_name": last_name,
         "email": _get("email"),
         "title": _get("title"),
         "company_name": normalize_company(_get("company_name") or target.get("company_name", domain)),
