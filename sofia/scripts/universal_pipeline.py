@@ -496,7 +496,7 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
     run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
     phase = run_info.get("current_phase", "")
 
-    # Blacklist — проверяем домены против списка уже обработанных компаний
+    # Blacklist — проверяем домены против списка уже собранных и обработанных компаний
     if phase == "gathered":
         api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
         approve_pending_gate(config, run_id)
