@@ -2051,6 +2051,8 @@ def main():
             return
 
     if "verify" in steps and run_id:
+        # После CP2 approve — добавляем таргеты в blacklist
+        blacklist_approved_targets(run_id, args.project_id)
         cp3 = step6_prepare_verify(run_id)
         if cp3.get("gate_id"):
             print("\n  >>> Claude Code will review CP3 (cost) <<<")
