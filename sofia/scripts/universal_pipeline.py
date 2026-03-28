@@ -151,7 +151,7 @@ class ProjectConfig:
         print(f"  Segments: {', '.join(self.segments.keys()) or 'none'}")
 
         # 3. Latest prompt from gathering_prompts
-        self.prompt_id = get_latest_prompt_id(self.project_id)
+        self.prompt_id, self.prompt_text = get_latest_prompt(self.project_id)
 
         # 4. SmartLead config from project_knowledge
         pk_accounts = api("get", f"/projects/{self.project_id}/knowledge/smartlead/email_accounts",
