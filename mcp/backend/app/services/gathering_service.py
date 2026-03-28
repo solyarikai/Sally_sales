@@ -153,6 +153,15 @@ class GatheringService:
         elif source_type == "manual.companies.manual":
             from app.services.gathering_adapters.manual import ManualAdapter
             return ManualAdapter()
+        elif source_type == "csv.companies.file":
+            from app.services.gathering_adapters.csv_file import CSVFileAdapter
+            return CSVFileAdapter()
+        elif source_type == "google_sheets.companies.sheet":
+            from app.services.gathering_adapters.google_sheet import GoogleSheetAdapter
+            return GoogleSheetAdapter()
+        elif source_type == "google_drive.companies.folder":
+            from app.services.gathering_adapters.google_drive import GoogleDriveAdapter
+            return GoogleDriveAdapter()
         return None
 
     # ── Phase 2: Blacklist Check ──
@@ -715,6 +724,236 @@ Rules:
                     changed += 1
 
         return changed
+
+    # ── Multi-Step Analysis (Custom Prompt Chains) ──
+
+    async def analyze_multi_step(
+        self, session: AsyncSession, run: GatheringRun,
+        prompt_steps: List[Dict[str, Any]],
+        openai_key: Optional[str] = None,
+    ) -> ApprovalGate:
+        """Run multi-step classification prompt chain.
+
+        Each step:
+        1. 'classify' steps run GPT on remaining companies, storing results
+        2. 'filter' steps remove companies that don't match the condition
+
+        Step results stored in source_data.custom_analysis[step_name].
+        Final step's output becomes is_target/analysis_segment.
+        """
+        self._check_phase(run, "analyze")
+
+        if not openai_key:
+            raise ValueError("OpenAI key required for analysis")
+
+        from app.models.gathering import CompanyScrape
+        import asyncio
+        import httpx
+        import json as _json
+
+        # Get all companies with scraped text
+        result = await session.execute(
+            select(DiscoveredCompany, CompanyScrape)
+            .outerjoin(CompanyScrape, (CompanyScrape.discovered_company_id == DiscoveredCompany.id) & (CompanyScrape.is_current == True))
+            .where(
+                DiscoveredCompany.project_id == run.project_id,
+                DiscoveredCompany.is_blacklisted == False,
+                DiscoveredCompany.is_pre_filtered == False,
+            )
+        )
+        rows = result.all()
+
+        # Build working set
+        working_set = {}  # dc_id -> (dc, scrape_text, step_results)
+        for dc, scrape in rows:
+            scrape_text = scrape.clean_text if scrape and scrape.clean_text else None
+            if scrape_text:
+                working_set[dc.id] = (dc, scrape_text, {})
+
+        semaphore = asyncio.Semaphore(self.ANALYSIS_CONCURRENCY)
+
+        for step_idx, step in enumerate(prompt_steps):
+            step_name = step.get("name", f"step_{step_idx}")
+            step_type = step.get("type", "classify")
+            step_prompt = step.get("prompt", "")
+            output_col = step.get("output_column", step_name)
+
+            if step_type == "filter":
+                # Filter step: remove companies based on previous step results
+                condition = step.get("filter_condition") or step.get("prompt", "")
+                remove_ids = []
+                for dc_id, (dc, text, results) in working_set.items():
+                    if not self._evaluate_filter(results, condition):
+                        remove_ids.append(dc_id)
+                for dc_id in remove_ids:
+                    del working_set[dc_id]
+                logger.info(f"Step '{step_name}': filtered {len(remove_ids)}, {len(working_set)} remaining")
+                continue
+
+            # Classify step: run GPT on remaining companies
+            async def classify_one(dc_id, dc, text, step_prompt=step_prompt):
+                company_context = f"Company: {dc.name or dc.domain}\nDomain: {dc.domain}"
+                if dc.industry:
+                    company_context += f"\nIndustry: {dc.industry}"
+                if dc.country:
+                    company_context += f"\nCountry: {dc.country}"
+                if dc.employee_count:
+                    company_context += f"\nEmployees: {dc.employee_count}"
+                company_context += f"\n\nWebsite content:\n{text[:3000]}"
+
+                async with semaphore:
+                    try:
+                        async with httpx.AsyncClient(timeout=30) as client:
+                            resp = await client.post(
+                                "https://api.openai.com/v1/chat/completions",
+                                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                                json={
+                                    "model": "gpt-4o-mini",
+                                    "messages": [
+                                        {"role": "system", "content": step_prompt},
+                                        {"role": "user", "content": company_context},
+                                    ],
+                                    "max_tokens": 300,
+                                    "temperature": 0.1,
+                                },
+                            )
+                            data = resp.json()
+                            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                            return dc_id, content.strip()
+                    except Exception as e:
+                        return dc_id, f"ERROR: {str(e)[:100]}"
+
+            # Process in batches
+            items = [(dc_id, dc, text) for dc_id, (dc, text, _) in working_set.items()]
+            for batch_start in range(0, len(items), self.ANALYSIS_BATCH_SIZE):
+                batch = items[batch_start:batch_start + self.ANALYSIS_BATCH_SIZE]
+                tasks = [classify_one(dc_id, dc, text) for dc_id, dc, text in batch]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for r in results:
+                    if isinstance(r, Exception):
+                        continue
+                    dc_id, output = r
+                    if dc_id in working_set:
+                        working_set[dc_id][2][output_col] = output
+
+            logger.info(f"Step '{step_name}': classified {len(working_set)} companies")
+            await session.flush()
+
+        # Final: set is_target based on last classify step's results
+        targets_found = 0
+        total_analyzed = len(working_set)
+        target_list = []
+        borderline_rejections = []
+
+        for dc_id, (dc, text, step_results) in working_set.items():
+            # Store step results in source_data
+            sd = dc.source_data or {}
+            sd["custom_analysis"] = step_results
+            dc.source_data = sd
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(dc, "source_data")
+
+            # Parse last step's output to determine target status
+            last_output = list(step_results.values())[-1] if step_results else ""
+            is_target, confidence, segment, reasoning = self._parse_step_output(last_output)
+
+            dc.is_target = is_target
+            dc.analysis_confidence = confidence
+            dc.analysis_segment = segment
+            dc.analysis_reasoning = reasoning
+
+            if is_target:
+                targets_found += 1
+                target_list.append({
+                    "dc_id": dc.id, "domain": dc.domain, "name": dc.name,
+                    "confidence": confidence, "segment": segment,
+                    "reasoning": reasoning, "step_results": step_results,
+                })
+            elif 0.4 <= confidence <= 0.6:
+                borderline_rejections.append({
+                    "domain": dc.domain, "name": dc.name,
+                    "confidence": confidence, "segment": segment, "reasoning": reasoning,
+                })
+
+        target_list.sort(key=lambda x: -x.get("confidence", 0))
+        borderline_rejections.sort(key=lambda x: -x.get("confidence", 0))
+
+        gate = self._create_checkpoint2_gate(
+            session, run, targets_found, total_analyzed,
+            len(rows) - total_analyzed,  # skipped
+            target_list, borderline_rejections,
+            "\n---\n".join(s.get("prompt", "")[:200] for s in prompt_steps),
+        )
+
+        run.target_rate = targets_found / total_analyzed if total_analyzed > 0 else 0
+        run.avg_analysis_confidence = (
+            sum(t["confidence"] for t in target_list) / len(target_list)
+            if target_list else 0
+        )
+        self._advance_phase(run, "awaiting_targets_ok")
+        await session.flush()
+        return gate
+
+    def _evaluate_filter(self, step_results: Dict, condition: str) -> bool:
+        """Evaluate a filter condition against step results.
+
+        Simple conditions:
+        - "segment != OTHER" → check last result doesn't contain "OTHER"
+        - "NOT_VALID" → check last result doesn't contain "NOT_VALID"
+        """
+        if not step_results:
+            return False
+        last_value = list(step_results.values())[-1]
+        if not last_value:
+            return False
+
+        # Simple negation check
+        condition = condition.strip()
+        if condition.startswith("!") or "NOT_VALID" in condition or "!=" in condition:
+            # Remove from set if contains NOT_VALID or OTHER
+            reject_terms = ["NOT_VALID", "OTHER", "NOT_A_MATCH"]
+            return not any(term in last_value.upper() for term in reject_terms)
+
+        # Positive match
+        return condition.upper() in last_value.upper()
+
+    def _parse_step_output(self, output: str) -> tuple:
+        """Parse GPT output from a classification step.
+
+        Handles both JSON and text output formats:
+        - JSON: {"is_target": true, "confidence": 0.85, "segment": "X", "reasoning": "..."}
+        - Text: "VALID" / "NOT_VALID" / "Classification: VALID\nAnalysis: ..."
+        """
+        import json as _json
+
+        if not output:
+            return False, 0.0, "NO_OUTPUT", "No output from classification step"
+
+        # Try JSON parse
+        try:
+            clean = output.strip()
+            if clean.startswith("```"):
+                clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+            parsed = _json.loads(clean)
+            return (
+                parsed.get("is_target", False),
+                parsed.get("confidence", 0.5),
+                parsed.get("segment", "UNKNOWN"),
+                parsed.get("reasoning", ""),
+            )
+        except (_json.JSONDecodeError, ValueError):
+            pass
+
+        # Text format: check for VALID/NOT_VALID pattern
+        upper = output.upper()
+        if "NOT_VALID" in upper or "NOT_A_MATCH" in upper or "OTHER" in upper:
+            return False, 0.3, "NOT_A_MATCH", output[:200]
+        if "VALID" in upper or "TARGET" in upper:
+            return True, 0.7, "TARGET", output[:200]
+
+        # Ambiguous
+        return False, 0.4, "UNCLEAR", output[:200]
 
     # ── Phase 6: Prepare Verification ──
 

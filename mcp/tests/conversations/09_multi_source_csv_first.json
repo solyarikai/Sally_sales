@@ -1,0 +1,139 @@
+{
+  "id": "09_multi_source_csv_first",
+  "description": "User 2 (services@getsally.io): Launches pipeline from CSV for Result project targeting LATAM fashion brands. First of 3 multi-source runs. Provides draft classification prompt that MCP improves.",
+  "user_email": "services@getsally.io",
+  "user_password": "qweqweqwe",
+  "project_name": "Result",
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "login",
+      "user_prompt": "Login with my token mcp_services_test_token",
+      "user_prompt_variants": [
+        "Here's my token: mcp_services_test_token",
+        "mcp_services_test_token"
+      ],
+      "expected_tool_calls": ["login"],
+      "expected_behavior": {
+        "authenticated": true,
+        "user_email": "services@getsally.io"
+      }
+    },
+    {
+      "step": 2,
+      "phase": "project_selection",
+      "user_prompt": "I want to work on the Result project",
+      "user_prompt_variants": [
+        "Select project Result",
+        "Switch to Result project",
+        "Let's work on Result"
+      ],
+      "expected_tool_calls": ["select_project"],
+      "expected_behavior": {
+        "project_selected": true,
+        "project_name": "Result",
+        "response_must_contain": ["Result", "project"]
+      }
+    },
+    {
+      "step": 3,
+      "phase": "source_selection",
+      "description": "User provides CSV file for gathering",
+      "user_prompt": "I have a CSV with LATAM fashion companies. Here: /data/take-test-100.csv. Classify them as fashion brands.",
+      "user_prompt_variants": [
+        "Upload this CSV to the pipeline: /data/take-test-100.csv. These are fashion companies from LATAM.",
+        "Run pipeline on this CSV file /data/take-test-100.csv — looking for fashion and apparel brands in Latin America",
+        "Here's my company list as CSV: /data/take-test-100.csv. I want to segment by fashion/apparel vs other."
+      ],
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "source_type": "csv.companies.file",
+        "mcp_suggests_csv_source": true,
+        "filters_contain": {"file_path": "/data/take-test-100.csv"},
+        "response_must_contain": ["CSV", "companies", "gathered"],
+        "response_must_not_contain": ["Apollo", "credits"]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "custom_prompt",
+      "description": "User provides a draft classification prompt. MCP should improve it to god-level.",
+      "user_prompt": "Use this prompt to classify: Companies that make fashion clothes in Latin America = VALID. Marketing agencies and logistics = NOT_VALID.",
+      "user_prompt_variants": [
+        "Here's my classification: VALID if fashion brand/clothing manufacturer in LATAM. NOT_VALID if marketing agency, logistics, pure retail.",
+        "Classify with: fashion/apparel brands in LATAM = target. Non-fashion companies = reject.",
+        "My segmentation: look for companies that design and produce clothing, fashion accessories, or textiles. Reject agencies and tech companies."
+      ],
+      "expected_behavior": {
+        "mcp_improves_prompt": true,
+        "improved_prompt_longer_than_user_draft": true,
+        "improved_prompt_contains": ["VALID", "NOT_VALID", "fashion", "apparel"],
+        "improved_prompt_adds_exclusion_criteria": true,
+        "improved_prompt_adds_examples": true,
+        "response_must_contain": ["prompt", "classify"],
+        "response_must_not_contain": ["error"]
+      },
+      "notes": "MCP should take user's rough draft and build a comprehensive via-negativa classification prompt. Like the Drive JSON examples: detailed VALID/NOT_VALID criteria, edge cases, examples."
+    },
+    {
+      "step": 5,
+      "phase": "blacklist",
+      "description": "Blacklist check — first run, so no overlap expected",
+      "expected_tool_calls": ["tam_blacklist_check", "tam_approve_checkpoint"],
+      "expected_behavior": {
+        "checkpoint_type": "checkpoint_1",
+        "project_name": "Result",
+        "passed_blacklist_min": 100,
+        "rejected_blacklist": 0,
+        "mcp_shows_scope_for_approval": true,
+        "response_must_contain": ["blacklist", "approved", "Result"]
+      }
+    },
+    {
+      "step": 6,
+      "phase": "pre_filter_scrape_analyze",
+      "description": "Pre-filter, scrape, and analyze with improved prompt",
+      "expected_tool_calls": ["tam_pre_filter", "tam_scrape", "tam_analyze"],
+      "expected_behavior": {
+        "pre_filter_passes_most": true,
+        "scrape_runs": true,
+        "analysis_uses_improved_prompt": true,
+        "checkpoint_type": "checkpoint_2",
+        "target_list_returned": true,
+        "segment_labels_contain": ["FASHION"],
+        "targets_found_min": 30,
+        "response_must_contain": ["targets", "checkpoint", "review"]
+      }
+    },
+    {
+      "step": 7,
+      "phase": "checkpoint2_approval",
+      "user_prompt": "Looks good, approve the targets",
+      "user_prompt_variants": [
+        "Approve",
+        "Target list looks fine, proceed",
+        "LGTM, approve checkpoint 2"
+      ],
+      "expected_tool_calls": ["tam_approve_checkpoint"],
+      "expected_behavior": {
+        "gate_approved": true,
+        "run_advances_to": "prepare_verification"
+      }
+    }
+  ],
+
+  "final_verification": {
+    "db_checks": [
+      "gathering_runs has 1 run with source_type='csv.companies.file' for Result project",
+      "discovered_companies count >= 100 for Result project",
+      "no duplicate domains in discovered_companies for same project",
+      "approval_gates has 2 gates (CP1 + CP2) for this run",
+      "gathering_prompts has prompt with improved classification text"
+    ],
+    "ui_checks": [
+      {"page": "/pipeline/{run_id}", "check": "Companies table shows FASHION segments"},
+      {"page": "/pipeline/{run_id}/prompts", "check": "Shows the improved classification prompt with stats"}
+    ]
+  }
+}

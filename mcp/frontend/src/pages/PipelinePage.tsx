@@ -309,22 +309,70 @@ export default function PipelinePage() {
   const currentStageIdx = run ? STAGES.indexOf(run.current_phase) : -1
   const isGathering = run?.status === 'running' && run?.current_phase === 'gather'
 
-  // Column definitions — contacts column appears only when targets exist
-  const columns = [
-    { key: 'domain', label: 'Domain', filterType: 'text' as const },
-    { key: 'name', label: 'Name', filterType: 'text' as const },
+  // Column visibility — persisted in localStorage
+  const [columnConfig, setColumnConfig] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('pipeline_columns')
+      return saved ? JSON.parse(saved) : {}
+    } catch { return {} }
+  })
+  const [showColumnConfig, setShowColumnConfig] = useState(false)
+
+  const toggleColumn = (key: string) => {
+    setColumnConfig(prev => {
+      const next = { ...prev, [key]: !(prev[key] ?? true) }
+      localStorage.setItem('pipeline_columns', JSON.stringify(next))
+      return next
+    })
+  }
+
+  // Essential columns (always available, shown by default)
+  const essentialColumns = [
+    { key: 'domain', label: 'Domain', filterType: 'text' as const, essential: true },
+    { key: 'name', label: 'Name', filterType: 'text' as const, essential: true },
+    { key: 'status', label: 'Status', filterType: 'dropdown' as const, essential: true },
+    { key: 'is_target', label: 'Target', filterType: 'dropdown' as const, essential: true },
+    { key: 'analysis_segment', label: 'Segment', filterType: 'dropdown' as const, essential: true },
+  ]
+
+  // Optional built-in columns (hideable)
+  const optionalColumns = [
     { key: 'industry', label: 'Industry', filterType: 'dropdown' as const },
     { key: 'keywords', label: 'Keywords', filterType: 'text' as const },
     { key: 'employee_count', label: 'Size', filterType: 'text' as const },
     { key: 'country', label: 'Country', filterType: 'dropdown' as const },
     { key: 'city', label: 'City', filterType: 'text' as const },
     { key: 'scrape_text_preview', label: 'Scraped', filterType: 'text' as const },
-    { key: 'analysis_segment', label: 'Segment', filterType: 'dropdown' as const },
     { key: 'analysis_confidence', label: 'Conf.', filterType: 'text' as const },
     { key: 'analysis_reasoning', label: 'Analysis', filterType: 'text' as const },
-    { key: 'status', label: 'Status', filterType: 'dropdown' as const },
     { key: 'contacts_count', label: 'People', filterType: 'text' as const },
   ]
+
+  // Custom columns from current iteration's processing steps
+  const customColumns = useMemo(() => {
+    // Detect custom columns from company data (source_data.custom_columns keys)
+    const customKeys = new Set<string>()
+    for (const c of companies) {
+      const cc = c.source_data?.custom_columns || c.source_data?.custom_analysis || {}
+      Object.keys(cc).forEach(k => customKeys.add(k))
+    }
+    return Array.from(customKeys).map(key => ({
+      key: `custom_${key}`,
+      label: key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+      filterType: 'dropdown' as const,
+      customKey: key,
+    }))
+  }, [companies])
+
+  // Build visible columns
+  const columns = useMemo(() => {
+    const all = [
+      ...essentialColumns,
+      ...optionalColumns.filter(c => columnConfig[c.key] !== false),
+      ...customColumns.filter(c => columnConfig[c.key] !== false),
+    ]
+    return all
+  }, [columnConfig, customColumns])
 
   if (!run && loading) return <div style={{ padding: 24, color: 'var(--text-muted)' }}>Loading...</div>
 
@@ -405,6 +453,7 @@ export default function PipelinePage() {
         )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowColumnConfig(!showColumnConfig)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showColumnConfig ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Columns</button>
           <button onClick={() => setShowFilters(!showFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Company Filters</button>
           <button onClick={() => setShowPeopleFilters(!showPeopleFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPeopleFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>People Filters</button>
           <button onClick={() => setShowPromptHistory(!showPromptHistory)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPromptHistory ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>User-MCP Conversation</button>
@@ -422,6 +471,46 @@ export default function PipelinePage() {
       </div>
 
       {/* ── Collapsible panels ── */}
+
+      {/* Column Configuration */}
+      {showColumnConfig && (
+        <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Column Visibility</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {essentialColumns.map(c => (
+              <span key={c.key} style={{ padding: '3px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.12)', color: '#22c55e', fontSize: 11 }}>
+                {c.label} (always)
+              </span>
+            ))}
+            {optionalColumns.map(c => (
+              <button key={c.key} onClick={() => toggleColumn(c.key)} style={{
+                padding: '3px 8px', borderRadius: 4, fontSize: 11, border: '1px solid var(--border)',
+                background: columnConfig[c.key] !== false ? 'rgba(59,130,246,0.12)' : 'transparent',
+                color: columnConfig[c.key] !== false ? '#3b82f6' : 'var(--text-muted)',
+                cursor: 'pointer', opacity: columnConfig[c.key] !== false ? 1 : 0.5,
+              }}>
+                {columnConfig[c.key] !== false ? '✓ ' : ''}{c.label}
+              </button>
+            ))}
+            {customColumns.length > 0 && (
+              <>
+                <span style={{ padding: '3px 0', color: 'var(--text-muted)', fontSize: 10, fontWeight: 600 }}>|</span>
+                {customColumns.map(c => (
+                  <button key={c.key} onClick={() => toggleColumn(c.key)} style={{
+                    padding: '3px 8px', borderRadius: 4, fontSize: 11, border: '1px solid rgba(168,85,247,0.3)',
+                    background: columnConfig[c.key] !== false ? 'rgba(168,85,247,0.12)' : 'transparent',
+                    color: columnConfig[c.key] !== false ? '#a855f7' : 'var(--text-muted)',
+                    cursor: 'pointer', opacity: columnConfig[c.key] !== false ? 1 : 0.5,
+                  }}>
+                    {columnConfig[c.key] !== false ? '✓ ' : ''}{c.label}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {showFilters && run?.filters && (
         <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Apollo Filters — Run #{run.id}</div>
@@ -498,41 +587,63 @@ export default function PipelinePage() {
           <tbody>
             {filtered.map((c: any) => (
               <tr key={c.id} onClick={() => setSelectedCompany(c)} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--btn-hover)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                <td style={{ padding: '7px 8px 7px 0' }}><a href={`https://${c.domain}`} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ color: 'var(--text-link)' }}>{c.domain}</a></td>
-                <td style={{ padding: '7px 8px 7px 0' }}>{c.name || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
-                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)' }}>{c.industry || '—'}</td>
-                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: 11 }}>{Array.isArray(c.keywords) ? c.keywords.join(', ') : (c.keywords || '—')}</td>
-                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)' }}>{c.employee_count || '—'}</td>
-                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)' }}>{c.country || '—'}</td>
-                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)' }}>{c.city || '—'}</td>
-                <td style={{ padding: '7px 8px 7px 0', fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {c.scrape_text_preview ? <span style={{ color: 'var(--text-secondary)' }} title={c.scrape_text_preview}>{c.scrape_text_preview.slice(0, 60)}...</span> :
-                   c.scrape_status === 'success' ? <span style={{ color: 'var(--success)' }}>✓ scraped</span> :
-                   c.scrape_status === 'error' ? <span style={{ color: 'var(--danger)' }}>error</span> :
-                   <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                </td>
-                <td style={{ padding: '7px 8px 7px 0', fontSize: 11 }}>
-                  {c.analysis_segment ? (
-                    <span style={{ padding: '1px 5px', borderRadius: 3, background: c.analysis_segment === 'NOT_A_MATCH' ? 'var(--bg)' : 'rgba(99,102,241,0.15)', color: c.analysis_segment === 'NOT_A_MATCH' ? 'var(--text-muted)' : '#818cf8', fontWeight: 500 }}>
-                      {c.analysis_segment}
-                    </span>
-                  ) : '—'}
-                </td>
-                <td style={{ padding: '7px 8px 7px 0', fontSize: 11, fontWeight: 600, color: c.analysis_confidence >= 0.8 ? 'var(--success)' : c.analysis_confidence >= 0.5 ? 'var(--warning)' : 'var(--text-muted)' }}>
-                  {c.analysis_confidence != null ? `${(c.analysis_confidence*100).toFixed(0)}%` : '—'}
-                </td>
-                <td style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.analysis_reasoning || c.analysis_short || '—'}</td>
-                <td style={{ padding: '7px 0' }}>
-                  <span style={{ color: STATUS_COLORS[c.status] || 'var(--text-muted)', fontWeight: c.status === 'target' || c.status === 'verified' ? 600 : 400 }}>{c.status}</span>
-                </td>
-                <td style={{ padding: '7px 8px 7px 0', fontSize: 12 }}>
-                  {(c.contacts_count || 0) > 0 ? (
-                    <a href={`/crm?domain=${c.domain}`} target="_blank" rel="noopener" onClick={e => e.stopPropagation()}
-                      style={{ color: c.status === 'blacklisted' ? 'var(--text-muted)' : 'var(--text-link)', fontWeight: 500 }}>
-                      {c.contacts_count}
-                    </a>
-                  ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                </td>
+                {columns.map(col => {
+                  // Custom columns from source_data.custom_columns or custom_analysis
+                  const customCol = (col as any).customKey
+                  const val = customCol
+                    ? (c.source_data?.custom_columns?.[customCol] ?? c.source_data?.custom_analysis?.[customCol] ?? '—')
+                    : c[col.key]
+
+                  // Special rendering for known columns
+                  if (col.key === 'domain') return (
+                    <td key={col.key} style={{ padding: '7px 8px 7px 0' }}><a href={`https://${c.domain}`} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ color: 'var(--text-link)' }}>{c.domain}</a></td>
+                  )
+                  if (col.key === 'analysis_segment') return (
+                    <td key={col.key} style={{ padding: '7px 8px 7px 0', fontSize: 11 }}>
+                      {c.analysis_segment ? (
+                        <span style={{ padding: '1px 5px', borderRadius: 3, background: c.analysis_segment === 'NOT_A_MATCH' ? 'var(--bg)' : 'rgba(99,102,241,0.15)', color: c.analysis_segment === 'NOT_A_MATCH' ? 'var(--text-muted)' : '#818cf8', fontWeight: 500 }}>
+                          {c.analysis_segment}
+                        </span>
+                      ) : '—'}
+                    </td>
+                  )
+                  if (col.key === 'analysis_confidence') return (
+                    <td key={col.key} style={{ padding: '7px 8px 7px 0', fontSize: 11, fontWeight: 600, color: c.analysis_confidence >= 0.8 ? 'var(--success)' : c.analysis_confidence >= 0.5 ? 'var(--warning)' : 'var(--text-muted)' }}>
+                      {c.analysis_confidence != null ? `${(c.analysis_confidence*100).toFixed(0)}%` : '—'}
+                    </td>
+                  )
+                  if (col.key === 'status') return (
+                    <td key={col.key} style={{ padding: '7px 0' }}>
+                      <span style={{ color: STATUS_COLORS[c.status] || 'var(--text-muted)', fontWeight: c.status === 'target' || c.status === 'verified' ? 600 : 400 }}>{c.status}</span>
+                    </td>
+                  )
+                  if (col.key === 'contacts_count') return (
+                    <td key={col.key} style={{ padding: '7px 8px 7px 0', fontSize: 12 }}>
+                      {(c.contacts_count || 0) > 0 ? (
+                        <a href={`/crm?domain=${c.domain}`} target="_blank" rel="noopener" onClick={e => e.stopPropagation()}
+                          style={{ color: c.status === 'blacklisted' ? 'var(--text-muted)' : 'var(--text-link)', fontWeight: 500 }}>
+                          {c.contacts_count}
+                        </a>
+                      ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                    </td>
+                  )
+                  // Custom column with badge styling
+                  if (customCol) return (
+                    <td key={col.key} style={{ padding: '7px 8px 7px 0', fontSize: 11 }}>
+                      {val && val !== '—' ? (
+                        <span style={{ padding: '1px 5px', borderRadius: 3, background: 'rgba(168,85,247,0.12)', color: '#a855f7', fontWeight: 500 }}>
+                          {String(val).slice(0, 30)}
+                        </span>
+                      ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                    </td>
+                  )
+                  // Default rendering
+                  return (
+                    <td key={col.key} style={{ padding: '7px 8px 7px 0', color: 'var(--text-secondary)', fontSize: col.key === 'analysis_reasoning' ? 11 : undefined, maxWidth: col.key === 'analysis_reasoning' || col.key === 'scrape_text_preview' ? 200 : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {val != null ? String(val) : '—'}
+                    </td>
+                  )
+                })}
               </tr>
             ))}
           </tbody>

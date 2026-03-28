@@ -1,0 +1,127 @@
+{
+  "id": "11_multi_source_drive_add_to_existing",
+  "description": "User 2 (services@getsally.io): Adds Google Drive folder data to EXISTING pipeline. MCP asks 'new or existing?' — user says existing again. Tests deep dedup: 35 overlap CSV + 35 overlap Sheet = 70 dups, only 35 truly new.",
+  "user_email": "services@getsally.io",
+  "user_password": "qweqweqwe",
+  "project_name": "Result",
+  "depends_on": "10_multi_source_sheet_add_to_existing",
+
+  "preconditions": {
+    "user_authenticated": true,
+    "project_selected": "Result",
+    "existing_runs": 2,
+    "existing_companies_count": 180,
+    "existing_sources": ["csv.companies.file", "google_sheets.companies.sheet"]
+  },
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "source_addition",
+      "description": "User provides Google Drive folder URL. MCP MUST detect existing runs and ask.",
+      "user_prompt": "I've got more files on Drive: https://drive.google.com/drive/folders/1bBZFN5Yg2qe7VGj_LATAM_batches",
+      "user_prompt_variants": [
+        "Also check this Drive folder with 3 CSV files: https://drive.google.com/drive/folders/1bBZFN5Yg2qe7VGj_LATAM_batches",
+        "Here's a Drive folder with more companies: https://drive.google.com/drive/folders/1bBZFN5Yg2qe7VGj_LATAM_batches",
+        "Last batch — files in this folder: https://drive.google.com/drive/folders/1bBZFN5Yg2qe7VGj_LATAM_batches"
+      ],
+      "expected_behavior": {
+        "mcp_detects_google_drive": true,
+        "mcp_sees_existing_runs": true,
+        "mcp_asks_new_or_existing": true,
+        "response_must_contain": ["existing", "pipeline"],
+        "response_must_contain_any": [
+          "add to existing",
+          "already have 2 runs",
+          "existing pipeline for Result",
+          "180 companies already gathered"
+        ],
+        "mcp_shows_current_counts": true,
+        "mcp_does_NOT_auto_create_new_run": true
+      },
+      "critical_requirement": "MCP MUST mention the existing 2 runs and 180 companies. Must NOT auto-launch. Must ask user."
+    },
+    {
+      "step": 2,
+      "phase": "user_chooses_existing",
+      "user_prompt": "Add to existing one",
+      "user_prompt_variants": [
+        "Same pipeline as before",
+        "Add to the existing pipeline, don't create a new one",
+        "Yep, same project, just add these files"
+      ],
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "source_type": "google_drive.companies.folder",
+        "reuses_existing_project": true,
+        "response_must_contain": ["companies", "gathered"],
+        "total_from_drive_files": 105,
+        "new_companies_added": 35,
+        "duplicates_detected": 70,
+        "response_must_contain_any": ["35 new", "70 duplicate", "70 already", "overlap"]
+      },
+      "critical_requirement": "Drive folder has 105 companies across 3 files. 35 overlap with CSV (batch 2), 35 overlap with Sheet (batch 3). Only 35 from batch 1 are truly new. Project dedup catches all 70."
+    },
+    {
+      "step": 3,
+      "phase": "blacklist",
+      "expected_tool_calls": ["tam_blacklist_check", "tam_approve_checkpoint"],
+      "expected_behavior": {
+        "checkpoint_type": "checkpoint_1",
+        "total_in_project_now": 215,
+        "response_must_contain": ["blacklist", "approved"]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "full_pipeline",
+      "expected_tool_calls": ["tam_pre_filter", "tam_scrape", "tam_analyze"],
+      "expected_behavior": {
+        "only_35_new_companies_analyzed": true,
+        "checkpoint_type": "checkpoint_2",
+        "target_list_returned": true
+      }
+    },
+    {
+      "step": 5,
+      "phase": "checkpoint2_approval",
+      "user_prompt": "Approve",
+      "expected_tool_calls": ["tam_approve_checkpoint"],
+      "expected_behavior": {
+        "gate_approved": true
+      }
+    }
+  ],
+
+  "final_verification": {
+    "db_checks": [
+      "gathering_runs has 3 runs for Result project (CSV + Sheet + Drive)",
+      "discovered_companies has exactly 215 unique domains for Result project",
+      "Run 1 (CSV): 110 new, 0 dup",
+      "Run 2 (Sheet): 70 new, 40 dup",
+      "Run 3 (Drive): 35 new, 70 dup",
+      "Total: 110 + 70 + 35 = 215 unique companies",
+      "No domain appears twice in discovered_companies for this project",
+      "Each run has CompanySourceLink records tracking which run discovered each company",
+      "Blacklist is consistent across all runs (project-scoped)"
+    ],
+    "ui_checks": [
+      {"page": "/pipeline", "check": "3 iterations in dropdown (CSV, Sheet, Drive)"},
+      {"page": "/pipeline/{run_id}", "check": "Drive run shows 35 new + 70 duplicate"},
+      {"page": "/pipeline/{run_id}/prompts", "check": "Same classification prompt applied across all runs"}
+    ],
+    "dedup_matrix": {
+      "csv_total": 110,
+      "csv_new": 110,
+      "csv_dup": 0,
+      "sheet_total": 110,
+      "sheet_new": 70,
+      "sheet_dup_from_csv": 40,
+      "drive_total": 105,
+      "drive_new": 35,
+      "drive_dup_from_csv": 35,
+      "drive_dup_from_sheet": 35,
+      "project_total_unique": 215
+    }
+  }
+}
