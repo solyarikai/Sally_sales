@@ -7,16 +7,25 @@ export default function AccountPage() {
   const [account, setAccount] = useState<any>(null)
   const [usage, setUsage] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (dateFrom) params.set('from', dateFrom)
+    if (dateTo) params.set('to', dateTo)
+    const qs = params.toString() ? `?${params}` : ''
     Promise.all([
-      fetch(`${API}/account`, { headers: headers() }).then(r => r.json()),
-      fetch(`${API}/account/usage`, { headers: headers() }).then(r => r.json()),
+      fetch(`${API}/account${qs}`, { headers: headers() }).then(r => r.json()),
+      fetch(`${API}/account/usage${qs}`, { headers: headers() }).then(r => r.json()),
     ]).then(([acc, use]) => {
       setAccount(acc)
       setUsage(use)
     }).finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadData() }, [dateFrom, dateTo])
 
   const logout = () => {
     localStorage.removeItem('mcp_token')
@@ -48,9 +57,28 @@ export default function AccountPage() {
         </button>
       </div>
 
+      {/* Date Range Filter */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500">From</label>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300" />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500">To</label>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300" />
+        </div>
+        {(dateFrom || dateTo) && (
+          <button onClick={() => { setDateFrom(''); setDateTo('') }}
+            className="text-xs text-gray-500 hover:text-gray-300">Clear</button>
+        )}
+        <span className="text-xs text-gray-600">{dateFrom || dateTo ? `Showing: ${dateFrom || 'start'} → ${dateTo || 'now'}` : 'All time'}</span>
+      </div>
+
       {/* Credits Overview */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Credits Used</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Credits Used {dateFrom || dateTo ? `(${dateFrom || 'start'} → ${dateTo || 'now'})` : '(All Time)'}</h2>
         <div className="grid grid-cols-3 gap-4">
           <CreditCard
             label="Apollo"

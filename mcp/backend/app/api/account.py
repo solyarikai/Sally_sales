@@ -1,6 +1,7 @@
 """Account API — credits tracking, API keys, usage stats."""
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -24,8 +25,10 @@ router = APIRouter(prefix="/account", tags=["account"])
 async def get_account(
     user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
+    date_from: Optional[str] = Query(None, alias="from", description="Start date YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, alias="to", description="End date YYYY-MM-DD"),
 ):
-    """Account overview — credits, usage, API keys status."""
+    """Account overview — credits, usage, API keys status. Filterable by date range."""
     if not user:
         return {"authenticated": False, "message": "Not logged in"}
 
@@ -44,16 +47,34 @@ async def get_account(
     )
     project_ids = [pid for (pid,) in user_projects.all()]
 
+    # ── Date range filter ──
+    from datetime import datetime
+    date_filter_from = None
+    date_filter_to = None
+    if date_from:
+        try:
+            date_filter_from = datetime.strptime(date_from, "%Y-%m-%d")
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            date_filter_to = datetime.strptime(date_to + " 23:59:59", "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            pass
+
     # ── Apollo credits ──
 
     # 1. Gathering credits (from GatheringRun.credits_used, scoped to user's projects)
     gathering_credits = 0
     if project_ids:
-        gathering_credits = (await session.execute(
-            select(func.coalesce(func.sum(GatheringRun.credits_used), 0)).where(
-                GatheringRun.project_id.in_(project_ids)
-            )
-        )).scalar() or 0
+        q = select(func.coalesce(func.sum(GatheringRun.credits_used), 0)).where(
+            GatheringRun.project_id.in_(project_ids)
+        )
+        if date_filter_from:
+            q = q.where(GatheringRun.created_at >= date_filter_from)
+        if date_filter_to:
+            q = q.where(GatheringRun.created_at <= date_filter_to)
+        gathering_credits = (await session.execute(q)).scalar() or 0
 
     # 2. Filter discovery credits (from usage log extra_data.credits_spent)
     filter_logs = await session.execute(
