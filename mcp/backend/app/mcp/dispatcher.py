@@ -817,7 +817,44 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
         smartlead_url = f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign_id}/analytics"
 
-        # 7. Auto-send test email to the user's own email
+        # 7. Upload target contacts to SmartLead campaign
+        leads_uploaded = 0
+        try:
+            from app.models.pipeline import ExtractedContact
+            contacts_result = await session.execute(
+                select(ExtractedContact, DiscoveredCompany)
+                .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
+                .where(
+                    ExtractedContact.project_id == seq.project_id,
+                    DiscoveredCompany.is_target == True,
+                    ExtractedContact.email.isnot(None),
+                )
+            )
+            contacts = contacts_result.all()
+            if contacts:
+                lead_list = []
+                for contact, company in contacts:
+                    lead = {
+                        "email": contact.email,
+                        "first_name": contact.first_name or "",
+                        "last_name": contact.last_name or "",
+                        "company_name": company.name if company else "",  # normalized name
+                        "custom_fields": {
+                            "segment": company.analysis_segment if company else "",
+                            "source_company_name": (company.source_data or {}).get("source_company_name", "") if company else "",
+                            "domain": company.domain if company else "",
+                            "pipeline_run": str(seq.project_id),
+                        },
+                    }
+                    lead_list.append(lead)
+                if lead_list:
+                    await svc.add_leads_to_campaign(campaign_id, lead_list)
+                    leads_uploaded = len(lead_list)
+                    campaign.leads_count = leads_uploaded
+        except Exception as e:
+            logger.warning(f"Failed to upload contacts to SmartLead: {e}")
+
+        # 8. Auto-send test email to the user's own email
         test_email_result = None
         try:
             test_email_result = await svc.send_test_email(
@@ -850,7 +887,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 f"Campaign '{seq.campaign_name}' created as DRAFT.\n\n"
                 f"SmartLead: {smartlead_url}\n"
                 f"Schedule: Mon-Fri 9:00-18:00 {timezone}\n"
-                f"Email accounts: {len(email_account_ids)} assigned\n\n"
+                f"Email accounts: {len(email_account_ids)} assigned\n"
+                f"Leads uploaded: {leads_uploaded} target contacts\n\n"
                 + (f"Check your inbox at {user.email} — test email sent!\n\n" if test_email_result and test_email_result.get("ok") else
                    f"Test email could not be sent ({test_email_result.get('error', 'no email accounts') if test_email_result else 'no accounts assigned'}). Assign email accounts first.\n\n")
                 + f"I'll launch the campaign after your approval. You can:\n"

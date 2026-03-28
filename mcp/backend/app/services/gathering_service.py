@@ -703,7 +703,14 @@ Rules:
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             for dc, result in zip(batch, results):
-                if isinstance(result, str) and result:
+                if isinstance(result, str) and result and result != dc.name:
+                    # Preserve original name in source_data
+                    sd = dc.source_data or {}
+                    if not sd.get("source_company_name"):
+                        sd["source_company_name"] = dc.name
+                        dc.source_data = sd
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(dc, "source_data")
                     dc.name = result
                     changed += 1
 

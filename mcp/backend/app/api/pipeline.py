@@ -609,7 +609,9 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False, contacts_count=0)
         reasoning = reasoning[:100] + "..."
 
     result = {
-        "id": c.id, "domain": c.domain, "name": c.name,
+        "id": c.id, "domain": c.domain,
+        "name": c.name,  # normalized name (cleaned by GPT)
+        "source_company_name": sd.get("source_company_name"),  # original from Apollo
         "industry": c.industry,
         "employee_count": c.employee_count,
         "employee_count_note": "Apollo contacts (not actual headcount)" if c.employee_count and c.employee_count < 50 else None,
