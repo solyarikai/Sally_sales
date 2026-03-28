@@ -1872,10 +1872,12 @@ def main():
     prompt_id = args.prompt_id
     if args.prompt_file:
         prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
-        prompt_id = None  # custom file overrides prompt_id
+        prompt_id = None
         print(f"Custom prompt loaded: {args.prompt_file}")
     elif not prompt_id:
-        prompt_id = get_latest_prompt_id(args.project_id)
+        prompt_id, db_prompt_text = get_latest_prompt(args.project_id)
+        if db_prompt_text:
+            prompt_text = db_prompt_text
 
     run_id = args.run_id or load_state().get("run_id")
 
