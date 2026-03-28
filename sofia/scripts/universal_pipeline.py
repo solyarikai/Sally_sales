@@ -1264,19 +1264,11 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
                 else:
                     print(f"  ⚠ Schedule error: {r.status_code} {r.text[:200]}")
 
-        # ── 12f: Activate (NEVER auto-approve) ──
-        print(f"\n  ⚠ Campaign '{campaign_name}' is in DRAFTED status.")
-        if not sys.stdin.isatty():
-            print(f"  ✗ Activation blocked — requires interactive confirmation.")
-        elif not _checkpoint(f"ACTIVATE '{campaign_name}'? THIS WILL START SENDING EMAILS."):
-            print(f"  Campaign stays DRAFTED. Activate in SmartLead UI.")
-        else:
-            r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/status",
-                           params=sl_params(), json={"status": "START"}, timeout=30)
-            if r.status_code == 200:
-                print(f"  ✓ Campaign '{campaign_name}' ACTIVATED")
-            else:
-                print(f"  ⚠ Activation error: {r.status_code} {r.text[:200]}")
+        # ── 12f: Активация — ТОЛЬКО вручную в SmartLead UI ──
+        # Скрипт НИКОГДА не активирует кампанию. Это делает оператор
+        # в SmartLead после финальной проверки всех настроек.
+        print(f"\n  ✓ Campaign '{campaign_name}' готова в DRAFTED статусе.")
+        print(f"  → Активируйте вручную в SmartLead UI после проверки.")
 
     # Final summary
     print(f"\n{'='*60}")
