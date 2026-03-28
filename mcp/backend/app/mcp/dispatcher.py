@@ -10,8 +10,11 @@ from app.auth.middleware import verify_token
 from app.models.user import MCPUser
 from app.models.project import Project, Company
 from app.models.gathering import GatheringRun, ApprovalGate
-from app.models.campaign import GeneratedSequence
+from app.models.campaign import GeneratedSequence, Campaign
 from app.models.integration import MCPIntegrationSetting
+from app.models.pipeline import DiscoveredCompany, ExtractedContact
+from app.models.usage import MCPUsageLog, MCPConversationLog
+from app.models.reply import MCPReply
 from app.services.user_context import UserServiceContext
 
 logger = logging.getLogger(__name__)
@@ -38,7 +41,6 @@ async def dispatch_tool(tool_name: str, args: dict, token: Optional[str], reques
 
             # Log usage — include credits_spent if present in result
             try:
-                from app.models.usage import MCPUsageLog
                 from app.auth.middleware import verify_token
                 user = await verify_token(session, token) if token else None
                 log_extra = {"args": _safe_truncate(args), "latency_ms": latency}
@@ -64,7 +66,6 @@ async def dispatch_tool(tool_name: str, args: dict, token: Optional[str], reques
         except Exception as e:
             # Log error
             try:
-                from app.models.usage import MCPUsageLog
                 session.add(MCPUsageLog(
                     user_id=0, action="tool_error", tool_name=tool_name,
                     extra_data={"args": _safe_truncate(args), "error": str(e)[:500]},
@@ -109,8 +110,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             select(Project).where(Project.user_id == user.id, Project.is_active == True)
         )).scalars().all()
 
-        # Pipeline runs
-        from app.models.gathering import GatheringRun
+        # Pipeline runs (GatheringRun already imported at module level)
         runs = (await session.execute(
             select(GatheringRun).where(
                 GatheringRun.project_id.in_([p.id for p in projects])
@@ -118,7 +118,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         )).scalars().all() if projects else []
 
         # Draft campaigns
-        from app.models.campaign import Campaign
         drafts = (await session.execute(
             select(Campaign).where(
                 Campaign.project_id.in_([p.id for p in projects]),
@@ -127,7 +126,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         )).scalars().all() if projects else []
 
         # Reply counts
-        from app.models.reply import MCPReply
         reply_count = 0
         warm_count = 0
         if projects:
@@ -143,7 +141,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             )).scalar() or 0
 
         # Recent conversations
-        from app.models.usage import MCPConversationLog
         recent_convos = (await session.execute(
             select(MCPConversationLog).where(
                 MCPConversationLog.user_id == user.id
@@ -232,7 +229,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         user.active_project_id = project.id
         # Get project details for display (use already-imported models)
         from sqlalchemy import func
-        from app.models.pipeline import DiscoveredCompany
         runs_count = (await session.execute(
             select(func.count(GatheringRun.id)).where(GatheringRun.project_id == project.id)
         )).scalar() or 0
@@ -341,7 +337,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             user_offer = f"{project.sender_company}: {user_offer}"
 
         # Get API keys
-        from app.models.integration import MCPIntegrationSetting
         from app.services.encryption import decrypt_value
         openai_key = gemini_key = None
         for svc_name in ("openai", "gemini"):
@@ -808,7 +803,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             accounts = await svc.get_email_accounts()
 
         # Also get accounts from user's imported campaigns (for reuse suggestion)
-        from app.models.campaign import Campaign
         user_campaigns = (await session.execute(
             select(Campaign).where(Campaign.project_id.in_(
                 select(Project.id).where(Project.user_id == user.id)
@@ -881,7 +875,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         # If no accounts provided, campaign stays without accounts — agent must ask user
 
         # 6. Save to DB
-        from app.models.campaign import Campaign
         from datetime import datetime
         campaign = Campaign(
             project_id=seq.project_id, company_id=seq.company_id,
@@ -899,7 +892,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         # 7. Upload target contacts to SmartLead campaign
         leads_uploaded = 0
         try:
-            from app.models.pipeline import ExtractedContact
             contacts_result = await session.execute(
                 select(ExtractedContact, DiscoveredCompany)
                 .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
@@ -1191,7 +1183,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         # 3. Upload target contacts from pipeline
         leads_uploaded = 0
         try:
-            from app.models.pipeline import ExtractedContact, DiscoveredCompany
             contacts_result = await session.execute(
                 select(ExtractedContact, DiscoveredCompany)
                 .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
@@ -1279,7 +1270,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
         result = await svc.start_flow(args["flow_uuid"])
 
-        from app.models.usage import MCPUsageLog
         from datetime import datetime
         session.add(MCPUsageLog(
             user_id=user.id,
@@ -1368,7 +1358,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
     # ── CRM Queries ──
     if tool_name == "query_contacts":
         user = await _get_user(token, session)
-        from app.models.pipeline import ExtractedContact
 
         query = select(ExtractedContact).order_by(ExtractedContact.created_at.desc())
 
@@ -1419,8 +1408,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
     if tool_name == "crm_stats":
         user = await _get_user(token, session)
-        from app.models.pipeline import ExtractedContact, DiscoveredCompany
-        from app.models.campaign import Campaign
         from sqlalchemy import func as sa_func
 
         project_id = args.get("project_id") or user.active_project_id
@@ -1505,8 +1492,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             # Tags matching would need campaign tags from SmartLead API
 
         # ACTUALLY DOWNLOAD contacts from each campaign → build blacklist
-        from app.models.pipeline import DiscoveredCompany, ExtractedContact
-        from app.models.campaign import Campaign
         from app.services.domain_service import normalize_domain
         import logging as _log
 
@@ -1698,7 +1683,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         # Push to SmartLead if campaign exists
         smartlead_pushed = False
         if seq.pushed_campaign_id:
-            from app.models.campaign import Campaign
             campaign = await session.get(Campaign, seq.pushed_campaign_id)
             if campaign and campaign.external_id:
                 from app.services.smartlead_service import SmartLeadService
@@ -1759,7 +1743,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         if not project or project.user_id != user.id:
             raise ValueError("Project not found")
 
-        from app.models.usage import MCPUsageLog
         from datetime import datetime
         log = MCPUsageLog(
             user_id=user.id,
@@ -1791,7 +1774,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             raise ValueError("SmartLead not configured")
         await sl.update_campaign_status(args["campaign_id"], "START")
 
-        from app.models.usage import MCPUsageLog
         from datetime import datetime
         log = MCPUsageLog(
             user_id=user.id,
