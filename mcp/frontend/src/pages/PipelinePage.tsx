@@ -225,6 +225,7 @@ export default function PipelinePage() {
   const [stageDropOpen, setStageDropOpen] = useState(false)
   const [showPromptHistory, setShowPromptHistory] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [showPeopleFilters, setShowPeopleFilters] = useState(false)
   const [usageLogs, setUsageLogs] = useState<any[]>([])
   const [selectedCompany, setSelectedCompany] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -404,8 +405,9 @@ export default function PipelinePage() {
         )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowFilters(!showFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Apollo Filters</button>
-          <button onClick={() => setShowPromptHistory(!showPromptHistory)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPromptHistory ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Prompt History</button>
+          <button onClick={() => setShowFilters(!showFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Company Filters</button>
+          <button onClick={() => setShowPeopleFilters(!showPeopleFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPeopleFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>People Filters</button>
+          <button onClick={() => setShowPromptHistory(!showPromptHistory)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPromptHistory ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>User-MCP Conversation</button>
           {filtered.length > 0 && (
             <button onClick={() => {
               const headers = ['Domain','Name','Industry','Employees','Country','City','Segment','Confidence','Status','Reasoning'];
@@ -430,6 +432,30 @@ export default function PipelinePage() {
               </span>
             ) : null)}
           </div>
+        </div>
+      )}
+
+      {showPeopleFilters && (
+        <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>People Filters (Apollo People Search)</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)' }}>titles:</span> CEO, CTO, Founder, CFO, VP Engineering, Head of HR
+            </span>
+            <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)' }}>seniority:</span> C-level, VP, Director
+            </span>
+            <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)' }}>max per company:</span> 3
+            </span>
+          </div>
+          {totalContacts > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <Link to={`/crm?pipeline=${runId}`} style={{ fontSize: 12, color: 'var(--text-link)', textDecoration: 'none' }}>
+                View {totalContacts} people in CRM →
+              </Link>
+            </div>
+          )}
         </div>
       )}
 

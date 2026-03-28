@@ -92,7 +92,7 @@ async def direct_tool_call(
             pass
 
         await session.commit()
-        return {"result": result}
+        return {"result": result, "latency_ms": latency}
 
     except Exception as e:
         await session.rollback()

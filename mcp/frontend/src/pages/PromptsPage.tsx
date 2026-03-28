@@ -41,7 +41,12 @@ export default function PromptsPage() {
               <>
                 <tr key={p.id} onClick={() => setExpanded(expanded === p.id ? null : p.id)} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
                   <td style={{ padding: '8px 8px 8px 0', color: 'var(--text-muted)' }}>{p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}</td>
-                  <td style={{ padding: '8px 8px 8px 0' }}>#{p.id}</td>
+                  <td style={{ padding: '8px 8px 8px 0' }}>
+                    #{p.id}
+                    {p.type === 'analysis' && <span style={{ marginLeft: 4, padding: '1px 4px', borderRadius: 3, fontSize: 9, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>system</span>}
+                    {p.type === 'tool_call' && <span style={{ marginLeft: 4, padding: '1px 4px', borderRadius: 3, fontSize: 9, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>tool</span>}
+                    {p.type === 'user_feedback' && <span style={{ marginLeft: 4, padding: '1px 4px', borderRadius: 3, fontSize: 9, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>feedback</span>}
+                  </td>
                   <td style={{ padding: '8px 8px 8px 0' }}><Link to={`/pipeline/${runId}`} style={{ color: 'var(--text-link)' }}>#{runId}</Link></td>
                   <td style={{ padding: '8px 8px 8px 0', color: 'var(--text-secondary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {p.segment && <span style={{ padding: '1px 5px', borderRadius: 3, background: 'rgba(99,102,241,0.12)', color: '#818cf8', marginRight: 4, fontSize: 11 }}>{p.segment}</span>}
