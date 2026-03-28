@@ -16,6 +16,14 @@ NEVER ask for name or email — only accept a token that starts with mcp_.""",
         },
     },
     {
+        "name": "get_context",
+        "description": """Get the user's current state — projects, pipelines, campaigns, pending actions.
+ALWAYS call this after login to understand where the user left off.
+Returns: active projects, pipeline runs with phases, draft campaigns awaiting approval,
+reply counts, recent conversations. This lets you resume exactly where the user stopped.""",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "configure_integration",
         "description": "Connect an external service (smartlead, apollo, findymail, openai, gemini) by providing your API key. Tests the connection automatically.",
         "inputSchema": {
@@ -137,13 +145,14 @@ You figure out the Apollo filters automatically. Never show filter details to th
                     "type": "string",
                     "enum": ["apollo.companies.api", "apollo.people.emulator", "apollo.companies.emulator",
                              "clay.companies.emulator", "clay.people.emulator",
-                             "google_sheets.companies.manual", "csv.companies.manual", "manual.companies.manual"],
-                    "description": "Source to gather from.",
+                             "google_sheets.companies.manual", "csv.companies.manual", "manual.companies.manual",
+                             "csv.companies.file", "google_sheets.companies.sheet", "google_drive.companies.folder"],
+                    "description": "Source to gather from. For CSV files use 'csv.companies.file', for Google Sheets use 'google_sheets.companies.sheet', for Drive folders use 'google_drive.companies.folder'.",
                 },
                 "target_count": {"type": "integer", "description": "How many TARGET companies the user wants. System auto-calculates pages needed."},
                 "filters": {
                     "type": "object",
-                    "description": "Apollo filters — use output from suggest_apollo_filters",
+                    "description": "Source-specific filters. For Apollo: keywords, locations, etc. For CSV: file_path. For Sheet: sheet_url. For Drive: drive_url or folder_path.",
                     "properties": {
                         "q_organization_keyword_tags": {"type": "array", "items": {"type": "string"}},
                         "organization_locations": {"type": "array", "items": {"type": "string"}},
@@ -152,7 +161,13 @@ You figure out the Apollo filters automatically. Never show filter details to th
                         "per_page": {"type": "integer"},
                         "organization_latest_funding_stage_cd": {"type": "array", "items": {"type": "string"}},
                         "domains": {"type": "array", "items": {"type": "string"}},
-                        "sheet_url": {"type": "string"},
+                        "sheet_url": {"type": "string", "description": "Google Sheets URL for google_sheets.companies.sheet source"},
+                        "file_path": {"type": "string", "description": "Path to CSV file for csv.companies.file source"},
+                        "file_url": {"type": "string", "description": "URL to download CSV for csv.companies.file source"},
+                        "drive_url": {"type": "string", "description": "Google Drive folder URL for google_drive.companies.folder source"},
+                        "folder_path": {"type": "string", "description": "Local folder path for google_drive.companies.folder source (testing)"},
+                        "tab_name": {"type": "string", "description": "Sheet tab name for google_sheets.companies.sheet source"},
+                        "column_mapping": {"type": "object", "description": "Explicit column mapping override: {domain: 'Website', name: 'Company Name', ...}"},
                     },
                 },
                 "query": {"type": "string", "description": "Natural language query — triggers auto-filter discovery if no keywords provided"},
@@ -209,12 +224,30 @@ After this returns, review the target_list and borderline_rejections.
 If GPT's accuracy < 90% (false positives), call tam_re_analyze with an adjusted prompt.
 
 Via negativa: GPT focuses on EXCLUDING shit, not confirming matches.
-Segments: CAPS_LOCKED labels (IT_OUTSOURCING, SAAS_COMPANY, AGENCY, etc.)""",
+Segments: CAPS_LOCKED labels (IT_OUTSOURCING, SAAS_COMPANY, AGENCY, etc.)
+
+Custom prompts: Users can provide their own classification prompts via prompt_text.
+Multi-step chains: Provide prompt_steps array for sequential classification (each step feeds into the next).""",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "run_id": {"type": "integer"},
-                "prompt_text": {"type": "string", "description": "ICP description for via negativa analysis. Built from project knowledge if omitted."},
+                "prompt_text": {"type": "string", "description": "ICP description for via negativa analysis. Built from project knowledge if omitted. Users can provide their own classification prompt."},
+                "prompt_steps": {
+                    "type": "array",
+                    "description": "Multi-step prompt chain. Each step runs sequentially; output feeds into next step.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Step name (e.g., 'classify_fashion')"},
+                            "prompt": {"type": "string", "description": "Classification prompt for this step"},
+                            "output_column": {"type": "string", "description": "Name of the output column/field"},
+                            "type": {"type": "string", "enum": ["classify", "filter"], "description": "Step type: 'classify' runs GPT, 'filter' removes non-matching companies"},
+                            "filter_condition": {"type": "string", "description": "For filter steps: condition like 'segment != OTHER'"},
+                        },
+                        "required": ["name", "prompt"],
+                    },
+                },
             },
             "required": ["run_id"],
         },
@@ -377,6 +410,105 @@ Also called automatically when a campaign is created.""",
                 "sequence_number": {"type": "integer", "default": 1, "description": "Which sequence step to test (1, 2, 3...)"},
             },
             "required": ["campaign_id"],
+        },
+    },
+
+    # ── GetSales LinkedIn Automation (5) ──
+    {
+        "name": "gs_generate_flow",
+        "description": """Generate a LinkedIn automation flow for GetSales using proven patterns from your 414 live flows.
+
+Analyzes your project's ICP, sender info, and knowledge to create a god-level LinkedIn sequence.
+
+Flow types (from GETSALES_AUTOMATION_PLAYBOOK.md):
+- "standard": Qualifying question + 3 follow-ups (EasyStaff UAE pattern, 68% positive rate)
+- "networking": No connection note + soft intro + 3 messages (Rizzult Miami, 69% positive)
+- "product": Generic connect + product showcase + 3 messages (Mifort, 85% on niche ICP)
+- "volume": Value prop note + 4 msgs + InMail fallback (EasyStaff RU, high volume play)
+- "event": Event hook connection + 3 messages (Palark ICE, 52% positive)
+
+The generated flow includes:
+- Connection request note (or empty for networking)
+- 3-4 follow-up messages with engagement actions between them
+- Non-accept branch (like → visit → endorse → withdraw)
+- Proven timing patterns from top campaigns""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer"},
+                "flow_name": {"type": "string", "description": "Campaign name (defaults to 'Project - LinkedIn Type')"},
+                "flow_type": {"type": "string", "enum": ["standard", "networking", "product", "volume", "event"], "default": "standard"},
+                "instructions": {"type": "string", "description": "Additional instructions for flow generation"},
+            },
+            "required": ["project_id"],
+        },
+    },
+    {
+        "name": "gs_approve_flow",
+        "description": "Mark a generated GetSales flow as approved after user review.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"sequence_id": {"type": "integer"}},
+            "required": ["sequence_id"],
+        },
+    },
+    {
+        "name": "gs_list_sender_profiles",
+        "description": """List GetSales sender profiles (LinkedIn accounts) available for automation flows.
+
+Call this BEFORE gs_push_to_getsales to let the user choose which LinkedIn accounts to use.
+Shows profile names, UUIDs, and which project each sender belongs to.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "gs_push_to_getsales",
+        "description": """Push an approved flow to GetSales as a DRAFT automation with FULL configuration.
+
+BEFORE calling this, you MUST:
+1. Call gs_list_sender_profiles to show available LinkedIn accounts
+2. Ask user which sender profiles to use
+3. Wait for user to select — NEVER proceed without their choice
+
+Creates the flow with:
+- Node tree (connection request + messages + engagement + non-accept branch)
+- Sender profiles with rotation strategy
+- Schedule (Mon-Fri 9:00-18:00 in target timezone)
+- Target leads auto-uploaded from pipeline
+
+Flow is ALWAYS DRAFT — never activated without explicit user approval.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sequence_id": {"type": "integer"},
+                "sender_profile_uuids": {"type": "array", "items": {"type": "string"}, "description": "GetSales sender profile UUIDs. Get from gs_list_sender_profiles."},
+                "rotation_strategy": {"type": "string", "enum": ["fair", "random", "prior_engagement", "new_sender"], "default": "fair"},
+                "workspace_uuid": {"type": "string", "description": "GetSales workspace UUID (folder). Optional."},
+                "target_country": {"type": "string", "description": "Country for timezone. E.g. 'United States', 'Germany'"},
+            },
+            "required": ["sequence_id", "sender_profile_uuids"],
+        },
+    },
+    {
+        "name": "gs_activate_flow",
+        "description": """Activate a GetSales flow — START sending LinkedIn connection requests to real leads.
+
+CRITICAL: NEVER call without EXPLICIT user approval. User must confirm they reviewed:
+1. Flow messages (connection note + all follow-ups)
+2. Sender profiles (correct LinkedIn accounts)
+3. Target leads
+4. Schedule and timezone
+
+Only call when user explicitly says "activate", "start", "launch", or "go live".""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "flow_uuid": {"type": "string", "description": "GetSales flow UUID"},
+                "user_confirmation": {"type": "string", "description": "Quote user's exact words confirming activation"},
+            },
+            "required": ["flow_uuid", "user_confirmation"],
         },
     },
 
