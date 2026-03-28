@@ -174,6 +174,7 @@ function PipelineRunsPage() {
             <th style={{ paddingBottom: 8 }}>Targets</th>
             <th style={{ paddingBottom: 8 }}>People</th>
             <th style={{ paddingBottom: 8 }}>Credits</th>
+            <th style={{ paddingBottom: 8 }}>Destination</th>
             <th style={{ paddingBottom: 8 }}>Phase</th>
             <th style={{ paddingBottom: 8 }}>Created</th>
           </tr></thead>
@@ -197,6 +198,9 @@ function PipelineRunsPage() {
                 {r.people > 0 ? <Link to={`/crm?pipeline=${r.id}`} style={{ color: 'var(--text-link)' }}>{r.people}</Link> : <span style={{ color: 'var(--text-muted)' }}>0</span>}
               </td>
               <td style={{ padding: '8px 8px 8px 0', color: 'var(--text-secondary)', fontSize: 12 }}>{r.credits_used || 0}</td>
+              <td style={{ padding: '8px 8px 8px 0', fontSize: 11 }}>
+                <span style={{ padding: '2px 6px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', color: '#818cf8' }}>SmartLead</span>
+              </td>
               <td style={{ padding: '8px 8px 8px 0' }}><span style={{ padding: '2px 6px', borderRadius: 4, fontSize: 11, background: 'var(--active-bg)' }}>{r.phase}</span></td>
               <td style={{ padding: '8px 0', color: 'var(--text-muted)', fontSize: 12 }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</td>
             </tr>
