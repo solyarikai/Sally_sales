@@ -1,0 +1,161 @@
+{
+  "id": "01_new_user_easystaff",
+  "description": "User 1 (pn@getsally.io): Creates EasyStaff project, gathers 2 segments, creates campaign",
+  "user_email": "pn@getsally.io",
+  "user_password": "qweqweqwe",
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "project_setup",
+      "user_prompt": "My website is https://easystaff.io/. Create a project called EasyStaff-Global, I'm Eleonora, BDM at EasyStaff",
+      "user_prompt_variants": [
+        "Set up EasyStaff-Global project. Our site is easystaff.io. Sender: Eleonora, BDM",
+        "Create project for EasyStaff outreach. Website: https://easystaff.io/, my name is Eleonora",
+        "New project: EasyStaff-Global. Check out easystaff.io to understand what we do. I'm Eleonora, BDM at EasyStaff"
+      ],
+      "expected_tool_calls": ["create_project"],
+      "expected_behavior": {
+        "tool_args_must_include": {"website": "easystaff.io"},
+        "response_must_contain": ["project", "created"],
+        "response_must_not_contain": ["error"],
+        "website_scraped": true,
+        "links_expected": false
+      }
+    },
+    {
+      "step": 2,
+      "phase": "intent_parsing",
+      "user_prompt": "Find IT consulting and media production companies in Miami",
+      "user_prompt_variants": [
+        "Gather IT consulting + media production firms in Miami area",
+        "I need leads from Miami — IT consulting companies and also video production firms",
+        "Search for IT consulting and content/media production companies, located in Miami Florida",
+        "Look for two types of companies in Miami: 1) IT consulting 2) media production"
+      ],
+      "expected_tool_calls": ["parse_gathering_intent"],
+      "expected_behavior": {
+        "segments_count": 2,
+        "segment_labels_contain": ["IT", "MEDIA"],
+        "competitor_exclusions_not_empty": true,
+        "response_must_contain": ["2 segment", "IT", "media", "Miami"]
+      }
+    },
+    {
+      "step": 3,
+      "phase": "gathering",
+      "description": "Agent calls tam_gather TWICE — once per segment from step 2",
+      "expected_tool_calls": ["tam_gather", "tam_gather"],
+      "expected_behavior": {
+        "pipelines_created": 2,
+        "each_run_has_companies": true,
+        "response_must_contain": ["companies", "gathered"]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "blacklist_and_scrape",
+      "description": "Agent runs blacklist → approve CP1 → pre-filter → scrape for EACH run",
+      "expected_tool_calls": [
+        "tam_blacklist_check", "tam_blacklist_check",
+        "tam_approve_checkpoint", "tam_approve_checkpoint",
+        "tam_pre_filter", "tam_pre_filter",
+        "tam_scrape", "tam_scrape"
+      ],
+      "expected_behavior": {
+        "scrape_success_rate_min": 0.8,
+        "no_errors": true
+      }
+    },
+    {
+      "step": 5,
+      "phase": "analysis",
+      "description": "Agent analyzes both runs",
+      "expected_tool_calls": ["tam_analyze", "tam_analyze"],
+      "expected_behavior": {
+        "targets_found_min": 5,
+        "segment_in_results": true,
+        "segment_label_matches_user_query": true,
+        "response_must_contain": ["target", "IT_CONSULTING"]
+      }
+    },
+    {
+      "step": 6,
+      "phase": "sequence_generation",
+      "description": "Agent approves CP2 and generates GOD_SEQUENCE",
+      "expected_tool_calls": ["tam_approve_checkpoint", "god_generate_sequence"],
+      "expected_behavior": {
+        "sequence_steps": 4,
+        "sequence_has_personalization": ["{{first_name}}", "{{city}}"],
+        "sequence_references_offer": true,
+        "response_must_contain": ["sequence", "generated"]
+      }
+    },
+    {
+      "step": 7,
+      "phase": "campaign_creation",
+      "description": "Agent pushes to SmartLead as DRAFT",
+      "expected_tool_calls": ["god_approve_sequence", "god_push_to_smartlead"],
+      "expected_behavior": {
+        "campaign_status": "DRAFT",
+        "campaign_never_activated": true,
+        "links_expected": true,
+        "link_must_contain": "smartlead.ai",
+        "response_must_contain": ["DRAFT", "campaign", "created"],
+        "response_must_not_contain": ["ACTIVE", "activated"]
+      }
+    },
+    {
+      "step": 8,
+      "phase": "test_email",
+      "description": "Agent sends test email and asks user to review",
+      "expected_behavior": {
+        "message_must_contain": ["check your email", "test email", "ready"],
+        "campaign_still_draft": true
+      }
+    }
+  ],
+
+  "final_verification": {
+    "ui_screenshots": [
+      {"page": "/pipeline", "checks": [
+        "2 runs visible",
+        "segment badges (IT_CONSULTING visible)",
+        "project column shows EasyStaff-Global",
+        "targets column has clickable numbers",
+        "no duplicate rows"
+      ]},
+      {"page": "/pipeline/{run_id}?status=target", "checks": [
+        "only target companies shown",
+        "segment column shows IT_CONSULTING",
+        "no duplicate domains",
+        "SmartLead campaign link visible (purple badge)"
+      ]},
+      {"page": "/pipeline/{run_id}/prompts", "checks": [
+        "at least 1 prompt entry",
+        "prompt body expandable",
+        "targets count visible"
+      ]},
+      {"page": "/conversations", "checks": [
+        "all tool calls visible",
+        "both directions (→ MCP and ← Response)",
+        "parse_gathering_intent call visible",
+        "tam_gather calls visible",
+        "god_push_to_smartlead visible"
+      ]},
+      {"page": "/projects", "checks": [
+        "EasyStaff-Global project visible",
+        "expandable with campaigns list"
+      ]},
+      {"page": "/setup", "checks": [
+        "user logged in",
+        "integrations connected (SmartLead, Apollo, OpenAI)"
+      ]}
+    ],
+    "db_checks": [
+      "no duplicate domains in discovered_companies for this project",
+      "all tool calls logged in mcp_conversation_logs",
+      "campaign status is DRAFT (not ACTIVE)"
+    ]
+  }
+}
