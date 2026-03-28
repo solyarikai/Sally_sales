@@ -445,22 +445,34 @@ async function main() {
   }
   await screenshot(page, 'tam_02_find_companies');
 
-  // Set up response listener to capture Clay's Find API request/response bodies
-  // Clay calls POST /v3/find/companies every time a filter changes
+  // Set up response listener to capture Clay's Find/search API request/response bodies
+  // Clay may use various endpoints: /v3/find/companies, /v3/search/companies, /v3/tam/, etc.
   let capturedFindRequest = null;
   let capturedFindResponse = null;
+  const capturedApiCalls = [];
   page.on('response', async (response) => {
     const url = response.url();
-    if (url.includes('/v3/find/companies') || url.includes('/v3/find-companies')) {
+    const isFind = url.includes('api.clay.com') && (
+      url.includes('/find') || url.includes('/search') || url.includes('/tam') ||
+      url.includes('/companies') || url.includes('/discover')
+    );
+    if (isFind) {
       try {
         const req = response.request();
-        if (req.method() === 'POST' && req.postData()) {
-          capturedFindRequest = JSON.parse(req.postData());
+        const method = req.method();
+        if (method === 'POST' && req.postData()) {
+          const body = JSON.parse(req.postData());
+          capturedFindRequest = body;
+          capturedApiCalls.push({ url, method, requestKeys: Object.keys(body) });
+          console.log(`  [INTERCEPT] POST ${url.split('api.clay.com')[1]} keys: ${Object.keys(body).join(',')}`);
         }
-        if (response.ok()) {
-          const body = await response.json();
-          capturedFindResponse = body;
-          console.log(`  [INTERCEPT] Captured Find API response: ${JSON.stringify(body).substring(0, 200)}`);
+        if (response.ok() && method === 'POST') {
+          const respBody = await response.json();
+          capturedFindResponse = respBody;
+          const dataKeys = Object.keys(respBody);
+          const dataArrayKey = dataKeys.find(k => Array.isArray(respBody[k]));
+          const count = dataArrayKey ? respBody[dataArrayKey].length : 'n/a';
+          console.log(`  [INTERCEPT] Response keys: ${dataKeys.join(',')} data: ${count} items`);
         }
       } catch {}
     }
@@ -476,39 +488,68 @@ async function main() {
     await fillFilterField(page, 'Advertising services', filters.industries_exclude);
   }
   if (filters.sizes?.length) {
-    // Clay's Find Companies uses Min/Max number inputs for employee count,
-    // NOT a dropdown. Parse size ranges like "11-50" into min/max values.
-    // Supported formats: "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5001-10000", "10001+"
-    let minVal = null;
-    let maxVal = null;
-    for (const size of filters.sizes) {
-      const match = size.match(/^(\d+)\s*[-–]\s*(\d+)$/);
-      if (match) {
-        const lo = parseInt(match[1]);
-        const hi = parseInt(match[2]);
-        if (minVal === null || lo < minVal) minVal = lo;
-        if (maxVal === null || hi > maxVal) maxVal = hi;
-      } else if (size.match(/^(\d+)\+$/)) {
-        const lo = parseInt(size);
-        if (minVal === null || lo < minVal) minVal = lo;
-        // No max for "X+" ranges
+    // Clay's "Company sizes" is a dropdown with placeholder "e.g. 11-50 employees"
+    // It may be an <input> or a clickable div. Try fillFilterField first, then fallback.
+    let sizeApplied = await fillFilterField(page, '11-50 employees', filters.sizes);
+    if (!sizeApplied) sizeApplied = await fillFilterField(page, '11-50', filters.sizes);
+    if (!sizeApplied) sizeApplied = await fillFilterField(page, 'employees', filters.sizes);
+    if (!sizeApplied) {
+      // The "Company sizes" field might be a combobox/select, not a plain input.
+      // Find it by label text "Company sizes" and click the input/div below it.
+      const sizeFieldCoords = await page.evaluate(() => {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const text = walker.currentNode.textContent.trim();
+          if (text === 'Company sizes') {
+            const parent = walker.currentNode.parentElement;
+            if (!parent || parent.offsetParent === null) continue;
+            const rect = parent.getBoundingClientRect();
+            if (rect.x > 400) continue;
+            // Find the closest input/div below this label
+            const candidates = parent.parentElement.querySelectorAll('input, div[role="combobox"], div[role="listbox"]');
+            for (const el of candidates) {
+              const r = el.getBoundingClientRect();
+              if (r.y > rect.y && r.x < 400 && r.width > 100) {
+                return { x: r.x + 20, y: r.y + r.height / 2, tag: el.tagName, placeholder: el.placeholder || '' };
+              }
+            }
+            // Fallback: look for any input in the sidebar near this label
+            const allInputs = [...document.querySelectorAll('input')].filter(i => {
+              const r = i.getBoundingClientRect();
+              return i.offsetParent && r.x < 400 && r.y > rect.y && r.y < rect.y + 80;
+            });
+            if (allInputs.length > 0) {
+              const r = allInputs[0].getBoundingClientRect();
+              return { x: r.x + 20, y: r.y + r.height / 2, tag: 'INPUT', placeholder: allInputs[0].placeholder || '' };
+            }
+            return null;
+          }
+        }
+        return null;
+      });
+
+      if (sizeFieldCoords) {
+        console.log(`    Company sizes field found: ${sizeFieldCoords.tag} placeholder="${sizeFieldCoords.placeholder}"`);
+        for (const size of filters.sizes) {
+          await page.mouse.click(sizeFieldCoords.x, sizeFieldCoords.y);
+          await humanDelay(300, 600);
+          await page.keyboard.type(size, { delay: 30 + Math.random() * 40 });
+          await humanDelay(600, 1000);
+          await page.keyboard.press('Enter');
+          await humanDelay(400, 700);
+        }
+        console.log(`    Company sizes: ${filters.sizes.join(', ')}`);
+        sizeApplied = true;
       }
     }
-    if (minVal != null) {
-      // Don't override if minimum_member_count was explicitly set
-      if (filters.minimum_member_count == null) {
-        await fillNumberField(page, 'Min', minVal);
-        console.log(`    Size → Min: ${minVal}`);
-      }
-    }
-    if (maxVal != null) {
-      if (filters.maximum_member_count == null) {
-        await fillNumberField(page, 'Max', maxVal);
-        console.log(`    Size → Max: ${maxVal}`);
-      }
-    }
-    if (minVal == null && maxVal == null) {
-      console.log(`    WARNING: Could not parse size ranges: ${filters.sizes.join(', ')}`);
+    if (!sizeApplied) {
+      console.log('    WARNING: Company sizes filter could NOT be applied!');
+      // Dump sidebar inputs for debugging
+      const debugInputs = await page.evaluate(() => {
+        return [...document.querySelectorAll('input')].filter(i => i.offsetParent && i.getBoundingClientRect().x < 400)
+          .map(i => ({ ph: i.placeholder, y: Math.round(i.getBoundingClientRect().y) }));
+      });
+      console.log(`    Sidebar inputs: ${JSON.stringify(debugInputs)}`);
     }
   }
   if (filters.annual_revenues?.length) {
