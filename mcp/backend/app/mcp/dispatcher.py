@@ -796,23 +796,11 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         timezone = get_timezone_for_country(target_country)
         await svc.set_campaign_schedule(campaign_id, timezone)
 
-        # 5. Assign email accounts (if provided, otherwise auto-pick from existing campaigns)
+        # 5. Assign email accounts — MUST be provided by user
         email_account_ids = args.get("email_account_ids", [])
-        if not email_account_ids:
-            # Auto-pick: get accounts from user's existing campaigns
-            try:
-                existing_campaigns = await svc.get_campaigns()
-                for ec in (existing_campaigns or [])[:5]:
-                    ec_id = ec.get("id")
-                    if ec_id:
-                        accts = await svc.get_campaign_email_accounts(ec_id)
-                        if accts:
-                            email_account_ids = [a.get("id") for a in accts[:5] if a.get("id")]
-                            break
-            except Exception:
-                pass
         if email_account_ids:
             await svc.set_campaign_email_accounts(campaign_id, email_account_ids)
+        # If no accounts provided, campaign stays without accounts — agent must ask user
 
         # 6. Save to DB
         from app.models.campaign import Campaign
