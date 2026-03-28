@@ -42,11 +42,14 @@ export default function PromptsPage() {
                 <tr key={p.id} onClick={() => setExpanded(expanded === p.id ? null : p.id)} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
                   <td style={{ padding: '8px 8px 8px 0', color: 'var(--text-muted)' }}>{p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}</td>
                   <td style={{ padding: '8px 8px 8px 0' }}>#{p.id}</td>
-                  <td style={{ padding: '8px 8px 8px 0' }}><Link to={`/pipeline/${p.iteration_id || runId}`} style={{ color: 'var(--text-link)' }}>#{p.iteration_id || runId}</Link></td>
-                  <td style={{ padding: '8px 8px 8px 0', color: 'var(--text-secondary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.prompt_text?.slice(0, 80)}...</td>
-                  <td style={{ padding: '8px 8px 8px 0' }}>{p.total_companies || 0}</td>
+                  <td style={{ padding: '8px 8px 8px 0' }}><Link to={`/pipeline/${runId}`} style={{ color: 'var(--text-link)' }}>#{runId}</Link></td>
+                  <td style={{ padding: '8px 8px 8px 0', color: 'var(--text-secondary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.segment && <span style={{ padding: '1px 5px', borderRadius: 3, background: 'rgba(99,102,241,0.12)', color: '#818cf8', marginRight: 4, fontSize: 11 }}>{p.segment}</span>}
+                    {p.prompt_text?.slice(0, 60) || p.tool || '...'}
+                  </td>
+                  <td style={{ padding: '8px 8px 8px 0' }}>{p.total_analyzed || p.total_companies || 0}</td>
                   <td style={{ padding: '8px 8px 8px 0', color: 'var(--success)' }}>{p.targets_found || 0}</td>
-                  <td style={{ padding: '8px 0' }}>{p.accuracy ? `${(p.accuracy * 100).toFixed(0)}%` : '—'}</td>
+                  <td style={{ padding: '8px 0' }}>{p.total_analyzed && p.targets_found ? `${((p.targets_found / p.total_analyzed) * 100).toFixed(0)}%` : '—'}</td>
                 </tr>
                 {expanded === p.id && (
                   <tr key={`${p.id}-detail`}>
