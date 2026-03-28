@@ -1400,7 +1400,7 @@ def sl_params():
 
 def create_campaign(name: str) -> int:
     r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/create", params=sl_params(), json={
-        "name": name, "send_as_plain_text": True, "stop_lead_settings": "REPLY_TO_AN_EMAIL",
+        "name": name,
     }, timeout=30)
     r.raise_for_status()
     cid = r.json()["id"]
