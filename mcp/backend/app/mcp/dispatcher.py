@@ -100,6 +100,73 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         return {"user_id": user.id, "name": user.name, "email": user.email,
                 "message": f"Logged in as {user.name}. All tools ready."}
 
+    if tool_name == "get_context":
+        user = await _get_user(token, session)
+
+        # Projects
+        projects = (await session.execute(
+            select(Project).where(Project.user_id == user.id, Project.is_active == True)
+        )).scalars().all()
+
+        # Pipeline runs
+        from app.models.gathering import GatheringRun
+        runs = (await session.execute(
+            select(GatheringRun).where(
+                GatheringRun.project_id.in_([p.id for p in projects])
+            ).order_by(GatheringRun.created_at.desc()).limit(10)
+        )).scalars().all() if projects else []
+
+        # Draft campaigns
+        from app.models.campaign import Campaign
+        drafts = (await session.execute(
+            select(Campaign).where(
+                Campaign.project_id.in_([p.id for p in projects]),
+                Campaign.status.in_(["draft", "DRAFT", "DRAFTED"]),
+            )
+        )).scalars().all() if projects else []
+
+        # Reply counts
+        from app.models.reply import MCPReply
+        reply_count = 0
+        warm_count = 0
+        if projects:
+            pids = [p.id for p in projects]
+            reply_count = (await session.execute(
+                select(func.count(MCPReply.id)).where(MCPReply.project_id.in_(pids))
+            )).scalar() or 0
+            warm_count = (await session.execute(
+                select(func.count(MCPReply.id)).where(
+                    MCPReply.project_id.in_(pids),
+                    MCPReply.category.in_(["interested", "meeting_request", "question"]),
+                )
+            )).scalar() or 0
+
+        # Recent conversations
+        from app.models.usage import MCPConversationLog
+        recent_convos = (await session.execute(
+            select(MCPConversationLog).where(
+                MCPConversationLog.user_id == user.id
+            ).order_by(MCPConversationLog.created_at.desc()).limit(5)
+        )).scalars().all()
+
+        context = {
+            "user": {"name": user.name, "email": user.email},
+            "projects": [{"id": p.id, "name": p.name, "icp": (p.target_segments or "")[:100]} for p in projects],
+            "pipeline_runs": [{"id": r.id, "phase": r.current_phase, "companies": r.new_companies_count, "project_id": r.project_id} for r in runs],
+            "draft_campaigns": [{"id": c.id, "name": c.name, "status": c.status, "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None} for c in drafts],
+            "replies": {"total": reply_count, "warm": warm_count},
+            "recent_activity": [{"method": c.method, "summary": c.content_summary, "at": str(c.created_at)} for c in recent_convos],
+            "message": (
+                f"Welcome back, {user.name}!\n\n"
+                + (f"You have {len(projects)} project{'s' if len(projects) != 1 else ''}: {', '.join(p.name for p in projects)}\n" if projects else "No projects yet. Create one with create_project.\n")
+                + (f"{len(runs)} pipeline run{'s' if len(runs) != 1 else ''} ({sum(1 for r in runs if r.current_phase in ('awaiting_targets_ok','awaiting_scope_ok'))} awaiting approval)\n" if runs else "")
+                + (f"{len(drafts)} DRAFT campaign{'s' if len(drafts) != 1 else ''} pending review\n" if drafts else "")
+                + (f"{reply_count} replies tracked ({warm_count} warm)\n" if reply_count else "")
+                + "\nWhat would you like to do?"
+            ),
+        }
+        return context
+
     if tool_name == "configure_integration":
         user = await _get_user(token, session)
         from app.services.encryption import encrypt_value
@@ -538,13 +605,23 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             openai_key = settings.OPENAI_API_KEY
         from app.services.gathering_service import GatheringService
         svc = GatheringService()
-        gate = await svc.analyze(
-            session, run,
-            prompt_text=args.get("prompt_text"),
-            auto_refine=args.get("auto_refine", False),
-            target_accuracy=args.get("target_accuracy", 0.9),
-            openai_key=openai_key,
-        )
+
+        # Multi-step prompt chain support
+        prompt_steps = args.get("prompt_steps")
+        if prompt_steps and isinstance(prompt_steps, list) and len(prompt_steps) > 0:
+            gate = await svc.analyze_multi_step(
+                session, run,
+                prompt_steps=prompt_steps,
+                openai_key=openai_key,
+            )
+        else:
+            gate = await svc.analyze(
+                session, run,
+                prompt_text=args.get("prompt_text"),
+                auto_refine=args.get("auto_refine", False),
+                target_accuracy=args.get("target_accuracy", 0.9),
+                openai_key=openai_key,
+            )
         scope = gate.scope or {}
         return {
             "gate_id": gate.id, "type": "checkpoint_2",
