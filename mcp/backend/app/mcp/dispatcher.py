@@ -1704,7 +1704,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "old_subject": old_step.get("subject", ""),
             "new_subject": steps[step_idx].get("subject", ""),
             "smartlead_synced": smartlead_pushed,
-            "message": f"Email {args['step_number']} updated." + (" Synced to SmartLead." if smartlead_pushed else ""),
+            "message": f"Email {args['step_number']} updated and synced." + (f" Changes pushed to SmartLead." if smartlead_pushed else " Save to push changes to SmartLead."),
         }
 
     if tool_name == "edit_campaign_accounts":
@@ -1741,7 +1741,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "company": company.name or company.domain,
             "was_target": old_target,
             "now_target": args["is_target"],
-            "message": f"{'Marked as target' if args['is_target'] else 'Marked as NOT target'}: {company.name or company.domain}",
+            "message": f"Override applied: {'target' if args['is_target'] else 'NOT target'} — {company.name or company.domain}. User override stored for learning.",
         }
 
     if tool_name == "provide_feedback":
