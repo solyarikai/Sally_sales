@@ -422,6 +422,128 @@ def _checkpoint(message: str) -> bool:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# БАТЧИНГ — разбивка больших списков на маленькие раны
+# Backend не выдерживает scrape/analyze 3000+ компаний одним запросом.
+# Если доменов > BATCH_SIZE, создаём несколько ранов по BATCH_SIZE каждый.
+# Каждый ран проходит pipeline самостоятельно. Результаты в общей DB.
+# ══════════════════════════════════════════════════════════════════════════════
+
+BATCH_SIZE = 500  # Max domains per gathering run (for scrape stability)
+
+
+def create_batched_runs(config: ProjectConfig, domains: list[str],
+                        mode: str, notes_prefix: str = "") -> list[int]:
+    """Create multiple gathering runs if domains > BATCH_SIZE.
+    Returns list of run IDs."""
+    if len(domains) <= BATCH_SIZE:
+        batches = [domains]
+    else:
+        batches = [domains[i:i+BATCH_SIZE] for i in range(0, len(domains), BATCH_SIZE)]
+        print(f"\n  Splitting {len(domains)} domains into {len(batches)} batches of ~{BATCH_SIZE}")
+
+    run_ids = []
+    for i, batch in enumerate(batches):
+        batch_label = f" (batch {i+1}/{len(batches)})" if len(batches) > 1 else ""
+        result = api("post", "/pipeline/gathering/start", json={
+            "project_id": config.project_id,
+            "source_type": "manual.companies.manual",
+            "filters": {"domains": batch},
+            "triggered_by": "operator",
+            "input_mode": mode,
+            "notes": f"{notes_prefix}{batch_label} — {len(batch)} domains",
+        })
+        run_id = result["id"]
+        run_ids.append(run_id)
+        print(f"  Run #{run_id}: {len(batch)} domains{batch_label}")
+
+    return run_ids
+
+
+def process_run_pipeline(config: ProjectConfig, run_id: int,
+                         prompt_text: str = None, skip_gather_wait: bool = False):
+    """Process a single run through full pipeline: gather → blacklist → scrape → analyze.
+    Resilient to disconnects via api_long polling."""
+    print(f"\n{'─'*40}")
+    print(f"  Processing Run #{run_id}")
+    print(f"{'─'*40}")
+
+    # Wait for gather if needed
+    if not skip_gather_wait:
+        for i in range(60):
+            time.sleep(10)
+            try:
+                r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                              headers=BACKEND_HEADERS, timeout=30)
+                phase = r.json().get("current_phase", "")
+                if phase != "gather":
+                    break
+            except Exception:
+                pass
+
+    # Check current phase
+    run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info.get("current_phase", "")
+
+    # Blacklist
+    if phase == "gathered":
+        api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
+        approve_pending_gate(config, run_id)
+        phase = "scope_approved"
+
+    if phase in ("awaiting_scope_ok", "scope_approved"):
+        approve_pending_gate(config, run_id)
+
+    # Pre-filter
+    run_info2 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info2.get("current_phase", "")
+    if phase == "scope_approved":
+        r = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter")
+        print(f"  Pre-filter: passed={r.get('passed', '?')}")
+
+    # Scrape (resilient)
+    run_info3 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info3.get("current_phase", "")
+    if phase == "filtered":
+        step4_scrape(run_id)
+
+    # Analyze (resilient)
+    run_info4 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info4.get("current_phase", "")
+    if phase == "scraped":
+        text = prompt_text or config.prompt_text
+        if text:
+            result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
+                              expected_phase="analyzed", run_id=run_id, timeout=3600,
+                              params={"prompt_text": text, "model": "gpt-4o-mini"})
+            targets = result.get("targets_found", "?")
+            total = result.get("total_analyzed", "?")
+            print(f"  Analyze: {targets}/{total} targets")
+
+    # Approve CP2
+    approve_pending_gate(config, run_id)
+
+    # Blacklist approved targets
+    blacklist_approved_targets(config, run_id)
+
+
+def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
+    """Find and approve pending gate for this run."""
+    try:
+        gates = api("get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}",
+                    raise_on_error=False)
+        items = gates if isinstance(gates, list) else gates.get("items", [])
+        for g in items:
+            if g.get("gathering_run_id") == run_id and g.get("status") == "pending":
+                api("post", f"/pipeline/gathering/approval-gates/{g['id']}/approve",
+                    json={}, raise_on_error=False)
+                print(f"  Gate #{g['id']} approved")
+                return True
+    except Exception:
+        pass
+    return False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # ШАГ 0: ЗАПУСК ПОИСКА КОМПАНИЙ
 # Отправляем описание идеального клиента (ICP) в Clay или Apollo.
 # Система ищет компании по ключевым словам, индустрии, размеру, географии.
