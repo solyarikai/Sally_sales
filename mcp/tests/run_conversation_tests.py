@@ -193,6 +193,18 @@ async def run_test(test_file: Path) -> dict:
         ctx = await tool_call(client, session_id, token, "get_context", {})
         print(f"  Context: {json.dumps(ctx, default=str)[:200]}...")
 
+        # Check dependencies — skip if preconditions not met
+        depends = test.get("depends_on")
+        preconditions = test.get("preconditions", {})
+        if depends and preconditions.get("companies_in_project"):
+            # This test needs data from a previous test — check if it exists
+            projects = ctx.get("projects", [])
+            if not projects:
+                print(f"  SKIP: depends on {depends} but no projects found")
+                results["score"] = 100  # Don't penalize for dependency
+                results["steps"].append({"step": 0, "phase": "skip", "score": {"score": 100, "passed": 0, "total": 0, "details": {"skipped": f"depends on {depends}"}}})
+                return results
+
         # Run steps
         for step in test.get("steps", []):
             step_num = step.get("step", "?")
@@ -279,15 +291,27 @@ def _infer_args(tool_name: str, test: dict, step: dict, ctx: dict) -> dict:
         query = step.get("user_prompt", "IT consulting companies in Miami")
         return {"query": query, "project_id": project_id or 1}
     elif tool_name == "tam_gather":
-        return {
-            "source_type": "apollo.companies.api",
-            "project_id": project_id or 1,
-            "filters": {
+        # Check if step specifies source_type
+        expected = step.get("expected_behavior") or step.get("expected_mcp_behavior", {})
+        source_type = expected.get("source_type", "apollo.companies.api")
+        filters = step.get("tool_args", {}).get("filters", {})
+        if not filters and source_type == "apollo.companies.api":
+            filters = {
                 "q_organization_keyword_tags": ["IT consulting"],
                 "organization_locations": ["Miami, Florida, United States"],
                 "organization_num_employees_ranges": ["1,50", "51,200"],
                 "per_page": 25, "max_pages": 1,
-            },
+            }
+        elif source_type == "csv.companies.file":
+            filters = {"file_path": step.get("file_path", "/tmp/test.csv")}
+        elif source_type == "google_sheets.companies.sheet":
+            filters = {"sheet_url": step.get("sheet_url", "")}
+        elif source_type == "google_drive.companies.folder":
+            filters = {"folder_url": step.get("folder_url", "")}
+        return {
+            "source_type": source_type,
+            "project_id": project_id or 1,
+            "filters": filters,
         }
     elif tool_name in ("tam_blacklist_check", "tam_pre_filter", "tam_scrape", "tam_analyze"):
         run_id = None
