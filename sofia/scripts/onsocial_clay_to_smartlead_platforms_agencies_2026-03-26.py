@@ -1533,8 +1533,8 @@ def step12_upload(contacts: list[dict]):
         by_segment.setdefault(seg, []).append(c)
 
     NAMES = {
-        "INFLUENCER_PLATFORMS": "INFLUENCER PLATFORMS v4",
-        "IM_FIRST_AGENCIES": "IM-FIRST AGENCIES v4",
+        "INFLUENCER_PLATFORMS": "c-OnSocial_INFLUENCER PLATFORMS v4 #C",
+        "IM_FIRST_AGENCIES": "c-OnSocial_IM-FIRST AGENCIES v4 #C",
     }
     TIMING = [0, 4, 4, 6, 7]  # Day offsets between emails
 
