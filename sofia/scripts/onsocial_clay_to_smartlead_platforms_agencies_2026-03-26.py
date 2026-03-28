@@ -794,6 +794,105 @@ def load_state() -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# БАТЧИНГ — разбивка больших списков доменов на маленькие раны
+# ══════════════════════════════════════════════════════════════════════════════
+
+BATCH_SIZE = 500
+
+
+def create_batched_runs(domains: list[str], notes_prefix: str = "",
+                        project_id: int = PROJECT_ID) -> list[int]:
+    """Create multiple gathering runs if domains > BATCH_SIZE."""
+    if len(domains) <= BATCH_SIZE:
+        batches = [domains]
+    else:
+        batches = [domains[i:i+BATCH_SIZE] for i in range(0, len(domains), BATCH_SIZE)]
+        print(f"\n  Splitting {len(domains)} domains into {len(batches)} batches of ~{BATCH_SIZE}")
+
+    run_ids = []
+    for i, batch in enumerate(batches):
+        batch_label = f" (batch {i+1}/{len(batches)})" if len(batches) > 1 else ""
+        result = api("post", "/pipeline/gathering/start", json={
+            "project_id": project_id,
+            "source_type": "manual.companies.manual",
+            "filters": {"domains": batch},
+            "triggered_by": "operator",
+            "input_mode": "structured",
+            "notes": f"{notes_prefix}{batch_label} — {len(batch)} domains",
+        })
+        run_id = result["id"]
+        run_ids.append(run_id)
+        print(f"  Run #{run_id}: {len(batch)} domains{batch_label}")
+    return run_ids
+
+
+def process_run_pipeline(run_id: int, prompt_text: str = None,
+                         project_id: int = PROJECT_ID):
+    """Process a single run through: gather wait → blacklist → prefilter → scrape → analyze.
+    Resilient to disconnects via api_long polling."""
+    print(f"\n{'─'*40}")
+    print(f"  Processing Run #{run_id}")
+    print(f"{'─'*40}")
+
+    # Wait for gather
+    for i in range(60):
+        time.sleep(10)
+        try:
+            r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                          headers=BACKEND_HEADERS, timeout=30)
+            phase = r.json().get("current_phase", "")
+            if phase != "gather":
+                break
+        except Exception:
+            pass
+
+    # Blacklist + approve CP1
+    run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info.get("current_phase", "")
+    if phase == "gathered":
+        api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check", raise_on_error=False)
+    _approve_pending(run_id, project_id)
+
+    # Pre-filter
+    run_info2 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    if run_info2.get("current_phase") == "scope_approved":
+        r = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter", raise_on_error=False)
+        print(f"  Pre-filter: passed={r.get('passed', '?')}")
+
+    # Scrape (resilient)
+    run_info3 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    if run_info3.get("current_phase") == "filtered":
+        step4_scrape(run_id)
+
+    # Analyze (resilient)
+    run_info4 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    if run_info4.get("current_phase") == "scraped":
+        text = prompt_text or DEFAULT_ANALYSIS_PROMPT
+        result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
+                          expected_phase="analyzed", run_id=run_id, timeout=3600,
+                          params={"prompt_text": text, "model": "gpt-4o-mini"})
+        print(f"  Analyze: {result.get('targets_found', '?')}/{result.get('total_analyzed', '?')} targets")
+
+    # Approve CP2
+    _approve_pending(run_id, project_id)
+
+    # Blacklist targets
+    blacklist_approved_targets(run_id, project_id)
+
+
+def _approve_pending(run_id: int, project_id: int = PROJECT_ID) -> bool:
+    gates = api("get", f"/pipeline/gathering/approval-gates?project_id={project_id}", raise_on_error=False)
+    items = gates if isinstance(gates, list) else gates.get("items", [])
+    for g in items:
+        if g.get("gathering_run_id") == run_id and g.get("status") == "pending":
+            api("post", f"/pipeline/gathering/approval-gates/{g['id']}/approve",
+                json={}, raise_on_error=False)
+            print(f"  Gate #{g['id']} approved")
+            return True
+    return False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # STEP 0: START GATHERING (Clay)
 # ══════════════════════════════════════════════════════════════════════════════
 
