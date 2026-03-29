@@ -21,6 +21,10 @@ sse_transport = SseServerTransport("/messages")
 # Token store: session_id → auth token (extracted from HTTP headers on POST)
 _session_tokens: dict[str, str] = {}
 
+# Per-task token for concurrent session isolation
+import contextvars
+_current_token: contextvars.ContextVar[str] = contextvars.ContextVar('_current_token', default='')
+
 
 @mcp_server.list_tools()
 async def list_tools() -> list[Tool]:
@@ -36,10 +40,12 @@ async def list_tools() -> list[Tool]:
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    # Token from arguments (explicit) or from session store (extracted from HTTP headers)
+    # Token from arguments (explicit) or from context var (set per-session in main.py)
     token = arguments.pop("_token", None)
     if not token:
-        # Find any stored session token
+        token = _current_token.get('')
+    if not token:
+        # Fallback: find any stored session token (last resort)
         for sid, t in _session_tokens.items():
             if t:
                 token = t
