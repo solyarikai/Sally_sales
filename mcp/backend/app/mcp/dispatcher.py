@@ -256,8 +256,23 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         result = await session.execute(
             select(MCPIntegrationSetting).where(MCPIntegrationSetting.user_id == user.id)
         )
-        return [{"name": i.integration_name, "connected": i.is_connected, "info": i.connection_info}
-                for i in result.scalars().all()]
+        integrations = {i.integration_name: {"connected": i.is_connected, "info": i.connection_info}
+                        for i in result.scalars().all()}
+
+        REQUIRED = ["apollo", "smartlead", "openai"]
+        missing = [k for k in REQUIRED if k not in integrations or not integrations[k]["connected"]]
+
+        return {
+            "integrations": [{"name": k, **v} for k, v in integrations.items()],
+            "required_for_campaigns": REQUIRED,
+            "missing_required": missing,
+            "ready": len(missing) == 0,
+            "message": (
+                "All required integrations connected! Ready to create campaigns."
+                if not missing else
+                f"Missing required keys: {', '.join(missing)}. Connect them with configure_integration to start creating campaigns."
+            ),
+        }
 
     # ── Project tools ──
     if tool_name == "select_project":
