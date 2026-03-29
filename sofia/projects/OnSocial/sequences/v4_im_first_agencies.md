@@ -43,13 +43,13 @@ Hi {{first_name}},
 
 When a client asks for creator analytics - do they see {{company_name}}'s brand, or a screenshot from HypeAuditor?
 
-{{social_proof}} white-label our data as their own. Clients see the agency's tool, not ours.
+Leading agencies white-label our data as their own. Clients see the agency's tool, not ours.
 
 Happy to mock up a report with {{company_name}}'s branding - worth a look?
 
-Bhaskar
-
-`49 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
