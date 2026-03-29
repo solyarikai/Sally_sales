@@ -1,9 +1,8 @@
 {
   "id": "03_add_more_targets",
-  "description": "User asks to gather more targets for existing pipeline — tests incremental gathering",
+  "description": "User asks to gather more targets for existing pipeline \u2014 tests incremental gathering",
   "user_email": "pn@getsally.io",
   "prerequisite": "01_new_user_easystaff completed",
-
   "steps": [
     {
       "step": 1,
@@ -11,24 +10,29 @@
       "user_prompt": "Gather 10 more target companies for the IT consulting segment",
       "user_prompt_variants": [
         "Add 10 more IT consulting targets to the pipeline",
-        "I need more companies — get me 10 additional IT consulting firms in Miami",
+        "I need more companies \u2014 get me 10 additional IT consulting firms in Miami",
         "Can you find 10 more targets for the IT consulting pipeline?",
         "Get me more leads, 10 more IT consulting companies"
       ],
-      "expected_tool_calls": ["tam_gather"],
+      "expected_tool_calls": [
+        "tam_gather"
+      ],
       "expected_behavior": {
         "uses_existing_project": true,
         "same_segment": "IT_CONSULTING",
         "same_geo": "Miami",
         "new_pipeline_run_created": true,
         "dedup_against_existing": true,
-        "response_must_contain": ["companies", "gathered"]
+        "response_must_contain": [
+          "companies",
+          "gathered"
+        ]
       }
     },
     {
       "step": 2,
       "phase": "process_new",
-      "description": "Full pipeline on new companies (blacklist → scrape → analyze)",
+      "description": "Full pipeline on new companies (blacklist \u2192 scrape \u2192 analyze)",
       "expected_tool_calls": [
         "tam_blacklist_check",
         "tam_approve_checkpoint",
@@ -49,7 +53,10 @@
         "existing_campaign_updated": true,
         "new_leads_added_to_smartlead": true,
         "campaign_still_draft": true,
-        "response_must_contain": ["added", "campaign"]
+        "response_must_contain": [
+          "added",
+          "campaign"
+        ]
       }
     },
     {
@@ -58,10 +65,16 @@
       "description": "MCP should ask about pending DRAFT campaigns",
       "expected_behavior": {
         "mcp_asks_about_activation": true,
-        "message_must_contain": ["campaign", "launch", "ready", "activate"],
+        "message_must_contain": [
+          "campaign",
+          "launch",
+          "ready",
+          "activate"
+        ],
         "links_expected": true,
         "link_must_contain": "smartlead.ai"
       }
     }
-  ]
+  ],
+  "project_name": "EasyStaff-Global"
 }

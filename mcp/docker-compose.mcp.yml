@@ -45,7 +45,7 @@ services:
       - REDIS_URL=redis://mcp-redis:6379
       - MCP_MODE=true
     env_file:
-      - ../.env
+      - .env
     volumes:
       - ./backend:/app
     depends_on:
@@ -78,7 +78,7 @@ services:
       dockerfile: Dockerfile
     container_name: mcp-telegram
     env_file:
-      - ../.env
+      - .env
     environment:
       - TELEGRAM_BOT_TOKEN=8576801500:AAFu_6KYVHO9XTNVKUlOsQPGxkRVrqYWrNI
       - OPENAI_API_KEY=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

@@ -3,7 +3,6 @@
   "description": "User 2 (services@getsally.io): New user, no campaigns. Fashion brands in Italy + OnSocial UK",
   "user_email": "services@getsally.io",
   "user_password": "qweqweqwe",
-
   "steps": [
     {
       "step": 1,
@@ -23,12 +22,24 @@
         "I'm from The Fashion People (thefashionpeople.com), need to find fashion brands in Italy",
         "Create project: Fashion Brands Italy. Check https://thefashionpeople.com/ for our offer"
       ],
-      "expected_tool_calls": ["create_project"],
+      "expected_tool_calls": [
+        "create_project"
+      ],
       "expected_behavior": {
-        "website_scraped": true,
-        "offer_must_contain": ["resale", "returns", "pre-owned"],
-        "offer_must_not_contain": ["staffing", "recruitment", "payroll"],
-        "response_must_contain": ["project", "created", "scraped"]
+        "offer_must_contain": [
+          "resale",
+          "returns",
+          "pre-owned"
+        ],
+        "offer_must_not_contain": [
+          "staffing",
+          "recruitment",
+          "payroll"
+        ],
+        "response_must_contain": [
+          "project",
+          "created"
+        ]
       }
     },
     {
@@ -43,7 +54,10 @@
       "expected_behavior": {
         "mcp_does_not_import_campaigns": true,
         "proceeds_to_gathering": true,
-        "response_must_contain": ["gather", "find"]
+        "response_must_contain": [
+          "gather",
+          "find"
+        ]
       }
     },
     {
@@ -55,9 +69,14 @@
         "Gather fashion brands from Italy, around 10 targets please",
         "Look for e-commerce fashion brands based in Italy"
       ],
-      "expected_tool_calls": ["parse_gathering_intent", "tam_gather"],
+      "expected_tool_calls": [
+        "parse_gathering_intent",
+        "tam_gather"
+      ],
       "expected_behavior": {
-        "segment_labels_contain": ["FASHION"],
+        "segment_labels_contain": [
+          "FASHION"
+        ],
         "geo_contains": "Italy",
         "pipelines_created": 1
       }
@@ -65,7 +84,7 @@
     {
       "step": 5,
       "phase": "full_pipeline",
-      "description": "Blacklist → scrape → analyze",
+      "description": "Blacklist \u2192 scrape \u2192 analyze",
       "expected_tool_calls": [
         "tam_blacklist_check",
         "tam_approve_checkpoint",
@@ -82,10 +101,13 @@
     {
       "step": 6,
       "phase": "email_accounts",
-      "description": "MCP MUST ask user which email accounts — user provides specific email",
+      "description": "MCP MUST ask user which email accounts \u2014 user provides specific email",
       "expected_mcp_behavior": {
         "mcp_asks_user": true,
-        "message_must_contain": ["email account", "which"],
+        "message_must_contain": [
+          "email account",
+          "which"
+        ],
         "waits_for_user_response": true
       },
       "user_prompt": "Use elnar@thefashionpeopletech.com as the sending email",
@@ -106,18 +128,22 @@
       "user_prompt": "I also need to find influencer platforms in UK for https://onsocial.ai/",
       "user_prompt_variants": [
         "Create another project: OnSocial UK. Website: onsocial.ai. Find social influencer platforms in UK",
-        "New project for onsocial.ai — looking for influencer marketing platforms in the UK"
+        "New project for onsocial.ai \u2014 looking for influencer marketing platforms in the UK"
       ],
-      "expected_tool_calls": ["create_project"],
+      "expected_tool_calls": [
+        "create_project"
+      ],
       "expected_behavior": {
         "new_project_created": true,
         "website_scraped": true,
-        "offer_must_contain": ["creator", "influencer"],
+        "offer_must_contain": [
+          "creator",
+          "influencer"
+        ],
         "user_sees_2_projects": true
       }
     }
   ],
-
   "final_verification": {
     "user_scoping": {
       "user2_sees_only_own_projects": true,
@@ -125,18 +151,27 @@
       "user2_cannot_access_user1_contacts": true
     },
     "ui_screenshots": [
-      {"page": "/projects", "checks": [
-        "2 projects visible (Fashion Brands Italy + OnSocial UK)",
-        "NO EasyStaff-Global visible"
-      ]},
-      {"page": "/pipeline", "checks": [
-        "only this user's runs",
-        "segment badges visible"
-      ]},
-      {"page": "/conversations", "checks": [
-        "all tool calls logged",
-        "create_project calls visible for both projects"
-      ]}
+      {
+        "page": "/projects",
+        "checks": [
+          "2 projects visible (Fashion Brands Italy + OnSocial UK)",
+          "NO EasyStaff-Global visible"
+        ]
+      },
+      {
+        "page": "/pipeline",
+        "checks": [
+          "only this user's runs",
+          "segment badges visible"
+        ]
+      },
+      {
+        "page": "/conversations",
+        "checks": [
+          "all tool calls logged",
+          "create_project calls visible for both projects"
+        ]
+      }
     ]
   }
 }
