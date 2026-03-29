@@ -505,3 +505,103 @@ sk-ant-api03-T0J7t00Cra1kQtncz5vOFSup6vomEw6e4ucBLhhIkQ_49uRhTtzIKzAuLoBGihe7eBR
    why claude decides smth? claude (alsow clarify which model is used by api) should just copy paste the             
   covnersationmessages from the user role to mcp while testing!! and after tests pass you !!!!!!!! you !!!!!!!!!      
   and again i tolud you yourself = opus must verify log all issues, errors, etc   
+
+
+   Also, while you're testing Generate, you should, like, if you call add, like, once   
+creating a campaign, uh, so that user might not even need to generate, you see? The    
+flow is that user asks you to gather companies, right? Uh, you select by default uh    
+C-level from there, but user can edit this flow. But then user can edit the sequence,  
+you know, edit the sequence. So the sequence, like, generated automatically, but user  
+can edit it, you see? There is no flow, like, when user tells you just to create a     
+campaign with sequence without first, like, launching the pipeline. So that anyway,    
+launching the pipeline is a trigger. Then after campaign is created by you, user can   
+change the sequence. So it should call, like, edit Smartlead sequence. And yeah,       
+sequence should, like, must be related to certain tool, like Smartlead, for instance,  
+for this particular case.                                                              
+
+
+
+-----------
+the default smarltead campaign creation flow:
+
+user connects --> mcp greets with required mcp token to start work!!!! before mcp token provided, mcp mustn't response anything else besides "go sign up here: <sign up link>, provide mcp key"
+
+after mcp key is provided mcp tells user the default flow: "let's launch smarltead campaign for the segments you need", but first provide me the keys: apollo to source the data, openai to do ai stuff and smartlead to launch the campsigns baby, and apify to scrape websites" (move apify also to setup not to use our)
+until apollo, openai, smarltead and apify keys are not setup user is told to setup keys in the ui <link to setup keys>
+
+after user setup keys, mcp asks "which segments we'll launch today bro?" - btw can mcp know about this after user sets the keys in ui and yet wrote nothing to mcp - can mcp write itself? as db already will have the keys (the keys are set only via ui for security purposes). then user (imagine user in hurry and rush) asks to gather 2 segments (like in conversation 01_new_user_easystaff.json), but wise mcp knows that project and offer must be passed first, so mcp asks: before launching the pipeline (as user's query to gather segments must trigger launching the pipeline flow and pipeline flow is companies apollo->scraping, classifying, filtering-->people apollo -> smalrtead campaing creation with perfect sequences and perfect seetings and test email sent to the user's email) mcp asks "what are the offer we're working with? provide a website at least"
+
+then user provides easystaff.io and that's must be enough for mcp to create project from the website name easysatff, scrape website and take the offer from there and proceed with "easystaff project data is here <link to the project page>, before launching the pipeline also tell me "have you launched campaigns for this project before"?
+
+then user answers that campaigns including "petr" was launched before for that project
+
+Before running the pipeline mcp must align essential filters for companies search: as business segment and geo already provided by user, company size remaining. Make mcp smart enough to understand from easystaff offer that their target companies are 10-200 size (matching apollo filters, right?) ,add such smart logic and test it too!*as well as everything else in this document 
+
+then mcp answers "adding contacts from this campaings to blacklist and running 2 pipelines (as user requested 2 segments): <link to pipelines page> (to see the list of pipelines and easily dive into each) and list apollo filters applied in readable pretty format
+
+!! ensure that replies processing also running in background after user told which campsings were previously used so that further questins about "show warm replies, which leads need followups?"
+
+after all contacts and conversations from previously used campaigns are loaded, mcp must message user with link to crm to view the contacts from the campaigns - filtered view by project filter applied in the top left corner and taken from query string obviously (again question can mcp write to user itself without trigger by user?  
+ *however, for initial start of usage there won’t be any other projects for this new user, but the ux flow must be proper from the very beginning so that user has the correct impression how this perfect system works
+
+After gathering launched mcp must ask user (essential to ask before creating smarted campaigns to create them with email accounts initially for the test email able to be sent) like “while pipelines are gathering your target icp, tell which email accounts to use for each pipeline?” (2 pipelines implies 2 smarted campaigns so there might be different email accounts for each) 
+
+Then user answers “use Eleonora accounts from the previous campaigns (campaigns the user provided as “launched before for this project”) for both campaigns / pipelines (both variations must be approoairte and tested!!!!! Must test variations of user messages keeping the intent you remember?) 
+
+After target companies are gathered for each pipeline mcp must notify user about stats and then tell the the people filters applied (by default clevel but even better to adjust to the offer, add a gpt4omini mapper here too if it’s essential to adjust filter to the offer) and share links to the exact pipeline page when sharing info/updtes about the pipeline
+
+After people are gathered for each pipeline smartlead campaign must be created with perfect sequence adjusted to the offer, test email sent and mcp must write to user:
+1. Smartlead campaign link: <link>
+2. CRM contacts link: <link to crm with filters in query string> (filtered by newly created campaign) 
+    1. Probably new requirements for ui but essential! after clicking on each contact in crm, conversation first must be shown (send and planned with clear uiux separation, make it clear and minimalistic, apple and telegram style) and also !!!!!!! tab with reasoning must be shown where the same reasoning about company segment and why it’s target is shown as in the pipiline page while clicking on each company row
+3. Check your inbox at <user’s email>
+4. Approve the launch
+
+Then user approves and the campaigns getting launched (change this part in test as well any other parts to correspond to the requirements stated here for the default smarltead campaign creation flow.
+Then users asks about warm replies and leads to followup and everything else according to existing 01_new_user_easystaff.json
+
+essential considerations
+A mcp flow must be simple - only one flow-blocking question each time, nothing else
+B How initial filters are applied? how exploration phase is done to find out perfect filters to apply in apollo for the user’s query? Remember there was a plan (and maybe even built) to make several (up to 5) enrichment calls for the most target companies of the initial apollo companies search call is done to get as many apollo fitlers providing target companies as possible. I need to get at least 100 contacts to be in each campaign for this test flow, up to 3 contacts for a company. Of course all contacts must be from target companies. Build god level exploration approach that costs no more than 5 apollo credits on enrichment calls (not counting search calls themselves) and providing best apollo filters as a result. Best apollo filters = filters that provide maximum of target companies. Companies websites will be further scraped and analyzed according to the pipeline and conversion % from apollo company to real target company is usually not so high, that’s why it’s the tough point and usually the bottleneck, so that’s a great leverage for the result , so implement god-level. So possible implementation here is getting initial list from apollo search companies endpoint, scraping websites with apify proxy as usual, picking top 5 targets (by yourself = opus = by user’ agent running mcp in Claude code for instance — or better on mcp level via gpt4omini? Decide yourself , speed is important here, also answer question “should these initial companies be sown in pipeline ? Probably yes and there is suitable entity for this called iteration in pipeline. So that first pipeline with “draft filters for research” and second pipeline with extended filters from the reverse engineering. What about ui - in ui all iterations must be selected by default and in apollo filters the recently applied filters must be shown (meaning for iteration 2 in this sense — but against’s my vision that seems to work well, but I want you to think as god and create the best approach to maximize the result in terms of target companies number) according to what user asked and of course not competitors, then calling enrichment endpoint from apollo to reveal all their apollo labels.
+C Ensure all browser ui steps tell user full transparency and clear picture of happening: for example, with links including filters all filters must be applied properly = as expected from the business logic, 
+D be testing god , test real browser making screenshots 
+
+steps
+1. adjust test flow in 01_new_user_easystaff.json to start exactly as I described above and mcp behaves exactly as I described above
+2. Build everything obviously missing according to the default smarltead campaign creation flow requirements above. 
+    1. Build exploration phase as god first, at least industry, keywords filters for busines segment and extended by reverse engineering from the definitely target companies by apollo labeling
+    2. Build everything else mentioned above but missed in the existing mcp logic
+3. Test only this test but loop (test—>fix—> test—>fix—>etc) it perfectly until 100% done, don’t stop until done
+4. Also it’s essential and  required to test quality of the "target” companies and people found and проверить качество компаний и применяемых фильтров, ensure competitors are excluding on the gpt4omini prompt level and in the final result. Test final selected companies and contacts yourself = via opus (split to batches for parallel multi-agents review) to answer the question “is this company and contact real icp for EasyStaff payroll offer?” 100 contacts must be in each campaign, up to 3 contacts per company
+
+
+
+backlog
+1. remove useless columns from crm, don't affect main app, remove for mcp only - never affect main app, you remember?
+2. add tokens count of mcp somehow, decide yourself how's better to count usage of mcp itself, account page must show spendings on all connected tools: for default flow essential are openai, apify, apollo and mcp itself (smartlead doesn't have costs per api usage). calculate how many tokens will be spent to launch 20 campaings per month (estimate each campaign is gathering 1000 contacst, so 20,000 contacts gathering with the definitions of targets, adjusting targets companies, roles, sequences) must be default scubction covered by $20/mo. calculate as god, i will connect stripe after 
+
+
+-------
+
+❯ test the quality of exploration phase first seprarely , focus on quality and speed on achiving 100 target contacts  
+up to 3 for each target copany for the test cases descrbived! contacts must be from mew companies considering         
+blacklist you remember  
+
+
+❯ add to your test frameworks thi quality test sysmtematically! act as testing god to test gathering target       
+  companies according to the given kpis from the user prompts     
+
+
+   achieve at least 95% accuracy (comparing  gpt4omni labeling with your real labeling)  on initial companies saerch   
+adjusting gpt4omini prompt until required accuracy achieved to furher use the improved prompt    
+
+ scraper must use apify residential proxy !!!! then apply any postprocessing to extract text only, act as god    
+  for this purpose, see how scraper is built in the main app     
+
+
+  ❯ what is confidence???/ confidence seems like total shit, gpt4omnin is shit in providing confidence, focus on    
+  via negativa approach and proper segmentaion, exclude confiedence from prompt , ui , everywhere — it's only       
+  confusing          
+
+  ❯ on this small volume of initial search make gpt4omini vs your claude opinion align 100% before going next to    
+  iteration 2 with: 1. extended apollo filters from the findings, 2. updated gpt4omini prompt with better accuracy  
