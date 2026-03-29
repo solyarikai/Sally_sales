@@ -949,6 +949,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                         break
             # Also check gathered contacts' most common country
             if not target_country:
+                from sqlalchemy import func as sa_func
                 geo_result = await session.execute(
                     select(DiscoveredCompany.country, sa_func.count(DiscoveredCompany.id))
                     .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
