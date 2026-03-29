@@ -123,7 +123,7 @@ Some agencies try building their own analytics dashboard. Typical timeline: 3-4 
 
 Our white-label covers IG, TikTok, and YouTube - 450M+ profiles, fraud scoring, audience demographics. Zero dev work on your side.
 
-Here's my calendar if worth comparing: [link]
+If worth comparing - happy to walk you through it. 15 min.
 
 Bhaskar
 
