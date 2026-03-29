@@ -1,0 +1,109 @@
+[
+  {
+    "test_id": "00_qwe_test_framework_validation",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "context_check",
+        "prompt": "What projects do I have? Show me my current state.",
+        "tools_called": [
+          "list_projects"
+        ],
+        "duration_s": 4.44,
+        "error_source": "gpt",
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 2,
+        "phase": "create_project",
+        "prompt": "New project: QWE-TestProject, site is easystaff.io",
+        "tools_called": [
+          "create_project"
+        ],
+        "duration_s": 3.76,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "check_integrations",
+        "prompt": "What integrations do I have connected?",
+        "tools_called": [
+          "check_integrations"
+        ],
+        "duration_s": 3.42,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 4,
+        "phase": "list_sources",
+        "prompt": "What data sources are available for gathering?",
+        "tools_called": [
+          "tam_list_sources"
+        ],
+        "duration_s": 3.32,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 5,
+        "phase": "list_email_accounts",
+        "prompt": "List sending accounts",
+        "tools_called": [
+          "list_email_accounts"
+        ],
+        "duration_s": 4.56,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 6,
+        "phase": "reply_summary",
+        "prompt": "Reply status for my project?",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.85,
+        "error_source": "gpt",
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 7,
+        "phase": "estimate_cost",
+        "prompt": "Estimate Apollo credits for 50 companies",
+        "tools_called": [
+          "estimate_cost"
+        ],
+        "duration_s": 4.13,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 100.0,
+    "timestamp": "2026-03-29T19:00:25.774717+00:00"
+  }
+]

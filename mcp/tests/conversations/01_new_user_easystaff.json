@@ -228,8 +228,8 @@
       "step": 10,
       "phase": "sequence_and_campaign",
       "description": "Generate sequence, push to SmartLead as DRAFT with user-selected accounts",
-      "user_prompt": "Generate the email sequence and push it to SmartLead as a draft campaign",
-      "user_prompt_variants": ["Create the sequence and campaign in SmartLead", "Build the outreach sequence and create a SmartLead draft"],
+      "user_prompt": "Generate the outreach email sequence for my campaign",
+      "user_prompt_variants": ["Create a 5-step email sequence for this project", "Build the email sequence based on our offer and targets"],
       "expected_mcp_behavior": {
         "tool_calls": [
           "god_generate_sequence",

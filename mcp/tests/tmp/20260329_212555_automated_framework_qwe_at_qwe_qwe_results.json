@@ -1,0 +1,124 @@
+[
+  {
+    "test_id": "00_qwe_test_framework_validation",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "context_check",
+        "prompt": "What is my current setup?",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.45,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 2,
+        "phase": "create_project",
+        "prompt": "Create a project called QWE-TestProject. My website is easystaff.io",
+        "tools_called": [
+          "create_project"
+        ],
+        "duration_s": 3.97,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "check_integrations",
+        "prompt": "Show my API keys",
+        "tools_called": [
+          "check_integrations"
+        ],
+        "duration_s": 4.16,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 4,
+        "phase": "list_sources",
+        "prompt": "How can I gather companies?",
+        "tools_called": [
+          "tam_list_sources"
+        ],
+        "duration_s": 4.15,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 5,
+        "phase": "list_email_accounts",
+        "prompt": "List sending accounts",
+        "tools_called": [],
+        "duration_s": 0.26,
+        "error_source": null,
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing_tool:list_email_accounts": "called:[] (acceptable: ['list_email_accounts'])",
+          "must_contain_any": [
+            "email",
+            "account",
+            "available"
+          ]
+        }
+      },
+      {
+        "step": 6,
+        "phase": "reply_summary",
+        "prompt": "Reply status for my project?",
+        "tools_called": [],
+        "duration_s": 0.24,
+        "error_source": null,
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing_tool:replies_summary": "called:[] (acceptable: ['replies_summary', 'get_context', 'replies_list'])",
+          "must_contain_any": [
+            "reply",
+            "replies",
+            "warm"
+          ]
+        }
+      },
+      {
+        "step": 7,
+        "phase": "estimate_cost",
+        "prompt": "What is the cost estimate?",
+        "tools_called": [],
+        "duration_s": 0.25,
+        "error_source": null,
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing_tool:estimate_cost": "called:[] (acceptable: ['estimate_cost', 'get_context', 'suggest_apollo_filters'])",
+          "must_contain_any": [
+            "credit",
+            "cost",
+            "estimate"
+          ]
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 57.142857142857146,
+    "timestamp": "2026-03-29T18:26:15.511059+00:00"
+  }
+]
