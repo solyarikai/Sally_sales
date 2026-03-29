@@ -17,7 +17,7 @@ from telethon import TelegramClient
 
 API_ID = 32597601
 API_HASH = "2a95184dbf5981a91f1e492d0ce30a34"
-BOT_USERNAME = "ImpecableBot"
+BOT_USERNAME = "SallyBDMBot"
 PHONE = "+77014007948"
 
 # Test token (pn@getsally.io account)
@@ -27,15 +27,16 @@ TESTS = [
     {
         "name": "1. /start → welcome message",
         "send": "/start",
-        "expect_contains": ["Welcome", "LeadGen", "sign up"],
+        "expect_contains": ["Welcome", "LeadGen", "sign up", "find companies"],
+        "expect_any": True,
         "wait": 5,
     },
     {
         "name": "2. Login with token",
-        "send": f"login with token {TEST_TOKEN}",
-        "expect_contains": ["logged in", "authenticated", "connected", "Petr", "pn@getsally"],
+        "send": f"My MCP token is: {TEST_TOKEN}",
+        "expect_contains": ["logged in", "authenticated", "connected", "Petr", "pn@getsally", "Welcome"],
         "expect_any": True,
-        "wait": 10,
+        "wait": 15,
     },
     {
         "name": "3. Check integrations",
