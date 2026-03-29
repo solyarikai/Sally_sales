@@ -90,24 +90,32 @@ Each JSON file defines ONE user journey. Used by:
 - **Layer 2**: `run_conversation_tests.py` reads prompts + expected tools, calls REST API
 - **Layer 3**: Human or automated agent reads prompts, types them into Claude, verifies behavior
 
-### User 1: pn@getsally.io (EasyStaff)
+### User 1: pn@getsally.io (EasyStaff-Global)
 ```
 01: Full journey — auth, project setup, 2-segment gathering, sequence, campaign, replies
 03: Add more targets to existing pipeline
 04: Edit sequence + provide feedback + override target
 05: Activate campaign with confirmation
+16: Campaign lifecycle — sequence → SmartLead push (DRAFT) → test email → activate → monitoring ON
+17: GetSales flow — destination clarification → LinkedIn flow → push
+18: Session continuity — disconnect → reconnect → verify context restored
+19: Reply intelligence — warm leads, follow-ups, CRM deep links, meetings
+20: Apollo credits — cost estimation, usage history, budget cap
+21: CRM verification — contacts visible, conversation tab default, source tracking
+22: Campaigns monitoring — MCP vs user badge, listening toggle, bulk toggle
 ```
 
-### User 2: services@getsally.io (Result project)
+### User 2: services@getsally.io (Result + OnSocial UK)
 ```
 02: New user — fashion brands Italy + OnSocial UK (2 projects)
-09: CSV import (8 companies) → full pipeline
-10: Google Sheet import (8 companies, 4 overlap with CSV) → dedup test
-11: Google Drive import (3 files, overlaps with both) → dedup test
+09: CSV import (110 companies) → custom prompt → full pipeline
+10: Google Sheet import (110, 40 overlap with CSV) → "add to existing?" → dedup
+11: Google Drive import (105, 35+35 overlap) → "add to existing?" → dedup
 12: Custom prompt chain — re-analyze with multi-step classification
 13: Blacklist isolation — project B independent from Result
 14: Source suggestion edge cases (7 scenarios)
-15: Processing step add/remove iterations
+15: Processing step add/remove iterations (4 iterations tracked)
+23: Second project OnSocial UK — multi-project switching, data isolation
 ```
 
 ### Test Data (in `mcp/backend/test_data/`)

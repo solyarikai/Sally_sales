@@ -12,18 +12,53 @@ You are a FULLY AUTONOMOUS agent working on the MCP (Model Context Protocol) lea
 
 ## CONVERSATION TESTS — THE PRIMARY TEST SUITE
 
-The MCP has a comprehensive conversation test suite at `mcp/tests/conversations/*.json` (15 test files).
-Run it with: `ssh hetzner "cd ~/magnum-opus-project/repo && python3 mcp/tests/run_conversation_tests.py"`
+The MCP has a comprehensive conversation test suite at `mcp/tests/conversations/*.json` (23 test files).
+Run it with: `ssh hetzner "cd ~/magnum-opus-project/repo && OPENAI_API_KEY=... SMARTLEAD_API_KEY=... APOLLO_API_KEY=... MCP_URL=http://localhost:8002 python3 mcp/tests/run_conversation_tests.py"`
+
+**INDEPENDENCE RULE: NEVER use `docker exec leadgen-backend` or touch main app containers. All keys from MCP's own env vars.**
 
 ### Architecture
 - Tests are grouped by user_email — each user gets ONE continuous session
 - All tests for a user run sequentially, accumulating context naturally
 - The MCP remembers everything by user_id/token — no hardcoded state
 - Test runner uses REST /tool-call endpoint (same dispatch + conversation logging)
+- Score function checks: must_contain, must_not_contain, must_contain_any, numeric counts (dedup, targets), source_type, campaign_status
 
-### Current Status: 95.3% GOD LEVEL (12/12 PASS)
-- User pn@getsally.io: 4 tests (01, 03, 04, 05)
-- User services@getsally.io: 8 tests (02, 09-15)
+### Test Suite: 23 Conversations, 2 Users
+
+**User 1: pn@getsally.io (EasyStaff-Global) — 12 tests:**
+- 01: Full journey — auth, project, campaigns, blacklist, gathering, sequence, push, replies
+- 03: Add more targets to existing pipeline
+- 04: Edit sequence + feedback + override target
+- 05: Activate campaign with confirmation
+- 16: **Campaign lifecycle** — sequence → SmartLead push (DRAFT) → test email → activate → monitoring ON
+- 17: **GetSales flow** — destination clarification (both keys) → LinkedIn flow → push
+- 18: **Session continuity** — disconnect → reconnect with same key → context restored
+- 19: **Reply intelligence** — warm leads, follow-ups, CRM deep links, meetings
+- 20: **Apollo credits** — cost estimation, usage history, budget cap
+- 21: **CRM verification** — contacts visible, conversation tab, source tracking
+- 22: **Campaigns monitoring** — MCP/user badge, listening toggle, bulk toggle
+
+**User 2: services@getsally.io (Result + OnSocial UK) — 11 tests:**
+- 02: New user — fashion brands Italy + OnSocial UK
+- 09-11: Multi-source (CSV → Sheet → Drive) with dedup (110+70+35=215)
+- 12: Custom prompt chain (3-step: classify→filter→classify)
+- 13: Blacklist isolation (project-scoped)
+- 14: Source suggestion edge cases (7 scenarios)
+- 15: Step add/remove iterations (4 tracked)
+- 23: **Second project OnSocial UK** — multi-project switching, data isolation
+
+### Unit Tests (Layer 1)
+```bash
+ssh hetzner "cd ~/magnum-opus-project/repo && PYTHONPATH=mcp/backend python3 -m pytest mcp/tests/test_multi_source_pipeline.py mcp/tests/test_processing_steps.py -v"
+```
+194 passing: adapters, column detection, dedup, blacklisting, step execution, filters, prompts.
+
+### Telegram Bot Tests (Layer 1b)
+```bash
+ssh hetzner "docker exec telethon-cron python /app/tests/test_full_pipeline.py"
+```
+12 tests. **KNOWN ISSUE: bot.py uses wrong API endpoint `/api/tools/call` → should be `/api/pipeline/tool-call`. Fix before running.**
 
 ### What to do when tests fail
 1. Read the test output — it shows exact step, tool call, expected vs actual
@@ -67,22 +102,35 @@ This is the most important file. Every agent reads it first, updates it last. St
 - Blocking issue: {description or "none"}
 
 ## Checklist
-- [ ] Phase 1: Context loaded
+- [ ] Phase 1: Context loaded (progress.md, suck.md, audit29_03.md)
 - [ ] Phase 2: Questions answered → answers2603.md
 - [ ] Phase 3: Implementation plan updated → implementation_plan.md
-- [ ] Phase 4 Step 1: Registration tested
-- [ ] Phase 4 Step 2: Project setup tested
-- [ ] Phase 4 Step 2b: Background reply analysis launched
-- [ ] Phase 4 Step 3: Gathering tested
-- [ ] Phase 4 Step 4: Email accounts selected
-- [ ] Phase 4 Step 5: Campaign created in SmartLead
-- [ ] Phase 4 Step 6: Contact quality verified (≥90%)
-- [ ] Phase 4 Step 7: Email verification done
-- [ ] Phase 4 Step 8: Links shared and verified
-- [ ] Phase 4 Step 9: Reply tracking confirmed
-- [ ] Phase 4 Step 10: Intelligence questions answered
+- [ ] Phase 4a: Unit tests pass (194/194)
+- [ ] Phase 4b: Conversation tests pass — user 1 (pn@): 01,03,04,05,16,17,18,19,20,21,22
+- [ ] Phase 4c: Conversation tests pass — user 2 (services@): 02,09-15,23
+- [ ] Phase 4 Step 1: Registration tested (auth + signup)
+- [ ] Phase 4 Step 2: Project setup tested (blind offer discovery)
+- [ ] Phase 4 Step 2b: Background reply analysis launched (parallel)
+- [ ] Phase 4 Step 3: Gathering tested (multi-segment, multi-source)
+- [ ] Phase 4 Step 4: Email accounts selected (eleonora from petr campaigns)
+- [ ] Phase 4 Step 5: Campaign created in SmartLead (DRAFT, reference 3070919)
+- [ ] Phase 4 Step 5b: Campaign settings verified vs reference
+- [ ] Phase 4 Step 6: Contact quality verified (≥90% Opus accuracy)
+- [ ] Phase 4 Step 6b: Apollo credits tracked within budget
+- [ ] Phase 4 Step 7: Test email sent + verified in inbox
+- [ ] Phase 4 Step 8: Links shared and verified (pipeline, CRM, campaigns)
+- [ ] Phase 4 Step 9: Reply tracking confirmed (monitoring auto-enabled)
+- [ ] Phase 4 Step 10: Intelligence questions answered (warm leads, follow-ups, meetings)
+- [ ] Phase 4 Step 11: Campaign activation (DRAFT → ACTIVE)
+- [ ] Phase 4d: Telegram bot tests pass (12/12)
+- [ ] Phase 4e: Session continuity verified (test 18)
+- [ ] Phase 4f: Multi-project isolation verified (test 23)
+- [ ] Phase 4g: GetSales destination flow verified (test 17)
+- [ ] Phase 4h: Campaign monitoring toggle verified (test 22)
+- [ ] Phase 4i: CRM conversation tab + source verified (test 21)
 - [ ] Phase 5: All output files written
-- [ ] KPI: All requirement files checked, 100% satisfied
+- [ ] KPI: All requirements from requirements_source.md + audit29_03.md satisfied
+- [ ] KPI: Independence verified — zero references to main app containers
 
 ## Issues In Progress
 - {issue}: {status} — {what was tried, what's next}

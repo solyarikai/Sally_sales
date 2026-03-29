@@ -1752,12 +1752,14 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
     # ── Utility ──
     if tool_name == "estimate_cost":
-        source = args["source_type"]
-        filters = args.get("filters", {})
+        source = args.get("source_type", "apollo.companies.api")
+        filters = args.get("filters") or {}
         max_pages = filters.get("max_pages", 4)
         per_page = filters.get("per_page", 25)
         if "api" in source:
-            return {"estimated_credits": max_pages * per_page, "estimated_cost_usd": 0}
+            return {"estimated_credits": max_pages, "estimated_cost_usd": 0,
+                    "estimated_companies": max_pages * per_page,
+                    "note": f"{max_pages} pages × {per_page} per page = {max_pages * per_page} companies. 1 credit per page."}
         return {"estimated_credits": 0, "estimated_cost_usd": 0, "note": "Free source"}
 
     if tool_name == "blacklist_check":
@@ -1926,26 +1928,30 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
 
 async def _resolve_project_id(project_name: str, user, session) -> int | None:
-    """Resolve a project name to project_id. Returns None if not found."""
+    """Resolve a project name to project_id. Returns None if not found.
+    If multiple projects match, returns the most recent one.
+    """
     from sqlalchemy import func as sa_func
     result = await session.execute(
         select(Project).where(
             Project.user_id == user.id,
             sa_func.lower(Project.name) == project_name.lower(),
-        )
+        ).order_by(Project.id.desc()).limit(1)
     )
     project = result.scalar_one_or_none()
     return project.id if project else None
 
 
 async def _resolve_project(project_name: str, user, session):
-    """Resolve project name to full Project object."""
+    """Resolve project name to full Project object.
+    If multiple projects match, returns the most recent one.
+    """
     from sqlalchemy import func as sa_func
     result = await session.execute(
         select(Project).where(
             Project.user_id == user.id,
             sa_func.lower(Project.name) == project_name.lower(),
-        )
+        ).order_by(Project.id.desc()).limit(1)
     )
     return result.scalar_one_or_none()
 
