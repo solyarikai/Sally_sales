@@ -1,0 +1,42 @@
+{
+  "segment": "TFP Fashion Italy",
+  "size": {
+    "min_employees": 50,
+    "max_employees": 500,
+    "apollo_range": "50,500",
+    "reasoning": "Mid-sized fashion brands are likely to have the resources and need for managing returns and unsold inventory effectively while also being interested in sustainable practices like circular fashion."
+  },
+  "total": 1507,
+  "results": [
+    {
+      "domain": "elisabettafranchi.com",
+      "is_target": true,
+      "segment": "Fashion Brand",
+      "reasoning": "Elisabetta Franchi is a fashion brand that could benefit from managing returns and unsold inventory through a pre-owned resale platform."
+    },
+    {
+      "domain": "trussardi.com",
+      "is_target": true,
+      "segment": "Fashion Brand",
+      "reasoning": "Trussardi is a fashion brand that may need solutions for managing returns and unsold inventory, making them a potential target for our product."
+    },
+    {
+      "domain": "marni.com",
+      "is_target": true,
+      "segment": "Fashion Brand",
+      "reasoning": "Marni is a fashion brand that could benefit from a pre-owned resale platform to manage returns and unsold inventory."
+    },
+    {
+      "domain": "herno.com",
+      "is_target": true,
+      "segment": "Fashion Brand",
+      "reasoning": "Herno is a fashion brand that may require assistance with returns and unsold inventory, making them a suitable target for our services."
+    },
+    {
+      "domain": "ermannoscervino.com",
+      "is_target": true,
+      "segment": "Fashion Brand",
+      "reasoning": "Ermanno Scervino is a fashion brand that could utilize a pre-owned resale platform to manage returns and unsold inventory effectively."
+    }
+  ]
+}
