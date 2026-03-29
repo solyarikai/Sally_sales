@@ -241,9 +241,12 @@ class GatheringService:
         """Deterministic pre-filtering: remove companies too small, wrong industry, etc."""
         self._check_phase(run, "pre_filter")
 
+        # Scope to THIS RUN's companies via CompanySourceLink
         result = await session.execute(
-            select(DiscoveredCompany).where(
-                DiscoveredCompany.project_id == run.project_id,
+            select(DiscoveredCompany)
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .where(
+                CompanySourceLink.gathering_run_id == run.id,
                 DiscoveredCompany.is_blacklisted == False,
                 DiscoveredCompany.is_pre_filtered == False,
             )
@@ -270,12 +273,15 @@ class GatheringService:
         self, session: AsyncSession, run: GatheringRun,
         scraper_service=None,
     ) -> Dict:
-        """Scrape websites for all non-blacklisted companies."""
+        """Scrape websites for THIS RUN's companies only (not all project companies)."""
         self._check_phase(run, "scrape")
 
+        # Scope to current run via CompanySourceLink join
         result = await session.execute(
-            select(DiscoveredCompany).where(
-                DiscoveredCompany.project_id == run.project_id,
+            select(DiscoveredCompany)
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .where(
+                CompanySourceLink.gathering_run_id == run.id,
                 DiscoveredCompany.is_blacklisted == False,
                 DiscoveredCompany.is_pre_filtered == False,
             )
@@ -343,13 +349,14 @@ class GatheringService:
         """
         self._check_phase(run, "analyze")
 
-        # Get companies with scraped text
+        # Get THIS RUN's companies with scraped text (scoped via CompanySourceLink)
         from app.models.gathering import CompanyScrape
         result = await session.execute(
             select(DiscoveredCompany, CompanyScrape)
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
             .outerjoin(CompanyScrape, (CompanyScrape.discovered_company_id == DiscoveredCompany.id) & (CompanyScrape.is_current == True))
             .where(
-                DiscoveredCompany.project_id == run.project_id,
+                CompanySourceLink.gathering_run_id == run.id,
                 DiscoveredCompany.is_blacklisted == False,
                 DiscoveredCompany.is_pre_filtered == False,
             )

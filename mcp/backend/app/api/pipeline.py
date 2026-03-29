@@ -1223,3 +1223,24 @@ async def crm_contacts(
         })
 
     return {"contacts": contacts, "total": len(contacts)}
+
+
+@router.delete("/cleanup-test-data")
+async def cleanup_test_data(
+    session: AsyncSession = Depends(get_session),
+    user: MCPUser = Depends(get_current_user),
+):
+    """Soft-delete ALL projects for this user — sets is_active=False.
+    Data stays in DB for recovery. Used between test cycles to start fresh."""
+    from sqlalchemy import update
+
+    # Soft-delete: mark all projects as inactive (data preserved, recoverable)
+    result = await session.execute(
+        update(Project)
+        .where(Project.user_id == user.id, Project.is_active == True)
+        .values(is_active=False)
+    )
+    count = result.rowcount
+    await session.commit()
+
+    return {"disabled": count, "message": f"Disabled {count} projects (soft-delete — data preserved, recoverable)"}

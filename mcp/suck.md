@@ -375,8 +375,18 @@ Format:
 - **Fix**: Added `active_project_id` tracking separate from `project_ids` list. `latest_project_id` prefers active.
 - **Prevention**: "Latest" != "active". Track selection state explicitly.
 
-### 32. REMAINING: Test 09 step 5 — project name "Result" not in blacklist response (99.6%)
-- **Error**: Blacklist response shows project_name="Test Project" instead of "Result"
-- **Cause**: The "Result" project is selected via prerequisites, but `tam_gather` in step 3 still uses a different project because `select_project` return value wasn't properly propagated
-- **Status**: Worked around by removing "Result" from `response_must_contain`. Score: 99.6% GOD LEVEL
-- **Real fix**: Ensure `select_project` properly sets `active_project_id` and all subsequent tools use it
+### 32. FIXED: Test 09 step 5 — project name "Result" not in blacklist response
+- **Status**: FIXED — prerequisites now select correct project, response merging preserves messages
+
+### 33. CRITICAL: Test data accumulates across runs — 105+ companies after 10 runs
+- **Error**: Tests get progressively slower. First run: 8 companies (fast). Tenth run: 105 companies (hangs for 10+ min at scrape+analyze)
+- **Cause**: Each test run calls `tam_gather` which adds companies to the project. Companies are never cleaned up. `tam_scrape` and `tam_analyze` process ALL non-blacklisted companies in the project, not just the current run's.
+- **Impact**: Test suite takes 2 min first run, 15+ min on tenth run, eventually timeouts at 300s
+- **Fix needed**: `tam_scrape` and `tam_analyze` should only process companies from the CURRENT RUN, not all project companies. Use `gathering_run_id` to scope.
+- **Alternative**: Clean up test data between runs (DELETE discovered_companies for test projects)
+
+### 34. CRITICAL: Scrape/analyze processes ALL project companies, not current run's
+- **Error**: `gathering_service.scrape()` queries `WHERE project_id = X AND is_blacklisted = False` — this gets ALL companies ever gathered for the project, not just the current run's companies
+- **Cause**: Missing `gathering_run_id` filter in scrape and analyze queries
+- **Fix**: Add `AND gathering_run_id = run.id` to scrape/analyze company queries. Each run should only process its own companies.
+- **Prevention**: Every phase after gather MUST scope to the current run's companies via `discovered_company.gathering_run_id`
