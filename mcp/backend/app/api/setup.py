@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/setup", tags=["setup"])
 
-SUPPORTED_INTEGRATIONS = {"smartlead", "apollo", "findymail", "openai", "gemini"}
+SUPPORTED_INTEGRATIONS = {"smartlead", "apollo", "findymail", "openai", "gemini", "getsales"}
 
 
 class IntegrationRequest(BaseModel):
@@ -70,6 +70,11 @@ async def configure_integration(
             message = f"Connected. Credits: {credits}" if credits else "Connected"
         else:
             message = "Connection failed — check API key"
+
+    elif req.integration_name == "getsales":
+        # Just store — GetSales uses JWT token, no simple test
+        connected = True
+        message = "GetSales key saved"
 
     elif req.integration_name in ("openai", "gemini"):
         # Just store — no easy test endpoint
