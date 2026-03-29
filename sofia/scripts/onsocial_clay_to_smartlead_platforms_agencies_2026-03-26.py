@@ -1241,10 +1241,44 @@ def _export_targets_db(project_id: int) -> list[dict]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 10: APOLLO PEOPLE IMPORT (from manual Apollo People Search CSV)
+# STEP 10: APOLLO PEOPLE SEARCH (автоматический через Puppeteer)
+# Fallback: ручной CSV импорт через --apollo-csv
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Apollo People CSV column mapping (standard Apollo export)
+APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
+APOLLO_PEOPLE_BATCH_SIZE = 30
+APOLLO_PEOPLE_MAX_PAGES = 5
+
+SEGMENT_PEOPLE_FILTERS = {
+    "INFLUENCER_PLATFORMS": {
+        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
+        "titles": [
+            "CTO", "VP Engineering", "VP of Engineering", "Head of Engineering",
+            "Head of Product", "Chief Product Officer", "VP Product",
+            "Director of Engineering", "Director of Product",
+            "Co-Founder", "Founder", "CEO", "COO",
+        ],
+    },
+    "IM_FIRST_AGENCIES": {
+        "seniorities": ["founder", "c_suite", "director", "owner"],
+        "titles": [
+            "CEO", "Founder", "Co-Founder", "Managing Director", "Managing Partner",
+            "Head of Influencer Marketing", "Director of Influencer",
+            "Head of Partnerships", "VP Strategy", "Head of Strategy",
+            "General Manager", "Partner", "Owner",
+        ],
+    },
+    "AFFILIATE_PERFORMANCE": {
+        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
+        "titles": [
+            "CTO", "VP Engineering", "VP of Engineering", "VP Product",
+            "Head of Product", "Head of Partnerships", "VP Partnerships",
+            "Director of Partnerships", "Co-Founder", "Founder", "CEO", "COO",
+        ],
+    },
+}
+SEGMENT_PEOPLE_FILTERS["OTHER"] = SEGMENT_PEOPLE_FILTERS["INFLUENCER_PLATFORMS"]
+
 APOLLO_CSV_COLUMNS = {
     "first_name": ["First Name", "first_name"],
     "last_name": ["Last Name", "last_name"],
@@ -1259,7 +1293,6 @@ APOLLO_CSV_COLUMNS = {
 
 
 def _normalize_domain(raw: str) -> str:
-    """Extract bare domain from URL or email."""
     d = raw.strip().lower()
     for prefix in ["https://", "http://", "www."]:
         if d.startswith(prefix):
@@ -1268,40 +1301,103 @@ def _normalize_domain(raw: str) -> str:
     return d
 
 
-def _map_csv_row(row: dict, targets_by_domain: dict) -> dict:
-    """Map an Apollo CSV row to our contact format."""
-    def _get(field: str) -> str:
+def _build_apollo_people_url(domains, titles, seniorities):
+    from urllib.parse import quote
+    url = "https://app.apollo.io/#/people?finderViewId=5b8050d050a0710001ca27c1"
+    for d in domains:
+        url += f"&organizationDomains[]={quote(d)}"
+    for t in titles:
+        url += f"&personTitles[]={quote(t)}"
+    for s in seniorities:
+        url += f"&personSeniorities[]={quote(s)}"
+    return url
+
+
+def _run_apollo_scraper(url, max_pages, output_path):
+    script = Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT
+    if not script.exists():
+        script = Path(".") / APOLLO_SCRAPER_SCRIPT
+    if not script.exists():
+        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found")
+        return []
+    args = ["node", str(script), "--url", url, "--max-pages", str(max_pages), "--output", output_path]
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=300,
+                              cwd=str(script.parent.parent),
+                              env={**os.environ, "CHROME_PATH": os.environ.get("CHROME_PATH", "/usr/bin/google-chrome")})
+        if result.returncode != 0:
+            err = result.stderr[-300:] if result.stderr else result.stdout[-300:]
+            print(f"    Scraper error (rc={result.returncode}): {err}")
+            return []
+        if Path(output_path).exists():
+            with open(output_path) as f:
+                return json.load(f)
+    except subprocess.TimeoutExpired:
+        print(f"    Scraper timeout (300s)")
+    except Exception as e:
+        print(f"    Scraper error: {e}")
+    return []
+
+
+def _map_apollo_person(person, targets_by_domain, batch_domain=None):
+    name = person.get("name", "")
+    parts = name.split(None, 1) if name else ["", ""]
+    first_name = parts[0] if parts else ""
+    last_name = parts[1] if len(parts) > 1 else ""
+
+    domain = batch_domain or _normalize_domain(person.get("domain", "") or person.get("company_url", ""))
+    if not domain:
+        company = person.get("company", "")
+        for d, t in targets_by_domain.items():
+            if t.get("company_name", "").lower() == company.lower():
+                domain = d
+                break
+
+    target = targets_by_domain.get(domain, {})
+    segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
+    country = person.get("location", "").split(",")[-1].strip() if person.get("location") else ""
+    if not country:
+        country = target.get("country", "")
+
+    return {
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": person.get("email", ""),
+        "title": person.get("title", ""),
+        "company_name": normalize_company(person.get("company", "") or target.get("company_name", domain)),
+        "domain": domain,
+        "segment": segment,
+        "linkedin_url": person.get("linkedin_url", person.get("linkedin", "")),
+        "country": country,
+        "employees": person.get("employees", "") or target.get("employees", ""),
+        "social_proof": get_social_proof(country, segment),
+    }
+
+
+def _map_csv_row(row, targets_by_domain):
+    def _get(field):
         for col in APOLLO_CSV_COLUMNS.get(field, [field]):
             if col in row and row[col]:
                 return row[col].strip()
         return ""
-
     domain = _normalize_domain(_get("domain") or (_get("email").split("@")[-1] if "@" in _get("email") else ""))
     target = targets_by_domain.get(domain, {})
     segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
-
     return {
-        "first_name": _get("first_name"),
-        "last_name": _get("last_name"),
-        "email": _get("email"),
-        "title": _get("title"),
+        "first_name": _get("first_name"), "last_name": _get("last_name"),
+        "email": _get("email"), "title": _get("title"),
         "company_name": normalize_company(_get("company_name") or target.get("company_name", domain)),
-        "domain": domain,
-        "segment": segment,
-        "linkedin_url": _get("linkedin_url"),
+        "domain": domain, "segment": segment, "linkedin_url": _get("linkedin_url"),
         "country": _get("country") or target.get("country", ""),
         "employees": _get("employees") or target.get("employees", ""),
         "social_proof": get_social_proof(_get("country") or target.get("country", ""), segment),
     }
 
 
-def step10_import_apollo_csv(csv_path: str, targets: list[dict],
-                              force: bool = False,
-                              segment_override: str = None) -> list[dict]:
-    """Import contacts from a manual Apollo People Search CSV export."""
+def step10_apollo_people_search(targets, force=False):
+    """Search Apollo People UI for contacts at target companies (automated)."""
     print(f"\n{'='*60}")
-    seg_label = f" ({segment_override})" if segment_override else ""
-    print(f"STEP 10: Import Apollo People CSV{seg_label}")
+    print(f"STEP 10: Apollo People UI Search (automated)")
     print(f"{'='*60}")
 
     if CONTACTS_FILE.exists() and not force:
@@ -1309,45 +1405,55 @@ def step10_import_apollo_csv(csv_path: str, targets: list[dict],
         print(f"  Loaded from cache: {len(contacts)} contacts")
         return contacts
 
-    csv_file = Path(csv_path)
-    if not csv_file.exists():
-        print(f"  ERROR: CSV not found: {csv_path}")
-        print(f"  Export from Apollo People Search UI and provide path via --apollo-csv")
-        sys.exit(1)
+    targets_by_domain = {t.get("domain", "").strip().lower(): t for t in targets if t.get("domain")}
 
-    # Build domain→target lookup from targets
-    targets_by_domain = {}
+    by_segment = {}
     for t in targets:
         d = t.get("domain", "").strip().lower()
-        if d:
-            targets_by_domain[d] = t
+        if not d:
+            continue
+        seg = t.get("segment", t.get("analysis_segment", "UNKNOWN"))
+        by_segment.setdefault(seg, []).append(d)
 
-    # Read CSV
-    with csv_file.open("r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        raw_rows = list(reader)
-    print(f"  CSV rows: {len(raw_rows)}")
-    if raw_rows:
-        print(f"  Columns: {', '.join(raw_rows[0].keys())}")
+    print(f"  Targets: {len(targets_by_domain)} domains across {len(by_segment)} segments")
+    for seg, domains in by_segment.items():
+        print(f"    {seg}: {len(domains)} domains")
 
-    # Map and filter
     all_contacts = []
-    skipped_no_name = 0
-    skipped_no_domain = 0
-    for row in raw_rows:
-        contact = _map_csv_row(row, targets_by_domain)
-        if segment_override:
-            contact["segment"] = segment_override
-            contact["social_proof"] = get_social_proof(contact["country"], segment_override)
-        if not contact["first_name"]:
-            skipped_no_name += 1
-            continue
-        if not contact["domain"]:
-            skipped_no_domain += 1
-            continue
-        all_contacts.append(contact)
+    total_batches_done = 0
 
-    # Dedupe by linkedin_url or (first_name + last_name + domain)
+    for seg, domains in by_segment.items():
+        filters = SEGMENT_PEOPLE_FILTERS.get(seg, SEGMENT_PEOPLE_FILTERS["OTHER"])
+        titles = filters["titles"]
+        seniorities = filters["seniorities"]
+
+        batches = [domains[i:i + APOLLO_PEOPLE_BATCH_SIZE] for i in range(0, len(domains), APOLLO_PEOPLE_BATCH_SIZE)]
+        print(f"\n  [{seg}] {len(domains)} domains -> {len(batches)} batches")
+
+        for batch_idx, batch_domains in enumerate(batches):
+            print(f"    Batch {batch_idx + 1}/{len(batches)}: {len(batch_domains)} domains...", end=" ", flush=True)
+
+            url = _build_apollo_people_url(batch_domains, titles, seniorities)
+            output_path = f"/tmp/apollo_people_{seg}_{batch_idx}.json"
+
+            people = _run_apollo_scraper(url, APOLLO_PEOPLE_MAX_PAGES, output_path)
+            print(f"{len(people)} people")
+
+            for person in people:
+                batch_domain = batch_domains[0] if len(batch_domains) == 1 else None
+                contact = _map_apollo_person(person, targets_by_domain, batch_domain)
+                if contact["first_name"] and contact["domain"]:
+                    all_contacts.append(contact)
+
+            try:
+                Path(output_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+            total_batches_done += 1
+            time.sleep(3)
+
+    # Dedupe
     seen = set()
     deduped = []
     for c in all_contacts:
@@ -1366,19 +1472,76 @@ def step10_import_apollo_csv(csv_path: str, targets: list[dict],
         seg = c.get("segment", "UNKNOWN")
         segments[seg] = segments.get(seg, 0) + 1
 
-    print(f"\n  Imported: {len(all_contacts)} contacts")
+    print(f"\n  Total: {len(all_contacts)} contacts ({total_batches_done} batches)")
     print(f"  With email: {with_email}, with LinkedIn: {with_li}")
-    if skipped_no_name:
-        print(f"  Skipped (no name): {skipped_no_name}")
-    if skipped_no_domain:
-        print(f"  Skipped (no domain): {skipped_no_domain}")
-    print(f"  Segments:")
     for seg, cnt in sorted(segments.items(), key=lambda x: -x[1]):
         print(f"    {seg}: {cnt}")
 
     today = datetime.now().strftime("%Y-%m-%d")
     save_csv(CSV_DIR / f"apollo_contacts_{tag()}.csv", all_contacts,
-             sheet_name=f"OS | Import | Apollo People — {today}")
+             sheet_name=f"OS | Import | Apollo People - {today}")
+    return all_contacts
+
+
+def step10_import_apollo_csv(csv_path, targets, force=False, segment_override=None):
+    """Fallback: Import contacts from a manual Apollo CSV export."""
+    print(f"\n{'='*60}")
+    seg_label = f" ({segment_override})" if segment_override else ""
+    print(f"STEP 10: Import Apollo People CSV{seg_label}")
+    print(f"{'='*60}")
+
+    if CONTACTS_FILE.exists() and not force:
+        contacts = load_json(CONTACTS_FILE)
+        print(f"  Loaded from cache: {len(contacts)} contacts")
+        return contacts
+
+    csv_file = Path(csv_path)
+    if not csv_file.exists():
+        print(f"  ERROR: CSV not found: {csv_path}")
+        sys.exit(1)
+
+    targets_by_domain = {t.get("domain", "").strip().lower(): t for t in targets if t.get("domain")}
+
+    with csv_file.open("r", encoding="utf-8-sig") as f:
+        raw_rows = list(csv.DictReader(f))
+    print(f"  CSV rows: {len(raw_rows)}")
+
+    all_contacts = []
+    skipped_no_name = skipped_no_domain = 0
+    for row in raw_rows:
+        contact = _map_csv_row(row, targets_by_domain)
+        if segment_override:
+            contact["segment"] = segment_override
+            contact["social_proof"] = get_social_proof(contact["country"], segment_override)
+        if not contact["first_name"]:
+            skipped_no_name += 1
+            continue
+        if not contact["domain"]:
+            skipped_no_domain += 1
+            continue
+        all_contacts.append(contact)
+
+    seen = set()
+    deduped = []
+    for c in all_contacts:
+        key = c["linkedin_url"] or f"{c['first_name']}|{c['last_name']}|{c['domain']}"
+        if key not in seen:
+            seen.add(key)
+            deduped.append(c)
+    all_contacts = deduped
+
+    save_json(CONTACTS_FILE, all_contacts)
+
+    with_email = sum(1 for c in all_contacts if c["email"])
+    with_li = sum(1 for c in all_contacts if c["linkedin_url"])
+    print(f"\n  Imported: {len(all_contacts)} contacts")
+    print(f"  With email: {with_email}, with LinkedIn: {with_li}")
+    if skipped_no_name: print(f"  Skipped (no name): {skipped_no_name}")
+    if skipped_no_domain: print(f"  Skipped (no domain): {skipped_no_domain}")
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    save_csv(CSV_DIR / f"apollo_contacts_{tag()}.csv", all_contacts,
+             sheet_name=f"OS | Import | Apollo People - {today}")
     return all_contacts
 
 
