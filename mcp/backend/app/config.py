@@ -31,6 +31,10 @@ class MCPSettings(BaseSettings):
     # SmartLead defaults
     SMARTLEAD_API_KEY: Optional[str] = None
 
+    # GetSales defaults
+    GETSALES_API_KEY: Optional[str] = None
+    GETSALES_TEAM_ID: Optional[str] = None
+
     # FindyMail defaults
     FINDYMAIL_API_KEY: Optional[str] = None
 
