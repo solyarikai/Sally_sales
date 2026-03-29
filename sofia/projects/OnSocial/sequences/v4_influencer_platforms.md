@@ -116,7 +116,7 @@ Hi {{first_name}},
 
 Two things most creator data vendors won't tell you: their profiles update weekly (ours update every 24-48h), and their regional coverage has gaps. We cover IG, TikTok, and YouTube across 50+ countries at city level.
 
-If data freshness or regional coverage matters for {{company_name}} - worth comparing. Here's my calendar: [link]
+If data freshness or regional coverage matters for {{company_name}} - worth comparing. Happy to walk you through it. 15 min.
 
 Bhaskar
 
