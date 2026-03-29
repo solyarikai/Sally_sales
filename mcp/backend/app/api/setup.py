@@ -1,4 +1,4 @@
-"""Integration setup API — connect SmartLead, Apollo, FindyMail."""
+"""Integration setup API — connect SmartLead, Apollo, OpenAI, Gemini, GetSales."""
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/setup", tags=["setup"])
 
-SUPPORTED_INTEGRATIONS = {"smartlead", "apollo", "findymail", "openai", "gemini", "getsales"}
+SUPPORTED_INTEGRATIONS = {"smartlead", "apollo", "openai", "gemini", "getsales"}
 
 
 class IntegrationRequest(BaseModel):
