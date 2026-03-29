@@ -97,9 +97,9 @@ I can build a sample report for {{company_name}} - your logo, your colors, real 
 
 If it's useful, great. If not - no hard feelings. Want me to put one together?
 
-Bhaskar
-
-`45 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
