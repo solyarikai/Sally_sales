@@ -1,4 +1,5 @@
 # Sequence v4: IM-FIRST AGENCIES
+
 > Segment: Agencies where influencer marketing is the core business
 > Target: CEO, Founder, Managing Director, Head of IM, Head of Partnerships
 > Variable: {{social_proof}} - regional OnSocial clients
@@ -8,25 +9,29 @@
 
 ## Custom Variables (CSV columns)
 
-| Variable | Example | Source |
-|----------|---------|--------|
-| {{first_name}} | Maria | Apollo |
-| {{company_name}} | Socially Powerful | Apollo |
+
+| Variable         | Example                       | Source                   |
+| ---------------- | ----------------------------- | ------------------------ |
+| {{first_name}}   | Maria                         | Apollo                   |
+| {{company_name}} | Socially Powerful             | Apollo                   |
 | {{social_proof}} | Whalar and Billion Dollar Boy | Region-based (see table) |
+
 
 ### Social proof by region
 
-| Region | {{social_proof}} |
-|--------|-----------------|
-| UK | Whalar and Billion Dollar Boy |
-| Germany | Linkster and Gocomo |
-| France | Ykone and Skeepers |
-| India | Qoruz and Tonic Worldwide |
-| Australia | TRIBEGroup |
-| Spain | SAMY Alliance |
-| MENA | ArabyAds and Sociata |
-| US/Canada | Viral Nation and Obviously |
-| LATAM | Viral Nation and Captiv8 |
+
+| Region    | {{social_proof}}                                          |
+| --------- | --------------------------------------------------------- |
+| UK        | Whalar, InfluencerUK, LADbible, and Billion Dollar Boy    |
+| Germany   | Zalando, Linkster, Intermate, and Gocomo                  |
+| France    | Kolsquare, Skeepers, Ykone, and Favikon                   |
+| India     | Phyllo, KlugKlug, Qoruz, and Tonic Worldwide             |
+| Australia | TRIBEGroup                                                |
+| Spain     | SAMY Alliance                                             |
+| MENA      | ArabyAds and Sociata                                      |
+| US/Canada | Viral Nation and Obviously                                |
+| LATAM     | Viral Nation and Captiv8                                  |
+
 
 ---
 
@@ -150,13 +155,15 @@ Bhaskar
 
 ## Summary
 
-| Step | Day | Variant A | Variant B | Test hypothesis |
-|------|-----|-----------|-----------|-----------------|
-| Email 1 | 0 | "Your brand or HypeAuditor?" (fear) | "Client Googles pricing" (discovery risk) | Which fear is stronger: screenshot or Google? |
-| Email 2 | 4 | 67% going in-house (market stat) | "I'll build a sample report" (tangible offer) | Data scare vs concrete deliverable? |
-| Email 3 | 8 | 40% higher retention with branded analytics | - | New angle: retention economics |
-| Email 4 | 14 | 3-4 months to build vs zero dev work | - | Build vs buy for agencies |
-| Email 5 | 21 | Break-up + redirect + goodwill | - | Last chance + referral |
+
+| Step    | Day | Variant A                                   | Variant B                                     | Test hypothesis                               |
+| ------- | --- | ------------------------------------------- | --------------------------------------------- | --------------------------------------------- |
+| Email 1 | 0   | "Your brand or HypeAuditor?" (fear)         | "Client Googles pricing" (discovery risk)     | Which fear is stronger: screenshot or Google? |
+| Email 2 | 4   | 67% going in-house (market stat)            | "I'll build a sample report" (tangible offer) | Data scare vs concrete deliverable?           |
+| Email 3 | 8   | 40% higher retention with branded analytics | -                                             | New angle: retention economics                |
+| Email 4 | 14  | 3-4 months to build vs zero dev work        | -                                             | Build vs buy for agencies                     |
+| Email 5 | 21  | Break-up + redirect + goodwill              | -                                             | Last chance + referral                        |
+
 
 ## SmartLead Setup
 
@@ -166,3 +173,4 @@ Bhaskar
 4. Steps 3-5: single version
 5. Timing: Day 0 → +4 → +4 → +6 → +7
 6. Upload CSV with columns: email, first_name, company_name, social_proof
+
