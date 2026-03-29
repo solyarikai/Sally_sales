@@ -48,7 +48,10 @@ Usage:
   # Full pipeline from gathering
   python3 universal_pipeline.py --project-id 42 --mode structured --segment influencer_platforms
 
-  # Resume from Apollo import
+  # Resume from people search (auto Apollo UI search)
+  python3 universal_pipeline.py --project-id 42 --from-step people
+
+  # Resume with manual CSV (fallback)
   python3 universal_pipeline.py --project-id 42 --from-step people --apollo-csv export.csv
 
   # Lookalike search
