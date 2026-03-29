@@ -106,11 +106,11 @@ Hi {{first_name}},
 
 One data point: platforms that build their own creator data layer spend 4-6 months before they have coverage beyond Instagram. We cover IG, TikTok, and YouTube from day one - 450M+ profiles.
 
-{{social_proof}} started with the same decision. Happy to share what they learned.
+Many platforms started with the same decision. Happy to share what they learned.
 
-Bhaskar
-
-`50 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
