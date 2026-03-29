@@ -17,7 +17,7 @@ from telethon import TelegramClient
 
 API_ID = 32597601
 API_HASH = "2a95184dbf5981a91f1e492d0ce30a34"
-BOT_USERNAME = "SallyBDMBot"
+BOT_USERNAME = "sallymcptestbot"
 PHONE = "+77014007948"
 
 # Test token (pn@getsally.io account)
