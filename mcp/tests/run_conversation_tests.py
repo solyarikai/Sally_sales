@@ -206,20 +206,23 @@ async def connect_integrations(client: httpx.AsyncClient, session: UserSession):
 async def tool_call(client: httpx.AsyncClient, session: UserSession,
                     tool_name: str, args: dict) -> dict:
     """Call an MCP tool via REST /tool-call endpoint."""
-    resp = await client.post(
-        f"{MCP_URL}/api/pipeline/tool-call",
-        json={"tool_name": tool_name, "arguments": args},
-        headers={"X-MCP-Token": session.token, "Content-Type": "application/json"},
-        timeout=300,
-    )
-    if resp.status_code == 200:
-        data = resp.json()
-        result = data.get("result", data)
-        session.update_from_result(tool_name, result)
-        return result
-    elif resp.status_code == 400:
-        return {"error": resp.json().get("detail", resp.text)}
-    return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+    try:
+        resp = await client.post(
+            f"{MCP_URL}/api/pipeline/tool-call",
+            json={"tool_name": tool_name, "arguments": args},
+            headers={"X-MCP-Token": session.token, "Content-Type": "application/json"},
+            timeout=300,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            result = data.get("result", data)
+            session.update_from_result(tool_name, result)
+            return result
+        elif resp.status_code == 400:
+            return {"error": resp.json().get("detail", resp.text)}
+        return {"error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {str(e)[:150]}"}
 
 
 def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> dict:
