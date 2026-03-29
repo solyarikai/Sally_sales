@@ -476,6 +476,31 @@ def _keyword_classify(text: str) -> Tuple[str, float]:
     return "other", 0.4
 
 
+async def start_background_analysis(project_id: int, user_id: int):
+    """M7: Start background reply analysis for a project (called during blacklist phase)."""
+    try:
+        from app.db import async_session_maker
+        from app.models.campaign import Campaign
+        from app.services.smartlead_service import SmartLeadService
+        from sqlalchemy import select
+
+        async with async_session_maker() as session:
+            campaigns = (await session.execute(
+                select(Campaign).where(Campaign.project_id == project_id, Campaign.external_id.isnot(None))
+            )).scalars().all()
+            if not campaigns:
+                logger.info(f"[ReplyAnalysis] No campaigns for project {project_id}, skipping background analysis")
+                return
+            sl = SmartLeadService()
+            if not sl.is_configured():
+                return
+            campaign_ids = [int(c.external_id) for c in campaigns if c.external_id]
+            campaign_names = {int(c.external_id): c.name for c in campaigns if c.external_id}
+            await analyze_campaign_replies(sl, campaign_ids, campaign_names, project_id)
+    except Exception as e:
+        logger.warning(f"[ReplyAnalysis] Background analysis failed for project {project_id}: {e}")
+
+
 def start_reply_analysis_background(smartlead_service, campaign_ids, campaign_names, project_id, openai_key=None):
     """Fire and forget — runs reply analysis in background asyncio task."""
     loop = asyncio.get_event_loop()
