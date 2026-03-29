@@ -5,7 +5,6 @@
   "user_password": "qweqweqwe",
   "project_name": "Result",
   "depends_on": "09_multi_source_csv_first",
-
   "preconditions": {
     "user_authenticated": true,
     "project_selected": "Result",
@@ -13,7 +12,6 @@
     "existing_companies_count": 110,
     "existing_source": "csv.companies.file"
   },
-
   "steps": [
     {
       "step": 1,
@@ -29,7 +27,11 @@
         "mcp_detects_google_sheet": true,
         "mcp_sees_existing_run": true,
         "mcp_asks_new_or_existing": true,
-        "response_must_contain": ["existing", "pipeline", "new"],
+        "response_must_contain": [
+          "existing",
+          "pipeline",
+          "new"
+        ],
         "response_must_contain_any": [
           "add to existing",
           "create a new pipeline",
@@ -52,15 +54,27 @@
         "Use the existing run, add the sheet data there",
         "Don't create a new one, add to the current pipeline"
       ],
-      "expected_tool_calls": ["tam_gather"],
+      "expected_tool_calls": [
+        "tam_gather"
+      ],
       "expected_behavior": {
         "source_type": "google_sheets.companies.sheet",
         "reuses_existing_project": true,
-        "filters_contain": {"sheet_url": "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit"},
-        "response_must_contain": ["companies", "gathered"],
+        "filters_contain": {
+          "sheet_url": "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit"
+        },
+        "response_must_contain": [
+          "companies",
+          "gathered"
+        ],
         "new_companies_added": 70,
         "duplicates_detected": 40,
-        "response_must_contain_any": ["70 new", "40 duplicate", "40 already", "overlap"]
+        "response_must_contain_any": [
+          "70 new",
+          "40 duplicate",
+          "40 already",
+          "overlap"
+        ]
       },
       "critical_requirement": "The gather call uses the SAME project_id as the CSV run. Dedup happens at the project level: 40 companies that were already discovered from CSV are detected as duplicates."
     },
@@ -68,38 +82,62 @@
       "step": 3,
       "phase": "blacklist_with_overlap",
       "description": "Blacklist check — should show the 40 overlap as already existing",
-      "expected_tool_calls": ["tam_blacklist_check", "tam_approve_checkpoint"],
+      "expected_tool_calls": [
+        "tam_blacklist_check",
+        "tam_approve_checkpoint"
+      ],
       "expected_behavior": {
         "checkpoint_type": "checkpoint_1",
         "total_in_project_now": 180,
         "mcp_reports_dedup_correctly": true,
-        "response_must_contain": ["blacklist", "approved"]
-      }
+        "response_must_contain": [
+          "blacklist",
+          "approved"
+        ]
+      },
+      "user_prompt": "Run blacklist check on the new companies",
+      "user_prompt_variants": [
+        "Blacklist check for the sheet import",
+        "Check blacklist and approve"
+      ]
     },
     {
       "step": 4,
       "phase": "full_pipeline",
       "description": "Pre-filter, scrape, analyze the new 70 companies",
-      "expected_tool_calls": ["tam_pre_filter", "tam_scrape", "tam_analyze"],
+      "expected_tool_calls": [
+        "tam_pre_filter",
+        "tam_scrape",
+        "tam_analyze"
+      ],
       "expected_behavior": {
         "analysis_uses_same_prompt_as_csv_run": true,
         "or_mcp_asks_about_prompt": true,
         "checkpoint_type": "checkpoint_2",
         "target_list_returned": true,
-        "response_must_contain": ["targets", "checkpoint"]
-      }
+        "response_must_contain": [
+          "targets",
+          "checkpoint"
+        ]
+      },
+      "user_prompt": "Scrape and analyze the new companies",
+      "user_prompt_variants": [
+        "Run the pipeline on the new batch",
+        "Pre-filter, scrape, and classify"
+      ]
     },
     {
       "step": 5,
       "phase": "checkpoint2_approval",
       "user_prompt": "Approve targets",
-      "expected_tool_calls": ["tam_approve_checkpoint"],
+      "expected_tool_calls": [
+        "tam_approve_checkpoint"
+      ],
       "expected_behavior": {
         "gate_approved": true
       }
     }
   ],
-
   "final_verification": {
     "db_checks": [
       "gathering_runs has 2 runs for Result project (CSV + Sheet)",
@@ -109,8 +147,14 @@
       "both runs share the same classification prompt (or MCP asked if user wants to change it)"
     ],
     "ui_checks": [
-      {"page": "/pipeline", "check": "2 iterations visible in dropdown"},
-      {"page": "/pipeline/{run_id}", "check": "Sheet run shows 70 new + 40 duplicate"}
+      {
+        "page": "/pipeline",
+        "check": "2 iterations visible in dropdown"
+      },
+      {
+        "page": "/pipeline/{run_id}",
+        "check": "Sheet run shows 70 new + 40 duplicate"
+      }
     ]
   }
 }

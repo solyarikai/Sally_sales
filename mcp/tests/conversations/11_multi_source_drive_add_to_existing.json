@@ -5,15 +5,16 @@
   "user_password": "qweqweqwe",
   "project_name": "Result",
   "depends_on": "10_multi_source_sheet_add_to_existing",
-
   "preconditions": {
     "user_authenticated": true,
     "project_selected": "Result",
     "existing_runs": 2,
     "existing_companies_count": 180,
-    "existing_sources": ["csv.companies.file", "google_sheets.companies.sheet"]
+    "existing_sources": [
+      "csv.companies.file",
+      "google_sheets.companies.sheet"
+    ]
   },
-
   "steps": [
     {
       "step": 1,
@@ -29,7 +30,10 @@
         "mcp_detects_google_drive": true,
         "mcp_sees_existing_runs": true,
         "mcp_asks_new_or_existing": true,
-        "response_must_contain": ["existing", "pipeline"],
+        "response_must_contain": [
+          "existing",
+          "pipeline"
+        ],
         "response_must_contain_any": [
           "add to existing",
           "already have 2 runs",
@@ -50,49 +54,80 @@
         "Add to the existing pipeline, don't create a new one",
         "Yep, same project, just add these files"
       ],
-      "expected_tool_calls": ["tam_gather"],
+      "expected_tool_calls": [
+        "tam_gather"
+      ],
       "expected_behavior": {
         "source_type": "google_drive.companies.folder",
         "reuses_existing_project": true,
-        "response_must_contain": ["companies", "gathered"],
+        "response_must_contain": [
+          "companies",
+          "gathered"
+        ],
         "total_from_drive_files": 105,
         "new_companies_added": 35,
         "duplicates_detected": 70,
-        "response_must_contain_any": ["35 new", "70 duplicate", "70 already", "overlap"]
+        "response_must_contain_any": [
+          "35 new",
+          "70 duplicate",
+          "70 already",
+          "overlap"
+        ]
       },
       "critical_requirement": "Drive folder has 105 companies across 3 files. 35 overlap with CSV (batch 2), 35 overlap with Sheet (batch 3). Only 35 from batch 1 are truly new. Project dedup catches all 70."
     },
     {
       "step": 3,
       "phase": "blacklist",
-      "expected_tool_calls": ["tam_blacklist_check", "tam_approve_checkpoint"],
+      "expected_tool_calls": [
+        "tam_blacklist_check",
+        "tam_approve_checkpoint"
+      ],
       "expected_behavior": {
         "checkpoint_type": "checkpoint_1",
         "total_in_project_now": 215,
-        "response_must_contain": ["blacklist", "approved"]
-      }
+        "response_must_contain": [
+          "blacklist",
+          "approved"
+        ]
+      },
+      "user_prompt": "Run blacklist check",
+      "user_prompt_variants": [
+        "Check blacklist for the drive import",
+        "Blacklist check please"
+      ]
     },
     {
       "step": 4,
       "phase": "full_pipeline",
-      "expected_tool_calls": ["tam_pre_filter", "tam_scrape", "tam_analyze"],
+      "expected_tool_calls": [
+        "tam_pre_filter",
+        "tam_scrape",
+        "tam_analyze"
+      ],
       "expected_behavior": {
         "only_35_new_companies_analyzed": true,
         "checkpoint_type": "checkpoint_2",
         "target_list_returned": true
-      }
+      },
+      "user_prompt": "Scrape and analyze",
+      "user_prompt_variants": [
+        "Run the full pipeline",
+        "Pre-filter, scrape, analyze"
+      ]
     },
     {
       "step": 5,
       "phase": "checkpoint2_approval",
       "user_prompt": "Approve",
-      "expected_tool_calls": ["tam_approve_checkpoint"],
+      "expected_tool_calls": [
+        "tam_approve_checkpoint"
+      ],
       "expected_behavior": {
         "gate_approved": true
       }
     }
   ],
-
   "final_verification": {
     "db_checks": [
       "gathering_runs has 3 runs for Result project (CSV + Sheet + Drive)",
@@ -106,9 +141,18 @@
       "Blacklist is consistent across all runs (project-scoped)"
     ],
     "ui_checks": [
-      {"page": "/pipeline", "check": "3 iterations in dropdown (CSV, Sheet, Drive)"},
-      {"page": "/pipeline/{run_id}", "check": "Drive run shows 35 new + 70 duplicate"},
-      {"page": "/pipeline/{run_id}/prompts", "check": "Same classification prompt applied across all runs"}
+      {
+        "page": "/pipeline",
+        "check": "3 iterations in dropdown (CSV, Sheet, Drive)"
+      },
+      {
+        "page": "/pipeline/{run_id}",
+        "check": "Drive run shows 35 new + 70 duplicate"
+      },
+      {
+        "page": "/pipeline/{run_id}/prompts",
+        "check": "Same classification prompt applied across all runs"
+      }
     ],
     "dedup_matrix": {
       "csv_total": 110,

@@ -84,7 +84,7 @@
     {
       "step": 5,
       "phase": "full_pipeline",
-      "description": "Blacklist \u2192 scrape \u2192 analyze",
+      "description": "Blacklist → scrape → analyze",
       "expected_tool_calls": [
         "tam_blacklist_check",
         "tam_approve_checkpoint",
@@ -96,12 +96,17 @@
         "segment_label": "FASHION_BRANDS",
         "competitor_excluded": "companies offering branded resale platforms",
         "targets_found_min": 3
-      }
+      },
+      "user_prompt": "Run the full pipeline — blacklist, scrape, analyze",
+      "user_prompt_variants": [
+        "Process the gathered companies",
+        "Run blacklist and analysis"
+      ]
     },
     {
       "step": 6,
       "phase": "email_accounts",
-      "description": "MCP MUST ask user which email accounts \u2014 user provides specific email",
+      "description": "MCP MUST ask user which email accounts — user provides specific email",
       "expected_mcp_behavior": {
         "mcp_asks_user": true,
         "message_must_contain": [
@@ -128,7 +133,7 @@
       "user_prompt": "I also need to find influencer platforms in UK for https://onsocial.ai/",
       "user_prompt_variants": [
         "Create another project: OnSocial UK. Website: onsocial.ai. Find social influencer platforms in UK",
-        "New project for onsocial.ai \u2014 looking for influencer marketing platforms in the UK"
+        "New project for onsocial.ai — looking for influencer marketing platforms in the UK"
       ],
       "expected_tool_calls": [
         "create_project"
