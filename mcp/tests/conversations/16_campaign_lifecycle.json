@@ -53,8 +53,25 @@
     },
     {
       "step": 3,
+      "phase": "sequence_approval",
+      "description": "User reviews the generated sequence and approves it.",
+      "user_prompt": "Looks good, approve the sequence",
+      "user_prompt_variants": [
+        "Approve it",
+        "The sequence is fine, go ahead",
+        "LGTM, approve"
+      ],
+      "expected_tool_calls": ["god_approve_sequence"],
+      "expected_behavior": {
+        "sequence_approved": true,
+        "response_must_contain_any": ["approved", "ready"],
+        "response_must_not_contain": ["error"]
+      }
+    },
+    {
+      "step": 4,
       "phase": "smartlead_push",
-      "description": "Push sequence + contacts to SmartLead as DRAFT campaign.",
+      "description": "Push approved sequence + contacts to SmartLead as DRAFT campaign.",
       "user_prompt": "Push this to SmartLead",
       "user_prompt_variants": [
         "Create the SmartLead campaign",
@@ -80,7 +97,7 @@
       "critical_requirement": "Campaign MUST be DRAFT (not active). Test email MUST be sent to user. Settings must match reference campaign 3070919. Timing 9-18 in contact timezone."
     },
     {
-      "step": 4,
+      "step": 5,
       "phase": "test_email_verification",
       "description": "User checks inbox and confirms test email received.",
       "user_prompt": "I got the test email, looks good",
@@ -96,7 +113,7 @@
       }
     },
     {
-      "step": 5,
+      "step": 6,
       "phase": "campaign_activation",
       "description": "User explicitly approves campaign activation.",
       "user_prompt": "Yes, activate the campaign",
@@ -115,7 +132,7 @@
       "critical_requirement": "After activation, reply monitoring MUST be ON by default. MCP should confirm monitoring is active."
     },
     {
-      "step": 6,
+      "step": 7,
       "phase": "monitoring_confirmation",
       "description": "MCP confirms reply monitoring is active. If Telegram not connected, asks to connect.",
       "expected_behavior": {
