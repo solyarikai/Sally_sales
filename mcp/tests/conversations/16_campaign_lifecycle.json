@@ -41,7 +41,7 @@
         "Build the email sequence based on our best practices",
         "Generate sequence for the IT consulting targets"
       ],
-      "expected_tool_calls": ["god_generate_sequence"],
+      "expected_tool_calls": ["smartlead_generate_sequence"],
       "expected_behavior": {
         "sequence_created": true,
         "sequence_has_steps": true,

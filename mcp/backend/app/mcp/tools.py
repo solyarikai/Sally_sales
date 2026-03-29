@@ -333,7 +333,7 @@ Iterate until GPT's results meet your quality bar.""",
         },
     },
     {
-        "name": "god_generate_sequence",
+        "name": "smartlead_generate_sequence",
         "description": "Generate a 5-step email sequence using extracted patterns + project knowledge.",
         "inputSchema": {
             "type": "object",

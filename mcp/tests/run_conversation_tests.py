@@ -356,7 +356,7 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
     if tool_name == "tam_approve_checkpoint":
         return {"gate_id": gate_id or 1}
 
-    if tool_name == "god_generate_sequence":
+    if tool_name == "smartlead_generate_sequence":
         return {"project_id": project_id or 1}
 
     if tool_name == "god_approve_sequence":
@@ -485,7 +485,7 @@ async def ensure_prerequisites(test: dict, client: httpx.AsyncClient, session: U
         pid = session.latest_project_id
         if pid:
             print(f"  [prereq] Generating sequence for project {pid}...")
-            result = await tool_call(client, session, "god_generate_sequence", {"project_id": pid})
+            result = await tool_call(client, session, "smartlead_generate_sequence", {"project_id": pid})
             if not result.get("error"):
                 print(f"  [prereq] Sequence generated: id={session.latest_sequence_id}")
 
