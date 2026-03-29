@@ -680,12 +680,48 @@ async def run_test(test: dict, client: httpx.AsyncClient, session: UserSession) 
     return results
 
 
+async def cleanup_test_data():
+    """Soft-delete data from previous test cycles.
+
+    Sets all test user projects to is_active=False so each full test cycle
+    starts fresh. Data stays in DB for recovery if needed.
+    """
+    print("\n[CLEANUP] Disabling previous test cycle data (soft-delete)...")
+    async with httpx.AsyncClient(timeout=30) as client:
+        for email in ["pn@getsally.io", "services@getsally.io"]:
+            resp = await client.post(f"{MCP_URL}/api/auth/login", json={
+                "email": email, "password": "qweqweqwe"
+            })
+            if resp.status_code != 200:
+                continue
+            token = resp.json().get("api_token", "")
+            if not token:
+                continue
+
+            # Soft-delete all projects (is_active=False, data preserved)
+            headers = {"X-MCP-Token": token}
+            resp = await client.delete(
+                f"{MCP_URL}/api/pipeline/cleanup-test-data", headers=headers
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                print(f"  [CLEANUP] {email}: {data.get('message', 'done')}")
+
+    print("[CLEANUP] Done — fresh start (data preserved in DB)\n")
+
+
 async def main():
     """Run all conversation tests, grouped by user for continuous sessions."""
     test_files = sorted(TESTS_DIR.glob("*.json"))
     if not test_files:
         print("No test files found!")
         return
+
+    # Clean up data from previous test cycles
+    try:
+        await cleanup_test_data()
+    except Exception as e:
+        print(f"[CLEANUP] Warning: {e}")
 
     # Load all tests
     tests = []
