@@ -56,13 +56,13 @@ Hi {{first_name}},
 
 How much engineering time does {{company_name}} spend maintaining creator data? Scraping, deduplication, coverage gaps - it adds up fast.
 
-{{social_proof}} moved to our API and freed their eng team to work on product instead of data plumbing. Same coverage, zero maintenance.
+Companies that moved to our API freed their eng team to work on product instead of data plumbing. Same coverage, zero maintenance.
 
 Worth a look?
 
-Bhaskar
-
-`50 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
