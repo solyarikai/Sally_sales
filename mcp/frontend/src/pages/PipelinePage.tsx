@@ -220,7 +220,10 @@ export default function PipelinePage() {
   const [hasTargets, setHasTargets] = useState(false)
   const [totalContacts, setTotalContacts] = useState(0)
   const [iterations, setIterations] = useState<any[]>([])
-  const [selectedIteration, setSelectedIteration] = useState<string>('all')
+  const [selectedIteration, setSelectedIteration] = useState<string>(() => {
+    const p = new URLSearchParams(window.location.search)
+    return p.get('iteration') || 'all'
+  })
   const [iterDropOpen, setIterDropOpen] = useState(false)
   const [stageDropOpen, setStageDropOpen] = useState(false)
   const [showPromptHistory, setShowPromptHistory] = useState(false)
@@ -387,9 +390,9 @@ export default function PipelinePage() {
           </button>
           {iterDropOpen && (
             <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 4, minWidth: 300, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
-              <div onClick={() => { setSelectedIteration('all'); setIterDropOpen(false) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === 'all' ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === 'all' ? 'var(--active-bg)' : 'transparent' }}>All iterations</div>
+              <div onClick={() => { setSelectedIteration('all'); setIterDropOpen(false); const u = new URL(window.location.href); u.searchParams.delete('iteration'); window.history.replaceState({}, '', u.toString()) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === 'all' ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === 'all' ? 'var(--active-bg)' : 'transparent' }}>All iterations</div>
               {iterations.map((it: any) => (
-                <div key={it.id} onClick={() => { setSelectedIteration(String(it.id)); setIterDropOpen(false) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === String(it.id) ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === String(it.id) ? 'var(--active-bg)' : 'transparent' }}>
+                <div key={it.id} onClick={() => { setSelectedIteration(String(it.id)); setIterDropOpen(false); const u = new URL(window.location.href); u.searchParams.set('iteration', String(it.id)); window.history.replaceState({}, '', u.toString()) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === String(it.id) ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === String(it.id) ? 'var(--active-bg)' : 'transparent' }}>
                   #{it.id} — {it.new_companies || 0} companies{it.target_count ? ` (${it.target_count} targets)` : ''} — {it.created_at ? new Date(it.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : ''}
                 </div>
               ))}
@@ -460,7 +463,8 @@ export default function PipelinePage() {
           {filtered.length > 0 && (
             <button onClick={() => {
               const headers = ['Domain','Name','Industry','Employees','Country','City','Segment','Confidence','Status','Reasoning'];
-              const rows = filtered.map((c: any) => [c.domain, c.name, c.industry, c.employee_count, c.country, c.city, c.analysis_segment, c.analysis_confidence, c.status, (c.analysis_reasoning||'').replace(/"/g,"'")].map(v => `"${v||''}"`).join(','));
+              const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+              const rows = filtered.map((c: any) => [c.domain, c.name, c.industry, c.employee_count, c.country, c.city, c.analysis_segment, c.analysis_confidence, c.status, c.analysis_reasoning].map(esc).join(','));
               const csv = [headers.join(','), ...rows].join('\n');
               const blob = new Blob([csv], {type: 'text/csv'});
               const url = URL.createObjectURL(blob);
@@ -666,6 +670,16 @@ export default function PipelinePage() {
 
       {filtered.length === 0 && !loading && (
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>No companies match filters.</div>
+      )}
+
+      {/* Load More */}
+      {!loading && companies.length < totalCompanies && (
+        <div style={{ textAlign: 'center', padding: '16px 0' }}>
+          <button onClick={() => { setCompanyPage(p => p + 1); load() }}
+            style={{ padding: '8px 24px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
+            Load More ({companies.length} / {totalCompanies})
+          </button>
+        </div>
       )}
 
       {/* Modal */}

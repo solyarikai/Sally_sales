@@ -16,24 +16,25 @@ Tests the COMPLETE flow a real user would go through:
 
 Run: docker exec telethon-cron python /app/tests/test_full_pipeline.py
 """
+import os
 import sys
 import asyncio
 import json
 import time
 from telethon import TelegramClient
 
-API_ID = 32597601
-API_HASH = "2a95184dbf5981a91f1e492d0ce30a34"
-BOT_USERNAME = "sallymcptestbot"
-PHONE = "+77014007948"
+API_ID = int(os.environ.get("TELETHON_API_ID", "0"))
+API_HASH = os.environ.get("TELETHON_API_HASH", "")
+BOT_USERNAME = os.environ.get("TEST_BOT_USERNAME", "sallymcptestbot")
+PHONE = os.environ.get("TELETHON_PHONE", "")
 
 # Test user credentials
-TEST_TOKEN = "mcp_2fd4a59eb8a6bfb6f33caf653f4bf688bdc5fea03c41565e1f351b451a70c65d"
+TEST_TOKEN = os.environ.get("MCP_TEST_TOKEN", "")
 
 # API Keys
-SMARTLEAD_KEY = "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
-APOLLO_KEY = "9yIx2mZegixXHeDf6mWVqA"
-OPENAI_KEY = "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"
+SMARTLEAD_KEY = os.environ.get("SMARTLEAD_API_KEY", "")
+APOLLO_KEY = os.environ.get("APOLLO_API_KEY", "")
+OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 TESTS = [
     # ── Auth ──
