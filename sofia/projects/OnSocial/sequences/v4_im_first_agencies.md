@@ -125,9 +125,7 @@ Our white-label covers IG, TikTok, and YouTube - 450M+ profiles, fraud scoring, 
 
 Here's my calendar if worth comparing: [link]
 
-Kind regards,
-Bhaskar Vishnu from OnSocial
-Trusted by {{social_proof}}
+Bhaskar
 
 ---
 
