@@ -24,6 +24,17 @@ MCP_URL = os.environ.get("MCP_URL", "http://localhost:8002")
 TESTS_DIR = Path(__file__).parent / "conversations"
 RESULTS_FILE = Path(__file__).parent / "test_results.json"
 
+# Load MCP's own .env for API keys (independent from main app)
+_mcp_env_path = Path(__file__).parent.parent / ".env"
+if _mcp_env_path.exists():
+    for line in _mcp_env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip()
+            if v and v not in ("sk-...", ""):
+                os.environ.setdefault(k, v)
+
 
 class UserSession:
     """Persistent session for one user across all their tests."""
@@ -555,6 +566,76 @@ def score_step(expected: dict, actual: dict) -> dict:
             passed_checks += 1
         else:
             details["campaign_status"] = f"FAIL: expected {expected['campaign_status']}, got {actual.get('status')}"
+
+    # Check numeric fields (dedup counts, target counts, etc.)
+    for num_field in ["new_companies_added", "duplicates_detected", "leads_uploaded_count_min",
+                      "targets_found_min", "companies_count_min", "steps_count_min",
+                      "pipeline_runs_count_min"]:
+        if num_field in expected:
+            total_checks += 1
+            # Map expected field names to actual response fields
+            actual_field_map = {
+                "new_companies_added": "new_companies_count",
+                "duplicates_detected": "duplicate_count",
+                "leads_uploaded_count_min": "leads_uploaded",
+                "targets_found_min": "targets_found",
+                "companies_count_min": "total_companies",
+                "steps_count_min": "steps_count",
+                "pipeline_runs_count_min": "pipeline_runs",
+            }
+            actual_key = actual_field_map.get(num_field, num_field)
+            actual_val = actual.get(actual_key)
+            # Also check nested in response
+            if actual_val is None:
+                actual_str_full = json.dumps(actual)
+                # Try to find the number in the full response
+                import re
+                nums = re.findall(r'"' + actual_key + r'":\s*(\d+)', actual_str_full)
+                if nums:
+                    actual_val = int(nums[0])
+            expected_val = expected[num_field]
+            if actual_val is not None:
+                if num_field.endswith("_min"):
+                    if isinstance(actual_val, (list,)):
+                        actual_val = len(actual_val)
+                    if int(actual_val) >= expected_val:
+                        passed_checks += 1
+                    else:
+                        details[num_field] = f"FAIL: expected >= {expected_val}, got {actual_val}"
+                else:
+                    if int(actual_val) == expected_val:
+                        passed_checks += 1
+                    else:
+                        details[num_field] = f"FAIL: expected {expected_val}, got {actual_val}"
+            else:
+                details[num_field] = f"FAIL: field not found in response"
+
+    # Check source_type
+    if "source_type" in expected:
+        total_checks += 1
+        actual_source = actual.get("source_type", "")
+        if actual_source == expected["source_type"]:
+            passed_checks += 1
+        else:
+            details["source_type"] = f"FAIL: expected {expected['source_type']}, got {actual_source}"
+
+    # Check must_contain_any (at least one of the words present)
+    if "response_must_contain_any" in expected:
+        total_checks += 1
+        actual_str = json.dumps(actual).lower()
+        if any(word.lower() in actual_str for word in expected["response_must_contain_any"]):
+            passed_checks += 1
+        else:
+            details["must_contain_any"] = f"FAIL: none of {expected['response_must_contain_any'][:5]} found"
+
+    # Check campaign_status_changed_to
+    if "campaign_status_changed_to" in expected:
+        total_checks += 1
+        actual_str = json.dumps(actual).upper()
+        if expected["campaign_status_changed_to"].upper() in actual_str:
+            passed_checks += 1
+        else:
+            details["campaign_status_changed_to"] = f"FAIL: expected {expected['campaign_status_changed_to']}"
 
     # Check error field
     if actual.get("error"):
