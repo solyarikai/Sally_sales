@@ -1367,11 +1367,19 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
                 seq_payload = []
                 for i, (num, variants) in enumerate(sorted(step_groups.items())):
                     wait_days = TIMING[i] if i < len(TIMING) else 7
+                    subject = variants[0]["subject"]
+                    body = variants[0]["body"]
+                    # SmartLead requires <br> for line breaks, ignores \n
+                    if "\n" in body and "<br>" not in body:
+                        body = body.replace("\n\n", "<br><br>").replace("\n", "<br>")
+                    # Replace em dash with regular dash for email compatibility
+                    subject = subject.replace("\u2014", "-").replace("\u2013", "-")
+                    body = body.replace("\u2014", "-").replace("\u2013", "-")
                     seq_payload.append({
                         "seq_number": i + 1,
                         "seq_delay_details": {"delay_in_days": wait_days},
-                        "subject": variants[0]["subject"],
-                        "email_body": variants[0]["body"],
+                        "subject": subject,
+                        "email_body": body,
                     })
 
                 r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/sequences",
