@@ -1,6 +1,6 @@
 {
   "id": "03_add_more_targets",
-  "description": "User asks to gather more targets for existing pipeline \u2014 tests incremental gathering",
+  "description": "User asks to gather more targets for existing pipeline — tests incremental gathering",
   "user_email": "pn@getsally.io",
   "prerequisite": "01_new_user_easystaff completed",
   "steps": [
@@ -10,7 +10,7 @@
       "user_prompt": "Gather 10 more target companies for the IT consulting segment",
       "user_prompt_variants": [
         "Add 10 more IT consulting targets to the pipeline",
-        "I need more companies \u2014 get me 10 additional IT consulting firms in Miami",
+        "I need more companies — get me 10 additional IT consulting firms in Miami",
         "Can you find 10 more targets for the IT consulting pipeline?",
         "Get me more leads, 10 more IT consulting companies"
       ],
@@ -32,7 +32,7 @@
     {
       "step": 2,
       "phase": "process_new",
-      "description": "Full pipeline on new companies (blacklist \u2192 scrape \u2192 analyze)",
+      "description": "Full pipeline on new companies (blacklist → scrape → analyze)",
       "expected_tool_calls": [
         "tam_blacklist_check",
         "tam_approve_checkpoint",
@@ -43,7 +43,12 @@
       "expected_behavior": {
         "new_targets_added": true,
         "no_duplicate_domains_with_previous_run": true
-      }
+      },
+      "user_prompt": "Process the new companies — blacklist, scrape, and analyze them",
+      "user_prompt_variants": [
+        "Run the pipeline on the new batch",
+        "Blacklist check and analyze the additions"
+      ]
     },
     {
       "step": 3,

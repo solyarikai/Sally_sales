@@ -4,7 +4,6 @@
   "user_email": "services@getsally.io",
   "project_name": "OnSocial UK",
   "depends_on": "11_multi_source_drive_add_to_existing",
-
   "steps": [
     {
       "step": 1,
@@ -15,11 +14,17 @@
         "New project: OnSocial UK, site onsocial.com, UK influencer/creator platforms",
         "Create project OnSocial UK for finding creator economy companies in the UK, my site is onsocial.com"
       ],
-      "expected_tool_calls": ["create_project"],
+      "expected_tool_calls": [
+        "create_project"
+      ],
       "expected_behavior": {
         "project_created": true,
         "website_scraped": true,
-        "response_must_contain": ["OnSocial", "project", "created"]
+        "response_must_contain": [
+          "OnSocial",
+          "project",
+          "created"
+        ]
       }
     },
     {
@@ -27,10 +32,14 @@
       "phase": "switch_project",
       "description": "Verify user can switch between Result and OnSocial UK projects.",
       "user_prompt": "Switch to the Result project",
-      "expected_tool_calls": ["select_project"],
+      "expected_tool_calls": [
+        "select_project"
+      ],
       "expected_behavior": {
         "project_selected": "Result",
-        "response_must_contain": ["Result"]
+        "response_must_contain": [
+          "Result"
+        ]
       }
     },
     {
@@ -39,7 +48,10 @@
       "description": "Result project data should be unchanged (215 companies).",
       "user_prompt": "How many companies in Result?",
       "expected_behavior": {
-        "response_must_contain_any": ["215", "companies"]
+        "response_must_contain_any": [
+          "215",
+          "companies"
+        ]
       }
     },
     {
@@ -47,7 +59,9 @@
       "phase": "switch_to_onsocial",
       "description": "Switch to OnSocial UK — should have 0 companies (new project).",
       "user_prompt": "Switch to OnSocial UK",
-      "expected_tool_calls": ["select_project"],
+      "expected_tool_calls": [
+        "select_project"
+      ],
       "expected_behavior": {
         "project_selected": "OnSocial UK"
       }
@@ -61,26 +75,41 @@
         "Gather creator economy companies in the UK",
         "Search for UK influencer platforms"
       ],
-      "expected_tool_calls": ["tam_gather"],
+      "expected_tool_calls": [
+        "tam_gather"
+      ],
       "expected_behavior": {
         "source_type": "apollo.companies.api",
         "project_is_onsocial": true,
         "no_result_companies_mixed_in": true,
-        "response_must_contain": ["companies", "gathered"]
+        "response_must_contain": [
+          "companies",
+          "gathered"
+        ]
       }
     },
     {
       "step": 6,
       "phase": "verify_isolation",
       "description": "OnSocial's blacklist should NOT include Result's companies.",
-      "expected_tool_calls": ["tam_blacklist_check", "tam_approve_checkpoint"],
+      "expected_tool_calls": [
+        "tam_blacklist_check",
+        "tam_approve_checkpoint"
+      ],
       "expected_behavior": {
         "blacklist_independent_from_result": true,
-        "response_must_contain": ["blacklist", "approved"]
-      }
+        "response_must_contain": [
+          "blacklist",
+          "approved"
+        ]
+      },
+      "user_prompt": "Run blacklist check for OnSocial UK and approve",
+      "user_prompt_variants": [
+        "Check blacklist and approve for OnSocial",
+        "Blacklist check for this project"
+      ]
     }
   ],
-
   "final_verification": {
     "db_checks": [
       "2 projects for services@getsally.io: Result (215 companies) + OnSocial UK (new)",
