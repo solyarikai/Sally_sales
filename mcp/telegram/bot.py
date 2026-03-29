@@ -174,6 +174,10 @@ async def process_message(user_message: str, session: dict) -> tuple[str, dict]:
             result = await call_mcp_tool(tool_name, tool_args, session.get("mcp_token"))
 
             # Update session state from result
+            if tool_name == "login" and result.get("user_id"):
+                # Login succeeded — store the token that was used
+                session["mcp_token"] = tool_args.get("token", session.get("mcp_token"))
+
             if tool_name == "setup_account" and result.get("api_token"):
                 session["mcp_token"] = result["api_token"]
 
