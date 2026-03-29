@@ -519,7 +519,9 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
     params = {"model": "gpt-4o-mini", "prompt_text": text}
     print(f"  Prompt: #{config.prompt_id or '?'} ({len(text)} chars)")
 
-    result = api("post", f"/pipeline/gathering/runs/{run_id}/analyze", params=params)
+    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
+                      run_id=run_id, expected_phases=["analyzed", "cp2", "awaiting_targets_ok"],
+                      params=params)
     targets = result.get("targets_found", 0)
     total = result.get("total_analyzed", 0)
     print(f"  Targets: {targets}/{total} ({targets/total*100:.0f}%)" if total else "  No companies analyzed")
