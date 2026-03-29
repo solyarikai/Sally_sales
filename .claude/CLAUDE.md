@@ -58,6 +58,15 @@ Every time data is saved to a CSV locally, it MUST also be uploaded to Google Sh
 - **sofia/ scripts are NOT on Hetzner by default.** SCP script + dependencies (sequences/) before running: `scp sofia/scripts/foo.py hetzner:~/magnum-opus-project/repo/sofia/scripts/`
 - Hetzner repo path: `~/magnum-opus-project/repo`
 
+## SmartLead - Formatting Rules
+
+When writing email sequences (markdown files or GOD_SEQUENCE):
+- **No em dashes** (`—`). Use regular dash (`-`). Em dashes break in some email clients.
+- **Line breaks**: SmartLead API ignores `\n`. Use `<br>` for line breaks, `<br><br>` for paragraph breaks.
+- Pipeline scripts auto-convert `\n` → `<br>` and `—` → `-` when uploading, but markdown source files should be clean.
+- **A/B variants**: SmartLead API doesn't support variants. Add B variants manually in SmartLead UI.
+- **Activation**: NEVER activate campaigns via API. Only manually in SmartLead UI.
+
 ## GetSales Export
 
 Contacts without email from Findymail → auto-export to GetSales-ready CSV in `sofia/get_sales_hub/{dd_mm}/`.
