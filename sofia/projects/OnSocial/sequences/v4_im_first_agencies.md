@@ -137,7 +137,7 @@ Hi {{first_name}}, last one from me.
 
 If white-label analytics aren't a priority right now - no worries. But if I'm reaching the wrong person, who handles tool decisions at {{company_name}}?
 
-Either way - wishing {{company_name}} a strong Q2.
+Either way - wishing {{company_name}} continued growth.
 
 Bhaskar
 
