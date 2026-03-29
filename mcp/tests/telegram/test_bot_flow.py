@@ -41,7 +41,7 @@ TESTS = [
     {
         "name": "3. Check integrations",
         "send": "what integrations do I have?",
-        "expect_contains": ["no", "not connected", "connect", "setup", "SmartLead", "Apollo"],
+        "expect_contains": ["don't have", "not connected", "no integrations", "set up", "connect"],
         "expect_any": True,
         "wait": 10,
     },
