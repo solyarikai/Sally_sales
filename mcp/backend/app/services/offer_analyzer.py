@@ -10,30 +10,27 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-INFER_SIZE_PROMPT = """You are analyzing a company's offer to determine their ideal customer profile (ICP).
+INFER_SIZE_PROMPT = """What SIZE companies would BUY this product? Pick ONE narrow range, NOT "all sizes".
 
-Company offer/website text:
-{offer_text}
+Product: {offer_text}
 
-Based on this offer, determine:
-1. What size companies would typically buy this product/service?
-2. What's the Apollo employee_count filter range?
+RULES:
+- Pick the MOST LIKELY buyer, not the broadest possible range
+- "All sizes" is WRONG. Every product has a sweet spot.
+- The range must be NARROW (max 10x spread, e.g. 10-200 not 1-10000)
 
-Common patterns:
-- Payroll/HR/contractor management → SMB/mid-market: 10-200 employees
-- Enterprise SaaS → 200-10000 employees
-- Small business tools → 1-50 employees
-- Freelancer platforms → 1-20 employees
-- B2B consulting → 50-500 employees
-- Infrastructure/DevOps → 50-1000 employees
+Mapping (use these):
+- Payroll/contractor management/EOR → 10-200 (SMBs that can't afford internal HR)
+- Enterprise SaaS/security/compliance → 200-5000
+- Small business tools (accounting, POS) → 1-50
+- Freelancer marketplace → 1-20
+- B2B consulting/services → 50-500
+- DevOps/infrastructure → 50-1000
+- Marketing tools → 10-500
+- Recruitment/staffing platform → 20-500
 
-Return ONLY valid JSON:
-{{
-  "min_employees": <number>,
-  "max_employees": <number>,
-  "apollo_range": "<min>,<max>",
-  "reasoning": "<1 sentence why this size range>"
-}}"""
+Return ONLY JSON:
+{{"min_employees": N, "max_employees": N, "apollo_range": "N,N", "reasoning": "1 sentence"}}"""
 
 
 async def infer_target_size(offer_text: str, openai_key: str) -> Dict:
