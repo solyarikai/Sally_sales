@@ -25,11 +25,11 @@ reply counts, recent conversations. This lets you resume exactly where the user 
     },
     {
         "name": "configure_integration",
-        "description": "Connect an external service (smartlead, apollo, findymail, openai, gemini) by providing your API key. Tests the connection automatically.",
+        "description": "Connect an external service (smartlead, apollo, findymail, openai, gemini, getsales) by providing your API key. Tests the connection automatically.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "integration_name": {"type": "string", "enum": ["smartlead", "apollo", "findymail", "openai", "gemini"]},
+                "integration_name": {"type": "string", "enum": ["smartlead", "apollo", "findymail", "openai", "gemini", "getsales"]},
                 "api_key": {"type": "string", "description": "Your API key for this service"},
             },
             "required": ["integration_name", "api_key"],
