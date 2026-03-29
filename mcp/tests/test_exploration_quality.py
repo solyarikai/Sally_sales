@@ -115,39 +115,29 @@ async def test_exploration():
     print("\n--- Step 4: GPT-4o-mini classifies targets ---")
     start = time.time()
 
-    classify_prompt = """VIA NEGATIVA classification: EXCLUDE companies that are NOT targets for EasyStaff.
+    # Build classification prompt dynamically from offer + query (NO HARDCODED SEGMENTS)
+    classify_prompt = f"""VIA NEGATIVA: EXCLUDE companies that are NOT potential BUYERS of our product.
 
-EasyStaff = payroll & contractor management platform. Helps companies pay freelancers/contractors worldwide.
+WE SELL: EasyStaff — payroll & contractor management platform.
+WE'RE LOOKING FOR: IT consulting companies in Miami
 
-EXCLUDE (is_target=false) if ANY of these apply:
-1. COMPETITOR: payroll/HR/PEO/EOR platform (Deel, Remote, Oyster, Papaya, Gusto, Rippling, ADP, etc.)
-2. PRODUCT COMPANY: builds own SaaS/AI product (not services/consulting — they hire FTEs, not contractors)
-3. NON-IT: restaurants, real estate, legal, retail, healthcare, finance, construction
-4. ENTERPRISE PRODUCT: sells own software PRODUCT to enterprises (not services — they have FTEs, not contractors)
-5. INSUFFICIENT DATA: cannot determine what company does — website text is mostly JS code or too short to judge
-6. MARKETING/CREATIVE AGENCY: pure marketing, PR, design (no engineering team using contractors)
+CRITICAL: We're looking for companies that would BUY our product. NOT companies doing what we do.
+- If we sell payroll: IT firms, dev agencies, staffing companies = TARGETS (they need payroll for contractors)
+- Another payroll platform = COMPETITOR (exclude)
 
-IMPORTANT DISTINCTIONS:
-- "Digital transformation CONSULTING" = IS a target (they're a consulting firm, hire contractors for projects)
-- "Enterprise PRODUCT/PLATFORM" = NOT a target (they build own product with FTEs)
-- "Consulting services + technology solutions" = IS a target
-- "AI-native platform for enterprises" = NOT a target (product company)
+EXCLUDE (is_target=false) if:
+1. COMPETITOR: offers same product/service as us
+2. UNRELATED INDUSTRY: nothing to do with the query
+3. INSUFFICIENT DATA: can't determine what company does
+4. TOO VAGUE: website only has generic marketing text without specifics
 
-KEEP (is_target=true) ONLY if CLEAR EVIDENCE of:
-- IT consulting / technology services / software development AGENCY
-- Nearshore / offshore staffing that PLACES DEVELOPERS
-- IT outsourcing / managed services with CONTRACTOR TEAMS
-- Staffing agency focused on TECH TALENT
+KEEP (is_target=true) if company MATCHES the query AND would benefit from our product.
 
-SEGMENT labels (one per company):
-- IT_CONSULTING: traditional IT consulting
-- DEV_AGENCY: software development shop / custom dev
-- NEARSHORE_STAFFING: nearshore/offshore dev team placement
-- IT_OUTSOURCING: managed IT services / outsourcing
-- NOT_A_MATCH: excluded by rules above
+Assign segment label in CAPS_LOCKED format describing what the company does.
+Use NOT_A_MATCH for excluded companies.
 
 Return JSON array:
-[{"domain": "...", "is_target": true/false, "segment": "...", "reasoning": "what the company does"}]
+[{{"domain": "...", "is_target": true/false, "segment": "...", "reasoning": "what the company does and why target/not"}}]
 
 Companies:
 """

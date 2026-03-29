@@ -521,6 +521,26 @@ for this particular case.
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 -----------
 the default smarltead campaign creation flow:
 
@@ -629,3 +649,7 @@ adjusting gpt4omini prompt until required accuracy achieved to furher use the im
 
    ❯ load map of apollo keywords and industries filters !!!!!! to use it effectively from the very start when user   
   provided a prompt to gather companies   
+
+
+
+You see, I want prompts to work properly without knowing anything hard-coded about the project. But I know, like, I provided you this 10 to 200, like, expected result. So make sure your prompts have this, like, good reasoning. Of course, the user, according to the flow, user can decline your suggestion about the size, and user can provide his vision about the size, and you should consider it, right? So make sure that also works as essential. However, for this stuff specifically, it's obvious that it SMB, so, like, as more complex, so in this prompt, just create this SMB bottleneck, SMB, I mean, threshold of 200 employees, as companies above it definitely solved such pains as, like, as payroll, you see? So that would be a sweet spot, that's about sweet spotting. Also, for a good and unbiased exploration test, include all other segments for all other projects mentioned in tests, the directory in conversations. There are the fashion people project on social project, gathering for the fashion people, fashion Italy brands and foreign social gathering, let's say, creator platforms, social influencers platforms from UK. So test your exploration. I want this exploration phase to work perfectly to adapt to each case properly, without bias, without any hard code. So iterate prompts until the error is minimum. You know the right answers. Don't hard code them. Just test different approaches. I don't know, 10, 50, 100 approaches. Iterate prompts, remember everything used, and just test more and select the approach with, I mean, general prompts without any bias with the less error.
