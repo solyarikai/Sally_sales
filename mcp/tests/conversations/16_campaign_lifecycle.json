@@ -61,7 +61,7 @@
         "The sequence is fine, go ahead",
         "LGTM, approve"
       ],
-      "expected_tool_calls": ["god_approve_sequence"],
+      "expected_tool_calls": ["smartlead_approve_sequence"],
       "expected_behavior": {
         "sequence_approved": true,
         "response_must_contain_any": ["approved", "ready"],
@@ -78,7 +78,7 @@
         "Push to SmartLead with those email accounts",
         "Let's create the campaign in SmartLead"
       ],
-      "expected_tool_calls": ["god_push_to_smartlead"],
+      "expected_tool_calls": ["smartlead_push_campaign"],
       "expected_behavior": {
         "campaign_created": true,
         "campaign_status": "DRAFT",

@@ -359,10 +359,10 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
     if tool_name == "smartlead_generate_sequence":
         return {"project_id": project_id or 1}
 
-    if tool_name == "god_approve_sequence":
+    if tool_name == "smartlead_approve_sequence":
         return {"sequence_id": session.latest_sequence_id or 1}
 
-    if tool_name == "god_push_to_smartlead":
+    if tool_name == "smartlead_push_campaign":
         # email_account_ids required — use first available from session
         account_ids = session.ctx.get("email_account_ids", [])
         if not account_ids:
@@ -373,7 +373,7 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
             "target_country": "United States",
         }
 
-    if tool_name == "edit_sequence_step":
+    if tool_name == "smartlead_edit_sequence":
         seq_id = session.latest_sequence_id
         if not seq_id:
             # Check if sequences exist in context
@@ -480,8 +480,8 @@ async def ensure_prerequisites(test: dict, client: httpx.AsyncClient, session: U
             print(f"  [prereq] Selecting existing project '{required_name}' (id={pid})")
             await tool_call(client, session, "select_project", {"project_id": pid})
 
-    # If test needs edit_sequence_step but no sequence exists → generate one
-    if "edit_sequence_step" in tools_needed and not session.latest_sequence_id:
+    # If test needs smartlead_edit_sequence but no sequence exists → generate one
+    if "smartlead_edit_sequence" in tools_needed and not session.latest_sequence_id:
         pid = session.latest_project_id
         if pid:
             print(f"  [prereq] Generating sequence for project {pid}...")

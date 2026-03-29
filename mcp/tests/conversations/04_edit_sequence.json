@@ -32,7 +32,7 @@
         "Edit step 1 subject: {{first_name}} \u2014 contractors abroad?"
       ],
       "expected_tool_calls": [
-        "edit_sequence_step"
+        "smartlead_edit_sequence"
       ],
       "expected_behavior": {
         "step_number": 1,
