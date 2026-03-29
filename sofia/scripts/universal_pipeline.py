@@ -1200,6 +1200,11 @@ Return ONLY the JSON array, no explanation."""
             raw = raw.split("```")[1].split("```")[0].strip()
 
         steps = json.loads(raw)
+        # SmartLead requires <br> for line breaks
+        for s in steps:
+            s["body"] = s["body"].replace("\n\n", "<br><br>").replace("\n", "<br>")
+            s["subject"] = s["subject"].replace("\u2014", "-")
+            s["body"] = s["body"].replace("\u2014", "-")
         print(f"  Generated {len(steps)} email steps:")
         for s in steps:
             print(f"    {s['label']}: {s['subject'][:50]}...")
