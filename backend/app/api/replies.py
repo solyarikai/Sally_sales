@@ -2455,7 +2455,12 @@ async def get_reply_full_history(
             })
 
     # 4. LinkedIn activities (if getsales contact)
+    # ARCHITECTURE: ThreadMessages is the canonical conversation source.
+    # ContactActivity is an audit log — only used here to fill GAPS
+    # (outbound messages not in ThreadMessages, e.g. operator replies via GetSales).
+    # Never blindly merge both — that causes duplicate inbound messages.
     contact = contact_for_campaigns  # reuse from step 2b
+    thread_has_data = len(activities) > 0  # ThreadMessages already provided conversation
 
     if contact:
         # On-demand fetch: if no outbound activities exist, pull conversation from GetSales API
@@ -2479,30 +2484,36 @@ async def get_reply_full_history(
             ).order_by(ContactActivity.activity_at)
         )
         linkedin_fallback_campaign = reply.campaign_name or "LinkedIn"
+
+        # Build index of existing activities for fast lookup
+        existing_keys = {
+            (a["direction"], a["content"].strip()[:100], a["timestamp"][:16])
+            for a in activities
+        }
+
         for ca in ca_result.scalars().all():
             direction = ca.direction or ("outbound" if ca.activity_type in ("linkedin_sent",) else "inbound")
+            content = ca.body or ca.snippet or ""
+            ts = ca.activity_at.isoformat() + "Z" if ca.activity_at else ""
             cname = linkedin_fallback_campaign
             if ca.extra_data and isinstance(ca.extra_data, dict):
                 cname = ca.extra_data.get("automation_name") or ca.extra_data.get("campaign_name") or linkedin_fallback_campaign
+
+            # Skip if ThreadMessages already has this message (prevents duplicates at source)
+            key = (direction, content.strip()[:100], ts[:16])
+            if key in existing_keys:
+                continue
+            existing_keys.add(key)
+
             activities.append({
                 "direction": direction,
-                "content": ca.body or ca.snippet or "",
-                "timestamp": ca.activity_at.isoformat() + "Z" if ca.activity_at else "",
+                "content": content,
+                "timestamp": ts,
                 "channel": "linkedin",
                 "campaign": cname,
             })
 
     activities.sort(key=lambda a: a["timestamp"])
-
-    # Deduplicate: ThreadMessages + ContactActivity + safety net can overlap
-    seen = set()
-    deduped = []
-    for a in activities:
-        key = (a["direction"], a["content"].strip()[:100], a["timestamp"][:16])
-        if key not in seen:
-            seen.add(key)
-            deduped.append(a)
-    activities = deduped
 
     # Final auto-dismiss: after ALL sources (ThreadMessages + ContactActivity) are merged,
     # check if the last message is outbound. This catches cases where:
