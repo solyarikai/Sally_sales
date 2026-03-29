@@ -146,14 +146,24 @@ async def run_tests():
         await client.send_message(BOT_USERNAME, msg)
         await asyncio.sleep(wait)
 
-        # Get bot's reply (most recent message not from us)
-        messages = await client.get_messages(BOT_USERNAME, limit=5)
+        # Get bot's reply — find the NEWEST message from bot AFTER our send
+        messages = await client.get_messages(BOT_USERNAME, limit=10)
         my_id = (await client.get_me()).id
         bot_reply = ""
-        for m in messages:
-            if m.sender_id != my_id and m.text:
+        found_our_msg = False
+        for m in reversed(list(messages)):
+            if m.sender_id == my_id and msg[:30] in (m.text or "")[:50]:
+                found_our_msg = True
+                continue
+            if found_our_msg and m.sender_id != my_id and m.text:
                 bot_reply = m.text
                 break
+        # Fallback: just get latest bot message
+        if not bot_reply:
+            for m in messages:
+                if m.sender_id != my_id and m.text:
+                    bot_reply = m.text
+                    break
 
         if not bot_reply:
             status = "FAIL"

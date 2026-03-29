@@ -1373,6 +1373,14 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             project_id = user.active_project_id
         if project_id:
             query = query.where(ExtractedContact.project_id == project_id)
+        else:
+            # NEVER return global data — scope to user's projects
+            user_pids = await session.execute(select(Project.id).where(Project.user_id == user.id))
+            pids = [pid for (pid,) in user_pids.all()]
+            if pids:
+                query = query.where(ExtractedContact.project_id.in_(pids))
+            else:
+                return {"total": 0, "contacts": [], "message": "No projects yet."}
 
         search = args.get("search")
         if search:
@@ -1419,21 +1427,23 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
         project_id = args.get("project_id") or user.active_project_id
 
-        total_contacts = (await session.execute(
-            select(sa_func.count(ExtractedContact.id)).where(ExtractedContact.project_id == project_id) if project_id else select(sa_func.count(ExtractedContact.id))
-        )).scalar() or 0
+        # User-scope: get user's project IDs
+        user_pids = await session.execute(select(Project.id).where(Project.user_id == user.id))
+        pids = [pid for (pid,) in user_pids.all()]
 
-        total_companies = (await session.execute(
-            select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.project_id == project_id) if project_id else select(sa_func.count(DiscoveredCompany.id))
-        )).scalar() or 0
+        if project_id:
+            scope_filter_ec = ExtractedContact.project_id == project_id
+            scope_filter_dc = DiscoveredCompany.project_id == project_id
+        elif pids:
+            scope_filter_ec = ExtractedContact.project_id.in_(pids)
+            scope_filter_dc = DiscoveredCompany.project_id.in_(pids)
+        else:
+            return {"total_contacts": 0, "total_companies": 0, "blacklisted_domains": 0, "targets": 0, "message": "No projects yet."}
 
-        blacklisted = (await session.execute(
-            select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_blacklisted == True, DiscoveredCompany.project_id == project_id) if project_id else select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_blacklisted == True)
-        )).scalar() or 0
-
-        targets = (await session.execute(
-            select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_target == True, DiscoveredCompany.project_id == project_id) if project_id else select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_target == True)
-        )).scalar() or 0
+        total_contacts = (await session.execute(select(sa_func.count(ExtractedContact.id)).where(scope_filter_ec))).scalar() or 0
+        total_companies = (await session.execute(select(sa_func.count(DiscoveredCompany.id)).where(scope_filter_dc))).scalar() or 0
+        blacklisted = (await session.execute(select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_blacklisted == True, scope_filter_dc))).scalar() or 0
+        targets = (await session.execute(select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_target == True, scope_filter_dc))).scalar() or 0
 
         crm_link = f"http://46.62.210.24:3000/crm" + (f"?project_id={project_id}" if project_id else "")
 
