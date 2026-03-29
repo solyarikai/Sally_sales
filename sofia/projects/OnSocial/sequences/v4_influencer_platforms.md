@@ -38,13 +38,13 @@ Hi {{first_name}},
 
 Does {{company_name}} maintain its own creator data layer, or pull from a vendor?
 
-{{social_proof}} switched to our API - their eng teams stopped maintaining scrapers entirely. Real-time data, all major platforms, one integration.
+Teams that switched to our API stopped maintaining scrapers entirely. Real-time data, all major platforms, one integration.
 
 Worth a look?
 
-Bhaskar
-
-`55 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
