@@ -430,10 +430,12 @@ async def ensure_prerequisites(test: dict, client: httpx.AsyncClient, session: U
         for t in step.get("expected_tool_calls", []):
             tools_needed.add(t)
 
-    # If test requires a specific project name, ensure it exists
+    # If test requires a specific project name, ensure it exists and is active
     required_name = test.get("project_name")
     if required_name:
-        projects = session.ctx.get("projects", [])
+        # Refresh context to get latest projects
+        ctx = await tool_call(client, session, "get_context", {})
+        projects = ctx.get("projects", []) if isinstance(ctx, dict) else []
         existing = [p for p in projects if isinstance(p, dict) and p.get("name") == required_name]
         if not existing:
             print(f"  [prereq] Creating required project '{required_name}'...")
@@ -444,11 +446,15 @@ async def ensure_prerequisites(test: dict, client: httpx.AsyncClient, session: U
                 "sender_company": "Test Co",
             })
             if not result.get("error"):
-                print(f"  [prereq] Project '{required_name}' created: id={result.get('project_id')}")
-                # Also select it as active
                 pid = result.get("project_id")
+                print(f"  [prereq] Project '{required_name}' created: id={pid}")
                 if pid:
                     await tool_call(client, session, "select_project", {"project_id": pid})
+        else:
+            # Project exists — make sure it's the active one
+            pid = existing[0]["id"]
+            print(f"  [prereq] Selecting existing project '{required_name}' (id={pid})")
+            await tool_call(client, session, "select_project", {"project_id": pid})
 
     # If test needs edit_sequence_step but no sequence exists → generate one
     if "edit_sequence_step" in tools_needed and not session.latest_sequence_id:
