@@ -124,9 +124,9 @@ Two things most creator data vendors won't tell you: their profiles update weekl
 
 If data freshness or regional coverage matters for {{company_name}} - worth comparing. Here's my calendar: [link]
 
-Bhaskar
-
-`55 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
