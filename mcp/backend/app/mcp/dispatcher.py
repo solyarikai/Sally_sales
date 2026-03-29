@@ -832,7 +832,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "_links": {"sequence": f"http://46.62.210.24:3000/campaigns/{seq.id}"},
         }
 
-    if tool_name == "god_approve_sequence":
+    if tool_name == "smartlead_approve_sequence":
         user = await _get_user(token, session)
         seq = await session.get(GeneratedSequence, args["sequence_id"])
         if not seq:
@@ -907,7 +907,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         else:
             raise ValueError("No outreach platform configured. Connect SmartLead or GetSales in Setup.")
 
-    if tool_name == "god_push_to_smartlead":
+    if tool_name == "smartlead_push_campaign":
         user = await _get_user(token, session)
         seq = await session.get(GeneratedSequence, args["sequence_id"])
         if not seq:
@@ -1100,7 +1100,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         )
         return {**result, "sent_to": test_email}
 
-    if tool_name in ("god_score_campaigns", "god_extract_patterns"):
+    if tool_name in ("smartlead_score_campaigns", "smartlead_extract_patterns"):
         user = await _get_user(token, session)
         return {"message": f"{tool_name} — coming in next iteration"}
 
@@ -1769,7 +1769,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         return await _handle_reply_tool(tool_name, args, user, session)
 
     # ── Feedback & Editing tools ──
-    if tool_name == "edit_sequence_step":
+    if tool_name == "smartlead_edit_sequence":
         user = await _get_user(token, session)
         seq = await session.get(GeneratedSequence, args["sequence_id"])
         if not seq:

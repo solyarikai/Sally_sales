@@ -314,7 +314,7 @@ Iterate until GPT's results meet your quality bar.""",
 
     # ── GOD_SEQUENCE (5) ──
     {
-        "name": "god_score_campaigns",
+        "name": "smartlead_score_campaigns",
         "description": "Score and rank campaigns by quality (warm reply rate, meetings, volume).",
         "inputSchema": {
             "type": "object",
@@ -322,7 +322,7 @@ Iterate until GPT's results meet your quality bar.""",
         },
     },
     {
-        "name": "god_extract_patterns",
+        "name": "smartlead_extract_patterns",
         "description": "Extract reusable patterns from top-performing campaigns.",
         "inputSchema": {
             "type": "object",
@@ -346,7 +346,7 @@ Iterate until GPT's results meet your quality bar.""",
         },
     },
     {
-        "name": "god_approve_sequence",
+        "name": "smartlead_approve_sequence",
         "description": "Mark a generated sequence as approved.",
         "inputSchema": {
             "type": "object",
@@ -362,7 +362,7 @@ If both are configured, returns a question asking the user to choose.""",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
-        "name": "god_push_to_smartlead",
+        "name": "smartlead_push_campaign",
         "description": """Push an approved sequence to SmartLead as a DRAFT campaign with FULL configuration.
 IMPORTANT: You MUST call list_email_accounts first and ask the user which accounts to use before calling this tool.
 
@@ -395,7 +395,7 @@ Campaign is ALWAYS DRAFT — never activated without explicit user approval.""",
         "name": "list_email_accounts",
         "description": """List SmartLead email accounts available for campaigns. Shows accounts used in the user's existing campaigns (from blacklist import) so they can reuse the same sending accounts.
 
-Call this BEFORE god_push_to_smartlead to let the user choose which accounts to use.""",
+Call this BEFORE smartlead_push_campaign to let the user choose which accounts to use.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -408,7 +408,7 @@ Call this BEFORE god_push_to_smartlead to let the user choose which accounts to 
         "description": """Send a test email via SmartLead's native API. Uses the user's email as recipient.
 Auto-resolves sending account and lead for variable substitution.
 
-Call this after god_push_to_smartlead to let the user preview the email in their inbox.
+Call this after smartlead_push_campaign to let the user preview the email in their inbox.
 Also called automatically when a campaign is created.""",
         "inputSchema": {
             "type": "object",
@@ -734,7 +734,7 @@ Returns contacts + a CRM link with filters applied so the user can view them in 
     },
     # ── User Feedback & Editing Tools ──
     {
-        "name": "edit_sequence_step",
+        "name": "smartlead_edit_sequence",
         "description": """Edit a specific step of a generated sequence. User can change subject, body, or both.
 Changes are saved to DB and pushed to SmartLead if campaign already created.
 

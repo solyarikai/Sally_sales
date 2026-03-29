@@ -226,17 +226,15 @@
     },
     {
       "step": 10,
-      "phase": "sequence_and_campaign",
-      "description": "Generate sequence, push to SmartLead as DRAFT with user-selected accounts",
-      "user_prompt": "Generate the outreach email sequence for my campaign",
-      "user_prompt_variants": ["Create a 5-step email sequence for this project", "Build the email sequence based on our offer and targets"],
+      "phase": "create_campaign",
+      "description": "Create SmartLead campaign — sequence is auto-generated as part of campaign creation, user doesn't need to ask separately",
+      "user_prompt": "Create a SmartLead campaign with the targets we found",
+      "user_prompt_variants": ["Push these targets to a SmartLead campaign", "Create the campaign in SmartLead for these companies"],
       "expected_mcp_behavior": {
         "tool_calls": [
-          "smartlead_generate_sequence",
-          "god_approve_sequence",
-          "god_push_to_smartlead"
+          "smartlead_push_campaign"
         ],
-        "god_push_includes_email_account_ids": true,
+        "push_includes_email_account_ids": true,
         "campaign_status": "DRAFT",
         "campaign_never_activated": true,
         "contacts_auto_uploaded": true,

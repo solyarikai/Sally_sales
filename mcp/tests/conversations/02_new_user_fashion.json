@@ -124,7 +124,7 @@
       "expected_after_user_response": {
         "account_email": "elnar@thefashionpeopletech.com",
         "agent_finds_account_id_by_email": true,
-        "passes_to_god_push_to_smartlead": true
+        "passes_to_smartlead_push_campaign": true
       }
     },
     {

@@ -228,12 +228,12 @@ class DirectEngine:
             return {"run_id": self.rid or 1, "prompt_text": step.get("user_prompt", "Classify")}
         if tool == "tam_approve_checkpoint": return {"gate_id": self.gid or 1}
         if tool == "smartlead_generate_sequence": return {"project_id": self.pid or 1}
-        if tool == "god_approve_sequence": return {"sequence_id": self.sid or 1}
-        if tool == "god_push_to_smartlead": return {"sequence_id": self.sid or 1}
+        if tool == "smartlead_approve_sequence": return {"sequence_id": self.sid or 1}
+        if tool == "smartlead_push_campaign": return {"sequence_id": self.sid or 1}
         if tool == "activate_campaign":
             return {"campaign_id": self.campaign_ids[-1] if self.campaign_ids else 1,
                     "user_confirmation": step.get("user_prompt", "activate")}
-        if tool == "edit_sequence_step":
+        if tool == "smartlead_edit_sequence":
             return {"sequence_id": self.sid or 1, "step_number": 1, "subject": "Test"}
         if tool == "provide_feedback":
             return {"project_id": self.pid or 1, "feedback_type": "sequence",
@@ -341,10 +341,10 @@ class ConversationEngine:
             "- 'approve/yes/LGTM' → tam_approve_checkpoint\n"
             "- 'scrape/analyze/pre-filter' → tam_pre_filter OR tam_scrape OR tam_analyze (in order)\n"
             "- 'generate sequence' → smartlead_generate_sequence\n"
-            "- 'approve sequence' → god_approve_sequence\n"
-            "- 'push to SmartLead' → god_push_to_smartlead\n"
+            "- 'approve sequence' → smartlead_approve_sequence\n"
+            "- 'push to SmartLead' → smartlead_push_campaign\n"
             "- 'activate campaign/launch' → activate_campaign\n"
-            "- 'edit email/subject' → edit_sequence_step\n"
+            "- 'edit email/subject' → smartlead_edit_sequence\n"
             "- 'feedback/too formal/improve' → provide_feedback\n"
             "- 'override target/is a target' → override_company_target\n"
             "- 'cost/credits/estimate' → estimate_cost\n"
@@ -532,9 +532,9 @@ def score_step(step: dict, result: dict) -> dict:
         "parse_gathering_intent": ["tam_gather", "suggest_apollo_filters", "get_context"],
         "tam_list_sources": ["get_context"],
         "query_contacts": ["get_context", "crm_stats"],
-        "smartlead_generate_sequence": ["get_context", "god_score_campaigns"],
-        "god_approve_sequence": ["get_context"],
-        "god_push_to_smartlead": ["get_context", "smartlead_generate_sequence"],
+        "smartlead_generate_sequence": ["get_context", "smartlead_score_campaigns"],
+        "smartlead_approve_sequence": ["get_context"],
+        "smartlead_push_campaign": ["get_context", "smartlead_generate_sequence"],
         "activate_campaign": ["list_smartlead_campaigns", "get_context"],
         "estimate_cost": ["get_context", "suggest_apollo_filters"],
         "tam_blacklist_check": ["get_context", "pipeline_status"],
@@ -543,7 +543,7 @@ def score_step(step: dict, result: dict) -> dict:
         "tam_analyze": ["get_context", "pipeline_status"],
         "tam_approve_checkpoint": ["get_context"],
         "tam_re_analyze": ["tam_analyze", "get_context"],
-        "edit_sequence_step": ["get_context", "smartlead_generate_sequence"],
+        "smartlead_edit_sequence": ["get_context", "smartlead_generate_sequence"],
         "provide_feedback": ["get_context"],
         "override_company_target": ["get_context", "query_contacts"],
         "import_smartlead_campaigns": ["list_smartlead_campaigns", "get_context", "set_campaign_rules"],
