@@ -126,7 +126,7 @@ def build_system_prompt(session: dict) -> str:
     if session.get("mcp_token"):
         parts.append(f"\nUser is authenticated.")
     else:
-        parts.append("\nUser has NO account yet. If they want to do anything, suggest setup_account first.")
+        parts.append(f"\nUser has NO account yet. Tell them: sign up at {UI_BASE}/setup to get your API token, then paste it here. Call 'login' tool with the token.")
 
     if session.get("active_project_name"):
         parts.append(f"Active project: {session['active_project_name']} (ID: {session['active_project_id']})")
@@ -240,8 +240,8 @@ async def cmd_start(message: types.Message):
     await message.answer(
         "Welcome to LeadGen MCP Bot!\n\n"
         "I help you find companies, build prospect lists, and create outreach campaigns.\n\n"
-        "Try:\n"
-        "• \"Set up my account as Name, email@example.com\"\n"
+        f"To get started, sign up at {UI_BASE}/setup and paste your mcp_ token here.\n\n"
+        "Then try:\n"
         "• \"Find IT consulting companies in US, 50-200 employees\"\n"
         "• \"What's my pipeline status?\"\n"
         "• \"Create a campaign sequence\"\n\n"
