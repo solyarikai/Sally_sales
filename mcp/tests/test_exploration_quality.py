@@ -45,28 +45,17 @@ async def test_exploration():
     print("Goal: 100+ target contacts, up to 3 per company")
     print("=" * 60)
 
-    # Step 1: Infer company size from offer
+    # Step 1: Infer company size from offer using offer_analyzer service (not hardcoded)
     print("\n--- Step 1: Infer target company size from offer ---")
     start = time.time()
 
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {OPENAI_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": "gpt-4o-mini",
-                "messages": [{"role": "user", "content": """EasyStaff is a global platform for payroll, freelance connections, and invoice management.
-They help companies hire and pay contractors worldwide.
+    sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
+    from app.services.offer_analyzer import infer_target_size
 
-What size companies would buy this? Return JSON: {"min": N, "max": N, "apollo_range": "N,N", "reasoning": "..."}"""}],
-                "max_tokens": 150,
-                "temperature": 0,
-            },
-        )
-        data = resp.json()
-        size_result = data["choices"][0]["message"]["content"]
-        print(f"  Size inference: {size_result}")
-        print(f"  Time: {time.time() - start:.1f}s")
+    offer_text = "EasyStaff is a global platform for payroll, freelance connections, and invoice management. They help companies hire and pay contractors worldwide."
+    size_result = await infer_target_size(offer_text, OPENAI_KEY)
+    print(f"  Size inference: {json.dumps(size_result)}")
+    print(f"  Time: {time.time() - start:.1f}s")
 
     # Step 2: Initial Apollo search (1 credit)
     print("\n--- Step 2: Initial Apollo search (1 credit) ---")
