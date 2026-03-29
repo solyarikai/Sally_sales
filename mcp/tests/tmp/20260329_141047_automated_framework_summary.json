@@ -1,0 +1,124 @@
+{
+  "timestamp": "2026-03-29T11:10:47.577601+00:00",
+  "source": "automated_framework",
+  "engine": "Claude (Anthropic API) \u2192 MCP SSE",
+  "server": "http://46.62.210.24:8002/mcp/sse",
+  "results": [
+    {
+      "test_id": "00_qwe_test_framework_validation",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "context_check",
+          "prompt": "Show my projects",
+          "tools_called": [
+            "list_projects"
+          ],
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing_tool:get_context": "called:['list_projects']"
+          }
+        },
+        {
+          "step": 2,
+          "phase": "create_project",
+          "prompt": "Create a project called QWE-TestProject. My website is easystaff.io",
+          "tools_called": [
+            "create_project"
+          ],
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "check_integrations",
+          "prompt": "Show my API keys",
+          "tools_called": [],
+          "score": 0.0,
+          "passed": 0,
+          "total": 2,
+          "fails": {
+            "missing_tool:check_integrations": "called:[]",
+            "must_contain_any": [
+              "integration",
+              "connected",
+              "SmartLead"
+            ]
+          }
+        },
+        {
+          "step": 4,
+          "phase": "list_sources",
+          "prompt": "What sources can I use?",
+          "tools_called": [],
+          "score": 0.0,
+          "passed": 0,
+          "total": 2,
+          "fails": {
+            "missing_tool:tam_list_sources": "called:[]",
+            "must_contain_any": [
+              "Apollo",
+              "CSV",
+              "Google"
+            ]
+          }
+        },
+        {
+          "step": 5,
+          "phase": "list_email_accounts",
+          "prompt": "Show me available email accounts for campaigns",
+          "tools_called": [],
+          "score": 0.0,
+          "passed": 0,
+          "total": 2,
+          "fails": {
+            "missing_tool:list_email_accounts": "called:[]",
+            "must_contain_any": [
+              "email",
+              "account",
+              "available"
+            ]
+          }
+        },
+        {
+          "step": 6,
+          "phase": "reply_summary",
+          "prompt": "Any warm replies?",
+          "tools_called": [],
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing_tool:replies_summary": "called:[]"
+          }
+        },
+        {
+          "step": 7,
+          "phase": "estimate_cost",
+          "prompt": "What is the cost estimate?",
+          "tools_called": [],
+          "score": 0.0,
+          "passed": 0,
+          "total": 2,
+          "fails": {
+            "missing_tool:estimate_cost": "called:[]",
+            "must_contain_any": [
+              "credit",
+              "cost",
+              "estimate"
+            ]
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 28.571428571428573,
+      "timestamp": "2026-03-29T11:10:47.553708+00:00"
+    }
+  ],
+  "average": 28.571428571428573
+}

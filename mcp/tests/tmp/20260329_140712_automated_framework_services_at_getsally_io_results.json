@@ -1,0 +1,741 @@
+[
+  {
+    "test_id": "02_new_user_fashion",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "signup",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 2,
+        "phase": "project_setup",
+        "prompt": "My website is https://thefashionpeople.com/. Create a project for finding fashion brands in Italy",
+        "tools_called": [
+          "create_project"
+        ],
+        "score": 100.0,
+        "passed": 3,
+        "total": 3,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "no_campaigns_check",
+        "prompt": "I don't have any SmartLead campaigns yet",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing:gather": true,
+          "missing:find": true
+        }
+      },
+      {
+        "step": 4,
+        "phase": "gathering",
+        "prompt": "Search for Italian fashion companies",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing_tool:parse_gathering_intent": "called:[]",
+          "missing_tool:tam_gather": "called:[]"
+        }
+      },
+      {
+        "step": 5,
+        "phase": "full_pipeline",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 6,
+        "phase": "email_accounts",
+        "prompt": "Send from elnar@thefashionpeopletech.com",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing:email account": true,
+          "missing:which": true
+        }
+      },
+      {
+        "step": 7,
+        "phase": "second_project",
+        "prompt": "New project for onsocial.ai \u2014 looking for influencer marketing platforms in the UK",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "missing_tool:create_project": "called:[]"
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 42.857142857142854,
+    "timestamp": "2026-03-29T11:07:23.349701+00:00"
+  },
+  {
+    "test_id": "09_multi_source_csv_first",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "login",
+        "prompt": "Here's my token: mcp_services_test_token",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "missing_tool:login": "called:[]"
+        }
+      },
+      {
+        "step": 2,
+        "phase": "project_selection",
+        "prompt": "Let's work on Result",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing_tool:select_project": "called:[]",
+          "missing:Result": true,
+          "missing:project": true
+        }
+      },
+      {
+        "step": 3,
+        "phase": "source_selection",
+        "prompt": "I have a CSV with LATAM fashion companies. Here: /data/take-test-100.csv. Classify them as fashion brands.",
+        "tools_called": [],
+        "score": 33.33333333333333,
+        "passed": 2,
+        "total": 6,
+        "fails": {
+          "missing_tool:tam_gather": "called:[]",
+          "missing:CSV": true,
+          "missing:companies": true,
+          "missing:gathered": true
+        }
+      },
+      {
+        "step": 4,
+        "phase": "custom_prompt",
+        "prompt": "My segmentation: look for companies that design and produce clothing, fashion accessories, or textiles. Reject agencies and tech companies.",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing:prompt": true,
+          "missing:classify": true,
+          "unexpected:error": true
+        }
+      },
+      {
+        "step": 5,
+        "phase": "blacklist",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 6,
+        "phase": "pre_filter_scrape_analyze",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 7,
+        "phase": "checkpoint2_approval",
+        "prompt": "Target list looks fine, proceed",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "missing_tool:tam_approve_checkpoint": "called:[]"
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 33.33333333333333,
+    "timestamp": "2026-03-29T11:07:26.309122+00:00"
+  },
+  {
+    "test_id": "10_multi_source_sheet_add_to_existing",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "source_addition",
+        "prompt": "Here's another batch from Google Sheets: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit#gid=0",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 4,
+        "fails": {
+          "missing:existing": true,
+          "missing:pipeline": true,
+          "missing:new": true,
+          "must_contain_any": [
+            "add to existing",
+            "create a new pipeline",
+            "existing run"
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "phase": "user_chooses_existing",
+        "prompt": "Add to existing pipeline",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 4,
+        "fails": {
+          "missing_tool:tam_gather": "called:[]",
+          "missing:companies": true,
+          "missing:gathered": true,
+          "must_contain_any": [
+            "70 new",
+            "40 duplicate",
+            "40 already"
+          ]
+        }
+      },
+      {
+        "step": 3,
+        "phase": "blacklist_with_overlap",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 4,
+        "phase": "full_pipeline",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 5,
+        "phase": "checkpoint2_approval",
+        "prompt": "Approve targets",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "missing_tool:tam_approve_checkpoint": "called:[]"
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 40.0,
+    "timestamp": "2026-03-29T11:07:28.013331+00:00"
+  },
+  {
+    "test_id": "11_multi_source_drive_add_to_existing",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "source_addition",
+        "prompt": "Also check this Drive folder with 3 CSV files: https://drive.google.com/drive/folders/1bBZFN5Yg2qe7VGj_LATAM_batches",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing:existing": true,
+          "missing:pipeline": true,
+          "must_contain_any": [
+            "add to existing",
+            "already have 2 runs",
+            "existing pipeline for Result"
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "phase": "user_chooses_existing",
+        "prompt": "Add to the existing pipeline, don't create a new one",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 4,
+        "fails": {
+          "missing_tool:tam_gather": "called:[]",
+          "missing:companies": true,
+          "missing:gathered": true,
+          "must_contain_any": [
+            "35 new",
+            "70 duplicate",
+            "70 already"
+          ]
+        }
+      },
+      {
+        "step": 3,
+        "phase": "blacklist",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 4,
+        "phase": "full_pipeline",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 5,
+        "phase": "checkpoint2_approval",
+        "prompt": "Approve",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "missing_tool:tam_approve_checkpoint": "called:[]"
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 40.0,
+    "timestamp": "2026-03-29T11:07:29.684589+00:00"
+  },
+  {
+    "test_id": "12_custom_prompt_chain",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "user_provides_custom_prompt",
+        "prompt": "Re-analyze with custom prompts: First classify the industry (FASHION_BRAND, TEXTILE_PRODUCER, RETAIL_ONLY, OTHER), then remove OTHERs, then segment by company size.",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing:step": true,
+          "missing:classify": true,
+          "missing:filter": true
+        }
+      },
+      {
+        "step": 2,
+        "phase": "user_approves_prompts",
+        "prompt": "Run the classification",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 4,
+        "fails": {
+          "missing_tool:tam_re_analyze": "called:[]",
+          "missing:targets": true,
+          "missing:classified": true,
+          "missing:segments": true
+        }
+      },
+      {
+        "step": 3,
+        "phase": "review_results",
+        "prompt": "What's the distribution?",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing:FASHION_BRAND": true,
+          "missing:segment": true
+        }
+      },
+      {
+        "step": 4,
+        "phase": "approve",
+        "prompt": "Approve targets",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "missing_tool:tam_approve_checkpoint": "called:[]"
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 0.0,
+    "timestamp": "2026-03-29T11:07:32.013882+00:00"
+  },
+  {
+    "test_id": "13_blacklist_isolation",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "verify_project_a_state",
+        "prompt": "How many companies do we have in the Result project?",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing:215": true,
+          "missing:Result": true
+        }
+      },
+      {
+        "step": 2,
+        "phase": "create_project_b",
+        "prompt": "Create a new project called TestProjectB targeting IT consulting in London",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "missing_tool:create_project": "called:[]"
+        }
+      },
+      {
+        "step": 3,
+        "phase": "gather_for_project_b",
+        "prompt": "Gather companies for TestProjectB from this CSV: /data/test_overlap.csv",
+        "tools_called": [],
+        "score": 66.66666666666666,
+        "passed": 2,
+        "total": 3,
+        "fails": {
+          "missing_tool:tam_gather": "called:[]"
+        }
+      },
+      {
+        "step": 4,
+        "phase": "verify_isolation",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 5,
+        "phase": "verify_same_project_dedup",
+        "prompt": "Add the CSV data again to Result project: /data/take-test-100.csv",
+        "tools_called": [
+          "login"
+        ],
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing_tool:tam_gather": "called:['login']",
+          "missing:duplicate": true,
+          "missing:already": true
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 33.33333333333333,
+    "timestamp": "2026-03-29T11:07:39.372662+00:00"
+  },
+  {
+    "test_id": "14_source_suggestion_edge_cases",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "no_source_no_key",
+        "prompt": "Gather fashion companies in Argentina",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "must_contain_any": [
+            "Apollo key not configured",
+            "provide a CSV",
+            "Google Sheet"
+          ]
+        }
+      },
+      {
+        "step": 2,
+        "phase": "no_source_has_key",
+        "prompt": "Find fashion brands in Colombia, about 50 targets",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing:Apollo": true,
+          "missing:credits": true
+        }
+      },
+      {
+        "step": 3,
+        "phase": "ambiguous_with_csv_mention",
+        "prompt": "I have a CSV file with my leads",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "must_contain_any": [
+            "file path",
+            "upload",
+            "where is the file"
+          ]
+        }
+      },
+      {
+        "step": 4,
+        "phase": "google_doc_not_sheet",
+        "prompt": "Check this doc: https://docs.google.com/document/d/1abc123/edit",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "must_contain_any": [
+            "Google Doc",
+            "spreadsheet",
+            "CSV"
+          ]
+        }
+      },
+      {
+        "step": 5,
+        "phase": "multiple_sources_in_one_message",
+        "prompt": "I have /data/batch1.csv and also this sheet: https://docs.google.com/spreadsheets/d/abc123/edit",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing:CSV": true,
+          "missing:Sheet": true
+        }
+      },
+      {
+        "step": 6,
+        "phase": "vague_request",
+        "prompt": "Hey, I need some data",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "must_contain_any": [
+            "What",
+            "which",
+            "CSV"
+          ]
+        }
+      },
+      {
+        "step": 7,
+        "phase": "direct_domain_list",
+        "prompt": "Check these domains: easystaff.io, inxydigital.com, getsally.io",
+        "tools_called": [],
+        "score": 100,
+        "passed": 0,
+        "total": 0,
+        "fails": {}
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 14.285714285714286,
+    "timestamp": "2026-03-29T11:07:43.420296+00:00"
+  },
+  {
+    "test_id": "15_step_add_remove_iterations",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "add_regex_step",
+        "prompt": "Classify companies by headcount into SMALL, MEDIUM, LARGE",
+        "tools_called": [],
+        "score": 33.33333333333333,
+        "passed": 2,
+        "total": 6,
+        "fails": {
+          "missing:size": true,
+          "missing:column": true,
+          "missing:added": true,
+          "unexpected:AI": true
+        }
+      },
+      {
+        "step": 2,
+        "phase": "verify_iteration_1",
+        "prompt": "Show me the pipeline",
+        "tools_called": [],
+        "score": 100,
+        "passed": 0,
+        "total": 0,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "remove_step",
+        "prompt": "I don't need size_segment anymore, remove it",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing:removed": true,
+          "missing:size_segment": true
+        }
+      },
+      {
+        "step": 4,
+        "phase": "verify_iteration_history",
+        "prompt": "Switch to iteration 1",
+        "tools_called": [],
+        "score": 100,
+        "passed": 0,
+        "total": 0,
+        "fails": {}
+      },
+      {
+        "step": 5,
+        "phase": "add_ai_step",
+        "prompt": "Add a column that classifies whether each company is a fashion BRAND (designs own clothes) or a MANUFACTURER (makes clothes for others) based on their website",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 4,
+        "fails": {
+          "missing:BRAND": true,
+          "missing:MANUFACTURER": true,
+          "missing:classify": true,
+          "missing:prompt": true
+        }
+      },
+      {
+        "step": 6,
+        "phase": "approve_and_run",
+        "prompt": "Looks good, run it",
+        "tools_called": [],
+        "score": 100,
+        "passed": 0,
+        "total": 0,
+        "fails": {}
+      },
+      {
+        "step": 7,
+        "phase": "remove_ai_step",
+        "prompt": "Actually remove business_model, I don't need it",
+        "tools_called": [],
+        "score": 100,
+        "passed": 0,
+        "total": 0,
+        "fails": {}
+      },
+      {
+        "step": 8,
+        "phase": "verify_all_4_iterations",
+        "prompt": "Show me all iterations",
+        "tools_called": [],
+        "score": 100,
+        "passed": 0,
+        "total": 0,
+        "fails": {}
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 66.66666666666666,
+    "timestamp": "2026-03-29T11:07:48.332365+00:00"
+  },
+  {
+    "test_id": "23_second_project_onsocial",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "create_second_project",
+        "prompt": "New project: OnSocial UK, site onsocial.com, UK influencer/creator platforms",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 4,
+        "fails": {
+          "missing_tool:create_project": "called:[]",
+          "missing:OnSocial": true,
+          "missing:project": true,
+          "missing:created": true
+        }
+      },
+      {
+        "step": 2,
+        "phase": "switch_project",
+        "prompt": "Switch to the Result project",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing_tool:select_project": "called:[]",
+          "missing:Result": true
+        }
+      },
+      {
+        "step": 3,
+        "phase": "verify_result_data",
+        "prompt": "How many companies in Result?",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "must_contain_any": [
+            "215",
+            "companies"
+          ]
+        }
+      },
+      {
+        "step": 4,
+        "phase": "switch_to_onsocial",
+        "prompt": "Switch to OnSocial UK",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "missing_tool:select_project": "called:[]"
+        }
+      },
+      {
+        "step": 5,
+        "phase": "gather_for_onsocial",
+        "prompt": "Gather creator economy companies in the UK",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing_tool:tam_gather": "called:[]",
+          "missing:companies": true,
+          "missing:gathered": true
+        }
+      },
+      {
+        "step": 6,
+        "phase": "verify_isolation",
+        "score": 100,
+        "skipped": true
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 16.666666666666668,
+    "timestamp": "2026-03-29T11:07:51.270357+00:00"
+  }
+]

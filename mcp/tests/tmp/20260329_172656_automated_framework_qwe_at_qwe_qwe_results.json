@@ -1,0 +1,111 @@
+[
+  {
+    "test_id": "00_qwe_test_framework_validation",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "context_check",
+        "prompt": "Show my projects",
+        "tools_called": [
+          "list_projects"
+        ],
+        "duration_s": 5.17,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 1,
+        "total": 2,
+        "fails": {
+          "missing_tool:get_context": "called:['list_projects']"
+        }
+      },
+      {
+        "step": 2,
+        "phase": "create_project",
+        "prompt": "Create a project called QWE-TestProject. My website is easystaff.io",
+        "tools_called": [
+          "create_project"
+        ],
+        "duration_s": 4.26,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "check_integrations",
+        "prompt": "What integrations do I have connected?",
+        "tools_called": [
+          "check_integrations"
+        ],
+        "duration_s": 3.26,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 4,
+        "phase": "list_sources",
+        "prompt": "What data sources are available for gathering?",
+        "tools_called": [
+          "tam_list_sources"
+        ],
+        "duration_s": 3.15,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 5,
+        "phase": "list_email_accounts",
+        "prompt": "What email accounts can I use?",
+        "tools_called": [
+          "list_email_accounts"
+        ],
+        "duration_s": 3.74,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 6,
+        "phase": "reply_summary",
+        "prompt": "Do I have any replies? Show me the reply summary for QWE-TestProject",
+        "tools_called": [
+          "replies_summary"
+        ],
+        "duration_s": 3.39,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 7,
+        "phase": "estimate_cost",
+        "prompt": "Estimate Apollo credits for 50 companies",
+        "tools_called": [
+          "estimate_cost"
+        ],
+        "duration_s": 2.99,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 92.85714285714286,
+    "timestamp": "2026-03-29T14:27:26.612558+00:00"
+  }
+]
