@@ -81,9 +81,7 @@ Hi {{first_name}}, quick follow-up.
 
 Top agencies already do this. Want me to mock up what it looks like for {{company_name}}?
 
-Kind regards,
-Bhaskar Vishnu from OnSocial
-Trusted by {{social_proof}}
+Bhaskar
 
 ---
 
