@@ -21,12 +21,10 @@ sse_transport = SseServerTransport("/messages")
 # Token store: session_id → auth token (extracted from HTTP headers on POST)
 _session_tokens: dict[str, str] = {}
 
-# Per-task token for concurrent session isolation
-# ContextVar doesn't work here because login (POST handler task) and
-# get_context (SSE handler task) run in DIFFERENT async tasks.
-# Use task ID instead — all tool calls for one SSE session share one task.
-import asyncio as _asyncio
-_task_tokens: dict[int, str] = {}  # task_id → token
+# Per-session token for concurrent session isolation
+# Uses MCP SDK's request_context to identify which session a tool call belongs to.
+# Each SSE connection = one session. Token stored per session_id.
+_session_user_tokens: dict[int, str] = {}  # session_object_id → token
 
 
 @mcp_server.list_tools()
@@ -43,13 +41,18 @@ async def list_tools() -> list[Tool]:
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    # Token from arguments (explicit) or from task-local store (set by login tool)
+    # Token from arguments (explicit) or from session-local store (set by login tool)
     token = arguments.pop("_token", None)
     if not token:
-        task_id = id(_asyncio.current_task())
-        token = _task_tokens.get(task_id, '')
+        # Use MCP SDK's request_context to identify current session
+        try:
+            ctx = mcp_server.request_context
+            session_key = id(ctx.session)
+            token = _session_user_tokens.get(session_key, '')
+        except (LookupError, AttributeError):
+            pass
     if not token:
-        # Fallback: find any stored session token (last resort for single-user)
+        # Fallback: HTTP header token stored per session_id
         for sid, t in _session_tokens.items():
             if t:
                 token = t
