@@ -37,6 +37,7 @@ class UserSession:
         self.ctx = {}
         # Track created entity IDs
         self.project_ids = []
+        self.active_project_id = None  # Currently selected project
         self.run_ids = []
         self.gate_ids = []
         self.sequence_ids = []
@@ -57,6 +58,7 @@ class UserSession:
             pid = result["active_project"]["id"]
             if pid not in self.project_ids:
                 self.project_ids.append(pid)
+            self.active_project_id = pid
         # From get_context response
         if result.get("projects"):
             for p in result["projects"]:
@@ -127,7 +129,7 @@ class UserSession:
 
     @property
     def latest_project_id(self):
-        return self.project_ids[-1] if self.project_ids else None
+        return self.active_project_id or (self.project_ids[-1] if self.project_ids else None)
 
     @property
     def latest_run_id(self):
