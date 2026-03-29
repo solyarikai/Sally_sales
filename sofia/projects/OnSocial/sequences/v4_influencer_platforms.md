@@ -92,9 +92,9 @@ Drop any creator handle in reply - I'll run it through our API and send you the 
 
 No call needed. Just a handle.
 
-Bhaskar
-
-`42 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
