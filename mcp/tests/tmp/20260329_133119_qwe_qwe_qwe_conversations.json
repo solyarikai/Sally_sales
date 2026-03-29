@@ -1,0 +1,58 @@
+[
+  {
+    "step": 1,
+    "user": "Show my projects",
+    "assistant": "You have two projects listed:\n\n1. **EasyStaff Test**\n   - ID: 88\n   - Target Segments: IT outsourcing companies\n   - Description: A global platform for payroll, freelance connections, and invoice management.\n\n2. **QWE-TestProject**\n   - ID: 142\n   - Target Segments: Global platform for payroll, free",
+    "tools": [
+      "list_projects"
+    ]
+  },
+  {
+    "step": 2,
+    "user": "Create a project called QWE-TestProject. My website is easystaff.io",
+    "assistant": "The project **QWE-TestProject** has been successfully created. The website [easystaff.io](https://easystaff.io) was scraped for context. \n\nThe new project ID is **143**. If you need further assistance or actions regarding this project, just let me know!",
+    "tools": [
+      "create_project"
+    ]
+  },
+  {
+    "step": 3,
+    "user": "Which services are connected?",
+    "assistant": "Currently, the following services are connected:\n\n1. **Smartlead**: Not connected (Connection failed).\n2. **Apollo**: Not connected (Connection failed).\n3. **OpenAI**: Connected (OpenAI key saved).\n\nIf you need help with connecting the other services or any further actions, let me know!",
+    "tools": [
+      "check_integrations"
+    ]
+  },
+  {
+    "step": 4,
+    "user": "What sources can I use?",
+    "assistant": "You can use the following sources:\n\n1. **Apollo Search**\n   - **Type**: apollo.companies.api\n   - **Description**: Search Apollo database by keywords, locations, employee size, etc.\n   - **Cost**: 1 credit per page (25 companies/page)\n   - **Requires Key**: Yes (Apollo key)\n\n2. **CSV File Import**\n ",
+    "tools": [
+      "tam_list_sources"
+    ]
+  },
+  {
+    "step": 5,
+    "user": "List sending accounts",
+    "assistant": "I encountered an error while trying to list the sending accounts: **SmartLead is not connected**. \n\nIf you need assistance with connecting SmartLead or any other actions, please let me know!",
+    "tools": [
+      "list_email_accounts"
+    ]
+  },
+  {
+    "step": 6,
+    "user": "Do I have any replies? Show me the reply summary for QWE-TestProject",
+    "assistant": "I encountered an error while trying to retrieve the reply summary for **QWE-TestProject**: **Multiple rows were found when one or none was required**. \n\nThis suggests there may be an issue with the data retrieval. If you need further assistance or want to try a different action, please let me know!",
+    "tools": [
+      "replies_summary"
+    ]
+  },
+  {
+    "step": 7,
+    "user": "How much would it cost to find 50 IT consulting companies in Miami via Apollo?",
+    "assistant": "I encountered an error while trying to estimate the cost: **Input validation error: 'filters' is a required property**. \n\nTo provide an accurate cost estimate, I need specific filters for the search (e.g., keywords, locations). If you can provide those details, I can attempt to get the cost again!",
+    "tools": [
+      "estimate_cost"
+    ]
+  }
+]
