@@ -1,0 +1,77 @@
+{
+  "id": "22_campaigns_page_monitoring",
+  "description": "User 1 (pn@getsally.io): Campaigns page — MCP-created vs user-created badge, listening indicator, toggle monitoring on/off, campaign detail with sequence.",
+  "user_email": "pn@getsally.io",
+  "project_name": "EasyStaff-Global",
+  "depends_on": "16_campaign_lifecycle",
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "campaigns_list",
+      "description": "Campaigns page shows all campaigns with source badges.",
+      "user_prompt": "Show me my campaigns",
+      "user_prompt_variants": [
+        "List campaigns",
+        "What campaigns do I have?"
+      ],
+      "expected_tool_calls": ["list_smartlead_campaigns"],
+      "expected_behavior": {
+        "campaigns_listed": true,
+        "mcp_created_badge_visible": true,
+        "user_created_campaigns_separate": true,
+        "listening_indicator_visible": true,
+        "response_must_contain_any": ["campaign", "SmartLead", "status"]
+      }
+    },
+    {
+      "step": 2,
+      "phase": "toggle_monitoring_off",
+      "description": "User turns off monitoring for a specific campaign.",
+      "user_prompt": "Stop monitoring replies for the petr campaign",
+      "user_prompt_variants": [
+        "Turn off reply tracking for petr",
+        "Don't track replies for that campaign",
+        "Disable monitoring for the petr campaign"
+      ],
+      "expected_behavior": {
+        "monitoring_toggled_off": true,
+        "response_must_contain_any": ["monitoring", "disabled", "stopped", "off"]
+      }
+    },
+    {
+      "step": 3,
+      "phase": "toggle_monitoring_on",
+      "description": "User turns monitoring back on.",
+      "user_prompt": "Actually turn it back on",
+      "user_prompt_variants": [
+        "Re-enable monitoring",
+        "Turn monitoring back on",
+        "Start tracking replies again"
+      ],
+      "expected_behavior": {
+        "monitoring_toggled_on": true,
+        "response_must_contain_any": ["monitoring", "enabled", "on", "tracking"]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "bulk_toggle",
+      "description": "User toggles monitoring for all campaigns at once.",
+      "user_prompt": "Turn on monitoring for all my campaigns",
+      "expected_behavior": {
+        "all_campaigns_monitoring_on": true,
+        "response_must_contain_any": ["all", "monitoring", "enabled"]
+      }
+    }
+  ],
+
+  "ui_verification": {
+    "screenshots_needed": [
+      {"page": "/campaigns", "check": "Each campaign shows: status badge, listening indicator, MCP/user source badge"},
+      {"page": "/campaigns", "check": "MCP-created campaigns have distinct visual indicator"},
+      {"page": "/campaigns (expand)", "check": "Sequence steps visible in expanded view"},
+      {"page": "/campaigns", "check": "SmartLead URL link visible"}
+    ]
+  }
+}

@@ -660,14 +660,14 @@ Returns contacts + a CRM link with filters applied so the user can view them in 
     # ── Utility (2) ──
     {
         "name": "estimate_cost",
-        "description": "Estimate the cost of a gathering run before starting.",
+        "description": "Estimate the cost of a gathering run before starting. Returns credits needed and estimated company count.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "source_type": {"type": "string"},
-                "filters": {"type": "object"},
+                "source_type": {"type": "string", "description": "Source type (default: apollo.companies.api)"},
+                "filters": {"type": "object", "description": "Optional filters (max_pages, per_page)"},
+                "target_count": {"type": "integer", "description": "How many target companies you want"},
             },
-            "required": ["source_type", "filters"],
         },
     },
     {
