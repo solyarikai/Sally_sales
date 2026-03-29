@@ -102,20 +102,22 @@ What size companies would buy this? Return JSON: {"min": N, "max": N, "apollo_ra
     start = time.time()
     scraped = []
 
+    # Use the proper BeautifulSoup scraper (same as MCP pipeline)
+    sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
+    from app.services.scraper_service import ScraperService
+    scraper = ScraperService()
+
     for c in companies[:15]:
         domain = c.get("primary_domain") or c.get("domain", "")
         if not domain:
             continue
-        try:
-            async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
-                resp = await client.get(f"https://{domain}", headers={"User-Agent": "Mozilla/5.0"})
-                if resp.status_code == 200:
-                    import re
-                    text = re.sub(r"<[^>]+>", " ", resp.text[:5000])
-                    text = re.sub(r"\s+", " ", text).strip()[:2000]
-                    scraped.append({**c, "website_text": text})
-        except:
-            pass
+        result = await scraper.scrape_website(domain, timeout=12)
+        if result.get("success"):
+            text = result["text"][:3000]  # First 3000 chars for classification
+            scraped.append({**c, "website_text": text})
+            print(f"    ✓ {domain}: {len(result['text'])} chars scraped")
+        else:
+            print(f"    ✗ {domain}: {result.get('error', '?')}")
 
     print(f"  Scraped: {len(scraped)}/{min(15, len(companies))}")
     print(f"  Time: {time.time() - start:.1f}s")
@@ -124,20 +126,47 @@ What size companies would buy this? Return JSON: {"min": N, "max": N, "apollo_ra
     print("\n--- Step 4: GPT-4o-mini classifies targets ---")
     start = time.time()
 
-    classify_prompt = """Classify these companies as TARGET or NOT for this query:
-"IT consulting companies in Miami, 10-200 employees"
-Our offer: EasyStaff — payroll and contractor management platform.
+    classify_prompt = """VIA NEGATIVA classification: EXCLUDE companies that are NOT targets for EasyStaff.
 
-TARGET = IT consulting firm, staffing agency, technology services company that would benefit from contractor payroll.
-NOT = competitor (payroll/HR platform), SaaS product company, non-IT company, wrong size.
+EasyStaff = payroll & contractor management platform. Helps companies pay freelancers/contractors worldwide.
 
-For each company, return JSON array:
-[{"domain": "...", "is_target": true/false, "confidence": 0.0-1.0, "reasoning": "1 sentence"}]
+EXCLUDE (is_target=false) if ANY of these apply:
+1. COMPETITOR: payroll/HR/PEO/EOR platform (Deel, Remote, Oyster, Papaya, Gusto, Rippling, ADP, etc.)
+2. PRODUCT COMPANY: builds own SaaS/AI product (not services/consulting — they hire FTEs, not contractors)
+3. NON-IT: restaurants, real estate, legal, retail, healthcare, finance, construction
+4. ENTERPRISE PRODUCT: sells own software PRODUCT to enterprises (not services — they have FTEs, not contractors)
+5. INSUFFICIENT DATA: cannot determine what company does — website text is mostly JS code or too short to judge
+6. MARKETING/CREATIVE AGENCY: pure marketing, PR, design (no engineering team using contractors)
+
+IMPORTANT DISTINCTIONS:
+- "Digital transformation CONSULTING" = IS a target (they're a consulting firm, hire contractors for projects)
+- "Enterprise PRODUCT/PLATFORM" = NOT a target (they build own product with FTEs)
+- "Consulting services + technology solutions" = IS a target
+- "AI-native platform for enterprises" = NOT a target (product company)
+
+KEEP (is_target=true) ONLY if CLEAR EVIDENCE of:
+- IT consulting / technology services / software development AGENCY
+- Nearshore / offshore staffing that PLACES DEVELOPERS
+- IT outsourcing / managed services with CONTRACTOR TEAMS
+- Staffing agency focused on TECH TALENT
+
+SEGMENT labels (one per company):
+- IT_CONSULTING: traditional IT consulting
+- DEV_AGENCY: software development shop / custom dev
+- NEARSHORE_STAFFING: nearshore/offshore dev team placement
+- IT_OUTSOURCING: managed IT services / outsourcing
+- NOT_A_MATCH: excluded by rules above
+
+Return JSON array:
+[{"domain": "...", "is_target": true/false, "segment": "...", "reasoning": "what the company does"}]
 
 Companies:
 """
     for c in scraped:
-        classify_prompt += f"- {c.get('name', '?')} ({c.get('primary_domain', '?')}): {c.get('website_text', '')[:150]}\n"
+        text = c.get("website_text", "")[:500]
+        name = c.get("name", c.get("primary_domain", "?"))
+        domain = c.get("primary_domain", c.get("domain", "?"))
+        classify_prompt += f"\n--- {name} ({domain}) ---\n{text}\n"
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
@@ -153,16 +182,16 @@ Companies:
             clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
         classifications = json.loads(clean)
 
-    targets = [c for c in classifications if c.get("is_target") and c.get("confidence", 0) >= 0.6]
+    targets = [c for c in classifications if c.get("is_target")]
     non_targets = [c for c in classifications if not c.get("is_target")]
 
     print(f"  Targets: {len(targets)}/{len(classifications)}")
     print(f"  Conversion rate: {len(targets)/len(classifications)*100:.0f}%")
     print(f"  Time: {time.time() - start:.1f}s")
     for t in targets:
-        print(f"    ✓ {t['domain']} ({t['confidence']:.0%}): {t['reasoning']}")
-    for n in non_targets[:3]:
-        print(f"    ✗ {n['domain']}: {n.get('reasoning', '?')}")
+        print(f"    ✓ {t['domain']} [{t.get('segment','?')}]: {t.get('reasoning','?')}")
+    for n in non_targets:
+        print(f"    ✗ {n['domain']} [{n.get('segment','NOT_A_MATCH')}]: {n.get('reasoning', '?')}")
 
     # Step 5: Enrich top 5 targets (5 credits)
     print(f"\n--- Step 5: Enrich top {min(5, len(targets))} targets (5 credits max) ---")
@@ -249,6 +278,40 @@ Companies:
     print(f"  Total available in Apollo: {total_available}")
     print(f"  Credits used: {min(4, len(all_companies)//25 + 1)}")
     print(f"  Time: {time.time() - start:.1f}s")
+
+    # Step 9: Save targets for manual Opus verification
+    # Opus verification is done by the AGENT (Claude Opus in Claude Code), NOT via API calls.
+    # The Anthropic API key is ONLY for testing MCP conversations via test_real_mcp.py.
+    print("\n--- Step 9: Targets saved for Opus review ---")
+    review_file = Path(__file__).parent / "tmp" / f"{int(time.time())}_targets_for_opus_review.json"
+    review_data = {
+        "query": "IT consulting companies in Miami, 10-200 employees",
+        "offer": "EasyStaff — payroll, contractor management, invoice processing",
+        "targets": [],
+        "non_targets": [],
+    }
+    for t in targets:
+        domain = t.get("domain", "")
+        website_text = ""
+        for sc in scraped:
+            if sc.get("primary_domain") == domain or sc.get("domain") == domain:
+                website_text = sc.get("website_text", "")[:500]
+                break
+        review_data["targets"].append({
+            "domain": domain,
+            "name": t.get("name", "?"),
+            "gpt_confidence": t.get("confidence", "?"),
+            "gpt_reasoning": t.get("reasoning", "?"),
+            "website_snippet": website_text,
+        })
+    for n in non_targets:
+        review_data["non_targets"].append({
+            "domain": n.get("domain", "?"),
+            "gpt_reasoning": n.get("reasoning", "?"),
+        })
+    review_file.write_text(json.dumps(review_data, indent=2))
+    print(f"  Saved to: {review_file.name}")
+    print(f"  Run 'cat {review_file}' and review each target in Claude Code session")
 
     # Summary
     print(f"\n{'=' * 60}")
