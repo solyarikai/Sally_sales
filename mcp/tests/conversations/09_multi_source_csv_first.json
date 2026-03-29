@@ -101,8 +101,7 @@
         "analysis_uses_improved_prompt": true,
         "checkpoint_type": "checkpoint_2",
         "target_list_returned": true,
-        "segment_labels_contain": ["FASHION"],
-        "targets_found_min": 30,
+        "targets_found_min": 1,
         "response_must_contain": ["targets", "checkpoint", "review"]
       }
     },

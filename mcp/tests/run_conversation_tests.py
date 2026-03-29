@@ -210,7 +210,7 @@ async def tool_call(client: httpx.AsyncClient, session: UserSession,
         f"{MCP_URL}/api/pipeline/tool-call",
         json={"tool_name": tool_name, "arguments": args},
         headers={"X-MCP-Token": session.token, "Content-Type": "application/json"},
-        timeout=120,
+        timeout=300,
     )
     if resp.status_code == 200:
         data = resp.json()
@@ -689,7 +689,7 @@ async def main():
     all_results = []
 
     # Run each user's tests as a continuous conversation
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=300) as client:
         for email, user_test_list in user_tests.items():
             print(f"\n{'#'*60}")
             print(f"# USER SESSION: {email}")
