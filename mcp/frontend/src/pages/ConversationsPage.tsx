@@ -16,7 +16,7 @@ export default function ConversationsPage() {
     fetch(`${API}/account/conversations?${params}`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : { conversations: [] })
       .then(d => setLogs(d.conversations || []))
-      .catch(() => {})
+      .catch(e => console.error('Failed to load conversations:', e))
       .finally(() => setLoading(false))
   }, [selectedSession])
 

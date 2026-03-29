@@ -17,7 +17,7 @@ function ProjectCard({ project }: { project: any }) {
       .then((data: any[]) => {
         setRuns(data.filter((r: any) => r.project_id === project.id))
       })
-      .catch(() => {})
+      .catch(e => console.error('Failed to load iterations:', e))
 
     // Campaign filters = connected campaigns
     if (project.campaign_filters && Array.isArray(project.campaign_filters)) {
@@ -112,7 +112,7 @@ export default function ProjectsPage() {
     fetch(`${API}/pipeline/projects`, { headers: authHeaders() })
       .then(r => r.json())
       .then(setProjects)
-      .catch(() => {})
+      .catch(e => console.error('Failed to load projects:', e))
       .finally(() => setLoading(false))
   }, [])
 

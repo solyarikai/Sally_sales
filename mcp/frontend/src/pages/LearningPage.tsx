@@ -216,7 +216,7 @@ function ReplyAnalysisSection() {
     fetch(`${API}/pipeline/reply-analysis-status`, { headers: headers() })
       .then(r => r.ok ? r.json() : null)
       .then(setData)
-      .catch(() => {})
+      .catch(e => console.error('Failed to load reply analysis:', e))
   }, [])
   if (!data || !data.total_replied) return null
   const cats = data.by_category || {}
@@ -249,7 +249,7 @@ function ConversationLogSection() {
     fetch(`${API}/account/conversations?limit=10`, { headers: headers() })
       .then(r => r.ok ? r.json() : { conversations: [] })
       .then(d => setConvos(d.conversations || []))
-      .catch(() => {})
+      .catch(e => console.error('Failed to load conversations:', e))
   }, [])
   if (convos.length === 0) return null
   return (

@@ -2,9 +2,11 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.routing import Mount, Route
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
 from app.db.database import close_db
@@ -30,11 +32,26 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Request body size limit (10 MB)
+MAX_BODY_SIZE = 10 * 1024 * 1024
+
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_BODY_SIZE:
+            return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+        return await call_next(request)
+
+
+app.add_middleware(BodySizeLimitMiddleware)
 
 # ── REST API routes ──
 from app.api.health import router as health_router
@@ -87,9 +104,13 @@ async def call_tool_rest(
             result = await dispatch_tool(req.name, req.arguments, token, session)
             await session.commit()
             return {"result": result}
-        except Exception as e:
+        except ValueError as e:
             await session.rollback()
             return {"error": str(e)}
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Tool call {req.name} failed: {e}")
+            return {"error": "Internal error processing tool call"}
 
 # Contacts API — compatible with main app's ContactsPage
 from app.api.contacts import router as contacts_router

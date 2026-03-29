@@ -157,6 +157,7 @@ async def create_project(
     )
     session.add(project)
     await session.flush()
+    await session.commit()
     return {
         "project_id": project.id, "name": project.name,
         "website_scraped": website_scraped,
@@ -169,9 +170,9 @@ async def list_projects(
     user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ):
-    query = select(Project).where(Project.is_active == True)
-    if user:
-        query = query.where(Project.user_id == user.id)
+    if not user:
+        return []
+    query = select(Project).where(Project.is_active == True, Project.user_id == user.id)
     result = await session.execute(query)
     return [{"id": p.id, "name": p.name, "target_segments": p.target_segments,
              "sender_name": p.sender_name, "sender_company": p.sender_company,
@@ -704,58 +705,59 @@ async def list_runs(
         )
         project_names = {pid: pname for pid, pname in pn_result.all()}
 
-    # Get targets count, people count, and segments per run
+    # Batch queries instead of N+1
     run_ids = [r.id for r in runs]
     targets_map = {}
     segments_map = {}
     people_map = {}
+    raw_map = {}
 
     if run_ids:
-        for r in runs:
-            # Count companies linked to THIS run (not all project companies)
-            raw_result = await session.execute(
-                select(sa_func.count(CompanySourceLink.id))
-                .where(CompanySourceLink.gathering_run_id == r.id)
-            )
-            raw_map = raw_result.scalar() or 0
+        # 1. Raw company counts per run (batch)
+        raw_result = await session.execute(
+            select(CompanySourceLink.gathering_run_id, sa_func.count(CompanySourceLink.id))
+            .where(CompanySourceLink.gathering_run_id.in_(run_ids))
+            .group_by(CompanySourceLink.gathering_run_id)
+        )
+        raw_map = dict(raw_result.all())
 
-            # Targets linked to THIS run
-            tc_result = await session.execute(
-                select(sa_func.count(DiscoveredCompany.id))
-                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
-                .where(CompanySourceLink.gathering_run_id == r.id, DiscoveredCompany.is_target == True)
-            )
-            targets_map[r.id] = tc_result.scalar() or 0
+        # 2. Target counts per run (batch)
+        tc_result = await session.execute(
+            select(CompanySourceLink.gathering_run_id, sa_func.count(DiscoveredCompany.id))
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .where(CompanySourceLink.gathering_run_id.in_(run_ids), DiscoveredCompany.is_target == True)
+            .group_by(CompanySourceLink.gathering_run_id)
+        )
+        targets_map = dict(tc_result.all())
 
-            # Segments for THIS run's targets
-            seg_result = await session.execute(
-                select(DiscoveredCompany.analysis_segment, sa_func.count(DiscoveredCompany.id))
-                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
-                .where(
-                    CompanySourceLink.gathering_run_id == r.id,
-                    DiscoveredCompany.is_target == True,
-                    DiscoveredCompany.analysis_segment.isnot(None),
-                ).group_by(DiscoveredCompany.analysis_segment)
-            )
-            segments_map[r.id] = [row[0] for row in seg_result.all() if row[0]]
+        # 3. Segments per run (batch)
+        seg_result = await session.execute(
+            select(CompanySourceLink.gathering_run_id, DiscoveredCompany.analysis_segment)
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .where(
+                CompanySourceLink.gathering_run_id.in_(run_ids),
+                DiscoveredCompany.is_target == True,
+                DiscoveredCompany.analysis_segment.isnot(None),
+            ).distinct()
+        )
+        for rid, seg in seg_result.all():
+            segments_map.setdefault(rid, []).append(seg)
 
-            # People count for THIS run
-            from app.models.pipeline import ExtractedContact
-            pc_result = await session.execute(
-                select(sa_func.count(ExtractedContact.id))
-                .join(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
-                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
-                .where(CompanySourceLink.gathering_run_id == r.id)
-            )
-            people_map[r.id] = pc_result.scalar() or 0
-
-            # Store raw count
-            people_map[('raw', r.id)] = raw_map
+        # 4. People counts per run (batch)
+        from app.models.pipeline import ExtractedContact
+        pc_result = await session.execute(
+            select(CompanySourceLink.gathering_run_id, sa_func.count(ExtractedContact.id))
+            .join(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .where(CompanySourceLink.gathering_run_id.in_(run_ids))
+            .group_by(CompanySourceLink.gathering_run_id)
+        )
+        people_map = dict(pc_result.all())
 
     return [
         {"id": r.id, "status": r.status, "phase": r.current_phase,
          "source_type": r.source_type,
-         "raw_companies": people_map.get(('raw', r.id), r.new_companies_count or 0),
+         "raw_companies": raw_map.get(r.id, r.new_companies_count or 0),
          "targets": targets_map.get(r.id, 0),
          "people": people_map.get(r.id, 0),
          "segments": segments_map.get(r.id, []),
@@ -1060,6 +1062,8 @@ async def list_campaigns_full(
             "external_id": c.external_id,
             "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None,
             "leads_count": c.leads_count or 0,
+            "created_by": getattr(c, 'created_by', None) or "user",
+            "monitoring_enabled": getattr(c, 'monitoring_enabled', False) or False,
             "sequence_steps": seq.sequence_steps if seq else [],
             "sequence_id": seq.id if seq else None,
             "pipeline_run_id": run_id,
@@ -1090,17 +1094,18 @@ async def activate_campaign_rest(
     sl = SmartLeadService()
     await sl.update_campaign_status(int(campaign.external_id), "START")
     campaign.status = "active"
+    campaign.monitoring_enabled = True
 
     # Audit log
     session.add(MCPUsageLog(
         user_id=user.id,
         tool_name="activate_campaign",
         action="campaign_activated_via_ui",
-        extra_data={"campaign_id": campaign.id, "external_id": campaign.external_id},
+        extra_data={"campaign_id": campaign.id, "external_id": campaign.external_id, "monitoring_enabled": True},
     ))
     await session.commit()
 
-    return {"activated": True, "status": "active"}
+    return {"activated": True, "status": "active", "monitoring_enabled": True}
 
 
 @router.post("/campaigns/{campaign_id}/pause")
@@ -1123,6 +1128,25 @@ async def pause_campaign_rest(
     campaign.status = "paused"
     await session.commit()
     return {"paused": True}
+
+
+@router.post("/campaigns/{campaign_id}/monitoring")
+async def toggle_monitoring(
+    campaign_id: int,
+    body: dict,
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Toggle reply monitoring for a campaign."""
+    campaign = await session.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404)
+    project = await session.get(Project, campaign.project_id)
+    if not project or project.user_id != user.id:
+        raise HTTPException(404)
+    campaign.monitoring_enabled = bool(body.get("enabled", False))
+    await session.commit()
+    return {"monitoring_enabled": campaign.monitoring_enabled}
 
 
 # ── CRM: all companies across all pipelines ──

@@ -37,6 +37,7 @@ class GatheringRun(Base):
     avg_analysis_confidence = Column(Float, nullable=True)
     cost_per_target_usd = Column(Numeric(10, 4), nullable=True)
 
+    destination = Column(String(20), nullable=True)  # "smartlead", "getsales", "both"
     triggered_by = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
