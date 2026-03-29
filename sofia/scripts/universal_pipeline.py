@@ -346,6 +346,38 @@ def api(method: str, path: str, raise_on_error: bool = True, **kwargs) -> dict:
     return r.json()
 
 
+def api_long(method: str, path: str, run_id: int, expected_phases: list[str] = None, **kwargs) -> dict:
+    """Resilient API call for long operations (scrape, analyze).
+    If HTTP connection drops (ReadTimeout, ConnectionError), polls run phase
+    until it advances to one of expected_phases or fails.
+    """
+    try:
+        return api(method, path, **kwargs)
+    except (httpx.ReadTimeout, httpx.ConnectError, httpx.RemoteProtocolError) as e:
+        print(f"    Connection lost ({type(e).__name__}), polling...")
+        if not run_id:
+            raise
+        expected = set(expected_phases or [])
+        for attempt in range(120):
+            time.sleep(10)
+            try:
+                r = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+                phase = r.get("current_phase", "")
+                status = r.get("status", "")
+                if expected and phase in expected:
+                    print(f"    Polling: phase={phase} - done")
+                    return r
+                if status == "failed":
+                    print(f"    Run failed: {r.get('error_message', '?')[:200]}")
+                    return r
+                if attempt % 6 == 0:
+                    print(f"    Polling... phase={phase}, status={status}")
+            except Exception:
+                pass
+        print("    Polling timeout (20 min)")
+        return {"_error": "polling_timeout"}
+
+
 def get_latest_prompt(project_id: int) -> tuple[int | None, str | None]:
     """Get the latest active prompt (id + text) for this project.
     Returns (prompt_id, prompt_text). API requires prompt_text, not prompt_id."""
