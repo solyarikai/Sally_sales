@@ -501,7 +501,8 @@ def step3_prefilter(run_id: int) -> dict:
 
 def step4_scrape(run_id: int) -> dict:
     print(f"\n  Step 4: Scrape websites (run #{run_id}) — may take a few minutes...")
-    result = api("post", f"/pipeline/gathering/runs/{run_id}/scrape")
+    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/scrape",
+                      run_id=run_id, expected_phases=["scraped", "analyzed", "cp2"])
     print(f"  Scraped: {result.get('scraped', '?')}, Skipped: {result.get('skipped', '?')}")
     return result
 
