@@ -173,8 +173,8 @@ async def connect_integrations(client: httpx.AsyncClient, session: UserSession):
 
     headers = {"X-MCP-Token": session.token, "Content-Type": "application/json"}
 
-    # Get OpenAI key from main backend container
     try:
+        # Get OpenAI key from main backend container
         import subprocess
         result = subprocess.run(
             ["docker", "exec", "leadgen-backend", "env"],
@@ -188,19 +188,19 @@ async def connect_integrations(client: httpx.AsyncClient, session: UserSession):
                     json={"integration_name": "openai", "api_key": okey},
                 )
                 break
-    except Exception:
-        pass
 
-    # SmartLead + Apollo
-    await client.post(
-        f"{MCP_URL}/api/setup/integrations", headers=headers,
-        json={"integration_name": "smartlead",
-              "api_key": "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"},
-    )
-    await client.post(
-        f"{MCP_URL}/api/setup/integrations", headers=headers,
-        json={"integration_name": "apollo", "api_key": "9yIx2mZegixXHeDf6mWVqA"},
-    )
+        # SmartLead + Apollo
+        await client.post(
+            f"{MCP_URL}/api/setup/integrations", headers=headers,
+            json={"integration_name": "smartlead",
+                  "api_key": "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"},
+        )
+        await client.post(
+            f"{MCP_URL}/api/setup/integrations", headers=headers,
+            json={"integration_name": "apollo", "api_key": "9yIx2mZegixXHeDf6mWVqA"},
+        )
+    except Exception as e:
+        print(f"  [WARN] Integration setup failed: {e}")
 
     session.integrations_connected = True
 
