@@ -173,32 +173,29 @@ async def connect_integrations(client: httpx.AsyncClient, session: UserSession):
 
     headers = {"X-MCP-Token": session.token, "Content-Type": "application/json"}
 
+    # INDEPENDENCE RULE: NEVER reach into main app containers.
+    # All keys come from MCP's own env vars or .env file.
     try:
-        # Get OpenAI key from main backend container
-        import subprocess
-        result = subprocess.run(
-            ["docker", "exec", "leadgen-backend", "env"],
-            capture_output=True, text=True, timeout=5,
-        )
-        for line in result.stdout.split("\n"):
-            if "OPENAI_API_KEY=" in line:
-                okey = line.split("=", 1)[1].strip()
-                await client.post(
-                    f"{MCP_URL}/api/setup/integrations", headers=headers,
-                    json={"integration_name": "openai", "api_key": okey},
-                )
-                break
+        import os
+        openai_key = os.environ.get("OPENAI_API_KEY", "")
+        smartlead_key = os.environ.get("SMARTLEAD_API_KEY", "")
+        apollo_key = os.environ.get("APOLLO_API_KEY", "")
 
-        # SmartLead + Apollo
-        await client.post(
-            f"{MCP_URL}/api/setup/integrations", headers=headers,
-            json={"integration_name": "smartlead",
-                  "api_key": "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"},
-        )
-        await client.post(
-            f"{MCP_URL}/api/setup/integrations", headers=headers,
-            json={"integration_name": "apollo", "api_key": "9yIx2mZegixXHeDf6mWVqA"},
-        )
+        if openai_key:
+            await client.post(
+                f"{MCP_URL}/api/setup/integrations", headers=headers,
+                json={"integration_name": "openai", "api_key": openai_key},
+            )
+        if smartlead_key:
+            await client.post(
+                f"{MCP_URL}/api/setup/integrations", headers=headers,
+                json={"integration_name": "smartlead", "api_key": smartlead_key},
+            )
+        if apollo_key:
+            await client.post(
+                f"{MCP_URL}/api/setup/integrations", headers=headers,
+                json={"integration_name": "apollo", "api_key": apollo_key},
+            )
     except Exception as e:
         print(f"  [WARN] Integration setup failed: {e}")
 

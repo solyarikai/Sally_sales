@@ -1945,27 +1945,27 @@ def _get_campaign_name_filter(project) -> str | None:
 
 
 async def _call_replies_api(path: str, params: dict | None = None) -> dict:
-    """Call the main backend replies API via the nginx proxy (mcp-frontend:80)."""
+    """Call MCP's OWN replies API (NOT main backend — fully independent).
+
+    ARCHITECTURE RULE: MCP NEVER calls main backend. All data is in MCP's own DB.
+    This function calls the MCP backend's own /api/replies/ endpoints.
+    """
     import httpx
     try:
-        async with httpx.AsyncClient(base_url="http://mcp-frontend:80", timeout=15) as client:
+        async with httpx.AsyncClient(base_url="http://localhost:8000", timeout=15) as client:
             resp = await client.get(f"/api/{path}", params=params, headers={"X-Company-ID": "1"})
             if resp.status_code == 200:
                 return resp.json()
             return {"error": f"API returned {resp.status_code}", "detail": resp.text[:500]}
     except Exception as e:
-        return {"error": f"Failed to reach replies API: {e}"}
+        return {"error": f"MCP replies API unreachable: {e}"}
 
 
 async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
     """Handle all reply-related tool calls.
 
-    Two data sources:
-    1. MCP's own reply analysis cache (from background analysis)
-    2. Main backend via nginx proxy (for projects tracked by main app)
-
-    MCP cache is preferred — it has classified data from the 3-tier funnel.
-    Falls back to main backend proxy if cache is empty.
+    Data source: MCP's own reply data (mcp_replies table + analysis cache).
+    NEVER calls main backend. Fully independent.
     """
     from app.services.reply_analysis_service import get_cached_analysis
 
@@ -2008,7 +2008,7 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
                 },
             }
 
-        # Fallback to main backend proxy — scope by campaign_filters
+        # Fallback to MCP's own replies API — scope by campaign_filters
         project = await _resolve_project(project_name, user, session)
         campaign_filter = _get_campaign_name_filter(project)
         # /counts doesn't support campaign_name_contains, so fetch replies and aggregate
@@ -2094,7 +2094,7 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
                     },
                 }
 
-        # Fallback to main backend — scope by campaign_filters
+        # Fallback to MCP's own replies API — scope by campaign_filters
         params: dict = {"received_since": "all", "page_size": 30, "group_by_contact": "true"}
         if project_name:
             project = await _resolve_project(project_name, user, session)
