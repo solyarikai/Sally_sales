@@ -805,14 +805,52 @@ def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ШАГ 10: ИМПОРТ КОНТАКТОВ ИЗ APOLLO
-# Оператор вручную ищет людей (ЛПР) в Apollo People UI по списку компаний
-# из шага 9. Экспортирует результат как CSV. Этот шаг импортирует CSV:
-# - Маппит колонки Apollo → наш формат (имя, должность, LinkedIn, компания)
-# - Подтягивает domain из базы таргетов (чтобы связать человека с компанией)
-# - Назначает social_proof по стране человека (для персонализации писем)
+# Apollo People UI Search (автоматический).
+# Берёт домены таргет-компаний → ищет людей (ЛПР) в Apollo People UI
+# через Puppeteer (apollo_scraper.js), батчами по 30 доменов.
+# - Строит URL с organizationDomains[] + personTitles[] + personSeniorities[]
+# - Парсит JSON результат → маппит в наш формат контактов
+# - Подтягивает segment и social_proof из таргетов
 # - Убирает дубли по LinkedIn URL
 # Результат: список людей с LinkedIn, готовых к поиску email.
+#
+# Fallback: если передан --apollo-csv, работает как раньше (ручной CSV импорт).
 # ══════════════════════════════════════════════════════════════════════════════
+
+APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
+APOLLO_PEOPLE_BATCH_SIZE = 30
+APOLLO_PEOPLE_MAX_PAGES = 5
+
+# Seniorities and titles per segment (from apollo-filters-v3.md)
+SEGMENT_PEOPLE_FILTERS = {
+    "INFLUENCER_PLATFORMS": {
+        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
+        "titles": [
+            "CTO", "VP Engineering", "VP of Engineering", "Head of Engineering",
+            "Head of Product", "Chief Product Officer", "VP Product",
+            "Director of Engineering", "Director of Product",
+            "Co-Founder", "Founder", "CEO", "COO",
+        ],
+    },
+    "IM_FIRST_AGENCIES": {
+        "seniorities": ["founder", "c_suite", "director", "owner"],
+        "titles": [
+            "CEO", "Founder", "Co-Founder", "Managing Director", "Managing Partner",
+            "Head of Influencer Marketing", "Director of Influencer",
+            "Head of Partnerships", "VP Strategy", "Head of Strategy",
+            "General Manager", "Partner", "Owner",
+        ],
+    },
+    "AFFILIATE_PERFORMANCE": {
+        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
+        "titles": [
+            "CTO", "VP Engineering", "VP of Engineering", "VP Product",
+            "Head of Product", "Head of Partnerships", "VP Partnerships",
+            "Director of Partnerships", "Co-Founder", "Founder", "CEO", "COO",
+        ],
+    },
+}
+SEGMENT_PEOPLE_FILTERS["OTHER"] = SEGMENT_PEOPLE_FILTERS["INFLUENCER_PLATFORMS"]
 
 APOLLO_CSV_COLUMNS = {
     "first_name": ["First Name", "first_name"],
@@ -836,8 +874,54 @@ def _normalize_domain(raw: str) -> str:
     return d
 
 
+def _map_apollo_person(person: dict, targets_by_domain: dict, config: ProjectConfig = None, batch_domain: str = None) -> dict:
+    """Map an Apollo scraper JSON person to our contact format."""
+    name = person.get("name", "")
+    parts = name.split(None, 1) if name else ["", ""]
+    first_name = parts[0] if parts else ""
+    last_name = parts[1] if len(parts) > 1 else ""
+
+    domain = batch_domain or _normalize_domain(person.get("domain", "") or person.get("company_url", ""))
+    if not domain:
+        company = person.get("company", "")
+        # Try to find domain from targets by company name
+        for d, t in targets_by_domain.items():
+            if t.get("company_name", "").lower() == company.lower():
+                domain = d
+                break
+
+    target = targets_by_domain.get(domain, {})
+    segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
+
+    seg_slug = ""
+    if config:
+        for slug, seg_data in config.segments.items():
+            if seg_data["name"] == segment:
+                seg_slug = slug
+                break
+
+    country = person.get("location", "").split(",")[-1].strip() if person.get("location") else ""
+    if not country:
+        country = target.get("country", "")
+    social_proof = config.get_social_proof(country, seg_slug) if config and seg_slug else ""
+
+    return {
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": person.get("email", ""),
+        "title": person.get("title", ""),
+        "company_name": normalize_company(person.get("company", "") or target.get("company_name", domain)),
+        "domain": domain,
+        "segment": segment,
+        "linkedin_url": person.get("linkedin_url", person.get("linkedin", "")),
+        "country": country,
+        "employees": person.get("employees", "") or target.get("employees", ""),
+        "social_proof": social_proof,
+    }
+
+
 def _map_csv_row(row: dict, targets_by_domain: dict, config: ProjectConfig = None) -> dict:
-    """Map an Apollo CSV row to our contact format."""
+    """Map an Apollo CSV row to our contact format (fallback for manual CSV import)."""
     def _get(field: str) -> str:
         for col in APOLLO_CSV_COLUMNS.get(field, [field]):
             if col in row and row[col]:
@@ -848,7 +932,6 @@ def _map_csv_row(row: dict, targets_by_domain: dict, config: ProjectConfig = Non
     target = targets_by_domain.get(domain, {})
     segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
 
-    # Find segment slug for social_proof lookup
     seg_slug = ""
     if config:
         for slug, seg_data in config.segments.items():
@@ -874,9 +957,146 @@ def _map_csv_row(row: dict, targets_by_domain: dict, config: ProjectConfig = Non
     }
 
 
+def _build_apollo_people_url(domains: list[str], titles: list[str], seniorities: list[str]) -> str:
+    """Build Apollo People search URL with domain + title + seniority filters."""
+    from urllib.parse import quote
+    url = "https://app.apollo.io/#/people?finderViewId=5b8050d050a0710001ca27c1"
+    for d in domains:
+        url += f"&organizationDomains[]={quote(d)}"
+    for t in titles:
+        url += f"&personTitles[]={quote(t)}"
+    for s in seniorities:
+        url += f"&personSeniorities[]={quote(s)}"
+    return url
+
+
+def _run_apollo_scraper(url: str, max_pages: int, output_path: str) -> list[dict]:
+    """Run apollo_scraper.js and return list of people dicts."""
+    import subprocess
+    script = Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT
+    if not script.exists():
+        script = Path(".") / APOLLO_SCRAPER_SCRIPT
+    if not script.exists():
+        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found")
+        return []
+
+    args = ["node", str(script), "--url", url, "--max-pages", str(max_pages), "--output", output_path]
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=300,
+                              cwd=str(script.parent.parent),
+                              env={**os.environ, "CHROME_PATH": os.environ.get("CHROME_PATH", "/usr/bin/google-chrome")})
+        if result.returncode != 0:
+            err = result.stderr[-300:] if result.stderr else result.stdout[-300:]
+            print(f"    Scraper error (rc={result.returncode}): {err}")
+            return []
+        if Path(output_path).exists():
+            with open(output_path) as f:
+                return json.load(f)
+    except subprocess.TimeoutExpired:
+        print(f"    Scraper timeout (300s)")
+    except Exception as e:
+        print(f"    Scraper error: {e}")
+    return []
+
+
+def step10_apollo_people_search(config: ProjectConfig, targets: list[dict],
+                                 force: bool = False) -> list[dict]:
+    """Search Apollo People UI for contacts at target companies (automated)."""
+    contacts_file = config.state_dir / "contacts.json"
+    print(f"\n{'='*60}")
+    print(f"STEP 10: Apollo People UI Search (automated)")
+    print(f"{'='*60}")
+
+    if contacts_file.exists() and not force:
+        contacts = load_json(contacts_file)
+        print(f"  Loaded from cache: {len(contacts)} contacts")
+        return contacts
+
+    targets_by_domain = {t.get("domain", "").strip().lower(): t for t in targets if t.get("domain")}
+
+    # Group targets by segment
+    by_segment: dict[str, list[str]] = {}
+    for t in targets:
+        d = t.get("domain", "").strip().lower()
+        if not d:
+            continue
+        seg = t.get("segment", t.get("analysis_segment", "UNKNOWN"))
+        by_segment.setdefault(seg, []).append(d)
+
+    print(f"  Targets: {len(targets_by_domain)} domains across {len(by_segment)} segments")
+    for seg, domains in by_segment.items():
+        print(f"    {seg}: {len(domains)} domains")
+
+    all_contacts = []
+    total_batches_done = 0
+
+    for seg, domains in by_segment.items():
+        filters = SEGMENT_PEOPLE_FILTERS.get(seg, SEGMENT_PEOPLE_FILTERS["OTHER"])
+        titles = filters["titles"]
+        seniorities = filters["seniorities"]
+
+        batches = [domains[i:i + APOLLO_PEOPLE_BATCH_SIZE] for i in range(0, len(domains), APOLLO_PEOPLE_BATCH_SIZE)]
+        print(f"\n  [{seg}] {len(domains)} domains → {len(batches)} batches (titles: {len(titles)})")
+
+        for batch_idx, batch_domains in enumerate(batches):
+            batch_label = f"  Batch {batch_idx + 1}/{len(batches)}"
+            print(f"  {batch_label}: {len(batch_domains)} domains...", end=" ", flush=True)
+
+            url = _build_apollo_people_url(batch_domains, titles, seniorities)
+            output_path = f"/tmp/apollo_people_batch_{seg}_{batch_idx}.json"
+
+            people = _run_apollo_scraper(url, APOLLO_PEOPLE_MAX_PAGES, output_path)
+            print(f"{len(people)} people")
+
+            for person in people:
+                # Try to attribute person to a specific domain from batch
+                batch_domain = None
+                if len(batch_domains) == 1:
+                    batch_domain = batch_domains[0]
+                contact = _map_apollo_person(person, targets_by_domain, config, batch_domain)
+                if contact["first_name"] and contact["domain"]:
+                    all_contacts.append(contact)
+
+            # Cleanup temp file
+            try:
+                Path(output_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+            total_batches_done += 1
+            time.sleep(3)  # Rate limit between batches
+
+    # Dedupe by linkedin_url or (first_name + last_name + domain)
+    seen = set()
+    deduped = []
+    for c in all_contacts:
+        key = c["linkedin_url"] or f"{c['first_name']}|{c['last_name']}|{c['domain']}"
+        if key not in seen:
+            seen.add(key)
+            deduped.append(c)
+    all_contacts = deduped
+
+    save_json(contacts_file, all_contacts)
+
+    with_email = sum(1 for c in all_contacts if c["email"])
+    with_li = sum(1 for c in all_contacts if c["linkedin_url"])
+    segments = Counter(c["segment"] for c in all_contacts)
+
+    print(f"\n  Total: {len(all_contacts)} contacts ({total_batches_done} batches)")
+    print(f"  With email: {with_email}, with LinkedIn: {with_li}")
+    print(f"  Segments: {dict(segments)}")
+
+    today = tag()
+    code = config.project_name[:2].upper()
+    save_csv(config.csv_dir / f"import_apollo_{today}.csv", all_contacts,
+             sheet_name=f"{code} | Import | Apollo People — {today}")
+
+    return all_contacts
+
+
 def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list[dict],
                               force: bool = False, segment_override: str = None) -> list[dict]:
-    """Import contacts from a manual Apollo People Search CSV export."""
+    """Fallback: Import contacts from a manual Apollo People Search CSV export."""
     contacts_file = config.state_dir / "contacts.json"
     print(f"\n{'='*60}")
     seg_label = f" ({segment_override})" if segment_override else ""
@@ -906,7 +1126,6 @@ def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list
     for row in raw_rows:
         contact = _map_csv_row(row, targets_by_domain, config)
         if segment_override:
-            # Find slug for override segment
             seg_slug = ""
             for slug, seg_data in config.segments.items():
                 if seg_data["name"] == segment_override:
@@ -944,7 +1163,6 @@ def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list
     if skipped_no_domain: print(f"  Skipped (no domain): {skipped_no_domain}")
     print(f"  Segments: {dict(segments)}")
 
-    # Save import CSV + Google Sheet
     today = tag()
     code = config.project_name[:2].upper()
     save_csv(config.csv_dir / f"import_apollo_{today}.csv", all_contacts,
