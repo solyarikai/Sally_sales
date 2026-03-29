@@ -71,20 +71,13 @@ OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
 # ═══════════════════════════════════════════
 
 async def llm_call(messages: list, tools: list, system: str) -> dict:
-    """Call GPT-4o-mini with FORCED tool use. Dumb proxy — NL → tool call.
-
-    GPT-4o-mini > Claude Haiku for this role: follows tool_choice=required, handles 51 tools.
-    Falls back to Claude Haiku if no OpenAI key available.
-    """
-    # GPT-4o-mini: no rate limits, forced tool_choice=required, good enough for most tests
-    # Claude Sonnet: better at tool selection but rate-limited (30K tokens/min)
-    # Use GPT-4o-mini as primary — reliable and fast
-    if OPENAI_KEY:
-        return await _llm_openai(messages, tools, system)
-    elif ANTHROPIC_KEY:
+    """Call Claude Opus via Anthropic API. Best tool selection — like a real Claude Desktop user."""
+    if ANTHROPIC_KEY:
         return await _llm_anthropic(messages, tools, system)
+    elif OPENAI_KEY:
+        return await _llm_openai(messages, tools, system)
     else:
-        return {"error": "No OPENAI_API_KEY or ANTHROPIC_API_KEY set"}
+        return {"error": "No ANTHROPIC_API_KEY or OPENAI_API_KEY set"}
 
 
 async def _llm_openai(messages: list, tools: list, system: str) -> dict:
@@ -129,7 +122,7 @@ async def _llm_anthropic(messages: list, tools: list, system: str) -> dict:
             for attempt in range(3):
                 resp = await client.post("https://api.anthropic.com/v1/messages",
                     headers={"x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                    json={"model": "claude-sonnet-4-20250514", "max_tokens": 1000, "system": system,
+                    json={"model": "claude-opus-4-20250514", "max_tokens": 1000, "system": system,
                           "messages": messages, "tools": anthropic_tools, "tool_choice": {"type": "any"}})
                 if resp.status_code == 429:
                     wait = 15 * (attempt + 1)
