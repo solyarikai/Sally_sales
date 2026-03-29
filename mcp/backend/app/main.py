@@ -172,7 +172,7 @@ class MCPApp:
                     )
             elif "/messages" in path:
                 # Extract auth token from HTTP headers and store for tool calls
-                from app.mcp.server import _session_tokens
+                from app.mcp.server import _session_tokens, _current_token
                 headers = dict(scope.get("headers", []))
                 auth = headers.get(b"authorization", b"").decode()
                 mcp_token = headers.get(b"x-mcp-token", b"").decode()
@@ -183,6 +183,8 @@ class MCPApp:
                 elif mcp_token:
                     token = mcp_token
                 if token:
+                    # Set context var for this request's async task (session isolation)
+                    _current_token.set(token)
                     qs = scope.get("query_string", b"").decode()
                     for part in qs.split("&"):
                         if part.startswith("session_id="):

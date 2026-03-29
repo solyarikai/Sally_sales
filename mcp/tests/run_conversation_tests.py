@@ -20,7 +20,14 @@ from collections import defaultdict
 
 import httpx
 
-MCP_URL = os.environ.get("MCP_URL", "http://localhost:8002")
+# SAFETY: Refuse to run ON Hetzner. Tests connect TO Hetzner FROM local machine.
+if os.path.exists(os.path.expanduser("~/magnum-opus-project")):
+    print("ERROR: This script must NOT run on Hetzner!")
+    print("Run it FROM YOUR LOCAL MACHINE with: MCP_URL=http://46.62.210.24:8002 python3 tests/run_conversation_tests.py")
+    print("See tests/HOW_TO_TEST.md for details.")
+    sys.exit(1)
+
+MCP_URL = os.environ.get("MCP_URL", "http://46.62.210.24:8002")
 TESTS_DIR = Path(__file__).parent / "conversations"
 RESULTS_FILE = Path(__file__).parent / "test_results.json"
 
