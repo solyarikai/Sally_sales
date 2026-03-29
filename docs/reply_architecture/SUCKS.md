@@ -41,3 +41,34 @@ next.delete('lead');
 - Frontend: when `send_error` or `status=send_failed`, keep card in queue (don't optimistically remove)
 - Error toast duration increased from 4s to 10s
 - Outbound history entry only added after confirming send succeeded
+
+---
+
+## 4. Duplicate messages in conversation thread history (2026-03-29)
+
+**What sucked:** The conversation history view showed "Будет интересно" twice at the same timestamp. Operator sees duplicate bubbles.
+
+**Root cause:** The `full-history` endpoint merges activities from THREE independent sources without deduplication:
+1. `ThreadMessages` — cached from GetSales API at reply processing time
+2. Safety net — adds the reply's own inbound message if missing from ThreadMessages
+3. `ContactActivity` — LinkedIn activities from the `contact_activities` table
+
+When a GetSales reply is processed, the system creates BOTH a `ThreadMessage` (cached thread) AND a `ContactActivity` (LinkedIn activity record) for the same inbound message. Both get added to the `activities` list → duplicate bubble.
+
+**Architecture problem:** The history endpoint treats each source as authoritative and concatenates them without checking for overlap. Any new data source added in the future would cause the same bug.
+
+**Fix:** Added dedup step after merging all sources, keyed on `(direction, content[:100], timestamp[:16])`. This is a permanent architectural safeguard — no matter how many sources feed into the history, duplicates are always removed before rendering.
+
+```python
+# Deduplicate: ThreadMessages + ContactActivity + safety net can overlap
+seen = set()
+deduped = []
+for a in activities:
+    key = (a["direction"], a["content"].strip()[:100], a["timestamp"][:16])
+    if key not in seen:
+        seen.add(key)
+        deduped.append(a)
+activities = deduped
+```
+
+**Rule:** Any future data source added to `full-history` is automatically deduplicated. No per-source dedup logic needed.
