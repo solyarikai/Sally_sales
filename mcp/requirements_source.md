@@ -605,3 +605,27 @@ adjusting gpt4omini prompt until required accuracy achieved to furher use the im
 
   ❯ on this small volume of initial search make gpt4omini vs your claude opinion align 100% before going next to    
   iteration 2 with: 1. extended apollo filters from the findings, 2. updated gpt4omini prompt with better accuracy  
+
+
+  ❯ also make sure you didn't simply hardcode gpt prompts and that it's genrated from scratch and further updated   
+  according the feedback ,test reality always , test real sustem    
+
+
+    ❯ document testing of exploration phase in tests dir too                                                            
+  ❯ also write files with timestampts in tmp dir in tests dir for both exloration tests and whole test you wil be     
+  doing further  
+
+    ❯ document testing of exploration phase in tests dir too                                                            
+  ❯ also write files with timestampts in tmp dir in tests dir for both exloration tests and whole test you wil be     
+  doing further  
+
+
+  ❯ analyze yourself how do you find the exploration test results??? the more flters like keywords or industries    
+  applied the more companies are provided by apollo. of course the industries and keywords must be rlevant to         
+  user's segment description but need to build god level system here that takes as much as possible of relevant     
+  filters to provide more companies for analysis as resutls --> more target companies in the end. test exploration    
+  phase at least 10 times with deffirent approaches for fitlers extension and choose the best, think generalyl!!!!! 
+   not tovias and hardcode for my particuklar test case but solve on the any general level    
+
+   ❯ load map of apollo keywords and industries filters !!!!!! to use it effectively from the very start when user   
+  provided a prompt to gather companies   

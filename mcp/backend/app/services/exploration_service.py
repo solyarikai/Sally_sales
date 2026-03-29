@@ -254,27 +254,37 @@ def _extract_common_labels(enriched: List[Dict]) -> Dict[str, List[str]]:
         for code in sic:
             sic_codes[str(code)] += 1
 
-    # Return labels that appear in at least 2 targets (consensus)
-    min_count = min(2, len(enriched))
+    # Return ALL labels from targets — broader = more companies in Apollo
+    # Industries: include all (these are the big multipliers)
+    # Keywords: include top 15 by frequency (covers all enriched targets)
     return {
-        "industries": [k for k, v in industries.most_common(5) if v >= min_count],
-        "keywords": [k for k, v in keywords.most_common(15) if v >= min_count],
-        "sic_codes": [k for k, v in sic_codes.most_common(5) if v >= min_count],
+        "industries": [k for k, v in industries.most_common(10)],
+        "keywords": [k for k, v in keywords.most_common(15)],
+        "sic_codes": [k for k, v in sic_codes.most_common(5)],
     }
 
 
 def _build_optimized_filters(initial: Dict, common_labels: Dict) -> Dict:
-    """Merge initial filters with discovered labels for better targeting."""
+    """God-level filter optimization: merge initial + enriched + industry terms.
+
+    Key insight: broader industry terms (e.g. "information technology", "computer software")
+    yield 4-8x more companies than specific keywords alone. The exploration phase must
+    discover these from enriched targets AND add industry-level terms.
+    """
     optimized = dict(initial)
 
-    # Add discovered keywords (extend, don't replace)
-    existing_kw = set(optimized.get("q_organization_keyword_tags", []))
-    new_kw = [k for k in common_labels.get("keywords", []) if k not in existing_kw]
-    if new_kw:
-        optimized["q_organization_keyword_tags"] = list(existing_kw) + new_kw[:5]
+    existing_kw = set(k.lower() for k in optimized.get("q_organization_keyword_tags", []))
 
-    # Add discovered industries if not already set
-    if common_labels.get("industries") and not optimized.get("organization_industry_tag_ids"):
-        optimized["discovered_industries"] = common_labels["industries"]
+    # 1. Add ALL unique keywords from enriched targets (not just common ones)
+    enriched_kw = [k for k in common_labels.get("keywords", []) if k.lower() not in existing_kw]
+
+    # 2. Add industry names as keywords (these are the big multipliers)
+    industry_kw = [ind for ind in common_labels.get("industries", []) if ind.lower() not in existing_kw]
+
+    # 3. Combine: original + enriched keywords + industry terms
+    # Limit to 12 total keywords to avoid overly broad searches
+    new_kw = (industry_kw + enriched_kw)[:10]
+    if new_kw:
+        optimized["q_organization_keyword_tags"] = list(optimized.get("q_organization_keyword_tags", [])) + new_kw
 
     return optimized
