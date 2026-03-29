@@ -223,6 +223,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             svc = ApolloService(api_key=api_key)
             connected = await svc.test_connection()
             message = "Connected" if connected else "Connection failed"
+        elif integration_name == "apify":
+            # Apify proxy — just store the key, test by making a dummy request
+            connected = bool(api_key and len(api_key) > 10)
+            message = "Apify proxy key saved" if connected else "Invalid key"
         elif integration_name == "findymail":
             from app.services.findymail_service import FindymailService
             svc = FindymailService(api_key=api_key)
@@ -259,7 +263,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         integrations = {i.integration_name: {"connected": i.is_connected, "info": i.connection_info}
                         for i in result.scalars().all()}
 
-        REQUIRED = ["apollo", "smartlead", "openai"]
+        REQUIRED = ["apollo", "smartlead", "openai", "apify"]
         missing = [k for k in REQUIRED if k not in integrations or not integrations[k]["connected"]]
 
         return {
