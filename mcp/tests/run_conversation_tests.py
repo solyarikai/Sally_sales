@@ -799,13 +799,13 @@ async def main():
     for r in all_results:
         score = r.get("score", 0)
         errors = len(r.get("errors", []))
-        status = "PASS" if score >= 80 else "FAIL"
+        status = "PASS" if score >= 95 else "FAIL"
         print(f"  {r['test_id']}: {score:.0f}% [{status}] ({errors} errors)")
         total_score += score
 
     avg = total_score / len(all_results) if all_results else 0
     print(f"\n  OVERALL: {avg:.1f}% across {len(all_results)} tests")
-    print(f"  {'GOD LEVEL' if avg >= 95 else 'PASS' if avg >= 80 else 'NEEDS WORK'}")
+    print(f"  {'GOD LEVEL' if avg >= 100 else 'PASS' if avg >= 95 else 'NEEDS WORK'}")
 
     # Save results
     with open(RESULTS_FILE, "w") as f:

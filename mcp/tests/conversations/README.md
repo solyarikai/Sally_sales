@@ -181,7 +181,7 @@ Different projects can contact same company. Same project deduplicates.
 | Source detection | 15% |
 | No errors | 15% |
 
-**Pass**: 80% | **God**: 95%
+**Pass**: 95% | **God**: 100%
 
 ## Scoring (Layer 3)
 
