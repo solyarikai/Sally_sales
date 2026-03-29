@@ -262,18 +262,19 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
         }
 
     if tool_name == "select_project":
-        # Find project by name from context
+        # Find project by name from context — check both ctx.projects and session.ctx
         target_name = test.get("project_name", "")
-        projects = session.ctx.get("projects", [])
-        for p in projects:
-            if isinstance(p, dict) and p.get("name") == target_name:
-                return {"project_id": p["id"]}
+        # Search all known sources
+        all_projects = session.ctx.get("projects", [])
+        if target_name:
+            for p in all_projects:
+                if isinstance(p, dict) and p.get("name") == target_name:
+                    return {"project_id": p["id"]}
         # Fallback to latest project for this user
         if project_id:
             return {"project_id": project_id}
-        # If no project found, return first available
-        if projects:
-            return {"project_id": projects[0]["id"]}
+        if all_projects:
+            return {"project_id": all_projects[-1]["id"]}
         return {"project_id": 1}
 
     if tool_name == "parse_gathering_intent":
@@ -286,11 +287,16 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
 
         if not filters:
             if source_type == "csv.companies.file":
-                filters = {"file_path": step.get("file_path", "/data/take-test-100.csv")}
+                # Test data is in /app/test_data/ inside Docker container
+                filters = {"file_path": step.get("file_path", "/app/test_data/test_csv_batch.csv")}
             elif "google_sheets" in source_type:
-                filters = {"sheet_url": step.get("sheet_url", "")}
+                # Sheet test uses the sheet batch CSV as fallback
+                filters = {"sheet_url": step.get("sheet_url", ""),
+                           "file_path": "/app/test_data/test_sheet_batch.csv"}
             elif "google_drive" in source_type:
-                filters = {"folder_url": step.get("folder_url", "")}
+                # Drive test uses the 3 drive files
+                filters = {"folder_url": step.get("folder_url", ""),
+                           "file_path": "/app/test_data/test_drive_file1.csv"}
             else:
                 # Apollo default
                 filters = {
@@ -299,9 +305,21 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
                     "organization_num_employees_ranges": ["1,50", "51,200"],
                     "per_page": 25, "max_pages": 1,
                 }
+        # If step targets a specific project (e.g., "project_is_result"), find it
+        target_pid = project_id
+        if expected.get("project_is_result"):
+            target_name = test.get("project_name", "Result")
+            for p in session.ctx.get("projects", []):
+                if isinstance(p, dict) and p.get("name") == target_name:
+                    target_pid = p["id"]
+                    break
+        elif expected.get("project_id_is_project_b"):
+            # Use the latest (most recently created) project
+            target_pid = session.project_ids[-1] if session.project_ids else project_id
+
         return {
             "source_type": source_type,
-            "project_id": project_id or 1,
+            "project_id": target_pid or 1,
             "filters": filters,
         }
 
@@ -401,14 +419,33 @@ async def ensure_prerequisites(test: dict, client: httpx.AsyncClient, session: U
     """Auto-create missing prerequisites for tests that depend on earlier state.
 
     This is the god-level approach: if a test needs a sequence but none exists,
-    generate one. If it needs companies but none exist, the earlier tests
-    in the continuous session should have created them.
+    generate one. If a specific project_name is required, create it.
     """
     test_id = test.get("id", "")
     tools_needed = set()
     for step in test.get("steps", []):
         for t in step.get("expected_tool_calls", []):
             tools_needed.add(t)
+
+    # If test requires a specific project name, ensure it exists
+    required_name = test.get("project_name")
+    if required_name:
+        projects = session.ctx.get("projects", [])
+        existing = [p for p in projects if isinstance(p, dict) and p.get("name") == required_name]
+        if not existing:
+            print(f"  [prereq] Creating required project '{required_name}'...")
+            result = await tool_call(client, session, "create_project", {
+                "name": required_name,
+                "website": "https://easystaff.io/",
+                "sender_name": "Test",
+                "sender_company": "Test Co",
+            })
+            if not result.get("error"):
+                print(f"  [prereq] Project '{required_name}' created: id={result.get('project_id')}")
+                # Also select it as active
+                pid = result.get("project_id")
+                if pid:
+                    await tool_call(client, session, "select_project", {"project_id": pid})
 
     # If test needs edit_sequence_step but no sequence exists → generate one
     if "edit_sequence_step" in tools_needed and not session.latest_sequence_id:

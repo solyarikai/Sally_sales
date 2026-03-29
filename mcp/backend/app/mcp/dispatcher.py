@@ -497,27 +497,26 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             apollo_service=apollo_svc,
         )
 
-        return {
+        result = {
             "run_id": run.id,
             "status": run.status,
             "phase": run.current_phase,
             "new_companies": run.new_companies_count,
-            "duplicates": run.duplicate_count,
-            "estimated_credits": est_credits,
-            "estimated_companies": est_companies,
-            "filters_applied": {
-                "keywords": filters.get("q_organization_keyword_tags"),
-                "locations": filters.get("organization_locations"),
-                "employee_ranges": filters.get("organization_num_employees_ranges"),
-                "max_pages": filters.get("max_pages"),
-                "funding_stages": filters.get("organization_latest_funding_stage_cd"),
-            },
+            "existing_in_project": run.duplicate_count,
             "source_type": source_type,
-            "message": f"Gathered {run.new_companies_count} companies from {source_type.split('.')[0].upper()} "
-                       f"for project '{project.name}'. "
-                       f"{run.new_companies_count} new, {run.duplicate_count} duplicates.",
+            "message": (
+                f"Gathered {run.new_companies_count} companies from {source_type.split('.')[0].upper()} "
+                f"for project '{project.name}'. "
+                + (f"{run.new_companies_count} new, {run.duplicate_count} duplicate (already gathered for this project)."
+                   if run.duplicate_count > 0
+                   else f"All {run.new_companies_count} are new to this project.")
+            ),
             "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
         }
+        # Only include cost info for paid sources
+        if est_credits > 0:
+            result["estimated_credits"] = est_credits
+        return result
 
     if tool_name == "tam_blacklist_check":
         user = await _get_user(token, session)
@@ -690,8 +689,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "target_list": scope.get("target_list", []),
             "borderline_rejections": scope.get("borderline_rejections", []),
             "message": (
-                f"Re-analysis complete. TARGETS: {scope.get('targets_found', 0)} "
-                f"({scope.get('target_rate', '0%')}). Review again."
+                f"Re-analysis complete. Classified {scope.get('total_analyzed', 0)} companies. "
+                f"TARGETS: {scope.get('targets_found', 0)} ({scope.get('target_rate', '0%')}). "
+                f"Segments: {scope.get('segment_distribution', {})}. "
+                f"Review the updated target list."
             ),
         }
 

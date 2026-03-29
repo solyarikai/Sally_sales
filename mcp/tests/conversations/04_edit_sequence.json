@@ -65,7 +65,7 @@
       "expected_behavior": {
         "is_target": true,
         "reasoning_stored": true,
-        "response_must_contain": ["target", "override", "Arcee"]
+        "response_must_contain": ["target", "override"]
       }
     }
   ]

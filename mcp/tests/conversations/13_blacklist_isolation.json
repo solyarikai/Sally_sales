@@ -71,6 +71,7 @@
       "user_prompt": "Add the CSV data again to Result project: /data/take-test-100.csv",
       "expected_tool_calls": ["tam_gather"],
       "expected_behavior": {
+        "source_type": "csv.companies.file",
         "project_is_result": true,
         "new_companies_added": 0,
         "duplicates_detected_all": true,
