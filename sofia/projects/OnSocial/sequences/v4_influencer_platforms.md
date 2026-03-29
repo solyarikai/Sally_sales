@@ -76,9 +76,9 @@ When Lefty plugged in our API, they freed 2 engineering roles that were just mai
 
 If relevant for {{company_name}} - happy to walk through how they did it. 15 min.
 
-Bhaskar
-
-`50 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
