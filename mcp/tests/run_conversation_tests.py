@@ -619,7 +619,9 @@ async def run_test(test: dict, client: httpx.AsyncClient, session: UserSession) 
 
         if expected_tools:
             # Execute each expected tool call sequentially
+            # Accumulate ALL results (don't overwrite — concatenate messages)
             combined_result = {}
+            all_messages = []
             for t_name in expected_tools:
                 args = step.get("tool_args", {})
                 if not args:
@@ -630,13 +632,23 @@ async def run_test(test: dict, client: httpx.AsyncClient, session: UserSession) 
                     result = await tool_call(client, session, t_name, args)
                     result_str = json.dumps(result, default=str)
                     print(f"    Result: {result_str[:200]}")
-                    combined_result.update(result)
+                    # Merge without losing previous data
+                    if isinstance(result, dict):
+                        if result.get("message"):
+                            all_messages.append(result["message"])
+                        for k, v in result.items():
+                            if k not in combined_result or k == "error":
+                                combined_result[k] = v
                 except Exception as e:
                     step_result["error"] = str(e)
                     print(f"    ERROR: {e}")
                     results["errors"].append(f"Step {step_num}/{t_name}: {e}")
 
                 await asyncio.sleep(0.5)
+
+            # Combine all messages for must_contain checks
+            if all_messages:
+                combined_result["message"] = " | ".join(all_messages)
 
             # Score combined result
             if expected_behavior:
