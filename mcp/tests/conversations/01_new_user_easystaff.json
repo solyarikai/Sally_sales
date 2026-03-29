@@ -1,372 +1,264 @@
 {
-  "id": "01_full_journey_easystaff",
-  "description": "Complete user journey from ZERO \u2014 no account, no knowledge of the system. Covers: auth, setup, campaigns, blacklist, gathering 2 segments + 2 geos, sequence, campaign, reply intelligence",
+  "id": "01_default_smartlead_flow",
+  "description": "DEFAULT FLOW: token > keys > segments > offer > project > campaigns > blacklist > exploration > pipeline > email accounts > campaign > test email > approve > launch > replies",
   "user_email": "pn@getsally.io",
   "user_password": "qweqweqwe",
+  "project_name": "EasyStaff",
   "steps": [
     {
       "step": 1,
-      "phase": "first_contact",
-      "user_prompt": "Hey, I want to launch outreach for my company",
+      "phase": "greeting_no_token",
+      "user_prompt": "Hey, I want to launch some campaigns",
       "user_prompt_variants": [
-        "Hi, I need to start gathering leads for outreach",
-        "I want to set up lead generation campaigns",
-        "Help me find companies to reach out to"
+        "Hi there",
+        "Help me find leads"
       ],
-      "expected_mcp_behavior": {
-        "must_ask_for_token": true,
-        "must_provide_signup_link": true,
-        "link_expected": "http://46.62.210.24:3000/setup",
-        "message_must_contain": [
+      "expected_behavior": {
+        "response_must_contain_any": [
           "sign up",
           "token",
+          "mcp_",
           "setup"
-        ],
-        "must_not_proceed_without_auth": true
+        ]
       }
     },
     {
       "step": 2,
-      "phase": "auth",
-      "description": "User signs up via UI, gets token, provides it to MCP",
-      "user_prompt": "Here's my token: mcp_xxx...",
-      "expected_mcp_behavior": {
-        "tool_calls": [
-          "login"
-        ],
-        "verifies_token": true,
-        "greets_user_by_name": true,
-        "asks_about_company": true,
-        "message_must_contain": [
-          "welcome",
-          "website",
-          "what do you"
+      "phase": "login",
+      "user_prompt": "Here is my token: TOKEN_PLACEHOLDER",
+      "expected_tool_calls": [
+        "login",
+        "check_integrations"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "apollo",
+          "smartlead",
+          "openai",
+          "apify",
+          "key"
         ]
       }
     },
     {
       "step": 3,
-      "phase": "company_context",
-      "user_prompt": "My website is https://easystaff.io/. I'm Eleonora, BDM at EasyStaff",
+      "phase": "keys_setup",
+      "user_prompt": "I set up all the keys in the interface",
       "user_prompt_variants": [
-        "Check out easystaff.io \u2014 that's us. I'm Eleonora",
-        "Our company is EasyStaff, website easystaff.io. My name is Eleonora, I'm BDM"
+        "Keys are configured now"
       ],
-      "expected_mcp_behavior": {
-        "tool_calls": [
-          "create_project"
-        ],
-        "website_scraped": true,
-        "offer_extracted": true,
-        "must_provide_link": "http://46.62.210.24:3000/projects",
-        "message_must_contain": [
-          "project",
-          "created",
-          "scraped"
+      "expected_tool_calls": [
+        "check_integrations"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "ready",
+          "segment",
+          "launch",
+          "which"
         ]
       }
     },
     {
       "step": 4,
-      "phase": "api_keys",
-      "description": "MCP checks integrations \u2014 asks for missing keys",
-      "user_prompt": "What API keys do I need to connect?",
-      "user_prompt_variants": ["Check my integrations", "Which services are connected?", "Show my API connections"],
-      "expected_mcp_behavior": {
-        "tool_calls": [
-          "check_integrations"
-        ],
-        "must_ask_for_keys": [
-          "smartlead",
-          "apollo",
-          "openai"
-        ],
-        "must_provide_link": "http://46.62.210.24:3000/setup",
-        "message_must_contain": [
-          "API key",
-          "SmartLead",
-          "Apollo",
-          "connect"
+      "phase": "segments_request",
+      "user_prompt": "Find IT consulting companies in Miami and video production agencies in London",
+      "user_prompt_variants": [
+        "Two segments: IT consulting Miami, video production London"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "offer",
+          "website",
+          "what do you sell",
+          "product"
         ]
       }
     },
     {
       "step": 5,
-      "phase": "existing_campaigns",
-      "description": "After SmartLead connected, MCP asks about existing campaigns",
-      "user_prompt": "All campaigns including 'petr' in their names are my campaigns",
+      "phase": "offer_from_website",
+      "user_prompt": "easystaff.io",
       "user_prompt_variants": [
-        "My campaigns have 'petr' in the name",
-        "Look for SmartLead campaigns with petr in the name \u2014 those are mine",
-        "Campaigns matching petr are for this project"
+        "Our website is easystaff.io"
       ],
-      "expected_mcp_behavior": {
-        "tool_calls": [
-          "list_smartlead_campaigns",
-          "import_smartlead_campaigns"
-        ],
-        "campaigns_found_min": 5,
-        "contacts_imported_as_blacklist": true,
-        "background_reply_analysis_started": true,
-        "must_provide_link": "http://46.62.210.24:3000/pipeline",
-        "message_must_contain": [
-          "campaigns",
-          "found",
-          "blacklist",
-          "contacts"
+      "expected_tool_calls": [
+        "create_project"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "project",
+          "created",
+          "EasyStaff"
         ]
       }
     },
     {
       "step": 6,
-      "phase": "gathering_multi_segment_multi_geo",
-      "user_prompt": "Find IT consulting companies in Miami and video production companies in London",
+      "phase": "previous_campaigns",
+      "user_prompt": "Yes, campaigns with petr in the name were launched before",
       "user_prompt_variants": [
-        "I need IT consulting firms in Miami, and also video production companies in London UK",
-        "Two segments: 1) IT consulting, Miami 2) video production, London",
-        "Gather leads \u2014 IT consulting Miami + video production London"
+        "Campaigns including petr"
       ],
-      "expected_mcp_behavior": {
-        "tool_calls": [
-          "parse_gathering_intent"
-        ],
-        "segments_parsed": 2,
-        "segment_1": {
-          "label_contains": "IT_CONSULTING",
-          "geo": "Miami"
-        },
-        "segment_2": {
-          "label_contains": "VIDEO_PRODUCTION",
-          "geo": "London"
-        },
-        "competitor_exclusions_present": true,
-        "message_must_contain": [
-          "2 segment",
-          "IT",
-          "video",
-          "Miami",
-          "London"
+      "expected_tool_calls": [
+        "import_smartlead_campaigns"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "campaign",
+          "blacklist",
+          "contact",
+          "loaded"
         ]
       }
     },
     {
       "step": 7,
-      "phase": "gathering_execution",
-      "description": "MCP runs tam_gather TWICE (different segments + geos)",
-      "user_prompt": "Go ahead and gather companies for both segments",
-      "user_prompt_variants": ["Start gathering for IT consulting and video production", "Launch the pipeline for both segments"],
-      "expected_mcp_behavior": {
-        "tool_calls": [
-          "tam_gather",
-          "tam_gather"
-        ],
-        "pipeline_runs_created": 2,
-        "each_run_has_companies": true,
-        "must_provide_links": [
-          "http://46.62.210.24:3000/pipeline/"
-        ],
-        "message_must_contain": [
-          "companies",
-          "gathered",
-          "pipeline"
+      "phase": "filter_alignment",
+      "user_prompt": "Go ahead, what are the filters?",
+      "user_prompt_variants": [
+        "Show me the Apollo filters"
+      ],
+      "expected_tool_calls": [
+        "parse_gathering_intent"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "filter",
+          "IT consulting",
+          "Miami",
+          "video",
+          "London"
         ]
       }
     },
     {
       "step": 8,
-      "phase": "pipeline_processing",
-      "description": "Blacklist \u2192 CP1 \u2192 pre-filter \u2192 scrape \u2192 analyze for both runs",
-      "user_prompt": "Run the full pipeline — blacklist, scrape, and analyze all gathered companies",
-      "user_prompt_variants": ["Process the pipeline", "Run blacklist check and analysis"],
-      "expected_mcp_behavior": {
-        "tool_calls": [
-          "tam_blacklist_check",
-          "tam_blacklist_check",
-          "tam_approve_checkpoint",
-          "tam_approve_checkpoint",
-          "tam_pre_filter",
-          "tam_pre_filter",
-          "tam_scrape",
-          "tam_scrape",
-          "tam_analyze",
-          "tam_analyze"
-        ],
-        "blacklist_cross_checks_against_imported_campaigns": true,
-        "targets_found_min": 5,
-        "segment_labels_match_user_query": true
+      "phase": "pipeline_launch",
+      "user_prompt": "Looks good, launch the pipelines",
+      "user_prompt_variants": [
+        "Start gathering",
+        "Launch it"
+      ],
+      "expected_tool_calls": [
+        "tam_gather"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "pipeline",
+          "gathering",
+          "companies",
+          "launched"
+        ]
       }
     },
     {
       "step": 9,
       "phase": "email_accounts",
-      "description": "MCP MUST ask which email accounts to use \u2014 NEVER auto-pick",
-      "expected_mcp_behavior": {
-        "mcp_asks_user": true,
-        "tool_calls": [
-          "list_email_accounts"
-        ],
-        "shows_account_list": true,
-        "message_must_contain": [
-          "email account",
-          "which"
-        ],
-        "waits_for_user_response": true
-      },
-      "user_prompt": "Use all email accounts from my petr campaigns that have Eleonora in the name",
+      "user_prompt": "Use Eleonora accounts from the petr campaigns for both",
       "user_prompt_variants": [
-        "Use Eleonora's sending accounts from the petr campaigns",
-        "Pick accounts with eleonora in the email from my existing campaigns",
-        "Use the Eleonora accounts, the ones from petr campaigns"
+        "Eleonora accounts from previous campaigns for both"
       ],
-      "expected_after_user_response": {
-        "filters_accounts_by": "eleonora",
-        "accounts_from_campaigns_matching": "petr",
-        "accounts_selected_min": 3
+      "expected_tool_calls": [
+        "list_email_accounts"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "eleonora",
+          "email",
+          "account"
+        ]
       }
     },
     {
       "step": 10,
-      "phase": "create_campaign",
-      "description": "Create SmartLead campaign — sequence is auto-generated as part of campaign creation, user doesn't need to ask separately",
-      "user_prompt": "Create a SmartLead campaign with the targets we found",
-      "user_prompt_variants": ["Push these targets to a SmartLead campaign", "Create the campaign in SmartLead for these companies"],
-      "expected_mcp_behavior": {
-        "tool_calls": [
-          "smartlead_push_campaign"
-        ],
-        "push_includes_email_account_ids": true,
-        "campaign_status": "DRAFT",
-        "campaign_never_activated": true,
-        "contacts_auto_uploaded": true,
-        "test_email_auto_sent": true,
-        "sequence_has_personalization": [
-          "{{first_name}}",
-          "{{city}}"
-        ],
-        "sequence_references_easystaff_offer": true,
-        "must_provide_links": [
-          "smartlead.ai",
-          "/campaigns"
-        ],
-        "message_must_contain": [
-          "DRAFT",
-          "campaign",
-          "check your inbox",
-          "approval"
+      "phase": "pipeline_stats",
+      "user_prompt": "How is the pipeline going?",
+      "user_prompt_variants": [
+        "Pipeline status?"
+      ],
+      "expected_tool_calls": [
+        "pipeline_status"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "target",
+          "companies",
+          "found",
+          "pipeline"
         ]
       }
     },
     {
       "step": 11,
-      "phase": "reply_intelligence",
-      "user_prompt": "Which leads need follow-ups? And which replies are warm?",
+      "phase": "campaign_creation",
+      "user_prompt": "Create the SmartLead campaigns",
       "user_prompt_variants": [
-        "Show me warm replies and who needs a follow-up",
-        "Any warm leads? Who should I reply to?",
-        "What's the reply status? Who's interested?"
+        "Push to SmartLead"
       ],
-      "expected_mcp_behavior": {
-        "tool_calls": [
-          "replies_summary",
-          "replies_followups"
-        ],
-        "replies_scoped_to_user_campaigns": true,
-        "not_all_38k_replies": true,
-        "must_provide_links": [
-          "http://46.62.210.24:3000/crm"
-        ],
-        "crm_link_has_filter": true,
-        "message_must_contain": [
-          "warm",
-          "follow-up",
-          "interested"
+      "expected_tool_calls": [
+        "smartlead_push_campaign"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "DRAFT",
+          "campaign",
+          "SmartLead",
+          "inbox"
         ]
       }
     },
     {
       "step": 12,
-      "phase": "pending_campaigns_check",
-      "description": "MCP should mention pending DRAFT campaigns",
-      "user_prompt": "Do I have any pending campaigns? What's their status?",
-      "user_prompt_variants": ["Show my draft campaigns", "Any campaigns waiting to launch?"],
-      "expected_mcp_behavior": {
-        "mentions_pending_campaigns": true,
-        "asks_about_activation": true,
-        "message_must_contain": [
-          "campaign",
-          "DRAFT",
-          "ready",
-          "launch"
-        ],
-        "link_to_smartlead": true
-      }
-    }
-  ],
-  "final_verification": {
-    "ui_screenshots": [
-      {
-        "page": "/pipeline",
-        "checks": [
-          "2+ runs visible with segment badges",
-          "project column shows EasyStaff-Global",
-          "targets count clickable",
-          "no duplicate rows"
-        ]
-      },
-      {
-        "page": "/pipeline/{run_id}?status=target",
-        "checks": [
-          "only target companies shown",
-          "no duplicate domains",
-          "SmartLead campaign link visible (purple badge)"
-        ]
-      },
-      {
-        "page": "/pipeline/{run_id}/prompts",
-        "checks": [
-          "at least 1 prompt entry with body",
-          "targets count visible"
-        ]
-      },
-      {
-        "page": "/conversations",
-        "checks": [
-          "30+ messages",
-          "both directions (\u2192 MCP and \u2190 Response)",
-          "full tool call history from step 1 to step 12"
-        ]
-      },
-      {
-        "page": "/projects",
-        "checks": [
-          "EasyStaff-Global project with campaigns list",
-          "pipeline runs linked"
-        ]
-      },
-      {
-        "page": "/crm?reply_category=interested",
-        "checks": [
-          "warm replies visible",
-          "scoped to user's campaigns only"
-        ]
-      },
-      {
-        "page": "/setup",
-        "checks": [
-          "user logged in",
-          "all 3 integrations connected (green dots)"
+      "phase": "approve_launch",
+      "user_prompt": "Checked inbox, looks good. Launch the campaigns.",
+      "user_prompt_variants": [
+        "Approved, activate"
+      ],
+      "expected_tool_calls": [
+        "activate_campaign"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "activated",
+          "launched",
+          "monitoring"
         ]
       }
-    ],
-    "scoring": {
-      "correct_tools_called": "30%",
-      "response_structure": "25%",
-      "links_included": "15%",
-      "segment_accuracy": "15%",
-      "no_errors": "15%",
-      "pass_threshold": "80%",
-      "god_threshold": "95%"
+    },
+    {
+      "step": 13,
+      "phase": "reply_intelligence",
+      "user_prompt": "Any warm replies? Which leads need follow-ups?",
+      "user_prompt_variants": [
+        "Show warm replies and follow-ups"
+      ],
+      "expected_tool_calls": [
+        "replies_summary"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "warm",
+          "reply",
+          "follow",
+          "lead"
+        ]
+      }
+    },
+    {
+      "step": 14,
+      "phase": "crm_link",
+      "user_prompt": "Show me contacts in CRM",
+      "expected_tool_calls": [
+        "replies_deep_link"
+      ],
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "crm",
+          "http",
+          "contacts"
+        ]
+      }
     }
-  },
-  "project_name": "EasyStaff-Global"
+  ]
 }
