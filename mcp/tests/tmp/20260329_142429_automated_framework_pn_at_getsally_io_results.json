@@ -1,0 +1,849 @@
+[
+  {
+    "test_id": "01_full_journey_easystaff",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "first_contact",
+        "prompt": "Hey, I want to launch outreach for my company",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.27,
+        "error_source": null,
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing:sign up": true,
+          "missing:token": true,
+          "missing:setup": true
+        }
+      },
+      {
+        "step": 2,
+        "phase": "auth",
+        "prompt": "Here's my token: mcp_xxx...",
+        "tools_called": [
+          "login"
+        ],
+        "duration_s": 2.92,
+        "error_source": null,
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing:welcome": true,
+          "missing:website": true,
+          "missing:what do you": true
+        }
+      },
+      {
+        "step": 3,
+        "phase": "company_context",
+        "prompt": "Check out easystaff.io \u2014 that's us. I'm Eleonora",
+        "tools_called": [
+          "tam_gather"
+        ],
+        "duration_s": 3.52,
+        "error_source": "mcp",
+        "score": 25.0,
+        "passed": 1,
+        "total": 4,
+        "fails": {
+          "missing:created": true,
+          "missing:scraped": true,
+          "tool_error:tam_gather": "Project not found"
+        }
+      },
+      {
+        "step": 4,
+        "phase": "api_keys",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 5,
+        "phase": "existing_campaigns",
+        "prompt": "My campaigns have 'petr' in the name",
+        "tools_called": [
+          "list_smartlead_campaigns"
+        ],
+        "duration_s": 4.52,
+        "error_source": null,
+        "score": 50.0,
+        "passed": 2,
+        "total": 4,
+        "fails": {
+          "missing:blacklist": true,
+          "missing:contacts": true
+        }
+      },
+      {
+        "step": 6,
+        "phase": "gathering_multi_segment_multi_geo",
+        "prompt": "I need IT consulting firms in Miami, and also video production companies in London UK",
+        "tools_called": [
+          "list_projects"
+        ],
+        "duration_s": 3.55,
+        "error_source": null,
+        "score": 80.0,
+        "passed": 4,
+        "total": 5,
+        "fails": {
+          "missing:2 segment": true
+        }
+      },
+      {
+        "step": 7,
+        "phase": "gathering_execution",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 8,
+        "phase": "pipeline_processing",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 9,
+        "phase": "email_accounts",
+        "prompt": "Pick accounts with eleonora in the email from my existing campaigns",
+        "tools_called": [
+          "list_smartlead_campaigns"
+        ],
+        "duration_s": 4.16,
+        "error_source": null,
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing:email account": true,
+          "missing:which": true
+        }
+      },
+      {
+        "step": 10,
+        "phase": "sequence_and_campaign",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 11,
+        "phase": "reply_intelligence",
+        "prompt": "What's the reply status? Who's interested?",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.48,
+        "error_source": null,
+        "score": 66.66666666666666,
+        "passed": 2,
+        "total": 3,
+        "fails": {
+          "missing:follow-up": true
+        }
+      },
+      {
+        "step": 12,
+        "phase": "pending_campaigns_check",
+        "score": 100,
+        "skipped": true
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 60.138888888888886,
+    "timestamp": "2026-03-29T11:24:58.455841+00:00"
+  },
+  {
+    "test_id": "03_add_more_targets",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "add_targets",
+        "prompt": "Add 10 more IT consulting targets to the pipeline",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.09,
+        "error_source": "gpt",
+        "score": 33.33333333333333,
+        "passed": 1,
+        "total": 3,
+        "fails": {
+          "missing_tool:tam_gather": "called:['get_context']",
+          "missing:gathered": true
+        }
+      },
+      {
+        "step": 2,
+        "phase": "process_new",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 3,
+        "phase": "update_campaign",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 4,
+        "phase": "pending_campaigns_prompt",
+        "score": 100,
+        "skipped": true
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 83.33333333333333,
+    "timestamp": "2026-03-29T11:25:01.885183+00:00"
+  },
+  {
+    "test_id": "04_edit_sequence",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "review_sequence",
+        "prompt": "Let me see the email sequence",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 2.81,
+        "error_source": null,
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing:Email 1": true,
+          "missing:subject": true,
+          "missing:body": true
+        }
+      },
+      {
+        "step": 2,
+        "phase": "edit_subject",
+        "prompt": "Edit step 1 subject: {{first_name}} \u2014 contractors abroad?",
+        "tools_called": [
+          "edit_sequence_step"
+        ],
+        "duration_s": 3.15,
+        "error_source": "mcp",
+        "score": 25.0,
+        "passed": 1,
+        "total": 4,
+        "fails": {
+          "missing:updated": true,
+          "missing:synced": true,
+          "tool_error:edit_sequence_step": "Sequence not found"
+        }
+      },
+      {
+        "step": 3,
+        "phase": "provide_feedback",
+        "prompt": "The wording feels robotic, humanize it",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.16,
+        "error_source": "gpt",
+        "score": 0.0,
+        "passed": 0,
+        "total": 4,
+        "fails": {
+          "missing_tool:provide_feedback": "called:['get_context']",
+          "missing:feedback": true,
+          "missing:stored": true,
+          "missing:future": true
+        }
+      },
+      {
+        "step": 4,
+        "phase": "override_target",
+        "prompt": "Override Arcee AI \u2014 it IS a target",
+        "tools_called": [
+          "override_company_target"
+        ],
+        "duration_s": 3.22,
+        "error_source": "mcp",
+        "score": 75.0,
+        "passed": 3,
+        "total": 4,
+        "fails": {
+          "tool_error:override_company_target": "Company not found"
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 25.0,
+    "timestamp": "2026-03-29T11:25:15.423253+00:00"
+  },
+  {
+    "test_id": "05_activate_campaign",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "review_before_activate",
+        "prompt": "I checked the test email, looks good. What campaigns are pending?",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.11,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 3,
+        "total": 3,
+        "fails": {}
+      },
+      {
+        "step": 2,
+        "phase": "activate",
+        "prompt": "Yes, start the campaign",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.36,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 2,
+        "total": 4,
+        "fails": {
+          "missing_tool:activate_campaign": "called:['get_context']",
+          "missing:sending": true
+        }
+      },
+      {
+        "step": 3,
+        "phase": "negative_test_no_activation_without_approval",
+        "score": 100,
+        "skipped": true
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 83.33333333333333,
+    "timestamp": "2026-03-29T11:25:22.493319+00:00"
+  },
+  {
+    "test_id": "16_campaign_lifecycle",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "email_account_selection",
+        "prompt": "Use the eleonora email accounts from the petr campaigns",
+        "tools_called": [
+          "list_email_accounts"
+        ],
+        "duration_s": 9.97,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 3,
+        "total": 3,
+        "fails": {}
+      },
+      {
+        "step": 2,
+        "phase": "sequence_generation",
+        "prompt": "Generate the email sequence for this campaign",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.19,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 2,
+        "total": 4,
+        "fails": {
+          "missing_tool:god_generate_sequence": "called:['get_context']",
+          "missing:step": true
+        }
+      },
+      {
+        "step": 3,
+        "phase": "sequence_approval",
+        "prompt": "The sequence is fine, go ahead",
+        "tools_called": [
+          "check_destination"
+        ],
+        "duration_s": 3.08,
+        "error_source": "gpt",
+        "score": 33.33333333333333,
+        "passed": 1,
+        "total": 3,
+        "fails": {
+          "missing_tool:god_approve_sequence": "called:['check_destination']",
+          "must_contain_any": [
+            "approved",
+            "ready"
+          ]
+        }
+      },
+      {
+        "step": 4,
+        "phase": "smartlead_push",
+        "prompt": "Push to SmartLead with those email accounts",
+        "tools_called": [
+          "list_email_accounts"
+        ],
+        "duration_s": 9.92,
+        "error_source": "gpt",
+        "score": 57.14285714285714,
+        "passed": 4,
+        "total": 7,
+        "fails": {
+          "missing_tool:god_push_to_smartlead": "called:['list_email_accounts']",
+          "missing:DRAFT": true,
+          "missing:inbox": true
+        }
+      },
+      {
+        "step": 5,
+        "phase": "test_email_verification",
+        "prompt": "Got it, the test email is fine",
+        "tools_called": [
+          "send_test_email"
+        ],
+        "duration_s": 3.35,
+        "error_source": "mcp",
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "must_contain_any": [
+            "activate",
+            "launch",
+            "ready"
+          ],
+          "tool_error:send_test_email": "No email accounts on this campaign"
+        }
+      },
+      {
+        "step": 6,
+        "phase": "campaign_activation",
+        "prompt": "Yes, activate the campaign",
+        "tools_called": [
+          "check_destination"
+        ],
+        "duration_s": 2.82,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 2,
+        "total": 4,
+        "fails": {
+          "missing_tool:activate_campaign": "called:['check_destination']",
+          "missing:activated": true
+        }
+      },
+      {
+        "step": 7,
+        "phase": "monitoring_confirmation",
+        "score": 100,
+        "skipped": true
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 55.78231292517007,
+    "timestamp": "2026-03-29T11:25:56.631902+00:00"
+  },
+  {
+    "test_id": "17_getsales_flow",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "destination_clarification",
+        "prompt": "Create campaign for the pipeline targets",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 2.96,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 1,
+        "total": 1,
+        "fails": {}
+      },
+      {
+        "step": 2,
+        "phase": "choose_getsales",
+        "prompt": "Go with GetSales",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 5.19,
+        "error_source": null,
+        "score": 100,
+        "passed": 0,
+        "total": 0,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "sender_selection",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 4,
+        "phase": "flow_generation",
+        "prompt": "Generate the LinkedIn flow",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.01,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 2,
+        "total": 4,
+        "fails": {
+          "missing_tool:gs_generate_flow": "called:['get_context']",
+          "missing:step": true
+        }
+      },
+      {
+        "step": 5,
+        "phase": "flow_approval",
+        "prompt": "Looks good, approve the flow",
+        "tools_called": [
+          "gs_approve_flow"
+        ],
+        "duration_s": 2.59,
+        "error_source": "mcp",
+        "score": 50.0,
+        "passed": 1,
+        "total": 2,
+        "fails": {
+          "tool_error:gs_approve_flow": "Flow not found"
+        }
+      },
+      {
+        "step": 6,
+        "phase": "push_to_getsales",
+        "prompt": "Push to GetSales",
+        "tools_called": [
+          "check_destination"
+        ],
+        "duration_s": 4.42,
+        "error_source": "gpt",
+        "score": 25.0,
+        "passed": 1,
+        "total": 4,
+        "fails": {
+          "missing_tool:gs_push_to_getsales": "called:['check_destination']",
+          "missing:DRAFT": true,
+          "missing:pushed": true
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 70.83333333333333,
+    "timestamp": "2026-03-29T11:26:16.304922+00:00"
+  },
+  {
+    "test_id": "18_session_continuity",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "reconnect",
+        "prompt": "What was I working on?",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 2.89,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 4,
+        "total": 4,
+        "fails": {}
+      },
+      {
+        "step": 2,
+        "phase": "verify_project_context",
+        "prompt": "What's in my pipeline?",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.1,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 1,
+        "total": 2,
+        "fails": {
+          "missing_tool:pipeline_status": "called:['get_context']"
+        }
+      },
+      {
+        "step": 3,
+        "phase": "verify_pending_gates",
+        "score": 100,
+        "skipped": true
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 83.33333333333333,
+    "timestamp": "2026-03-29T11:26:22.893615+00:00"
+  },
+  {
+    "test_id": "19_reply_intelligence",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "reply_summary",
+        "prompt": "How are my campaigns doing? Any replies?",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 2.77,
+        "error_source": "gpt",
+        "score": 33.33333333333333,
+        "passed": 1,
+        "total": 3,
+        "fails": {
+          "missing_tool:replies_summary": "called:['get_context']",
+          "missing:_links": true
+        }
+      },
+      {
+        "step": 2,
+        "phase": "warm_leads_detail",
+        "prompt": "List the warm replies",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.03,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 1,
+        "total": 2,
+        "fails": {
+          "missing_tool:replies_list": "called:['get_context']"
+        }
+      },
+      {
+        "step": 3,
+        "phase": "followups_needed",
+        "prompt": "Show me leads that need attention",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 2.93,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 1,
+        "total": 2,
+        "fails": {
+          "missing_tool:replies_followups": "called:['get_context']"
+        }
+      },
+      {
+        "step": 4,
+        "phase": "deep_link_to_crm",
+        "prompt": "Take me to the CRM for this lead",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.34,
+        "error_source": "gpt",
+        "score": 66.66666666666666,
+        "passed": 2,
+        "total": 3,
+        "fails": {
+          "missing_tool:replies_deep_link": "called:['get_context']"
+        }
+      },
+      {
+        "step": 5,
+        "phase": "meeting_requests",
+        "prompt": "Any meeting requests?",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 2.76,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 1,
+        "total": 2,
+        "fails": {
+          "missing_tool:replies_list": "called:['get_context']"
+        }
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 50.0,
+    "timestamp": "2026-03-29T11:26:39.218978+00:00"
+  },
+  {
+    "test_id": "20_apollo_credits_performance",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "cost_estimation",
+        "prompt": "Estimate the cost of gathering 50 companies",
+        "tools_called": [
+          "estimate_cost"
+        ],
+        "duration_s": 2.73,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 2,
+        "phase": "credit_spending_history",
+        "prompt": "How many credits have I used?",
+        "tools_called": [
+          "crm_stats"
+        ],
+        "duration_s": 3.32,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 1,
+        "total": 1,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "budget_cap_check",
+        "score": 100,
+        "skipped": true
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 100.0,
+    "timestamp": "2026-03-29T11:26:45.866546+00:00"
+  },
+  {
+    "test_id": "21_crm_verification",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "crm_contacts_visible",
+        "prompt": "Show me my contacts in CRM",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 8.86,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 1,
+        "total": 2,
+        "fails": {
+          "missing_tool:query_contacts": "called:['get_context']"
+        }
+      },
+      {
+        "step": 2,
+        "phase": "filter_by_project",
+        "prompt": "Show me only EasyStaff-Global contacts",
+        "tools_called": [
+          "query_contacts"
+        ],
+        "duration_s": 7.9,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 1,
+        "total": 1,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "contact_detail_conversation_tab",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 4,
+        "phase": "contact_source_visible",
+        "score": 100,
+        "skipped": true
+      },
+      {
+        "step": 5,
+        "phase": "pipeline_to_crm_link",
+        "score": 100,
+        "skipped": true
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 90.0,
+    "timestamp": "2026-03-29T11:27:03.230769+00:00"
+  },
+  {
+    "test_id": "22_campaigns_page_monitoring",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "campaigns_list",
+        "prompt": "Show me my campaigns",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 4.43,
+        "error_source": "gpt",
+        "score": 50.0,
+        "passed": 1,
+        "total": 2,
+        "fails": {
+          "missing_tool:list_smartlead_campaigns": "called:['get_context']"
+        }
+      },
+      {
+        "step": 2,
+        "phase": "toggle_monitoring_off",
+        "prompt": "Disable monitoring for the petr campaign",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 3.46,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 1,
+        "total": 1,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "toggle_monitoring_on",
+        "prompt": "Start tracking replies again",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 2.82,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 1,
+        "total": 1,
+        "fails": {}
+      },
+      {
+        "step": 4,
+        "phase": "bulk_toggle",
+        "prompt": "Turn on monitoring for all my campaigns",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 2.97,
+        "error_source": null,
+        "score": 100.0,
+        "passed": 1,
+        "total": 1,
+        "fails": {}
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 87.5,
+    "timestamp": "2026-03-29T11:27:18.108046+00:00"
+  }
+]
