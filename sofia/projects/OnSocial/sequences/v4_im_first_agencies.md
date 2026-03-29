@@ -59,7 +59,7 @@ Trusted by {{social_proof}}
 
 Hi {{first_name}},
 
-What happens when a {{company_name}} client Googles "HypeAuditor pricing" and realizes they can buy it themselves?
+What happens when a {{company_name}} client Googles "HypeAuditor pricing" and realizes they can buy it themselves for $300/month?
 
 Smart agencies solved this - they white-label our creator data under their own brand. Client never sees the source.
 
