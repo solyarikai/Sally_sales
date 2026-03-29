@@ -934,14 +934,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         await svc.set_campaign_sequences(campaign_id, seq.sequence_steps)
 
         # 3. Set production settings (M3: match reference campaign 3070919)
-        # Reference settings: plain text, no tracking, stop on reply, 40% follow-up
-        reference_settings = {
-            "track_settings": {"track_opens": False, "track_clicks": False},
-            "send_as_plain_text": True,
-            "stop_lead_settings": "REPLY_TO_AN_EMAIL",
-            "follow_up_percentage": 40,
-        }
-        await svc.set_campaign_settings(campaign_id, **reference_settings)
+        # Hardcoded in SmartLeadService: no tracking, plain text, stop on reply, 40% follow-up
+        await svc.set_campaign_settings(campaign_id)
 
         # 4. Set schedule (M2: 9-18 in target contact timezone)
         target_country = args.get("target_country", "")
