@@ -264,27 +264,70 @@ def _extract_common_labels(enriched: List[Dict]) -> Dict[str, List[str]]:
     }
 
 
-def _build_optimized_filters(initial: Dict, common_labels: Dict) -> Dict:
-    """God-level filter optimization: merge initial + enriched + industry terms.
+async def _build_optimized_filters(initial: Dict, common_labels: Dict, query: str, openai_key: str) -> Dict:
+    """Filter optimization via negativa: only add keywords RELEVANT to the user's segment.
 
-    Key insight: broader industry terms (e.g. "information technology", "computer software")
-    yield 4-8x more companies than specific keywords alone. The exploration phase must
-    discover these from enriched targets AND add industry-level terms.
+    Enriched companies have dozens of keywords (tech stacks, tools, products) — most are
+    NOISE for search filters. GPT-4o-mini filters them: keep only segment-relevant ones,
+    exclude specific technologies, product names, frameworks.
     """
     optimized = dict(initial)
-
     existing_kw = set(k.lower() for k in optimized.get("q_organization_keyword_tags", []))
 
-    # 1. Add ALL unique keywords from enriched targets (not just common ones)
-    enriched_kw = [k for k in common_labels.get("keywords", []) if k.lower() not in existing_kw]
+    # Collect ALL candidate keywords from enrichment
+    all_candidates = []
+    for ind in common_labels.get("industries", []):
+        if ind.lower() not in existing_kw:
+            all_candidates.append(ind)
+    for kw in common_labels.get("keywords", []):
+        if kw.lower() not in existing_kw:
+            all_candidates.append(kw)
 
-    # 2. Add industry names as keywords (these are the big multipliers)
-    industry_kw = [ind for ind in common_labels.get("industries", []) if ind.lower() not in existing_kw]
+    if not all_candidates or not openai_key:
+        return optimized
 
-    # 3. Combine: original + enriched keywords + industry terms
-    # Limit to 12 total keywords to avoid overly broad searches
-    new_kw = (industry_kw + enriched_kw)[:10]
-    if new_kw:
-        optimized["q_organization_keyword_tags"] = list(optimized.get("q_organization_keyword_tags", [])) + new_kw
+    # GPT-4o-mini filters: only keep keywords that would find MORE companies matching the segment
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": f"""User is searching for: "{query}"
+Current Apollo keywords: {list(existing_kw)}
+
+These keywords were found on target companies' Apollo profiles:
+{all_candidates}
+
+Which of these keywords would HELP find MORE companies matching "{query}"?
+
+KEEP: industry-level terms, business model descriptors, service categories
+EXCLUDE: specific tech stacks (react, python, nodejs), product names, frameworks, tools, programming languages
+
+Return ONLY a JSON array of keywords to ADD (max 8):
+["keyword1", "keyword2", ...]"""}],
+                    "max_tokens": 200,
+                    "temperature": 0,
+                },
+            )
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"].strip()
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+            import json as _json
+            filtered_kw = _json.loads(content)
+
+            if filtered_kw:
+                optimized["q_organization_keyword_tags"] = list(optimized.get("q_organization_keyword_tags", [])) + filtered_kw[:8]
+                logger.info(f"Optimized filters: added {filtered_kw[:8]} (from {len(all_candidates)} candidates)")
+
+    except Exception as e:
+        logger.warning(f"Keyword filtering failed: {e}")
+        # Fallback: add just industry names (safest)
+        industry_kw = [ind for ind in common_labels.get("industries", []) if ind.lower() not in existing_kw]
+        if industry_kw:
+            optimized["q_organization_keyword_tags"] = list(optimized.get("q_organization_keyword_tags", [])) + industry_kw[:5]
 
     return optimized
