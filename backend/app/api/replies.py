@@ -2494,6 +2494,16 @@ async def get_reply_full_history(
 
     activities.sort(key=lambda a: a["timestamp"])
 
+    # Deduplicate: ThreadMessages + ContactActivity + safety net can overlap
+    seen = set()
+    deduped = []
+    for a in activities:
+        key = (a["direction"], a["content"].strip()[:100], a["timestamp"][:16])
+        if key not in seen:
+            seen.add(key)
+            deduped.append(a)
+    activities = deduped
+
     # Final auto-dismiss: after ALL sources (ThreadMessages + ContactActivity) are merged,
     # check if the last message is outbound. This catches cases where:
     # - GetSales automation sent messages (ContactActivity) after the inbound reply
