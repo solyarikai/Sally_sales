@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/setup", tags=["setup"])
 
-SUPPORTED_INTEGRATIONS = {"smartlead", "apollo", "openai", "gemini", "getsales"}
+SUPPORTED_INTEGRATIONS = {"smartlead", "apollo", "openai", "getsales"}
 
 
 class IntegrationRequest(BaseModel):

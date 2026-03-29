@@ -55,9 +55,9 @@ DEFAULT_TIMING = [0, 3, 4, 7, 7]  # Days: send, follow-up 1, 2, 3, 4
 class CampaignIntelligenceService:
     """GOD_SEQUENCE: learn from campaigns, extract patterns, generate sequences."""
 
-    def __init__(self, gemini_key: Optional[str] = None, openai_key: Optional[str] = None):
-        self._gemini_key = gemini_key
+    def __init__(self, openai_key: Optional[str] = None, gemini_key: Optional[str] = None):
         self._openai_key = openai_key
+        self._gemini_key = gemini_key  # kept for backward compat, not used
 
     async def score_campaigns(self, session: AsyncSession, company_id: int,
                                project_id: Optional[int] = None) -> List[Dict]:
@@ -272,20 +272,40 @@ A/B TESTING:
 - Emails 2-4: "subject" and "subject_b" both EMPTY string "" (reply thread)
 - Body is the same for both variants (only subject differs)"""
 
-        # Try Gemini 2.5 Pro first (best for style matching)
+        # Use GPT-4o for sequence generation (best OpenAI model for creative writing)
+        # Falls back to GPT-4o-mini if GPT-4o fails
         try:
             from app.config import settings
-            gemini_key = self._gemini_key or getattr(settings, "GEMINI_API_KEY", None)
-            if gemini_key:
-                result = await self._call_gemini(gemini_key, prompt)
-                if result:
-                    result = self._ensure_ab_variants(result)
-                    return result
-                logger.warning("Gemini failed, falling back to GPT-4o-mini")
-        except Exception as e:
-            logger.warning(f"Gemini unavailable: {e}")
+            openai_key = self._openai_key or settings.OPENAI_API_KEY
+            if not openai_key:
+                return None
 
-        # Fallback to GPT-4o-mini
+            # Try GPT-4o first (better quality for sequence generation)
+            for model in ["gpt-4o", "gpt-4o-mini"]:
+                try:
+                    async with httpx.AsyncClient(timeout=60) as client:
+                        resp = await client.post(
+                            "https://api.openai.com/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                            json={"model": model, "messages": [
+                                {"role": "system", "content": prompt},
+                                {"role": "user", "content": "Generate the sequence now. Return ONLY valid JSON."},
+                            ], "max_tokens": 3000, "temperature": 0.7})
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            content = data["choices"][0]["message"]["content"]
+                            result = self._parse_sequence_json(content)
+                            if result:
+                                result = self._ensure_ab_variants(result)
+                                logger.info(f"Sequence generated with {model}")
+                                return result
+                except Exception as e:
+                    logger.warning(f"{model} sequence generation failed: {e}")
+                    continue
+        except Exception as e:
+            logger.error(f"Sequence generation failed: {e}")
+
+        # Legacy fallback path (should not reach here)
         try:
             from app.config import settings
             openai_key = self._openai_key or settings.OPENAI_API_KEY
