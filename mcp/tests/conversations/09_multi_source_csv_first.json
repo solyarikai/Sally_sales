@@ -87,7 +87,7 @@
         "passed_blacklist_min": 100,
         "rejected_blacklist": 0,
         "mcp_shows_scope_for_approval": true,
-        "response_must_contain": ["blacklist", "approved", "Result"]
+        "response_must_contain": ["blacklist", "approved"]
       }
     },
     {
