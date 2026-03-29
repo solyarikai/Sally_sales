@@ -1,0 +1,27 @@
+=== USER 1: pn@getsally.io — Sun Mar 29 13:26:49 EEST 2026 ===
+
+
+Step 12 PASS — still Petr/pn@getsally.io, project EasyStaff-FullTest (id=140) visible.
+
+---
+
+## Full Test Results
+
+| Step | Tool | Result | Detail |
+|------|------|--------|--------|
+| 1 | `login` | **PASS** | user_id=22, token accepted |
+| 2 | `get_context` | **PASS** | Petr / pn@getsally.io confirmed |
+| 3 | `create_project` | **PASS** | project_id=140, website scraped |
+| 4 | `tam_gather` | **FAIL** | "Apollo not connected" — integration not configured for test user |
+| 5 | `tam_blacklist_check` | **SKIP** | No run_id (step 4 failed) |
+| 6 | `tam_approve_checkpoint` | **SKIP** | No gate_id (step 5 skipped) |
+| 7 | `list_email_accounts` | **FAIL** | "SmartLead not connected" — integration not configured |
+| 8 | `god_generate_sequence` | **PASS** | sequence_id=52, 5 steps, Day 0/3/4/7/7 |
+| 9 | `god_approve_sequence` | **PASS** | sequence_id=52 approved |
+| 10 | `check_destination` | **FAIL** | "No outreach platform configured" |
+| 11 | `replies_summary` | **PASS** | 0 replies (correct for new project) |
+| 12 | `get_context` | **PASS** | Session intact — Petr, project 140 visible |
+
+**Score: 7/10 executed, 7 PASS, 3 FAIL, 2 SKIP**
+
+The 3 failures are all integration-related — Apollo, SmartLead, and destination checks require `configure_integration` to be called first for the test user. The core MCP flow (auth, project creation, sequence generation, replies, session continuity) all work correctly.

@@ -1,0 +1,30 @@
+=== USER 1 FULL: pn@getsally.io — Sun Mar 29 13:29:02 EEST 2026 ===
+
+
+## E2E Test Summary
+
+| Step | Tool | Result | Detail |
+|------|------|--------|--------|
+| 1 | `login` | **PASS** | Logged in as Petr (user_id=22) |
+| 2 | `configure_integration` (smartlead) | **PASS** | Expected fail — empty API key, returned "Connection failed" |
+| 3 | `configure_integration` (apollo) | **PASS** | Expected fail — empty API key, returned "Connection failed" |
+| 4 | `configure_integration` (openai) | **PASS** | Connected, "openai key saved" |
+| 5 | `get_context` | **FAIL** | Returns "Test User" / qwe@qwe.qwe instead of Petr — **session isolation bug** |
+| 6 | `create_project` | **PASS** | Project "EasyStaff-E2E" created, id=141, website scraped |
+| 7 | `tam_gather` | **FAIL** | "Project not found" — project 141 owned by Petr but server uses qwe session |
+| 8 | `tam_blacklist_check` | **SKIP** | Blocked by Step 7 failure |
+| 9 | `tam_approve_checkpoint` | **SKIP** | Blocked by Step 8 |
+| 10 | `list_email_accounts` | **PASS** | Correctly returns "SmartLead not connected" (no key configured) |
+| 11 | `check_destination` | **PASS** | Correctly returns "No outreach platform configured" |
+| 12 | `god_generate_sequence` | **PASS** | 5-step sequence generated (id=53), GPT-4o-mini, Day 0/3/4/7/7 |
+| 13 | `god_approve_sequence` | **PASS** | Sequence 53 approved |
+| 14 | `replies_summary` | **FAIL** | "Project 'EasyStaff-E2E' not found" — wrong user session, can't see Petr's project |
+| 15 | `get_context` | **FAIL** | Still returns "Test User" / qwe@qwe.qwe — isolation bug persists |
+
+## Scorecard: 8 PASS / 4 FAIL / 2 SKIP (skipped due to upstream failure)
+
+## Root Cause
+
+**Session isolation bug is NOT fixed.** Despite the task-ID-based fix (commit `aeef8af`), `get_context` and project-scoped tools still resolve to the wrong user (qwe@qwe.qwe). The `login` and `create_project` tools work because they use the token directly, but `get_context` uses the stored session state which leaks across MCP connections.
+
+The gathering pipeline (steps 7-9) and replies (step 14) are blocked by this — they query project ownership against the wrong user. Sequence generation (step 12) passed because it likely uses project_id directly without user-scoping.

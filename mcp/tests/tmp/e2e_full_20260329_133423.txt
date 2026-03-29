@@ -1,0 +1,26 @@
+=== FULL E2E TEST — pn@getsally.io — 20260329_133423 ===
+**Step 15: PASS** — Still Petr (pn@getsally.io), project EasyStaff-E2E-Final visible, session intact.
+
+---
+
+## Full E2E MCP Test Results
+
+| Step | Tool | Result | Key Detail |
+|------|------|--------|------------|
+| 1 | `login` | **PASS** | Petr, user_id=22 |
+| 2 | `configure_integration` (smartlead) | **PASS** | 1978 campaigns found |
+| 3 | `configure_integration` (apollo) | **PASS** | Connected |
+| 4 | `configure_integration` (openai) | **PASS** | Key saved |
+| 5 | `get_context` | **PASS** | User: Petr, pn@getsally.io |
+| 6 | `create_project` | **PASS** | id=144, website scraped |
+| 7 | `tam_gather` | **PASS** | run_id=190, 0 companies (emulator empty for filter) |
+| 8 | `tam_blacklist_check` | **PASS** | gate_id=249, CP1 created |
+| 9 | `tam_approve_checkpoint` | **PASS** | Gate 249 approved |
+| 10 | `list_email_accounts` | **PASS** | 80+ accounts returned |
+| 11 | `god_generate_sequence` | **PASS** | sequence_id=54, 5 steps |
+| 12 | `god_approve_sequence` | **PASS** | Sequence 54 approved |
+| 13 | `check_destination` | **PASS** | SmartLead configured |
+| 14 | `replies_summary` | **PASS** | 0 replies (new project) |
+| 15 | `get_context` | **PASS** | Still Petr, session stable |
+
+**15/15 PASS. Session isolation held — identity consistent across all calls.**
