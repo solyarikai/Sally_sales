@@ -325,6 +325,63 @@ async def handle_text(message: types.Message):
         await message.answer(f"Error: {str(e)[:200]}")
 
 
+# ── Proactive Reply Notifications (TB6) ──
+
+POLL_INTERVAL = int(os.environ.get("REPLY_POLL_INTERVAL", "180"))  # 3 minutes
+
+async def poll_new_replies():
+    """Background task: poll MCP for new replies and notify users via Telegram."""
+    last_check = {}  # user_id -> last seen reply count
+
+    while True:
+        try:
+            await asyncio.sleep(POLL_INTERVAL)
+
+            # Find all active sessions with tokens
+            keys = []
+            async for key in redis_client.scan_iter("tg_session:*"):
+                keys.append(key)
+
+            for key in keys:
+                try:
+                    raw = await redis_client.get(key)
+                    if not raw:
+                        continue
+                    session = json.loads(raw)
+                    token = session.get("mcp_token")
+                    if not token:
+                        continue
+
+                    tg_user_id = int(key.split(":")[-1])
+
+                    # Call get_context to check reply counts
+                    result = await call_mcp_tool("get_context", {}, token)
+                    if result.get("error"):
+                        continue
+
+                    total = result.get("replies", {}).get("total", 0)
+                    warm = result.get("replies", {}).get("warm", 0)
+                    prev = last_check.get(tg_user_id, 0)
+
+                    if total > prev and prev > 0:
+                        new_count = total - prev
+                        project_name = session.get("active_project_name", "")
+                        msg = f"New replies detected: {new_count} new ({warm} warm total)\n"
+                        if project_name:
+                            msg += f"Project: {project_name}\n"
+                        msg += f"\nView: {UI_BASE}/tasks/replies"
+                        try:
+                            await bot.send_message(tg_user_id, msg)
+                        except Exception as e:
+                            logger.debug(f"Failed to notify {tg_user_id}: {e}")
+
+                    last_check[tg_user_id] = total
+                except Exception as e:
+                    logger.debug(f"Reply poll error for {key}: {e}")
+        except Exception as e:
+            logger.error(f"Reply poll loop error: {e}")
+
+
 # ── Main ──
 
 async def main():
@@ -336,6 +393,9 @@ async def main():
         await load_mcp_tools()
     except Exception as e:
         logger.error(f"Failed to load MCP tools: {e}. Will retry on first message.")
+
+    # Start proactive reply polling in background
+    asyncio.create_task(poll_new_replies())
 
     logger.info("Starting Telegram bot...")
     await dp.start_polling(bot)

@@ -312,10 +312,11 @@ export default function PipelinePage() {
   const currentStageIdx = run ? STAGES.indexOf(run.current_phase) : -1
   const isGathering = run?.status === 'running' && run?.current_phase === 'gather'
 
-  // Column visibility — persisted in localStorage
+  // Column visibility — persisted per run in localStorage
+  const colKey = `pipeline_columns_${runId || 'global'}`
   const [columnConfig, setColumnConfig] = useState<Record<string, boolean>>(() => {
     try {
-      const saved = localStorage.getItem('pipeline_columns')
+      const saved = localStorage.getItem(colKey)
       return saved ? JSON.parse(saved) : {}
     } catch { return {} }
   })
@@ -324,7 +325,7 @@ export default function PipelinePage() {
   const toggleColumn = (key: string) => {
     setColumnConfig(prev => {
       const next = { ...prev, [key]: !(prev[key] ?? true) }
-      localStorage.setItem('pipeline_columns', JSON.stringify(next))
+      localStorage.setItem(colKey, JSON.stringify(next))
       return next
     })
   }

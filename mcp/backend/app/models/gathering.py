@@ -16,6 +16,7 @@ class GatheringRun(Base):
     source_type = Column(String(100), nullable=False)
     source_label = Column(String(255), nullable=True)
     filters = Column(JSONB, nullable=False)
+    people_filters = Column(JSONB, nullable=True)  # Apollo people filters (title, seniority, etc.)
     filter_hash = Column(String(64), nullable=False)
 
     status = Column(String(30), nullable=False, server_default="pending")

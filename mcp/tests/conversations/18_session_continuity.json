@@ -1,0 +1,57 @@
+{
+  "id": "18_session_continuity",
+  "description": "Session continuity test: user disconnects and reconnects with same MCP key. System should restore active project, pending gates, draft campaigns.",
+  "user_email": "pn@getsally.io",
+  "depends_on": "01_new_user_easystaff",
+  "preconditions": {
+    "user_authenticated": true,
+    "project_selected": "EasyStaff-Global",
+    "pipeline_has_run": true
+  },
+  "steps": [
+    {
+      "step": 1,
+      "phase": "reconnect",
+      "description": "User reconnects. get_context should return full state with auto-set project.",
+      "user_prompt": "What was I working on?",
+      "user_prompt_variants": ["Continue where I left off", "Show me my status"],
+      "expected_tool_calls": ["get_context"],
+      "expected_behavior": {
+        "active_project_auto_set": true,
+        "projects_listed": true,
+        "pipeline_runs_shown": true,
+        "response_must_contain_any": ["project", "pipeline", "Welcome back"],
+        "response_must_not_contain": ["No projects", "sign up"]
+      }
+    },
+    {
+      "step": 2,
+      "phase": "verify_project_context",
+      "description": "User asks about pipeline — system should use active project without re-selecting.",
+      "user_prompt": "How many companies did we find?",
+      "user_prompt_variants": ["Show pipeline status", "What's in my pipeline?"],
+      "expected_tool_calls": ["pipeline_status"],
+      "expected_behavior": {
+        "uses_active_project": true,
+        "does_not_ask_which_project": true,
+        "response_must_contain_any": ["companies", "pipeline", "targets"]
+      }
+    },
+    {
+      "step": 3,
+      "phase": "verify_pending_gates",
+      "description": "If pending approval gates exist, system surfaces them as action_required.",
+      "expected_behavior": {
+        "if_pending_gates_shows_them": true,
+        "if_draft_campaigns_shows_them": true
+      }
+    }
+  ],
+  "final_verification": {
+    "db_checks": [
+      "User.active_project_id is set correctly after get_context",
+      "get_context returns action_required if pending gates exist",
+      "get_context returns action_required_campaigns if drafts exist"
+    ]
+  }
+}

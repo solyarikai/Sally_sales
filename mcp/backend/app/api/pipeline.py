@@ -473,6 +473,7 @@ async def list_iterations(
             "id": r.id,
             "source_type": r.source_type,
             "filters": r.filters,
+            "people_filters": getattr(r, 'people_filters', None),
             "new_companies": actual_companies,
             "new_companies_count": actual_companies,
             "current_phase": r.current_phase,
