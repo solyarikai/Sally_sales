@@ -5,6 +5,7 @@ This serves data from MCP's own database (extracted_contacts + discovered_compan
 """
 import math
 import logging
+import re
 from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,11 @@ from sqlalchemy import select, func, or_, desc, asc
 from app.db import get_session
 from app.models.pipeline import DiscoveredCompany, ExtractedContact
 from app.models.project import Project
+
+
+def _sanitize_like(value: str) -> str:
+    """Escape SQL LIKE wildcards in user input."""
+    return value.replace("%", r"\%").replace("_", r"\_")
 from app.models.campaign import Campaign
 from app.models.user import MCPUser
 from app.auth.dependencies import get_optional_user
@@ -134,16 +140,17 @@ async def list_contacts(
     if project_id:
         query = query.where(ExtractedContact.project_id == project_id)
     if search:
+        s = _sanitize_like(search)
         query = query.where(or_(
-            ExtractedContact.email.ilike(f"%{search}%"),
-            ExtractedContact.first_name.ilike(f"%{search}%"),
-            ExtractedContact.last_name.ilike(f"%{search}%"),
+            ExtractedContact.email.ilike(f"%{s}%"),
+            ExtractedContact.first_name.ilike(f"%{s}%"),
+            ExtractedContact.last_name.ilike(f"%{s}%"),
         ))
     if source:
         query = query.where(ExtractedContact.email_source == source)
     if domain:
         for d in domain.split(","):
-            query = query.where(DiscoveredCompany.domain.ilike(f"%{d.strip()}%"))
+            query = query.where(DiscoveredCompany.domain.ilike(f"%{_sanitize_like(d.strip())}%"))
     if has_replied:
         # Filter contacts whose source_data has "has_replied": true
         from sqlalchemy import cast, String
@@ -162,7 +169,7 @@ async def list_contacts(
             else:
                 query = query.where(ExtractedContact.source_data["reply_category"].astext == cat)
     if campaign:
-        query = query.where(ExtractedContact.source_data["campaign"].astext.ilike(f"%{campaign}%"))
+        query = query.where(ExtractedContact.source_data["campaign"].astext.ilike(f"%{_sanitize_like(campaign)}%"))
     if pipeline:
         # Filter contacts from a specific pipeline run (via discovered_company → source_links)
         from app.models.gathering import CompanySourceLink
@@ -171,7 +178,7 @@ async def list_contacts(
         ).distinct()
         query = query.where(ExtractedContact.discovered_company_id.in_(pipeline_companies))
     if geo:
-        query = query.where(DiscoveredCompany.country.ilike(f"%{geo}%"))
+        query = query.where(DiscoveredCompany.country.ilike(f"%{_sanitize_like(geo)}%"))
 
     # Count total
     count_query = select(func.count()).select_from(query.subquery())

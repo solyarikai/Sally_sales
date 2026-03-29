@@ -53,6 +53,30 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(BodySizeLimitMiddleware)
 
+
+# Simple in-memory rate limiter for auth endpoints
+import time as _time
+from collections import defaultdict
+
+_rate_limits: dict[str, list[float]] = defaultdict(list)
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX = 10  # max requests per window per IP
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith("/api/auth/"):
+            ip = request.client.host if request.client else "unknown"
+            now = _time.time()
+            _rate_limits[ip] = [t for t in _rate_limits[ip] if now - t < RATE_LIMIT_WINDOW]
+            if len(_rate_limits[ip]) >= RATE_LIMIT_MAX:
+                return JSONResponse(status_code=429, content={"detail": "Too many requests"})
+            _rate_limits[ip].append(now)
+        return await call_next(request)
+
+
+app.add_middleware(RateLimitMiddleware)
+
 # ── REST API routes ──
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router

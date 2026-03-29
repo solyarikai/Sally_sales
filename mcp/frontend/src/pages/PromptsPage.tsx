@@ -23,10 +23,16 @@ const stepTypeBadge = (type: string) => {
 export default function PromptsPage() {
   const { runId } = useParams()
   const [prompts, setPrompts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<number | null>(null)
 
   useEffect(() => {
-    fetch(`${API}/pipeline/runs/${runId}/prompts`).then(r => r.ok ? r.json() : []).then(setPrompts)
+    setLoading(true)
+    fetch(`${API}/pipeline/runs/${runId}/prompts`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setPrompts)
+      .catch(e => console.error('Failed to load prompts:', e))
+      .finally(() => setLoading(false))
   }, [runId])
 
   // Group prompts by chain (parent_prompt_id)
@@ -136,7 +142,9 @@ export default function PromptsPage() {
         </Link>
       </div>
 
-      {prompts.length === 0 ? (
+      {loading ? (
+        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+      ) : prompts.length === 0 ? (
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
           No prompts used yet. Run the analyze phase to see GPT prompts.
         </div>

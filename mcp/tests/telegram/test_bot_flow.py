@@ -9,19 +9,20 @@ Tests the same flow as Claude Code MCP connection:
 4. Check pipeline status
 5. List campaigns
 """
+import os
 import sys
 import asyncio
 import json
 import time
 from telethon import TelegramClient
 
-API_ID = 32597601
-API_HASH = "2a95184dbf5981a91f1e492d0ce30a34"
-BOT_USERNAME = "sallymcptestbot"
-PHONE = "+77014007948"
+API_ID = int(os.environ.get("TELETHON_API_ID", "0"))
+API_HASH = os.environ.get("TELETHON_API_HASH", "")
+BOT_USERNAME = os.environ.get("TEST_BOT_USERNAME", "sallymcptestbot")
+PHONE = os.environ.get("TELETHON_PHONE", "")
 
-# Test token (pn@getsally.io account)
-TEST_TOKEN = "mcp_2fd4a59eb8a6bfb6f33caf653f4bf688bdc5fea03c41565e1f351b451a70c65d"
+# Test token
+TEST_TOKEN = os.environ.get("MCP_TEST_TOKEN", "")
 
 TESTS = [
     {

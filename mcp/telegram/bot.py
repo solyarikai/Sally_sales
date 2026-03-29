@@ -175,15 +175,25 @@ async def process_message(user_message: str, session: dict) -> tuple[str, dict]:
 
             # Update session state from result
             if tool_name == "login" and result.get("user_id"):
-                # Login succeeded — store the token that was used
                 session["mcp_token"] = tool_args.get("token", session.get("mcp_token"))
 
             if tool_name == "setup_account" and result.get("api_token"):
                 session["mcp_token"] = result["api_token"]
 
+            if tool_name == "configure_integration" and result.get("connected"):
+                logger.info(f"Integration configured: {tool_args.get('integration_name')}")
+
             if tool_name == "select_project" and result.get("active_project"):
                 session["active_project_id"] = result["active_project"]["id"]
                 session["active_project_name"] = result["active_project"]["name"]
+
+            if tool_name == "get_context" and result.get("active_project_id"):
+                session["active_project_id"] = result["active_project_id"]
+                projects = result.get("projects", [])
+                if projects:
+                    for p in projects:
+                        if p["id"] == result["active_project_id"]:
+                            session["active_project_name"] = p["name"]
 
             if tool_name == "tam_gather" and result.get("run_id"):
                 session["active_run_id"] = result["run_id"]
@@ -197,6 +207,15 @@ async def process_message(user_message: str, session: dict) -> tuple[str, dict]:
 
             if tool_name == "pipeline_status":
                 session["current_phase"] = result.get("phase")
+
+            if tool_name == "god_push_to_smartlead" and result.get("campaign_id"):
+                session["last_campaign_id"] = result["campaign_id"]
+
+            if tool_name == "activate_campaign" and result.get("activated"):
+                session["last_activated_campaign"] = result.get("campaign_id")
+
+            if tool_name in ("list_email_accounts", "send_test_email", "replies_summary", "replies_list"):
+                pass  # No session state update needed, but handlers exist
 
             tool_results.append({
                 "tool_call_id": tc.id,
@@ -222,7 +241,7 @@ async def process_message(user_message: str, session: dict) -> tuple[str, dict]:
 
     # Save to history
     session["history"].append({"role": "user", "content": user_message})
-    session["history"].append({"role": "assistant", "content": final_text[:500]})
+    session["history"].append({"role": "assistant", "content": final_text[:2000]})
 
     return final_text, session
 
@@ -235,10 +254,36 @@ async def cmd_start(message: types.Message):
         "Welcome to LeadGen MCP Bot!\n\n"
         "I help you find companies, build prospect lists, and create outreach campaigns.\n\n"
         f"To get started, sign up at {UI_BASE}/setup and paste your mcp_ token here.\n\n"
-        "Then try:\n"
+        "Commands:\n"
+        "/status — current session state\n"
+        "/reset — start fresh\n"
+        "/help — show this message\n\n"
+        "Or just tell me what you need:\n"
         "• \"Find IT consulting companies in US, 50-200 employees\"\n"
         "• \"What's my pipeline status?\"\n"
-        "• \"Create a campaign sequence\"\n\n"
+        "• \"Create a campaign sequence\"\n"
+        "• \"Show my replies\"\n"
+        "• \"List email accounts\"\n\n"
+        f"Web UI: {UI_BASE}"
+    )
+
+
+@dp.message(Command("help"))
+async def cmd_help(message: types.Message):
+    await message.answer(
+        "LeadGen MCP Bot — Commands:\n\n"
+        "/start — welcome & setup\n"
+        "/status — session state\n"
+        "/reset — clear session\n"
+        "/help — this message\n\n"
+        "Natural language:\n"
+        "• Paste your mcp_ token to log in\n"
+        "• \"Find companies\" — start gathering\n"
+        "• \"Approve\" — approve checkpoint\n"
+        "• \"Show replies\" — reply summary\n"
+        "• \"List accounts\" — email accounts\n"
+        "• \"Generate sequence\" — create campaign\n"
+        "• \"Activate campaign\" — go live\n\n"
         f"Web UI: {UI_BASE}"
     )
 
