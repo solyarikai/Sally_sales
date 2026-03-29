@@ -2011,10 +2011,10 @@ def main():
 
     if "people" in steps:
         if args.apollo_csv:
+            # Fallback: manual CSV import
             all_contacts = []
             seg_override = None
             if args.apollo_csv_agencies:
-                # Two CSVs — platforms + agencies
                 for slug, seg_data in config.segments.items():
                     if "platform" in slug.lower():
                         seg_override = seg_data["name"]
@@ -2035,8 +2035,8 @@ def main():
                 print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
             contacts = all_contacts
         else:
-            print("\n  ERROR: --apollo-csv required for people step")
-            sys.exit(1)
+            # Default: automated Apollo People UI search
+            contacts = step10_apollo_people_search(config, targets, force=args.force)
     else:
         contacts = load_json(config.state_dir / "contacts.json") or \
                    load_json(config.state_dir / "enriched.json") or []
