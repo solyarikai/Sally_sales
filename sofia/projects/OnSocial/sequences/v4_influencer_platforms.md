@@ -140,9 +140,9 @@ If creator data isn't on the roadmap - totally fine. But if I'm reaching the wro
 
 Either way - good luck with what you're building.
 
-Bhaskar
-
-`44 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
