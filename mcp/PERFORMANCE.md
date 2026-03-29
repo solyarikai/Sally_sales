@@ -1,61 +1,44 @@
-# MCP Performance Metrics
+# MCP LeadGen — Performance Metrics
 
-Measured via real MCP SSE protocol (not API shortcuts).
+## API Response Times (Target)
 
-## Connection & Protocol
+| Endpoint | Target | Notes |
+|----------|--------|-------|
+| GET /api/health | <50ms | Health check |
+| POST /api/auth/signup | <500ms | bcrypt hashing |
+| POST /api/auth/login | <500ms | bcrypt verify |
+| GET /api/pipeline/runs | <200ms | Batched queries (was N+1, fixed in audit) |
+| GET /api/pipeline/iterations | <300ms | With target counts |
+| GET /api/pipeline/runs/{id}/companies | <300ms | Paginated (50/page) |
+| GET /api/pipeline/campaigns | <400ms | With sequence data |
+| GET /api/contacts | <300ms | Paginated, indexed |
+| POST /api/tools/call (tam_gather) | <2s | Adapter-dependent |
+| POST /api/tools/call (tam_analyze) | <30s | AI analysis, GPT call |
+| SSE /mcp/sse | Persistent | Streaming, reconnect with backoff |
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| SSE Connect | ~12ms | Raw TCP to Hetzner |
-| MCP Initialize | **4ms** | Protocol handshake |
-| Tools list (30 tools) | **8ms** | All tool definitions |
+## Frontend Load Times (Target)
 
-## SmartLead Operations
+| Page | Target | Notes |
+|------|--------|-------|
+| Pipeline page | <1s | Initial load with 50 companies |
+| CRM page | <1s | Paginated, 50 contacts |
+| Campaigns page | <800ms | With sequence preview |
+| Account page | <500ms | Credits + usage stats |
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| List campaigns (search "petr") | **1,104ms** | Fetches all from SmartLead API, filters locally |
-| Import 13 campaigns as blacklist | **1,535ms** | SmartLead fetch + DB insert per campaign |
-| **Full onboarding (connect → list → import)** | **~2.7s** | Acceptable for one-time setup |
+## Database Indexes (Audit Fix)
 
-## Apollo Gathering
+Migration 005 added:
+- `ix_gathering_runs_company_id` — gathering_runs.company_id
+- `ix_company_source_links_run` — company_source_links.gathering_run_id
+- `ix_extracted_contacts_project` — extracted_contacts.project_id
+- `ix_mcp_replies_project` — mcp_replies.project_id
+- `ix_mcp_conversation_logs_user` — mcp_conversation_logs.user_id
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Gather 50 companies (2 pages) | ~4s | 2 Apollo API calls |
-| Gather 25 companies (1 page) | ~2s | 1 Apollo API call |
+## Optimizations Applied
 
-## Pipeline Operations
-
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Blacklist check | <100ms | DB-only |
-| Pre-filter | <100ms | DB-only |
-| Scrape 50 websites | ~30s | Parallel HTTP, 0.3s rate limit |
-| GPT analysis (50 companies) | ~60s | GPT-4o-mini, sequential |
-| GPT analysis (100 companies) | ~120s | GPT-4o-mini, sequential |
-| Sequence generation (5 steps) | ~3s | GPT-4o-mini single call |
-
-## SmartLead Push
-
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Create DRAFT campaign | ~800ms | SmartLead API |
-| Set sequences | ~500ms | SmartLead API |
-
-## Bottlenecks
-
-1. **GPT analysis is sequential** — could be parallelized (5-10 concurrent calls) to cut time 5-10x
-2. **SmartLead list_campaigns** fetches ALL then filters — could cache or paginate
-3. **Scraping** is already parallel (50 concurrent) — limited by rate limiting
-
-## Cost per Pipeline Run (100 companies)
-
-| Step | Time | Cost |
-|------|------|------|
-| Apollo (4 pages) | 4s | 4 credits |
-| Scraping | 30s | $0 |
-| GPT analysis | 120s | $0.30 |
-| FindyMail (30 targets × 3) | 90s | $0.90 |
-| Sequence gen | 3s | $0.003 |
-| **Total** | **~4 min** | **~$1.20** |
+1. **N+1 query fix** (P1): list_runs — 4 batched aggregate queries instead of 80+
+2. **Gzip compression** (M28): nginx serves compressed responses
+3. **SSE bounded array** (M16): max 200 messages in memory
+4. **SSE reconnection** (M15): exponential backoff, 5 retries
+5. **Pagination caps**: all list endpoints have le= constraints
+6. **Body size limit**: 10MB max request body

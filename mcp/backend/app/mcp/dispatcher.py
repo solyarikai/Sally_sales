@@ -562,6 +562,16 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         svc = GatheringService()
         gate = await svc.blacklist_check(session, run)
         project = await session.get(Project, run.project_id)
+
+        # M7: Trigger background reply analysis IN PARALLEL with blacklist
+        try:
+            import asyncio as _asyncio
+            from app.services.reply_analysis_service import start_background_analysis
+            _asyncio.create_task(start_background_analysis(run.project_id, user.id))
+            logger.info(f"Background reply analysis started for project {run.project_id}")
+        except Exception as e:
+            logger.debug(f"Background reply analysis skip: {e}")
+
         scope = gate.scope or {}
         return {
             "gate_id": gate.id, "type": "checkpoint_1",
@@ -870,6 +880,28 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "message": "Select email account IDs to use for the new campaign. Accounts already used in your campaigns are shown.",
         }
 
+    if tool_name == "check_destination":
+        # M1: When both SmartLead and GetSales keys present, ask which platform
+        user = await _get_user(token, session)
+        ctx = UserServiceContext(user.id, session)
+        sl_configured = (await ctx.get_smartlead_service()).is_configured()
+        gs_key = await ctx.get_key("getsales")
+        gs_configured = bool(gs_key)
+
+        if sl_configured and gs_configured:
+            return {
+                "both_configured": True,
+                "question": "destination_selection",
+                "message": "You have both SmartLead (email) and GetSales (LinkedIn) connected. Which platform should we use?",
+                "options": ["SmartLead (email outreach)", "GetSales (LinkedIn outreach)", "Both"],
+            }
+        elif sl_configured:
+            return {"destination": "smartlead", "message": "SmartLead configured. Will push email campaign."}
+        elif gs_configured:
+            return {"destination": "getsales", "message": "GetSales configured. Will push LinkedIn flow."}
+        else:
+            raise ValueError("No outreach platform configured. Connect SmartLead or GetSales in Setup.")
+
     if tool_name == "god_push_to_smartlead":
         user = await _get_user(token, session)
         seq = await session.get(GeneratedSequence, args["sequence_id"])
@@ -877,6 +909,11 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             raise ValueError("Sequence not found")
         if seq.status != "approved":
             raise ValueError("Sequence must be approved first")
+
+        # M5: Require email accounts — agent MUST call list_email_accounts first
+        if not args.get("email_account_ids"):
+            raise ValueError("email_account_ids required. Call list_email_accounts first and ask the user which accounts to use.")
+
         ctx = UserServiceContext(user.id, session)
         svc = await ctx.get_smartlead_service()
         if not svc.is_configured():
@@ -891,22 +928,41 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         # 2. Set sequences
         await svc.set_campaign_sequences(campaign_id, seq.sequence_steps)
 
-        # 3. Set production settings (no tracking, plain text, stop on reply)
-        await svc.set_campaign_settings(campaign_id)
+        # 3. Set production settings (M3: match reference campaign 3070919)
+        # Reference settings: plain text, no tracking, stop on reply, 40% follow-up
+        reference_settings = {
+            "track_settings": {"track_opens": False, "track_clicks": False},
+            "send_as_plain_text": True,
+            "stop_lead_settings": "REPLY_TO_AN_EMAIL",
+            "follow_up_percentage": 40,
+        }
+        await svc.set_campaign_settings(campaign_id, **reference_settings)
 
-        # 4. Set schedule (9-6 in target timezone)
+        # 4. Set schedule (M2: 9-18 in target contact timezone)
         target_country = args.get("target_country", "")
         if not target_country:
-            # Try to get from project's gathering filters
+            # Try to get from project's gathering filters or gathered contact geo
             project = await session.get(Project, seq.project_id)
             if project and project.target_segments:
-                # Extract country from ICP if possible
-                for country in ["United States", "Germany", "United Kingdom", "India", "Australia"]:
+                for country in ["United States", "Germany", "United Kingdom", "India", "Australia", "UAE", "Canada", "France", "Netherlands", "Switzerland"]:
                     if country.lower() in (project.target_segments or "").lower():
                         target_country = country
                         break
+            # Also check gathered contacts' most common country
+            if not target_country:
+                geo_result = await session.execute(
+                    select(DiscoveredCompany.country, sa_func.count(DiscoveredCompany.id))
+                    .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                    .where(DiscoveredCompany.is_target == True, DiscoveredCompany.country.isnot(None))
+                    .group_by(DiscoveredCompany.country)
+                    .order_by(sa_func.count(DiscoveredCompany.id).desc())
+                    .limit(1)
+                )
+                top_country = geo_result.first()
+                if top_country:
+                    target_country = top_country[0]
         from app.services.smartlead_service import get_timezone_for_country
-        timezone = get_timezone_for_country(target_country)
+        timezone = get_timezone_for_country(target_country or "United States")
         await svc.set_campaign_schedule(campaign_id, timezone)
 
         # 5. Assign email accounts — MUST be provided by user
@@ -1016,11 +1072,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 f"Leads uploaded: {leads_uploaded} target contacts\n\n"
                 + (f"Check your inbox at {user.email} — test email sent!\n\n" if test_email_result and test_email_result.get("ok") else
                    f"Test email could not be sent ({test_email_result.get('error', 'no email accounts') if test_email_result else 'no accounts assigned'}). Assign email accounts first.\n\n")
-                + f"I'll launch the campaign after your approval. You can:\n"
+                + f"I'll launch after your approval. Before activating, you can:\n"
                 + f"- Review the sequence in SmartLead\n"
                 + f"- Edit any email step (tell me which to change)\n"
                 + f"- Override target companies (tell me which to add/remove)\n"
-                + f"- Say 'activate' when ready to start sending"
+                + f"- Provide feedback on the companies or sequence\n\n"
+                + f"Once satisfied, say 'activate' to start sending."
             ),
             "_links": {
                 "smartlead": smartlead_url,
@@ -1856,7 +1913,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "campaign_id": args["campaign_id"],
             "status": "ACTIVE",
             "monitoring_enabled": True,
-            "message": f"Campaign {args['campaign_id']} is now ACTIVE. Reply monitoring enabled.",
+            "message": f"Campaign {args['campaign_id']} is now ACTIVE. Reply monitoring is ON by default.\n\nI'll track replies and classify them automatically. Want me to also send Telegram notifications for warm replies?",
             "_links": {"smartlead": f"https://app.smartlead.ai/app/email-campaigns-v2/{args['campaign_id']}/analytics"},
         }
 

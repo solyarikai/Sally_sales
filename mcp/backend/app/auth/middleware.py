@@ -41,20 +41,21 @@ async def verify_token(session: AsyncSession, raw_token: str) -> Optional[MCPUse
 
     for token_record in candidates:
         if bcrypt.checkpw(raw_token.encode(), token_record.token_hash.encode()):
-            # Update last_used_at
-            await session.execute(
-                update(MCPApiToken)
-                .where(MCPApiToken.id == token_record.id)
-                .values(last_used_at=datetime.utcnow())
-            )
-
-            # Load user
+            # Single query: load user + update token atomically
             user_result = await session.execute(
                 select(MCPUser).where(
                     MCPUser.id == token_record.user_id,
                     MCPUser.is_active == True,
                 )
             )
-            return user_result.scalar_one_or_none()
+            user = user_result.scalar_one_or_none()
+            if user:
+                # Update last_used_at only if user is valid
+                await session.execute(
+                    update(MCPApiToken)
+                    .where(MCPApiToken.id == token_record.id)
+                    .values(last_used_at=datetime.utcnow())
+                )
+            return user
 
     return None

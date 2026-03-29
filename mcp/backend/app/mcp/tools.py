@@ -355,8 +355,16 @@ Iterate until GPT's results meet your quality bar.""",
         },
     },
     {
+        "name": "check_destination",
+        "description": """Check which outreach platforms are configured (SmartLead, GetSales, or both).
+MUST be called before pushing a campaign when you're not sure which platform to use.
+If both are configured, returns a question asking the user to choose.""",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "god_push_to_smartlead",
         "description": """Push an approved sequence to SmartLead as a DRAFT campaign with FULL configuration.
+IMPORTANT: You MUST call list_email_accounts first and ask the user which accounts to use before calling this tool.
 
 BEFORE calling this, you MUST:
 1. Ask the user: "Which email accounts should I use for this campaign?"
