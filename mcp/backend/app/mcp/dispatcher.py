@@ -96,9 +96,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         if not token_val.startswith("mcp_"):
             raise ValueError("Token must start with mcp_. Sign up at http://46.62.210.24:3000/setup to get one.")
         user = await _get_user(token_val, session)
-        from app.mcp.server import _session_tokens, _current_token
+        from app.mcp.server import _session_tokens, _task_tokens
+        import asyncio as _asyncio
         _session_tokens["_latest"] = token_val
-        _current_token.set(token_val)  # Set per-session context for isolation
+        _task_tokens[id(_asyncio.current_task())] = token_val  # Per-SSE-session isolation
         return {"user_id": user.id, "name": user.name, "email": user.email,
                 "message": f"Logged in as {user.name}. All tools ready."}
 
