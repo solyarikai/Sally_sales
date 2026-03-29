@@ -107,11 +107,9 @@ Hi {{first_name}},
 
 One pattern we see: agencies that give clients access to branded analytics have 40% higher retention. The client builds workflows around YOUR tool - switching cost goes up.
 
-Agencies using this playbook see 40% higher retention. Happy to show you how they set it up.
+Happy to show you how they set it up.
 
-Kind regards,
-Bhaskar Vishnu from OnSocial
-Trusted by {{social_proof}}
+Bhaskar
 
 ---
 
