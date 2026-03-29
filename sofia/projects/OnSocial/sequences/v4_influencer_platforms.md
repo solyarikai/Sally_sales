@@ -72,7 +72,7 @@ Trusted by {{social_proof}}
 
 Hi {{first_name}}, one thing worth adding.
 
-When Lefty plugged in our API, they freed 2 engineering roles that were just maintaining scrapers - and expanded from 3 to 5 social networks in a week.
+One platform that plugged in our API freed 2 engineering roles that were just maintaining scrapers - and expanded from 3 to 5 social networks in a week.
 
 If relevant for {{company_name}} - happy to walk through how they did it. 15 min.
 
