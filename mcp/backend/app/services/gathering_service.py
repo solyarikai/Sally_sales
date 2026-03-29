@@ -286,31 +286,37 @@ class GatheringService:
         errors = 0
 
         if scraper_service:
-            import asyncio as _asyncio
+            # Concurrent scraping via existing scrape_batch (asyncio.gather + semaphore)
+            # Keeps event loop responsive — other API requests won't timeout
+            batch_items = []
+            company_map = {}
             for dc in companies:
                 url = dc.website_url or f"https://{dc.domain}"
-                scrape_result = await scraper_service.scrape_website(url)
+                batch_items.append({"url": url, "row_id": dc.id})
+                company_map[dc.id] = dc
 
-                # Retry once on failure (rate limit backoff)
-                if not scrape_result["success"]:
-                    await _asyncio.sleep(2)
-                    scrape_result = await scraper_service.scrape_website(url)
-
+            async def on_result(result):
+                nonlocal scraped, errors
+                dc_id = result.get("row_id")
                 scrape_record = CompanyScrape(
-                    discovered_company_id=dc.id,
-                    url=url,
-                    scrape_status="success" if scrape_result["success"] else "error",
-                    clean_text=scrape_result.get("text"),
-                    error_message=scrape_result.get("error"),
-                    http_status_code=scrape_result.get("status_code"),
-                    text_size_bytes=len(scrape_result.get("text", "")) if scrape_result.get("text") else 0,
+                    discovered_company_id=dc_id,
+                    url=result.get("url", ""),
+                    scrape_status="success" if result.get("success") else "error",
+                    clean_text=result.get("text"),
+                    error_message=result.get("error"),
+                    http_status_code=result.get("status_code"),
+                    text_size_bytes=len(result.get("text", "")) if result.get("text") else 0,
                 )
                 session.add(scrape_record)
-
-                if scrape_result["success"]:
+                if result.get("success"):
                     scraped += 1
                 else:
                     errors += 1
+
+            await scraper_service.scrape_batch(
+                batch_items, timeout=10, max_concurrent=10,
+                delay=0.1, on_result=on_result,
+            )
         else:
             scraped = len(companies)
 
