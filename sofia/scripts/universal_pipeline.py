@@ -1153,6 +1153,10 @@ def load_sequences_from_file(config: ProjectConfig, segment_slug: str) -> list[d
             for m in pattern.finditer(text):
                 label, subject, body = m.group(1), m.group(2), m.group(3).strip()
                 body = re.sub(r'\n`\d+ words`', '', body).strip()
+                # SmartLead formatting: \n→<br>, em dash→regular dash
+                body = body.replace("\n\n", "<br><br>").replace("\n", "<br>")
+                body = body.replace("\u2014", "-").replace("\u2013", "-")  # em/en dash
+                subject = subject.replace("\u2014", "-").replace("\u2013", "-")
                 steps.append({"label": label, "subject": subject, "body": body})
             if steps:
                 print(f"  Loaded {len(steps)} steps from {full_path.name}")
