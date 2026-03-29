@@ -38,8 +38,8 @@ async def configure_integration(
         raise HTTPException(400, f"Unsupported integration: {req.integration_name}")
     if not req.api_key or len(req.api_key) < 8:
         raise HTTPException(400, "API key too short (minimum 8 characters)")
-    if len(req.api_key) > 500:
-        raise HTTPException(400, "API key too long (maximum 500 characters)")
+    if len(req.api_key) > 4000:
+        raise HTTPException(400, "API key too long (maximum 4000 characters)")
 
     # Test connection
     connected = False
