@@ -1,0 +1,61 @@
+{
+  "query": "IT consulting companies in Miami, 10-200 employees",
+  "offer": "EasyStaff \u2014 payroll, contractor management, invoice processing",
+  "targets": [
+    {
+      "domain": "synergybc.com",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Synergy Business Consulting provides managed IT staffing services and IT staff augmentation, indicating they hire contractors for projects.",
+      "website_snippet": "Managed IT Staffing Services | Synergy Business Consulting Get in touch contact@synergybc.com Contact Us Thank you for contacting us. We will get back to you as soon as possible. Oops, there was an error sending your message. Please try again later. INTEGRATING PEOPLE AND TECHNOLOGY We partner with business, technology and digital leadership IT STAFF AUGMENTATION PROFESSIONAL SERVICES NEARSHORE IT STAFFING Contact Us Thank you for contacting us. We will get back to you as soon as possible. Oops,"
+    },
+    {
+      "domain": "smxusa.com",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "SMX Services & Consulting is an IT solutions provider, suggesting they offer consulting services and likely hire contractors.",
+      "website_snippet": "SMX Services & Consulting USA - I.T. Solutions Provider"
+    },
+    {
+      "domain": "koombea.com",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Koombea offers software development services and positions itself as a strategic business partner, indicating they hire contractors for development projects.",
+      "website_snippet": "Software Development Services To Drive Your Digital Disruption Skip to Content Transforming Businesses with Innovative Software Solutions Leveraging our custom Agile development method and AI technologies, we transform mobile and web app ideas into cutting-edge realities for startups and established enterprises. Our expertise extends beyond development; we are a strategic business partner, integrating AI to drive innovation, efficiency, and competitive advantage, enhancing every aspect of your d"
+    },
+    {
+      "domain": "flatiron.software",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Flatiron Software provides custom software development services and builds AI-enabled products, suggesting they hire contractors for development.",
+      "website_snippet": "Flatiron Software | Custom Software Development Services Your AI isn\u2019t a feature. It\u2019s the future. Flatiron gives you a team that builds with AI from the ground up, scales globally, and still answers your Slack message. Let's talk business Where you've seen us Everyone\u2019s trying to build with AI. Few know how. We provide full teams that design, build, and scale AI-enabled products. We handle everything from LLM features to infrastructure, collaborating closely to ship high-quality software that a"
+    },
+    {
+      "domain": "therocketcode.com",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Rocket Code focuses on AI software and solutions development, indicating they likely hire contractors for their projects.",
+      "website_snippet": "Leading AI Software and Solutions development rocket code Services Solutions Industries Partners AWS About us Blog rocket code rocket code Services Solutions Industries Partners About us Blog EN / ES make AI work for you Looking for a quick proposal for your project? \ud83d\ude80 Start here. Consulting in AI technology implementation EN / ES successful AI implementation Coru Alpex trusted by visionaries like YOU We evolved the user experience to enhance the placement of insurance products. Our collaboratio"
+    },
+    {
+      "domain": "avalith.net",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Avalith offers software consulting and development services, indicating they hire contractors to help companies with their digital products.",
+      "website_snippet": "Home Page | Avalith Hire full time developers Remote development teams Outsource your project Make a product discovery How avalith works We\u2019re your software consulting partners We help fast-growing companies\u2019 ideas come to life through innovative, high-quality software development solutions Who is Avalith? We know that there are ambitious companies out there who have ideas for new digital products and strategies, but don\u2019t have an internal development team to carry them out. That\u2019s where we come"
+    },
+    {
+      "domain": "bluecoding.com",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Blue Coding specializes in hiring top LATAM developers and nearshore staffing, indicating they place contractors for development projects.",
+      "website_snippet": "Hire Top LATAM Developers | Blue Coding Nearshore Staffing Build Your Dream Nearshore Team Hire LATAM Developers With a True Outsourcing Partner Scale your operations with high-quality nearshore talent for 30-40% lower costs. We\u2019re here to help you build your dream IT team and grow your business! Schedule a Free Consultation Trusted by Growing Clients Around the World Partnered With Top Companies From all Industries Hire the Best Software Developers in Latin America We specialize in hiring top n"
+    }
+  ],
+  "non_targets": [
+    {
+      "domain": "shokworks.io",
+      "gpt_reasoning": "Shokworks is described as an AI-native transformation company, suggesting they build their own products and likely do not hire contractors."
+    }
+  ]
+}

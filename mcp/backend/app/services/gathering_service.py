@@ -449,22 +449,20 @@ Exclusion criteria (reject if ANY apply):
 - Company is too large (enterprise/multinational) if targeting SMB{competitor_exclusion}
 
 If NONE of these exclusions apply → the company survives. Label it as target.
+If INSUFFICIENT WEBSITE DATA to determine → reject (is_target: false, segment: INSUFFICIENT_DATA).
 {user_feedback_section}
 
 Respond ONLY with valid JSON:
 {{
   "is_target": true,
-  "confidence": 0.85,
   "segment": "{target_segment_label}",
-  "reasoning": "1-2 sentence explanation of WHY target or WHY excluded"
+  "reasoning": "1-2 sentence: what the company does and why it's target or why excluded"
 }}
 
 Rules:
-- confidence 0.8+: clear match, no exclusions triggered
-- confidence 0.5-0.79: likely match but some uncertainty
-- confidence <0.5: exclusion triggered → is_target: false
-- segment: use "{target_segment_label}" for matching companies. Use sub-segments if appropriate (e.g. {target_segment_label}_AGENCY). Use NOT_A_MATCH for rejected companies.
-- is_target: true only if confidence >= 0.6"""
+- is_target: true ONLY if NO exclusion triggered AND clear evidence from website
+- segment: use "{target_segment_label}" for matching companies. Use sub-segments if appropriate (e.g. {target_segment_label}_AGENCY). Use NOT_A_MATCH for excluded companies. Use INSUFFICIENT_DATA if website text is unreadable.
+- Be strict. When in doubt, exclude."""
 
         if not openai_key:
             logger.warning("No OpenAI key — skipping GPT analysis")
@@ -552,7 +550,7 @@ Rules:
                     continue
 
                 dc.is_target = r.get("is_target", False)
-                dc.analysis_confidence = r.get("confidence", 0)
+                dc.analysis_confidence = 1.0 if dc.is_target else 0.0
                 dc.analysis_segment = r.get("segment", "")
                 dc.analysis_reasoning = r.get("reasoning", "")
                 total_analyzed += 1
@@ -561,14 +559,12 @@ Rules:
                     targets_found += 1
                     target_list.append({
                         "dc_id": dc.id, "domain": dc.domain, "name": dc.name,
-                        "confidence": dc.analysis_confidence,
                         "segment": dc.analysis_segment,
                         "reasoning": dc.analysis_reasoning,
                     })
-                elif 0.4 <= r.get("confidence", 0) <= 0.6:
+                elif r.get("segment") == "INSUFFICIENT_DATA":
                     borderline_rejections.append({
                         "domain": dc.domain, "name": dc.name,
-                        "confidence": r.get("confidence", 0),
                         "segment": r.get("segment", ""),
                         "reasoning": r.get("reasoning", ""),
                     })

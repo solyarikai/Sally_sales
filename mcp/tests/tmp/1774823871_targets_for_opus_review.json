@@ -1,0 +1,83 @@
+{
+  "query": "IT consulting companies in Miami, 10-200 employees",
+  "offer": "EasyStaff \u2014 payroll, contractor management, invoice processing",
+  "targets": [
+    {
+      "domain": "koombea.com",
+      "name": "?",
+      "gpt_confidence": 0.9,
+      "gpt_reasoning": "Koombea provides software development services, indicating a strong alignment with IT consulting.",
+      "website_snippet": "Software Development Services To Drive Your Digital Disruption document.querySelector('html').classList.remove('no-js'); <meta name=\"twitter:description\" content=\"Koombea is your leading software development services provider for start-ups"
+    },
+    {
+      "domain": "flatiron.software",
+      "name": "?",
+      "gpt_confidence": 0.85,
+      "gpt_reasoning": "Flatiron Software specializes in custom software development, fitting the IT consulting category.",
+      "website_snippet": "Flatiron Software | Custom Software Development Services WebFont.load({ google: { families: [\"Host Grotesk:300,400,500,600,700\"] }}); !function(o,c){var n=c.documentElement,t=\" w-mod-\";n.className+=t+\"js\",(\"ontouchstart\"in o||o.DocumentTouch&&c instanceof DocumentTouch)&&(n.className+=t+\"touch\")}(window,document); { \"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Flatiron Software\", \"url\": \"/\", \"logo\": { \"@type\": \"ImageObject\", \"url\": \"https://cdn.prod.website-files.com/68243"
+    },
+    {
+      "domain": "nybblegroup.com",
+      "name": "?",
+      "gpt_confidence": 0.8,
+      "gpt_reasoning": "Nybble Group is involved in IT consulting, making it a suitable target.",
+      "website_snippet": "(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&amp;l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','GTM-WQ7M5HJ'); Innovation that transforms {\"path\":{\"baseUrl\":\"\\/\",\"pathPrefix\":\"\",\"currentPath\":\"node\\/3\",\"currentPathIsAdmin\":false,\"isFront\":true,\"currentLanguage\":\"en"
+    },
+    {
+      "domain": "therocketcode.com",
+      "name": "?",
+      "gpt_confidence": 0.75,
+      "gpt_reasoning": "Rocket Code offers software development services, aligning with IT consulting needs.",
+      "website_snippet": "<meta name=\"googlebot\" content=\"index, f"
+    },
+    {
+      "domain": "avalith.net",
+      "name": "?",
+      "gpt_confidence": 0.8,
+      "gpt_reasoning": "Avalith is positioned as an IT services provider, making it a target for contractor payroll.",
+      "website_snippet": "Home Page | Avalith {&quot;@context&quot;:&quot;https://schema.org&quot;,&quot;@type&quot;:&quot;Organization&quot;,&quot;name&quot;:&quot;Avalith&quot;,&quot;url&quot;:&quot;https://www.avalith.net/&quot;,&quot;logo&quot;:&quot;https://images.prismic.io/ava-travel/Zk313Sol0Zci9Wuf_avalith_Logomark.png?auto=format%2Ccompress&amp;rect=289%2C372%2C1343%2C336&amp;w=1920&amp;h=480&quot;,&quot;image&quot;:&quot;https://images.prismic.io/ava-travel/Zk313Sol0Zci9Wuf_avalith_Logomark.png?auto=format%2Cc"
+    },
+    {
+      "domain": "bluecoding.com",
+      "name": "?",
+      "gpt_confidence": 0.9,
+      "gpt_reasoning": "Blue Coding operates as a nearshore staffing agency, which would benefit from contractor payroll services.",
+      "website_snippet": "Hire Top LATAM Developers | Blue Coding Nearshore Staffing WebFont.load({ google: { families: [\"Roboto:300,400,500,600,700\"] }}); !function(o,c){var n=c.documentElement,t=\" w-mod-\";n.className+=t+\"js\",(\"ontouchstart\"in o||o.DocumentTouch&&c instanceof DocumentTouch)&&(n.className+=t+\"touch\")}(window,document); { \"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Blue Coding\", \"legalName\": \"Blue Coding, LLC\", \"url\": \"https://cdn.prod.website-files.com\", \"logo\": { \"@type\": \"ImageO"
+    },
+    {
+      "domain": "xpoint.tech",
+      "name": "?",
+      "gpt_confidence": 0.7,
+      "gpt_reasoning": "Xpoint Tech provides technology services, indicating a potential need for contractor management.",
+      "website_snippet": "Xpoint Tech function gtag(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],gtag(\"js\",new Date),gtag(\"config\",\"G-0C12R5RNLF\") You need to enable JavaScript to run this app. _linkedin_partner_id=\"7007346\",window._linkedin_data_partner_ids=window._linkedin_data_partner_ids||[],window._linkedin_data_partner_ids.push(_linkedin_partner_id) !function(){window.lintrk||(window.lintrk=function(n,t){window.lintrk.q.push([n,t])},window.lintrk.q=[]);var n=document.getElementsByTagName(\"scrip"
+    },
+    {
+      "domain": "shokworks.io",
+      "name": "?",
+      "gpt_confidence": 0.85,
+      "gpt_reasoning": "Shokworks focuses on scalable solutions for enterprises, aligning with IT consulting.",
+      "website_snippet": "AI Native Transformation | Scalable Solutions for Modern Enterprises SQUARESPACE_ROLLUPS = {}; (function(rollups, name) { if (!rollups[name]) { rollups[name] = {}; } rollups[name].js = [\"//assets.squarespace.com/universal/scripts-compressed/extract-css-runtime-3b36a0963c4e3cb2-min.en-US.js\"]; })(SQUARESPACE_ROLLUPS, 'squarespace-extract_css_runtime'); (function(rollups, name) { if (!rollups[name]) { rollups[name] = {}; } rollups[name].js = [\"//assets.squarespace.com/universal/scripts-compressed/"
+    },
+    {
+      "domain": "venon.solutions",
+      "name": "?",
+      "gpt_confidence": 0.75,
+      "gpt_reasoning": "Venon Solutions offers nearshoring services, which aligns with IT consulting needs.",
+      "website_snippet": "Venon Solutions - Nearshoring From Latin America {\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"WebPage\",\"@id\":\"https://venon.solutions/\",\"url\":\"https://venon.solutions/\",\"name\":\"Venon Solutions - Nearshoring From Latin America\",\"isPartOf\":{\"@id\":\"https://venon.solutions/#website\"},\"about\":{\"@id\":\"https://venon.solutions/#organization\"},\"primaryImageOfPage\":{\"@id\":\"https://venon.solutions/#primaryimage\"},\"image\":{\"@id\":\"https://venon.solutions/#primaryimage\"},\"thumbnailUrl\":\"https://venon."
+    }
+  ],
+  "non_targets": [
+    {
+      "domain": "synergybc.com",
+      "gpt_reasoning": "The company appears to be a consulting firm but lacks clear IT consulting focus."
+    },
+    {
+      "domain": "kenility.com",
+      "gpt_reasoning": "Kenility's focus is unclear, and it may not fit the IT consulting criteria."
+    },
+    {
+      "domain": "cladirect.com",
+      "gpt_reasoning": "CLAdirect does not clearly indicate an IT consulting focus."
+    }
+  ]
+}
