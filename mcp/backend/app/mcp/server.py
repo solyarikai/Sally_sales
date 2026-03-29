@@ -22,8 +22,11 @@ sse_transport = SseServerTransport("/messages")
 _session_tokens: dict[str, str] = {}
 
 # Per-task token for concurrent session isolation
-import contextvars
-_current_token: contextvars.ContextVar[str] = contextvars.ContextVar('_current_token', default='')
+# ContextVar doesn't work here because login (POST handler task) and
+# get_context (SSE handler task) run in DIFFERENT async tasks.
+# Use task ID instead — all tool calls for one SSE session share one task.
+import asyncio as _asyncio
+_task_tokens: dict[int, str] = {}  # task_id → token
 
 
 @mcp_server.list_tools()
@@ -40,12 +43,13 @@ async def list_tools() -> list[Tool]:
 
 @mcp_server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    # Token from arguments (explicit) or from context var (set per-session in main.py)
+    # Token from arguments (explicit) or from task-local store (set by login tool)
     token = arguments.pop("_token", None)
     if not token:
-        token = _current_token.get('')
+        task_id = id(_asyncio.current_task())
+        token = _task_tokens.get(task_id, '')
     if not token:
-        # Fallback: find any stored session token (last resort)
+        # Fallback: find any stored session token (last resort for single-user)
         for sid, t in _session_tokens.items():
             if t:
                 token = t
