@@ -21,7 +21,7 @@ BOT_USERNAME = "sallymcptestbot"
 PHONE = "+77014007948"
 
 # Test token (pn@getsally.io account)
-TEST_TOKEN = "mcp_2a7b5fff2660a3e5fd593480a48b9729d887d630b787cf642196551c71fc4b8f"
+TEST_TOKEN = "mcp_2fd4a59eb8a6bfb6f33caf653f4bf688bdc5fea03c41565e1f351b451a70c65d"
 
 TESTS = [
     {
@@ -34,28 +34,28 @@ TESTS = [
     {
         "name": "2. Login with token",
         "send": f"My MCP token is: {TEST_TOKEN}",
-        "expect_contains": ["logged in", "authenticated", "connected", "Petr", "pn@getsally", "Welcome"],
+        "expect_contains": ["logged in", "authenticated", "Test User", "qwe@qwe", "ready", "connected"],
         "expect_any": True,
         "wait": 15,
     },
     {
         "name": "3. Check integrations",
-        "send": "what integrations are connected?",
-        "expect_contains": ["SmartLead", "Apollo", "connected"],
+        "send": "what integrations do I have?",
+        "expect_contains": ["no", "not connected", "connect", "setup", "SmartLead", "Apollo"],
         "expect_any": True,
         "wait": 10,
     },
     {
-        "name": "4. Pipeline status",
-        "send": "what's my pipeline status?",
-        "expect_contains": ["pipeline", "run", "phase", "target"],
+        "name": "4. List projects",
+        "send": "list my projects",
+        "expect_contains": ["no project", "create", "don't have", "empty", "none"],
         "expect_any": True,
         "wait": 10,
     },
     {
-        "name": "5. List campaigns",
-        "send": "list my smartlead campaigns with petr in name",
-        "expect_contains": ["campaign", "Petr", "petr"],
+        "name": "5. Create project",
+        "send": "create a project called Test Miami targeting IT consulting in Miami",
+        "expect_contains": ["created", "project", "Test Miami", "IT"],
         "expect_any": True,
         "wait": 15,
     },
