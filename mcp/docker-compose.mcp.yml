@@ -80,7 +80,7 @@ services:
     env_file:
       - ../.env
     environment:
-      - TELEGRAM_BOT_TOKEN=8663909750:AAECM-lCx65SfJcZSDi4E8VFk2Lt4qOwei8
+      - TELEGRAM_BOT_TOKEN=8576801500:AAFu_6KYVHO9XTNVKUlOsQPGxkRVrqYWrNI
       - OPENAI_API_KEY=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
       - MCP_URL=http://mcp-backend:8000
       - REDIS_URL=redis://mcp-redis:6379/1
