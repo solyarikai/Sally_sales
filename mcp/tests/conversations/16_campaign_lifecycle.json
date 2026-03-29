@@ -1,0 +1,152 @@
+{
+  "id": "16_campaign_lifecycle",
+  "description": "User 1 (pn@getsally.io): Full campaign lifecycle — sequence generation, SmartLead push (DRAFT), test email, review, activation, reply monitoring auto-enabled. The CORE revenue flow.",
+  "user_email": "pn@getsally.io",
+  "project_name": "EasyStaff-Global",
+  "depends_on": "01_new_user_easystaff",
+
+  "preconditions": {
+    "user_authenticated": true,
+    "project_selected": "EasyStaff-Global",
+    "pipeline_has_targets": true,
+    "smartlead_key_configured": true
+  },
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "email_account_selection",
+      "description": "MCP asks which email accounts to use. User specifies eleonora accounts from 'petr' campaigns.",
+      "user_prompt": "Use the eleonora email accounts from the petr campaigns",
+      "user_prompt_variants": [
+        "For email accounts, use eleonora's accounts from the campaigns with petr in name",
+        "Same email accounts as my petr campaigns — the eleonora ones",
+        "Email accounts: eleonora from petr campaigns"
+      ],
+      "expected_tool_calls": ["list_email_accounts"],
+      "expected_behavior": {
+        "shows_available_accounts": true,
+        "accounts_from_petr_campaigns": true,
+        "response_must_contain_any": ["eleonora", "email account", "found"],
+        "response_must_not_contain": ["error"]
+      }
+    },
+    {
+      "step": 2,
+      "phase": "sequence_generation",
+      "description": "Generate campaign sequence using best practices from project knowledge.",
+      "user_prompt": "Generate the email sequence for this campaign",
+      "user_prompt_variants": [
+        "Create the outreach sequence",
+        "Build the email sequence based on our best practices",
+        "Generate sequence for the IT consulting targets"
+      ],
+      "expected_tool_calls": ["god_generate_sequence"],
+      "expected_behavior": {
+        "sequence_created": true,
+        "sequence_has_steps": true,
+        "steps_count_min": 3,
+        "response_must_contain": ["sequence", "email", "step"],
+        "names_normalized_in_subjects": true,
+        "no_shit_in_subjects": true
+      }
+    },
+    {
+      "step": 3,
+      "phase": "smartlead_push",
+      "description": "Push sequence + contacts to SmartLead as DRAFT campaign.",
+      "user_prompt": "Push this to SmartLead",
+      "user_prompt_variants": [
+        "Create the SmartLead campaign",
+        "Push to SmartLead with those email accounts",
+        "Let's create the campaign in SmartLead"
+      ],
+      "expected_tool_calls": ["god_push_to_smartlead"],
+      "expected_behavior": {
+        "campaign_created": true,
+        "campaign_status": "DRAFT",
+        "smartlead_campaign_id_returned": true,
+        "smartlead_url_returned": true,
+        "leads_uploaded_count_min": 1,
+        "segment_included_in_upload": true,
+        "normalized_name_included": true,
+        "test_email_sent_automatically": true,
+        "response_must_contain": ["DRAFT", "campaign", "SmartLead", "inbox"],
+        "response_must_not_contain": ["error", "ACTIVE"],
+        "settings_match_reference_3070919": true,
+        "timezone_matches_contact_geo": true,
+        "schedule_9_to_18": true
+      },
+      "critical_requirement": "Campaign MUST be DRAFT (not active). Test email MUST be sent to user. Settings must match reference campaign 3070919. Timing 9-18 in contact timezone."
+    },
+    {
+      "step": 4,
+      "phase": "test_email_verification",
+      "description": "User checks inbox and confirms test email received.",
+      "user_prompt": "I got the test email, looks good",
+      "user_prompt_variants": [
+        "Test email received, sequence looks great",
+        "Checked my inbox, email looks good",
+        "Got it, the test email is fine"
+      ],
+      "expected_behavior": {
+        "mcp_acknowledges_confirmation": true,
+        "mcp_asks_about_activation": true,
+        "response_must_contain_any": ["activate", "launch", "ready", "approval"]
+      }
+    },
+    {
+      "step": 5,
+      "phase": "campaign_activation",
+      "description": "User explicitly approves campaign activation.",
+      "user_prompt": "Yes, activate the campaign",
+      "user_prompt_variants": [
+        "Go ahead, launch it",
+        "Activate",
+        "Start the campaign"
+      ],
+      "expected_tool_calls": ["activate_campaign"],
+      "expected_behavior": {
+        "campaign_status_changed_to": "ACTIVE",
+        "reply_monitoring_auto_enabled": true,
+        "response_must_contain": ["activated", "campaign"],
+        "response_must_not_contain": ["error"]
+      },
+      "critical_requirement": "After activation, reply monitoring MUST be ON by default. MCP should confirm monitoring is active."
+    },
+    {
+      "step": 6,
+      "phase": "monitoring_confirmation",
+      "description": "MCP confirms reply monitoring is active. If Telegram not connected, asks to connect.",
+      "expected_behavior": {
+        "monitoring_confirmed": true,
+        "response_must_contain_any": ["monitoring", "replies", "tracking", "Telegram"],
+        "if_no_telegram_asks_to_connect": true
+      }
+    }
+  ],
+
+  "final_verification": {
+    "db_checks": [
+      "Campaign exists in SmartLead with status ACTIVE",
+      "Campaign.created_by = 'mcp' (once field added)",
+      "Campaign.monitoring_enabled = true (once field added)",
+      "Leads uploaded include segment + normalized company name",
+      "Test email log exists for this campaign",
+      "No test leads (pn@, services@) added to campaign since user IS test account — they ARE added"
+    ],
+    "ui_checks": [
+      {"page": "/campaigns", "check": "New campaign visible with ACTIVE status"},
+      {"page": "/campaigns", "check": "Campaign shows 'listening' indicator"},
+      {"page": "/pipeline/{run_id}", "check": "SmartLead campaign link (purple badge)"}
+    ],
+    "smartlead_checks": [
+      "Campaign exists in SmartLead API with correct name",
+      "Sequence has 3+ steps with proper subjects",
+      "Email accounts assigned correctly (eleonora)",
+      "Schedule: Mon-Fri 09:00-18:00 contact timezone",
+      "Tracking: disabled (no open/click tracking per reference)",
+      "Stop on reply: enabled"
+    ]
+  }
+}

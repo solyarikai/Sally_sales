@@ -27,6 +27,19 @@ export const useProject = () => useContext(ProjectCtx)
 export function getToken() { return localStorage.getItem('mcp_token') || '' }
 export function authHeaders() { return { 'X-MCP-Token': getToken(), 'Content-Type': 'application/json' } }
 
+const ROUTE_TITLES: Record<string, string> = {
+  '/': 'Pipeline — MCP LeadGen',
+  '/setup': 'Setup — MCP LeadGen',
+  '/pipeline': 'Pipeline — MCP LeadGen',
+  '/campaigns': 'Campaigns — MCP LeadGen',
+  '/crm': 'CRM — MCP LeadGen',
+  '/tasks': 'Tasks — MCP LeadGen',
+  '/projects': 'Projects — MCP LeadGen',
+  '/learning': 'Learning — MCP LeadGen',
+  '/conversations': 'Logs — MCP LeadGen',
+  '/account': 'Account — MCP LeadGen',
+}
+
 function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
   const loc = useLocation()
   const active = loc.pathname === to || (to !== '/' && to !== '/setup' && loc.pathname.startsWith(to))
@@ -38,6 +51,15 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
       textDecoration: 'none', whiteSpace: 'nowrap',
     }}>{children}</Link>
   )
+}
+
+function PageTitle() {
+  const loc = useLocation()
+  useEffect(() => {
+    const base = '/' + loc.pathname.split('/')[1]
+    document.title = ROUTE_TITLES[base] || 'MCP LeadGen'
+  }, [loc.pathname])
+  return null
 }
 
 function ProjectSelector() {
@@ -100,6 +122,7 @@ export default function App() {
       <ToastProvider>
       <ProjectCtx.Provider value={{ project, projects, setProject, reload: loadProjects }}>
         <BrowserRouter>
+          <PageTitle />
           <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: dark ? '#1e1e1e' : '#f5f5f5', color: dark ? '#d4d4d4' : '#333' }}>
             <header style={{ height: 48, borderBottom: `1px solid ${dark ? '#333' : '#e0e0e0'}`, display: 'flex', alignItems: 'center', padding: '0 16px', background: dark ? '#252526' : '#ffffff' }}>
               <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 16, textDecoration: 'none' }}>
@@ -108,7 +131,7 @@ export default function App() {
                 </div>
               </Link>
               <ProjectSelector />
-              <nav style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <nav aria-label="Main navigation" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <NavLink to="/pipeline">Pipeline</NavLink>
                 <NavLink to="/projects">Projects</NavLink>
                 <NavLink to="/campaigns">Campaigns</NavLink>
