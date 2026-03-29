@@ -1,49 +1,29 @@
 # Telegram Bot Test Results
 
-**Date**: 2026-03-29 08:11
+**Date**: 2026-03-29 08:22
 **Bot**: @sallymcptestbot
-**Results**: 7/12 passed
+**Results**: 11/12 passed
 
 ## Failures
 
-### 03. Connect SmartLead
-- **Sent**: connect smartlead with key eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5
-- **Reply**: You're logged in as Test User! 🎉  Now, let's set up your campaign. Please provide the following details: 1. Keywords 2. Location 3. Size (e.g. small, 
-- **Reason**: Expected any of: ['connected', 'SmartLead', 'campaigns found', 'success']
-
-### 04. Connect Apollo
-- **Sent**: connect apollo with key 9yIx2mZegixXHeDf6mWVqA
-- **Reply**: You're logged in as Test User! 🎉  Now, let's set up your campaign. Please provide the following details: 1. Keywords 2. Location 3. Size (e.g. small, 
-- **Reason**: Expected any of: ['connected', 'Apollo', 'success']
-
-### 05. Connect OpenAI
-- **Sent**: connect openai with key sk-proj-VKUrN5_Ut2cmuoggW_3NF0FBEk4lS3j6VRHWbNw-Zwv7p_rEWwjQhimiOzdAHreUiH9L
-- **Reply**: You're logged in as Test User! 🎉  Now, let's set up your campaign. Please provide the following details: 1. Keywords 2. Location 3. Size (e.g. small, 
-- **Reason**: Expected any of: ['connected', 'OpenAI', 'success', 'saved']
-
-### 06. Verify integrations
-- **Sent**: show my integrations
-- **Reply**: You're logged in as Test User! 🎉  Now, let's set up your campaign. Please provide the following details: 1. Keywords 2. Location 3. Size (e.g. small, 
-- **Reason**: Expected any of: ['SmartLead', 'Apollo', 'connected']
-
-### 07. Create project
-- **Sent**: create project EasyStaff Test with website easystaff.io targeting IT outsourcing companies in Miami,
-- **Reply**: Error:
-- **Reason**: Expected any of: ['created', 'project', 'EasyStaff']
+### 08. Find companies
+- **Sent**: find IT consulting companies in Miami, 5-50 employees, just 1 page
+- **Reply**: It looks like there was an issue with the project. Let me recreate the project or verify the existing one first.   Would you like me to recreate the p
+- **Reason**: Expected any of: ['gathering', 'companies', 'started', 'checkpoint', 'found', 'blacklist']
 
 ## All Results
 
 | # | Test | Status | Reply |
 |---|------|--------|-------|
 | ✓ | 01. /start | PASS | Welcome to LeadGen MCP Bot!  I help you find companies, buil... |
-| ✓ | 02. Login | PASS | You're logged in as Test User! 🎉  Now, let's set up your cam... |
-| ✗ | 03. Connect SmartLead | FAIL | You're logged in as Test User! 🎉  Now, let's set up your cam... |
-| ✗ | 04. Connect Apollo | FAIL | You're logged in as Test User! 🎉  Now, let's set up your cam... |
-| ✗ | 05. Connect OpenAI | FAIL | You're logged in as Test User! 🎉  Now, let's set up your cam... |
-| ✗ | 06. Verify integrations | FAIL | You're logged in as Test User! 🎉  Now, let's set up your cam... |
-| ✗ | 07. Create project | FAIL | Error:... |
-| ✓ | 08. Find companies | PASS | We'll create a draft campaign for IT consulting companies in... |
-| ✓ | 09. Approve checkpoint 1 | PASS | I'll create the draft campaign with the specified details. L... |
-| ✓ | 10. Check pipeline status | PASS | Your pipeline status shows no active campaigns at the moment... |
-| ✓ | 11. Check contacts | PASS | You have a total of **8,441 contacts** and **7,555 companies... |
-| ✓ | 12. Check replies | PASS | You currently have **0 warm replies** for your project **Eas... |
+| ✓ | 02. Login | PASS | You're logged in as Test User. Let's set up a campaign!   Fi... |
+| ✓ | 03. Connect SmartLead | PASS | Smartlead has been successfully connected! I found 1975 camp... |
+| ✓ | 04. Connect Apollo | PASS | Apollo has been successfully connected! What would you like ... |
+| ✓ | 05. Connect OpenAI | PASS | It seems OpenAI has been successfully connected!   If there'... |
+| ✓ | 06. Verify integrations | PASS | Here are your integrations:  1. **OpenAI**: Connected 2. **S... |
+| ✓ | 07. Create project | PASS | Project **"EasyStaff Test"** has been created. The website [... |
+| ✗ | 08. Find companies | FAIL | It looks like there was an issue with the project. Let me re... |
+| ✓ | 09. Approve checkpoint 1 | PASS | Project **"EasyStaff Test"** has been recreated successfully... |
+| ✓ | 10. Check pipeline status | PASS | Your pipeline status shows you have:  - **3 Projects**: Easy... |
+| ✓ | 11. Check contacts | PASS | You currently have **0 contacts** and **0 companies** in you... |
+| ✓ | 12. Check replies | PASS | You currently have **0 warm replies** in your database.   Is... |
