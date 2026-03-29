@@ -436,17 +436,24 @@ class GatheringService:
             competitor_exclusion = f"""
 - Company is a DIRECT COMPETITOR to {project.sender_company} ONLY if they offer the exact same product/service category (e.g. both are payroll platforms, both are CRM tools). Companies in ADJACENT industries are POTENTIAL CUSTOMERS, not competitors. An IT consulting firm is a CUSTOMER for a payroll platform, NOT a competitor."""
 
-        via_negativa_system = f"""{icp_text}
+        via_negativa_system = f"""We sell: {project.sender_company if project and project.sender_company else 'our product'}
+We're looking for: {icp_text}
+
+IMPORTANT: We are looking for companies that would BUY our product. NOT companies that do what we do.
+For example: if we sell payroll software, IT consulting firms are TARGETS (they buy payroll). Another payroll company is a COMPETITOR.
+If we sell to fashion brands, fashion brands ARE targets. A fashion resale platform like us is a COMPETITOR.
 
 Analyze the company website below using VIA NEGATIVA — focus on what RULES IT OUT.
 
 Exclusion criteria (reject if ANY apply):
+- Company is a DIRECT COMPETITOR (offers the exact same product/service as us){competitor_exclusion}
 - Company is a freelancer/solo consultant (no real team)
 - Website is a placeholder, parked domain, or under construction
-- Company is in a completely unrelated industry (e.g., restaurant, retail, personal blog)
+- Company is in a completely unrelated industry
 - Company has shut down or is clearly inactive
 - Website is not in a relevant language for the target market
-- Company is too large (enterprise/multinational) if targeting SMB{competitor_exclusion}
+- Company is too large (enterprise/multinational) if targeting SMB
+- Insufficient website data to determine what company does
 
 If NONE of these exclusions apply → the company survives. Label it as target.
 If INSUFFICIENT WEBSITE DATA to determine → reject (is_target: false, segment: INSUFFICIENT_DATA).
