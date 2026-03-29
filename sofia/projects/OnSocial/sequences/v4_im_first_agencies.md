@@ -41,7 +41,7 @@
 
 Hi {{first_name}},
 
-When a client asks for creator analytics - do they see {{company_name}}'s brand, or a screenshot from HypeAuditor?
+When a client asks "show me the data on this creator" - what does {{company_name}} show them? Your own branded report, or a screenshot from HypeAuditor?
 
 Leading agencies white-label our data as their own. Clients see the agency's tool, not ours.
 
