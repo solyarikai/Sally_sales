@@ -332,27 +332,8 @@ async def receive_webhook(
     
     if contact:
         if is_reply:
-            reply_text = _extract_reply_text(data)
-            subject = _extract_subject(data)
-            activity = ContactActivity(
-                contact_id=contact.id,
-                company_id=contact.company_id,
-                activity_type="email_replied",
-                channel="email",
-                direction="inbound",
-                source="smartlead",
-                source_id=str(lead_id) if lead_id else None,
-                subject=subject,
-                body=reply_text,
-                snippet=(reply_text or "")[:200] if reply_text else None,
-                extra_data={
-                    "campaign_id": campaign_id,
-                    "campaign_name": campaign_name,
-                    "webhook_event_id": event_id,
-                },
-                activity_at=event_time
-            )
-            session.add(activity)
+            # ContactActivity is created by the reply processor (single source of truth)
+            # — NOT here in the webhook handler. This prevents dual-creation duplicates.
             contact.last_reply_at = event_time
             contact.mark_replied("email", at=event_time)
             if contact.status in (None, "", "new", "contacted", "lead"):

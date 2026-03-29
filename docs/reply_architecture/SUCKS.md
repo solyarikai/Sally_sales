@@ -71,4 +71,12 @@ for a in activities:
 activities = deduped
 ```
 
-**Rule:** Any future data source added to `full-history` is automatically deduplicated. No per-source dedup logic needed.
+**Architecture fixes (3 layers):**
+
+**Layer 1 — Single writer:** SmartLead webhook handler NO LONGER creates ContactActivity for inbound replies. Only the reply processor creates it (with `processed_reply_id` dedup key). One writer = no dual-creation.
+
+**Layer 2 — Merge-time dedup:** `full-history` builds an `existing_keys` set from ThreadMessages BEFORE merging ContactActivity. ContactActivity records that match an existing ThreadMessage are skipped at merge time. Dedup happens at the source, not after.
+
+**Layer 3 — Safety net:** Final dedup pass on the merged list (kept as defense-in-depth for any future source).
+
+**Rule:** ContactActivity is an AUDIT LOG. ThreadMessages is the CONVERSATION DISPLAY source. `full-history` uses ThreadMessages as canonical, ContactActivity only fills gaps.

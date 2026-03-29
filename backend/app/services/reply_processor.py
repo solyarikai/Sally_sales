@@ -1622,21 +1622,15 @@ async def process_reply_webhook(
             else:
                 contact.update_platform_raw("smartlead", {"webhooks": [webhook_entry]})
             
-            # Create activity record for this reply (with dedup check)
+            # Create activity record for this reply (with dedup by processed_reply_id)
             snippet = body[:200] if body else None
             activity_at = datetime.utcnow()
-            
-            # Check for duplicate within same minute
-            minute_start = activity_at.replace(second=0, microsecond=0)
-            minute_end = activity_at.replace(second=59, microsecond=999999)
+
+            # Dedup by processed_reply_id — each ProcessedReply gets exactly one ContactActivity
             existing = await session.execute(
                 select(ContactActivity).where(
                     ContactActivity.contact_id == contact.id,
-                    ContactActivity.source == "smartlead",
-                    ContactActivity.activity_type == "email_replied",
-                    ContactActivity.activity_at >= minute_start,
-                    ContactActivity.activity_at <= minute_end,
-                    ContactActivity.snippet == snippet
+                    ContactActivity.extra_data["processed_reply_id"].as_integer() == processed_reply.id,
                 )
             )
             if not existing.scalar():
