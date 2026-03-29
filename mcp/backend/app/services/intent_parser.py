@@ -55,21 +55,14 @@ async def parse_gathering_intent(
 ) -> Dict[str, Any]:
     """Parse user's gathering query into structured segments.
 
-    Tries Gemini 2.5 Pro first (better at nuanced intent parsing),
-    falls back to GPT-4o-mini.
+    Uses GPT-4o (OpenAI) — only requires OpenAI key.
     """
     prompt = PARSE_INTENT_PROMPT.format(
         query=query,
         user_offer=user_offer or "(not provided — skip competitor exclusion)",
     )
 
-    # Try Gemini first
-    if gemini_key:
-        result = await _call_gemini(gemini_key, prompt)
-        if result:
-            return result
-
-    # Fall back to GPT-4o-mini
+    # Use OpenAI (GPT-4o for quality, GPT-4o-mini as fallback)
     if openai_key:
         result = await _call_openai(openai_key, prompt)
         if result:
