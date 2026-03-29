@@ -79,11 +79,11 @@ Hi {{first_name}}, quick follow-up.
 
 67% of brands are considering bringing influencer marketing in-house. The agencies that keep clients give them something they can't build alone - proprietary analytics under their own brand.
 
-{{social_proof}} already do this. Want me to mock up what it looks like for {{company_name}}?
+Top agencies already do this. Want me to mock up what it looks like for {{company_name}}?
 
-Bhaskar
-
-`49 words`
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by {{social_proof}}
 
 ---
 
