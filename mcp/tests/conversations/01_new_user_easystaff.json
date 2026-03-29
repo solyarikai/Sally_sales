@@ -70,6 +70,8 @@
       "step": 4,
       "phase": "api_keys",
       "description": "MCP checks integrations \u2014 asks for missing keys",
+      "user_prompt": "What API keys do I need to connect?",
+      "user_prompt_variants": ["Check my integrations", "Which services are connected?", "Show my API connections"],
       "expected_mcp_behavior": {
         "tool_calls": [
           "check_integrations"
@@ -151,6 +153,8 @@
       "step": 7,
       "phase": "gathering_execution",
       "description": "MCP runs tam_gather TWICE (different segments + geos)",
+      "user_prompt": "Go ahead and gather companies for both segments",
+      "user_prompt_variants": ["Start gathering for IT consulting and video production", "Launch the pipeline for both segments"],
       "expected_mcp_behavior": {
         "tool_calls": [
           "tam_gather",
@@ -172,6 +176,8 @@
       "step": 8,
       "phase": "pipeline_processing",
       "description": "Blacklist \u2192 CP1 \u2192 pre-filter \u2192 scrape \u2192 analyze for both runs",
+      "user_prompt": "Run the full pipeline — blacklist, scrape, and analyze all gathered companies",
+      "user_prompt_variants": ["Process the pipeline", "Run blacklist check and analysis"],
       "expected_mcp_behavior": {
         "tool_calls": [
           "tam_blacklist_check",
@@ -222,6 +228,8 @@
       "step": 10,
       "phase": "sequence_and_campaign",
       "description": "Generate sequence, push to SmartLead as DRAFT with user-selected accounts",
+      "user_prompt": "Generate the email sequence and push it to SmartLead as a draft campaign",
+      "user_prompt_variants": ["Create the sequence and campaign in SmartLead", "Build the outreach sequence and create a SmartLead draft"],
       "expected_mcp_behavior": {
         "tool_calls": [
           "god_generate_sequence",
@@ -281,6 +289,8 @@
       "step": 12,
       "phase": "pending_campaigns_check",
       "description": "MCP should mention pending DRAFT campaigns",
+      "user_prompt": "Do I have any pending campaigns? What's their status?",
+      "user_prompt_variants": ["Show my draft campaigns", "Any campaigns waiting to launch?"],
       "expected_mcp_behavior": {
         "mentions_pending_campaigns": true,
         "asks_about_activation": true,
