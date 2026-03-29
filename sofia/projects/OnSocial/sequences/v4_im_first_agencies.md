@@ -139,9 +139,7 @@ If white-label analytics aren't a priority right now - no worries. But if I'm re
 
 Either way - wishing {{company_name}} a strong Q2.
 
-Kind regards,
-Bhaskar Vishnu from OnSocial
-Trusted by {{social_proof}}
+Bhaskar
 
 ---
 
