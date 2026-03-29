@@ -264,6 +264,7 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
             "website": website,
             "sender_name": "Test",
             "sender_company": "Test Co",
+            "skip_scrape": True,  # Speed up tests — website scrape is tested elsewhere
         }
 
     if tool_name == "select_project":
@@ -446,6 +447,7 @@ async def ensure_prerequisites(test: dict, client: httpx.AsyncClient, session: U
                 "website": "https://easystaff.io/",
                 "sender_name": "Test",
                 "sender_company": "Test Co",
+                "skip_scrape": True,
             })
             if not result.get("error"):
                 pid = result.get("project_id")

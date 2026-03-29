@@ -269,10 +269,11 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         website = args.get("website")
         target_segments = args.get("target_segments") or ""
         website_context = ""
-        if website:
-            import httpx
+        skip_scrape = args.get("skip_scrape", False)
+        if website and not skip_scrape:
+            import httpx as _httpx
             try:
-                async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                async with _httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
                     resp = await client.get(website)
                     if resp.status_code == 200:
                         import re
