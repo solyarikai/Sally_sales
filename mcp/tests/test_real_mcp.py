@@ -303,20 +303,51 @@ class ConversationEngine:
         self.token = token
         self.messages: list = []
         self.full_log: list = []
+        self._active_project_id: int = None
+        self._run_ids: list = []
+        self._gate_ids: list = []
+        self._sequence_ids: list = []
+        self._campaign_ids: list = []
 
         self.system = (
-            "You are a DUMB PROXY. Your ONLY job: read the user message and call the appropriate MCP tool. "
-            "RULES: "
-            "1. ALWAYS call at least one tool for every user message. NEVER respond without calling a tool. "
-            "2. DO NOT answer from memory. DO NOT skip tool calls. DO NOT be clever. "
-            "3. If the user says 'find companies' → call tam_gather or parse_gathering_intent. "
-            "4. If the user says 'show projects' → call list_projects or get_context. "
-            "5. If the user says 'check integrations' → call check_integrations. "
-            "6. If the user mentions a URL/file → call tam_gather with appropriate source. "
-            "7. If unsure which tool → call get_context first, then the most relevant tool. "
-            "8. NEVER say 'I already have that info'. ALWAYS call the tool. "
-            "9. Keep responses to 1-2 sentences max. Just report what the tool returned. "
-            "10. You are NOT an assistant. You are a tool-calling machine."
+            "You are a TOOL CALLER. For every user message, call the BEST MATCHING tool. NEVER skip.\n"
+            "MAPPING (use this EXACT mapping, do NOT default to get_context):\n"
+            "- 'find/gather/search companies' → tam_gather\n"
+            "- 'find X in Y' with segment → parse_gathering_intent\n"
+            "- 'create project' → create_project\n"
+            "- 'select/switch project' → select_project\n"
+            "- 'show/list projects' → list_projects\n"
+            "- 'check/show integrations/API keys' → check_integrations\n"
+            "- 'list/show sources' → tam_list_sources\n"
+            "- 'list/show email accounts' → list_email_accounts\n"
+            "- 'list/show campaigns' → list_smartlead_campaigns\n"
+            "- 'reply/warm/follow-up summary' → replies_summary\n"
+            "- 'list/show warm/interested leads' → replies_list\n"
+            "- 'follow-ups needed' → replies_followups\n"
+            "- 'open in CRM/deep link' → replies_deep_link\n"
+            "- 'pipeline status' → pipeline_status\n"
+            "- 'blacklist check' → tam_blacklist_check\n"
+            "- 'approve/yes/LGTM' → tam_approve_checkpoint\n"
+            "- 'scrape/analyze/pre-filter' → tam_pre_filter OR tam_scrape OR tam_analyze (in order)\n"
+            "- 'generate sequence' → god_generate_sequence\n"
+            "- 'approve sequence' → god_approve_sequence\n"
+            "- 'push to SmartLead' → god_push_to_smartlead\n"
+            "- 'activate campaign/launch' → activate_campaign\n"
+            "- 'edit email/subject' → edit_sequence_step\n"
+            "- 'feedback/too formal/improve' → provide_feedback\n"
+            "- 'override target/is a target' → override_company_target\n"
+            "- 'cost/credits/estimate' → estimate_cost\n"
+            "- 'contacts/CRM' → query_contacts\n"
+            "- 'LinkedIn/GetSales flow' → gs_generate_flow\n"
+            "- 'approve flow' → gs_approve_flow\n"
+            "- 'push to GetSales' → gs_push_to_getsales\n"
+            "- 'sender profiles' → gs_list_sender_profiles\n"
+            "- 'import campaigns/petr campaigns' → import_smartlead_campaigns\n"
+            "- 're-analyze/custom prompt' → tam_re_analyze\n"
+            "- 'login/token' → login\n"
+            "- 'run pipeline/process/blacklist+scrape+analyze' → call tam_blacklist_check, tam_approve_checkpoint, tam_pre_filter, tam_scrape, tam_analyze in sequence\n"
+            "- 'what was I working on/status/context' → get_context\n"
+            "RULES: ALWAYS call a tool. NEVER answer from memory. Use the mapping above."
         )
 
     async def _call_mcp_tool(self, tool_name: str, tool_args: dict) -> dict:
@@ -327,9 +358,15 @@ class ConversationEngine:
             async with sse_client(MCP_SSE) as (rs, ws):
                 async with ClientSession(rs, ws) as mcp:
                     await mcp.initialize()
-                    # Login first to establish auth context
+                    # Login to establish auth context
                     await mcp.call_tool("login", arguments={"token": self.token})
-                    # Then call the actual tool
+                    # Select project if we know one (persists across fresh connections)
+                    if self._active_project_id and tool_name != "select_project":
+                        try:
+                            await mcp.call_tool("select_project", arguments={"project_id": self._active_project_id})
+                        except Exception:
+                            pass
+                    # Call the actual tool
                     result = await mcp.call_tool(tool_name, arguments=tool_args)
                     content = result.content[0].text if result.content else "{}"
                     try:
@@ -390,8 +427,35 @@ class ConversationEngine:
                 if tool_name == "login":
                     tool_args["token"] = self.token
 
+                # Fix up IDs that GPT can't know — inject from our tracked state
+                if "run_id" in tool_args and self._run_ids:
+                    tool_args["run_id"] = self._run_ids[-1]
+                if "gate_id" in tool_args and self._gate_ids:
+                    tool_args["gate_id"] = self._gate_ids[-1]
+                if "sequence_id" in tool_args and self._sequence_ids:
+                    tool_args["sequence_id"] = self._sequence_ids[-1]
+                if "campaign_id" in tool_args and self._campaign_ids:
+                    tool_args["campaign_id"] = self._campaign_ids[-1]
+                if "project_id" in tool_args and self._active_project_id:
+                    tool_args["project_id"] = self._active_project_id
+
                 # Call via REAL MCP SSE (fresh connection per tool call)
                 data = await self._call_mcp_tool(tool_name, tool_args)
+
+                # Track IDs for subsequent calls
+                if isinstance(data, dict):
+                    if data.get("active_project", {}).get("id"):
+                        self._active_project_id = data["active_project"]["id"]
+                    elif data.get("project_id"):
+                        self._active_project_id = data["project_id"]
+                    if data.get("run_id") and data["run_id"] not in self._run_ids:
+                        self._run_ids.append(data["run_id"])
+                    if data.get("gate_id") and data["gate_id"] not in self._gate_ids:
+                        self._gate_ids.append(data["gate_id"])
+                    if data.get("sequence_id") and data["sequence_id"] not in self._sequence_ids:
+                        self._sequence_ids.append(data["sequence_id"])
+                    if data.get("campaign_id") and data["campaign_id"] not in self._campaign_ids:
+                        self._campaign_ids.append(data["campaign_id"])
 
                 tools_called.append(tool_name)
                 tool_details.append({"tool": tool_name, "args": tool_args, "result": data})
@@ -475,7 +539,10 @@ def score_step(step: dict, result: dict) -> dict:
 
     for key in ("response_must_contain", "message_must_contain"):
         if key in eb:
-            full = json.dumps(result).lower()
+            # Search in full result JSON + all tool result data
+            full = json.dumps(result, default=str).lower()
+            for td in result.get("tool_details", []):
+                full += " " + json.dumps(td.get("result", {}), default=str).lower()
             for w in eb[key]:
                 t += 1
                 if w.lower() in full: p += 1
@@ -491,7 +558,9 @@ def score_step(step: dict, result: dict) -> dict:
     for key in ("response_must_contain_any", "message_must_contain_any"):
         if key in eb:
             t += 1
-            full = json.dumps(result).lower()
+            full = json.dumps(result, default=str).lower()
+            for td in result.get("tool_details", []):
+                full += " " + json.dumps(td.get("result", {}), default=str).lower()
             if any(w.lower() in full for w in eb[key]): p += 1
             else: fails["must_contain_any"] = eb[key][:3]
 
