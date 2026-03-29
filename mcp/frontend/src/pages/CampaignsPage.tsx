@@ -15,7 +15,7 @@ export default function CampaignsPage() {
     fetch(`${API}/pipeline/campaigns`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : [])
       .then(setCampaigns)
-      .catch(() => {})
+      .catch(e => console.error('Failed to load campaigns:', e))
       .finally(() => setLoading(false))
   }, [])
 
@@ -51,6 +51,12 @@ export default function CampaignsPage() {
                       <span style={{ textTransform: 'uppercase', fontWeight: 500, color: statusColor(c.status) }}>{c.status}</span>
                       {c.leads_count > 0 && <span> · {c.leads_count} leads</span>}
                       {c.timezone && <span> · {c.timezone}</span>}
+                      {c.created_by === 'mcp' && (
+                        <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontSize: 10, fontWeight: 600 }}>MCP</span>
+                      )}
+                      {c.monitoring_enabled && (
+                        <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontSize: 10, fontWeight: 600 }}>LISTENING</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -78,13 +84,26 @@ export default function CampaignsPage() {
                     </button>
                   )}
                   {c.status === 'active' && (
-                    <button onClick={async (e) => {
-                      e.stopPropagation()
-                      const r = await fetch(`${API}/pipeline/campaigns/${c.id}/pause`, { method: 'POST', headers: authHeaders() })
-                      if (r.ok) { setCampaigns(prev => prev.map(x => x.id === c.id ? {...x, status: 'paused'} : x)) }
-                    }} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, background: '#f59e0b', color: 'white', border: 'none', cursor: 'pointer' }}>
-                      Pause
-                    </button>
+                    <>
+                      <button onClick={async (e) => {
+                        e.stopPropagation()
+                        const enabled = !c.monitoring_enabled
+                        const r = await fetch(`${API}/pipeline/campaigns/${c.id}/monitoring`, {
+                          method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ enabled })
+                        })
+                        if (r.ok) { setCampaigns(prev => prev.map(x => x.id === c.id ? {...x, monitoring_enabled: enabled} : x)) }
+                      }} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: c.monitoring_enabled ? 'rgba(34,197,94,0.15)' : 'var(--bg)', color: c.monitoring_enabled ? '#22c55e' : 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                        {c.monitoring_enabled ? 'Listening' : 'Not Listening'}
+                      </button>
+                      <button onClick={async (e) => {
+                        e.stopPropagation()
+                        const r = await fetch(`${API}/pipeline/campaigns/${c.id}/pause`, { method: 'POST', headers: authHeaders() })
+                        if (r.ok) { setCampaigns(prev => prev.map(x => x.id === c.id ? {...x, status: 'paused'} : x)) }
+                      }} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, background: '#f59e0b', color: 'white', border: 'none', cursor: 'pointer' }}>
+                        Pause
+                      </button>
+                    </>
                   )}
                   <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{expanded === c.id ? '▲' : '▼'}</span>
                 </div>
@@ -106,8 +125,8 @@ export default function CampaignsPage() {
                             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Day {step.day || 0}</span>
                           </div>
                           {step.subject && <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Subject: {step.subject}</div>}
-                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', maxHeight: 60, overflow: 'hidden' }}
-                            dangerouslySetInnerHTML={{ __html: (step.body || '').replace(/<br\s*\/?>/gi, ' ').substring(0, 200) + '...' }} />
+                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', maxHeight: 60, overflow: 'hidden' }}>
+                            {(step.body || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 200) + '...'}</div>
                         </div>
                       ))}
                     </div>

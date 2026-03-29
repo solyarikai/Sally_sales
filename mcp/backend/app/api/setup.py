@@ -97,6 +97,7 @@ async def configure_integration(
         )
         session.add(setting)
 
+    await session.commit()
     return IntegrationResponse(connected=connected, message=message)
 
 

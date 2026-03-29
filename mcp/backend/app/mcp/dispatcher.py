@@ -147,8 +147,25 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             ).order_by(MCPConversationLog.created_at.desc()).limit(5)
         )).scalars().all()
 
+        # Auto-set active project if user has exactly 1
+        if len(projects) == 1 and not user.active_project_id:
+            user.active_project_id = projects[0].id
+
+        # Pending approval gates
+        pending_gates = []
+        if projects:
+            from app.models.gathering import ApprovalGate
+            gate_result = await session.execute(
+                select(ApprovalGate).where(
+                    ApprovalGate.gathering_run_id.in_([r.id for r in runs]),
+                    ApprovalGate.status == "pending",
+                )
+            )
+            pending_gates = gate_result.scalars().all()
+
         context = {
             "user": {"name": user.name, "email": user.email},
+            "active_project_id": user.active_project_id,
             "projects": [{"id": p.id, "name": p.name, "icp": (p.target_segments or "")[:100]} for p in projects],
             "pipeline_runs": [{"id": r.id, "phase": r.current_phase, "companies": r.new_companies_count, "project_id": r.project_id} for r in runs],
             "draft_campaigns": [{"id": c.id, "name": c.name, "status": c.status, "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None} for c in drafts],
@@ -163,6 +180,23 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 + "\nWhat would you like to do?"
             ),
         }
+
+        # Action items for state restoration
+        if pending_gates:
+            g = pending_gates[0]
+            context["action_required"] = {
+                "type": "checkpoint_approval",
+                "gate_id": g.id,
+                "run_id": g.gathering_run_id,
+                "checkpoint": g.gate_type,
+                "message": f"Pending checkpoint: {g.gate_type}. Approve or reject to continue.",
+            }
+        if drafts:
+            context["action_required_campaigns"] = [{
+                "id": c.id, "name": c.name, "status": "DRAFT",
+                "message": "Check test email and activate when ready.",
+            } for c in drafts]
+
         return context
 
     if tool_name == "configure_integration":
@@ -932,16 +966,18 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         except Exception as e:
             logger.warning(f"Failed to upload contacts to SmartLead: {e}")
 
-        # 7b. Always add test leads for reply testing (not in CRM, just in SmartLead)
-        test_leads = [
-            {"email": "pn@getsally.io", "first_name": "Petr", "last_name": "Test", "company_name": "TEST - DELETE", "custom_fields": {"is_test_lead": "true"}},
-            {"email": "services@getsally.io", "first_name": "Services", "last_name": "Test", "company_name": "TEST - DELETE", "custom_fields": {"is_test_lead": "true"}},
-        ]
-        try:
-            await svc.add_leads_to_campaign(campaign_id, test_leads)
-            leads_uploaded += len(test_leads)
-        except Exception as e:
-            logger.debug(f"Test leads add failed: {e}")
+        # 7b. Add test leads ONLY when the user is a known test account
+        _TEST_ACCOUNTS = {"pn@getsally.io", "services@getsally.io"}
+        if user.email in _TEST_ACCOUNTS:
+            test_leads = [
+                {"email": "pn@getsally.io", "first_name": "Petr", "last_name": "Test", "company_name": "TEST - DELETE", "custom_fields": {"is_test_lead": "true"}},
+                {"email": "services@getsally.io", "first_name": "Services", "last_name": "Test", "company_name": "TEST - DELETE", "custom_fields": {"is_test_lead": "true"}},
+            ]
+            try:
+                await svc.add_leads_to_campaign(campaign_id, test_leads)
+                leads_uploaded += len(test_leads)
+            except Exception as e:
+                logger.debug(f"Test leads add failed: {e}")
 
         # 8. Auto-send test email to the user's own email
         test_email_result = None
@@ -1791,6 +1827,17 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             raise ValueError("SmartLead not configured")
         await sl.update_campaign_status(args["campaign_id"], "START")
 
+        # Enable reply monitoring on activation
+        from app.models.campaign import Campaign as CampaignModel
+        campaign_result = await session.execute(
+            select(CampaignModel).where(CampaignModel.external_id == str(args["campaign_id"]))
+        )
+        campaign_record = campaign_result.scalar_one_or_none()
+        if campaign_record:
+            campaign_record.status = "active"
+            campaign_record.monitoring_enabled = True
+            campaign_record.created_by = "mcp"
+
         from datetime import datetime
         log = MCPUsageLog(
             user_id=user.id,
@@ -1799,6 +1846,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             extra_data={
                 "campaign_id": args["campaign_id"],
                 "user_confirmation": args["user_confirmation"],
+                "monitoring_enabled": True,
                 "timestamp": str(datetime.utcnow()),
             },
         )
@@ -1807,7 +1855,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "activated": True,
             "campaign_id": args["campaign_id"],
             "status": "ACTIVE",
-            "message": f"Campaign {args['campaign_id']} is now ACTIVE. Emails will start sending.",
+            "monitoring_enabled": True,
+            "message": f"Campaign {args['campaign_id']} is now ACTIVE. Reply monitoring enabled.",
             "_links": {"smartlead": f"https://app.smartlead.ai/app/email-campaigns-v2/{args['campaign_id']}/analytics"},
         }
 

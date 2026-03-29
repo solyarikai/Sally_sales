@@ -154,7 +154,7 @@ function PipelineRunsPage() {
   const { project } = useProject()
   useEffect(() => {
     const t = localStorage.getItem('mcp_token')
-    fetch('/api/pipeline/runs', { headers: t ? { 'X-MCP-Token': t } : {} }).then(r => r.json()).then(setRuns).catch(() => {})
+    fetch('/api/pipeline/runs', { headers: t ? { 'X-MCP-Token': t } : {} }).then(r => r.json()).then(setRuns).catch(e => console.error('Failed to load runs:', e))
   }, [])
 
   // Filter by selected project (top-left dropdown)

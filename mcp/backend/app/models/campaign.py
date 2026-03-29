@@ -20,6 +20,9 @@ class Campaign(Base):
     external_id = Column(String(255), nullable=True)  # SmartLead campaign ID
     platform = Column(String(50), server_default="smartlead")
     status = Column(String(50), server_default="draft")  # draft, active, paused, completed
+    created_by = Column(String(20), server_default="user")  # "mcp" or "user"
+    monitoring_enabled = Column(Boolean, server_default="false")
+    sequence_id = Column(Integer, ForeignKey("generated_sequences.id", ondelete="SET NULL"), nullable=True)
 
     leads_count = Column(Integer, server_default="0")
     config = Column(JSONB, nullable=True)

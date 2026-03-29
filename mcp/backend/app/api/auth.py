@@ -62,6 +62,7 @@ async def signup(req: SignupRequest, session: AsyncSession = Depends(get_session
         name="default",
     )
     session.add(token)
+    await session.commit()
 
     return SignupResponse(
         user_id=user.id,
@@ -99,6 +100,7 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_session))
         name="login",
     )
     session.add(token)
+    await session.commit()
 
     return {
         "user_id": user.id,
