@@ -1670,6 +1670,11 @@ def _load_sequences(segment: str) -> list[dict] | None:
         label, subject, body = match.group(1), match.group(2), match.group(3).strip()
         # Remove word count markers
         body = _re.sub(r'\n`\d+ words`', '', body).strip()
+        # SmartLead requires <br> for line breaks, ignores \n
+        body = body.replace("\n\n", "<br><br>").replace("\n", "<br>")
+        # Replace em dash with regular dash for email compatibility
+        subject = subject.replace("\u2014", "-")
+        body = body.replace("\u2014", "-")
         steps.append({"label": label, "subject": subject, "body": body})
 
     if steps:
