@@ -58,7 +58,7 @@ After core pipeline works with polling, upgrade to:
 ```python
 # For each connected account, register event handler:
 @client.on(events.NewMessage(incoming=True))
-async def on_new_message(event):
+async def on_new_message(event):W
     if not event.is_private: return  # skip groups
     await process_telegram_reply(...)
     await send_notification(...)
