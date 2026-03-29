@@ -391,7 +391,7 @@ cycles, you udnersantd?
 
 
    reread where you suck and first PLAN YOU STRATEGY TO OVERCOME OBVIOUS SHIT            
-                                                                                          
+                                                                                 
   1. on tests level                                                                       
   2. on real user usage level                                                             
   ps timing is adequate when it comes from reality just make sure you don't do s
@@ -405,3 +405,103 @@ cycles, you udnersantd?
   APPS: MCP AND HJERTNZER!!!!!!!! INDEPEND IN DATA!!!!!!!!! ONLY REUSAL SAME LOGIC FOR      
   BACKEND, FRONTEND WHERE POSSIBLE NOT TO OVERRRITE CODE!!!!!!!! TO ENDORSE FIXING IN ONE   
    PLACE     
+
+
+   ❯ make sure tests dir extended with conversations exampels (within already "made up" 2      
+tests users pn@getsally.io and services@getsally.io) to cover evrything according to        
+requirements_source.md and audit findings!! not remove any covnersations steps already      
+exising (aren't they cool right?) just exetnd to build perfect testing framewor to enhance  
+test-driven design! all tests-related must in tests dir and cron_build dir                  
+                                                                                            
+schduled_task_v1.md must launch all tests, write all findings, track progress, write        
+solutions suggestions and trigger fixing of everythinh found, make sure test framework is   
+awesome at whole  
+
+
+
+                        ❯ NEVER STOP UNTIL ALL BUSINESE WORKING AS PER requirements_source.md, audid29_03.md and    
+tests!!!!!!!!!!!!                                            
+                                                                                            
+ 
+
+ ❯ sending test emails mustn't be from user's feedback to do it, it must be auto flow    
+  once campsing is created before approved to launch even!!!!!!!! according to th           
+  requiemtns!!!!!! mcp must send to suser after created darft cmapin : check your inbox     
+  and approves
+
+
+
+  ❯ READ tests dir first!!!!!!!!!! there is cleraly stated: TEST REAL COVNERSATIONS NOT REST  
+SHIT!!!!!! ARE YOU STUPID?????????? ALWAYS TEST ACCORDING TO THE REAL WORLS!!!!!!!!1 DON'T  
+BE SHIT!!!!! BE GOD THAT TESTING ONLY REAL WORLD SCENARTIOUS!!!!!! ISOLATED REST TEST SHIT  
+IS GARBAGE!!!!! ACT AS GOD TO REMEMBER THE TESTING APPROACH ONCE AND ACT ACCRINGLY!!!!!!! 
+
+
+
+❯ ACT AS GOD, IF SOME TEST CASES FAIL BECAUSE OF NEDED TO CLEAN PREVIOUS TEST DATA OR SOME
+  ARCHITECTURE REALTED SHIT, SIMPLY DO IT!!!!!! ADN THEN CONTINUE TESTING AGAIN, AND FIX    
+  AGAIN - YOU UNDERSAND THE LOOP??????  
+
+───────────────────────────────────────────────────────────────────────────────────────────
+❯ i don't see that you created mcp conenctiong here! you nust test real mcp                 
+  connection!!!!!!! real mcp convestaion!!!!!!! you are opus in claude code, you almighty   
+  and defeinitely can do it   
+
+
+  ❯ what have yu checked in tests really? have you chekd contacts gathering? smarltead campaing creation? add writing   
+  files after tests pass in tests/tmp dir, files must have timestamp in names to sort them hitsoyally , EVERYTHINH    
+  EVERY SINGLE STEP MUST FROM TESTS DIR MUST BE COVERERED IN your tests : campsings created with people gathrered, test emaisl sent
+
+
+   where to see converation histories from your framweok tests?[Image #20]                   
+                                                                                            
+As you see, the tool is writing, I mean, another agent is writing to TMP tests with a test  
+case. So write your test, write this. I want, in production, I want to use this framework   
+as I find it more quick, more reliable, right? But I want to use this test files containing 
+ timestamps, also containing the name of the source, like automated framework, so that I    
+see and separate this like agent-based sheet from your sheet. And what I want you to do is  
+copy, like, okay, you tested proof of concept. Now I need you to test everything, make this 
+ framework test everything in testDir. But first make sure that you write all               
+conversations, all issues, all like happening in the test in these TMP test files, as I     
+want to read them after to be sure, like, hey, what in your tests user wrote, what MCP      
+answered to the user. You see what I need for testing? Also, for... First purpose of Dummy  
+GPT, use Anthropic API key for these tests. And make sure that, I mean, first make sure     
+that you log in all conversations from test user with MCB and that, like, it's not just MCB 
+ tool call and it's real conversation. And then if it works, then definitely use like       
+redirect schedule task V1 to launch your tests. You see, there is a framework to be         
+triggered every 30 minutes from telegram message to launch tests and fix issues. So that's  
+the final key that all, like, not the testing framework when I push you, but testing        
+framework that iterating the system always, always finding new issues, like running every   
+30 minutes, is implemented perfectly. So below is Anthropic API key, save it, not to lose,  
+save it to reuse, but use it only in testing framework for your MCB so that like how real   
+user having cloud code, for instance, or having like having opus, you know, or even test    
+it, maybe use it on dummy of not opus, but maybe some more cheap models, if... If models,   
+like, don't do shit, then use it, but make sure you, like, moved all tests, conversations,  
+there are 23 files in conversations in your testing framework, and all working properly,    
+act as a God to make it work properly, and update tests, read me if necessary. So yeah,     
+update everything if necessary, and iterate until done, don't stop until all I told you     
+done.   
+
+
+
+Claude-api-key-2903
+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
+
+
+❯ also i don't want to use agentic shit![Image #24]  better fix connection issues or whaever needed, you can fix  
+  them all!!!!!!!! to fix all 1!!!!!!!!!!!!!! i need deterministic stable reliable 100% TESTS BUT TESTING REAL      
+  CONVERSATIONS YOU SEE???????? NOT STUPID TOOLS CALLS!!!! thta's why i provided your smart claude key insated of     
+  gpt stupid one to avoid any issues on "user's agent side". TEST FRAMEWORK MUST TEST REAL USER                     
+  BEHAVIOUR!!!!!!!!!!!!!!    
+
+
+  you told "he SSE fix works — no more disconnections. But Claude is being "smart" and not calling tools when it thinks it
+  already has the answer from conversation history. This is REAL conversation behavior — Claude sees it already listed
+   projects in step 1 so it doesn't call tam_list_sources in step 4 because it remembers the answer.
+
+  The issue is the TEST EXPECTATIONS are too strict — they expect specific tools, but Claude legitimately decides it
+  doesn't need them. Let me run ALL tests now and see the real picture:"
+
+   why claude decides smth? claude (alsow clarify which model is used by api) should just copy paste the             
+  covnersationmessages from the user role to mcp while testing!! and after tests pass you !!!!!!!! you !!!!!!!!!      
+  and again i tolud you yourself = opus must verify log all issues, errors, etc   
