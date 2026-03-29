@@ -805,7 +805,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         return {"stopped": True, "final_accuracy": run.final_accuracy}
 
     # ── GOD_SEQUENCE tools ──
-    if tool_name == "god_generate_sequence":
+    if tool_name == "smartlead_generate_sequence":
         user = await _get_user(token, session)
         project = await session.get(Project, args["project_id"])
         if not project:

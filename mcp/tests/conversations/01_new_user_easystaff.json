@@ -232,7 +232,7 @@
       "user_prompt_variants": ["Create a 5-step email sequence for this project", "Build the email sequence based on our offer and targets"],
       "expected_mcp_behavior": {
         "tool_calls": [
-          "god_generate_sequence",
+          "smartlead_generate_sequence",
           "god_approve_sequence",
           "god_push_to_smartlead"
         ],
