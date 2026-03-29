@@ -356,8 +356,13 @@ def infer_args(tool_name: str, test: dict, step: dict, session: UserSession) -> 
         return {"sequence_id": session.latest_sequence_id or 1}
 
     if tool_name == "god_push_to_smartlead":
+        # email_account_ids required — use first available from session
+        account_ids = session.ctx.get("email_account_ids", [])
+        if not account_ids:
+            account_ids = [1]  # placeholder — will be resolved by the tool
         return {
             "sequence_id": session.latest_sequence_id or 1,
+            "email_account_ids": account_ids,
             "target_country": "United States",
         }
 
@@ -467,6 +472,20 @@ async def ensure_prerequisites(test: dict, client: httpx.AsyncClient, session: U
             pid = existing[0]["id"]
             print(f"  [prereq] Selecting existing project '{required_name}' (id={pid})")
             await tool_call(client, session, "select_project", {"project_id": pid})
+
+    # If test needs god_push but no approved sequence → generate + approve
+    if "god_push_to_smartlead" in tools_needed and not session.latest_sequence_id:
+        pid = session.latest_project_id
+        if pid:
+            print(f"  [prereq] Generating sequence for project {pid}...")
+            result = await tool_call(client, session, "god_generate_sequence", {"project_id": pid})
+            if not result.get("error"):
+                sid = session.latest_sequence_id
+                print(f"  [prereq] Sequence generated: id={sid}")
+                if sid:
+                    result2 = await tool_call(client, session, "god_approve_sequence", {"sequence_id": sid})
+                    if not result2.get("error"):
+                        print(f"  [prereq] Sequence {sid} approved")
 
     # If test needs edit_sequence_step but no sequence exists → generate one
     if "edit_sequence_step" in tools_needed and not session.latest_sequence_id:
