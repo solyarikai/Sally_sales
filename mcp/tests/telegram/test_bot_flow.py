@@ -21,7 +21,7 @@ BOT_USERNAME = "sallymcptestbot"
 PHONE = "+77014007948"
 
 # Test token (pn@getsally.io account)
-TEST_TOKEN = "mcp_d64cf6445d0905eea586aa4d9de4bc4e9a4119e460183a17b4552d158dedde5e"
+TEST_TOKEN = "mcp_2a7b5fff2660a3e5fd593480a48b9729d887d630b787cf642196551c71fc4b8f"
 
 TESTS = [
     {
