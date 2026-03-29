@@ -42,8 +42,11 @@ Step 4: ENRICH TOP 5 TARGETS (5 credits)
   - Apollo enrichment API → ALL labels per company
   - Extract: industries, keywords, SIC codes, NAICS codes
                     ↓
-Step 5: BUILD OPTIMIZED FILTERS (free)
-  - Original keywords + ALL enriched keywords + industry names
+Step 5: BUILD OPTIMIZED FILTERS (free, GPT-4o-mini)
+  - GPT-4o-mini filters enriched keywords via negativa:
+    KEEP: industry terms, service categories, business model descriptors
+    EXCLUDE: tech stacks (react, python), product names, frameworks, tools
+  - Only keywords RELEVANT to user's segment query are added
   - Industry names are the BIG multiplier (4x more companies)
   - Add to taxonomy for future searches
                     ↓
