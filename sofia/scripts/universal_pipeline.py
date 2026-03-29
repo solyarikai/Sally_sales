@@ -572,6 +572,72 @@ def blacklist_approved_targets(config: ProjectConfig, run_id: int):
     print(f"  Blacklist: +{len(domains)} target domains added (run #{run_id})")
 
 
+BATCH_SIZE = 500
+
+
+def create_batched_runs(config: ProjectConfig, domains: list[str],
+                        notes_prefix: str = "", batch_size: int = BATCH_SIZE) -> list[int]:
+    """Split large domain list into batched gathering runs (manual.companies.manual).
+    Backend crashes on 3000+ sites in one run — batching prevents this."""
+    batches = [domains[i:i + batch_size] for i in range(0, len(domains), batch_size)]
+    print(f"\n  Creating {len(batches)} batched runs ({len(domains)} domains, batch size {batch_size})")
+    run_ids = []
+    for i, batch in enumerate(batches):
+        label = f"{notes_prefix} batch {i+1}/{len(batches)}"
+        result = api("post", "/pipeline/gathering/start", json={
+            "project_id": config.project_id,
+            "source_type": "manual.companies.manual",
+            "filters": {"domains": batch, "source_description": label},
+            "input_mode": "structured",
+            "notes": label,
+        })
+        rid = result["id"]
+        run_ids.append(rid)
+        print(f"    Run #{rid}: {len(batch)} domains")
+        time.sleep(1)
+    return run_ids
+
+
+def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
+    """Find and approve the latest pending gate for a run."""
+    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates", raise_on_error=False)
+    if isinstance(gates, dict) and gates.get("_error"):
+        return False
+    pending = [g for g in gates if g.get("status") == "pending"]
+    if pending:
+        gate = pending[0]
+        approve_gate(gate["id"], note=f"Auto-approve batch run #{run_id}")
+        return True
+    return False
+
+
+def process_run_pipeline(config: ProjectConfig, run_id: int,
+                         prompt_text: str = None) -> dict:
+    """Process one run through full pipeline: blacklist → CP1 → pre-filter → scrape → analyze → CP2.
+    Used with create_batched_runs() — each batch of 500 companies runs through this.
+    Backend saves results incrementally, so partial progress survives crashes."""
+    print(f"\n{'─'*40}")
+    print(f"  Processing run #{run_id}")
+    print(f"{'─'*40}")
+
+    # Blacklist check
+    step2_blacklist(config, run_id)
+    # Auto-approve CP1
+    approve_pending_gate(config, run_id)
+    # Pre-filter
+    step3_prefilter(run_id)
+    # Scrape (uses api_long with polling)
+    step4_scrape(run_id)
+    # Analyze (uses api_long with polling)
+    result = step5_analyze(config, run_id, prompt_text=prompt_text)
+    # Auto-approve CP2
+    approve_pending_gate(config, run_id)
+    # Add targets to blacklist
+    blacklist_approved_targets(config, run_id)
+
+    return result
+
+
 def step6_prepare_verify(run_id: int) -> dict:
     """Prepare FindyMail verification → creates CP3 with cost estimate."""
     print(f"\n  Step 6: Prepare Verification (run #{run_id})")
