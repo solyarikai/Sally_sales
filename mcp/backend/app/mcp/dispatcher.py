@@ -154,7 +154,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         # Pending approval gates
         pending_gates = []
         if projects:
-            from app.models.gathering import ApprovalGate
             gate_result = await session.execute(
                 select(ApprovalGate).where(
                     ApprovalGate.gathering_run_id.in_([r.id for r in runs]),
@@ -1878,10 +1877,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         if not args.get("user_confirmation"):
             raise ValueError("SAFETY: user_confirmation required. Quote the user's exact words confirming activation.")
 
-        from app.services.smartlead_service import SmartLeadService
-        sl = SmartLeadService()
+        ctx = UserServiceContext(user.id, session)
+        sl = await ctx.get_smartlead_service()
         if not sl.is_configured():
-            raise ValueError("SmartLead not configured")
+            raise ValueError("SmartLead not configured. Use configure_integration to add your SmartLead API key.")
         await sl.update_campaign_status(args["campaign_id"], "START")
 
         # Enable reply monitoring on activation
