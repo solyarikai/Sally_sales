@@ -104,9 +104,7 @@ One data point: platforms that build their own creator data layer spend 4-6 mont
 
 Many platforms started with the same decision. Happy to share what they learned.
 
-Kind regards,
-Bhaskar Vishnu from OnSocial
-Trusted by {{social_proof}}
+Bhaskar
 
 ---
 
