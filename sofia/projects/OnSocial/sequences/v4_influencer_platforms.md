@@ -18,10 +18,10 @@
 
 | Region | {{social_proof}} |
 |--------|-----------------|
-| UK | Whalar and Billion Dollar Boy |
-| Germany | Zalando and Intermate |
-| France | Kolsquare, Skeepers, and Favikon |
-| India | Phyllo and KlugKlug |
+| UK | Whalar, InfluencerUK, LADbible, and Billion Dollar Boy |
+| Germany | Zalando, Linkster, Intermate, and Gocomo |
+| France | Kolsquare, Skeepers, Ykone, and Favikon |
+| India | Phyllo, KlugKlug, Qoruz, and Tonic Worldwide |
 | Australia | TRIBEGroup |
 | Spain | SAMY Alliance |
 | MENA | ArabyAds and Sociata |
