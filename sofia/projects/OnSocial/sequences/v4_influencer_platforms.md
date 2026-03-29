@@ -1,4 +1,5 @@
 # Sequence v4: INFLUENCER PLATFORMS
+
 > Segment: SaaS platforms building influencer/creator products
 > Target: CTO, VP Engineering, Head of Product, Co-Founder
 > Variable: {{social_proof}} - regional OnSocial clients
@@ -8,25 +9,29 @@
 
 ## Custom Variables (CSV columns)
 
-| Variable | Example | Source |
-|----------|---------|--------|
-| {{first_name}} | John | Apollo |
-| {{company_name}} | TRIBE | Apollo |
+
+| Variable         | Example                       | Source                   |
+| ---------------- | ----------------------------- | ------------------------ |
+| {{first_name}}   | John                          | Apollo                   |
+| {{company_name}} | TRIBE                         | Apollo                   |
 | {{social_proof}} | Whalar and Billion Dollar Boy | Region-based (see table) |
+
 
 ### Social proof by region
 
-| Region | {{social_proof}} |
-|--------|-----------------|
-| UK | Whalar, InfluencerUK, LADbible, and Billion Dollar Boy |
-| Germany | Zalando, Linkster, Intermate, and Gocomo |
-| France | Kolsquare, Skeepers, Ykone, and Favikon |
-| India | Phyllo, KlugKlug, Qoruz, and Tonic Worldwide |
-| Australia | TRIBEGroup |
-| Spain | SAMY Alliance |
-| MENA | ArabyAds and Sociata |
-| US/Canada | Modash, Captiv8, and Lefty |
-| LATAM | Modash and Captiv8 |
+
+| Region    | {{social_proof}}                                       |
+| --------- | ------------------------------------------------------ |
+| UK        | Whalar, InfluencerUK, LADbible, and Billion Dollar Boy |
+| Germany   | Zalando, Linkster, Intermate, and Gocomo               |
+| France    | Kolsquare, Skeepers, Ykone, and Favikon                |
+| India     | Phyllo, KlugKlug, Qoruz, and Tonic Worldwide           |
+| Australia | TRIBEGroup                                             |
+| Spain     | SAMY Alliance                                          |
+| MENA      | ArabyAds and Sociata                                   |
+| US/Canada | Modash, Captiv8, and Lefty                             |
+| LATAM     | Modash and Captiv8                                     |
+
 
 ---
 
@@ -138,13 +143,15 @@ Bhaskar
 
 ## Summary
 
-| Step | Day | Variant A | Variant B | Test hypothesis |
-|------|-----|-----------|-----------|-----------------|
-| Email 1 | 0 | Build vs buy question | Cost of eng hours | Which pain resonates: control or cost? |
-| Email 2 | 4 | Lefty case study (2 roles freed) | Drop a handle - live demo | Which CTA converts: story or action? |
-| Email 3 | 8 | 4-6 months stat + social proof | - | New angle: time to coverage |
-| Email 4 | 14 | Data freshness + regional coverage | - | Competitive differentiation |
-| Email 5 | 21 | Break-up + redirect | - | Last chance + referral |
+
+| Step    | Day | Variant A                          | Variant B                 | Test hypothesis                        |
+| ------- | --- | ---------------------------------- | ------------------------- | -------------------------------------- |
+| Email 1 | 0   | Build vs buy question              | Cost of eng hours         | Which pain resonates: control or cost? |
+| Email 2 | 4   | Lefty case study (2 roles freed)   | Drop a handle - live demo | Which CTA converts: story or action?   |
+| Email 3 | 8   | 4-6 months stat + social proof     | -                         | New angle: time to coverage            |
+| Email 4 | 14  | Data freshness + regional coverage | -                         | Competitive differentiation            |
+| Email 5 | 21  | Break-up + redirect                | -                         | Last chance + referral                 |
+
 
 ## SmartLead Setup
 
@@ -154,3 +161,4 @@ Bhaskar
 4. Steps 3-5: single version
 5. Timing: Day 0 → +4 → +4 → +6 → +7
 6. Upload CSV with columns: email, first_name, company_name, social_proof
+
