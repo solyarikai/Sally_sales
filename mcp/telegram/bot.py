@@ -40,24 +40,20 @@ _openai_tools: list[dict] = []
 
 
 async def load_mcp_tools():
-    """Fetch tool list from MCP server and convert to OpenAI function calling format."""
+    """Fetch tool list from MCP server REST endpoint and convert to OpenAI format."""
     global _mcp_tools, _openai_tools
     async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            f"{MCP_URL}/mcp/messages?session_id=telegram-bot",
-            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
-        )
+        resp = await client.get(f"{MCP_URL}/api/tools")
         data = resp.json()
-        _mcp_tools = data["result"]["tools"]
+        _mcp_tools = data.get("tools", [])
 
-    # Convert MCP tools to OpenAI function calling format
     _openai_tools = []
     for tool in _mcp_tools:
         _openai_tools.append({
             "type": "function",
             "function": {
                 "name": tool["name"],
-                "description": tool["description"][:500],  # OpenAI limit
+                "description": tool["description"][:500],
                 "parameters": tool.get("inputSchema", {"type": "object", "properties": {}}),
             },
         })
@@ -90,27 +86,21 @@ async def save_session(tg_user_id: int, session: dict):
 # ── MCP Client ──
 
 async def call_mcp_tool(tool_name: str, arguments: dict, mcp_token: str = None) -> dict:
-    """Call an MCP tool via HTTP POST."""
+    """Call an MCP tool via REST API."""
     headers = {"Content-Type": "application/json"}
     if mcp_token:
-        headers["Authorization"] = f"Bearer {mcp_token}"
+        headers["X-MCP-Token"] = mcp_token
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
-            f"{MCP_URL}/mcp/messages?session_id=telegram-bot",
+            f"{MCP_URL}/api/tools/call",
             headers=headers,
-            json={
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/call",
-                "params": {"name": tool_name, "arguments": arguments},
-            },
+            json={"name": tool_name, "arguments": arguments},
         )
         data = resp.json()
-        content = data.get("result", {}).get("content", [{}])
-        if content:
-            return json.loads(content[0].get("text", "{}"))
-        return {"error": "No response"}
+        if data.get("error"):
+            return {"error": data["error"]}
+        return data.get("result", {})
 
 
 # ── AI Router ──

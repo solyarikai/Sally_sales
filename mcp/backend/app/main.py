@@ -47,6 +47,50 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(setup_router, prefix="/api")
 app.include_router(pipeline_router, prefix="/api")
 
+
+# ── Direct tool call REST endpoint (for Telegram bot, no SSE needed) ──
+
+from fastapi import Header
+from pydantic import BaseModel
+from typing import Optional
+
+
+class ToolCallRequest(BaseModel):
+    name: str
+    arguments: dict = {}
+
+
+@app.get("/api/tools")
+async def list_tools_rest():
+    """List all MCP tools via REST (no SSE session needed). Used by Telegram bot."""
+    from app.mcp.tools import TOOLS
+    return {"tools": TOOLS}
+
+
+@app.post("/api/tools/call")
+async def call_tool_rest(
+    req: ToolCallRequest,
+    x_mcp_token: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Call an MCP tool via REST (no SSE session needed). Used by Telegram bot."""
+    token = ""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    elif x_mcp_token:
+        token = x_mcp_token
+
+    from app.mcp.dispatcher import dispatch_tool
+    from app.db import async_session_maker
+    async with async_session_maker() as session:
+        try:
+            result = await dispatch_tool(req.name, req.arguments, token, session)
+            await session.commit()
+            return {"result": result}
+        except Exception as e:
+            await session.rollback()
+            return {"error": str(e)}
+
 # Contacts API — compatible with main app's ContactsPage
 from app.api.contacts import router as contacts_router
 app.include_router(contacts_router, prefix="/api")
