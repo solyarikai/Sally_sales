@@ -143,11 +143,12 @@ You figure out the Apollo filters automatically. Never show filter details to th
                 "project_id": {"type": "integer", "description": "Project to gather for"},
                 "source_type": {
                     "type": "string",
-                    "enum": ["apollo.companies.api", "apollo.people.emulator", "apollo.companies.emulator",
-                             "clay.companies.emulator", "clay.people.emulator",
-                             "google_sheets.companies.manual", "csv.companies.manual", "manual.companies.manual",
-                             "csv.companies.file", "google_sheets.companies.sheet", "google_drive.companies.folder"],
-                    "description": "Source to gather from. For CSV files use 'csv.companies.file', for Google Sheets use 'google_sheets.companies.sheet', for Drive folders use 'google_drive.companies.folder'.",
+                    "enum": ["apollo.companies.api",
+                             "csv.companies.manual", "csv.companies.file",
+                             "google_sheets.companies.manual", "google_sheets.companies.sheet",
+                             "google_drive.companies.folder",
+                             "manual.companies.manual"],
+                    "description": "Source to gather from. Apollo API costs credits. CSV/Sheet/Drive/Manual are free.",
                 },
                 "target_count": {"type": "integer", "description": "How many TARGET companies the user wants. System auto-calculates pages needed."},
                 "filters": {
