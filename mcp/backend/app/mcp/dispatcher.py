@@ -358,11 +358,19 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         )
         session.add(project)
         await session.flush()
+        # P0-1: After project creation, ask about previous campaigns (for blacklist)
         return {
             "project_id": project.id,
             "name": project.name,
             "website_scraped": bool(website_context),
-            "message": f"Project '{project.name}' created." + (f" Website {website} scraped for ICP context." if website_context else " Consider providing a website URL for better sequence generation."),
+            "next_question": "Have you launched campaigns for this project before? If yes, tell me the campaign name pattern (e.g. 'campaigns with petr in name') so I can load contacts for blacklist.",
+            "message": (
+                f"Project '{project.name}' created."
+                + (f" Website {website} scraped for ICP context." if website_context else "")
+                + f"\n\nProject page: http://46.62.210.24:3000/projects"
+                + f"\n\nBefore gathering, have you launched campaigns for this project before? Tell me the campaign name pattern for blacklist."
+            ),
+            "_links": {"project": "http://46.62.210.24:3000/projects"},
         }
 
     if tool_name == "list_projects":
@@ -664,7 +672,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                    + f"\nNext step: blacklist check (free) → scrape (free) → analyze (free) → enrich top 5 (5 credits)."
                    if credits_spent > 0 else "")
             ),
-            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+            "_links": {
+                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}",
+            },
+            # P0-2: Ask about email accounts while gathering runs
+            "next_question": "While gathering runs, which email accounts should we use for the campaign? Call list_email_accounts to see your options.",
         }
         return result
 
@@ -797,13 +810,23 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "segment_distribution": scope.get("segment_distribution", {}),
             "target_list": scope.get("target_list", []),
             "borderline_rejections": scope.get("borderline_rejections", []),
+            # P0-5: Check if enough targets for 100 contacts (34 companies × 3 contacts)
+            "targets_sufficient": scope.get("targets_found", 0) >= 34,
+            "contacts_estimate": scope.get("targets_found", 0) * 3,
+            # P1-9: Suggest exploration automatically
+            "suggest_exploration": scope.get("targets_found", 0) >= 2,
             "message": (
-                f"CHECKPOINT 2: GPT-4o-mini analyzed {scope.get('total_analyzed', 0)} companies. "
-                f"TARGETS: {scope.get('targets_found', 0)} ({scope.get('target_rate', '0%')} target rate, "
-                f"avg confidence {scope.get('avg_confidence', 0):.2f}). "
-                f"Segments: {scope.get('segment_distribution', {})}. "
-                f"Review the target list below. Check for false positives. "
-                f"If accuracy < 90%, re-analyze with adjusted prompt via tam_re_analyze."
+                f"CHECKPOINT 2: Analyzed {scope.get('total_analyzed', 0)} companies. "
+                f"TARGETS: {scope.get('targets_found', 0)} ({scope.get('target_rate', '0%')} target rate). "
+                f"Segments: {scope.get('segment_distribution', {})}.\n\n"
+                + (f"Enough targets for ≈{scope.get('targets_found', 0) * 3} contacts (need 100 minimum).\n"
+                   if scope.get("targets_found", 0) >= 34
+                   else f"Only {scope.get('targets_found', 0)} targets (≈{scope.get('targets_found', 0) * 3} contacts). Need at least 34 targets for 100 contacts. Consider exploring with broader filters.\n")
+                + f"\nNext steps:\n"
+                + f"1. Approve targets → call tam_approve_checkpoint\n"
+                + f"2. Run exploration to discover better filters → call tam_explore (5 credits, finds more relevant keywords)\n"
+                + f"3. Re-analyze with adjusted prompt → call tam_re_analyze\n"
+                + f"4. If accuracy < 90%, provide feedback → call provide_feedback"
             ),
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
@@ -1300,6 +1323,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "_links": {
                 "smartlead": smartlead_url,
                 "campaigns": "http://46.62.210.24:3000/campaigns",
+                "crm": f"http://46.62.210.24:3000/crm?campaign={seq.campaign_name or ''}",
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id if 'run' in dir() else ''}",
             },
         }
