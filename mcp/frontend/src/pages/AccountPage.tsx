@@ -38,11 +38,16 @@ export default function AccountPage() {
     return null
   }
 
-  const credits = account.credits || {}
+  const costs = account.costs || {}
   const stats = account.stats || {}
   const byTool = usage?.by_tool || {}
   const recent = usage?.recent || []
   const runs = account.pipeline_runs || []
+
+  const apollo = costs.apollo || {}
+  const openai = costs.openai || {}
+  const apify = costs.apify || {}
+  const openaiModels = openai.by_model || {}
 
   return (
     <div className="max-w-3xl mx-auto p-8 space-y-8 overflow-y-auto" style={{ height: '100%' }}>
@@ -76,28 +81,64 @@ export default function AccountPage() {
         <span className="text-xs text-gray-600">{dateFrom || dateTo ? `Showing: ${dateFrom || 'start'} → ${dateTo || 'now'}` : 'All time'}</span>
       </div>
 
-      {/* Credits Overview */}
+      {/* Total Cost */}
+      <div className="border border-gray-700 rounded-lg p-5 bg-gray-800/30">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-400">Total Spend</span>
+          <span className="text-2xl font-bold text-white">${(costs.total_usd || 0).toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Cost Breakdown by Service */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Credits Used {dateFrom || dateTo ? `(${dateFrom || 'start'} → ${dateTo || 'now'})` : '(All Time)'}</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+          Costs {dateFrom || dateTo ? `(${dateFrom || 'start'} → ${dateTo || 'now'})` : '(All Time)'}
+        </h2>
         <div className="grid grid-cols-3 gap-4">
-          <CreditCard
-            label="Apollo"
-            value={credits.apollo?.total || 0}
-            detail={`Gathering: ${credits.apollo?.gathering || 0} | Discovery: ${credits.apollo?.filter_discovery || 0} (${credits.apollo?.filter_discovery_calls || 0} probes)`}
-            color="#6366f1"
-          />
-          <CreditCard
-            label="OpenAI"
-            value={credits.openai?.analysis_calls || 0}
-            detail={`${credits.openai?.analysis_calls || 0} analysis runs | ~$${((credits.openai?.analysis_calls || 0) * 0.05).toFixed(2)}`}
-            color="#10b981"
-          />
-          <CreditCard
-            label="MCP Platform"
-            value={credits.mcp?.tool_calls || 0}
-            detail="Total MCP tool calls"
-            color="#f59e0b"
-          />
+          {/* Apollo */}
+          <div className="border border-gray-700 rounded-lg p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+              <span className="text-sm font-medium">Apollo</span>
+            </div>
+            <div className="text-2xl font-bold tabular-nums">${(apollo.cost_usd || 0).toFixed(2)}</div>
+            <div className="text-xs text-gray-500 space-y-0.5">
+              <div>{apollo.credits || 0} credits total</div>
+              <div>Gathering: {apollo.gathering_credits || 0}</div>
+              <div>Enrichment: {apollo.enrichment_credits || 0}</div>
+            </div>
+          </div>
+
+          {/* OpenAI */}
+          <div className="border border-gray-700 rounded-lg p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span className="text-sm font-medium">OpenAI</span>
+            </div>
+            <div className="text-2xl font-bold tabular-nums">${(openai.total_cost_usd || 0).toFixed(4)}</div>
+            <div className="text-xs text-gray-500 space-y-0.5">
+              <div>{(openai.total_tokens || 0).toLocaleString()} tokens</div>
+              {Object.entries(openaiModels).map(([model, d]: any) => (
+                <div key={model} className="flex justify-between">
+                  <span className="text-gray-400">{model}</span>
+                  <span>{d.input_tokens?.toLocaleString()}+{d.output_tokens?.toLocaleString()} · ${d.cost_usd?.toFixed(4)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Apify */}
+          <div className="border border-gray-700 rounded-lg p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <span className="text-sm font-medium">Apify</span>
+            </div>
+            <div className="text-2xl font-bold tabular-nums">${(apify.cost_usd || 0).toFixed(2)}</div>
+            <div className="text-xs text-gray-500 space-y-0.5">
+              <div>{apify.websites_scraped || 0} websites scraped</div>
+              <div>{apify.gb_used || 0} GB proxy used</div>
+            </div>
+          </div>
         </div>
       </div>
 

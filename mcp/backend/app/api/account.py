@@ -155,6 +155,47 @@ async def get_account(
                 "created_at": str(run.created_at) if run.created_at else None,
             })
 
+    # ── OpenAI detailed costs (from usage logs with service=openai) ──
+    openai_by_model = {}
+    openai_total_cost = 0.0
+    openai_total_tokens = 0
+
+    usage_logs_q = select(MCPUsageLog.extra_data).where(
+        MCPUsageLog.user_id == user.id,
+        MCPUsageLog.action == "api_cost",
+    )
+    if date_filter_from:
+        usage_logs_q = usage_logs_q.where(MCPUsageLog.created_at >= date_filter_from)
+    if date_filter_to:
+        usage_logs_q = usage_logs_q.where(MCPUsageLog.created_at <= date_filter_to)
+
+    for (extra,) in (await session.execute(usage_logs_q)).all():
+        if not isinstance(extra, dict) or extra.get("service") != "openai":
+            continue
+        model = extra.get("model", "unknown")
+        if model not in openai_by_model:
+            openai_by_model[model] = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0}
+        openai_by_model[model]["calls"] += 1
+        openai_by_model[model]["input_tokens"] += extra.get("input_tokens", 0)
+        openai_by_model[model]["output_tokens"] += extra.get("output_tokens", 0)
+        openai_by_model[model]["cost_usd"] += extra.get("cost_usd", 0)
+        openai_total_cost += extra.get("cost_usd", 0)
+        openai_total_tokens += extra.get("total_tokens", 0)
+
+    # ── Apify costs ──
+    apify_domains = 0
+    apify_bytes = 0
+    apify_cost = 0.0
+
+    for (extra,) in (await session.execute(usage_logs_q)).all():
+        if not isinstance(extra, dict) or extra.get("service") != "apify":
+            continue
+        apify_domains += extra.get("domains_scraped", 0)
+        apify_bytes += extra.get("bytes_used", 0)
+        apify_cost += extra.get("cost_usd", 0)
+
+    apollo_cost_usd = total_apollo * 0.01  # $0.01 per credit estimate
+
     return {
         "authenticated": True,
         "user": {
@@ -163,21 +204,32 @@ async def get_account(
             "name": user.name,
         },
         "integrations": integrations,
-        "credits": {
+        "costs": {
+            "total_usd": round(apollo_cost_usd + openai_total_cost + apify_cost, 4),
             "apollo": {
-                "gathering": gathering_credits,
-                "filter_discovery": filter_discovery_credits,
-                "filter_discovery_calls": filter_discovery_calls,
-                "total": total_apollo,
-                "note": "Search: 1 credit/page (100 companies). Enrich: 1 credit/company.",
+                "credits": total_apollo,
+                "gathering_credits": gathering_credits,
+                "enrichment_credits": filter_discovery_credits,
+                "cost_usd": round(apollo_cost_usd, 4),
             },
             "openai": {
-                "analysis_calls": analysis_calls,
-                "tool_calls": total_tool_calls,
-                "note": "GPT-4o-mini: ~$0.003 per company analyzed",
+                "total_tokens": openai_total_tokens,
+                "total_cost_usd": round(openai_total_cost, 4),
+                "by_model": {
+                    model: {
+                        "calls": d["calls"],
+                        "input_tokens": d["input_tokens"],
+                        "output_tokens": d["output_tokens"],
+                        "cost_usd": round(d["cost_usd"], 4),
+                    }
+                    for model, d in openai_by_model.items()
+                },
             },
-            "mcp": {
-                "tool_calls": total_tool_calls,
+            "apify": {
+                "websites_scraped": apify_domains,
+                "bytes_used": apify_bytes,
+                "gb_used": round(apify_bytes / (1024**3), 3) if apify_bytes else 0,
+                "cost_usd": round(apify_cost, 4),
             },
         },
         "stats": {

@@ -58,7 +58,40 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 token = t
                 break
     try:
+        # Reset cost tracker per tool call
+        from app.services.cost_tracker import reset_tracker, get_tracker
+        reset_tracker()
+
         result = await dispatch_tool(name, arguments, token, None)
+
+        # Flush cost entries to DB
+        tracker = get_tracker()
+        if tracker.entries:
+            try:
+                from app.db.database import async_session_maker
+                from app.models.usage import MCPUsageLog
+                from app.models.user import MCPUser
+                from sqlalchemy import select
+                async with async_session_maker() as s:
+                    # Resolve user_id from token
+                    user_id = None
+                    if token:
+                        from app.auth.middleware import _hash_token
+                        th = _hash_token(token)
+                        from app.models.integration import MCPApiToken
+                        row = (await s.execute(select(MCPApiToken.user_id).where(MCPApiToken.token_hash == th))).scalar()
+                        user_id = row
+                    for entry in tracker.entries:
+                        s.add(MCPUsageLog(
+                            user_id=user_id or 0,
+                            action="api_cost",
+                            tool_name=name,
+                            extra_data=entry,
+                        ))
+                    await s.commit()
+            except Exception as ce:
+                logger.debug(f"Cost tracking flush failed: {ce}")
+
         return [TextContent(type="text", text=json.dumps(result, default=str))]
     except Exception as e:
         logger.error(f"Tool {name} failed: {e}", exc_info=True)
