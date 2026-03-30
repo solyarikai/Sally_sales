@@ -661,7 +661,17 @@ export function ContactsPage() {
       sortable: true,
       width: 80,
       cellRenderer: (params: { value: string }) => {
-        const label = params.value === 'smartlead' ? 'Email' : params.value === 'getsales' ? 'LinkedIn' : (params.value || '-');
+        const v = (params.value || '').toLowerCase();
+        const hasSL = v.includes('smartlead');
+        const hasGS = v.includes('getsales');
+        const hasTG = v.includes('telegram');
+        const hasCal = v.includes('calendly');
+        const parts: string[] = [];
+        if (hasSL) parts.push('Email');
+        if (hasGS) parts.push('LinkedIn');
+        if (hasTG) parts.push('Telegram');
+        if (hasCal) parts.push('Calendly');
+        const label = parts.length > 0 ? parts.join(' + ') : (params.value || '-');
         return <span className="text-xs">{label}</span>;
       },
     },

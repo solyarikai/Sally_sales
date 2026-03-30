@@ -362,7 +362,7 @@ async def _build_filtered_query(
         elif len(statuses) > 1:
             query = query.where(Contact.status.in_(statuses))
     if source:
-        query = query.where(Contact.source == source)
+        query = query.where(Contact.source.contains(source))
     if source_id:
         query = query.where(Contact.source_id == source_id)
     if has_replied is not None:
