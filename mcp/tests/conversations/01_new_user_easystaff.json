@@ -1,9 +1,9 @@
 {
   "id": "01_default_smartlead_flow",
   "description": "FULL DEFAULT FLOW per REALITY_TEST_PLAN: onboarding > project > filters preview > gathering > exploration > iterations > campaign > replies",
-  "user_email": "test4@getsally.io",
+  "user_email": "test6@getsally.io",
   "user_password": "testtest123",
-  "user_token": "mcp_13ca4093381b847d8664eb3c7842fb022d8a551d18693249f03bf0e6903ab039",
+  "user_token": "mcp_2640f23d2756010ffaaa1a6ff2fbf801d45214743a58353524bb44867a2fbd5c",
   "project_name": "EasyStaff",
   "steps": [
     {
@@ -20,7 +20,7 @@
     {
       "step": 2,
       "phase": "1.2_login",
-      "user_prompt": "Here is my token: mcp_13ca4093381b847d8664eb3c7842fb022d8a551d18693249f03bf0e6903ab039",
+      "user_prompt": "Here is my token: mcp_2640f23d2756010ffaaa1a6ff2fbf801d45214743a58353524bb44867a2fbd5c",
       "expected_tool_calls": ["login"],
       "expected_behavior": {
         "response_must_contain_any": ["apollo", "smartlead", "openai", "key", "setup"]

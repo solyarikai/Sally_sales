@@ -450,12 +450,24 @@ class GatheringService:
             competitor_exclusion = f"""
 - Company is a DIRECT COMPETITOR to {project.sender_company} ONLY if they offer the exact same product/service category (e.g. both are payroll platforms, both are CRM tools). Companies in ADJACENT industries are POTENTIAL CUSTOMERS, not competitors. An IT consulting firm is a CUSTOMER for a payroll platform, NOT a competitor."""
 
-        via_negativa_system = f"""We sell: {project.sender_company if project and project.sender_company else 'our product'}
-We're looking for: {icp_text}
+        # Build clear offer description (not just company name)
+        offer_description = project.sender_company or "our product"
+        if project.target_segments:
+            # Extract actual offer from target_segments (before the website dump)
+            offer_parts = (project.target_segments or "").split("Company website", 1)[0].strip()
+            if offer_parts and len(offer_parts) > 10:
+                offer_description = offer_parts[:300]
 
-IMPORTANT: We are looking for companies that would BUY our product. NOT companies that do what we do.
-For example: if we sell payroll software, IT consulting firms are TARGETS (they buy payroll). Another payroll company is a COMPETITOR.
-If we sell to fashion brands, fashion brands ARE targets. A fashion resale platform like us is a COMPETITOR.
+        via_negativa_system = f"""OUR PRODUCT: {offer_description}
+TARGET SEGMENT: {icp_text}
+
+CRITICAL RULE: Companies in the TARGET SEGMENT are our CUSTOMERS — they would BUY our product.
+They are NOT our competitors. Our competitors are OTHER companies that sell the SAME product as us.
+
+Example: If we sell payroll software, then IT consulting firms = CUSTOMERS (they buy payroll).
+Only another payroll software company = COMPETITOR.
+
+DO NOT confuse customers with competitors. The TARGET SEGMENT companies = CUSTOMERS.
 
 Analyze the company website below using VIA NEGATIVA — focus on what RULES IT OUT.
 
