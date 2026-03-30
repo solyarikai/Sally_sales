@@ -63,7 +63,11 @@ The response shows: project name, ICP, active campaigns, and which companies are
     },
     {
         "name": "create_project",
-        "description": "Create a new sales project. BEFORE calling this, you MUST know the user's offer — ask for their company website or a description of what they sell. Without this, sequences will be generic garbage. Scrape the website if provided.",
+        "description": """Create a new project from the user's website.
+
+WHEN USER SAYS: "easystaff.io", "our website is X", "we sell Y" → call THIS with website=URL.
+The website is scraped to extract offer/value proposition. This is REQUIRED before gathering.
+AFTER creating project, ask: "Have you launched campaigns for this project before?" (ONE question only).""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -103,19 +107,8 @@ The response shows: project name, ICP, active campaigns, and which companies are
     # ── Intent Parsing ──
     {
         "name": "parse_gathering_intent",
-        "description": """ALWAYS call this BEFORE tam_gather. Parses user's natural language query into structured segments.
-
-Handles:
-- Multi-segment queries: "IT consulting and media production" → 2 pipelines
-- Geo extraction: "companies in Miami" → geo context
-- Competitor exclusion: if user's website is known, auto-excludes competitors
-- Segment labeling: generates CAPS_LOCKED labels matching user's terminology
-
-If pipelines_needed > 1, call tam_gather SEPARATELY for each segment.
-
-Example: "find IT consulting and media production companies in Miami"
-→ {segments: [{label: "IT_CONSULTING", ...}, {label: "MEDIA_PRODUCTION", ...}], pipelines_needed: 2}
-→ You call tam_gather twice, once per segment""",
+        "description": """INTERNAL: Parse multi-segment queries. Usually you DON'T need to call this — tam_gather handles it automatically.
+Only call explicitly when user provides 2+ DIFFERENT segments in one message (e.g. "IT consulting Miami AND fashion brands Italy") and you need to confirm how many pipelines to run.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -644,7 +637,11 @@ Returns contacts + a CRM link with filters applied so the user can view them in 
     },
     {
         "name": "import_smartlead_campaigns",
-        "description": "Import contacts from SmartLead campaigns into MCP CRM as blacklist. The user tells you which campaigns to import — by name prefix, tags, or exact names. This loads their existing contacts so the pipeline knows who NOT to gather again.",
+        "description": """Import previous campaigns into blacklist.
+
+WHEN USER SAYS: "campaigns with petr", "I launched X before", "previous campaigns include Y" → call THIS.
+Loads existing contacts so pipeline knows who NOT to gather again.
+Pass rules.contains=["petr"] if user says "campaigns with petr in name".""",
         "inputSchema": {
             "type": "object",
             "properties": {
