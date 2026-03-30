@@ -156,8 +156,12 @@ We sell: {offer}
 FIRST: eliminate all industries that are clearly wrong (different business entirely).
 THEN: from remaining, pick ALL that are DIRECTLY relevant (typically 2-4).
 Include the core industry AND adjacent industries where target companies would also list themselves.
-More relevant industries = broader Apollo coverage = more target companies found.
-But EXCLUDE generic catch-all industries like "internet", "information services", "consumer services" — they contain millions of unrelated companies and dilute results. Only include those if the segment IS specifically about internet/information/consumer services.
+
+CRITICAL FILTER — for each industry you consider, ask:
+"Does this industry describe WHAT the target companies DO, or just HOW they operate?"
+- Industries describing the business activity (consulting, fashion, advertising) = GOOD
+- Industries describing the medium/channel (internet, information, consumer) = TOO BROAD, skip
+Only include an industry if it narrows the search to companies that DO the specific business you're looking for.
 
 Return JSON: {{"industries": ["exact name 1", "exact name 2", "exact name 3"]}}"""
 
@@ -211,29 +215,20 @@ Put ALL in "unverified_keywords" (they haven't been verified against Apollo yet)
 Leave "keywords" empty."""
 
     prompt = f"""You map business queries to Apollo.io search filters.
-Select ONLY from the lists provided. Never invent industry names.
+Select ONLY from the lists provided. Never invent.
 
 User's segment: {query}
 User's product: {offer}
 
-STEP 1 — INDUSTRIES
-Pick 2-4 from this EXACT list (these are Apollo's industry categories):
-{json.dumps(industries)}
-
-FIRST: eliminate all industries that are clearly wrong for this segment.
-THEN: from remaining, pick 2-4 that are MOST DIRECTLY relevant.
-IMPORTANT: generic catch-all industries like "internet", "information services", "consumer services" contain millions of unrelated companies — only include if the segment IS specifically about internet/information/consumer services.
-
 {keyword_section}
 
-STEP 3 — EMPLOYEE SIZE
+EMPLOYEE SIZE
 Pick 1-3 ranges that match the typical BUYER of this product.
 Available ranges: {json.dumps(employee_ranges)}
-Think: what size companies would buy "{offer[:100]}"?
+Think: what size companies would buy this product?
 
 Return ONLY valid JSON:
-{{"industries": ["exact industry 1", "exact industry 2"],
-  "keywords": ["exact keyword from list"],
+{{"keywords": ["exact keyword from list"],
   "unverified_keywords": ["suggested keyword not in list"],
   "employee_ranges": ["11,50", "51,200"]}}"""
 
