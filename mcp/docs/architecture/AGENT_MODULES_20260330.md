@@ -152,7 +152,7 @@ if "api" in source_type and not args.get("confirm_filters"):
 
 | Field | Value |
 |-------|-------|
-| **Model** | gpt-4o-mini |
+| **Model** | gpt-4.1-mini |
 | **Single task** | Select which NEW keywords (from enrichment) to ADD to search filters |
 | **Input** | Original keywords + new keywords discovered from top 5 targets + segment |
 | **Output** | Optimized keyword_tags list (original + selected new ones) |
@@ -303,6 +303,6 @@ Enrich examples (tam_enrich_from_examples) → discover real Apollo keywords
 | A3 | Prompt Creator | gpt-4.1-mini | Craft domain-specific via negativa rules |
 | A4 | Company Classifier | gpt-4o-mini | Apply rules to N companies → target/not-target |
 | A5 | Sequence Generator | gpt-4o-mini | Create email sequence from offer + patterns |
-| A6 | Filter Optimizer | gpt-4o-mini | Select new keywords from enrichment data |
+| A6 | Filter Optimizer | gpt-4.1-mini | Select relevant keywords from enrichment, reject noise |
 | U1 | File Processor | Opus (user) | Read large docs → structured JSON |
 | U2 | Quality Reviewer | Opus (user) | Review targets → corrections |
