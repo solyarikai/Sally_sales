@@ -177,3 +177,10 @@ inputs for that agent. So how better to, how to better make it? Uh, I mean, we a
 using cheap OpenAI models for low costs, but... Each GPT can be good in case it's    
 solving only one task. Decide yourself, think as God, think about state-of-the-art   
 approach for the systems we are building. 
+
+
+❯ update your document with archutecture, then think crtically about plan in plans   
+dir that another agent implements now[Image #20] and think critically about existing 
+ testing approach in tests dir, update architecture docs if neccessary and MAINLY    
+ADD NEW FILE WITH GOD LEVEL IMPLMENENTATION PLAN WITH ALL REQUIREMENTS COVERED, all  
+use caes from default_reqeruiemtns.md files and exploration.md files       

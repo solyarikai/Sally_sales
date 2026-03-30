@@ -12,10 +12,11 @@
     },
     "apparel & fashion": {
       "embedding": null,
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "Fashion brands",
-        "TFP Fashion brands Italy"
+        "TFP Fashion brands Italy",
+        "fashion"
       ]
     },
     "architecture & planning": {
@@ -245,7 +246,7 @@
     },
     "information technology & services": {
       "embedding": null,
-      "seen_count": 12,
+      "seen_count": 17,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -321,10 +322,11 @@
     },
     "marketing & advertising": {
       "embedding": null,
-      "seen_count": 7,
+      "seen_count": 10,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "mechanical or industrial engineering": {
@@ -582,42 +584,42 @@
   },
   "keywords": {
     "rhodes & rhosync development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "android development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "html css js": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "mobile design": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "saas b2b": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "web design": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -625,114 +627,115 @@
       ]
     },
     "mobile development": {
-      "seen_count": 6,
+      "seen_count": 9,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "software as a service": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "ios development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "ux design": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "web applications": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "saas": {
-      "seen_count": 5,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "roadmap strategy": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "mobile applications": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "ruby on rails": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "enterprise solutions": {
-      "seen_count": 4,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "it services & it consulting": {
-      "seen_count": 8,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "agile development": {
       "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
+    "it services & it consulting": {
+      "seen_count": 11,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "agile development": {
+      "seen_count": 7,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
     "hitech": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "ux/ui design": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "devops": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "technology consulting": {
-      "seen_count": 9,
+      "seen_count": 12,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -740,24 +743,25 @@
       ]
     },
     "b2b": {
-      "seen_count": 18,
+      "seen_count": 24,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "cloud infrastructure": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "consulting": {
-      "seen_count": 11,
+      "seen_count": 15,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -766,51 +770,52 @@
       ]
     },
     "ai solutions": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "big data analytics": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "services": {
-      "seen_count": 20,
+      "seen_count": 27,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "app maintenance": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "emerging technologies": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "automated testing": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "digital innovation": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -818,166 +823,172 @@
       ]
     },
     "nft marketplace development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "web development": {
-      "seen_count": 8,
+      "seen_count": 12,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "virtual reality integration": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "retail": {
-      "seen_count": 21,
+      "seen_count": 26,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "fashion"
       ]
     },
     "software lifecycle management": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "wordpress development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "industry-specific solutions": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "agile methodology": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "b2c": {
-      "seen_count": 22,
+      "seen_count": 27,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "fashion"
       ]
     },
     "web app development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "e-commerce": {
-      "seen_count": 24,
+      "seen_count": 29,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "fashion"
       ]
     },
     "project rescue": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "continuous integration": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "scalable solutions": {
-      "seen_count": 6,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "aws": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "custom software development": {
       "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
-    "software modernization": {
+    "aws": {
       "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
+    "custom software development": {
+      "seen_count": 12,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "software modernization": {
+      "seen_count": 5,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
     "custom software": {
-      "seen_count": 7,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "cross-platform app": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "iot": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "certified developers": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "software development": {
-      "seen_count": 14,
+      "seen_count": 18,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -986,35 +997,35 @@
       ]
     },
     "ar in enterprise": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "legacy system upgrade": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "blockchain": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "digital product development": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "information technology and services": {
-      "seen_count": 10,
+      "seen_count": 14,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1022,135 +1033,136 @@
       ]
     },
     "remote development team": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "contentful development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "enterprise software": {
-      "seen_count": 12,
+      "seen_count": 18,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "ar development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "ecommerce solutions": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "software testing": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "stripe payment integration": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "native app development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "regulatory compliance": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "cybersecurity services": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "startup app development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "product strategy": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "ui/ux optimization": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "aws cloud services": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "shopify development": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "devops services": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "ai-powered workflows": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "technology partner": {
       "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
+    "aws cloud services": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "shopify development": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "devops services": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "ai-powered workflows": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "technology partner": {
+      "seen_count": 5,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
     "digital transformation": {
-      "seen_count": 13,
+      "seen_count": 17,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1159,42 +1171,42 @@
       ]
     },
     "fintech": {
-      "seen_count": 6,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "cloud computing": {
-      "seen_count": 9,
+      "seen_count": 13,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "software consulting": {
-      "seen_count": 6,
+      "seen_count": 9,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "ai integration": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "custom api development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "mobile app development": {
-      "seen_count": 8,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1203,279 +1215,282 @@
       ]
     },
     "medtech": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "staff augmentation": {
-      "seen_count": 8,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "d2c": {
-      "seen_count": 19,
+      "seen_count": 23,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "fashion"
       ]
     },
     "digital asset management": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "quality assurance": {
-      "seen_count": 9,
+      "seen_count": 13,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
-        "TFP Fashion brands Italy"
+        "TFP Fashion brands Italy",
+        "fashion"
       ]
     },
     "microservices architecture": {
-      "seen_count": 5,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "virtual reality": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "it consulting": {
-      "seen_count": 7,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "edtech": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "mvp development": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "computer systems design and related services": {
-      "seen_count": 9,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "disaster recovery": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "iot app development": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "machine learning": {
       "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
-    "saas development": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "blockchain consulting": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "data security": {
+    "virtual reality": {
       "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
-    "innovation": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "cross-platform development": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "hybrid mobile apps": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "enterprise app development": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "e-commerce solutions": {
-      "seen_count": 4,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "project-based development": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "managed services": {
-      "seen_count": 4,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "software maintenance": {
-      "seen_count": 4,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "application support": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "rescue projects": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "custom software solutions": {
-      "seen_count": 5,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "ai development": {
-      "seen_count": 4,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "project management": {
+    "it consulting": {
       "seen_count": 10,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
-    "product discovery": {
-      "seen_count": 5,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "minimum viable product (mvp)": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "tech stack": {
+    "edtech": {
       "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
+    "mvp development": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "computer systems design and related services": {
+      "seen_count": 13,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "disaster recovery": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "iot app development": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "machine learning": {
+      "seen_count": 8,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "saas development": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "blockchain consulting": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "data security": {
+      "seen_count": 5,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "innovation": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "cross-platform development": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "hybrid mobile apps": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "enterprise app development": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "e-commerce solutions": {
+      "seen_count": 5,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "project-based development": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "managed services": {
+      "seen_count": 6,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "software maintenance": {
+      "seen_count": 6,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "application support": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "rescue projects": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "custom software solutions": {
+      "seen_count": 7,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "ai development": {
+      "seen_count": 6,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "project management": {
+      "seen_count": 14,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "product discovery": {
+      "seen_count": 7,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "minimum viable product (mvp)": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "tech stack": {
+      "seen_count": 6,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
     "programming languages": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "react": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "angular": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "php development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "cloud application development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "content management systems": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1484,63 +1499,63 @@
       ]
     },
     "blockchain solutions": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "nearshore development": {
-      "seen_count": 4,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "it security management": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "business intelligence": {
-      "seen_count": 5,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "custom themes": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "digital product design": {
-      "seen_count": 3,
-      "segments": [
-        "EasyStaff IT consulting Miami",
-        "IT consulting"
-      ]
-    },
-    "consulting services": {
       "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
+    "it security management": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "business intelligence": {
+      "seen_count": 6,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "custom themes": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "digital product design": {
+      "seen_count": 4,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
+    "consulting services": {
+      "seen_count": 8,
+      "segments": [
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
+      ]
+    },
     "client collaboration": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "data analytics": {
-      "seen_count": 8,
+      "seen_count": 10,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1549,21 +1564,21 @@
       ]
     },
     "healthcare": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "finance": {
-      "seen_count": 8,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "education": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1572,63 +1587,70 @@
       ]
     },
     "consumer products & retail": {
-      "seen_count": 18,
+      "seen_count": 23,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "fashion"
       ]
     },
     "information technology & services": {
-      "seen_count": 32,
+      "seen_count": 41,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "fashion"
       ]
     },
     "mobile": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "internet": {
-      "seen_count": 27,
+      "seen_count": 34,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "fashion"
       ]
     },
     "computer software": {
-      "seen_count": 12,
+      "seen_count": 18,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "mobile apps": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "management consulting": {
-      "seen_count": 10,
+      "seen_count": 14,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1636,87 +1658,92 @@
       ]
     },
     "enterprises": {
-      "seen_count": 12,
+      "seen_count": 18,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "internet infrastructure": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "consumer internet": {
-      "seen_count": 27,
+      "seen_count": 34,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "fashion"
       ]
     },
     "consumers": {
-      "seen_count": 27,
+      "seen_count": 34,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "fashion"
       ]
     },
     "finance technology": {
-      "seen_count": 6,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "financial services": {
-      "seen_count": 9,
+      "seen_count": 12,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "e-learning": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "education management": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "artificial intelligence": {
-      "seen_count": 6,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "computer & network security": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "design": {
-      "seen_count": 8,
+      "seen_count": 10,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1726,21 +1753,21 @@
       ]
     },
     "productivity": {
-      "seen_count": 10,
+      "seen_count": 14,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "analytics": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "health care": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1749,14 +1776,14 @@
       ]
     },
     "health, wellness & fitness": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "hospital & health care": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -2408,7 +2435,7 @@
       ]
     },
     "operational efficiency": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -2433,7 +2460,7 @@
       ]
     },
     "customer experience": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -2498,13 +2525,14 @@
       ]
     },
     "distribution": {
-      "seen_count": 12,
+      "seen_count": 13,
       "segments": [
         "EasyStaff IT consulting Miami",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "fashion"
       ]
     },
     "transportation & logistics": {
@@ -2514,1184 +2542,1184 @@
       ]
     },
     "it outsourcing": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "project based solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "recruitment process outsourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "technology staff augmentation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "sow": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "statement of work  project based solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "outsourcing/offshoring": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "outsourced engineering teams": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "staffing recruitment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "wordpress": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "net": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "project managment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "php": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "larvel": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "it staffing recruitment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ruby on rails development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "extended teams": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore staff augmentation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "custom development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "devops consulting": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software project management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development resource management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development services": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software project outsourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development strategy": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america software talent pool expansion": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "managed teams": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america software ecosystem": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "remote hiring": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development talent pool": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software for startups": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america software companies": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america software development hub": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america software solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "cost-effective it solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development efficiency": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development workflow": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "remote software teams": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software development outsourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development quality assurance": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software talent pool": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "cloud solutions": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "latin america software quality assurance": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software recruitment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software industry": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development lifecycle": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "software development consulting": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore engineering": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "software development management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "agile software development": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "latin america software innovation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development best practices": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development testing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development recruitment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software strategy": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software outsourcing companies": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore outsourcing": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "nearshore software talent acquisition": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "it staffing and recruitment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software engineering": {
-      "seen_count": 6,
+      "seen_count": 9,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "nearshore software solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software teams": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software partners": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software engineering": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software lifecycle": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "offshore software": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development frameworks": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development methodology": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development deployment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america software industry": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development project success": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development in latam": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software for enterprises": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam tech talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software project success": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development support": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "latam software developers": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development tools": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software development expertise": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development scalability": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development for smbs": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development risk management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development cost reduction": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development for startups": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "bot latam": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software outsourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software process": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software talent sourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development for enterprises": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development lifecycle management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software collaboration": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software talent acquisition": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development process improvement": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software development strategy": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software project management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore it talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development outsourcing companies": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development team building": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin american it outsourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development transparency": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development expertise": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software project": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin american it talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software expertise": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development outsourcing benefits": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development outsourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "cost savings in software development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development platforms": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "it staff augmentation": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "software development collaboration tools": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore bot services": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development productivity": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development industry": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore it services": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development teams": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software team building": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "cost-efficient development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore development center": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america tech outsourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america tech talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software development cost": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development innovation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software talent network": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software industry growth": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software partnership": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development nearshore": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america developers": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software engineering talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software scalability": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software project delivery": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "outsourcing and offshoring": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software talent sourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america software talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "offshore outsourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america nearshore teams": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "team building in software": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development team collaboration": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development team management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software outsourcing": {
-      "seen_count": 6,
+      "seen_count": 9,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "software development quality": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software outsourcing solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development collaboration": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development cost savings": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development maintenance": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development project planning": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development partners": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software recruitment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development process": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latin america it talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam software engineering talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software for smbs": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development communication": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software collaboration": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "nearshore software delivery": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "remote development teams": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "nearshore software development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "latam developers": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "talent sourcing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "dedicated development team": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "software development solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "flexible hiring": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "remote team management": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "technical vetting": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "candidate recruitment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "cost-effective development": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "legacy software modernization": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "full-cycle development": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "agile methodologies": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "scrum process": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "front-end development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "back-end development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "full stack development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "devops integration": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "blockchain development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "web application development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai and machine learning": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "gis services": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "fintech solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "real estate software": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "remote work culture": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "cross-functional teams": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "multilingual developers": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "cultural fit": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "time zone alignment": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "short notice hiring": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "team scalability": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "candidate onboarding": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "performance monitoring": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "technical assessments": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "user experience design": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "non-profit": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "Fashion brands",
@@ -3699,7 +3727,7 @@
       ]
     },
     "nonprofit organization management": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "Fashion brands",
@@ -3707,483 +3735,483 @@
       ]
     },
     "python": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "java": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "react native": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "outsourcing": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "reactjs": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "javascript": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "net java javascript php staff augmentation software development": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "technology training": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "talent acquisition": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "software quality assurance": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "scalability": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "custom team formation": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "scalable software solutions": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "cost efficiency": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "software project rescue": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "project outsourcing": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "pre-vetted developers": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "agile software lifecycle": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "ui/ux": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "talent pool": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "software solutions": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "innovative software methodologies": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "product validation": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "team building": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "tech talent pool": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "prototyping": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "product validation services": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "life sciences": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "automation": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "remote team integration": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "technology training programs": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "latam developer talent": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "user testing": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "technology stack": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "team extension": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "hire developers": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "flexible team": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "tech talent": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "software delivery": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "automated processes": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "technology partnership": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "full cycle development": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "expert consultants": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "technical leadership": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "product lifecycle": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "development team management": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "resume guide": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "remote jobs": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "developer jobs": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "team scaling": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "standard practices": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "business goals": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "competitive advantage": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "timely delivery": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "cost-efficient solutions": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "latest technology trends": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "skills training": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "professional growth": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "performance optimization": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "risk minimization": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "real-time collaboration": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "career opportunities": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "global workforce": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "long-term partnership": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "fast team setup": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "industry best practices": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "onboarding process": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "code maintainability": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "product design": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4191,31 +4219,31 @@
       ]
     },
     "ios android development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "maintenance support": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "experience design uxui": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "desarrollo de software y programacion": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "custom web development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4223,13 +4251,13 @@
       ]
     },
     "servicios de tecnologia": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "product development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4237,250 +4265,252 @@
       ]
     },
     "testing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "application development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "qa analytics": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "api integrations": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "enterprise search solutions digital marketing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai for auto insurance": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai for insurance workflows": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "aws solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "image recognition": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai applications": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "social media management": {
-      "seen_count": 7,
+      "seen_count": 10,
       "segments": [
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "sem campaigns": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai for insurance cataloging": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ci/cd automation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "automation solutions": {
-      "seen_count": 2,
-      "segments": [
-        "IT consulting",
-        "EasyStaff IT consulting Miami"
-      ]
-    },
-    "ai for compliance monitoring": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "ai for insurance homologation": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "prescriptive analytics": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "ai technology implementation": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "ai automation": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "ai for loan origination": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "digital marketing": {
-      "seen_count": 7,
-      "segments": [
-        "IT consulting",
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "natural language processing": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "ai for automotive catalog": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "system monitoring": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "cloud services": {
-      "seen_count": 2,
-      "segments": [
-        "IT consulting",
-        "EasyStaff IT consulting Miami"
-      ]
-    },
-    "ai for finance": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "customer insights": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "ai tools": {
-      "seen_count": 1,
-      "segments": [
-        "IT consulting"
-      ]
-    },
-    "conversion rate optimization": {
-      "seen_count": 2,
-      "segments": [
-        "IT consulting",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "predictive analytics": {
       "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
+    "ai for compliance monitoring": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ai for insurance homologation": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "prescriptive analytics": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ai technology implementation": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ai automation": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ai for loan origination": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "digital marketing": {
+      "seen_count": 10,
+      "segments": [
+        "IT consulting",
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "natural language processing": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ai for automotive catalog": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "system monitoring": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cloud services": {
+      "seen_count": 3,
+      "segments": [
+        "IT consulting",
+        "EasyStaff IT consulting Miami"
+      ]
+    },
+    "ai for finance": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "customer insights": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ai tools": {
+      "seen_count": 2,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "conversion rate optimization": {
+      "seen_count": 3,
+      "segments": [
+        "IT consulting",
+        "OnSocial Creator platforms UK"
+      ]
+    },
+    "predictive analytics": {
+      "seen_count": 4,
+      "segments": [
+        "IT consulting",
+        "EasyStaff IT consulting Miami"
+      ]
+    },
     "chatbots": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai for reinsurance": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "enterprise applications": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "erp solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai for insurance": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "seo and sem": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "aws partner": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "image and video recognition": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "customer engagement": {
-      "seen_count": 10,
+      "seen_count": 11,
       "segments": [
         "IT consulting",
         "Fashion brands",
@@ -4490,184 +4520,185 @@
       ]
     },
     "ai for credit profiling": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai-powered analytics": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "docker & kubernetes": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "video recognition": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "data analysis": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "crm solutions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "chatbots and virtual assistants": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai for manufacturing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ux/ui consulting": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "robotic process automation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai for fraud detection": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai for customer segmentation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "web traffic analysis": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "insurtech": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai strategy": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai projects": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "cloud migration": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai platform": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai for insurance sales": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "sentiment analysis": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai software": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ci/cd pipelines": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai consulting": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "predictive modeling": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai algorithms": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "social media marketing": {
-      "seen_count": 6,
+      "seen_count": 10,
       "segments": [
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "full-stack development": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "seo strategies": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "ai-driven process automation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "manufacturing": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "Fashion brands",
@@ -4677,15 +4708,6 @@
       ]
     },
     "app development": {
-      "seen_count": 6,
-      "segments": [
-        "IT consulting",
-        "Creator platforms",
-        "EasyStaff IT consulting Miami",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "apps": {
       "seen_count": 7,
       "segments": [
         "IT consulting",
@@ -4694,22 +4716,32 @@
         "OnSocial Creator platforms UK"
       ]
     },
+    "apps": {
+      "seen_count": 8,
+      "segments": [
+        "IT consulting",
+        "Creator platforms",
+        "EasyStaff IT consulting Miami",
+        "OnSocial Creator platforms UK"
+      ]
+    },
     "computer vision": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
         "IT consulting"
       ]
     },
     "marketing & advertising": {
-      "seen_count": 11,
+      "seen_count": 15,
       "segments": [
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "mechanical or industrial engineering": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "Fashion brands",
@@ -4719,687 +4751,785 @@
       ]
     },
     "leather": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Fashion brands",
-        "TFP Fashion brands Italy"
+        "TFP Fashion brands Italy",
+        "fashion"
       ]
     },
     "accessories": {
-      "seen_count": 10,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "womenswear": {
-      "seen_count": 5,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "menswear": {
-      "seen_count": 3,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "retail apparel & fashion": {
-      "seen_count": 7,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury goods": {
-      "seen_count": 9,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "fashion house": {
-      "seen_count": 6,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury fashion": {
-      "seen_count": 10,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "leather goods": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "fashion collections": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "international clientele": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "brand recognition": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury lifestyle": {
-      "seen_count": 9,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "brand identity": {
-      "seen_count": 8,
-      "segments": [
-        "Fashion brands",
-        "Creator platforms",
-        "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "luxury fragrances": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury leather gloves": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "exclusive collections": {
-      "seen_count": 3,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "brand innovation": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury accessories": {
-      "seen_count": 9,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "artisanal excellence": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "fragrance": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "artisanal craftsmanship": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "brand evolution": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury footwear": {
-      "seen_count": 7,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "home furnishings": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury eyewear": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "leather accessories": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "customer service": {
-      "seen_count": 6,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "fashion accessories": {
-      "seen_count": 10,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "prestigious brand": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "hospitality": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "fragrances": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury collections": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "premium materials": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "brand heritage": {
-      "seen_count": 6,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "premium leather": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "italian heritage": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "data protection": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "fashion": {
-      "seen_count": 8,
-      "segments": [
-        "Fashion brands",
-        "Creator platforms",
-        "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "heritage brand": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "timeless elegance": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "home collection": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "social responsibility": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "designer handbags": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury consumer": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "iconic logo": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "italian craftsmanship": {
-      "seen_count": 8,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "interior design": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "ready-to-wear": {
-      "seen_count": 5,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "elegance": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "timeless style": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "contemporary design": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury retail": {
-      "seen_count": 7,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "global luxury": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury branding": {
-      "seen_count": 6,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "luxury market": {
-      "seen_count": 8,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "sustainable fashion": {
-      "seen_count": 9,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "denim": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "modern design": {
-      "seen_count": 4,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "gift cards": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "sustainable practices": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "upcoming collections": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "refined lifestyles": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "intimate spaces": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "architectural aesthetics": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "versatile designs": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "cozy elegance": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "tactile experiences": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "cosmopolitan lifestyle": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "privacy policy": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "authenticity verification": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "seasonal lookbook": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "object craftsmanship": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "chic furnishings": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "retail locator": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "consumer engagement": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "newsletter subscription": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "online shopping support": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "complaints handling": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "order tracking": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "user experience optimization": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "modern living": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "brand vision": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "product returns": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "warranty services": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "email communications": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "promotional materials": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "advertising cookies": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "buying guide": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "data processing": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "withouts privacy": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "collectibles": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "legal compliance": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "cookie management": {
-      "seen_count": 2,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "women's apparel": {
-      "seen_count": 7,
-      "segments": [
-        "Fashion brands",
-        "TFP Fashion brands Italy"
-      ]
-    },
-    "apparel & fashion": {
       "seen_count": 11,
       "segments": [
         "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "womenswear": {
+      "seen_count": 6,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "menswear": {
+      "seen_count": 4,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "retail apparel & fashion": {
+      "seen_count": 8,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury goods": {
+      "seen_count": 10,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "fashion house": {
+      "seen_count": 7,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury fashion": {
+      "seen_count": 11,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "leather goods": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "fashion collections": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "international clientele": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "brand recognition": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury lifestyle": {
+      "seen_count": 10,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "brand identity": {
+      "seen_count": 9,
+      "segments": [
+        "Fashion brands",
         "Creator platforms",
-        "TFP Fashion brands Italy"
+        "TFP Fashion brands Italy",
+        "OnSocial Creator platforms UK",
+        "fashion"
+      ]
+    },
+    "luxury fragrances": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury leather gloves": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "exclusive collections": {
+      "seen_count": 4,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "brand innovation": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury accessories": {
+      "seen_count": 10,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "artisanal excellence": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "fragrance": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "artisanal craftsmanship": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "brand evolution": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury footwear": {
+      "seen_count": 8,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "home furnishings": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury eyewear": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "leather accessories": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "customer service": {
+      "seen_count": 7,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "fashion accessories": {
+      "seen_count": 11,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "prestigious brand": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "hospitality": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "fragrances": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury collections": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "premium materials": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "brand heritage": {
+      "seen_count": 7,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "premium leather": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "italian heritage": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "data protection": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "fashion": {
+      "seen_count": 9,
+      "segments": [
+        "Fashion brands",
+        "Creator platforms",
+        "TFP Fashion brands Italy",
+        "OnSocial Creator platforms UK",
+        "fashion"
+      ]
+    },
+    "heritage brand": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "timeless elegance": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "home collection": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "social responsibility": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "designer handbags": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury consumer": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "iconic logo": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "italian craftsmanship": {
+      "seen_count": 9,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "interior design": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "ready-to-wear": {
+      "seen_count": 6,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "elegance": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "timeless style": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "contemporary design": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury retail": {
+      "seen_count": 8,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "global luxury": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury branding": {
+      "seen_count": 7,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "luxury market": {
+      "seen_count": 9,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "sustainable fashion": {
+      "seen_count": 10,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "denim": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "modern design": {
+      "seen_count": 5,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "gift cards": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "sustainable practices": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "upcoming collections": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "refined lifestyles": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "intimate spaces": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "architectural aesthetics": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "versatile designs": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "cozy elegance": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "tactile experiences": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "cosmopolitan lifestyle": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "privacy policy": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "authenticity verification": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "seasonal lookbook": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "object craftsmanship": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "chic furnishings": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "retail locator": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "consumer engagement": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "newsletter subscription": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "online shopping support": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "complaints handling": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "order tracking": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "user experience optimization": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "modern living": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "brand vision": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "product returns": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "warranty services": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "email communications": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "promotional materials": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "advertising cookies": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "buying guide": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "data processing": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "withouts privacy": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "collectibles": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "legal compliance": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "cookie management": {
+      "seen_count": 3,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "women's apparel": {
+      "seen_count": 8,
+      "segments": [
+        "Fashion brands",
+        "TFP Fashion brands Italy",
+        "fashion"
+      ]
+    },
+    "apparel & fashion": {
+      "seen_count": 13,
+      "segments": [
+        "Fashion brands",
+        "Creator platforms",
+        "TFP Fashion brands Italy",
+        "fashion",
+        "influencer marketing"
       ]
     },
     "leisure, travel & tourism": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Fashion brands",
-        "TFP Fashion brands Italy"
+        "TFP Fashion brands Italy",
+        "fashion"
       ]
     },
     "retail luxury goods & jewelry": {
@@ -6266,11 +6396,12 @@
       ]
     },
     "fashion campaigns": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Fashion brands",
         "Creator platforms",
-        "TFP Fashion brands Italy"
+        "TFP Fashion brands Italy",
+        "influencer marketing"
       ]
     },
     "luxury fashion campaigns": {
@@ -6437,12 +6568,13 @@
       ]
     },
     "celebrity endorsements": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "luxury retail stores": {
@@ -7684,11 +7816,12 @@
       ]
     },
     "brand collaborations": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "Fashion brands",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "elegant cuts": {
@@ -7812,928 +7945,1060 @@
       ]
     },
     "fashion influencers": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Fashion brands",
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "influencer marketing": {
-      "seen_count": 10,
+      "seen_count": 13,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "paid social": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social strategy": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "studio production": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "celebrity partnerships": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "marketing services": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media influencer management tools": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social content strategy": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "in-person activations": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "market research": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer marketing campaigns": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "event marketing": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer roi": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer outreach": {
-      "seen_count": 5,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer talent": {
-      "seen_count": 3,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer marketing analytics": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer partnership management": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "brand partnerships": {
-      "seen_count": 6,
+      "seen_count": 9,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media growth": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer and social strategies": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "advertising and marketing": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media strategy": {
-      "seen_count": 5,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer marketing roi": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer marketing platforms": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer recruitment": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "performance analytics": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "paid social advertising": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "brand awareness": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media content creation": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "content strategy": {
-      "seen_count": 7,
+      "seen_count": 10,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "campaign strategy": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media engagement tactics": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer campaigns": {
-      "seen_count": 6,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media analytics": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer campaign analytics": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creative campaigns": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "marketing automation": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "content production": {
-      "seen_count": 5,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media campaigns": {
-      "seen_count": 5,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creator partnerships": {
-      "seen_count": 6,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creative content": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer marketing case studies": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "advertising services": {
-      "seen_count": 7,
+      "seen_count": 10,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media influencer outreach": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media influencer strategy": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "brand loyalty": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "marketing agency": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "brand engagement strategies": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "brand activation": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "brand awareness campaigns": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer marketing measurement": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer collaborations": {
-      "seen_count": 3,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "brand loyalty programs": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "content creation": {
-      "seen_count": 9,
+      "seen_count": 12,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media influencer campaigns": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer marketing best practices": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media influencer outreach tools": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media advertising": {
-      "seen_count": 5,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media content strategy": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "audience segmentation": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media activations": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "brand community building": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "community engagement": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer collaboration tools": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer talent sourcing": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "brand visibility": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer marketing trends": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media metrics": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer management": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital marketing tools": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer management software": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital amplification": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer talent scouting": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "advertising agencies": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "content creation tools": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer talent network": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "content amplification": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media trend analysis": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media content": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "brand engagement": {
-      "seen_count": 5,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media influencer collaborations": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media influencers": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital campaign management": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "celebrity advocacy": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer marketing industry insights": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer advocacy": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer marketing automation": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "brand storytelling": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social platform advertising": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "audience targeting": {
-      "seen_count": 5,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer talent management": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer partnerships": {
-      "seen_count": 5,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "campaign measurement": {
-      "seen_count": 5,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "campaign optimization": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer marketing roi measurement": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer marketing platform integration": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media agency": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "strategic planning": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "campaign management": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "audience engagement": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "relationship building": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "data-driven insights": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "paid media strategies": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "seo optimization": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "platform partnerships": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "pop-up events": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creative storytelling": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social selling": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "trend analysis": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "reactive content": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "cross-platform marketing": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "community building": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "performance tracking": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "roi measurement": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "consumer insights": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "brand positioning": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "culturally relevant content": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "multi-channel marketing": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "engagement metrics": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creator economy": {
       "seen_count": 7,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "advertising campaigns": {
-      "seen_count": 2,
+    "social media content strategy": {
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "consumer trial": {
-      "seen_count": 2,
+    "audience segmentation": {
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "user-generated content": {
-      "seen_count": 2,
+    "social media activations": {
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "viral content creation": {
-      "seen_count": 2,
+    "brand community building": {
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "platform-specific strategies": {
-      "seen_count": 2,
+    "community engagement": {
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "long-form content": {
-      "seen_count": 2,
+    "influencer collaboration tools": {
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "real-time analytics": {
-      "seen_count": 2,
+    "influencer talent sourcing": {
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "social trends": {
-      "seen_count": 2,
+    "brand visibility": {
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "events": {
-      "seen_count": 2,
+    "influencer marketing trends": {
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "events services": {
-      "seen_count": 3,
+    "social media metrics": {
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "marketing": {
+    "influencer management": {
+      "seen_count": 11,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital marketing tools": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer management software": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital amplification": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer talent scouting": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "advertising agencies": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "content creation tools": {
+      "seen_count": 6,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer talent network": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "content amplification": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media trend analysis": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media content": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand engagement": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media influencer collaborations": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media influencers": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital campaign management": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "celebrity advocacy": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing industry insights": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer advocacy": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing automation": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand storytelling": {
+      "seen_count": 6,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social platform advertising": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "audience targeting": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer talent management": {
+      "seen_count": 6,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer partnerships": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "campaign measurement": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "campaign optimization": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing roi measurement": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing platform integration": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media agency": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "strategic planning": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "campaign management": {
       "seen_count": 9,
       "segments": [
         "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "audience engagement": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "relationship building": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "data-driven insights": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "paid media strategies": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "seo optimization": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "platform partnerships": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "pop-up events": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creative storytelling": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social selling": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "trend analysis": {
+      "seen_count": 6,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "reactive content": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "cross-platform marketing": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "community building": {
+      "seen_count": 6,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "performance tracking": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "roi measurement": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "consumer insights": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand positioning": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "culturally relevant content": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "multi-channel marketing": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "engagement metrics": {
+      "seen_count": 6,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creator economy": {
+      "seen_count": 9,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "advertising campaigns": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "consumer trial": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "user-generated content": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "viral content creation": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "platform-specific strategies": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "long-form content": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "real-time analytics": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social trends": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "events": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "events services": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "marketing": {
+      "seen_count": 12,
+      "segments": [
+        "Creator platforms",
         "EasyStaff IT consulting Miami",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creative": {
@@ -8765,10 +9030,11 @@
       ]
     },
     "content marketing": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "data": {
@@ -8906,10 +9172,11 @@
       ]
     },
     "influencer network": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "content development": {
@@ -8962,10 +9229,11 @@
       ]
     },
     "advertising & marketing": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "digital strategy": {
@@ -8983,10 +9251,11 @@
       ]
     },
     "creative agency": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creator ecosystem": {
@@ -9074,10 +9343,11 @@
       ]
     },
     "influencer engagement": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creative strategy": {
@@ -9431,483 +9701,562 @@
       ]
     },
     "creator management": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "content standards": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "digital influencer campaigns": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "influencer engagement metrics": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "content creation studio": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "influencer growth": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "talent management": {
       "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "content standards": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "digital influencer campaigns": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "influencer engagement metrics": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "content creation studio": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "influencer growth": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "talent management": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "campaign performance analytics": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "digital talent agency": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "content vetting": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "community-driven influencer campaigns": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "high-impact influencer marketing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "content distribution": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "content standards enforcement": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "influencer vetting": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "influencer representation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "campaign analytics": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "content quality assurance": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "influencer industry": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "digital influencer marketing": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "sustainable influencer marketing": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "content strategy development": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "influencer roster": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "content creators": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "management consulting services": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "global influencer network": {
-      "seen_count": 1,
-      "segments": [
-        "Creator platforms"
-      ]
-    },
-    "campaign reporting": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital content creators": {
       "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "content quality assurance": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "influencer industry": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "digital influencer marketing": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "sustainable influencer marketing": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "content strategy development": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "influencer roster": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "content creators": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "management consulting services": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "global influencer network": {
+      "seen_count": 2,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "campaign reporting": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital content creators": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "digital influencer agency": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "influencer analytics": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "content quality": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "influencer growth strategies": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "brand alignment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "brand campaigns": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "content creation services": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "campaign management tools": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "influencer platform": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "influencer collaboration platforms": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "authentic influencer marketing": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "influencer outreach tools": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "digital talent management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "modeling agency": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "connect creators": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "global representation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "creative projects": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "branding partnerships": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "photo requirements": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "model application": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "talent development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "international modeling": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "social media presence": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "casting calls": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "portfolio building": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "model scouting": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "creative industries": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "online submissions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "headshots": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "model portfolio": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "creative innovation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "brand ambassador": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "modeling submissions": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "fashion photography": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "application process": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "model representation": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "talent showcase": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "photography collaborations": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "global talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "influencer platforms": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "model management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "agency queries": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "photo guidelines": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "model profiles": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "collaboration projects": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "in-house development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "application review": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "model recruitment": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "emerging talent": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "creative collaborations": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "agency history": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "entertainment providers": {

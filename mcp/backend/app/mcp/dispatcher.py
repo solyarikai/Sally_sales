@@ -843,18 +843,11 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             apify_proxy_password=apify_proxy,
         )
 
-        # Update taxonomy with new keywords from enrichment
-        try:
-            from app.services.taxonomy_service import TaxonomyService
-            taxonomy = TaxonomyService()
-            stats = exploration_result.get("exploration_stats", {})
-            common_labels = stats.get("common_labels", {})
-            for kw in common_labels.get("keywords", []):
-                taxonomy.add_from_enrichment({"keyword_tags": [kw]}, segment=project.target_segments or "")
-            taxonomy._save()
-            logger.info(f"Taxonomy updated with {len(common_labels.get('keywords', []))} new keywords from exploration")
-        except Exception as e:
-            logger.warning(f"Taxonomy update failed: {e}")
+        # Taxonomy update now happens inside exploration_service.run_exploration()
+        # (uses singleton taxonomy_service, full enrichment data, rebuilds embeddings)
+        new_kw = exploration_result.get("exploration_stats", {}).get("new_keywords_added", 0)
+        if new_kw:
+            logger.info(f"Taxonomy grew by +{new_kw} keywords from exploration enrichment")
 
         optimized = exploration_result.get("optimized_filters", run.filters)
         credits_used = exploration_result.get("credits_used", 0)
