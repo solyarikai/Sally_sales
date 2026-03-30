@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
 """
-DEPRECATED — replaced by universal_pipeline.py
-This script is OnSocial-specific with hardcoded config. Use universal_pipeline.py instead:
-  python3 universal_pipeline.py --project-id 42 --mode structured --segment influencer_platforms
-
 OnSocial Clay→SmartLead Pipeline (Platforms + Agencies, 2026-03-26)
 
 Full pipeline: Clay discovery → GPT classification → Apollo People Search →
 FindyMail email enrichment → SmartLead upload with regional social_proof.
 
-Steps 0-8: backend API on Hetzner (with checkpoints + Claude Code review).
-Steps 9-12: Apollo + FindyMail + SmartLead (local on Hetzner).
+Steps 0-8:  Backend API on Hetzner (with checkpoints + Claude Code review).
+Step 9:     Export targets from DB.
+Step 10:    Apollo People UI Search (auto via apollo_scraper.js) or CSV import (--apollo-csv).
+Step 11:    FindyMail email enrichment.
+Step 12:    SmartLead upload (per-step checkpoints, activation ONLY manual).
 
-Segments: INFLUENCER_PLATFORMS, IM_FIRST_AGENCIES (4 geo tiers each).
+Segments: INFLUENCER_PLATFORMS, IM_FIRST_AGENCIES, AFFILIATE_PERFORMANCE.
+
+Google Sheets & Drive:
+  Все CSV дублируются в Google Sheets (аккаунт sofia@getsally.io).
+  OAuth credentials: ~/.claude/google-sheets/token.json или sofia/.google-sheets/token.json.
+  Sheets размещаются в папках Google Drive по TYPE:
+    Leads → Onsocial/Leads/, Import → Onsocial/Import/, Targets → Onsocial/Target/,
+    Ops → Onsocial/Ops/, Analytics → Onsocial/Analytics/, Archive → Onsocial/Archive/.
+  Naming: [PROJECT] | [TYPE] | [SEGMENT] — [DATE]
+  Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
 
 Usage (run on Hetzner via SSH):
 
@@ -21,17 +29,17 @@ Usage (run on Hetzner via SSH):
   # Full pipeline from scratch
   python3 sofia/scripts/onsocial_clay_to_smartlead_platforms_agencies_2026-03-26.py --segment platforms_tier12
 
-  # Resume from specific step
-  python3 sofia/scripts/onsocial_clay_to_smartlead_platforms_agencies_2026-03-26.py --from-step scrape --run-id 150
+  # Resume from people search (auto Apollo)
+  python3 sofia/scripts/onsocial_clay_to_smartlead_platforms_agencies_2026-03-26.py --from-step people
+
+  # Resume with manual CSV (fallback)
+  python3 sofia/scripts/onsocial_clay_to_smartlead_platforms_agencies_2026-03-26.py --from-step people --apollo-csv export.csv
 
   # Re-analyze with different prompt
   python3 sofia/scripts/onsocial_clay_to_smartlead_platforms_agencies_2026-03-26.py --re-analyze --run-id 150 --prompt-file prompts/v2.txt
 
-  # Dry run
-  python3 sofia/scripts/onsocial_clay_to_smartlead_platforms_agencies_2026-03-26.py --dry-run --segment platforms_tier12
-
 Env vars: APOLLO_API_KEY, FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
-Backend must be running on localhost:8001 (Hetzner)
+Backend must be running on localhost:8000 (Hetzner)
 """
 
 import argparse
