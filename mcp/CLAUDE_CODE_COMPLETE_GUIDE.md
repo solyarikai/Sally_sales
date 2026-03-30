@@ -23,7 +23,6 @@ claude
 | **SmartLead** | `eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5` |
 | **Apollo** | `9yIx2mZegixXHeDf6mWVqA` |
 | **OpenAI** | `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` |
-| **Gemini** | `AIzaSyDAQhKyQcca249QVhOXY2nyZ5pNF-N5Y9o` |
 
 ## 3. First Session
 
