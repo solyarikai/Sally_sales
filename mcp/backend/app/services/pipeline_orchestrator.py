@@ -191,7 +191,6 @@ class PipelineOrchestrator:
                     link = CompanySourceLink(
                         discovered_company_id=dc.id,
                         gathering_run_id=self.run.id,
-                        source_type=self.run.source_type,
                     )
                     self.session.add(link)
                     new_count += 1
