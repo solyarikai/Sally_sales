@@ -146,10 +146,9 @@ async def _pick_industries(
     openai_key: str, model: str = "gpt-4o-mini",
 ) -> List[str]:
     """Separate focused call for industry selection. gpt-4o-mini tested at 100%."""
-    prompt = f"""Pick Apollo industries for: {query}
+    prompt = f"""Which 2-3 Apollo industries are DIRECTLY described by this query: "{query}"?
 Available: {json.dumps(industries)}
-For each candidate ask: "If I filter Apollo by ONLY this industry in this location, would MOST results be relevant to my search?"
-If no — too broad, skip it. Only keep industries where the majority of companies would match.
+Pick ONLY industries that directly match the words in the query. Not related, not adjacent — directly described.
 Return JSON: {{"industries": ["exact name"]}}"""
 
     for try_model in [model, "gpt-4o-mini"]:
