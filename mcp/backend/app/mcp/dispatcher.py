@@ -810,6 +810,121 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             },
         }
 
+    if tool_name == "tam_explore":
+        # Exploration: enrich top 5 targets → discover real Apollo keywords → suggest optimized filters
+        user = await _get_user(token, session)
+        run = await session.get(GatheringRun, args["run_id"])
+        if not run:
+            raise ValueError("Run not found")
+
+        project = await session.get(Project, run.project_id)
+        ctx = UserServiceContext(user.id, session)
+        apollo_key_raw = await ctx.get_key("apollo")
+        openai_key = await ctx.get_key("openai")
+        if not apollo_key_raw:
+            from app.config import settings as _cfg
+            apollo_key_raw = _cfg.APOLLO_API_KEY
+        if not openai_key:
+            from app.config import settings as _cfg
+            openai_key = _cfg.OPENAI_API_KEY
+        if not apollo_key_raw:
+            raise ValueError("Apollo not connected — needed for enrichment")
+
+        import os
+        apify_proxy = os.environ.get("APIFY_PROXY_PASSWORD")
+
+        from app.services.exploration_service import run_exploration
+        exploration_result = await run_exploration(
+            query=project.target_segments or "",
+            initial_filters=run.filters or {},
+            offer_text=project.target_segments or "",
+            apollo_key=apollo_key_raw,
+            openai_key=openai_key,
+            apify_proxy_password=apify_proxy,
+        )
+
+        # Update taxonomy with new keywords from enrichment
+        try:
+            from app.services.taxonomy_service import TaxonomyService
+            taxonomy = TaxonomyService()
+            stats = exploration_result.get("exploration_stats", {})
+            common_labels = stats.get("common_labels", {})
+            for kw in common_labels.get("keywords", []):
+                taxonomy.add_from_enrichment({"keyword_tags": [kw]}, segment=project.target_segments or "")
+            taxonomy._save()
+            logger.info(f"Taxonomy updated with {len(common_labels.get('keywords', []))} new keywords from exploration")
+        except Exception as e:
+            logger.warning(f"Taxonomy update failed: {e}")
+
+        optimized = exploration_result.get("optimized_filters", run.filters)
+        credits_used = exploration_result.get("credits_used", 0)
+        initial_count = exploration_result.get("exploration_stats", {}).get("initial_companies", 0)
+        targets_found = exploration_result.get("exploration_stats", {}).get("targets_identified", 0)
+
+        return {
+            "optimized_filters": optimized,
+            "exploration_stats": exploration_result.get("exploration_stats", {}),
+            "credits_used": credits_used,
+            "message": (
+                f"Exploration complete ({credits_used} credits):\n"
+                f"  Initial search: {initial_count} companies\n"
+                f"  Targets identified: {targets_found}\n"
+                f"  Enriched top {min(5, targets_found)} → discovered real Apollo keywords\n\n"
+                f"Optimized filters:\n"
+                f"  Keywords: {optimized.get('q_organization_keyword_tags', [])}\n"
+                f"  Location: {optimized.get('organization_locations', [])}\n"
+                f"  Size: {optimized.get('organization_num_employees_ranges', [])}\n\n"
+                f"Re-search with these optimized filters? Call tam_gather with these filters and confirm_filters=true."
+            ),
+            "run_id": run.id,
+            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+        }
+
+    if tool_name == "tam_enrich_from_examples":
+        # Case: user provides example companies/file → enrich in Apollo → extract filters
+        user = await _get_user(token, session)
+        domains = args.get("domains", [])
+        if not domains:
+            raise ValueError("Provide a list of example company domains to reverse-engineer filters from")
+
+        ctx = UserServiceContext(user.id, session)
+        apollo_key_raw = await ctx.get_key("apollo")
+        openai_key = await ctx.get_key("openai")
+        if not apollo_key_raw:
+            from app.config import settings as _cfg
+            apollo_key_raw = _cfg.APOLLO_API_KEY
+        if not apollo_key_raw:
+            raise ValueError("Apollo not connected — needed for enrichment")
+
+        # Enrich each domain in Apollo to get their real labels
+        from app.services.exploration_service import _enrich_targets
+        example_companies = [{"domain": d, "name": d.split(".")[0]} for d in domains[:10]]
+        enriched = await _enrich_targets(apollo_key_raw, example_companies)
+
+        from app.services.exploration_service import _extract_common_labels, _build_optimized_filters
+        common_labels = _extract_common_labels(enriched)
+
+        # Build filters from the examples
+        optimized = await _build_optimized_filters(
+            {"organization_locations": args.get("locations", [])},
+            common_labels,
+            args.get("segment_description", ""),
+            openai_key or "",
+        )
+
+        return {
+            "filters_from_examples": optimized,
+            "common_labels": common_labels,
+            "enriched_count": len(enriched),
+            "credits_used": len(enriched),
+            "message": (
+                f"Reverse-engineered filters from {len(enriched)} example companies:\n"
+                f"  Keywords: {optimized.get('q_organization_keyword_tags', [])}\n"
+                f"  Industries: {common_labels.get('industries', [])}\n\n"
+                f"Use these filters with tam_gather to find similar companies."
+            ),
+        }
+
     if tool_name == "tam_re_analyze":
         user = await _get_user(token, session)
         run = await session.get(GatheringRun, args["run_id"])

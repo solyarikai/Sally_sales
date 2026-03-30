@@ -259,6 +259,35 @@ Multi-step chains: Provide prompt_steps array for sequential classification (eac
         },
     },
     {
+        "name": "tam_explore",
+        "description": """Exploration phase: enrich top 5 target companies in Apollo to discover their REAL keyword tags and industries. Then suggests optimized search filters that will find MORE similar companies.
+
+Call AFTER tam_analyze (Checkpoint 2) when you have targets. Costs ~5 Apollo credits for enrichment.
+Returns: optimized filters with real Apollo vocabulary. Use with tam_gather to re-search.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer", "description": "Pipeline run to explore (must have targets)"},
+            },
+            "required": ["run_id"],
+        },
+    },
+    {
+        "name": "tam_enrich_from_examples",
+        "description": """Reverse-engineer Apollo filters from example companies. User provides a list of domains (companies they KNOW are targets), Apollo enrichment reveals their real keyword tags and industries. Use the output as filters for tam_gather.
+
+Use case: user says 'companies like X, Y, Z' or provides a file with example companies.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "domains": {"type": "array", "items": {"type": "string"}, "description": "List of example company domains (max 10)"},
+                "segment_description": {"type": "string", "description": "What kind of companies these are"},
+                "locations": {"type": "array", "items": {"type": "string"}, "description": "Target locations for the search"},
+            },
+            "required": ["domains"],
+        },
+    },
+    {
         "name": "tam_re_analyze",
         "description": """Re-run Phase 5 with an adjusted prompt. Use when YOU (Opus) reviewed GPT's target list at Checkpoint 2 and found accuracy < 90%.
 
