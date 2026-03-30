@@ -1253,6 +1253,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
     if tool_name == "smartlead_push_campaign":
         user = await _get_user(token, session)
+        from app.models.gathering import CompanySourceLink
         seq = await session.get(GeneratedSequence, args["sequence_id"])
         if not seq:
             raise ValueError("Sequence not found")

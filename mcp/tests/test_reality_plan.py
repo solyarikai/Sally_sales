@@ -41,15 +41,23 @@ MCP_URL = "http://46.62.210.24:8002/mcp/sse"
 API_URL = "http://46.62.210.24:8002"
 TMP = Path(__file__).parent / "tmp"
 
+# Use httpx timeout to prevent SSE disconnects on slow tools
+SSE_TIMEOUT = 120  # seconds
+
 
 async def call(mcp, tool, args):
     """Call MCP tool, return parsed JSON."""
-    r = await mcp.call_tool(tool, arguments=args)
-    text = r.content[0].text if r.content else "{}"
     try:
-        return json.loads(text)
-    except:
-        return {"raw": text[:500]}
+        r = await asyncio.wait_for(mcp.call_tool(tool, arguments=args), timeout=SSE_TIMEOUT)
+        text = r.content[0].text if r.content else "{}"
+        try:
+            return json.loads(text)
+        except:
+            return {"raw": text[:500]}
+    except asyncio.TimeoutError:
+        return {"error": f"timeout after {SSE_TIMEOUT}s"}
+    except Exception as e:
+        return {"error": str(e)[:200]}
 
 
 async def main():
@@ -72,7 +80,7 @@ async def main():
     l(f"User: {email}")
     l("=" * 80)
 
-    async with sse_client(MCP_URL) as (rs, ws):
+    async with sse_client(MCP_URL, timeout=SSE_TIMEOUT) as (rs, ws):
         async with ClientSession(rs, ws) as mcp:
             await mcp.initialize()
             tools = await mcp.list_tools()
