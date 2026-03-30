@@ -1765,13 +1765,19 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         total_people = 0
         companies_with_people = 0
 
+        from app.models.pipeline import ExtractedContact
         for company in targets:
             try:
+                # Try with offer-specific titles first
                 people = await apollo_svc.enrich_by_domain(
                     company.domain, limit=people_per_company, titles=person_titles,
                 )
+                # Fallback: broader search without title filter if 0 results
+                if not people:
+                    people = await apollo_svc.enrich_by_domain(
+                        company.domain, limit=people_per_company, titles=None,
+                    )
                 for person in people:
-                    from app.models.pipeline import ExtractedContact
                     contact = ExtractedContact(
                         project_id=run.project_id,
                         discovered_company_id=company.id,

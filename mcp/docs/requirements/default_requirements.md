@@ -293,3 +293,10 @@ GATETING NEW PAGES FROM APOOLLO AND CREATE SMARTLEAD CAMPAIGN!!!
 
 
 after each campaign launched, if the user stil haven't connected telegram account to receive notifications, mcp must ask user to connect providing link to the setup page to connect telegtam account via simple one button ux as in the main, but the differrnece from app is that in mcp user adds telegram account on entire account level = notifications from all campagins launched among all projects will be passed there. there is new bot specifically for this mcp purposes of notifioncatoons from replies - reuse the format with links to reply ui and the source (smarltead / getsales) conversation, connect it and save in code not to lose, bot token   7786811624:AAHbIUkMOvEB5A8wqw1koyhCNOZaSBgEvUI
+
+
+❯ are all costs shown in ui? there also must be datepicker to show costs within the     
+selected period, cost for                                                               
+- apollo, credits and dolars                                                            
+- apify, gbs , websites number scraed and dollars                                       
+- openai, tokens per each model used and dollars    

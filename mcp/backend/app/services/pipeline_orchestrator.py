@@ -164,6 +164,7 @@ class PipelineOrchestrator:
 
                     dc = DiscoveredCompany(
                         project_id=self.run.project_id,
+                        company_id=self.run.company_id,  # Fix: use run's company_id
                         domain=domain,
                         name=company_data.get("name"),
                         industry=company_data.get("industry"),
