@@ -372,15 +372,29 @@ class GatheringService:
         # Build ICP prompt — via negativa style
         from app.models.project import Project
         project = await session.get(Project, run.project_id)
-        # Use ICP text but limit to first 300 chars (avoid dumping entire website scrape into prompt)
-        raw_icp = prompt_text or (project.target_segments if project else None) or "General B2B companies"
+
+        # ICP = segment query from the gathering filters (what user ASKED for)
+        # + offer from project (what user SELLS) — both needed for correct classification
+        segment_query = ""
+        if run.filters:
+            keywords = run.filters.get("q_organization_keyword_tags", [])
+            locations = run.filters.get("organization_locations", [])
+            if keywords:
+                segment_query = ", ".join(keywords[:5])
+            if locations:
+                segment_query += f" in {', '.join(locations[:3])}"
+
+        raw_icp = prompt_text or segment_query or (project.target_segments if project else None) or "General B2B companies"
         # If ICP contains website scrape (starts with or contains "Company website"), extract just the segment description
         if "Company website" in raw_icp and len(raw_icp) > 500:
-            # Split: first part is the real ICP, second is website dump
             parts = raw_icp.split("Company website", 1)
-            icp_text = parts[0].strip() or "General B2B companies"
+            icp_text = parts[0].strip() or segment_query or "General B2B companies"
         else:
             icp_text = raw_icp[:500]
+
+        # Always include segment query if available (even if offer text is the primary ICP)
+        if segment_query and segment_query not in icp_text:
+            icp_text = f"{segment_query} — {icp_text}"
 
         # Get user feedback on targets/analysis (most recent = highest priority)
         user_feedback_section = ""
