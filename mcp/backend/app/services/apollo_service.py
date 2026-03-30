@@ -145,7 +145,15 @@ class ApolloService:
         if not people:
             return []
 
-        # Return partial profiles directly (FREE — no credits)
+        # Step 1 result: partial profiles (FREE — name, title, linkedin, no email)
+        # Step 2: bulk_match to get emails (1 credit per person)
+        people_ids = [p["id"] for p in people if p.get("id")]
+        if people_ids:
+            enriched = await self.enrich_people_emails(people_ids)
+            if enriched:
+                return enriched
+
+        # Fallback: return partial profiles if bulk_match fails
         results = []
         for p in people:
             results.append({
@@ -154,7 +162,7 @@ class ApolloService:
                 "last_name": p.get("last_name"),
                 "name": p.get("name"),
                 "title": p.get("title"),
-                "email": p.get("email"),  # May be None in free search
+                "email": p.get("email"),
                 "linkedin_url": p.get("linkedin_url"),
                 "organization_name": p.get("organization", {}).get("name") if isinstance(p.get("organization"), dict) else None,
             })
@@ -181,7 +189,7 @@ class ApolloService:
                 "email": match.get("email"),
                 "first_name": match.get("first_name"),
                 "last_name": match.get("last_name"),
-                "job_title": match.get("title"),
+                "title": match.get("title"),
                 "linkedin_url": match.get("linkedin_url"),
                 "is_verified": match.get("email_status") == "verified",
                 "phone": phone,
