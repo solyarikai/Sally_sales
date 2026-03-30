@@ -294,7 +294,32 @@ Enrich examples (tam_enrich_from_examples) → discover real Apollo keywords
 
 ---
 
-## Summary: 6 MCP agents + 2 user-side agents
+## Complete Intent → Agent Mapping
+
+| Intent | Agents used | Description |
+|--------|-------------|-------------|
+| `auth` | None (direct tool) | login → returns session |
+| `setup_keys` | None (UI redirect) | "Go to Setup page [link]" |
+| `create_project` | None (direct tool) | create_project → scrapes website for offer |
+| `gather` | **A1 → A2 → A3 → A4** | Full chain: parse → map filters → craft rules → classify |
+| `gather_from_file` | **U1** → tam_enrich_from_examples | Opus extracts examples → Apollo enrichment → filters |
+| `edit_sequence` | None (direct tool) | edit_sequence_step |
+| `edit_targets` | None (direct tool) | override_company_target |
+| `provide_feedback` | None (direct tool) | provide_feedback → stored for re-analyze |
+| `activate_campaign` | None (direct tool) | activate_campaign + auto monitoring |
+| `check_status` | None (direct tool) | get_context / pipeline_status / replies_summary |
+| `re_analyze` | **A3 → A4** | Re-craft rules from feedback → re-classify same companies |
+| `approve_checkpoint` | None (direct tool) | tam_approve_checkpoint |
+| `explore` | **A6** | After CP2: enrich top 5 → optimize filters |
+| `push_campaign` | **A5** | Generate sequence → push to SmartLead |
+
+**6 GPT agents** (A1-A6) — only used in gathering + exploration + campaign chains.
+**2 user-side agents** (U1, U2) — run by Opus, not MCP.
+**8 direct tools** — no GPT agent needed, just execute.
+
+---
+
+## Agent Registry
 
 | ID | Agent | Model | Task |
 |----|-------|-------|------|
