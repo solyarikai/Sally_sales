@@ -317,6 +317,33 @@ def _upload_to_sheets(headers: list[str], rows: list[dict], sheet_name: str):
         print(f"  ⚠ Sheet upload skipped: {e}")
 
 
+def _upload_to_sheets_direct(data: list[list], sheet_name: str):
+    """Fallback: upload via google_sheets_service directly (raw data, no header mapping)."""
+    try:
+        script = f'''
+import sys, csv, json
+sys.path.insert(0, "/app")
+import os; os.environ.setdefault("DATABASE_URL", os.environ.get("DATABASE_URL", ""))
+from app.services.google_sheets_service import google_sheets_service
+data = json.loads(sys.stdin.read())
+sid = google_sheets_service.create_and_populate(title="{sheet_name}", data=data["data"], share_with=["pn@getsally.io"])
+print(sid if isinstance(sid, str) else "")
+'''
+        payload = json.dumps({"data": data})
+        result = subprocess.run(
+            ["docker", "exec", "-i", "leadgen-backend", "python3", "-c", script],
+            input=payload, capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            out = result.stdout.strip()
+            sheet_id = out.split("spreadsheets/d/")[1].split("/")[0] if "spreadsheets/d/" in out else out
+            print(f"  -> Sheet: {sheet_name} — https://docs.google.com/spreadsheets/d/{sheet_id}")
+        else:
+            print(f"  ⚠ Sheet upload failed: {result.stderr[:200]}")
+    except Exception as e:
+        print(f"  ⚠ Sheet upload skipped: {e}")
+
+
 def normalize_company(name: str) -> str:
     """Clean company name for display."""
     if not name:
