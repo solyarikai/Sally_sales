@@ -28,7 +28,7 @@ const path = require('path');
 
 puppeteer.use(StealthPlugin());
 
-const WORKSPACE_ID = '889252';
+const WORKSPACE_ID = process.env.CLAY_WORKSPACE_ID || '588071';
 const OUT_DIR = path.join(__dirname, 'exports');
 const DOWNLOADS_DIR = path.join(OUT_DIR, 'downloads');
 const SESSION_FILE = path.join(__dirname, 'clay_session.json');
@@ -126,28 +126,28 @@ async function screenshot(page, name) {
 }
 
 async function getCredits(page) {
-  return page.evaluate(async () => {
+  return page.evaluate(async (wsId) => {
     try {
-      const res = await fetch('https://api.clay.com/v3/subscriptions/889252', {
+      const res = await fetch(`https://api.clay.com/v3/subscriptions/${wsId}`, {
         credentials: 'include', headers: { 'Accept': 'application/json' },
       });
       const d = await res.json();
       return d.creditBalances;
     } catch { return null; }
-  });
+  }, WORKSPACE_ID);
 }
 
 async function validateSession(page) {
-  return page.evaluate(async () => {
+  return page.evaluate(async (wsId) => {
     try {
-      const res = await fetch('https://api.clay.com/v3/subscriptions/889252', {
+      const res = await fetch(`https://api.clay.com/v3/subscriptions/${wsId}`, {
         credentials: 'include', headers: { 'Accept': 'application/json' },
       });
       if (res.status === 401 || res.status === 403) return { valid: false };
       const data = await res.json();
       return { valid: !!data.creditBalances, credits: data.creditBalances };
     } catch (e) { return { valid: false, error: e.message }; }
-  });
+  }, WORKSPACE_ID);
 }
 
 async function findByText(page, text, exact = true) {
