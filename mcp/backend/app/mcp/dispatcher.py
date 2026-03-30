@@ -546,27 +546,58 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         est_credits = max_pages if "api" in source_type else 0
         est_companies = max_pages * per_page
 
-        # Bug 2: Filter confirmation — show filters before running, wait for approval
+        # Bug 2: Filter confirmation — probe Apollo for total_available, show cost breakdown
         if "api" in source_type and not args.get("confirm_filters"):
+            # Probe Apollo with per_page=1 to get total_available (1 credit)
+            total_available = 0
+            try:
+                ctx_probe = UserServiceContext(user.id, session)
+                apollo_probe = await ctx_probe.get_apollo_service()
+                if apollo_probe.is_configured():
+                    probe_result = await apollo_probe.search_organizations(
+                        keyword_tags=filters.get("q_organization_keyword_tags", []),
+                        locations=filters.get("organization_locations"),
+                        num_employees_ranges=filters.get("organization_num_employees_ranges"),
+                        page=1, per_page=1,
+                    )
+                    total_available = probe_result.get("pagination", {}).get("total_entries", 0) if probe_result else 0
+            except Exception as e:
+                logger.warning(f"Apollo probe failed: {e}")
+
+            # Cost estimation with typical target rate (~30-50%)
+            TARGET_RATE = 0.35  # conservative estimate
+            pages_for_30_targets = max(1, int(30 / (per_page * TARGET_RATE)) + 1) if total_available > 0 else max_pages
+            pages_for_all = max(1, (total_available + per_page - 1) // per_page) if total_available > 0 else max_pages
+            cost_30_targets = min(pages_for_30_targets, pages_for_all)
+            cost_all = pages_for_all
+
+            keywords = filters.get("q_organization_keyword_tags", [])
+            locations = filters.get("organization_locations", ["(any)"])
+            sizes = filters.get("organization_num_employees_ranges", ["(any)"])
+
             return {
                 "status": "awaiting_filter_confirmation",
-                "message": (
-                    f"I'll search Apollo with these filters:\n\n"
-                    f"  Keywords: {filters.get('q_organization_keyword_tags', [])}\n"
-                    f"  Location: {filters.get('organization_locations', ['(any)'])}\n"
-                    f"  Size: {filters.get('organization_num_employees_ranges', ['(any)'])}\n"
-                    f"  Pages: {max_pages} (≈{est_companies} companies)\n"
-                    f"  Estimated cost: {est_credits} Apollo credit{'s' if est_credits != 1 else ''}\n\n"
-                    f"Proceed? Call tam_gather again with confirm_filters=true to start."
-                ),
+                "total_available": total_available,
                 "filters_preview": {
-                    "q_organization_keyword_tags": filters.get("q_organization_keyword_tags", []),
-                    "organization_locations": filters.get("organization_locations", []),
-                    "organization_num_employees_ranges": filters.get("organization_num_employees_ranges", []),
-                    "max_pages": max_pages,
-                    "per_page": per_page,
+                    "q_organization_keyword_tags": keywords,
+                    "organization_locations": locations,
+                    "organization_num_employees_ranges": sizes,
                 },
-                "estimated_credits": est_credits,
+                "cost_breakdown": {
+                    "default_30_targets": {"pages": cost_30_targets, "credits": cost_30_targets, "estimated_targets": int(cost_30_targets * per_page * TARGET_RATE)},
+                    "full_run_all": {"pages": cost_all, "credits": cost_all, "companies": total_available},
+                },
+                "message": (
+                    f"Apollo search preview:\n\n"
+                    f"  Keywords: {', '.join(keywords)}\n"
+                    f"  Location: {', '.join(locations)}\n"
+                    f"  Size: {', '.join(sizes)}\n"
+                    f"  Total available: {total_available:,} companies\n\n"
+                    f"Cost options:\n"
+                    f"  Default (≈30 targets): {cost_30_targets} credit{'s' if cost_30_targets != 1 else ''} → ≈{int(cost_30_targets * per_page * TARGET_RATE)} targets from {cost_30_targets * per_page} companies\n"
+                    f"  Full run (all {total_available:,}): {cost_all} credits\n\n"
+                    f"Proceed? Call tam_gather again with confirm_filters=true."
+                ),
                 "project_id": project.id,
                 "project_name": project.name,
             }
