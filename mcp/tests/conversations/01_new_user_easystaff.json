@@ -1,264 +1,238 @@
 {
   "id": "01_default_smartlead_flow",
-  "description": "DEFAULT FLOW: token > keys > segments > offer > project > campaigns > blacklist > exploration > pipeline > email accounts > campaign > test email > approve > launch > replies",
+  "description": "FULL DEFAULT FLOW per REALITY_TEST_PLAN: onboarding > project > filters preview > gathering > exploration > iterations > campaign > replies",
   "user_email": "pn@getsally.io",
   "user_password": "qweqweqwe",
   "project_name": "EasyStaff",
   "steps": [
     {
       "step": 1,
-      "phase": "greeting_no_token",
+      "phase": "1.1_greeting_no_token",
       "user_prompt": "Hey, I want to launch some campaigns",
-      "user_prompt_variants": [
-        "Hi there",
-        "Help me find leads"
-      ],
+      "user_prompt_variants": ["Hi there", "Help me find leads", "I need to start campaigns"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "sign up",
-          "token",
-          "mcp_",
-          "setup"
-        ]
-      }
+        "response_must_contain_any": ["sign up", "token", "mcp_", "setup"],
+        "response_must_NOT_contain": ["segments", "Apollo", "pipeline"]
+      },
+      "critical_requirement": "MCP must ONLY ask for token. No other info. No tools listed."
     },
     {
       "step": 2,
-      "phase": "login",
+      "phase": "1.2_login",
       "user_prompt": "Here is my token: TOKEN_PLACEHOLDER",
-      "expected_tool_calls": [
-        "login",
-        "check_integrations"
-      ],
+      "expected_tool_calls": ["login"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "apollo",
-          "smartlead",
-          "openai",
-          "apify",
-          "key"
-        ]
+        "response_must_contain_any": ["apollo", "smartlead", "openai", "key", "setup"]
       }
     },
     {
       "step": 3,
-      "phase": "keys_setup",
+      "phase": "1.4_keys_configured",
       "user_prompt": "I set up all the keys in the interface",
-      "user_prompt_variants": [
-        "Keys are configured now"
-      ],
-      "expected_tool_calls": [
-        "check_integrations"
-      ],
+      "user_prompt_variants": ["Keys are configured now"],
+      "expected_tool_calls": ["check_integrations"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "ready",
-          "segment",
-          "launch",
-          "which"
-        ]
-      }
+        "response_must_contain_any": ["ready", "segment", "launch", "which"]
+      },
+      "critical_requirement": "MCP asks 'which segments?' — ONE question only"
     },
     {
       "step": 4,
-      "phase": "segments_request",
+      "phase": "1.5_segments_before_offer",
       "user_prompt": "Find IT consulting companies in Miami and video production agencies in London",
-      "user_prompt_variants": [
-        "Two segments: IT consulting Miami, video production London"
-      ],
+      "user_prompt_variants": ["Two segments: IT consulting Miami, video production London"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "offer",
-          "website",
-          "what do you sell",
-          "product"
-        ]
-      }
+        "response_must_contain_any": ["offer", "website", "what do you sell", "product"]
+      },
+      "critical_requirement": "MCP must ask for offer/website BEFORE parsing segments. ONE question."
     },
     {
       "step": 5,
-      "phase": "offer_from_website",
+      "phase": "2.1_provide_website",
       "user_prompt": "easystaff.io",
-      "user_prompt_variants": [
-        "Our website is easystaff.io"
-      ],
-      "expected_tool_calls": [
-        "create_project"
-      ],
+      "user_prompt_variants": ["Our website is easystaff.io"],
+      "expected_tool_calls": ["create_project"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "project",
-          "created",
-          "EasyStaff"
-        ]
-      }
+        "response_must_contain_any": ["project", "EasyStaff", "created"],
+        "response_must_contain": "campaign"
+      },
+      "critical_requirement": "MCP creates project from website, asks about previous campaigns. ONE question."
     },
     {
       "step": 6,
-      "phase": "previous_campaigns",
+      "phase": "2.2_previous_campaigns",
       "user_prompt": "Yes, campaigns with petr in the name were launched before",
-      "user_prompt_variants": [
-        "Campaigns including petr"
-      ],
-      "expected_tool_calls": [
-        "import_smartlead_campaigns"
-      ],
+      "user_prompt_variants": ["Campaigns including petr"],
+      "expected_tool_calls": ["import_smartlead_campaigns"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "campaign",
-          "blacklist",
-          "contact",
-          "loaded"
-        ]
+        "response_must_contain_any": ["campaign", "blacklist", "contact", "loaded"]
       }
     },
     {
       "step": 7,
-      "phase": "filter_alignment",
-      "user_prompt": "Go ahead, what are the filters?",
-      "user_prompt_variants": [
-        "Show me the Apollo filters"
-      ],
-      "expected_tool_calls": [
-        "parse_gathering_intent"
-      ],
+      "phase": "3.1_filter_preview",
+      "user_prompt": "OK go ahead with the segments I mentioned",
+      "user_prompt_variants": ["Start gathering", "Launch pipelines"],
+      "expected_tool_calls": ["tam_gather"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "filter",
-          "IT consulting",
-          "Miami",
-          "video",
-          "London"
-        ]
-      }
+        "response_must_contain_any": ["filter", "keyword", "available", "companies", "credit"],
+        "response_must_NOT_contain": ["launched", "gathering started"]
+      },
+      "critical_requirement": "MCP shows filter PREVIEW with Apollo total + cost estimate. Does NOT start gathering yet. Asks 'Proceed?'"
     },
     {
       "step": 8,
-      "phase": "pipeline_launch",
-      "user_prompt": "Looks good, launch the pipelines",
-      "user_prompt_variants": [
-        "Start gathering",
-        "Launch it"
-      ],
-      "expected_tool_calls": [
-        "tam_gather"
-      ],
+      "phase": "3.2_confirm_filters",
+      "user_prompt": "Yes, proceed",
+      "user_prompt_variants": ["Go ahead", "Looks good, start"],
+      "expected_tool_calls": ["tam_gather"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "pipeline",
-          "gathering",
-          "companies",
-          "launched"
-        ]
-      }
+        "response_must_contain_any": ["pipeline", "gathering", "companies", "found"]
+      },
+      "critical_requirement": "tam_gather called with confirm_filters=true. Shows run_id, companies found, credits spent."
     },
     {
       "step": 9,
-      "phase": "email_accounts",
+      "phase": "3.3_email_accounts",
       "user_prompt": "Use Eleonora accounts from the petr campaigns for both",
-      "user_prompt_variants": [
-        "Eleonora accounts from previous campaigns for both"
-      ],
-      "expected_tool_calls": [
-        "list_email_accounts"
-      ],
+      "user_prompt_variants": ["Eleonora accounts from previous campaigns"],
+      "expected_tool_calls": ["list_email_accounts"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "eleonora",
-          "email",
-          "account"
-        ]
+        "response_must_contain_any": ["eleonora", "email", "account"]
       }
     },
     {
       "step": 10,
-      "phase": "pipeline_stats",
-      "user_prompt": "How is the pipeline going?",
-      "user_prompt_variants": [
-        "Pipeline status?"
-      ],
-      "expected_tool_calls": [
-        "pipeline_status"
-      ],
+      "phase": "4.1_blacklist_check",
+      "user_prompt": "What's the pipeline status?",
+      "user_prompt_variants": ["How is gathering going?"],
+      "expected_tool_calls": ["pipeline_status"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "target",
-          "companies",
-          "found",
-          "pipeline"
-        ]
+        "response_must_contain_any": ["blacklist", "checkpoint", "approve", "companies"]
       }
     },
     {
       "step": 11,
-      "phase": "campaign_creation",
-      "user_prompt": "Create the SmartLead campaigns",
-      "user_prompt_variants": [
-        "Push to SmartLead"
-      ],
-      "expected_tool_calls": [
-        "smartlead_push_campaign"
-      ],
+      "phase": "4.2_approve_checkpoint1",
+      "user_prompt": "Approve, looks correct",
+      "user_prompt_variants": ["Approved", "Looks good"],
+      "expected_tool_calls": ["tam_approve_checkpoint"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "DRAFT",
-          "campaign",
-          "SmartLead",
-          "inbox"
-        ]
+        "response_must_contain_any": ["approved", "scraping", "analyzing"]
       }
     },
     {
       "step": 12,
-      "phase": "approve_launch",
-      "user_prompt": "Checked inbox, looks good. Launch the campaigns.",
-      "user_prompt_variants": [
-        "Approved, activate"
-      ],
-      "expected_tool_calls": [
-        "activate_campaign"
-      ],
+      "phase": "4.3_classification_results",
+      "user_prompt": "Pipeline status?",
+      "expected_tool_calls": ["pipeline_status"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "activated",
-          "launched",
-          "monitoring"
-        ]
-      }
+        "response_must_contain_any": ["target", "classified", "segment"]
+      },
+      "critical_requirement": "Shows target count, target rate, segment distribution. Suggests exploration. Shows iteration 1."
     },
     {
       "step": 13,
-      "phase": "reply_intelligence",
-      "user_prompt": "Any warm replies? Which leads need follow-ups?",
-      "user_prompt_variants": [
-        "Show warm replies and follow-ups"
-      ],
-      "expected_tool_calls": [
-        "replies_summary"
-      ],
+      "phase": "4.4_exploration",
+      "user_prompt": "Yes, explore to find better filters",
+      "user_prompt_variants": ["Run exploration"],
+      "expected_tool_calls": ["tam_explore"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "warm",
-          "reply",
-          "follow",
-          "lead"
-        ]
-      }
+        "response_must_contain_any": ["enrich", "keyword", "filter", "optimized"]
+      },
+      "critical_requirement": "Enriches top 5 targets, discovers new Apollo keywords, shows original vs optimized filters."
     },
     {
       "step": 14,
-      "phase": "crm_link",
-      "user_prompt": "Show me contacts in CRM",
-      "expected_tool_calls": [
-        "replies_deep_link"
-      ],
+      "phase": "7.1_iteration_visible",
+      "user_prompt": "Show the pipeline results",
+      "expected_tool_calls": ["pipeline_status"],
       "expected_behavior": {
-        "response_must_contain_any": [
-          "crm",
-          "http",
-          "contacts"
-        ]
+        "response_must_contain_any": ["iteration", "target", "filter"]
+      },
+      "critical_requirement": "Iteration 1 results visible. Apollo filters shown. Target rate shown."
+    },
+    {
+      "step": 15,
+      "phase": "7.2_agent_feedback_reanalyze",
+      "user_prompt": "Some of these aren't IT consulting firms, they're software product companies. Exclude pure software companies.",
+      "user_prompt_variants": ["Remove software product companies, keep only consulting"],
+      "expected_tool_calls": ["provide_feedback"],
+      "expected_behavior": {
+        "response_must_contain_any": ["prompt", "re-analyze", "iteration", "adjusted"]
+      },
+      "critical_requirement": "Feedback accepted. Prompt adjusted. New iteration created. Same companies, different classification."
+    },
+    {
+      "step": 16,
+      "phase": "7.3_iteration2_results",
+      "user_prompt": "How did the re-analysis go?",
+      "expected_tool_calls": ["pipeline_status"],
+      "expected_behavior": {
+        "response_must_contain_any": ["iteration", "target", "improved"]
+      },
+      "critical_requirement": "Iteration 2 visible. Target count different from iteration 1. Better accuracy."
+    },
+    {
+      "step": 17,
+      "phase": "7.6_scale",
+      "user_prompt": "Good, now find more companies with these filters",
+      "user_prompt_variants": ["Gather more", "Scale up"],
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "response_must_contain_any": ["more", "companies", "page", "gathering"]
+      },
+      "critical_requirement": "Uses optimized filters + tuned prompt. More pages from Apollo. Does NOT re-search already gathered companies."
+    },
+    {
+      "step": 18,
+      "phase": "5.1_sequence_generation",
+      "user_prompt": "Generate the email sequence",
+      "expected_tool_calls": ["smartlead_generate_sequence"],
+      "expected_behavior": {
+        "response_must_contain_any": ["sequence", "email", "subject", "step"]
       }
+    },
+    {
+      "step": 19,
+      "phase": "5.2_approve_push",
+      "user_prompt": "Looks good, push to SmartLead",
+      "user_prompt_variants": ["Create the campaign"],
+      "expected_tool_calls": ["smartlead_push_campaign"],
+      "expected_behavior": {
+        "response_must_contain_any": ["DRAFT", "campaign", "SmartLead", "inbox"]
+      },
+      "critical_requirement": "Response has ALL 4: SmartLead link, CRM link, check inbox, approve to launch"
+    },
+    {
+      "step": 20,
+      "phase": "5.3_activate",
+      "user_prompt": "Checked inbox, looks good. Activate the campaign.",
+      "user_prompt_variants": ["Approved, activate"],
+      "expected_tool_calls": ["activate_campaign"],
+      "expected_behavior": {
+        "response_must_contain_any": ["activated", "launched", "monitoring"]
+      }
+    },
+    {
+      "step": 21,
+      "phase": "6.1_warm_replies",
+      "user_prompt": "Any warm replies?",
+      "user_prompt_variants": ["Show warm replies and follow-ups"],
+      "expected_tool_calls": ["replies_summary"],
+      "expected_behavior": {
+        "response_must_contain_any": ["warm", "reply", "follow", "lead"]
+      }
+    },
+    {
+      "step": 22,
+      "phase": "6.3_session_continuity",
+      "user_prompt": "What was I working on?",
+      "expected_tool_calls": ["get_context"],
+      "expected_behavior": {
+        "response_must_contain_any": ["EasyStaff", "project", "campaign"]
+      },
+      "critical_requirement": "Full context restored. Active project, pending checkpoints, draft campaigns shown."
     }
   ]
 }
