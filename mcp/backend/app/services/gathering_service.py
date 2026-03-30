@@ -566,12 +566,14 @@ Rules:
                     targets_found += 1
                     target_list.append({
                         "dc_id": dc.id, "domain": dc.domain, "name": dc.name,
+                        "confidence": dc.analysis_confidence,
                         "segment": dc.analysis_segment,
                         "reasoning": dc.analysis_reasoning,
                     })
                 elif r.get("segment") == "INSUFFICIENT_DATA":
                     borderline_rejections.append({
                         "domain": dc.domain, "name": dc.name,
+                        "confidence": r.get("confidence", 0),
                         "segment": r.get("segment", ""),
                         "reasoning": r.get("reasoning", ""),
                     })
