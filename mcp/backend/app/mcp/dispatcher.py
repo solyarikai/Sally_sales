@@ -595,7 +595,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     f"  Total available: {total_available:,} companies\n\n"
                     f"Cost options:\n"
                     f"  Default (≈30 targets): {cost_30_targets} credit{'s' if cost_30_targets != 1 else ''} → ≈{int(cost_30_targets * per_page * TARGET_RATE)} targets from {cost_30_targets * per_page} companies\n"
-                    f"  Full run (all {total_available:,}): {cost_all} credits → ≈{int(total_available * TARGET_RATE):,} estimated targets\n\n"
+                    f"  Full run (all {total_available:,}): {cost_all} credits → ≈{int(total_available * TARGET_RATE):,} estimated targets\n"
+                    f"  (estimated target conversion: {int(TARGET_RATE * 100)}%)\n\n"
                     f"Proceed? Call tam_gather again with confirm_filters=true."
                 ),
                 "project_id": project.id,
