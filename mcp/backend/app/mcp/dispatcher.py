@@ -609,6 +609,11 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     "default_30_targets": {"pages": cost_30_targets, "credits": cost_30_targets, "estimated_targets": int(cost_30_targets * per_page * TARGET_RATE)},
                     "full_run_all": {"pages": cost_all, "credits": cost_all, "companies": total_available},
                 },
+                "next_action": {
+                    "tool": "tam_gather",
+                    "args": {"project_id": project.id, "source_type": source_type, "filters": filters, "confirm_filters": True},
+                    "description": "User approves → call tam_gather with confirm_filters=true to start gathering",
+                },
                 "message": (
                     f"Apollo search preview:\n\n"
                     f"  Keywords: {', '.join(keywords)}\n"
@@ -619,7 +624,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     f"  Default (≈30 targets): {cost_30_targets} credit{'s' if cost_30_targets != 1 else ''} → ≈{int(cost_30_targets * per_page * TARGET_RATE)} targets from {cost_30_targets * per_page} companies\n"
                     f"  Full run (all {total_available:,}): {cost_all} credits → ≈{int(total_available * TARGET_RATE):,} estimated targets\n"
                     f"  (estimated target conversion: {int(TARGET_RATE * 100)}%)\n\n"
-                    f"Proceed? Call tam_gather again with confirm_filters=true."
+                    f"Show this preview to user and ask: 'Proceed with gathering?'\n"
+                    f"When user confirms, call tam_gather with confirm_filters=true using the same project_id, source_type, and filters."
                 ),
                 "project_id": project.id,
                 "project_name": project.name,
@@ -676,8 +682,11 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
                 "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}",
             },
-            # P0-2: Ask about email accounts while gathering runs
-            "next_question": "While gathering runs, which email accounts should we use for the campaign? Call list_email_accounts to see your options.",
+            "next_action": {
+                "tool": "list_email_accounts",
+                "description": "Ask user: 'Which email accounts to use for the campaign?' Show accounts list.",
+            },
+            "next_question": "Which email accounts should we use for the campaign?",
         }
         return result
 
@@ -709,7 +718,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                        f"Checked {scope.get('companies_checked', 0)} companies, "
                        f"{scope.get('companies_passed', 0)} passed, "
                        f"{scope.get('companies_rejected', 0)} rejected. "
-                       f"Approve to continue.",
+                       f"Show to user and ask: 'Approve to continue?'",
+            "next_action": {
+                "tool": "tam_approve_checkpoint",
+                "args": {"gate_id": gate.id},
+                "description": "User approves → call tam_approve_checkpoint, then tam_pre_filter, tam_scrape, tam_analyze",
+            },
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
             },
@@ -735,7 +749,17 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     "awaiting_verify_ok": "verified",
                 }
                 run.current_phase = phase_map.get(run.current_phase, run.current_phase)
-        return {"approved": True, "gate_id": gate.id}
+        next_tool = "tam_pre_filter"
+        if run:
+            next_tool = {"awaiting_scope_ok": "tam_pre_filter", "awaiting_targets_ok": "tam_explore"}.get(run.current_phase, "pipeline_status")
+        return {
+            "approved": True, "gate_id": gate.id,
+            "next_action": {
+                "tool": next_tool,
+                "args": {"run_id": gate.gathering_run_id},
+                "description": f"Approved. Now call {next_tool} to continue the pipeline.",
+            },
+        }
 
     if tool_name == "tam_pre_filter":
         user = await _get_user(token, session)
