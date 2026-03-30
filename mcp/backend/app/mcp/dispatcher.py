@@ -823,6 +823,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                    if scope.get("targets_found", 0) >= 34
                    else f"Only {scope.get('targets_found', 0)} targets (≈{scope.get('targets_found', 0) * 3} contacts). Need at least 34 targets for 100 contacts. Consider exploring with broader filters.\n")
                 + f"\nNext steps:\n"
+                + (f"0. GATHER MORE — not enough targets. Call tam_gather with same filters + confirm_filters=true + page_offset={run.filters.get('max_pages', 2) + 1} to get next batch from Apollo.\n"
+                   if scope.get("targets_found", 0) < 34 else "")
                 + f"1. Approve targets → call tam_approve_checkpoint\n"
                 + f"2. Run exploration to discover better filters → call tam_explore (5 credits, finds more relevant keywords)\n"
                 + f"3. Re-analyze with adjusted prompt → call tam_re_analyze\n"
