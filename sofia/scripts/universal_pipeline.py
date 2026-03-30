@@ -289,32 +289,78 @@ def save_csv(path: Path, rows: list[dict], sheet_name: str = None):
         _upload_to_sheets(fieldnames, rows, sheet_name)
 
 
+# Google Drive folder IDs for sheet placement (sofia@getsally.io)
+GDRIVE_FOLDERS = {
+    "Leads":     "1_1ck-0sn1jXm2px4MCz4o_ZST6J6JfOe",
+    "Import":    "1O-rkQK6btZjXzO-p31ZMsrjcLWeacZRV",
+    "Targets":   "124SCStl6SHuMPquxyfj0Av5O8U4kNrTj",
+    "Ops":       "1K7bVbvVU3LIK5V_cGLwhFKINBdURZLD0",
+    "Analytics": "1xRAdlbn2BK3QYBuYtUjgVjhsb2wH5MiV",
+    "Archive":   "1uLKLR6NFzJHb_XraE5sfKrSe-HbNja9t",
+}
+
+_GSHEETS_TOKEN_PATHS = [
+    Path.home() / ".claude" / "google-sheets" / "token.json",
+    SOFIA_DIR / ".google-sheets" / "token.json",
+    SCRIPT_DIR / ".google-sheets" / "token.json",
+]
+
+
+def _get_gsheets_creds():
+    """Load Google OAuth credentials, refresh if expired."""
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    token_path = None
+    for p in _GSHEETS_TOKEN_PATHS:
+        if p.exists():
+            token_path = p
+            break
+    if not token_path:
+        raise FileNotFoundError("Google Sheets token.json not found")
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_authorized_user_file(str(token_path), scopes)
+    if creds.expired:
+        creds.refresh(Request())
+        with open(token_path, "w") as f:
+            f.write(creds.to_json())
+    return creds
+
+
+def _resolve_drive_folder(sheet_name: str) -> str | None:
+    """Determine Drive folder from sheet name TYPE field.
+    Convention: [PROJECT] | [TYPE] | [SEGMENT] — [DATE]"""
+    parts = sheet_name.split(" | ")
+    if len(parts) >= 2:
+        return GDRIVE_FOLDERS.get(parts[1].strip())
+    return None
+
+
 def _upload_to_sheets(headers: list[str], rows: list[dict], sheet_name: str):
-    """Upload data to Google Sheets via backend google_sheets_service."""
+    """Create Google Sheet via OAuth (sofia@getsally.io), place in correct Drive folder."""
+    from googleapiclient.discovery import build
     data = [headers] + [[str(row.get(h, "")) for h in headers] for row in rows]
     try:
-        import subprocess
-        script = (
-            'import sys, json, os; sys.path.insert(0, "/app"); os.chdir("/app"); '
-            'from app.services.google_sheets_service import google_sheets_service; '
-            'data = json.loads(sys.stdin.read()); '
-            f'result = google_sheets_service.create_and_populate(title="{sheet_name}", '
-            'data=data["data"], share_with=["pn@getsally.io"]); '
-            'print(result or "")'
-        )
-        payload = json.dumps({"data": data})
-        result = subprocess.run(
-            ["docker", "exec", "-i", "leadgen-backend", "python3", "-c", script],
-            input=payload, capture_output=True, text=True, timeout=60,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            out = result.stdout.strip()
-            sheet_id = out.split("spreadsheets/d/")[1].split("/")[0] if "spreadsheets/d/" in out else out
-            print(f"  → Sheet: {sheet_name} — https://docs.google.com/spreadsheets/d/{sheet_id}")
-        else:
-            print(f"  ⚠ Sheet upload failed: {result.stderr[:200]}")
+        creds = _get_gsheets_creds()
+        sheets_svc = build("sheets", "v4", credentials=creds)
+        drive_svc = build("drive", "v3", credentials=creds)
+        sheet = sheets_svc.spreadsheets().create(
+            body={"properties": {"title": sheet_name}}
+        ).execute()
+        sid = sheet["spreadsheetId"]
+        sheets_svc.spreadsheets().values().update(
+            spreadsheetId=sid, range="A1",
+            valueInputOption="RAW", body={"values": data}
+        ).execute()
+        folder_id = _resolve_drive_folder(sheet_name)
+        if folder_id:
+            f = drive_svc.files().get(fileId=sid, fields="parents").execute()
+            old_parents = ",".join(f.get("parents", []))
+            drive_svc.files().update(
+                fileId=sid, addParents=folder_id, removeParents=old_parents
+            ).execute()
+        print(f"  -> Sheet: {sheet_name} — https://docs.google.com/spreadsheets/d/{sid}")
     except Exception as e:
-        print(f"  ⚠ Sheet upload skipped: {e}")
+        print(f"  ⚠ Sheet upload failed: {e}")
 
 
 def normalize_company(name: str) -> str:
