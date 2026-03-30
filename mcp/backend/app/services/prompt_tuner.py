@@ -25,7 +25,7 @@ async def tune_classification_prompt(
     offer: str,
     query: str,
     openai_key: str,
-    max_iterations: int = 5,
+    max_iterations: int = 1,
     target_accuracy: float = 0.95,
     model: str = "gpt-4.1-mini",
     return_history: bool = False,
