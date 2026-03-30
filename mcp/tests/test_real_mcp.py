@@ -168,6 +168,7 @@ class DirectEngine:
         self.gate_ids = []
         self.sequence_ids = []
         self.campaign_ids = []
+        self.email_account_ids = []
 
     @property
     def pid(self): return self.project_ids[-1] if self.project_ids else None
@@ -228,14 +229,17 @@ class DirectEngine:
         if tool == "tam_approve_checkpoint": return {"gate_id": self.gid or 1}
         if tool == "smartlead_generate_sequence": return {"project_id": self.pid or 1}
         if tool == "smartlead_approve_sequence": return {"sequence_id": self.sid or 1}
-        if tool == "smartlead_push_campaign": return {"sequence_id": self.sid or 1}
+        if tool == "smartlead_push_campaign":
+            return {"sequence_id": self.sid or 1,
+                    "email_account_ids": self.email_account_ids[:3] if self.email_account_ids else [17062361]}
         if tool == "activate_campaign":
             return {"campaign_id": self.campaign_ids[-1] if self.campaign_ids else 1,
                     "user_confirmation": step.get("user_prompt", "activate")}
         if tool == "smartlead_edit_sequence":
             return {"sequence_id": self.sid or 1, "step_number": 1, "subject": "Test"}
         if tool == "provide_feedback":
-            return {"project_id": self.pid or 1, "feedback_type": "sequence",
+            ft = "targets" if "target" in step.get("phase", "") or "target" in step.get("user_prompt", "").lower() else "general"
+            return {"project_id": self.pid or 1, "feedback_type": ft,
                     "feedback_text": step.get("user_prompt", "feedback")}
         if tool == "override_company_target":
             return {"company_id": 1, "is_target": True, "reasoning": "override"}

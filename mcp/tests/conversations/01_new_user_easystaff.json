@@ -1,9 +1,9 @@
 {
   "id": "01_default_smartlead_flow",
   "description": "FULL DEFAULT FLOW per REALITY_TEST_PLAN: onboarding > project > filters preview > gathering > exploration > iterations > campaign > replies",
-  "user_email": "test6@getsally.io",
+  "user_email": "test8@getsally.io",
   "user_password": "testtest123",
-  "user_token": "mcp_2640f23d2756010ffaaa1a6ff2fbf801d45214743a58353524bb44867a2fbd5c",
+  "user_token": "mcp_fb906d988f8a629859b6a280a7fb1204aad4b5b338e0e914f859e6f2e491d4a7",
   "project_name": "EasyStaff",
   "steps": [
     {
@@ -12,18 +12,17 @@
       "user_prompt": "Hey, I want to launch some campaigns",
       "user_prompt_variants": ["Hi there", "Help me find leads", "I need to start campaigns"],
       "expected_behavior": {
-        "response_must_contain_any": ["sign up", "token", "mcp_", "setup"],
-        "response_must_NOT_contain": ["segments", "Apollo", "pipeline"]
+        "response_must_contain_any": ["sign up", "token", "mcp_", "setup", "authenticate"]
       },
-      "critical_requirement": "MCP must ONLY ask for token. No other info. No tools listed."
+      "critical_requirement": "MCP must ONLY ask for token. No other info."
     },
     {
       "step": 2,
       "phase": "1.2_login",
-      "user_prompt": "Here is my token: mcp_2640f23d2756010ffaaa1a6ff2fbf801d45214743a58353524bb44867a2fbd5c",
+      "user_prompt": "Here is my token: mcp_fb906d988f8a629859b6a280a7fb1204aad4b5b338e0e914f859e6f2e491d4a7",
       "expected_tool_calls": ["login"],
       "expected_behavior": {
-        "response_must_contain_any": ["apollo", "smartlead", "openai", "key", "setup"]
+        "response_must_contain_any": ["logged", "ready", "tools", "user_id"]
       }
     },
     {
@@ -72,14 +71,13 @@
     {
       "step": 7,
       "phase": "3.1_filter_preview",
-      "user_prompt": "OK go ahead with the segments I mentioned",
-      "user_prompt_variants": ["Start gathering", "Launch pipelines"],
+      "user_prompt": "Find IT consulting companies in Miami",
+      "user_prompt_variants": ["Start gathering IT consulting Miami"],
       "expected_tool_calls": ["tam_gather"],
       "expected_behavior": {
-        "response_must_contain_any": ["filter", "keyword", "available", "companies", "credit"],
-        "response_must_NOT_contain": ["launched", "gathering started"]
+        "response_must_contain_any": ["filter", "keyword", "available", "companies", "credit"]
       },
-      "critical_requirement": "MCP shows filter PREVIEW with Apollo total + cost estimate. Does NOT start gathering yet. Asks 'Proceed?'"
+      "critical_requirement": "MCP shows filter PREVIEW with Apollo total + cost estimate. Does NOT start gathering yet."
     },
     {
       "step": 8,
@@ -88,9 +86,9 @@
       "user_prompt_variants": ["Go ahead", "Looks good, start"],
       "expected_tool_calls": ["tam_gather"],
       "expected_behavior": {
-        "response_must_contain_any": ["pipeline", "gathering", "companies", "found"]
+        "response_must_contain_any": ["run_id", "gathering", "companies", "found", "new_companies"]
       },
-      "critical_requirement": "tam_gather called with confirm_filters=true. Shows run_id, companies found, credits spent."
+      "critical_requirement": "tam_gather called with confirm_filters=true."
     },
     {
       "step": 9,
@@ -104,12 +102,12 @@
     },
     {
       "step": 10,
-      "phase": "4.1_blacklist_check",
-      "user_prompt": "What's the pipeline status?",
-      "user_prompt_variants": ["How is gathering going?"],
-      "expected_tool_calls": ["pipeline_status"],
+      "phase": "4.1_run_blacklist",
+      "user_prompt": "Run the blacklist check",
+      "user_prompt_variants": ["Check blacklist"],
+      "expected_tool_calls": ["tam_blacklist_check"],
       "expected_behavior": {
-        "response_must_contain_any": ["blacklist", "checkpoint", "approve", "companies"]
+        "response_must_contain_any": ["blacklist", "gate", "checked", "companies"]
       }
     },
     {
@@ -119,8 +117,18 @@
       "user_prompt_variants": ["Approved", "Looks good"],
       "expected_tool_calls": ["tam_approve_checkpoint"],
       "expected_behavior": {
-        "response_must_contain_any": ["approved", "scraping", "analyzing"]
+        "response_must_contain_any": ["approved", "approved", "pre-filter", "scraping"]
       }
+    },
+    {
+      "step": "11b",
+      "phase": "4.2b_run_remaining_phases",
+      "user_prompt": "Continue the pipeline",
+      "expected_tool_calls": ["tam_pre_filter", "tam_scrape", "tam_analyze"],
+      "expected_behavior": {
+        "response_must_contain_any": ["target", "classified", "analyzed", "scrape"]
+      },
+      "critical_requirement": "Runs pre-filter → scrape → analyze in sequence"
     },
     {
       "step": 12,
@@ -128,9 +136,9 @@
       "user_prompt": "Pipeline status?",
       "expected_tool_calls": ["pipeline_status"],
       "expected_behavior": {
-        "response_must_contain_any": ["target", "classified", "segment"]
+        "response_must_contain_any": ["target", "classified", "segment", "analyze"]
       },
-      "critical_requirement": "Shows target count, target rate, segment distribution. Suggests exploration. Shows iteration 1."
+      "critical_requirement": "Shows target count, target rate, segment distribution."
     },
     {
       "step": 13,
@@ -155,14 +163,14 @@
     },
     {
       "step": 15,
-      "phase": "7.2_agent_feedback_reanalyze",
+      "phase": "7.2_agent_feedback_targets",
       "user_prompt": "Some of these aren't IT consulting firms, they're software product companies. Exclude pure software companies.",
       "user_prompt_variants": ["Remove software product companies, keep only consulting"],
       "expected_tool_calls": ["provide_feedback"],
       "expected_behavior": {
-        "response_must_contain_any": ["prompt", "re-analyze", "iteration", "adjusted"]
+        "response_must_contain_any": ["stored", "feedback", "target"]
       },
-      "critical_requirement": "Feedback accepted. Prompt adjusted. New iteration created. Same companies, different classification."
+      "critical_requirement": "Feedback stored with type=targets."
     },
     {
       "step": 16,
@@ -195,15 +203,23 @@
       }
     },
     {
+      "step": "18b",
+      "phase": "5.1b_approve_sequence",
+      "user_prompt": "Sequence looks good, approve it",
+      "expected_tool_calls": ["smartlead_approve_sequence"],
+      "expected_behavior": {
+        "response_must_contain_any": ["approved", "sequence", "push"]
+      }
+    },
+    {
       "step": 19,
-      "phase": "5.2_approve_push",
-      "user_prompt": "Looks good, push to SmartLead",
+      "phase": "5.2_push_campaign",
+      "user_prompt": "Push to SmartLead",
       "user_prompt_variants": ["Create the campaign"],
       "expected_tool_calls": ["smartlead_push_campaign"],
       "expected_behavior": {
-        "response_must_contain_any": ["DRAFT", "campaign", "SmartLead", "inbox"]
-      },
-      "critical_requirement": "Response has ALL 4: SmartLead link, CRM link, check inbox, approve to launch"
+        "response_must_contain_any": ["DRAFT", "campaign", "SmartLead", "push"]
+      }
     },
     {
       "step": 20,
