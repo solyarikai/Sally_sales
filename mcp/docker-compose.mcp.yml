@@ -91,6 +91,20 @@ services:
       - mcp-redis
     restart: unless-stopped
 
+  mcp-admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: mcp-admin
+    ports:
+      - "8003:8000"
+    environment:
+      - DATABASE_URL=postgresql://mcp:mcp_secret@mcp-postgres:5432/mcp_leadgen
+    depends_on:
+      mcp-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 networks:
   default:
     name: mcp-network
