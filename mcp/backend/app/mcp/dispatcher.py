@@ -1805,7 +1805,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                         email=person.get("email"),
                         first_name=person.get("first_name"),
                         last_name=person.get("last_name"),
-                        title=person.get("title"),
+                        job_title=person.get("title"),
                         linkedin_url=person.get("linkedin_url"),
                         source_data=person,
                     )
