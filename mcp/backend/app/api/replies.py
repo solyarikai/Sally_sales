@@ -182,3 +182,64 @@ async def trigger_sync(
     from app.services.reply_service import sync_all_tracked_replies
     result = await sync_all_tracked_replies(user.id)
     return result
+
+
+@router.post("/webhook/smartlead")
+async def smartlead_webhook(
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """SmartLead webhook — receives reply notifications in real-time.
+
+    SmartLead sends: {event_type, lead, campaign_id, ...}
+    We process and store in MCPReply table.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    event_type = body.get("event_type", "")
+    lead = body.get("lead", {})
+    campaign_id = body.get("campaign_id")
+
+    if event_type not in ("REPLY", "INTERESTED", "MEETING_BOOKED"):
+        return {"status": "ignored", "event_type": event_type}
+
+    email = lead.get("email", "")
+    if not email:
+        return {"status": "ignored", "reason": "no email"}
+
+    # Find campaign in our DB
+    from app.models.campaign import Campaign
+    campaign = None
+    if campaign_id:
+        campaign = (await session.execute(
+            select(Campaign).where(Campaign.external_id == str(campaign_id))
+        )).scalar_one_or_none()
+
+    # Check if already exists
+    existing = (await session.execute(
+        select(MCPReply).where(MCPReply.lead_email == email)
+    )).scalar_one_or_none()
+    if existing:
+        return {"status": "duplicate"}
+
+    # Classify
+    reply_text = body.get("reply_text", body.get("message", ""))[:2000]
+    category = "interested" if event_type == "INTERESTED" else "meeting_request" if event_type == "MEETING_BOOKED" else "other"
+
+    reply = MCPReply(
+        project_id=campaign.project_id if campaign else None,
+        campaign_id=campaign.id if campaign else None,
+        campaign_name=campaign.name if campaign else f"Campaign {campaign_id}",
+        lead_email=email,
+        lead_name=f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip(),
+        reply_text=reply_text,
+        category=category,
+        platform="smartlead",
+        smartlead_lead_id=lead.get("id"),
+    )
+    session.add(reply)
+    await session.commit()
+
+    logger.info(f"Webhook: new {category} reply from {email} for campaign {campaign_id}")
+    return {"status": "processed", "category": category}

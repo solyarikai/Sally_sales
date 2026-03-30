@@ -18,8 +18,20 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("MCP LeadGen starting up...")
+    # Start reply monitor (polls SmartLead every 3 min for new replies)
+    try:
+        from app.services.reply_monitor import start_reply_monitor
+        start_reply_monitor()
+        logger.info("Reply monitor started")
+    except Exception as e:
+        logger.warning(f"Reply monitor failed to start: {e}")
     yield
     logger.info("MCP LeadGen shutting down...")
+    try:
+        from app.services.reply_monitor import get_reply_monitor
+        get_reply_monitor().stop()
+    except Exception:
+        pass
     await close_db()
 
 
