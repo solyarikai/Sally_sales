@@ -115,7 +115,7 @@ async def dashboard(request: Request, date_from: str = "", date_to: str = ""):
             <td><a href="/user/{u['id']}/conversations">{u['conversations']}</a></td>
         </tr>"""
 
-    return HTML_DASHBOARD.format(
+    return _render(HTML_DASHBOARD,
         rows=rows_html,
         total_users=totals["total_users"],
         total_tool_calls=totals["total_tool_calls"],
