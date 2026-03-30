@@ -45,19 +45,23 @@ TMP = Path(__file__).parent / "tmp"
 SSE_TIMEOUT = 120  # seconds
 
 
-async def call(mcp, tool, args):
-    """Call MCP tool, return parsed JSON."""
-    try:
-        r = await asyncio.wait_for(mcp.call_tool(tool, arguments=args), timeout=SSE_TIMEOUT)
-        text = r.content[0].text if r.content else "{}"
+async def call(mcp, tool, args, retries=2):
+    """Call MCP tool, return parsed JSON. Retries on connection drops."""
+    for attempt in range(retries + 1):
         try:
-            return json.loads(text)
-        except:
-            return {"raw": text[:500]}
-    except asyncio.TimeoutError:
-        return {"error": f"timeout after {SSE_TIMEOUT}s"}
-    except Exception as e:
-        return {"error": str(e)[:200]}
+            r = await asyncio.wait_for(mcp.call_tool(tool, arguments=args), timeout=SSE_TIMEOUT)
+            text = r.content[0].text if r.content else "{}"
+            try:
+                return json.loads(text)
+            except:
+                return {"raw": text[:500]}
+        except asyncio.TimeoutError:
+            return {"error": f"timeout after {SSE_TIMEOUT}s"}
+        except Exception as e:
+            if attempt < retries and "closed" in str(e).lower():
+                await asyncio.sleep(2)
+                continue
+            return {"error": str(e)[:200]}
 
 
 async def main():
