@@ -1,224 +1,372 @@
-# Exploration Phase — Implementation Plan
+# Exploration Phase — Full Implementation Plan
 **Date**: 2026-03-30
-**Status**: Plan (not started)
+**Source**: requirements/exploration.md + default_requirements.md
+**Status**: Plan (ready to implement)
 
-## Current State
+---
 
-### What works ✅
-- `filter_mapper.py` — generates initial Apollo filters from user query using taxonomy maps + embedding pre-filter
-- `taxonomy_service.py` — stores 112 industries + 2,014 keywords + embeddings, provides similarity search
-- `exploration_service.py` — searches Apollo, scrapes websites, classifies targets, enriches top 5
-- `_pick_industries()` — separate gpt-4o-mini agent, 100% accuracy on 6 test segments
-- `_gpt_pick_filters()` — picks keywords from embedding-ranked shortlist + size from offer
-- `dispatcher.py` line 502 — `filter_mapper` is called when `tam_gather` has no explicit filters
-- `dispatcher.py` line 846 — partial taxonomy update after exploration (buggy)
+## The Flow
 
-### What's broken/missing ❌
-
-#### Gap 1: Taxonomy update from enrichment is buggy
-**File**: `dispatcher.py:846-857`
-**Problem**: Creates a NEW `TaxonomyService()` instance instead of using the singleton `taxonomy_service`. The new instance loads from disk, adds keywords, saves — but the singleton in memory still has the old data. Next query uses the stale singleton.
-**Also**: Only adds `common_labels.keywords` (aggregated top keywords), not the FULL `keyword_tags` from each enriched company. Loses 80% of the vocabulary.
-**Fix**:
-```python
-# Replace dispatcher.py:846-857 with:
-from app.services.taxonomy_service import taxonomy_service
-for enriched_company in exploration_result.get("enriched_companies", []):
-    taxonomy_service.add_from_enrichment(enriched_company, segment=query)
-await taxonomy_service.rebuild_embeddings_if_needed(openai_key)
 ```
-**Requires**: `run_exploration()` must return `enriched_companies` (the full org data from enrichment, not just common_labels).
+User: "Gather IT consulting in Miami and video production in London"
+                              │
+                              ▼
+              ┌───────────────────────────────┐
+              │  INTENT SPLITTER (gpt-4o-mini) │
+              │  → 2 segments detected         │
+              └──────┬────────────────┬────────┘
+                     │                │
+        ┌────────────┘                └────────────┐
+        ▼                                          ▼
+  SEGMENT 1 PIPELINE                        SEGMENT 2 PIPELINE
+  "IT consulting, Miami"                    "video production, London"
+        │                                          │
+        ▼ (same flow for each)                     ▼
 
-#### Gap 2: exploration_service doesn't return enriched company data
-**File**: `exploration_service.py:68-73`
-**Problem**: `_enrich_targets()` returns enriched data but `run_exploration()` only stores stats. The actual enriched org data (with keyword_tags) is lost after the function returns.
-**Fix**: Add `enriched_companies` to the result dict:
-```python
-result["enriched_companies"] = [e.get("enriched", {}) for e in enriched]
+═══════════════════════════════════════════════════════════
+  PHASE 1: INITIAL FILTERS (automated, no user agent)
+═══════════════════════════════════════════════════════════
+
+  Step A: Embed query → top 50 keywords from taxonomy map
+  Step B1: _pick_industries (gpt-4o-mini) → 2-3 industries
+  Step B2: _gpt_pick_filters (gpt-4.1-mini) → keywords + size
+  Step C: Location extraction (regex)
+  Step D: Filter assembler → Apollo filters ready
+
+  RESULT: initial Apollo filters
+  STATUS: tested, 100% on golden validation set
+
+═══════════════════════════════════════════════════════════
+  PHASE 2: INITIAL SEARCH + SCRAPE (1 credit)
+═══════════════════════════════════════════════════════════
+
+  Apollo search with initial filters → 25 companies
+  Scrape all 25 websites (free, httpx + Apify proxy)
+  GPT-4o-mini classifies targets (via negativa prompt)
+
+  RESULT: 25 companies with scraped website text + GPT classifications
+  This becomes ITERATION 0 in the pipeline
+  STATUS: built, tested
+
+═══════════════════════════════════════════════════════════
+  PHASE 3: USER AGENT REVIEW (the key feedback loop)
+═══════════════════════════════════════════════════════════
+
+  MCP returns to user agent (Opus in Claude Code):
+  ┌──────────────────────────────────────────────────┐
+  │  "Here are 25 companies from Apollo.              │
+  │   I scraped their websites.                       │
+  │   GPT classified X as targets, Y as not.          │
+  │                                                   │
+  │   Please review ALL 25 companies:                 │
+  │   1. Select top 5 for Apollo enrichment           │
+  │   2. For EACH company: is it a real target        │
+  │      for {offer}? Why or why not?                 │
+  │                                                   │
+  │   Companies:                                      │
+  │   1. synergybc.com — IT staffing & consulting...  │
+  │   2. cipher.com — cybersecurity solutions...      │
+  │   ... (all 25 with 300 chars website text)        │
+  │                                                   │
+  │   Call provide_feedback with your review."         │
+  └──────────────────────────────────────────────────┘
+
+  User agent (Opus) responds via provide_feedback tool:
+  ┌──────────────────────────────────────────────────┐
+  │  feedback_type: "targets"                         │
+  │  feedback_text: {                                 │
+  │    "top_5_for_enrichment": [                      │
+  │      "synergybc.com",                             │
+  │      "koombea.com",                               │
+  │      "bluecoding.com",                            │
+  │      "avalith.net",                               │
+  │      "therocketcode.com"                          │
+  │    ],                                             │
+  │    "target_verdicts": {                           │
+  │      "synergybc.com": {"target": true,            │
+  │        "reason": "IT staffing, hires contractors, │
+  │        needs payroll"},                            │
+  │      "cipher.com": {"target": false,              │
+  │        "reason": "cybersecurity product company,  │
+  │        not IT consulting"},                       │
+  │      ... (all 25)                                 │
+  │    }                                              │
+  │  }                                                │
+  └──────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════
+  PHASE 4: TWO PARALLEL TASKS (triggered by agent feedback)
+═══════════════════════════════════════════════════════════
+
+  MCP receives agent's feedback and launches 2 tasks IN PARALLEL:
+
+  ┌─────────────────────────────┐    ┌─────────────────────────────┐
+  │  TASK A: ENRICH TOP 5       │    │  TASK B: PROMPT ADJUSTMENT  │
+  │  (5 Apollo credits)         │    │  LOOP (free, GPT only)      │
+  │                             │    │                             │
+  │  For each of agent's top 5: │    │  Agent's verdicts = TRUTH   │
+  │  1. Apollo enrich API       │    │  GPT's classifications =    │
+  │  2. Extract keyword_tags    │    │  current prompt output      │
+  │  3. Extract industry        │    │                             │
+  │  4. UPSERT into shared      │    │  LOOP:                     │
+  │     taxonomy map            │    │  1. Compare GPT vs agent    │
+  │  5. Rebuild embeddings      │    │     on all 25 companies     │
+  │                             │    │  2. If match ≥95%: done     │
+  │  RESULT:                    │    │  3. If not: GPT generates   │
+  │  - Taxonomy map extended    │    │     improved prompt based   │
+  │  - New keywords available   │    │     on the mismatches       │
+  │    for filter optimization  │    │  4. Re-classify same 25     │
+  │                             │    │     companies with new      │
+  │                             │    │     prompt                  │
+  │                             │    │  5. Each iteration = new    │
+  │                             │    │     PipelineIteration       │
+  │                             │    │     visible in UI           │
+  │                             │    │  6. Go to step 1            │
+  │                             │    │                             │
+  │                             │    │  Max 5 iterations.          │
+  │                             │    │  RESULT: tuned prompt       │
+  │                             │    │  that matches agent's       │
+  │                             │    │  judgment at ≥95%           │
+  └──────────┬──────────────────┘    └──────────┬──────────────────┘
+             │                                  │
+             └──────────┬───────────────────────┘
+                        │ (both complete)
+                        ▼
+
+═══════════════════════════════════════════════════════════
+  PHASE 5: SCALE SEARCH (new iteration, optimized)
+═══════════════════════════════════════════════════════════
+
+  New PipelineIteration started with:
+  - OPTIMIZED FILTERS: initial industries + keywords
+    extended with enrichment-discovered keywords
+    (re-run filter_mapper with enriched taxonomy map)
+  - TUNED PROMPT: the GPT classification prompt that
+    matched agent's judgment at ≥95%
+  - HIGHER VOLUME: max_pages = enough for 30+ targets
+    (100+ contacts at 3/company)
+
+  Apollo search → scrape all → classify with tuned prompt
+  → ≥30 target companies → people enrichment → campaign
+
+  This is the PRODUCTION iteration visible in pipeline UI.
+  All previous prompt-tuning iterations also visible
+  via dropdown (selected by default = latest/best).
+
+═══════════════════════════════════════════════════════════
+  PHASE 6: PEOPLE + CAMPAIGN (existing pipeline)
+═══════════════════════════════════════════════════════════
+
+  People enrichment (3 contacts/company, C-level, FREE)
+  SmartLead campaign creation (sequence, accounts, test email)
+  User approves → launch
 ```
 
-#### Gap 3: Embeddings not rebuilt after enrichment
-**File**: `taxonomy_service.py`
-**Problem**: `add_from_enrichment()` adds keywords to the cache but new keywords have no embeddings. `rebuild_embeddings_if_needed()` exists but is never called from the pipeline.
-**Fix**: Call it from dispatcher after taxonomy update (see Gap 1 fix).
+---
 
-#### Gap 4: _build_optimized_filters doesn't use taxonomy map
-**File**: `exploration_service.py:303-370`
-**Problem**: The filter optimizer selects keywords from enrichment data using GPT, but doesn't check if those keywords already exist in the taxonomy map. It also doesn't ADD newly discovered keywords from enrichment to the Apollo search — it only checks if they're "relevant to the segment."
-**Fix**: After enrichment, the taxonomy map already has the new keywords. The optimized filters should be built by re-running `filter_mapper.map_query_to_filters()` — now with a richer keyword map (from enrichment). This replaces the custom `_build_optimized_filters()` entirely.
-```python
-# Instead of custom optimization:
-# Step 1: enrich top 5 → taxonomy_service.add_from_enrichment()
-# Step 2: rebuild embeddings
-# Step 3: re-call filter_mapper.map_query_to_filters() → new shortlist includes enriched keywords
-# The embedding pre-filter automatically picks up the new keywords
+## Pipeline Iteration Model
+
+### New DB entity: `PipelineIteration`
+
+```sql
+-- Migration 008_pipeline_iterations.py
+CREATE TABLE pipeline_iterations (
+    id SERIAL PRIMARY KEY,
+    gathering_run_id INTEGER REFERENCES gathering_runs(id),
+    iteration_number INTEGER NOT NULL DEFAULT 0,
+
+    -- What changed in this iteration
+    filters JSONB,                    -- Apollo filters used
+    classification_prompt TEXT,       -- GPT prompt used for classification
+    prompt_source VARCHAR(50),        -- 'initial' | 'agent_feedback' | 'auto_tuned'
+
+    -- Results
+    total_companies INTEGER,
+    targets_found INTEGER,
+    target_rate FLOAT,
+
+    -- Agent feedback (if this iteration was reviewed)
+    agent_verdicts JSONB,             -- {domain: {target: bool, reason: str}}
+    agent_top_5 TEXT[],               -- domains selected for enrichment
+
+    -- Prompt tuning loop
+    prompt_accuracy FLOAT,            -- % match with agent verdicts
+    tuning_iterations INTEGER DEFAULT 0,
+
+    is_active BOOLEAN DEFAULT TRUE,   -- latest = active, shown by default in UI
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- UI: pipeline page shows dropdown of iterations
+-- Default: latest (highest iteration_number) selected
+-- Each iteration shows: filters, prompt, companies, segments, targets
 ```
 
-#### Gap 5: No iteration model in the pipeline
-**File**: gathering models + gathering_service.py
-**Problem**: No concept of iteration 1 (explore, draft filters) vs iteration 2 (scale, optimized filters) within a GatheringRun. The current pipeline does: gather → blacklist → scrape → analyze. There's no "gather again with better filters."
-**Current workaround**: Dispatcher returns optimized filters and tells user to call `tam_gather` again manually. This works but is not automated.
-**Design decision needed**: Two options:
-  - **Option A**: Two separate GatheringRuns — run1 = exploration (25 companies), run2 = scale (optimized filters, 100+ companies). Simple, uses existing model.
-  - **Option B**: Add `iteration` field to GatheringRun or create `PipelineIteration` model. More structured but requires migration.
-**Recommendation**: Option A — simpler, no migration, exploration is just a small GatheringRun that feeds into the real one.
+### How iterations relate to the existing pipeline:
+- `GatheringRun` = the pipeline (one per segment per user request)
+- `PipelineIteration` = each re-classification of the same companies
+- `DiscoveredCompany` results (is_target, analysis_segment) = per-iteration via `source_data.iteration_results[iteration_id]`
+- Companies are NOT re-blacklisted between iterations (same set, different prompt)
+- Companies ARE re-scraped only if scrape failed in previous iteration
 
-#### Gap 6: Apollo API key location in exploration_service
-**File**: `exploration_service.py:95-118`
-**Status**: Fixed on 2026-03-30 (switched from body to X-Api-Key header)
-**But**: The test `test_e2e_real.py` has its own `apollo_search()` function that also uses the header. These should use the same code — currently duplicated.
+---
+
+## What Needs Building
+
+### 1. MCP Tool: Return scraped companies for agent review
+**Current**: `suggest_apollo_filters` returns filter suggestions, not company data.
+**Need**: A tool (or enhanced return from `tam_gather`) that returns all 25 scraped companies with website text for agent review.
+**Implementation**: After Phase 2 (search + scrape + classify), return:
+```json
+{
+  "companies": [
+    {
+      "domain": "synergybc.com",
+      "name": "Synergy Business Consulting",
+      "website_text": "... 300 chars ...",
+      "gpt_classification": {"is_target": true, "segment": "IT_CONSULTING", "reasoning": "..."}
+    },
+    ...
+  ],
+  "gpt_summary": {"targets": 6, "total": 25, "target_rate": "24%"},
+  "message": "Review these companies. Which are real targets for {offer}? Select top 5 for enrichment."
+}
+```
+
+### 2. MCP Tool: Accept agent feedback on targets
+**Current**: `provide_feedback` is generic text.
+**Need**: Structured feedback specifically for target review.
+**Implementation**: Enhance `provide_feedback` or create `refinement_override` to accept:
+```json
+{
+  "top_5_for_enrichment": ["domain1", "domain2", ...],
+  "target_verdicts": {
+    "domain1": {"target": true, "reason": "IT consulting firm, hires contractors"},
+    "domain2": {"target": false, "reason": "cybersecurity product, not consulting"}
+  }
+}
+```
+
+### 3. Prompt Adjustment Loop (Task B)
+**New service**: `prompt_tuner.py`
+```python
+async def tune_classification_prompt(
+    companies: List[Dict],           # 25 companies with website text
+    agent_verdicts: Dict,            # {domain: {target: bool, reason: str}}
+    offer: str,                      # what we sell
+    query: str,                      # segment query
+    openai_key: str,
+    max_iterations: int = 5,
+) -> Tuple[str, float]:
+    """Iterate GPT prompt until it matches agent's verdicts at ≥95%.
+
+    Returns: (tuned_prompt, accuracy)
+    """
+    current_prompt = _build_initial_prompt(offer, query)
+
+    for i in range(max_iterations):
+        # Classify all 25 with current prompt
+        gpt_results = await _classify_batch(companies, current_prompt, openai_key)
+
+        # Compare vs agent truth
+        accuracy, mismatches = _compare(gpt_results, agent_verdicts)
+
+        # Save as PipelineIteration
+        await _save_iteration(i, current_prompt, gpt_results, accuracy)
+
+        if accuracy >= 0.95:
+            return current_prompt, accuracy
+
+        # Ask GPT to improve the prompt based on mismatches
+        current_prompt = await _improve_prompt(
+            current_prompt, mismatches, offer, query, openai_key
+        )
+
+    return current_prompt, accuracy
+```
+
+### 4. Enrichment → Taxonomy Update (Gaps 1-4 from previous plan)
+Wire enrichment results into shared taxonomy map. Already designed, just needs wiring:
+- `exploration_service.py`: return `enriched_companies`
+- `dispatcher.py`: call `taxonomy_service.add_from_enrichment()` + `rebuild_embeddings_if_needed()`
+- `filter_mapper.py`: no changes (already uses taxonomy_service singleton)
+
+### 5. Scale Search with Optimized Filters (Phase 5)
+After both parallel tasks complete:
+- Re-call `filter_mapper.map_query_to_filters()` (taxonomy map now has enrichment data → better keywords)
+- Create new `PipelineIteration` with optimized filters + tuned prompt
+- Search Apollo with higher max_pages
+- Classify with tuned prompt (≥95% accuracy)
+- ≥30 target companies → proceed to people enrichment
+
+### 6. Pipeline UI: Iteration Dropdown
+- Dropdown shows all iterations for a run
+- Default: latest (best) iteration selected
+- Each iteration shows: filters applied, prompt used, companies, target rate
+- Switching iterations updates the company table (same companies, different classifications)
+
+---
+
+## Files to Create/Modify
+
+| File | Action | What |
+|------|--------|------|
+| `backend/app/services/prompt_tuner.py` | CREATE | Prompt adjustment loop (Task B) |
+| `backend/app/models/pipeline.py` | MODIFY | Add PipelineIteration model |
+| `backend/alembic/versions/008_pipeline_iterations.py` | CREATE | DB migration |
+| `backend/app/services/exploration_service.py` | MODIFY | Return enriched_companies, integrate with taxonomy |
+| `backend/app/services/gathering_service.py` | MODIFY | Support iterations (re-classify without blacklist) |
+| `backend/app/mcp/dispatcher.py` | MODIFY | Wire feedback → parallel tasks → scale search |
+| `backend/app/mcp/tools.py` | MODIFY | Enhanced tool responses with company data |
+| `frontend/src/pages/PipelinePage.tsx` | MODIFY | Iteration dropdown, latest by default |
+
+## Tests to Create
+
+| File | What |
+|------|------|
+| `tests/exploration/test_step1_filters.py` | Golden validation (existing, passing) |
+| `tests/exploration/test_step2_search.py` | Real Apollo + scrape + classify |
+| `tests/exploration/test_step3_agent_review.py` | Simulate agent feedback, verify MCP receives it |
+| `tests/exploration/test_step4_prompt_tuning.py` | Prompt loop converges to ≥95% |
+| `tests/exploration/test_step5_enrich_map.py` | Enrichment updates taxonomy, embeddings rebuilt |
+| `tests/exploration/test_step6_optimized.py` | Re-search with better filters + tuned prompt |
+| `tests/exploration/test_full_e2e.py` | All steps, ≥30 targets found |
+
+---
+
+## Credit Budget Per Segment
+
+| Phase | Action | Credits |
+|-------|--------|---------|
+| Phase 2 | Apollo search (25 companies) | 1 |
+| Phase 4 Task A | Enrich top 5 | 5 |
+| Phase 5 | Scale search (1-4 pages) | 1-4 |
+| Phase 6 | People search | FREE |
+| **TOTAL** | | **7-10** |
+
+GPT costs for prompt tuning loop: ~$0.01 (5 iterations × 25 companies × gpt-4o-mini)
+
+---
+
+## KPIs
+
+| Metric | Target |
+|--------|--------|
+| Target companies found | ≥30 per segment |
+| Contacts per campaign | ≥100 (3 per company) |
+| Classification accuracy (GPT vs agent) | ≥95% after tuning |
+| Apollo credits per segment | ≤10 |
+| Prompt tuning iterations | ≤5 |
+| Keyword map growth per enrichment | +30-100 keywords |
 
 ---
 
 ## Implementation Order
 
-### Phase 1: Wire the feedback loop (Gaps 1-4)
-**Goal**: After exploration, new keywords flow into the shared map and improve the next query.
-**Files to change**: `exploration_service.py`, `dispatcher.py`, `taxonomy_service.py`
-**Test**: Run exploration for segment A → verify keyword map grew → run exploration for segment B → verify segment B's keyword shortlist includes keywords from segment A's enrichment.
-
-#### 1.1 Return enriched companies from exploration (Gap 2)
-```
-exploration_service.py: add result["enriched_companies"]
-```
-
-#### 1.2 Fix taxonomy update in dispatcher (Gap 1)
-```
-dispatcher.py: use singleton taxonomy_service, add full enrichment data
-```
-
-#### 1.3 Rebuild embeddings after update (Gap 3)
-```
-dispatcher.py: call taxonomy_service.rebuild_embeddings_if_needed()
-```
-
-#### 1.4 Replace _build_optimized_filters with re-call to filter_mapper (Gap 4)
-```
-exploration_service.py: after enrichment, call map_query_to_filters() again
-```
-
-### Phase 2: Automate iteration 2 (Gap 5)
-**Goal**: After exploration finishes, automatically launch the scale search with optimized filters.
-**Approach**: Option A — exploration creates a small GatheringRun (25 companies), then automatically creates a second GatheringRun with optimized filters and higher max_pages.
-**Files to change**: `dispatcher.py` (suggest_apollo_filters or tam_gather tool handler)
-
-### Phase 3: Tests
-**Goal**: Isolated tests for each step + full E2E test.
-**Structure**:
-```
-tests/exploration/
-  test_step1_initial_filters.py    ← golden validation (no API calls except GPT)
-  test_step2_search_classify.py    ← real Apollo + scrape + classify
-  test_step3_enrich_update.py      ← real enrichment + verify map grew + embeddings rebuilt
-  test_step4_optimized_filters.py  ← re-run filter_mapper with enriched map → compare
-  test_full_exploration.py         ← all steps + verify targets ≥30
-```
-
----
-
-## Detailed Changes Per File
-
-### `exploration_service.py`
-1. `run_exploration()` — add `result["enriched_companies"] = [e.get("enriched", {}) for e in enriched]`
-2. Remove `_build_optimized_filters()` function entirely — replaced by re-calling `filter_mapper.map_query_to_filters()` after enrichment
-3. `run_exploration()` — after enrichment, call:
-   ```python
-   from app.services.taxonomy_service import taxonomy_service
-   for e in enriched:
-       taxonomy_service.add_from_enrichment(e.get("enriched", {}), segment=query)
-   await taxonomy_service.rebuild_embeddings_if_needed(openai_key)
-   # Re-generate filters with enriched map
-   from app.services.filter_mapper import map_query_to_filters
-   optimized = await map_query_to_filters(query, offer_text, openai_key)
-   result["optimized_filters"] = optimized
-   ```
-
-### `dispatcher.py`
-1. Lines 846-857 — replace with:
-   ```python
-   from app.services.taxonomy_service import taxonomy_service
-   enriched_companies = exploration_result.get("enriched_companies", [])
-   for org in enriched_companies:
-       taxonomy_service.add_from_enrichment(org, segment=project.target_segments or "")
-   await taxonomy_service.rebuild_embeddings_if_needed(openai_key)
-   ```
-
-### `taxonomy_service.py`
-1. `add_from_enrichment()` — already works, no changes needed
-2. `rebuild_embeddings_if_needed()` — already works, just needs to be called
-3. Consider: add a `last_updated` timestamp to the cache for debugging
-
-### `filter_mapper.py`
-1. No changes needed — it already uses the taxonomy_service singleton. When the map grows, the next call automatically benefits.
-
----
-
-## Test-Driven Implementation
-
-### For each phase, the flow is:
-1. Write the test FIRST (expected inputs/outputs)
-2. Run the test → it fails (feature not wired)
-3. Wire the feature
-4. Run the test → it passes
-5. Run ALL tests → no regressions
-
-### Step 1 test already exists (golden validation)
-```python
-# test_step1: verify industries + keywords match golden set
-# Already passing: EasyStaff ✅, Fashion ✅, OnSocial ✅
-```
-
-### Step 3 test (KEY new test):
-```python
-async def test_enrich_updates_map():
-    before = taxonomy_service.stats()["keywords"]
-
-    # Simulate enrichment
-    org = await apollo_enrich("synergybc.com")
-    taxonomy_service.add_from_enrichment(org, "IT consulting")
-    await taxonomy_service.rebuild_embeddings_if_needed(key)
-
-    after = taxonomy_service.stats()
-    assert after["keywords"] > before
-    assert after["keywords_with_embeddings"] == after["keywords"]
-
-    # Verify new keywords appear in shortlist
-    shortlist = await taxonomy_service.get_keyword_shortlist("IT consulting", key)
-    new_kw = org.get("keyword_tags", [])
-    overlap = set(shortlist) & set(k.lower() for k in new_kw)
-    assert len(overlap) > 0, "New keywords should appear in shortlist"
-```
-
-### Step 4 test (KEY new test):
-```python
-async def test_optimized_filters_use_enriched_keywords():
-    # Generate initial filters
-    r1 = await map_query_to_filters("IT consulting in Miami", "payroll", key)
-    kw_before = set(r1["mapping_details"]["keywords_selected"])
-
-    # Enrich 5 companies → update map
-    for domain in ["synergybc.com", "koombea.com", ...]:
-        org = await apollo_enrich(domain)
-        taxonomy_service.add_from_enrichment(org, "IT consulting")
-    await taxonomy_service.rebuild_embeddings_if_needed(key)
-
-    # Re-generate filters (map is now richer)
-    r2 = await map_query_to_filters("IT consulting in Miami", "payroll", key)
-    kw_after = set(r2["mapping_details"]["keywords_selected"])
-
-    new_keywords = kw_after - kw_before
-    assert len(new_keywords) > 0, "Enrichment should add new keywords to filters"
-```
-
----
-
-## Credits Impact
-
-No additional Apollo credits. The enrichment already happens in exploration (5 credits). We're just wiring the data from enrichment into the taxonomy map (free) and re-running the filter mapper (1 GPT call, ~$0.0003).
-
-## Timeline Estimate
-- Phase 1 (wire feedback loop): 4 changes across 3 files
-- Phase 2 (automate iteration 2): 1 change in dispatcher
-- Phase 3 (tests): 5 test files
-
-All changes are wiring — no new algorithms, no new models, no new API calls.
+1. **PipelineIteration model + migration** — foundation for everything else
+2. **prompt_tuner.py** — the core feedback loop
+3. **Wire enrichment → taxonomy** — Gaps 1-4
+4. **Enhanced MCP tool responses** — return scraped companies for agent review
+5. **Dispatcher wiring** — agent feedback → parallel tasks → scale
+6. **Tests** — step by step, each must pass before next
+7. **UI iteration dropdown** — last (frontend)
