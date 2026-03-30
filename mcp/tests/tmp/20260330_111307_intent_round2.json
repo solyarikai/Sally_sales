@@ -1,0 +1,2356 @@
+{
+  "ts": "20260330_111307",
+  "results": [
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "computer software"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology solutions",
+        "business consulting",
+        "software development"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "retail",
+        "luxury goods & jewelry"
+      ],
+      "keywords": [
+        "fashion brands",
+        "clothing manufacturers",
+        "apparel retailers",
+        "designer labels"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 80,
+      "total": 80,
+      "points": 80,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "media production"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media platforms",
+        "digital marketing"
+      ],
+      "geo": "uk",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'media production'",
+        "\u2713 all valid (3)",
+        "\u2717 geo 'uk' missing 'united kingdom'"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Crypto payments MENA",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "banking",
+        "investment management",
+        "information technology & services"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain",
+        "digital payments"
+      ],
+      "geo": "uae and saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'banking'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "technology services",
+        "custom software solutions"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "management consulting"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "payroll management",
+        "freelance payments"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "consumer goods",
+        "retail",
+        "luxury goods & jewelry"
+      ],
+      "keywords": [
+        "fashion brands",
+        "branded resale",
+        "luxury fashion",
+        "sustainable fashion"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 70,
+      "total": 70,
+      "points": 70,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "information technology & services"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media marketing",
+        "digital marketing"
+      ],
+      "geo": "uk",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 all valid (3)",
+        "\u2717 geo 'uk' missing 'united kingdom'"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Crypto payments MENA",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "information technology & services",
+        "banking",
+        "investment management"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "crypto payment processing",
+        "digital payments"
+      ],
+      "geo": "uae and saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'banking'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "tech recruitment",
+        "software agencies"
+      ],
+      "geo": "poland and ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services",
+        "management consulting",
+        "financial services",
+        "business services"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology services",
+        "software development",
+        "payroll management",
+        "freelance payments"
+      ],
+      "geo": "miami",
+      "invalid": [
+        "business services"
+      ],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2717 INVALID: ['business services']"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "TFP Fashion brands Italy",
+      "score": 80,
+      "total": 80,
+      "points": 80,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "retail",
+        "luxury goods & jewelry",
+        "consumer goods",
+        "e-commerce"
+      ],
+      "keywords": [
+        "fashion brands",
+        "branded resale",
+        "apparel",
+        "luxury fashion",
+        "online fashion marketplace"
+      ],
+      "geo": "italy",
+      "invalid": [
+        "e-commerce"
+      ],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2717 INVALID: ['e-commerce']"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 80,
+      "total": 80,
+      "points": 80,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "media production",
+        "e-learning",
+        "consumer services"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media",
+        "digital marketing",
+        "content creation"
+      ],
+      "geo": "uk",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'media production'",
+        "\u2713 all valid (5)",
+        "\u2717 geo 'uk' missing 'united kingdom'"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Crypto payments MENA",
+      "score": 100,
+      "total": 100,
+      "points": 110,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "banking",
+        "information technology & services",
+        "internet"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain"
+      ],
+      "geo": "uae, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'banking'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services",
+        "outsourcing/offshoring",
+        "management consulting"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "tech recruitment"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "computer software"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology solutions",
+        "business consulting"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "retail",
+        "luxury goods & jewelry"
+      ],
+      "keywords": [
+        "fashion brands",
+        "clothing",
+        "apparel",
+        "designer",
+        "luxury fashion"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "media production"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media platforms"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'media production'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Crypto payments MENA",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "banking",
+        "financial services",
+        "information technology & services"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain"
+      ],
+      "geo": "uae, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'banking'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "tech agencies"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "computer software"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology solutions",
+        "it services"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "retail"
+      ],
+      "keywords": [
+        "fashion brand",
+        "clothing",
+        "designer",
+        "apparel"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "online media"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media platforms",
+        "content creators"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'online media'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Crypto payments MENA",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "banking",
+        "investment management"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain",
+        "digital payments"
+      ],
+      "geo": "uae and saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'banking'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "technology services"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "management consulting"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "it services"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "retail",
+        "consumer goods"
+      ],
+      "keywords": [
+        "fashion brand",
+        "luxury fashion",
+        "italian fashion",
+        "designer clothing"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "online media",
+        "information technology & services"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media marketing",
+        "content creators"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'online media'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Crypto payments MENA",
+      "score": 100,
+      "total": 100,
+      "points": 110,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "internet",
+        "information technology & services",
+        "banking"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain",
+        "digital payments"
+      ],
+      "geo": "uae and saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'banking'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "outsourcing/offshoring",
+        "management consulting"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "technology solutions",
+        "custom software",
+        "it services"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "computer software",
+        "internet"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "software consulting"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "TFP Fashion brands Italy",
+      "score": 100,
+      "total": 100,
+      "points": 100,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "retail",
+        "textiles",
+        "consumer goods"
+      ],
+      "keywords": [
+        "fashion",
+        "clothing",
+        "designer brands",
+        "resale",
+        "sustainable fashion"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 bonus 'textiles'",
+        "\u2713 all valid (5)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 100,
+      "total": 100,
+      "points": 100,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "media production",
+        "online media"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media platforms"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'online media'",
+        "\u2713 bonus 'media production'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Crypto payments MENA",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "investment management",
+        "internet",
+        "information technology & services"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "crypto payment processing"
+      ],
+      "geo": "united arab emirates, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services",
+        "outsourcing/offshoring",
+        "internet"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "tech recruitment"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p8_structured_reasoning",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "computer software"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "it services"
+      ],
+      "geo": "miami, florida, united states",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p8_structured_reasoning",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "retail"
+      ],
+      "keywords": [
+        "fashion brand",
+        "clothing",
+        "apparel"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p8_structured_reasoning",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "online media"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media platform"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'online media'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Crypto payments MENA",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "internet",
+        "information technology & services"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain"
+      ],
+      "geo": "united arab emirates, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "technology services"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "computer software"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "it services",
+        "software consulting"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "retail",
+        "luxury goods & jewelry"
+      ],
+      "keywords": [
+        "fashion brand",
+        "clothing brand",
+        "fashion label",
+        "designer brand"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "online media"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media marketing",
+        "digital marketing platform"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'online media'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Crypto payments MENA",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "investment banking",
+        "investment management",
+        "information technology & services"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain",
+        "digital payments",
+        "crypto exchange"
+      ],
+      "geo": "uae, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "software agency",
+        "tech consultancy"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "management consulting"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "it services",
+        "software solutions"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "retail",
+        "consumer goods"
+      ],
+      "keywords": [
+        "fashion brand",
+        "designer fashion",
+        "luxury fashion",
+        "italian fashion",
+        "clothing brand"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 80,
+      "total": 80,
+      "points": 80,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "information technology & services"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media marketing",
+        "digital marketing",
+        "content creators"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Crypto payments MENA",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "information technology & services",
+        "internet",
+        "investment management"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain",
+        "crypto payments",
+        "digital currency",
+        "crypto exchange",
+        "crypto wallet"
+      ],
+      "geo": "united arab emirates, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "outsourcing/offshoring",
+        "management consulting"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "software agency",
+        "tech services",
+        "custom software",
+        "software consulting"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 100,
+      "total": 100,
+      "points": 110,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "computer software",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "it services",
+        "software consulting"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "retail",
+        "consumer goods"
+      ],
+      "keywords": [
+        "fashion",
+        "clothing",
+        "apparel",
+        "luxury brand",
+        "designer"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "online media",
+        "information technology & services"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media marketing",
+        "content creators",
+        "digital marketing platforms"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'online media'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Crypto payments MENA",
+      "score": 100,
+      "total": 100,
+      "points": 110,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "information technology & services",
+        "internet",
+        "banking"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "crypto payment",
+        "blockchain",
+        "digital payments"
+      ],
+      "geo": "united arab emirates, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'banking'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (4)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "software agency",
+        "tech company",
+        "software services"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "it services",
+        "technology solutions"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "TFP Fashion brands Italy",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "retail"
+      ],
+      "keywords": [
+        "fashion brand",
+        "clothing brand",
+        "designer label",
+        "fashion label"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'luxury goods & jewelry'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "media production"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media marketing",
+        "content creators",
+        "digital marketing platforms"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'media production'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Crypto payments MENA",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "information technology & services",
+        "internet"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain",
+        "crypto payments",
+        "digital currency"
+      ],
+      "geo": "uae, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'information technology & services'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services",
+        "outsourcing/offshoring"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "software agency",
+        "software company",
+        "it services"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'outsourcing/offshoring'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 72,
+      "total": 72,
+      "points": 80,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "software"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology services",
+        "business solutions"
+      ],
+      "geo": "miami",
+      "invalid": [
+        "software"
+      ],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'management consulting'",
+        "\u2717 INVALID: ['software']"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "TFP Fashion brands Italy",
+      "score": 80,
+      "total": 80,
+      "points": 80,
+      "max": 100,
+      "industries": [
+        "apparel & fashion",
+        "consumer goods",
+        "retail"
+      ],
+      "keywords": [
+        "fashion brands",
+        "clothing companies",
+        "apparel retailers"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 bonus 'retail'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 80,
+      "total": 80,
+      "points": 80,
+      "max": 100,
+      "industries": [
+        "marketing & advertising",
+        "internet",
+        "media production"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media platforms",
+        "content creators"
+      ],
+      "geo": "uk",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'media production'",
+        "\u2713 all valid (3)",
+        "\u2717 geo 'uk' missing 'united kingdom'"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Crypto payments MENA",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "computer & network security",
+        "banking"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain",
+        "digital payments"
+      ],
+      "geo": "uae, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'banking'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services",
+        "computer & network security"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "tech companies"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "management consulting"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "it services"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "TFP Fashion brands Italy",
+      "score": 70,
+      "total": 70,
+      "points": 70,
+      "max": 100,
+      "industries": [
+        "apparel & fashion"
+      ],
+      "keywords": [
+        "fashion brands",
+        "luxury fashion",
+        "designer brands"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 all valid (1)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 70,
+      "total": 70,
+      "points": 70,
+      "max": 100,
+      "industries": [
+        "internet",
+        "marketing & advertising",
+        "computer software"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "creator data",
+        "social media influencers"
+      ],
+      "geo": "uk",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 all valid (3)",
+        "\u2717 geo 'uk' missing 'united kingdom'"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Crypto payments MENA",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "banking",
+        "computer & network security"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain",
+        "digital payments"
+      ],
+      "geo": "uae, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 bonus 'banking'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "computer & network security",
+        "computer software",
+        "information technology & services"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "tech recruitment"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "computer & network security",
+        "information technology & services",
+        "management consulting"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology services",
+        "it solutions"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "TFP Fashion brands Italy",
+      "error": "Expecting ',' delimiter: line 1 column 183 (char 182)",
+      "score": 0
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "OnSocial Creator platforms UK",
+      "error": "Expecting ',' delimiter: line 1 column 243 (char 242)",
+      "score": 0
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Crypto payments MENA",
+      "error": "Expecting ',' delimiter: line 1 column 223 (char 222)",
+      "score": 0
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Dev agencies Eastern Europe",
+      "error": "Expecting ',' delimiter: line 1 column 239 (char 238)",
+      "score": 0
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p8_structured_reasoning",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "management consulting"
+      ],
+      "keywords": [
+        "it consulting",
+        "management consulting",
+        "technology services"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (2)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p8_structured_reasoning",
+      "seg": "TFP Fashion brands Italy",
+      "score": 70,
+      "total": 70,
+      "points": 70,
+      "max": 100,
+      "industries": [
+        "apparel & fashion"
+      ],
+      "keywords": [
+        "fashion",
+        "clothing",
+        "apparel",
+        "luxury fashion"
+      ],
+      "geo": "italy",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'apparel & fashion'",
+        "\u2713 all valid (1)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p8_structured_reasoning",
+      "seg": "OnSocial Creator platforms UK",
+      "score": 90,
+      "total": 90,
+      "points": 90,
+      "max": 100,
+      "industries": [
+        "internet",
+        "marketing & advertising",
+        "media production"
+      ],
+      "keywords": [
+        "influencer marketing",
+        "creator economy",
+        "social media platforms"
+      ],
+      "geo": "united kingdom",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'marketing & advertising'",
+        "\u2713 bonus 'internet'",
+        "\u2713 bonus 'media production'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Crypto payments MENA",
+      "score": 72,
+      "total": 72,
+      "points": 80,
+      "max": 110,
+      "industries": [
+        "financial services",
+        "computer & network security"
+      ],
+      "keywords": [
+        "fintech",
+        "cryptocurrency",
+        "blockchain",
+        "digital payments"
+      ],
+      "geo": "uae, saudi arabia",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'financial services'",
+        "\u2713 all valid (2)"
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Dev agencies Eastern Europe",
+      "score": 81,
+      "total": 81,
+      "points": 90,
+      "max": 110,
+      "industries": [
+        "computer software",
+        "information technology & services"
+      ],
+      "keywords": [
+        "software development",
+        "it outsourcing",
+        "tech companies"
+      ],
+      "geo": "poland, ukraine",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 all valid (2)"
+      ]
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "EasyStaff IT consulting Miami",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "TFP Fashion brands Italy",
+      "error": "Could not finish the message because max_tokens or model output limit was reached. Please try again with higher max_tokens.",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "OnSocial Creator platforms UK",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Crypto payments MENA",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p5_taxonomy_force_3plus",
+      "seg": "Dev agencies Eastern Europe",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "EasyStaff IT consulting Miami",
+      "score": 90,
+      "total": 90,
+      "points": 100,
+      "max": 110,
+      "industries": [
+        "information technology & services",
+        "computer software",
+        "management consulting"
+      ],
+      "keywords": [
+        "it consulting",
+        "technology consulting",
+        "it services"
+      ],
+      "geo": "miami",
+      "invalid": [],
+      "details": [
+        "\u2713 required 'information technology & services'",
+        "\u2713 bonus 'computer software'",
+        "\u2713 bonus 'management consulting'",
+        "\u2713 all valid (3)"
+      ]
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "TFP Fashion brands Italy",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "OnSocial Creator platforms UK",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Crypto payments MENA",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p6_linkedin_perspective",
+      "seg": "Dev agencies Eastern Europe",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "EasyStaff IT consulting Miami",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "TFP Fashion brands Italy",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "OnSocial Creator platforms UK",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Crypto payments MENA",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p7_coverage_maximizer",
+      "seg": "Dev agencies Eastern Europe",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "EasyStaff IT consulting Miami",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "TFP Fashion brands Italy",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "OnSocial Creator platforms UK",
+      "error": "Expecting value: line 1 column 161 (char 160)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Crypto payments MENA",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    },
+    {
+      "model": "o3-mini",
+      "prompt": "p8_structured_reasoning",
+      "seg": "Dev agencies Eastern Europe",
+      "error": "Expecting value: line 1 column 1 (char 0)",
+      "score": 0
+    }
+  ],
+  "summary": {
+    "gpt-4o \u00d7 p7_coverage_maximizer": 94.0,
+    "gpt-4.1-mini \u00d7 p7_coverage_maximizer": 94.0,
+    "gpt-4o \u00d7 p6_linkedin_perspective": 92.0,
+    "gpt-4o-mini \u00d7 p8_structured_reasoning": 90.0,
+    "gpt-4o \u00d7 p8_structured_reasoning": 90.0,
+    "gpt-4.1-mini \u00d7 p8_structured_reasoning": 90.0,
+    "gpt-4o \u00d7 p5_taxonomy_force_3plus": 88.2,
+    "gpt-4.1-mini \u00d7 p5_taxonomy_force_3plus": 88.2,
+    "gpt-4o-mini \u00d7 p5_taxonomy_force_3plus": 88.0,
+    "gpt-4.1-mini \u00d7 p6_linkedin_perspective": 88.0,
+    "gpt-4o-mini \u00d7 p7_coverage_maximizer": 86.2,
+    "gpt-4o-mini \u00d7 p6_linkedin_perspective": 86.0,
+    "gpt-4.1-nano \u00d7 p5_taxonomy_force_3plus": 78.8,
+    "gpt-4.1-nano \u00d7 p8_structured_reasoning": 78.8,
+    "gpt-4.1-nano \u00d7 p6_linkedin_perspective": 78.4,
+    "o3-mini \u00d7 p6_linkedin_perspective": 18.0,
+    "gpt-4.1-nano \u00d7 p7_coverage_maximizer": 16.2,
+    "o3-mini \u00d7 p5_taxonomy_force_3plus": 0.0,
+    "o3-mini \u00d7 p7_coverage_maximizer": 0.0,
+    "o3-mini \u00d7 p8_structured_reasoning": 0.0
+  },
+  "best": "gpt-4o \u00d7 p7_coverage_maximizer"
+}
