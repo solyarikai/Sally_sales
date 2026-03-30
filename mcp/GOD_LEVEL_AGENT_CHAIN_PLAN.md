@@ -30,6 +30,41 @@ These are REAL bugs from the first external user. Every one MUST be fixed:
 **What happened**: User said "gather iGaming technology providers" for Mifort project. MCP thought Mifort IS an iGaming company (confused the user's offer with the user's target market).
 **Required**: MANDATORY step before any gathering — understand the user's offer. Ask "What's your website?" → scrape → extract offer. Then classify: who is the CLIENT (target) vs who is the COMPETITOR. Without this, GPT will confuse clients with competitors.
 
+### Bug 12: GPT confuses OPERATORS with TECHNOLOGY PROVIDERS
+**What happened**: Pavel gathered iGaming companies. GPT classified casino operators (Roobet, Betfirst, Luckia, YesPlay) as CASINO_PLATFORM — but they OPERATE casinos, they don't BUILD casino tech. The user wants companies that BUILD software for casinos (BetConstruct, SoftSwiss, Pragmatic Play).
+**Accuracy**: 15 clean targets out of 31 = 48%. Need ≥90%.
+**Root cause**: Via negativa prompt doesn't understand the distinction between "uses the technology" and "builds the technology". The offer context ("Mifort builds software") isn't sharp enough.
+**Fix needed**:
+1. Prompt must explicitly distinguish: "TARGET = companies that BUILD/DEVELOP technology for [industry]. NOT_A_MATCH = companies that USE/OPERATE in [industry]."
+2. Add exclusion categories: marketing agencies, hosting providers, affiliate/review sites, generic IT/analytics firms
+3. Use better model for initial classification — gpt-4o-mini is too dumb for nuanced B2B segment distinctions. Use gpt-4o or gpt-4.1-mini minimum.
+
+### Bug 13: Blacklist eats previous run's companies on re-analyze
+**What happened**: Pavel ran gathering (241 companies), then wanted to re-analyze with better prompt. Blacklist from run 1 blocked all 241 companies from run 2 — they were treated as "already in project" and filtered out.
+**Required**: Re-analysis (tam_re_analyze) must work on EXISTING gathered companies, not try to re-gather. The "rerun" flow is: same companies, different prompt. Not: new Apollo search.
+**Fix needed**:
+1. `tam_re_analyze` must re-classify companies already in the pipeline (from CompanySourceLink), not trigger new gathering
+2. Each re-analysis = new iteration (tracked in UI, selectable)
+3. Previous iteration's classifications preserved — user can compare "before vs after"
+
+### Bug 14: Model quality — gpt-4o-mini too dumb for B2B classification
+**What happened**: 48% accuracy on iGaming. Confuses operators with tech providers, includes marketing agencies, hosting, affiliates.
+**Required**: Use gpt-4o (or gpt-4.1-mini when available) for the analysis prompt, not gpt-4o-mini. The cost difference is minimal ($0.05 vs $0.003 per classification batch) but accuracy difference is massive.
+**Via negativa approach MUST be stricter**:
+- "If the company USES [technology] but doesn't BUILD it → NOT_A_MATCH"
+- "If the company provides marketing/hosting/analytics (generic services) → NOT_A_MATCH"
+- "If the company is an affiliate, review site, or media outlet → NOT_A_MATCH"
+- "ONLY companies that DEVELOP, BUILD, or PROVIDE the specific technology/service are targets"
+
+### Bug 15: User wants to re-run analysis with feedback
+**Flow needed**: User sees 48% accuracy → provides feedback: "Roobet is an operator not a tech provider, exclude operators" → system generates improved prompt incorporating feedback → re-analyzes SAME companies → new iteration shows improved results.
+**Implementation**:
+1. User calls `provide_feedback` with classification corrections
+2. System generates improved prompt using feedback (via negativa additions)
+3. User calls `tam_re_analyze` with the run_id → re-classifies same companies with new prompt
+4. New iteration created — UI shows before/after comparison
+5. Loop until ≥90% accuracy
+
 ---
 
 ## The Agent Chain — Complete Flow
@@ -155,14 +190,32 @@ USER MESSAGE
                        │
                        ▼
 ┌─────────────────────────────────────────────────────┐
-│  STEP 5: PROMPT OPTIMIZATION LOOP                    │
+│  STEP 5: PROMPT OPTIMIZATION LOOP (Bug 12, 14, 15)   │
 │                                                       │
-│  Opus (Claude Code agent) reviews classification:     │
-│  - Looks at each target: is it REALLY a buyer?        │
-│  - Looks at each rejection: was it correctly excluded?│
-│  - Adjusts GPT prompt until ≥90% accuracy             │
-│  - Loop: classify → opus review → adjust → repeat     │
-│  - Max 3 iterations, then proceed                     │
+│  MODEL: gpt-4o (NOT gpt-4o-mini — too dumb for B2B)  │
+│                                                       │
+│  VIA NEGATIVA prompt MUST include:                    │
+│  - "TARGET = companies that BUILD/DEVELOP [tech]"     │
+│  - "NOT_A_MATCH = companies that USE/OPERATE [tech]"  │
+│  - "NOT_A_MATCH = marketing, hosting, affiliates,     │
+│    review sites, generic IT/analytics"                │
+│  - "Scoring is FORBIDDEN. Only target/not-target."    │
+│  - User's offer context for client vs competitor      │
+│                                                       │
+│  FEEDBACK LOOP:                                       │
+│  1. Classify → show user results with segments        │
+│  2. User provides corrections ("Roobet is operator")  │
+│  3. System incorporates feedback into prompt           │
+│  4. Re-analyze SAME companies (Bug 13 — no re-gather)│
+│  5. New iteration in UI (before/after comparison)     │
+│  6. Loop until ≥90% accuracy                          │
+│                                                       │
+│  RE-ANALYZE FLOW (Bug 13 fix):                        │
+│  - tam_re_analyze works on EXISTING companies         │
+│  - Does NOT trigger new Apollo search                 │
+│  - Does NOT blacklist previous run's companies        │
+│  - Creates new iteration with new prompt results      │
+│  - Previous iteration preserved for comparison        │
 │                                                       │
 │  This is the "MCP ALWAYS REFINE ITSELF" requirement.  │
 └──────────────────────┬──────────────────────────────┘
@@ -350,25 +403,33 @@ Each test:
 
 ## Implementation Priority
 
-### P0 — Blocking real users NOW:
-1. **Bug 2**: Add confirmation step before gathering (filter preview)
-2. **Bug 5**: Remove emulator sources from tools list and adapters
-3. **Bug 6**: Add credit tracking to every Apollo response
-4. **Bug 11**: Mandatory offer verification before analysis
+### P0 — Blocking real users NOW (DONE):
+1. **Bug 2**: Filter confirmation before gathering ✅
+2. **Bug 5**: Remove emulator sources ✅
+3. **Bug 6**: Credit tracking in responses ✅
+4. **Bug 10**: Apify in Setup ✅
+5. **Bug 11**: Offer verification gate ✅
+
+### P0.5 — Critical quality fixes (from Pavel's real usage):
+6. **Bug 12**: Switch analysis model from gpt-4o-mini → gpt-4o for classification
+7. **Bug 12**: Enhance via negativa prompt: BUILDS vs USES distinction, exclude marketing/hosting/affiliates
+8. **Bug 13**: Fix re-analyze to work on EXISTING companies (not re-gather), no blacklist self-eating
+9. **Bug 14**: Model selection — gpt-4o for classification, gpt-4o-mini only for simple tasks (intent parsing, filter mapping)
+10. **Bug 15**: Feedback → re-analyze loop with iteration tracking
 
 ### P1 — Core exploration system:
-5. apollo_taxonomy table + embedding infrastructure
-6. Filter mapper with embedding pre-filter + GPT selection
-7. Exploration → enrichment → filter optimization loop
-8. Credit budget enforcement (user-configurable max per pipeline)
+11. apollo_taxonomy table + pgvector embeddings
+12. Filter mapper with embedding pre-filter + GPT selection from real Apollo vocabulary
+13. Exploration → enrichment → filter optimization (keywords discovered from top targets)
+14. Credit budget enforcement (user-configurable max per pipeline)
 
 ### P2 — Scale + campaign:
-9. Multi-page gathering until ≥30 targets
-10. Prompt optimization loop (Opus review)
-11. Campaign creation with full SmartLead push
-12. Reply monitoring auto-enable
+15. Multi-page gathering until ≥30 targets
+16. Prompt optimization loop (user feedback → improved prompt → re-analyze → iterate)
+17. Campaign creation with full SmartLead push
+18. Reply monitoring auto-enable
 
 ### P3 — Polish:
-13. Custom processing steps (add/remove columns)
-14. Iteration tracking with historical filter/prompt comparison
-15. Performance metrics (Account page credit breakdown)
+19. Custom processing steps (add/remove columns via MCP)
+20. Iteration tracking with historical filter/prompt comparison in UI
+21. Performance metrics (Account page: credit breakdown by date/project/pipeline)
