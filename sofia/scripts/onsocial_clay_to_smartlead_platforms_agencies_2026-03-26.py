@@ -2368,23 +2368,22 @@ def main():
 
     if "people" in steps:
         if args.apollo_csv:
-            if args.apollo_csv:
-                # Fallback: manual CSV import
-                all_contacts = []
-                seg_override = "INFLUENCER_PLATFORMS" if args.apollo_csv_agencies else None
-                c1 = step10_import_apollo_csv(args.apollo_csv, targets, force=args.force,
-                                               segment_override=seg_override)
-                all_contacts.extend(c1)
-                if args.apollo_csv_agencies:
-                    c2 = step10_import_apollo_csv(args.apollo_csv_agencies, targets, force=True,
-                                                   segment_override="IM_FIRST_AGENCIES")
-                    all_contacts.extend(c2)
-                    save_json(CONTACTS_FILE, all_contacts)
-                    print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
-                contacts = all_contacts
-            else:
-                # Default: automated Apollo People UI search
-                contacts = step10_apollo_people_search(targets, force=args.force)
+            # Fallback: manual CSV import
+            all_contacts = []
+            seg_override = "INFLUENCER_PLATFORMS" if args.apollo_csv_agencies else None
+            c1 = step10_import_apollo_csv(args.apollo_csv, targets, force=args.force,
+                                           segment_override=seg_override)
+            all_contacts.extend(c1)
+            if args.apollo_csv_agencies:
+                c2 = step10_import_apollo_csv(args.apollo_csv_agencies, targets, force=True,
+                                               segment_override="IM_FIRST_AGENCIES")
+                all_contacts.extend(c2)
+                save_json(CONTACTS_FILE, all_contacts)
+                print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
+            contacts = all_contacts
+        else:
+            # Default: automated Apollo People UI search
+            contacts = step10_apollo_people_search(targets, force=args.force)
     else:
         contacts = load_json(CONTACTS_FILE) or load_json(ENRICHED_FILE) or []
 
