@@ -505,7 +505,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 filters["max_pages"] = max(1, (companies_needed + per_page - 1) // per_page)
 
         # ── Essential filter validation for API sources ──
-        if "api" in source_type or "emulator" in source_type:
+        if "api" in source_type:
             missing = []
             if not filters.get("q_organization_keyword_tags") and not filters.get("organization_locations"):
                 missing.append("keywords (q_organization_keyword_tags) OR locations (organization_locations)")
