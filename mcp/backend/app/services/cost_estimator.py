@@ -60,7 +60,8 @@ def estimate_cost(
     search_credits = pages
 
     enrichment = ENRICHMENT_CREDITS if include_enrichment else 0
-    total_credits = search_credits + enrichment
+    people_credits = target_count  # 1 credit per net-new email via people/bulk_match
+    total_credits = search_credits + enrichment + people_credits
     total_usd = total_credits * APOLLO_COST_PER_CREDIT
 
     return {
