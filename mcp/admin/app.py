@@ -20,6 +20,14 @@ SESSION_SECRET = hashlib.sha256(b"mcp-admin-secret-2026").hexdigest()
 pool: Optional[asyncpg.Pool] = None
 
 
+def _render(template: str, **kwargs) -> str:
+    """Replace %%key%% placeholders in template (avoids CSS brace conflicts)."""
+    result = template
+    for k, v in kwargs.items():
+        result = result.replace(f"%%{k}%%", str(v))
+    return result
+
+
 @app.on_event("startup")
 async def startup():
     global pool
@@ -170,7 +178,7 @@ async def user_detail(request: Request, user_id: int):
     recent_html = "".join(f"<tr><td>{a['created_at'].strftime('%m/%d %H:%M') if a['created_at'] else ''}</td><td>{a['tool_name']}</td><td>{a['action']}</td></tr>" for a in recent)
 
     created = user["created_at"].strftime("%Y-%m-%d %H:%M") if user["created_at"] else "—"
-    return HTML_USER.format(
+    return _render(HTML_USER,
         user_id=user_id, email=user["email"], name=user["name"] or "—", created=created,
         tools_rows=tools_html, integrations_rows=integrations_html,
         runs_rows=runs_html, recent_rows=recent_html,
@@ -211,7 +219,7 @@ async def user_conversations(request: Request, user_id: int):
             <td><details><summary style="cursor:pointer;font-size:11px">JSON</summary><pre style="font-size:10px;max-height:200px;overflow:auto;background:#f5f5f5;padding:8px;border-radius:4px">{raw}</pre></details></td>
         </tr>"""
 
-    return HTML_CONVERSATIONS.format(
+    return _render(HTML_CONVERSATIONS,
         user_id=user_id, email=user["email"], name=user["name"] or "—",
         rows=rows_html, count=len(convos),
     )
@@ -268,17 +276,17 @@ HTML_DASHBOARD = f"""<!DOCTYPE html><html><head><title>MCP Admin</title>{STYLE}<
 </div>
 <div class="container">
     <div class="stats">
-        <div class="stat"><div class="num">{{total_users}}</div><div class="label">Users</div></div>
-        <div class="stat"><div class="num">{{total_apollo}}</div><div class="label">Apollo Credits</div></div>
-        <div class="stat"><div class="num">{{total_tool_calls}}</div><div class="label">Tool Calls</div></div>
-        <div class="stat"><div class="num">{{total_conversations}}</div><div class="label">Messages</div></div>
+        <div class="stat"><div class="num">{%%total_users%%}</div><div class="label">Users</div></div>
+        <div class="stat"><div class="num">{%%total_apollo%%}</div><div class="label">Apollo Credits</div></div>
+        <div class="stat"><div class="num">{%%total_tool_calls%%}</div><div class="label">Tool Calls</div></div>
+        <div class="stat"><div class="num">{%%total_conversations%%}</div><div class="label">Messages</div></div>
     </div>
 
     <div class="card">
         <form method="get" action="/" style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
-            <input type="date" name="date_from" value="{{date_from}}">
+            <input type="date" name="date_from" value="{%%date_from%%}">
             <span style="color:#888">to</span>
-            <input type="date" name="date_to" value="{{date_to}}">
+            <input type="date" name="date_to" value="{%%date_to%%}">
             <button type="submit">Filter</button>
         </form>
         <table>
@@ -286,39 +294,39 @@ HTML_DASHBOARD = f"""<!DOCTYPE html><html><head><title>MCP Admin</title>{STYLE}<
                 <th>ID</th><th>Email</th><th>Name</th><th>Created</th><th>Projects</th>
                 <th>Apollo</th><th>OpenAI</th><th>Tool Calls</th><th>Conversations</th>
             </tr></thead>
-            <tbody>{{rows}}</tbody>
+            <tbody>{%%rows%%}</tbody>
         </table>
     </div>
 </div></body></html>"""
 
-HTML_USER = f"""<!DOCTYPE html><html><head><title>User {{user_id}} — MCP Admin</title>{STYLE}</head><body>
+HTML_USER = f"""<!DOCTYPE html><html><head><title>User %%user_id%% — MCP Admin</title>{STYLE}</head><body>
 <div class="nav">
-    <div><b>MCP Admin</b> <a href="/">Dashboard</a> → User #{{user_id}}</div>
+    <div><b>MCP Admin</b> <a href="/">Dashboard</a> → User #%%user_id%%</div>
     <a href="/logout">Logout</a>
 </div>
 <div class="container">
     <div class="card">
-        <h1>{{email}}</h1>
-        <p style="color:#888">{{name}} · Created: {{created}} · <a href="/user/{{user_id}}/conversations">View conversations</a></p>
+        <h1>%%email%%</h1>
+        <p style="color:#888">%%name%% · Created: %%created%% · <a href="/user/%%user_id%%/conversations">View conversations</a></p>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div class="card">
             <h2>Integrations</h2>
             <table><thead><tr><th>Service</th><th>Status</th><th>Info</th></tr></thead>
-            <tbody>{{integrations_rows}}</tbody></table>
+            <tbody>%%integrations_rows%%</tbody></table>
         </div>
         <div class="card">
             <h2>Tool Usage</h2>
             <table><thead><tr><th>Tool</th><th>Calls</th></tr></thead>
-            <tbody>{{tools_rows}}</tbody></table>
+            <tbody>%%tools_rows%%</tbody></table>
         </div>
     </div>
 
     <div class="card">
         <h2>Pipeline Runs</h2>
         <table><thead><tr><th>Run</th><th>Project</th><th>Source</th><th>Credits</th><th>Phase</th><th>Date</th></tr></thead>
-        <tbody>{{runs_rows}}</tbody></table>
+        <tbody>%%runs_rows%%</tbody></table>
     </div>
 
     <div class="card">
@@ -328,20 +336,20 @@ HTML_USER = f"""<!DOCTYPE html><html><head><title>User {{user_id}} — MCP Admin
     </div>
 </div></body></html>"""
 
-HTML_CONVERSATIONS = f"""<!DOCTYPE html><html><head><title>Conversations — {{email}} — MCP Admin</title>{STYLE}</head><body>
+HTML_CONVERSATIONS = f"""<!DOCTYPE html><html><head><title>Conversations — %%email%% — MCP Admin</title>{STYLE}</head><body>
 <div class="nav">
-    <div><b>MCP Admin</b> <a href="/">Dashboard</a> → <a href="/user/{{user_id}}">{{email}}</a> → Conversations</div>
+    <div><b>MCP Admin</b> <a href="/">Dashboard</a> → <a href="/user/%%user_id%%">%%email%%</a> → Conversations</div>
     <a href="/logout">Logout</a>
 </div>
 <div class="container">
     <div class="card">
-        <h1>Conversations — {{email}} ({{name}})</h1>
+        <h1>Conversations — %%email%% (%%name%%)</h1>
         <p style="color:#888">{{count}} messages</p>
     </div>
     <div class="card" style="overflow-x:auto">
         <table>
             <thead><tr><th>Time</th><th>Dir</th><th>Session</th><th>Method</th><th>Summary</th><th>Raw</th></tr></thead>
-            <tbody>{{rows}}</tbody>
+            <tbody>{%%rows%%}</tbody>
         </table>
     </div>
 </div></body></html>"""
