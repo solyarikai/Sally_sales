@@ -47,14 +47,18 @@ These are REAL bugs from the first external user. Every one MUST be fixed:
 2. Each re-analysis = new iteration (tracked in UI, selectable)
 3. Previous iteration's classifications preserved — user can compare "before vs after"
 
-### Bug 14: Model quality — gpt-4o-mini too dumb for B2B classification
-**What happened**: 48% accuracy on iGaming. Confuses operators with tech providers, includes marketing agencies, hosting, affiliates.
-**Required**: Use gpt-4o (or gpt-4.1-mini when available) for the analysis prompt, not gpt-4o-mini. The cost difference is minimal ($0.05 vs $0.003 per classification batch) but accuracy difference is massive.
-**Via negativa approach MUST be stricter**:
+### Bug 14: Prompt CREATION needs smart model, prompt APPLICATION is fine with mini
+**What happened**: 48% accuracy on iGaming. The via negativa prompt itself was bad — it didn't distinguish operators from tech providers.
+**Root cause**: The PROMPT GENERATION step used gpt-4o-mini which is too dumb to craft a nuanced B2B classification prompt. It can't reason about "builds vs uses" distinctions.
+**Required**: TWO models for TWO different jobs:
+  - **Prompt CREATION** (crafting the via negativa rules): gpt-4o or gpt-4.1-mini — needs to understand business nuance
+  - **Prompt APPLICATION** (classifying 500 companies): gpt-4o-mini — cheap, fast, just follows well-crafted instructions
+**The prompt creation agent must produce rules like**:
 - "If the company USES [technology] but doesn't BUILD it → NOT_A_MATCH"
 - "If the company provides marketing/hosting/analytics (generic services) → NOT_A_MATCH"
 - "If the company is an affiliate, review site, or media outlet → NOT_A_MATCH"
 - "ONLY companies that DEVELOP, BUILD, or PROVIDE the specific technology/service are targets"
+**Once the prompt is crafted well by gpt-4o, gpt-4o-mini applies it perfectly at scale.**
 
 ### Bug 15: User wants to re-run analysis with feedback
 **Flow needed**: User sees 48% accuracy → provides feedback: "Roobet is an operator not a tech provider, exclude operators" → system generates improved prompt incorporating feedback → re-analyzes SAME companies → new iteration shows improved results.
@@ -192,7 +196,13 @@ USER MESSAGE
 ┌─────────────────────────────────────────────────────┐
 │  STEP 5: PROMPT OPTIMIZATION LOOP (Bug 12, 14, 15)   │
 │                                                       │
-│  MODEL: gpt-4o (NOT gpt-4o-mini — too dumb for B2B)  │
+│  TWO MODELS:                                          │
+│  - PROMPT CREATION: gpt-4o (smart, understands nuance)│
+│  - PROMPT APPLICATION: gpt-4o-mini (cheap, follows    │
+│    the well-crafted prompt at scale on 500 companies) │
+│                                                       │
+│  The gpt-4o agent CRAFTS the via negativa rules.      │
+│  Then gpt-4o-mini APPLIES them to each company.       │
 │                                                       │
 │  VIA NEGATIVA prompt MUST include:                    │
 │  - "TARGET = companies that BUILD/DEVELOP [tech]"     │
@@ -414,7 +424,7 @@ Each test:
 6. **Bug 12**: Switch analysis model from gpt-4o-mini → gpt-4o for classification
 7. **Bug 12**: Enhance via negativa prompt: BUILDS vs USES distinction, exclude marketing/hosting/affiliates
 8. **Bug 13**: Fix re-analyze to work on EXISTING companies (not re-gather), no blacklist self-eating
-9. **Bug 14**: Model selection — gpt-4o for classification, gpt-4o-mini only for simple tasks (intent parsing, filter mapping)
+9. **Bug 14**: Model selection — gpt-4o for PROMPT CREATION (crafting classification rules), gpt-4o-mini for PROMPT APPLICATION (classifying companies at scale)
 10. **Bug 15**: Feedback → re-analyze loop with iteration tracking
 
 ### P1 — Core exploration system:
