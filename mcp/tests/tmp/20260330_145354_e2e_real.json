@@ -1,0 +1,575 @@
+{
+  "ts": "20260330_145354",
+  "models": [
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "gpt-4o-mini"
+  ],
+  "results": [
+    {
+      "model": "gpt-4.1-mini",
+      "segments": [
+        {
+          "segment": "EasyStaff IT consulting Miami",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "information technology & services",
+              "management consulting",
+              "it consulting",
+              "technology consulting",
+              "it services & it consulting",
+              "management consulting services",
+              "consulting services"
+            ],
+            "organization_locations": [
+              "Miami"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200",
+              "201,500"
+            ]
+          },
+          "mapping_details": {
+            "industries_selected": [
+              "information technology & services",
+              "management consulting"
+            ],
+            "keywords_selected": [
+              "it consulting",
+              "technology consulting",
+              "it services & it consulting",
+              "management consulting services",
+              "consulting services"
+            ],
+            "unverified_keywords": [],
+            "employee_ranges": [
+              "11,50",
+              "51,200",
+              "201,500"
+            ],
+            "locations": [
+              "Miami"
+            ],
+            "keyword_map_size": 1491,
+            "shortlist_size": 50,
+            "model_used": "gpt-4.1-mini"
+          },
+          "total_available": 3908,
+          "scraped": 11,
+          "targets": 6,
+          "rate": 54.54545454545454,
+          "target_domains": [
+            "smxusa.com",
+            "coderio.com",
+            "koombea.com",
+            "innovecs.com",
+            "avalith.net",
+            "revelo.com"
+          ],
+          "est_total_targets": 2131
+        },
+        {
+          "segment": "TFP Fashion brands Italy",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "apparel & fashion",
+              "luxury goods & jewelry",
+              "retail",
+              "fashion brand italy",
+              "italian luxury brands",
+              "luxury fashion italy",
+              "italian fashion",
+              "made in italy fashion",
+              "italian designer",
+              "luxury fashion brands"
+            ],
+            "organization_locations": [
+              "Italy"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200",
+              "201,500"
+            ]
+          },
+          "mapping_details": {
+            "industries_selected": [
+              "apparel & fashion",
+              "luxury goods & jewelry",
+              "retail"
+            ],
+            "keywords_selected": [
+              "fashion brand italy",
+              "italian luxury brands",
+              "luxury fashion italy",
+              "italian fashion",
+              "made in italy fashion",
+              "italian designer",
+              "luxury fashion brands"
+            ],
+            "unverified_keywords": [],
+            "employee_ranges": [
+              "11,50",
+              "51,200",
+              "201,500"
+            ],
+            "locations": [
+              "Italy"
+            ],
+            "keyword_map_size": 1491,
+            "shortlist_size": 50,
+            "model_used": "gpt-4.1-mini"
+          },
+          "total_available": 18394,
+          "scraped": 7,
+          "targets": 7,
+          "rate": 100.0,
+          "target_domains": [
+            "marni.com",
+            "kiton.com",
+            "trussardi.com",
+            "lardini.com",
+            "emarinella.eu",
+            "borbonese.com",
+            "baseblu.com"
+          ],
+          "est_total_targets": 18394
+        },
+        {
+          "segment": "OnSocial Creator platforms UK",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "marketing & advertising",
+              "internet",
+              "information services",
+              "influencer marketing platforms",
+              "influencer platforms",
+              "influencer marketing",
+              "creator platforms",
+              "influencer marketing analytics",
+              "influencer marketing tools",
+              "influencer marketing campaigns"
+            ],
+            "organization_locations": [
+              "UK"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200",
+              "201,500"
+            ]
+          },
+          "mapping_details": {
+            "industries_selected": [
+              "marketing & advertising",
+              "internet",
+              "information services"
+            ],
+            "keywords_selected": [
+              "influencer marketing platforms",
+              "influencer platforms",
+              "influencer marketing",
+              "creator platforms",
+              "influencer marketing analytics",
+              "influencer marketing tools",
+              "influencer marketing campaigns"
+            ],
+            "unverified_keywords": [],
+            "employee_ranges": [
+              "11,50",
+              "51,200",
+              "201,500"
+            ],
+            "locations": [
+              "UK"
+            ],
+            "keyword_map_size": 1491,
+            "shortlist_size": 50,
+            "model_used": "gpt-4.1-mini"
+          },
+          "total_available": 46942,
+          "scraped": 10,
+          "targets": 5,
+          "rate": 50.0,
+          "target_domains": [
+            "seenconnects.com",
+            "genflow.com",
+            "wearetheromans.com",
+            "musetheagency.com",
+            "thenewgen.com"
+          ],
+          "est_total_targets": 23471
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "segments": [
+        {
+          "segment": "EasyStaff IT consulting Miami",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "information technology & services",
+              "management consulting",
+              "it consulting",
+              "technology consulting",
+              "it services & it consulting",
+              "management consulting services",
+              "software development consulting",
+              "consulting services",
+              "software outsourcing companies"
+            ],
+            "organization_locations": [
+              "Miami"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "mapping_details": {
+            "industries_selected": [
+              "information technology & services",
+              "management consulting"
+            ],
+            "keywords_selected": [
+              "it consulting",
+              "technology consulting",
+              "it services & it consulting",
+              "management consulting services",
+              "software development consulting",
+              "consulting services",
+              "software outsourcing companies"
+            ],
+            "unverified_keywords": [
+              "latin america software companies",
+              "latin america software solutions"
+            ],
+            "employee_ranges": [
+              "11,50",
+              "51,200"
+            ],
+            "locations": [
+              "Miami"
+            ],
+            "keyword_map_size": 1491,
+            "shortlist_size": 50,
+            "model_used": "gpt-4.1-nano"
+          },
+          "total_available": 3742,
+          "scraped": 8,
+          "targets": 5,
+          "rate": 62.5,
+          "target_domains": [
+            "smxusa.com",
+            "flatiron.software",
+            "avalith.net",
+            "exsis.co",
+            "bluecoding.com"
+          ],
+          "est_total_targets": 2338
+        },
+        {
+          "segment": "TFP Fashion brands Italy",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "apparel & fashion",
+              "retail",
+              "fashion brand italy",
+              "luxury fashion milan",
+              "italian fashion",
+              "luxury fashion brands",
+              "fashion brand"
+            ],
+            "organization_locations": [
+              "Italy"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "mapping_details": {
+            "industries_selected": [
+              "apparel & fashion",
+              "retail"
+            ],
+            "keywords_selected": [
+              "fashion brand italy",
+              "luxury fashion milan",
+              "italian fashion",
+              "luxury fashion brands",
+              "fashion brand"
+            ],
+            "unverified_keywords": [
+              "sustainable fashion",
+              "resale platform"
+            ],
+            "employee_ranges": [
+              "11,50",
+              "51,200"
+            ],
+            "locations": [
+              "Italy"
+            ],
+            "keyword_map_size": 1491,
+            "shortlist_size": 50,
+            "model_used": "gpt-4.1-nano"
+          },
+          "total_available": 17550,
+          "scraped": 9,
+          "targets": 9,
+          "rate": 100.0,
+          "target_domains": [
+            "lardini.com",
+            "dondup.com",
+            "gilmar.it",
+            "misssixty.com",
+            "deha.it",
+            "emarinella.eu",
+            "giannichiarini.com",
+            "bluemint.com",
+            "altanaspa.com"
+          ],
+          "est_total_targets": 17550
+        },
+        {
+          "segment": "OnSocial Creator platforms UK",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "marketing & advertising",
+              "media production",
+              "influencer marketing platforms",
+              "influencer platforms",
+              "creator platforms"
+            ],
+            "organization_locations": [
+              "UK"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "mapping_details": {
+            "industries_selected": [
+              "marketing & advertising",
+              "media production"
+            ],
+            "keywords_selected": [
+              "influencer marketing platforms",
+              "influencer platforms",
+              "creator platforms"
+            ],
+            "unverified_keywords": [
+              "influencer marketing industry insights",
+              "social media influencer campaigns"
+            ],
+            "employee_ranges": [
+              "11,50",
+              "51,200"
+            ],
+            "locations": [
+              "UK"
+            ],
+            "keyword_map_size": 1491,
+            "shortlist_size": 50,
+            "model_used": "gpt-4.1-nano"
+          },
+          "total_available": 18599,
+          "scraped": 8,
+          "targets": 2,
+          "rate": 25.0,
+          "target_domains": [
+            "dexerto.media",
+            "genflow.com"
+          ],
+          "est_total_targets": 4649
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "segments": [
+        {
+          "segment": "EasyStaff IT consulting Miami",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "information technology & services",
+              "management consulting",
+              "it consulting",
+              "technology consulting",
+              "it services & it consulting"
+            ],
+            "organization_locations": [
+              "Miami"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "mapping_details": {
+            "industries_selected": [
+              "information technology & services",
+              "management consulting"
+            ],
+            "keywords_selected": [
+              "it consulting",
+              "technology consulting",
+              "it services & it consulting"
+            ],
+            "unverified_keywords": [],
+            "employee_ranges": [
+              "11,50",
+              "51,200"
+            ],
+            "locations": [
+              "Miami"
+            ],
+            "keyword_map_size": 1491,
+            "shortlist_size": 50,
+            "model_used": "gpt-4o-mini"
+          },
+          "total_available": 3701,
+          "scraped": 9,
+          "targets": 5,
+          "rate": 55.55555555555556,
+          "target_domains": [
+            "smxusa.com",
+            "koombea.com",
+            "avalith.net",
+            "flatiron.software",
+            "exsis.co"
+          ],
+          "est_total_targets": 2056
+        },
+        {
+          "segment": "TFP Fashion brands Italy",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "apparel & fashion",
+              "luxury goods & jewelry",
+              "fashion brand italy",
+              "italian luxury brands",
+              "luxury fashion italy"
+            ],
+            "organization_locations": [
+              "Italy"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "mapping_details": {
+            "industries_selected": [
+              "apparel & fashion",
+              "luxury goods & jewelry"
+            ],
+            "keywords_selected": [
+              "fashion brand italy",
+              "italian luxury brands",
+              "luxury fashion italy"
+            ],
+            "unverified_keywords": [],
+            "employee_ranges": [
+              "11,50",
+              "51,200"
+            ],
+            "locations": [
+              "Italy"
+            ],
+            "keyword_map_size": 1491,
+            "shortlist_size": 50,
+            "model_used": "gpt-4o-mini"
+          },
+          "total_available": 3974,
+          "scraped": 10,
+          "targets": 10,
+          "rate": 100.0,
+          "target_domains": [
+            "emarinella.eu",
+            "lucafaloni.eu",
+            "crucianicashmere.com",
+            "borbonese.com",
+            "bluemint.com",
+            "ilborgo.it",
+            "battistoni.com",
+            "malo.com",
+            "conbipel.com",
+            "palzileri.com"
+          ],
+          "est_total_targets": 3974
+        },
+        {
+          "segment": "OnSocial Creator platforms UK",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "marketing & advertising",
+              "online media",
+              "influencer marketing platforms",
+              "influencer marketing agency",
+              "influencer marketing tools"
+            ],
+            "organization_locations": [
+              "UK"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "mapping_details": {
+            "industries_selected": [
+              "marketing & advertising",
+              "online media"
+            ],
+            "keywords_selected": [
+              "influencer marketing platforms",
+              "influencer marketing agency",
+              "influencer marketing tools"
+            ],
+            "unverified_keywords": [
+              "creator economy companies",
+              "influencer management software"
+            ],
+            "employee_ranges": [
+              "11,50",
+              "51,200"
+            ],
+            "locations": [
+              "UK"
+            ],
+            "keyword_map_size": 1491,
+            "shortlist_size": 50,
+            "model_used": "gpt-4o-mini"
+          },
+          "total_available": 16485,
+          "scraped": 8,
+          "targets": 2,
+          "rate": 25.0,
+          "target_domains": [
+            "thenewgen.com",
+            "genflow.com"
+          ],
+          "est_total_targets": 4121
+        }
+      ]
+    }
+  ],
+  "taxonomy_before": {
+    "industries": 112,
+    "keywords": 1491,
+    "keywords_with_embeddings": 1491,
+    "employee_ranges": 8
+  },
+  "taxonomy_after": {
+    "industries": 112,
+    "keywords": 2014,
+    "keywords_with_embeddings": 1491,
+    "employee_ranges": 8
+  },
+  "best_model": "gpt-4.1-mini"
+}
