@@ -58,10 +58,10 @@ async def map_query_to_filters(
     logger.info(f"Filter mapper: {len(all_industries)} industries, "
                 f"{keyword_map_size} keywords in map, {len(keyword_shortlist)} in shortlist")
 
-    # ── Step B1: Industry selection (separate call for focus) ──
+    # ── Step B1: Industry selection (separate call, own model — gpt-4o-mini tested at 100%) ──
     selected_industries = await _pick_industries(
         query=query, offer=offer, industries=all_industries,
-        openai_key=openai_key, model=model,
+        openai_key=openai_key,
     )
 
     # ── Step B2: Keywords + size (combined call) ──
@@ -143,27 +143,14 @@ async def map_query_to_filters(
 
 async def _pick_industries(
     query: str, offer: str, industries: List[str],
-    openai_key: str, model: str = "gpt-4.1-mini",
+    openai_key: str, model: str = "gpt-4o-mini",
 ) -> List[str]:
-    """Separate focused call for industry selection. Tested at 100% accuracy."""
-    prompt = f"""Pick Apollo industries for this search.
-
+    """Separate focused call for industry selection. gpt-4o-mini tested at 100%."""
+    prompt = f"""Pick Apollo industries for: {query}
 Available: {json.dumps(industries)}
-
-Search: {query}
-We sell: {offer}
-
-FIRST: eliminate all industries that are clearly wrong (different business entirely).
-THEN: from remaining, pick ALL that are DIRECTLY relevant (typically 2-4).
-Include the core industry AND adjacent industries where target companies would also list themselves.
-
-CRITICAL FILTER — for each industry you consider, ask:
-"Does this industry describe WHAT the target companies DO, or just HOW they operate?"
-- Industries describing the business activity (consulting, fashion, advertising) = GOOD
-- Industries describing the medium/channel (internet, information, consumer) = TOO BROAD, skip
-Only include an industry if it narrows the search to companies that DO the specific business you're looking for.
-
-Return JSON: {{"industries": ["exact name 1", "exact name 2", "exact name 3"]}}"""
+For each candidate ask: "If I filter Apollo by ONLY this industry in this location, would MOST results be relevant to my search?"
+If no — too broad, skip it. Only keep industries where the majority of companies would match.
+Return JSON: {{"industries": ["exact name"]}}"""
 
     for try_model in [model, "gpt-4o-mini"]:
         try:
