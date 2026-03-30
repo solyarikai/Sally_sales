@@ -547,6 +547,35 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
     return {"targets_found": targets, "total_analyzed": total}
 
 
+def step5_reanalyze(config: ProjectConfig, run_id: int,
+                     prompt_text: str = None, model: str = "gpt-4o-mini") -> dict:
+    """Re-run analysis with different prompt (no re-scrape needed)."""
+    print(f"\n{'='*60}")
+    print(f"STEP 5 (RE-ANALYZE): run #{run_id}")
+    text = prompt_text or config.prompt_text
+    if not text:
+        print("  ERROR: No prompt text available.")
+        sys.exit(1)
+    print(f"  Prompt: {text[:100]}...")
+    print(f"{'='*60}")
+
+    result = api("post", f"/pipeline/gathering/runs/{run_id}/re-analyze",
+                 params={"model": model, "prompt_text": text})
+
+    target_rate = result.get("target_rate", 0)
+    targets_count = result.get("targets_count", 0)
+    print(f"\n  New target rate: {target_rate*100:.1f}%")
+    print(f"  Targets: {targets_count}")
+
+    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
+    pending = [g for g in gates if g["status"] == "pending"]
+    if pending:
+        gate_id = pending[0]["id"]
+        save_state(config.state_dir, run_id, "awaiting_targets_ok", gate_id=gate_id)
+        return {"gate_id": gate_id, "target_rate": target_rate, "targets_count": targets_count}
+    return {"target_rate": target_rate, "targets_count": targets_count}
+
+
 def blacklist_approved_targets(config: ProjectConfig, run_id: int):
     """Add approved target domains to project_blacklist after CP2.
     Prevents next gathering run from picking up the same companies."""
