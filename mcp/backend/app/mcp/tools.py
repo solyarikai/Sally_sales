@@ -130,13 +130,17 @@ Example: "find IT consulting and media production companies in Miami"
         "name": "tam_gather",
         "description": """Phase 1: Gather companies from a source.
 
-BEFORE calling this, ALWAYS call parse_gathering_intent first to get structured segments.
-Then call tam_gather once per segment.
+FLOW for Apollo API:
+1. Ensure project has offer context (target_segments). If not, ask user for website first.
+2. Call parse_gathering_intent to get structured segments
+3. Call tam_gather WITHOUT confirm_filters → returns filter preview for user approval
+4. Show user the filter preview. Wait for their OK.
+5. Call tam_gather WITH confirm_filters=true → actually runs the search
 
-For Apollo API source: use filters from parse_gathering_intent or suggest_apollo_filters.
+For CSV/Sheet/Drive: no confirmation needed, just call directly.
 
-The user only needs to tell you: WHAT companies, WHERE, and HOW MANY targets.
-You figure out the Apollo filters automatically. Never show filter details to the user.""",
+IMPORTANT: For Apollo, the first call returns a filter preview (not results).
+The user MUST approve before credits are spent.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -173,6 +177,7 @@ You figure out the Apollo filters automatically. Never show filter details to th
                 },
                 "query": {"type": "string", "description": "Natural language query — triggers auto-filter discovery if no keywords provided"},
                 "reuse_run_id": {"type": "integer", "description": "Reuse filters from a previous run. User says 'same filters, more targets'"},
+                "confirm_filters": {"type": "boolean", "description": "For Apollo: set true AFTER user approves the filter preview. First call without this returns preview only."},
             },
             "required": ["project_id", "source_type", "filters"],
         },
