@@ -487,26 +487,40 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 filters = dict(prev_run.filters)  # Copy previous filters
                 # Keep user's target_count override if provided
 
-        # ── AUTO-DISCOVER filters via probe if keywords missing ──
+        # ── AUTO-DISCOVER filters via taxonomy-backed filter mapper ──
         if "api" in source_type and not filters.get("q_organization_keyword_tags"):
             query = args.get("query") or project.target_segments
+            offer_text = project.target_segments or ""
             if query:
                 try:
                     from app.config import settings as _s
                     ctx_probe = UserServiceContext(user.id, session)
-                    apollo_probe = await ctx_probe.get_apollo_service()
                     openai_key = await ctx_probe.get_key("openai") or _s.OPENAI_API_KEY
-                    anthropic_key = await ctx_probe.get_key("anthropic") or _s.ANTHROPIC_API_KEY
-                    from app.services.filter_intelligence import suggest_filters
-                    suggestion = await suggest_filters(
-                        query, apollo_probe, openai_key, anthropic_key, None,
-                        args.get("target_count", 10),
-                    )
-                    if suggestion.get("suggested_filters"):
-                        sf = suggestion["suggested_filters"]
-                        filters.setdefault("q_organization_keyword_tags", sf.get("q_organization_keyword_tags"))
-                        filters.setdefault("organization_locations", sf.get("organization_locations"))
-                        filters.setdefault("organization_num_employees_ranges", sf.get("organization_num_employees_ranges"))
+
+                    # Try filter_mapper first (uses taxonomy with embeddings)
+                    try:
+                        from app.services.filter_mapper import map_query_to_filters
+                        mapped = await map_query_to_filters(query, offer_text, openai_key)
+                        if mapped and mapped.get("q_organization_keyword_tags"):
+                            filters.setdefault("q_organization_keyword_tags", mapped["q_organization_keyword_tags"])
+                            filters.setdefault("organization_locations", mapped.get("organization_locations"))
+                            filters.setdefault("organization_num_employees_ranges", mapped.get("organization_num_employees_ranges"))
+                            logger.info(f"Filter mapper: {len(mapped.get('q_organization_keyword_tags', []))} keywords from taxonomy")
+                    except Exception as e:
+                        logger.warning(f"Filter mapper failed, falling back to filter_intelligence: {e}")
+                        # Fallback to old filter_intelligence
+                        apollo_probe = await ctx_probe.get_apollo_service()
+                        anthropic_key = await ctx_probe.get_key("anthropic") or _s.ANTHROPIC_API_KEY
+                        from app.services.filter_intelligence import suggest_filters
+                        suggestion = await suggest_filters(
+                            query, apollo_probe, openai_key, anthropic_key, None,
+                            args.get("target_count", 10),
+                        )
+                        if suggestion.get("suggested_filters"):
+                            sf = suggestion["suggested_filters"]
+                            filters.setdefault("q_organization_keyword_tags", sf.get("q_organization_keyword_tags"))
+                            filters.setdefault("organization_locations", sf.get("organization_locations"))
+                            filters.setdefault("organization_num_employees_ranges", sf.get("organization_num_employees_ranges"))
                 except Exception as e:
                     logger.warning(f"Auto-filter discovery failed: {e}")
 
