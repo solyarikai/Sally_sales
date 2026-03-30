@@ -18,6 +18,7 @@ Apollo credit costs:
 import asyncio
 import logging
 import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from collections import Counter
 
@@ -242,13 +243,23 @@ async def suggest_filters(
 # ── Initial filter generation (cheap, gpt-4o-mini) ────────
 
 async def _llm_generate_candidates(query: str, openai_key: Optional[str] = None) -> Optional[Dict]:
-    """Use GPT-4o-mini to bootstrap initial Apollo filter candidates.
-    This is just keyword extraction — the AGENT does quality evaluation."""
+    """Use GPT to bootstrap initial Apollo filter candidates from real taxonomy.
+    Maps user's natural language to actual Apollo industry/keyword values."""
     if not openai_key:
         from app.config import settings
         openai_key = settings.OPENAI_API_KEY
     if not openai_key:
         return _basic_parse(query)
+
+    # Load Apollo taxonomy
+    taxonomy_path = Path(__file__).parent.parent.parent.parent / "apollo_filters" / "apollo_taxonomy.json"
+    industries_list = ""
+    try:
+        if taxonomy_path.exists():
+            tax_data = json.loads(taxonomy_path.read_text())
+            industries_list = ", ".join(tax_data.get("industries", []))
+    except Exception:
+        pass
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -258,23 +269,27 @@ async def _llm_generate_candidates(query: str, openai_key: Optional[str] = None)
                 json={
                     "model": "gpt-4o-mini",
                     "messages": [
-                        {"role": "system", "content": """You translate natural language business queries into Apollo.io search filters.
+                        {"role": "system", "content": f"""You translate natural language business queries into Apollo.io search filters.
+
+APOLLO INDUSTRIES (use ONLY exact values from this list for industry filtering):
+{industries_list or "(not available)"}
+
 Return ONLY valid JSON:
-{
-  "filters": {
+{{
+  "filters": {{
     "organization_locations": ["City, Country" or "Country"],
     "q_organization_keyword_tags": ["keyword1", "keyword2", ...],
     "organization_num_employees_ranges": ["1,10", "11,50", "51,200"]
-  }
-}
+  }}
+}}
 Rules:
-- Keywords: BROAD industry terms + synonyms (3-7 tags)
+- Keywords: BROAD industry terms + synonyms (3-7 tags) — these are free-text
 - Location: include country if city given
 - Size: cover likely range for the segment"""},
                         {"role": "user", "content": f"Generate Apollo search filters for: {query}"},
                     ],
                     "max_tokens": 300,
-                    "temperature": 0.3,
+                    "temperature": 0.1,
                 },
             )
             data = resp.json()
