@@ -184,3 +184,31 @@ dir that another agent implements now[Image #20] and think critically about exis
  testing approach in tests dir, update architecture docs if neccessary and MAINLY    
 ADD NEW FILE WITH GOD LEVEL IMPLMENENTATION PLAN WITH ALL REQUIREMENTS COVERED, all  
 use caes from default_reqeruiemtns.md files and exploration.md files       
+
+
+❯ write also test approacj plan in another file, so separate: implenmentation plan
+  , test plan. for 2 agents to give in work seaprately and one will implement
+  missing in the architecure, featurs, cores, wahtever elase. and another will 
+  improve testing frameworks to match reality more - need to laser focus on flow   
+  descrbibed in default_requiremtns.md (keep other tests of course notto loose     
+  anything but make testing system TEST EACH SMALL ASPECT, EACT VARIATIN OF        
+  ANYTHING STEP ORDER OR USER EXPRESSIONS OR USER MISSIN SMTH TO MAKE SURE MCP     
+  KEEPS PUSSHING "I NEED THIS", "I NEED THAT - THAT IS, BUIDLING FULL DEPTH TESTING  
+  FRAMEOWKR TO TEST variations of flow in default_requirements.md starting from      
+  the ery beginning of account creation)  to adjust tests to cover all               
+  reqruirements by real world testing mcp (via real connection, there is already a   
+  framework on python used for that find and estaimeta is it good enough or          
+  not?)[Image #23] and real schreenshoting to cover alsp that                        
+  1. all links are provided as expected ny mp                                        
+  2. all is realy visible in ui, make screenshots!  and the information transparent  
+  and coreessponds to pavel's feedback above and his real sessions conversation      
+  history!                                                                           
+  3. all data is shown proeprly and checksum matches ui - db - mcp messages          
+  4. all mcp estimations are shown that were critically usefull for pavel like       
+  "what are expected costs for apollo, what are expeceted number of companies by     
+  these fitlers' etc                                                                 
+  5. also consider pavel_feedback dir remaining system parts not implemented yet     
+                                                                                     
+  that's task reqruiing deep focus, act as focused god building best mcp             
+  ever!!!!!!! do your best , don't stop until recheck everythinh 10 times , act as   
+  god, write full-covering plan files as result     
