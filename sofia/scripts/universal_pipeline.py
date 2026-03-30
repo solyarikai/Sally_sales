@@ -31,6 +31,16 @@ Universal Lead Generation Pipeline
     CP3 — перед FindyMail: "Одобряете расходы?"
     Активация — НИКОГДА не запускается автоматически.
 
+  ★ Google Sheets & Drive:
+    Все CSV автоматически дублируются в Google Sheets (аккаунт sofia@getsally.io).
+    OAuth credentials: ~/.claude/google-sheets/token.json (локально) или
+                       sofia/.google-sheets/token.json (Hetzner).
+    Sheets размещаются в папках Google Drive по TYPE из naming convention:
+      Leads → Onsocial/Leads/, Import → Onsocial/Import/, Targets → Onsocial/Target/,
+      Ops → Onsocial/Ops/, Analytics → Onsocial/Analytics/, Archive → Onsocial/Archive/.
+    Naming: [PROJECT] | [TYPE] | [SEGMENT] — [DATE]
+    Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
+
 Pipeline flow (technical):
   Steps 0-8:  Backend gathering API (Clay/Apollo → Dedup → Blacklist → Scrape → Classify)
   Step 9:     Export targets from DB
