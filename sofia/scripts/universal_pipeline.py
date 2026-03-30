@@ -526,7 +526,7 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
     print(f"  Prompt: #{config.prompt_id or '?'} ({len(text)} chars)")
 
     result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
-                      run_id=run_id, expected_phases=["analyzed", "cp2", "awaiting_targets_ok"],
+                      expected_phase="analyzed", run_id=run_id, timeout=3600,
                       params=params)
     targets = result.get("targets_found", 0)
     total = result.get("total_analyzed", 0)
