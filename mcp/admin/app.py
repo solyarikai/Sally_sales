@@ -332,7 +332,7 @@ HTML_USER = f"""<!DOCTYPE html><html><head><title>User %%user_id%% — MCP Admin
     <div class="card">
         <h2>Recent Activity</h2>
         <table><thead><tr><th>Time</th><th>Tool</th><th>Action</th></tr></thead>
-        <tbody>{{recent_rows}}</tbody></table>
+        <tbody>%%recent_rows%%</tbody></table>
     </div>
 </div></body></html>"""
 
@@ -344,7 +344,7 @@ HTML_CONVERSATIONS = f"""<!DOCTYPE html><html><head><title>Conversations — %%e
 <div class="container">
     <div class="card">
         <h1>Conversations — %%email%% (%%name%%)</h1>
-        <p style="color:#888">{{count}} messages</p>
+        <p style="color:#888">%%count%% messages</p>
     </div>
     <div class="card" style="overflow-x:auto">
         <table>
