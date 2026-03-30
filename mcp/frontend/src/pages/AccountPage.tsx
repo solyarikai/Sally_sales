@@ -47,6 +47,7 @@ export default function AccountPage() {
   const apollo = costs.apollo || {}
   const openai = costs.openai || {}
   const apify = costs.apify || {}
+  const mcp = costs.mcp || {}
   const openaiModels = openai.by_model || {}
 
   return (
@@ -94,7 +95,7 @@ export default function AccountPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
           Costs {dateFrom || dateTo ? `(${dateFrom || 'start'} → ${dateTo || 'now'})` : '(All Time)'}
         </h2>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {/* Apollo */}
           <div className="border border-gray-700 rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
@@ -137,6 +138,20 @@ export default function AccountPage() {
             <div className="text-xs text-gray-500 space-y-0.5">
               <div>{apify.websites_scraped || 0} websites scraped</div>
               <div>{apify.gb_used || 0} GB proxy used</div>
+            </div>
+          </div>
+
+          {/* MCP */}
+          <div className="border border-gray-700 rounded-lg p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+              <span className="text-sm font-medium">MCP</span>
+            </div>
+            <div className="text-2xl font-bold tabular-nums">{((mcp.total_tokens || 0) / 1000).toFixed(1)}K</div>
+            <div className="text-xs text-gray-500 space-y-0.5">
+              <div>{(mcp.input_tokens || 0).toLocaleString()} input tokens</div>
+              <div>{(mcp.output_tokens || 0).toLocaleString()} output tokens</div>
+              <div>{mcp.tool_calls || 0} tool calls</div>
             </div>
           </div>
         </div>
