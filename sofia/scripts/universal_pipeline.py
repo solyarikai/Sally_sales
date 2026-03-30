@@ -34,7 +34,7 @@ Universal Lead Generation Pipeline
 Pipeline flow (technical):
   Steps 0-8:  Backend gathering API (Clay/Apollo → Dedup → Blacklist → Scrape → Classify)
   Step 9:     Export targets from DB
-  Step 10:    Import Apollo People CSV (manual search results)
+  Step 10:    Apollo People UI Search (auto via apollo_scraper.js) or CSV import (--apollo-csv fallback)
   Step 11:    FindyMail email enrichment
   Step 12:    SmartLead upload (with per-step checkpoints)
 
