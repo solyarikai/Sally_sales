@@ -318,7 +318,7 @@ Iterate until GPT's results meet your quality bar.""",
         },
     },
 
-    # ── GOD_SEQUENCE (5) ──
+    # ── Campaign Sequence Tools (5) ──
     {
         "name": "smartlead_score_campaigns",
         "description": "Score and rank campaigns by quality (warm reply rate, meetings, volume).",
@@ -432,7 +432,7 @@ Also called automatically when a campaign is created.""",
         "name": "gs_generate_flow",
         "description": """Generate a LinkedIn automation flow for GetSales using proven patterns from your 414 live flows.
 
-Analyzes your project's ICP, sender info, and knowledge to create a god-level LinkedIn sequence.
+Analyzes your project's ICP, sender info, and knowledge to create an optimized LinkedIn sequence.
 
 Flow types (from GETSALES_AUTOMATION_PLAYBOOK.md):
 - "standard": Qualifying question + 3 follow-ups (EasyStaff UAE pattern, 68% positive rate)

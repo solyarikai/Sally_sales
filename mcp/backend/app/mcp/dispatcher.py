@@ -914,7 +914,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         run.completed_at = datetime.utcnow()
         return {"stopped": True, "final_accuracy": run.final_accuracy}
 
-    # ── GOD_SEQUENCE tools ──
+    # ── Campaign Sequence tools ──
     if tool_name == "smartlead_generate_sequence":
         user = await _get_user(token, session)
         project = await session.get(Project, args["project_id"])
