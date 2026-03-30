@@ -705,8 +705,8 @@ class GetSalesAutomationService:
         flow_name: Optional[str] = None,
         flow_type: str = "standard",
         instructions: Optional[str] = None,
-        gemini_key: Optional[str] = None,
         openai_key: Optional[str] = None,
+        **kwargs,
     ) -> GeneratedSequence:
         """Generate a GetSales LinkedIn flow using AI + proven patterns.
 
@@ -758,7 +758,7 @@ class GetSalesAutomationService:
 
         # Generate with AI
         flow_data = await self._generate_flow_ai(
-            project, context, flow_type, ref_flow, gemini_key, openai_key
+            project, context, flow_type, ref_flow, openai_key=openai_key
         )
 
         if not flow_data:
@@ -776,7 +776,7 @@ class GetSalesAutomationService:
             rationale=f"GetSales LinkedIn flow ({flow_type}). Timing: {timing_key}. "
                       f"Pattern from GETSALES_AUTOMATION_PLAYBOOK.md.",
             status="draft",
-            model_used="gemini-2.5-pro",
+            model_used="gpt-4o-mini",
         )
         session.add(seq)
         await session.flush()
@@ -785,7 +785,7 @@ class GetSalesAutomationService:
 
     async def _generate_flow_ai(
         self, project, context: str, flow_type: str, ref_flow: str,
-        gemini_key: Optional[str] = None, openai_key: Optional[str] = None,
+        openai_key: Optional[str] = None, **kwargs,
     ) -> Optional[Dict]:
         """Generate flow content with AI."""
         sender = project.sender_name or "Team"
@@ -823,24 +823,7 @@ Return ONLY a JSON object:
   "inmail_text": "InMail text if include_inmail is true, otherwise null"
 }}"""
 
-        # Try Gemini first
-        if gemini_key:
-            try:
-                async with httpx.AsyncClient(timeout=45) as client:
-                    resp = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={gemini_key}",
-                        json={
-                            "contents": [{"parts": [{"text": prompt}]}],
-                            "generationConfig": {"temperature": 0.5, "maxOutputTokens": 2000},
-                        },
-                    )
-                    data = resp.json()
-                    text = data["candidates"][0]["content"]["parts"][0]["text"]
-                    return self._parse_flow_json(text)
-            except Exception as e:
-                logger.warning(f"Gemini flow generation failed: {e}")
-
-        # Fallback to GPT-4o-mini
+        # Use GPT-4o-mini for flow generation
         if openai_key:
             try:
                 async with httpx.AsyncClient(timeout=45) as client:
