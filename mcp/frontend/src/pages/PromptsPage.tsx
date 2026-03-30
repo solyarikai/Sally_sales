@@ -82,9 +82,10 @@ export default function PromptsPage() {
         <td style={{ padding: '8px 8px 8px 0' }}>
           <Link to={`/pipeline/${runId}`} style={{ color: 'var(--text-link)' }}>#{runId}</Link>
         </td>
-        <td style={{ padding: '8px 8px 8px 0', color: 'var(--text-secondary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <td style={{ padding: '8px 8px 8px 0', color: 'var(--text-secondary)', maxWidth: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {p.segment && <span style={{ padding: '1px 5px', borderRadius: 3, background: 'rgba(99,102,241,0.12)', color: '#818cf8', marginRight: 4, fontSize: 11 }}>{p.segment}</span>}
-          {p.name || p.prompt_text?.slice(0, 60) || p.tool || '...'}
+          <span style={{ fontWeight: 500, color: 'var(--text)' }}>{p.name || (p.prompt_text ? p.prompt_text.split('\n')[0].slice(0, 50) : p.tool || '...')}</span>
+          {p.prompt_text && <span style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 11 }}>{p.prompt_text.slice(0, 80).replace(/\n/g, ' ')}...</span>}
         </td>
         <td style={{ padding: '8px 8px 8px 0' }}>{p.total_analyzed || p.total_companies || 0}</td>
         <td style={{ padding: '8px 8px 8px 0', color: 'var(--success)' }}>{p.targets_found || 0}</td>
@@ -118,6 +119,14 @@ export default function PromptsPage() {
                 <div style={{ marginTop: 8 }}>
                   <span style={{ color: 'var(--text-muted)' }}>Filter:</span>{' '}
                   <code style={{ padding: '1px 4px', borderRadius: 3, background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: 11 }}>{p.filter_condition}</code>
+                </div>
+              )}
+              {p.prompt_text && (
+                <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                  <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(p.prompt_text); }}
+                    style={{ padding: '4px 12px', borderRadius: 4, fontSize: 11, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    Copy prompt
+                  </button>
                 </div>
               )}
             </div>

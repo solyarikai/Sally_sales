@@ -276,7 +276,7 @@ export default function PipelinePage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [runId, selectedIteration])
+  useEffect(() => { load() }, [runId, selectedIteration, companyPage])
   useEffect(() => { const t = setInterval(load, 15000); return () => clearInterval(t) }, [runId, selectedIteration])
 
   // Load usage logs when panel opens
@@ -577,8 +577,8 @@ export default function PipelinePage() {
       {/* ── Table ── */}
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{filtered.length} companies{selectedIteration !== 'all' ? ` (iteration #${selectedIteration})` : ''}</div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 1100 }}>
+      <div style={{ overflowX: 'auto', overflowY: 'visible', paddingBottom: 8 }} className="pipeline-table-scroll">
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 1400 }}>
           <thead>
             <tr style={{ textAlign: 'left' }}>
               {columns.map(col => (
@@ -682,9 +682,9 @@ export default function PipelinePage() {
       {/* Load More */}
       {!loading && companies.length < totalCompanies && (
         <div style={{ textAlign: 'center', padding: '16px 0' }}>
-          <button onClick={() => { setCompanyPage(p => p + 1); load() }}
+          <button onClick={() => setCompanyPage(p => p + 1)}
             style={{ padding: '8px 24px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
-            Load More ({companies.length} / {totalCompanies})
+            Load more ({companies.length} of {totalCompanies})
           </button>
         </div>
       )}
