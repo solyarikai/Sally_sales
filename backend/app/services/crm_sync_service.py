@@ -1419,11 +1419,8 @@ class CRMSyncService:
                     new_st, ok, _ = transition_status(existing.status, "replied")
                     if ok:
                         existing.status = new_st
-            if "smartlead" not in (existing.source or ""):
-                if existing.source:
-                    existing.source = f"{existing.source}+smartlead"
-                else:
-                    existing.source = "smartlead"
+            if not existing.source:
+                existing.source = "smartlead"
             # Merge campaign data into platform_state
             existing_campaigns = existing.get_platform("smartlead").get("campaigns", [])
             new_campaigns = [
@@ -1594,11 +1591,8 @@ class CRMSyncService:
                 existing.domain = email.split('@')[1].lower()
             if not existing.linkedin_url and linkedin_raw:
                 existing.linkedin_url = linkedin_raw
-            if "getsales" not in (existing.source or ""):
-                if existing.source:
-                    existing.source = f"{existing.source}+getsales"
-                else:
-                    existing.source = "getsales"
+            if not existing.source:
+                existing.source = "getsales"
             # Merge campaign data into platform_state
             existing_campaigns = existing.get_platform("getsales").get("campaigns", [])
             new_campaigns = []
