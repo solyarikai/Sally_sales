@@ -6,11 +6,10 @@ import { Check, Search } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 
 const SOURCES = [
-  { key: 'smartlead',                label: 'Email',        color: 'text-blue-600' },
-  { key: 'getsales',                 label: 'LinkedIn',     color: 'text-amber-600' },
-  { key: 'smartlead_pipeline_push',  label: 'Pipeline→SL',  color: 'text-emerald-600' },
-  { key: 'pipeline',                 label: 'Pipeline',     color: 'text-emerald-600' },
-  { key: 'smartlead_deliryo_sync',   label: 'SL Sync',      color: 'text-blue-500' },
+  { key: 'smartlead',  label: 'Email',     color: 'text-blue-600' },
+  { key: 'getsales',   label: 'LinkedIn',  color: 'text-amber-600' },
+  { key: 'telegram',   label: 'Telegram',  color: 'text-sky-600' },
+  { key: 'calendly',   label: 'Calendly',  color: 'text-emerald-600' },
 ] as const;
 
 export const SourceColumnFilter = forwardRef((props: IFilterParams, ref) => {
