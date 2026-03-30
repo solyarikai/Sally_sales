@@ -1713,7 +1713,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             },
         }
 
-    # ── Filter Intelligence ──
+    # ── Filter Intelligence (DEPRECATED — use tam_gather without confirm_filters instead) ──
     if tool_name == "suggest_apollo_filters":
         user = await _get_user(token, session)
         ctx = UserServiceContext(user.id, session)
@@ -1734,6 +1734,45 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             gemini_key=None,
             target_count=args.get("target_count", 10),
         )
+
+        # Add total_available + cost estimate (probe Apollo)
+        sf = result.get("suggested_filters", {})
+        if sf.get("q_organization_keyword_tags"):
+            try:
+                probe = await apollo_svc.search_organizations(
+                    keyword_tags=sf["q_organization_keyword_tags"],
+                    locations=sf.get("organization_locations"),
+                    num_employees_ranges=sf.get("organization_num_employees_ranges"),
+                    page=1, per_page=1,
+                )
+                total = probe.get("pagination", {}).get("total_entries", 0) if probe else 0
+                per_page = 25
+                TARGET_RATE = 0.35
+                pages_30 = max(1, int(30 / (per_page * TARGET_RATE)) + 1)
+                pages_all = max(1, (total + per_page - 1) // per_page) if total > 0 else 1
+
+                result["apollo_preview"] = {
+                    "total_available": total,
+                    "filters_applied": sf,
+                    "cost_default_30_targets": {"credits": min(pages_30, pages_all), "estimated_targets": int(min(pages_30, pages_all) * per_page * TARGET_RATE)},
+                    "cost_full_run": {"credits": pages_all, "estimated_targets": int(total * TARGET_RATE)},
+                    "target_conversion_rate": f"{int(TARGET_RATE * 100)}%",
+                }
+                result["message"] = (
+                    f"Suggested Apollo filters:\n"
+                    f"  Keywords: {sf.get('q_organization_keyword_tags', [])}\n"
+                    f"  Location: {sf.get('organization_locations', ['(any)'])}\n"
+                    f"  Size: {sf.get('organization_num_employees_ranges', ['(any)'])}\n"
+                    f"  Total available: {total:,} companies\n\n"
+                    f"Cost options:\n"
+                    f"  Default (≈30 targets): {min(pages_30, pages_all)} credits → ≈{int(min(pages_30, pages_all) * per_page * TARGET_RATE)} targets\n"
+                    f"  Full run (all {total:,}): {pages_all} credits → ≈{int(total * TARGET_RATE):,} targets\n"
+                    f"  (estimated target conversion: {int(TARGET_RATE * 100)}%)\n\n"
+                    f"Proceed? Call tam_gather with these filters + confirm_filters=true."
+                )
+            except Exception as e:
+                logger.warning(f"Apollo probe in suggest_filters failed: {e}")
+
         return result
 
     if tool_name == "run_full_pipeline":

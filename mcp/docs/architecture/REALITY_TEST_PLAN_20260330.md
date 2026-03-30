@@ -448,7 +448,21 @@ EDGE 6: User has multiple projects, doesn't specify
   User: "gather fashion brands in Italy" (without selecting project)
   VERIFY: MCP asks which project
 
-EDGE 7: Classification accuracy too low
+EDGE 7: User wants to change filters after preview
+  User sees filter preview: "Keywords: IT consulting. Total: 3,908"
+  User: "also add management consulting and make size 51-500"
+  VERIFY: tam_gather called again WITHOUT confirm_filters but WITH updated filters
+  VERIFY: new preview shows updated total_available + cost
+  VERIFY: user can iterate filters before spending credits
+
+EDGE 8: Pavel's bug — MCP must show filters + cost BEFORE gathering
+  User: "gather iGaming technology providers"
+  VERIFY: MCP shows filter preview (keywords, location, size, total_available, cost)
+  VERIFY: MCP does NOT auto-run gathering without user confirmation
+  VERIFY: credits_spent shown AFTER gathering completes
+  VERIFY: no suggest_apollo_filters tool called (removed — tam_gather handles all)
+
+EDGE 9: Classification accuracy too low
   User sees 48% target rate → "exclude operators, they're not tech providers"
   VERIFY: provide_feedback → tam_re_analyze → new iteration → improved accuracy
 ```

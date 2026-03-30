@@ -558,30 +558,9 @@ Only call when user explicitly says "activate", "start", "launch", or "go live".
         },
     },
 
-    # ── Filter Intelligence (1) ──
-    {
-        "name": "suggest_apollo_filters",
-        "description": """INTERNAL: Auto-discover optimal Apollo filters for a natural language query.
-
-Call this AUTOMATICALLY before tam_gather — the user should NEVER be asked about Apollo keywords,
-industries, or filter details. That's our job.
-
-User says: "find IT consulting in London"
-You call: suggest_apollo_filters(query="IT consulting in London", target_count=10)
-System: probes Apollo (1 credit) → discovers real taxonomy → returns optimal filters
-You call: tam_gather with the suggested filters
-
-The user sees: "Found 25 matching companies, searching for ~10 targets..."
-The user does NOT see: keyword lists, industry codes, or filter JSON.""",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Natural language description of companies to find"},
-                "target_count": {"type": "integer", "default": 10, "description": "How many target companies the user wants"},
-            },
-            "required": ["query"],
-        },
-    },
+    # suggest_apollo_filters REMOVED — tam_gather handles filter discovery + preview + confirmation in one tool.
+    # When tam_gather is called without confirm_filters, it auto-discovers filters, probes Apollo for total_available,
+    # shows cost breakdown, and waits for user to confirm. No separate filter suggestion tool needed.
 
     # ── Orchestration (2) ──
     {
