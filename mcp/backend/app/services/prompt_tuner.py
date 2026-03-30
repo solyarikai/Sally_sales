@@ -27,7 +27,7 @@ async def tune_classification_prompt(
     openai_key: str,
     max_iterations: int = 5,
     target_accuracy: float = 0.95,
-    model: str = "gpt-4o-mini",
+    model: str = "gpt-4.1-mini",
     return_history: bool = False,
 ) -> Union[Tuple[str, float, int], Tuple[str, float, int, List[Dict]]]:
     """Tune GPT classification prompt until it matches agent verdicts.
@@ -113,7 +113,7 @@ Companies:
 
 
 async def _classify_batch(
-    companies: List[Dict], prompt: str, openai_key: str, model: str = "gpt-4o-mini"
+    companies: List[Dict], prompt: str, openai_key: str, model: str = "gpt-4.1-mini"
 ) -> Dict[str, Dict]:
     """Classify all companies with a given prompt. Returns {domain: {is_target, reasoning}}."""
     full_prompt = prompt
@@ -225,7 +225,7 @@ Return ONLY the improved prompt text (no explanation, no markdown)."""
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
                 json={
-                    "model": "gpt-4o-mini",
+                    "model": "gpt-4.1-mini",
                     "messages": [{"role": "user", "content": improve_prompt}],
                     "max_tokens": 1000,
                     "temperature": 0.3,
