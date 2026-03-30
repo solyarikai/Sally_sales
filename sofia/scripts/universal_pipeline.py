@@ -347,26 +347,27 @@ def api(method: str, path: str, raise_on_error: bool = True, **kwargs) -> dict:
     return r.json()
 
 
-def api_long(method: str, path: str, run_id: int, expected_phases: list[str] = None, **kwargs) -> dict:
+def api_long(method: str, path: str, expected_phase: str, run_id: int,
+             timeout: int = 3600, **kwargs) -> dict:
     """Resilient API call for long operations (scrape, analyze).
     If HTTP connection drops (ReadTimeout, ConnectionError), polls run phase
-    until it advances to one of expected_phases or fails.
+    until it advances to expected_phase or fails.
+    Timeout parameter overrides default httpx timeout for the initial call.
     """
     try:
-        return api(method, path, **kwargs)
+        return api(method, path, timeout=timeout, **kwargs)
     except (httpx.ReadTimeout, httpx.ConnectError, httpx.RemoteProtocolError) as e:
         print(f"    Connection lost ({type(e).__name__}), polling...")
         if not run_id:
             raise
-        expected = set(expected_phases or [])
         for attempt in range(120):
             time.sleep(10)
             try:
                 r = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
                 phase = r.get("current_phase", "")
                 status = r.get("status", "")
-                if expected and phase in expected:
-                    print(f"    Polling: phase={phase} - done")
+                if phase == expected_phase or phase in ("analyzed", "cp2", "awaiting_targets_ok"):
+                    print(f"    Polling: phase={phase} — done")
                     return r
                 if status == "failed":
                     print(f"    Run failed: {r.get('error_message', '?')[:200]}")
@@ -376,7 +377,7 @@ def api_long(method: str, path: str, run_id: int, expected_phases: list[str] = N
             except Exception:
                 pass
         print("    Polling timeout (20 min)")
-        return {"_error": "polling_timeout"}
+        return {"_timeout": True}
 
 
 def get_latest_prompt(project_id: int) -> tuple[int | None, str | None]:
