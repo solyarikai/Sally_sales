@@ -290,3 +290,6 @@ there a hundred target people? If not, go on looping by four pages. And in such 
 build this system, ask me any questions if you need to clarify anything, but be God, 
  think better than me, and implement this all. ONCE 100 COMPANIES GATHRERED STOP     
 GATETING NEW PAGES FROM APOOLLO AND CREATE SMARTLEAD CAMPAIGN!!!      
+
+
+after each campaign launched, if the user stil haven't connected telegram account to receive notifications, mcp must ask user to connect providing link to the setup page to connect telegtam account via simple one button ux as in the main, but the differrnece from app is that in mcp user adds telegram account on entire account level = notifications from all campagins launched among all projects will be passed there. there is new bot specifically for this mcp purposes of notifioncatoons from replies - reuse the format with links to reply ui and the source (smarltead / getsales) conversation, connect it and save in code not to lose, bot token   7786811624:AAHbIUkMOvEB5A8wqw1koyhCNOZaSBgEvUI

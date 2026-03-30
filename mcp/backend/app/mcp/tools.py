@@ -615,6 +615,27 @@ Requires: project with offer context, Apollo + OpenAI keys configured.""",
         },
     },
 
+    {
+        "name": "extract_people",
+        "description": """Extract contacts (people) from target companies in a pipeline run.
+
+Searches Apollo for 3 contacts per target company. Roles auto-adjusted to offer:
+- Payroll offer → VP HR, CHRO, Head of People
+- SaaS offer → CTO, VP Engineering
+- Fashion → Brand Director, CMO
+
+FREE — uses /mixed_people/api_search (no credits).
+Call after targets are confirmed at Checkpoint 2.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer", "description": "Pipeline run with confirmed targets"},
+                "people_per_company": {"type": "integer", "default": 3, "description": "Contacts per company (default 3)"},
+            },
+            "required": ["run_id"],
+        },
+    },
+
     # ── CRM Queries (2) ──
     {
         "name": "query_contacts",

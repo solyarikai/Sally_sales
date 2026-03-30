@@ -1716,6 +1716,100 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "_links": {"getsales": f"https://amazing.getsales.io/flow/{args['flow_uuid']}/builder"},
         }
 
+    # ── People Extraction ──
+    if tool_name == "extract_people":
+        user = await _get_user(token, session)
+        run = await session.get(GatheringRun, args["run_id"])
+        if not run:
+            raise ValueError("Run not found")
+        project = await session.get(Project, run.project_id)
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        ctx = UserServiceContext(user.id, session)
+        apollo_svc = await ctx.get_apollo_service()
+        if not apollo_svc.is_configured():
+            raise ValueError("Apollo not connected")
+
+        # Infer people roles from offer
+        person_titles = None
+        person_seniorities = ["c_suite", "vp", "director"]
+        openai_key = await ctx.get_key("openai")
+        if not openai_key:
+            from app.config import settings as _cfg
+            openai_key = _cfg.OPENAI_API_KEY
+        if project.target_segments and openai_key:
+            try:
+                from app.services.offer_analyzer import infer_people_roles
+                roles = await infer_people_roles(project.target_segments, openai_key)
+                person_titles = roles.get("person_titles")
+                person_seniorities = roles.get("person_seniorities", person_seniorities)
+            except Exception:
+                pass
+
+        # Get target companies without contacts
+        from app.models.gathering import CompanySourceLink
+        targets = (await session.execute(
+            select(DiscoveredCompany)
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .where(
+                CompanySourceLink.gathering_run_id == run.id,
+                DiscoveredCompany.is_target == True,
+            )
+        )).scalars().all()
+
+        if not targets:
+            raise ValueError("No target companies in this run. Run tam_analyze first.")
+
+        people_per_company = args.get("people_per_company", 3)
+        total_people = 0
+        companies_with_people = 0
+
+        for company in targets:
+            try:
+                people = await apollo_svc.enrich_by_domain(
+                    company.domain, limit=people_per_company, titles=person_titles,
+                )
+                for person in people:
+                    from app.models.pipeline import ExtractedContact
+                    contact = ExtractedContact(
+                        project_id=run.project_id,
+                        discovered_company_id=company.id,
+                        email=person.get("email"),
+                        first_name=person.get("first_name"),
+                        last_name=person.get("last_name"),
+                        title=person.get("title"),
+                        linkedin_url=person.get("linkedin_url"),
+                        source_data=person,
+                    )
+                    session.add(contact)
+                total_people += len(people)
+                if people:
+                    companies_with_people += 1
+            except Exception as e:
+                logger.debug(f"People search for {company.domain} failed: {e}")
+
+        return {
+            "people_found": total_people,
+            "companies_searched": len(targets),
+            "companies_with_people": companies_with_people,
+            "people_filters": {
+                "person_titles": person_titles,
+                "person_seniorities": person_seniorities,
+            },
+            "message": (
+                f"Found {total_people} contacts from {companies_with_people}/{len(targets)} target companies.\n"
+                f"Roles: {person_titles or ['C-level (default)']}\n"
+                f"Seniorities: {person_seniorities}\n"
+                f"FREE — no Apollo credits used.\n\n"
+                f"View contacts: http://46.62.210.24:3000/crm?pipeline={run.id}"
+            ),
+            "_links": {
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}",
+                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+            },
+        }
+
     # ── Auto Pipeline ──
     if tool_name == "run_auto_pipeline":
         user = await _get_user(token, session)
