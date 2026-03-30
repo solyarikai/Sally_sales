@@ -1243,6 +1243,7 @@ async def notify_telegram_dm_reply(
     else:
         replies_ui_url = f"{settings.FRONTEND_URL}/tasks/replies"
     replies_line = f'\n<a href="{replies_ui_url}">📋 Open in Replies UI</a>'
+    tg_direct_line = f'\n<a href="https://t.me/{contact_username}">✈️ Open in Telegram</a>' if contact_username else ""
 
     raw_text = (message_text or "").strip()
     msg_lines = raw_text.split("\n")
@@ -1251,7 +1252,7 @@ async def notify_telegram_dm_reply(
         message_preview = message_preview[:200] + "…"
     message_preview = _html_escape(message_preview)
 
-    username_line = f"\n<b>Telegram:</b> @{contact_username}" if contact_username else ""
+    username_line = f'\n<b>Telegram:</b> <a href="https://t.me/{contact_username}">@{contact_username}</a>' if contact_username else ""
     account_line = f"\n<b>Account:</b> @{account_name}" if account_name else ""
     project_line = f"\n<b>Project:</b> {project['name']}" if project else ""
 
@@ -1264,7 +1265,7 @@ async def notify_telegram_dm_reply(
 
 <b>Message:</b>
 <code>{message_preview}</code>
-{replies_line}"""
+{replies_line}{tg_direct_line}"""
 
     admin_sent = await send_telegram_notification(full_message.strip(), chat_id=TELEGRAM_CHAT_ID)
     sent_chats = {TELEGRAM_CHAT_ID}
