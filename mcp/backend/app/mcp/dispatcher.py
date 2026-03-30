@@ -955,12 +955,49 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             .where(ApprovalGate.gathering_run_id == run.id, ApprovalGate.gate_type == "checkpoint_2", ApprovalGate.status == "pending")
             .values(status="rejected", decision_note="Re-analyzing with adjusted prompt")
         )
-        # Re-run analysis with new prompt
+
         ctx = UserServiceContext(user.id, session)
         openai_key = await ctx.get_key("openai")
         if not openai_key:
             from app.config import settings
             openai_key = settings.OPENAI_API_KEY
+
+        # P1-8: If user provided feedback/verdicts, use prompt_tuner to improve prompt first
+        agent_verdicts = args.get("agent_verdicts")  # {domain: {target: bool, reason: str}}
+        if agent_verdicts and openai_key:
+            try:
+                from app.services.prompt_tuner import tune_classification_prompt
+                # Get companies with scraped text for tuning
+                from app.models.gathering import CompanySourceLink
+                from app.models.pipeline import CompanyScrape
+                companies_for_tuning = []
+                company_results = await session.execute(
+                    select(DiscoveredCompany, CompanyScrape)
+                    .outerjoin(CompanyScrape, CompanyScrape.discovered_company_id == DiscoveredCompany.id)
+                    .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                    .where(CompanySourceLink.gathering_run_id == run.id, CompanyScrape.is_current == True)
+                )
+                for dc, scrape in company_results.all():
+                    companies_for_tuning.append({
+                        "domain": dc.domain,
+                        "name": dc.name or dc.domain,
+                        "scraped_text": scrape.clean_text[:3000] if scrape and scrape.clean_text else "",
+                    })
+                if companies_for_tuning:
+                    project = await session.get(Project, run.project_id)
+                    tuned_prompt, accuracy, iterations = await tune_classification_prompt(
+                        companies=companies_for_tuning,
+                        agent_verdicts=agent_verdicts,
+                        offer=project.target_segments or "",
+                        query=project.target_segments or "",
+                        openai_key=openai_key,
+                    )
+                    logger.info(f"Prompt tuner: {accuracy*100:.0f}% accuracy after {iterations} iterations")
+                    args["prompt_text"] = tuned_prompt
+            except Exception as e:
+                logger.warning(f"Prompt tuner failed, using manual prompt: {e}")
+
+        # Re-run analysis with new/tuned prompt
         from app.services.gathering_service import GatheringService
         svc = GatheringService()
         prompt_text = args.get("prompt_text")
@@ -969,6 +1006,29 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             gate = await svc.analyze_multi_step(session, run, prompt_steps=prompt_steps, openai_key=openai_key)
         else:
             gate = await svc.analyze(session, run, prompt_text=prompt_text, openai_key=openai_key)
+
+        # Create PipelineIteration record for tracking
+        try:
+            from app.models.processing_step import PipelineIteration
+            from sqlalchemy import func as sa_func
+            existing_iters = (await session.execute(
+                select(sa_func.count(PipelineIteration.id)).where(PipelineIteration.gathering_run_id == run.id)
+            )).scalar() or 0
+            iteration = PipelineIteration(
+                project_id=run.project_id,
+                gathering_run_id=run.id,
+                iteration_number=existing_iters + 1,
+                label=f"Re-analysis #{existing_iters + 1}" + (f" (tuned prompt)" if agent_verdicts else ""),
+                trigger="re_analyze",
+                steps_snapshot=[],
+                filters_snapshot=run.filters,
+                prompt_snapshot=prompt_text[:3000] if prompt_text else None,
+                target_count=gate.scope.get("targets_found", 0) if gate.scope else 0,
+                target_rate=float(gate.scope.get("target_rate", "0").replace("%", "")) / 100 if gate.scope else 0,
+            )
+            session.add(iteration)
+        except Exception as e:
+            logger.debug(f"PipelineIteration tracking failed: {e}")
         scope = gate.scope or {}
         return {
             "gate_id": gate.id, "type": "checkpoint_2_retry",
