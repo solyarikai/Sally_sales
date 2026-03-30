@@ -18,7 +18,7 @@ const path = require('path');
 
 puppeteer.use(StealthPlugin());
 
-const WORKSPACE_ID = '889252';
+const WORKSPACE_ID = process.env.CLAY_WORKSPACE_ID || '588071';
 const OUT_DIR = path.join(__dirname, 'exports');
 const SESSION_FILE = path.join(__dirname, 'clay_session.json');
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36';
@@ -58,16 +58,16 @@ async function setSessionCookie(page, cookieValue) {
 }
 
 async function validateSession(page) {
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(async (wsId) => {
     try {
-      const res = await fetch('https://api.clay.com/v3/subscriptions/889252', {
+      const res = await fetch(`https://api.clay.com/v3/subscriptions/${wsId}`, {
         credentials: 'include', headers: { 'Accept': 'application/json' },
       });
       if (res.status === 401 || res.status === 403) return { valid: false, status: res.status };
       const data = await res.json();
       return { valid: !!data.creditBalances, status: res.status, credits: data.creditBalances };
     } catch (e) { return { valid: false, error: e.message }; }
-  });
+  }, WORKSPACE_ID);
   return result;
 }
 
@@ -225,15 +225,15 @@ async function screenshot(page, name) {
 }
 
 async function getCredits(page) {
-  const data = await page.evaluate(async () => {
+  const data = await page.evaluate(async (wsId) => {
     try {
-      const res = await fetch('https://api.clay.com/v3/subscriptions/889252', {
+      const res = await fetch(`https://api.clay.com/v3/subscriptions/${wsId}`, {
         credentials: 'include', headers: { 'Accept': 'application/json' },
       });
       const d = await res.json();
       return d.creditBalances;
     } catch { return null; }
-  });
+  }, WORKSPACE_ID);
   return data;
 }
 
@@ -1408,7 +1408,7 @@ async function main() {
     // Strategy 4: Use Clay's internal API to save the search
     if (!saved) {
       console.log('  Trying Clay API to save search...');
-      const apiResult = await page.evaluate(async (name, filterData) => {
+      const apiResult = await page.evaluate(async (name, filterData, wsId) => {
         try {
           // Try to save via Clay's saved searches API
           const res = await fetch('https://api.clay.com/v3/saved-searches', {
@@ -1416,7 +1416,7 @@ async function main() {
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({
-              workspaceId: '889252',
+              workspaceId: wsId,
               name: name,
               searchType: 'companies',
               filters: filterData,
@@ -1427,7 +1427,7 @@ async function main() {
             return { success: true, data };
           }
           // Try alternative endpoint
-          const res2 = await fetch('https://api.clay.com/v3/workspaces/889252/saved-searches', {
+          const res2 = await fetch(`https://api.clay.com/v3/workspaces/${wsId}/saved-searches`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -1441,7 +1441,7 @@ async function main() {
         } catch (e) {
           return { success: false, error: e.message };
         }
-      }, saveSearchName, subsetFilters);
+      }, saveSearchName, subsetFilters, WORKSPACE_ID);
 
       if (apiResult.success) {
         saved = true;
