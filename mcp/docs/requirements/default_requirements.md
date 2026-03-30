@@ -140,3 +140,40 @@ task is building god level mcp finding target companies NVER FINISH UNTIL DONE!!
   some users will run pipeline one be one, providing info on each step at a time     
   what also must be covererd? so how it must be implemented? act as god mcp          
   builder,  write yourplan version with timestamp in name         
+
+
+
+  ❯ i need to see all agents (modules of mcp via openai is called) in agent chain     
+  plan , provide it and think ctiriclly - is the order of ther run is correct and    
+  matches the requirmetns in requirments dir , is each of the agent is simple        
+  enough to solve his single task? for isntance , i'm curisus wht'a the scope of     
+  intent    
+            
+                                                                                     
+Intent analysis agent. So, like, I mean, I suppose it's definitely better to have    
+separate intent analysis agent and agent, like, pre-flight agent. So that, like, you 
+ know, I want you to list all agents and all, like, tasks solved by them. And one    
+agent, one task. For instance, Intent is just, you know, need to understand what     
+user wants. If user wants, for example, provide MCP token, then it, like, okay, if   
+user wants to change some... By the way, check that API tokens are set only via UI,  
+right? So, yeah, for instance, user wants to provide a new MCP token or user wants   
+to, and that means that, like, in another account will be run further. So totally    
+another intent. Or user wants to tell just change sequence somewhere. And for that   
+case, another set of agents must be run asking, like, if user don't specify          
+something like intent discovered. Yeah, user wants to change sequence, but I don't   
+know which campaign, which, you know, other, or user told, hey, this company is not  
+targeted for or simply not targeted since, but you don't know which. Like, what user 
+ is talking about, which pipeline, which offer. So, I guess, I guess, a good         
+architecture is first facing like frontier, like, like guest, like, guest welcome in 
+ person at the restaurant, you see? Like, new request comes, this intent, analyze    
+the intent. Then, uh, calling first, I guess, uh pre-flight check for each intent,   
+you see? Or you will say it's better to combine uh pre-flight checking with uh       
+intent, for instance, like with my example, editing campaign or editing target       
+definition or launching a pipeline. So should there agents must better include these 
+ pre-flight checks, like, what is essential for them? Maybe it's better, but maybe   
+it's too much context for them. And there should be another agents for each specific 
+ task agent, also sub like, also like uh guard agent uh knowing what are essential   
+inputs for that agent. So how better to, how to better make it? Uh, I mean, we are   
+using cheap OpenAI models for low costs, but... Each GPT can be good in case it's    
+solving only one task. Decide yourself, think as God, think about state-of-the-art   
+approach for the systems we are building. 
