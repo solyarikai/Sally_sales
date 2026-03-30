@@ -179,6 +179,33 @@ return {
 
 ---
 
+## Other Agent's Test Results (from ~120 iterations)
+
+The other agent ran 7 phases of testing. Key findings to incorporate:
+
+| Phase | Iterations | Best result | Key learning |
+|-------|-----------|-------------|-------------|
+| 1. Classification prompt | 20 combos | gpt-4o-mini × via negativa = 87% target rate | Via negativa beats scoring |
+| 2. Classification + ground truth | 15 combos | gpt-4o-mini × v9_negativa = **97% accuracy** | v9 prompt is the winner |
+| 3. Intent parser | 40 combos | gpt-4o × p7_coverage = **94%** | Need smart model for intent |
+| 4. Apollo API behavior | 23 API calls | Keywords=OR, industry names=8.5x, size=AND | Industry names as keywords give 8.5x more results |
+| 5. E2E with keyword map | 9 tests | gpt-4.1-mini wins (18 targets) | Taxonomy-backed mapper beats GPT guessing |
+| 6. Industry selection | 20 combos | gpt-4o-mini × self-check = **100%** | Industry picker is solved |
+| 7. Final E2E | 3 segments | 50%/100%/30% target rates | OnSocial too broad (internet industry) |
+
+**Filter evolution (EasyStaff IT consulting):**
+- Hardcoded start: "IT consulting" → 2,063 companies
+- + industry names: + "information technology & services" → 3,908 (+89%)
+- + real Apollo tags: + "it services & it consulting" → 3,621
+
+**Keyword map growth**: 0 → 1,491 (seed) → 2,014 (enrichment feedback)
+
+**Gap identified by other agent**: Tests ran each step in isolation — never logged the full before→after picture of how filters and prompts evolved through the exploration loop. Test plan Layer 7 addresses this.
+
+**Reference**: See [AGENT_MODULES_20260330.md](AGENT_MODULES_20260330.md) for agent definitions. See [TEST_PLAN_20260330.md](TEST_PLAN_20260330.md) for comprehensive test strategy.
+
+---
+
 ## Testing Strategy
 
 **Layer 1**: Unit tests (194 passing) — other agent maintains
