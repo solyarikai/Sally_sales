@@ -431,14 +431,14 @@ export default function PipelinePage() {
         {/* Credits badge */}
         {run?.credits_used > 0 && (
           <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
-            {run.credits_used} credits
+            {run.credits_used} Apollo credits
           </span>
         )}
 
-        {/* Target rate badge */}
+        {/* Target rate badge with absolute numbers */}
         {run?.target_rate > 0 && (
           <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
-            {(run.target_rate * 100).toFixed(0)}% target rate
+            {run.targets_found || Math.round(run.target_rate * (run.new_companies || 0))}/{run.new_companies || '?'} targets ({(run.target_rate * 100).toFixed(0)}%)
           </span>
         )}
 
