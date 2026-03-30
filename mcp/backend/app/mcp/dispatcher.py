@@ -1783,7 +1783,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         total_people = 0
         companies_with_people = 0
 
-        from app.models.pipeline import ExtractedContact
+        # ExtractedContact already imported at top of file
         for company in targets:
             try:
                 # Search + enrich: titles first → any person fallback
