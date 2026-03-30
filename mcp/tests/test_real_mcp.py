@@ -203,19 +203,23 @@ class DirectEngine:
         if tool == "estimate_cost": return {"source_type": "apollo.companies.api"}
         if tool == "select_project": return {"project_id": self.pid or 1}
         if tool == "create_project":
-            return {"name": test.get("project_name", "Test"), "sender_name": "Test",
-                    "sender_company": "Test", "skip_scrape": True}
+            return {"name": test.get("project_name", "Test"),
+                    "website": step.get("user_prompt", "easystaff.io"),
+                    "sender_name": "Test", "sender_company": "Test"}
         if tool == "parse_gathering_intent":
             return {"query": step.get("user_prompt", "IT consulting Miami"), "project_id": self.pid or 1}
         if tool == "tam_gather":
             st = eb.get("source_type", "apollo.companies.api")
             f = step.get("tool_args", {}).get("filters") or {}
-            if not f and "apollo" in st:
-                f = {"q_organization_keyword_tags": ["IT consulting"],
-                     "organization_locations": ["Miami, Florida, United States"],
-                     "organization_num_employees_ranges": ["1,50"], "per_page": 25, "max_pages": 1}
-            return {"source_type": st, "project_id": self.pid or 1, "filters": f}
-        if tool in ("tam_blacklist_check", "tam_pre_filter", "tam_scrape", "tam_analyze"):
+            confirm = "confirm" in step.get("phase", "")
+            args = {"source_type": st, "project_id": self.pid or 1,
+                    "query": step.get("user_prompt", "IT consulting in Miami")}
+            if confirm:
+                args["confirm_filters"] = True
+            if f:
+                args["filters"] = f
+            return args
+        if tool in ("tam_blacklist_check", "tam_pre_filter", "tam_scrape", "tam_analyze", "tam_explore"):
             return {"run_id": self.rid or 1}
         if tool == "tam_re_analyze":
             return {"run_id": self.rid or 1, "prompt_text": step.get("user_prompt", "Classify")}
@@ -626,9 +630,23 @@ async def screenshot(path: str, name: str, ts: str) -> Optional[str]:
 # LOGIN
 # ═══════════════════════════════════════════
 
-async def get_token(email: str, password: str = "qweqweqwe") -> str:
-    """Get auth token. Tries signup, then login with multiple password variants."""
-    passwords = [password, "Qweqweqwe1", "qweqweqwe1", "qwe"]
+async def get_token(email: str, password: str = "qweqweqwe", token_override: str = "") -> str:
+    """Get auth token. Uses token from test JSON if available, else tries API."""
+    # Check cached tokens file first
+    if not token_override:
+        tokens_file = Path(__file__).parent / "tmp" / "test_tokens.json"
+        if tokens_file.exists():
+            try:
+                tokens = json.loads(tokens_file.read_text())
+                if email in tokens:
+                    return tokens[email]
+            except Exception:
+                pass
+
+    if token_override:
+        return token_override
+
+    passwords = [password, "testtest123", "Qweqweqwe1", "qweqweqwe1", "qwe"]
     async with httpx.AsyncClient(timeout=15) as c:
         # Try signup first
         r = await c.post(f"{MCP_URL}/api/auth/signup",
@@ -660,7 +678,13 @@ async def get_token(email: str, password: str = "qweqweqwe") -> str:
 
 async def run_user(email: str, tests: list, do_ss: bool, mode: str = "claude") -> list:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    token = await get_token(email)
+    # Check if any test has a token override
+    token_override = ""
+    for t in tests:
+        if t.get("user_token"):
+            token_override = t["user_token"]
+            break
+    token = await get_token(email, token_override=token_override)
     if not token:
         return [{"test_id": t["id"], "score": 0, "error": "login failed"} for t in tests]
 
