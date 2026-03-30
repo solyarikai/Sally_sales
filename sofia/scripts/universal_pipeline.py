@@ -1162,6 +1162,64 @@ def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ── GetSales Export — contacts without email → LinkedIn outreach CSV ─────────
+
+GETSALES_HEADERS = [
+    "system_uuid", "pipeline_stage", "full_name", "first_name", "last_name",
+    "position", "headline", "about", "linkedin_id", "sales_navigator_id",
+    "linkedin_nickname", "linkedin_url", "facebook_nickname", "twitter_nickname",
+    "work_email", "personal_email", "work_phone", "personal_phone",
+    "connections_number", "followers_number", "primary_language",
+    "has_open_profile", "has_verified_profile", "has_premium",
+    "location_country", "location_state", "location_city",
+    "active_flows", "list_name", "tags",
+    "company_name", "company_industry", "company_linkedin_id", "company_domain",
+    "company_linkedin_url", "company_employees_range", "company_headquarter",
+    "cf_location", "cf_competitor_client",
+    "cf_message1", "cf_message2", "cf_message3",
+    "cf_personalization", "cf_compersonalization", "cf_personalization1",
+    "cf_message4", "cf_linkedin_personalization", "cf_subject", "created_at",
+]
+
+
+def _extract_linkedin_nickname(url: str) -> str:
+    m = re.search(r"linkedin\.com/in/([^/?]+)", url or "")
+    return m.group(1) if m else ""
+
+
+def export_getsales(config: ProjectConfig, without_email: list[dict], today: str) -> Path:
+    """Convert without-email contacts to GetSales-ready CSV."""
+    date_folder = datetime.now().strftime("%d_%m")
+    gs_dir = SOFIA_DIR / "get_sales_hub" / date_folder
+    gs_dir.mkdir(parents=True, exist_ok=True)
+    seg = without_email[0].get("segment", "UNKNOWN") if without_email else "UNKNOWN"
+    out_path = gs_dir / f"GetSales — {seg}_without_email — {date_folder.replace('_', '.')}.csv"
+    gs_rows = []
+    for c in without_email:
+        li_url = c.get("linkedin_url", "").strip()
+        if li_url and not li_url.startswith("http"):
+            li_url = f"https://{li_url}"
+        gs = {h: "" for h in GETSALES_HEADERS}
+        gs["full_name"] = f"{c.get('first_name', '')} {c.get('last_name', '')}".strip()
+        gs["first_name"] = c.get("first_name", "")
+        gs["last_name"] = c.get("last_name", "")
+        gs["position"] = c.get("title", "")
+        gs["linkedin_nickname"] = _extract_linkedin_nickname(li_url)
+        gs["linkedin_url"] = li_url
+        gs["company_name"] = normalize_company(c.get("company_name", ""))
+        gs["company_domain"] = c.get("domain", "")
+        gs["cf_location"] = c.get("country", "")
+        gs["list_name"] = f"{seg} Without Email {today}"
+        gs["tags"] = seg
+        gs_rows.append(gs)
+    with out_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=GETSALES_HEADERS)
+        writer.writeheader()
+        writer.writerows(gs_rows)
+    print(f"  GetSales-ready: {out_path.name} ({len(gs_rows)} contacts)")
+    return out_path
+
+
 # ШАГ 11: ПОИСК EMAIL ЧЕРЕЗ FINDYMAIL
 # Для каждого человека с LinkedIn URL — FindyMail ищет рабочий email.
 # Оплата: $0.01 за каждый НАЙДЕННЫЙ email. Ненайденные — бесплатно.
