@@ -173,7 +173,7 @@ class TaxonomyService:
         industry = enriched_org.get("industry")
         if industry:
             entry = self._cache.setdefault("industries", {}).setdefault(industry, {
-                "embedding": None, "seen_count": 0, "segments": [],
+                "seen_count": 0, "segments": [],
             })
             entry["seen_count"] = entry.get("seen_count", 0) + 1
             if segment and segment not in entry.get("segments", []):
@@ -185,24 +185,39 @@ class TaxonomyService:
             kw_tags = [k.strip() for k in kw_tags.split(",")]
 
         new_keywords = 0
+        new_kw_values = []
         for kw in kw_tags:
             kw = kw.strip().lower()
             if not kw or len(kw) < 3:
                 continue
             entry = self._cache.setdefault("keywords", {}).setdefault(kw, {
-                "embedding": None, "seen_count": 0, "segments": [],
+                "seen_count": 0, "segments": [],
             })
             entry["seen_count"] = entry.get("seen_count", 0) + 1
             if segment and segment not in entry.get("segments", []):
                 entry.setdefault("segments", []).append(segment)
             if entry["seen_count"] == 1:
                 new_keywords += 1
+                new_kw_values.append(kw)
 
         if new_keywords > 0:
             logger.info(f"Taxonomy: +{new_keywords} new keywords from enrichment (total: {len(self._cache['keywords'])})")
+            # Mark that embeddings need recompute on next shortlist call
+            self._needs_embedding_update = True
 
         self._save()
         return new_keywords
+
+    async def rebuild_embeddings_if_needed(self, openai_key: str):
+        """Compute embeddings for any keywords missing them. Call after enrichment."""
+        self._load()
+        needs = [k for k in self._cache.get("keywords", {}) if k not in self._embeddings]
+        if not needs:
+            return 0
+        await self._compute_embeddings(needs, "keywords", openai_key)
+        self._save()
+        logger.info(f"Rebuilt embeddings for {len(needs)} new keywords")
+        return len(needs)
 
     # ── Embedding helpers ──
 
