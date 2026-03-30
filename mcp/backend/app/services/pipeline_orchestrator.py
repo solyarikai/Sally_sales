@@ -137,32 +137,56 @@ class PipelineOrchestrator:
         batch_filters["page_offset"] = self.pages_fetched + 1
         batch_filters["per_page"] = COMPANIES_PER_PAGE
 
-        # Gather — use start_gathering which handles Apollo search + dedup
+        # Gather — use adapter directly to append to existing run
         try:
-            import hashlib, json as _json
-            batch_filters["page_offset"] = self.pages_fetched  # Skip already-fetched pages
-            filter_hash = hashlib.sha256(_json.dumps(batch_filters, sort_keys=True).encode()).hexdigest()[:16]
+            adapter = svc._get_adapter(self.run.source_type, apollo_service=self.apollo)
+            if adapter:
+                # Set page offset to skip already-fetched pages
+                batch_filters["page"] = self.pages_fetched + 1
+                results = await adapter.gather(batch_filters)
 
-            if self.pages_fetched == 0:
-                # First batch — create the run
-                await svc.start_gathering(
-                    self.session, self.run.project_id, self.run.company_id,
-                    self.run.source_type, batch_filters,
-                    triggered_by=f"orchestrator:batch:{self.pages_fetched}",
-                    apollo_service=self.apollo,
-                    existing_run=self.run,
+                # Dedup + store new companies
+                from app.models.gathering import CompanySourceLink
+                existing_domains = set()
+                existing_result = await self.session.execute(
+                    select(DiscoveredCompany.domain)
+                    .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                    .where(CompanySourceLink.gathering_run_id == self.run.id)
                 )
-            else:
-                # Subsequent batches — append to existing run
+                existing_domains = {r[0] for r in existing_result.all()}
+
+                new_count = 0
+                for company_data in (results or []):
+                    domain = company_data.get("domain", "").lower().strip()
+                    if not domain or domain in existing_domains:
+                        continue
+                    existing_domains.add(domain)
+
+                    dc = DiscoveredCompany(
+                        project_id=self.run.project_id,
+                        domain=domain,
+                        name=company_data.get("name"),
+                        industry=company_data.get("industry"),
+                        employee_count=company_data.get("employee_count"),
+                        country=company_data.get("country"),
+                        city=company_data.get("city"),
+                        source_data=company_data,
+                    )
+                    self.session.add(dc)
+                    await self.session.flush()
+
+                    link = CompanySourceLink(
+                        discovered_company_id=dc.id,
+                        gathering_run_id=self.run.id,
+                        source_type=self.run.source_type,
+                    )
+                    self.session.add(link)
+                    new_count += 1
+
+                self.run.new_companies_count = (self.run.new_companies_count or 0) + new_count
                 self.run.filters = batch_filters
-                self.run.current_phase = "gather"
-                await svc.start_gathering(
-                    self.session, self.run.project_id, self.run.company_id,
-                    self.run.source_type, batch_filters,
-                    triggered_by=f"orchestrator:batch:{self.pages_fetched}",
-                    apollo_service=self.apollo,
-                    existing_run=self.run,
-                )
+                await self.session.flush()
+                logger.info(f"Batch gathered: {new_count} new companies (total: {self.run.new_companies_count})")
         except Exception as e:
             logger.warning(f"Gathering batch failed: {e}")
             return {"label": iteration_label, "error": str(e), "credits": 0}
