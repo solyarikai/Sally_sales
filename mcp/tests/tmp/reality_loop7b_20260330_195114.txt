@@ -1,0 +1,15 @@
+Here's the full results for Loop 7b:
+
+| Step | Tool | Result | Detail |
+|------|------|--------|--------|
+| S2-4 | `configure_integration` (x3) | **PASS** | SmartLead (1987 campaigns), Apollo, OpenAI all connected |
+| S5 | `create_project` | **PASS** | "ES-L7b" created, project_id=244, website scraped |
+| S6 | `tam_gather` | **PASS** | 26 new companies gathered from Apollo (2 credits), run_id=251 |
+| S7a | `tam_blacklist_check` | **PASS** | 26 passed, 0 rejected, gate_id=299 |
+| S7b | `tam_approve_checkpoint` | **PASS** | CP1 approved |
+| S7c | `tam_pre_filter` | **PASS** | 26 passed, 0 filtered |
+| S7d | `tam_scrape` | **PASS** | 19/26 scraped (7 errors) |
+| S8 | `tam_analyze` | **PASS** | **2 targets / 19 analyzed = 11% target rate**. Domains: `synergybc.com` (Synergy Business Consulting), `bluecoding.com` (Blue Coding). Both IT_CONSULTING, confidence 1.0. 7 skipped (no scraped text). gate_id=300 |
+| S9 | `get_context` | **PASS** | Shows project ES-L7b, run 251 awaiting CP2 approval, action_required correctly flagged |
+
+**9/9 PASS. All steps completed successfully.**
