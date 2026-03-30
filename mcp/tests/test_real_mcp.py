@@ -210,14 +210,16 @@ class DirectEngine:
             return {"query": step.get("user_prompt", "IT consulting Miami"), "project_id": self.pid or 1}
         if tool == "tam_gather":
             st = eb.get("source_type", "apollo.companies.api")
-            f = step.get("tool_args", {}).get("filters") or {}
             confirm = "confirm" in step.get("phase", "")
+            f = step.get("tool_args", {}).get("filters") or {}
+            if not f:
+                # Provide minimal filters — auto-discovery fills keywords + location from query
+                f = {"per_page": 25, "max_pages": 1,
+                     "organization_num_employees_ranges": ["11,50", "51,200"]}
             args = {"source_type": st, "project_id": self.pid or 1,
-                    "query": step.get("user_prompt", "IT consulting in Miami")}
+                    "filters": f, "query": step.get("user_prompt", "IT consulting in Miami")}
             if confirm:
                 args["confirm_filters"] = True
-            if f:
-                args["filters"] = f
             return args
         if tool in ("tam_blacklist_check", "tam_pre_filter", "tam_scrape", "tam_analyze", "tam_explore"):
             return {"run_id": self.rid or 1}
