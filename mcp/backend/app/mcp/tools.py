@@ -590,6 +590,31 @@ DO NOT call get_context for pipeline questions — use pipeline_status with the 
         },
     },
 
+    {
+        "name": "run_auto_pipeline",
+        "description": """Run the FULL automated pipeline that gathers until 100 target contacts found.
+
+Does everything automatically:
+1. Apollo search page 1 → scrape → classify → extract people for targets
+2. Exploration: enrich top 5 targets → optimize filters
+3. Loop: 4 pages at a time → scrape → classify → extract people
+4. Stops when 100 contacts (up to 3 per company) gathered
+5. Each batch = new iteration (visible in UI)
+
+People extraction runs IN PARALLEL — as soon as a target is found, contacts are gathered.
+
+Call AFTER user confirms filters (tam_gather with confirm_filters returned the preview).
+Requires: project with offer context, Apollo + OpenAI keys configured.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer", "description": "Gathering run to auto-continue"},
+                "filters": {"type": "object", "description": "Apollo filters (from tam_gather preview)"},
+            },
+            "required": ["run_id"],
+        },
+    },
+
     # ── CRM Queries (2) ──
     {
         "name": "query_contacts",

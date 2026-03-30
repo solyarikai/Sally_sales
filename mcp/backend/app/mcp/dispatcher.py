@@ -1716,6 +1716,42 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "_links": {"getsales": f"https://amazing.getsales.io/flow/{args['flow_uuid']}/builder"},
         }
 
+    # ── Auto Pipeline ──
+    if tool_name == "run_auto_pipeline":
+        user = await _get_user(token, session)
+        run = await session.get(GatheringRun, args["run_id"])
+        if not run:
+            raise ValueError("Run not found")
+        project = await session.get(Project, run.project_id)
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        ctx = UserServiceContext(user.id, session)
+        apollo_svc = await ctx.get_apollo_service()
+        openai_key = await ctx.get_key("openai")
+        if not openai_key:
+            from app.config import settings as _cfg
+            openai_key = _cfg.OPENAI_API_KEY
+
+        import os
+        apify_proxy = os.environ.get("APIFY_PROXY_PASSWORD")
+
+        from app.services.pipeline_orchestrator import PipelineOrchestrator
+        orchestrator = PipelineOrchestrator(
+            session=session, run=run, openai_key=openai_key,
+            apollo_service=apollo_svc, apify_proxy=apify_proxy,
+        )
+        filters = args.get("filters") or run.filters or {}
+        result = await orchestrator.run_until_kpi(filters)
+
+        return {
+            **result,
+            "_links": {
+                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}",
+            },
+        }
+
     # ── Orchestration ──
     if tool_name == "pipeline_status":
         user = await _get_user(token, session)

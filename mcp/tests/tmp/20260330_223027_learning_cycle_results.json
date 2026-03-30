@@ -1,0 +1,43 @@
+{
+  "ts": "20260330_223027",
+  "segment": "OnSocial Creator UK",
+  "before": {
+    "keyword_map": 2014,
+    "accuracy": 1.0,
+    "filters": [
+      "marketing & advertising",
+      "online media",
+      "influencer marketing platforms",
+      "influencer platforms",
+      "creator platforms",
+      "influencer marketing tools",
+      "influencer marketing agency"
+    ],
+    "apollo_total": 17161,
+    "targets": [
+      "seenconnects.com",
+      "thenewgen.com",
+      "sixteenth.com",
+      "musetheagency.com"
+    ]
+  },
+  "after": {
+    "keyword_map": 2014,
+    "accuracy": 0.9,
+    "filters": [
+      "marketing & advertising",
+      "online media",
+      "influencer marketing platforms",
+      "influencer platforms",
+      "creator platforms",
+      "influencer marketing tools",
+      "influencer marketing",
+      "influencer marketing agency"
+    ],
+    "apollo_total": 17251,
+    "prompt_iterations": 1
+  },
+  "prompt_initial": "EXCLUDE companies that should NOT be contacted. Keep everything else.\n\nWE SELL: OnSocial \u2014 AI-powered creator data solution for influencer marketing\nTARGET SEGMENT: Influencer marketing platforms and creator economy companies in UK\n\nEXCLUDE ONLY IF one of these is true:\n1. DIRECT COMPETITOR: sells the SAME type of product (same category, same buyer)\n2. COMPLETELY UNRELATED: zero overlap with the target segment or its supply chain\n3. WRONG GEOGRAPHY or WRONG INDUSTRY: explicitly outside the searc",
+  "prompt_tuned": "EXCLUDE companies that should NOT be contacted. Keep everything else.\n\nWE SELL: OnSocial \u2014 AI-powered creator data solution for influencer marketing  \nTARGET SEGMENT: Influencer marketing platforms and creator economy companies in UK\n\nEXCLUDE ONLY IF one or more of these is true:  \n1. DIRECT COMPETITOR: offers a product or service that directly competes with OnSocial by targeting the same buyer with a similar AI-powered creator data or influencer marketing solution.  \n2. COMPLETELY UNRELATED: ha",
+  "enrichment_keywords_added": 0
+}
