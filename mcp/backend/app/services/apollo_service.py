@@ -145,28 +145,12 @@ class ApolloService:
         if not people:
             return []
 
-        # Step 1 result: partial profiles (FREE — name, title, linkedin, no email)
-        # Step 2: bulk_match to get emails (1 credit per person)
+        # Step 1: FREE search got people IDs
+        # Step 2: bulk_match to get emails (1 credit per person — REQUIRED for SmartLead)
         people_ids = [p["id"] for p in people if p.get("id")]
-        if people_ids:
-            enriched = await self.enrich_people_emails(people_ids)
-            if enriched:
-                return enriched
-
-        # Fallback: return partial profiles if bulk_match fails
-        results = []
-        for p in people:
-            results.append({
-                "id": p.get("id"),
-                "first_name": p.get("first_name"),
-                "last_name": p.get("last_name"),
-                "name": p.get("name"),
-                "title": p.get("title"),
-                "email": p.get("email"),
-                "linkedin_url": p.get("linkedin_url"),
-                "organization_name": p.get("organization", {}).get("name") if isinstance(p.get("organization"), dict) else None,
-            })
-        return results
+        if not people_ids:
+            return []
+        return await self.enrich_people_emails(people_ids)
 
     async def enrich_people_emails(self, people_ids: List[str]) -> List[Dict[str, Any]]:
         """Enrich people with emails via bulk_match (1 credit per person). Optional step."""
