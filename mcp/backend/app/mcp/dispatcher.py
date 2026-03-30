@@ -813,8 +813,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             # P0-5: Check if enough targets for 100 contacts (34 companies × 3 contacts)
             "targets_sufficient": scope.get("targets_found", 0) >= 34,
             "contacts_estimate": scope.get("targets_found", 0) * 3,
-            # P1-9: Suggest exploration automatically
-            "suggest_exploration": scope.get("targets_found", 0) >= 2,
+            # P1-9: Always suggest exploration when there are any targets
+            "suggest_exploration": scope.get("targets_found", 0) >= 1,
             "message": (
                 f"CHECKPOINT 2: Analyzed {scope.get('total_analyzed', 0)} companies. "
                 f"TARGETS: {scope.get('targets_found', 0)} ({scope.get('target_rate', '0%')} target rate). "
