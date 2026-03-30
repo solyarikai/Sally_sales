@@ -298,7 +298,12 @@ async function main() {
   const isTest = args.includes('--test');
   const isLoginOnly = args.includes('--login-only');
   const headless = args.includes('--headless');
-  const maxExport = isTest ? 5 : 50;
+  const saveSearchIdx = args.indexOf('--save-search');
+  const saveSearchName = saveSearchIdx >= 0 ? args[saveSearchIdx + 1] : null;
+  const saveFiltersIdx = args.indexOf('--save-filters');
+  const saveFiltersArg = saveFiltersIdx >= 0 ? args[saveFiltersIdx + 1] : null;
+  const saveFilterTypes = saveFiltersArg ? saveFiltersArg.split(',').map(f => f.trim()) : null;
+  const maxExport = isTest ? 5 : 5000;
   const icpText = isTest || isLoginOnly
     ? 'Companies selling gaming skins, virtual items, loot boxes for games like CS2, CSGO, Dota2, Roblox, WoW, FIFA. Gaming marketplace platforms. Skin trading sites.'
     : args.filter(a => !a.startsWith('--')).join(' ');
@@ -399,16 +404,18 @@ async function main() {
   await screenshot(page, 'tam_02_find_companies');
 
   // Step 5: Apply filters
+  // IMPORTANT: Apply size filter BEFORE industries. After typing 80+ industries,
+  // the sidebar scrolls and the "Company sizes" dropdown gets pushed off-screen.
   console.log('\n[5] Applying filters...');
 
+  if (filters.sizes?.length) {
+    await fillFilterField(page, '11-50 employees', filters.sizes);
+  }
   if (filters.industries?.length) {
     await fillFilterField(page, 'Software development', filters.industries);
   }
   if (filters.industries_exclude?.length) {
     await fillFilterField(page, 'Advertising services', filters.industries_exclude);
-  }
-  if (filters.sizes?.length) {
-    await fillFilterField(page, '11-50 employees', filters.sizes);
   }
   if (filters.annual_revenues?.length) {
     await fillFilterField(page, '$1M - $5M', filters.annual_revenues);
