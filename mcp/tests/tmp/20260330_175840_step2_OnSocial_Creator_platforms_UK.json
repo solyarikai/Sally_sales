@@ -1,0 +1,31 @@
+{
+  "segment": "OnSocial Creator platforms UK",
+  "filters_sent": {
+    "q_organization_keyword_tags": [
+      "marketing & advertising",
+      "online media",
+      "influencer marketing platforms",
+      "influencer platforms",
+      "creator platforms",
+      "influencer marketing tools",
+      "influencer marketing agency"
+    ],
+    "organization_locations": [
+      "UK"
+    ],
+    "organization_num_employees_ranges": [
+      "11,50",
+      "51,200",
+      "201,500"
+    ]
+  },
+  "total_available": 17161,
+  "scraped": 10,
+  "targets": 3,
+  "target_rate": 0.3,
+  "target_domains": [
+    "thenewgen.com",
+    "thesocialelement.com",
+    "smarts.agency"
+  ]
+}
