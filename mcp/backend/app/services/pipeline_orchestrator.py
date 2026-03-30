@@ -21,7 +21,8 @@ from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.gathering import GatheringRun, ApprovalGate, CompanySourceLink
-from app.models.pipeline import DiscoveredCompany, ExtractedContact, CompanyScrape
+from app.models.pipeline import DiscoveredCompany, ExtractedContact
+from app.models.gathering import CompanyScrape
 from app.models.project import Project
 from app.models.campaign import Campaign
 
@@ -136,12 +137,32 @@ class PipelineOrchestrator:
         batch_filters["page_offset"] = self.pages_fetched + 1
         batch_filters["per_page"] = COMPANIES_PER_PAGE
 
-        # Gather
+        # Gather — use start_gathering which handles Apollo search + dedup
         try:
-            await svc.continue_gathering(
-                self.session, self.run, batch_filters,
-                apollo_service=self.apollo,
-            )
+            import hashlib, json as _json
+            batch_filters["page_offset"] = self.pages_fetched  # Skip already-fetched pages
+            filter_hash = hashlib.sha256(_json.dumps(batch_filters, sort_keys=True).encode()).hexdigest()[:16]
+
+            if self.pages_fetched == 0:
+                # First batch — create the run
+                await svc.start_gathering(
+                    self.session, self.run.project_id, self.run.company_id,
+                    self.run.source_type, batch_filters,
+                    triggered_by=f"orchestrator:batch:{self.pages_fetched}",
+                    apollo_service=self.apollo,
+                    existing_run=self.run,
+                )
+            else:
+                # Subsequent batches — append to existing run
+                self.run.filters = batch_filters
+                self.run.current_phase = "gather"
+                await svc.start_gathering(
+                    self.session, self.run.project_id, self.run.company_id,
+                    self.run.source_type, batch_filters,
+                    triggered_by=f"orchestrator:batch:{self.pages_fetched}",
+                    apollo_service=self.apollo,
+                    existing_run=self.run,
+                )
         except Exception as e:
             logger.warning(f"Gathering batch failed: {e}")
             return {"label": iteration_label, "error": str(e), "credits": 0}
@@ -155,12 +176,14 @@ class PipelineOrchestrator:
 
         # Scrape new companies
         try:
-            await svc.scrape_companies(self.session, self.run, apify_proxy=self.apify_proxy)
+            self.run.current_phase = "scrape"
+            await svc.scrape(self.session, self.run, apify_proxy=self.apify_proxy)
         except Exception as e:
             logger.warning(f"Scraping failed: {e}")
 
         # Classify
         try:
+            self.run.current_phase = "analyze"
             await svc.analyze(self.session, self.run, openai_key=self.openai_key)
         except Exception as e:
             logger.warning(f"Analysis failed: {e}")
