@@ -1,0 +1,496 @@
+====================================================================================================
+E2E REAL EXPLORATION TEST — 20260330_145354
+Per suck.md: no hardcoded filters, real Apollo, real scraping, real classification
+Models: ['gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o-mini']
+Segments: ['EasyStaff IT consulting Miami', 'TFP Fashion brands Italy', 'OnSocial Creator platforms UK']
+====================================================================================================
+
+Taxonomy state: {"industries": 112, "keywords": 1491, "keywords_with_embeddings": 1491, "employee_ranges": 8}
+
+####################################################################################################
+  MODEL: gpt-4.1-mini
+####################################################################################################
+
+======================================================================
+  EasyStaff IT consulting Miami | model=gpt-4.1-mini
+======================================================================
+
+  STEP 1: map_query_to_filters()
+  Time: 2.6s
+  Industries: ['information technology & services', 'management consulting']
+  Keywords (verified): ['it consulting', 'technology consulting', 'it services & it consulting', 'management consulting services', 'consulting services']
+  Keywords (unverified): []
+  Employee ranges: ['11,50', '51,200', '201,500']
+  Locations: ['Miami']
+  Keyword map size: 1491
+
+  FILTERS SENT TO APOLLO:
+  {
+    "q_organization_keyword_tags": [
+        "information technology & services",
+        "management consulting",
+        "it consulting",
+        "technology consulting",
+        "it services & it consulting",
+        "management consulting services",
+        "consulting services"
+    ],
+    "organization_locations": [
+        "Miami"
+    ],
+    "organization_num_employees_ranges": [
+        "11,50",
+        "51,200",
+        "201,500"
+    ]
+}
+
+  STEP 2: Apollo search
+  Total available: 3908
+  Returned: 25 (0.8s)
+    Synergy Business Consulting, Inc. (synergybc.com)
+    Cipher | A Prosegur company (cipher.com)
+    SMX Services & Consulting, Inc. (smxusa.com)
+    The Community (thecommunityagency.com)
+    Coderio (coderio.com)
+
+  STEP 3: Scrape + Classify
+  ✅ Scraped: 11, Targets: 6/11 (55%)
+  Target domains: ['smxusa.com', 'coderio.com', 'koombea.com', 'innovecs.com', 'avalith.net', 'revelo.com']
+  All scraped: ['synergybc.com', 'cipher.com', 'smxusa.com', 'thecommunityagency.com', 'coderio.com', 'koombea.com', 'innovecs.com', 'insigneo.com', 'avalith.net', 'revelo.com', 'pacificacontinental.com']
+  Time: 73.8s
+  Estimated total targets in Apollo: ~2131
+
+======================================================================
+  TFP Fashion brands Italy | model=gpt-4.1-mini
+======================================================================
+
+  STEP 1: map_query_to_filters()
+  Time: 4.0s
+  Industries: ['apparel & fashion', 'luxury goods & jewelry', 'retail']
+  Keywords (verified): ['fashion brand italy', 'italian luxury brands', 'luxury fashion italy', 'italian fashion', 'made in italy fashion', 'italian designer', 'luxury fashion brands']
+  Keywords (unverified): []
+  Employee ranges: ['11,50', '51,200', '201,500']
+  Locations: ['Italy']
+  Keyword map size: 1491
+
+  FILTERS SENT TO APOLLO:
+  {
+    "q_organization_keyword_tags": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "retail",
+        "fashion brand italy",
+        "italian luxury brands",
+        "luxury fashion italy",
+        "italian fashion",
+        "made in italy fashion",
+        "italian designer",
+        "luxury fashion brands"
+    ],
+    "organization_locations": [
+        "Italy"
+    ],
+    "organization_num_employees_ranges": [
+        "11,50",
+        "51,200",
+        "201,500"
+    ]
+}
+
+  STEP 2: Apollo search
+  Total available: 18394
+  Returned: 24 (0.9s)
+    Marni (marni.com)
+    Elisabetta Franchi (elisabettafranchi.com)
+    patrizia pepe (patriziapepe.com)
+    Herno (herno.com)
+    Kiton (kiton.com)
+
+  STEP 3: Scrape + Classify
+  ✅ Scraped: 7, Targets: 7/7 (100%)
+  Target domains: ['marni.com', 'kiton.com', 'trussardi.com', 'lardini.com', 'emarinella.eu', 'borbonese.com', 'baseblu.com']
+  All scraped: ['marni.com', 'kiton.com', 'trussardi.com', 'lardini.com', 'emarinella.eu', 'borbonese.com', 'baseblu.com']
+  Time: 75.3s
+  Estimated total targets in Apollo: ~18394
+
+======================================================================
+  OnSocial Creator platforms UK | model=gpt-4.1-mini
+======================================================================
+
+  STEP 1: map_query_to_filters()
+  Time: 5.2s
+  Industries: ['marketing & advertising', 'internet', 'information services']
+  Keywords (verified): ['influencer marketing platforms', 'influencer platforms', 'influencer marketing', 'creator platforms', 'influencer marketing analytics', 'influencer marketing tools', 'influencer marketing campaigns']
+  Keywords (unverified): []
+  Employee ranges: ['11,50', '51,200', '201,500']
+  Locations: ['UK']
+  Keyword map size: 1491
+
+  FILTERS SENT TO APOLLO:
+  {
+    "q_organization_keyword_tags": [
+        "marketing & advertising",
+        "internet",
+        "information services",
+        "influencer marketing platforms",
+        "influencer platforms",
+        "influencer marketing",
+        "creator platforms",
+        "influencer marketing analytics",
+        "influencer marketing tools",
+        "influencer marketing campaigns"
+    ],
+    "organization_locations": [
+        "UK"
+    ],
+    "organization_num_employees_ranges": [
+        "11,50",
+        "51,200",
+        "201,500"
+    ]
+}
+
+  STEP 2: Apollo search
+  Total available: 46942
+  Returned: 25 (1.1s)
+    The Digital Dept. (besocialpr.com)
+    SEEN Connects (seenconnects.com)
+    CEX.IO (cex.io)
+    Unlimit (unlimit.com)
+    NewGen (thenewgen.com)
+
+  STEP 3: Scrape + Classify
+  ✅ Scraped: 10, Targets: 5/10 (50%)
+  Target domains: ['seenconnects.com', 'genflow.com', 'wearetheromans.com', 'musetheagency.com', 'thenewgen.com']
+  All scraped: ['seenconnects.com', 'cex.io', 'thenewgen.com', 'found.co.uk', 'smarts.agency', 'pentasia.com', 'jadedldn.com', 'genflow.com', 'wearetheromans.com', 'musetheagency.com']
+  Time: 100.5s
+  Estimated total targets in Apollo: ~23471
+
+####################################################################################################
+  MODEL: gpt-4.1-nano
+####################################################################################################
+
+======================================================================
+  EasyStaff IT consulting Miami | model=gpt-4.1-nano
+======================================================================
+
+  STEP 1: map_query_to_filters()
+  Time: 2.6s
+  Industries: ['information technology & services', 'management consulting']
+  Keywords (verified): ['it consulting', 'technology consulting', 'it services & it consulting', 'management consulting services', 'software development consulting', 'consulting services', 'software outsourcing companies']
+  Keywords (unverified): ['latin america software companies', 'latin america software solutions']
+  Employee ranges: ['11,50', '51,200']
+  Locations: ['Miami']
+  Keyword map size: 1491
+
+  FILTERS SENT TO APOLLO:
+  {
+    "q_organization_keyword_tags": [
+        "information technology & services",
+        "management consulting",
+        "it consulting",
+        "technology consulting",
+        "it services & it consulting",
+        "management consulting services",
+        "software development consulting",
+        "consulting services",
+        "software outsourcing companies"
+    ],
+    "organization_locations": [
+        "Miami"
+    ],
+    "organization_num_employees_ranges": [
+        "11,50",
+        "51,200"
+    ]
+}
+
+  STEP 2: Apollo search
+  Total available: 3742
+  Returned: 24 (0.8s)
+    Synergy Business Consulting, Inc. (synergybc.com)
+    SMX Services & Consulting, Inc. (smxusa.com)
+    Nybble Group (nybblegroup.com)
+    Koombea (koombea.com)
+    SEIDOR North America (None)
+
+  STEP 3: Scrape + Classify
+  ✅ Scraped: 8, Targets: 5/8 (62%)
+  Target domains: ['smxusa.com', 'flatiron.software', 'avalith.net', 'exsis.co', 'bluecoding.com']
+  All scraped: ['synergybc.com', 'smxusa.com', 'flatiron.software', 'avalith.net', 'exsis.co', 'fluvip.com', 'influur.com', 'bluecoding.com']
+  Time: 76.9s
+  Estimated total targets in Apollo: ~2338
+
+======================================================================
+  TFP Fashion brands Italy | model=gpt-4.1-nano
+======================================================================
+
+  STEP 1: map_query_to_filters()
+  Time: 2.8s
+  Industries: ['apparel & fashion', 'retail']
+  Keywords (verified): ['fashion brand italy', 'luxury fashion milan', 'italian fashion', 'luxury fashion brands', 'fashion brand']
+  Keywords (unverified): ['sustainable fashion', 'resale platform']
+  Employee ranges: ['11,50', '51,200']
+  Locations: ['Italy']
+  Keyword map size: 1491
+
+  FILTERS SENT TO APOLLO:
+  {
+    "q_organization_keyword_tags": [
+        "apparel & fashion",
+        "retail",
+        "fashion brand italy",
+        "luxury fashion milan",
+        "italian fashion",
+        "luxury fashion brands",
+        "fashion brand"
+    ],
+    "organization_locations": [
+        "Italy"
+    ],
+    "organization_num_employees_ranges": [
+        "11,50",
+        "51,200"
+    ]
+}
+
+  STEP 2: Apollo search
+  Total available: 17550
+  Returned: 25 (0.8s)
+    SILVIAN HEACH (silvianheach.com)
+    ANTONIOLI GROUP (antonioligroup.com)
+    LARDINI (lardini.com)
+    DONDUP OFFICIAL (dondup.com)
+    Gilmar (gilmar.it)
+
+  STEP 3: Scrape + Classify
+  ✅ Scraped: 9, Targets: 9/9 (100%)
+  Target domains: ['lardini.com', 'dondup.com', 'gilmar.it', 'misssixty.com', 'deha.it', 'emarinella.eu', 'giannichiarini.com', 'bluemint.com', 'altanaspa.com']
+  All scraped: ['lardini.com', 'dondup.com', 'gilmar.it', 'misssixty.com', 'deha.it', 'emarinella.eu', 'giannichiarini.com', 'bluemint.com', 'altanaspa.com']
+  Time: 90.8s
+  Estimated total targets in Apollo: ~17550
+
+======================================================================
+  OnSocial Creator platforms UK | model=gpt-4.1-nano
+======================================================================
+
+  STEP 1: map_query_to_filters()
+  Time: 2.1s
+  Industries: ['marketing & advertising', 'media production']
+  Keywords (verified): ['influencer marketing platforms', 'influencer platforms', 'creator platforms']
+  Keywords (unverified): ['influencer marketing industry insights', 'social media influencer campaigns']
+  Employee ranges: ['11,50', '51,200']
+  Locations: ['UK']
+  Keyword map size: 1491
+
+  FILTERS SENT TO APOLLO:
+  {
+    "q_organization_keyword_tags": [
+        "marketing & advertising",
+        "media production",
+        "influencer marketing platforms",
+        "influencer platforms",
+        "creator platforms"
+    ],
+    "organization_locations": [
+        "UK"
+    ],
+    "organization_num_employees_ranges": [
+        "11,50",
+        "51,200"
+    ]
+}
+
+  STEP 2: Apollo search
+  Total available: 18599
+  Returned: 25 (0.9s)
+    Pentasia (pentasia.com)
+    BettingJobs (bettingjobs.com)
+    Handle (handle.co.uk)
+    n1.partners (n1.partners)
+    Midnite (midnite.com)
+
+  STEP 3: Scrape + Classify
+  ⚠️ Scraped: 8, Targets: 2/8 (25%)
+  Target domains: ['dexerto.media', 'genflow.com']
+  All scraped: ['pentasia.com', 'handle.co.uk', 'n1.partners', 'farnboroughinternational.org', 'dexerto.media', 'genflow.com', 'serotonin.co.uk', 'found.co.uk']
+  Time: 67.7s
+  Estimated total targets in Apollo: ~4649
+
+####################################################################################################
+  MODEL: gpt-4o-mini
+####################################################################################################
+
+======================================================================
+  EasyStaff IT consulting Miami | model=gpt-4o-mini
+======================================================================
+
+  STEP 1: map_query_to_filters()
+  Time: 3.0s
+  Industries: ['information technology & services', 'management consulting']
+  Keywords (verified): ['it consulting', 'technology consulting', 'it services & it consulting']
+  Keywords (unverified): []
+  Employee ranges: ['11,50', '51,200']
+  Locations: ['Miami']
+  Keyword map size: 1491
+
+  FILTERS SENT TO APOLLO:
+  {
+    "q_organization_keyword_tags": [
+        "information technology & services",
+        "management consulting",
+        "it consulting",
+        "technology consulting",
+        "it services & it consulting"
+    ],
+    "organization_locations": [
+        "Miami"
+    ],
+    "organization_num_employees_ranges": [
+        "11,50",
+        "51,200"
+    ]
+}
+
+  STEP 2: Apollo search
+  Total available: 3701
+  Returned: 25 (0.9s)
+    Synergy Business Consulting, Inc. (synergybc.com)
+    SMX Services & Consulting, Inc. (smxusa.com)
+    Koombea (koombea.com)
+    SEIDOR North America (None)
+    SMART (None)
+
+  STEP 3: Scrape + Classify
+  ✅ Scraped: 9, Targets: 5/9 (56%)
+  Target domains: ['smxusa.com', 'koombea.com', 'avalith.net', 'flatiron.software', 'exsis.co']
+  All scraped: ['synergybc.com', 'smxusa.com', 'koombea.com', 'avalith.net', 'fluvip.com', 'influur.com', 'flatiron.software', 'exsis.co', 'satelliteinnovations.io']
+  Time: 75.5s
+  Estimated total targets in Apollo: ~2056
+
+======================================================================
+  TFP Fashion brands Italy | model=gpt-4o-mini
+======================================================================
+
+  STEP 1: map_query_to_filters()
+  Time: 3.0s
+  Industries: ['apparel & fashion', 'luxury goods & jewelry']
+  Keywords (verified): ['fashion brand italy', 'italian luxury brands', 'luxury fashion italy']
+  Keywords (unverified): []
+  Employee ranges: ['11,50', '51,200']
+  Locations: ['Italy']
+  Keyword map size: 1491
+
+  FILTERS SENT TO APOLLO:
+  {
+    "q_organization_keyword_tags": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "fashion brand italy",
+        "italian luxury brands",
+        "luxury fashion italy"
+    ],
+    "organization_locations": [
+        "Italy"
+    ],
+    "organization_num_employees_ranges": [
+        "11,50",
+        "51,200"
+    ]
+}
+
+  STEP 2: Apollo search
+  Total available: 3974
+  Returned: 25 (0.8s)
+    Zita (zitafabiani.it)
+    E. Marinella (emarinella.eu)
+    Luca Faloni (lucafaloni.com)
+    BILLIONAIRE (billionairecouture.com)
+    Cruciani (crucianicashmere.com)
+
+  STEP 3: Scrape + Classify
+  ✅ Scraped: 10, Targets: 10/10 (100%)
+  Target domains: ['emarinella.eu', 'lucafaloni.eu', 'crucianicashmere.com', 'borbonese.com', 'bluemint.com', 'ilborgo.it', 'battistoni.com', 'malo.com', 'conbipel.com', 'palzileri.com']
+  All scraped: ['emarinella.eu', 'lucafaloni.com', 'crucianicashmere.com', 'borbonese.com', 'bluemint.com', 'ilborgo.it', 'battistoni.com', 'malo.com', None, 'palzileri.com']
+  Time: 109.3s
+  Estimated total targets in Apollo: ~3974
+
+======================================================================
+  OnSocial Creator platforms UK | model=gpt-4o-mini
+======================================================================
+
+  STEP 1: map_query_to_filters()
+  Time: 3.3s
+  Industries: ['marketing & advertising', 'online media']
+  Keywords (verified): ['influencer marketing platforms', 'influencer marketing agency', 'influencer marketing tools']
+  Keywords (unverified): ['creator economy companies', 'influencer management software']
+  Employee ranges: ['11,50', '51,200']
+  Locations: ['UK']
+  Keyword map size: 1491
+
+  FILTERS SENT TO APOLLO:
+  {
+    "q_organization_keyword_tags": [
+        "marketing & advertising",
+        "online media",
+        "influencer marketing platforms",
+        "influencer marketing agency",
+        "influencer marketing tools"
+    ],
+    "organization_locations": [
+        "UK"
+    ],
+    "organization_num_employees_ranges": [
+        "11,50",
+        "51,200"
+    ]
+}
+
+  STEP 2: Apollo search
+  Total available: 16485
+  Returned: 25 (0.8s)
+    The Digital Dept. (besocialpr.com)
+    NewGen (thenewgen.com)
+    Pentasia (pentasia.com)
+    BettingJobs (bettingjobs.com)
+    n1.partners (n1.partners)
+
+  STEP 3: Scrape + Classify
+  ⚠️ Scraped: 8, Targets: 2/8 (25%)
+  Target domains: ['thenewgen.com', 'genflow.com']
+  All scraped: ['thenewgen.com', 'n1.partners', 'sweatco.in', 'midnite.com', 'cityam.com', 'jadedldn.com', 'theartnewspaper.com', 'genflow.com']
+  Time: 77.7s
+  Estimated total targets in Apollo: ~4121
+
+====================================================================================================
+ENRICHMENT FEEDBACK — teaching taxonomy from best results
+====================================================================================================
+Best model: gpt-4.1-mini
+  EasyStaff IT consulting Miami: +287 new keywords from enrichment
+  TFP Fashion brands Italy: +94 new keywords from enrichment
+  OnSocial Creator platforms UK: +142 new keywords from enrichment
+
+Taxonomy after: {"industries": 112, "keywords": 2014, "keywords_with_embeddings": 1491, "employee_ranges": 8}
+
+====================================================================================================
+SUMMARY
+====================================================================================================
+Model                Segment                               Apollo  Scraped  Targets   Rate     Est.
+-----------------------------------------------------------------------------------------------
+gpt-4.1-mini         EasyStaff IT consulting Miami           3908       11        6    55%     2131
+gpt-4.1-mini         TFP Fashion brands Italy               18394        7        7   100%    18394
+gpt-4.1-mini         OnSocial Creator platforms UK          46942       10        5    50%    23471
+gpt-4.1-nano         EasyStaff IT consulting Miami           3742        8        5    62%     2338
+gpt-4.1-nano         TFP Fashion brands Italy               17550        9        9   100%    17550
+gpt-4.1-nano         OnSocial Creator platforms UK          18599        8        2    25%     4649
+gpt-4o-mini          EasyStaff IT consulting Miami           3701        9        5    56%     2056
+gpt-4o-mini          TFP Fashion brands Italy                3974       10       10   100%     3974
+gpt-4o-mini          OnSocial Creator platforms UK          16485        8        2    25%     4121
+
+BEST MODEL PER SEGMENT:
+  EasyStaff IT consulting Miami: gpt-4.1-mini (6 targets)
+  TFP Fashion brands Italy: gpt-4o-mini (10 targets)
+  OnSocial Creator platforms UK: gpt-4.1-mini (5 targets)
+
+OVERALL BEST: gpt-4.1-mini (18 total targets)

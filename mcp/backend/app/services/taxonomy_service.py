@@ -23,6 +23,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 CACHE_PATH = Path(__file__).parent.parent.parent.parent / "apollo_filters" / "apollo_taxonomy_cache.json"
+EMBEDDINGS_PATH = Path(__file__).parent.parent.parent.parent / "apollo_filters" / "apollo_embeddings.npz"
 TAXONOMY_PATH = Path(__file__).parent.parent.parent.parent / "apollo_filters" / "apollo_taxonomy.json"
 
 EMPLOYEE_RANGES = [
@@ -36,6 +37,7 @@ class TaxonomyService:
 
     def __init__(self):
         self._cache: Dict = {"industries": {}, "keywords": {}, "employee_ranges": {}}
+        self._embeddings: Dict[str, List[float]] = {}  # key -> embedding vector
         self._loaded = False
 
     def _load(self):
@@ -43,7 +45,7 @@ class TaxonomyService:
         if self._loaded:
             return
 
-        # Load cached data (includes embeddings)
+        # Load cached data (metadata only, no embeddings — those are in npz)
         if CACHE_PATH.exists():
             try:
                 self._cache = json.loads(CACHE_PATH.read_text())
@@ -52,6 +54,24 @@ class TaxonomyService:
             except Exception as e:
                 logger.warning(f"Failed to load taxonomy cache: {e}")
 
+        # Load embeddings from numpy file (fast, compact)
+        if EMBEDDINGS_PATH.exists():
+            try:
+                data = np.load(EMBEDDINGS_PATH, allow_pickle=True)
+                keys = data["keys"].tolist()
+                vectors = data["vectors"]
+                for i, key in enumerate(keys):
+                    self._embeddings[key] = vectors[i].tolist()
+                logger.info(f"Loaded {len(self._embeddings)} embeddings from npz")
+            except Exception as e:
+                logger.warning(f"Failed to load embeddings: {e}")
+
+        # Migrate: if cache has inline embeddings, extract them
+        for map_type in ("keywords", "industries"):
+            for key, val in self._cache.get(map_type, {}).items():
+                if val.get("embedding"):
+                    self._embeddings[key] = val.pop("embedding")
+
         # Seed industries from static file if not in cache
         if not self._cache.get("industries") and TAXONOMY_PATH.exists():
             try:
@@ -59,7 +79,6 @@ class TaxonomyService:
                 for ind in data.get("industries", []):
                     if ind not in self._cache.get("industries", {}):
                         self._cache.setdefault("industries", {})[ind] = {
-                            "embedding": None,
                             "seen_count": 0,
                             "segments": [],
                         }
@@ -69,16 +88,24 @@ class TaxonomyService:
 
         # Seed employee ranges
         for r in EMPLOYEE_RANGES:
-            self._cache.setdefault("employee_ranges", {})[r] = {"embedding": None}
+            self._cache.setdefault("employee_ranges", {})[r] = {}
 
         self._loaded = True
+        # Save cleaned cache (without inline embeddings)
+        self._save()
 
     def _save(self):
-        """Persist cache to file."""
+        """Persist cache to file (metadata only, embeddings separate)."""
         try:
+            # Save metadata (small, fast)
             CACHE_PATH.write_text(json.dumps(self._cache, indent=2, default=str))
+            # Save embeddings (numpy, compact)
+            if self._embeddings:
+                keys = list(self._embeddings.keys())
+                vectors = np.array([self._embeddings[k] for k in keys], dtype=np.float32)
+                np.savez_compressed(EMBEDDINGS_PATH, keys=np.array(keys), vectors=vectors)
         except Exception as e:
-            logger.warning(f"Failed to save taxonomy cache: {e}")
+            logger.warning(f"Failed to save taxonomy: {e}")
 
     # ── Public API ──
 
@@ -115,20 +142,19 @@ class TaxonomyService:
             return list(keywords.keys())
 
         # Ensure all keywords have embeddings
-        needs_embedding = [k for k, v in keywords.items() if not v.get("embedding")]
+        needs_embedding = [k for k in keywords if k not in self._embeddings]
         if needs_embedding:
             await self._compute_embeddings(needs_embedding, "keywords", openai_key)
 
         # Embed the query
         query_emb = await self._embed_text(query, openai_key)
         if query_emb is None:
-            # Fallback: return all keywords (let GPT handle filtering)
             return list(keywords.keys())[:top_n]
 
-        # Cosine similarity
+        # Cosine similarity using numpy (fast)
         scored = []
-        for kw, data in keywords.items():
-            emb = data.get("embedding")
+        for kw in keywords:
+            emb = self._embeddings.get(kw)
             if emb:
                 sim = self._cosine_sim(query_emb, emb)
                 scored.append((kw, sim))
@@ -212,7 +238,7 @@ class TaxonomyService:
                     for item in data.get("data", []):
                         idx = item["index"]
                         value = batch[idx]
-                        self._cache[map_type][value]["embedding"] = item["embedding"]
+                        self._embeddings[value] = item["embedding"]
             except Exception as e:
                 logger.warning(f"Batch embedding failed: {e}")
 
@@ -234,7 +260,7 @@ class TaxonomyService:
         self._load()
         kw = self._cache.get("keywords", {})
         ind = self._cache.get("industries", {})
-        kw_with_emb = sum(1 for v in kw.values() if v.get("embedding"))
+        kw_with_emb = sum(1 for k in kw if k in self._embeddings)
         return {
             "industries": len(ind),
             "keywords": len(kw),
