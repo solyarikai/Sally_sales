@@ -1,0 +1,33 @@
+{
+  "segment": "EasyStaff IT consulting Miami",
+  "filters_sent": {
+    "q_organization_keyword_tags": [
+      "information technology & services",
+      "it consulting firm",
+      "it consulting services",
+      "it consulting",
+      "technology consulting",
+      "it services & it consulting",
+      "management consulting services"
+    ],
+    "organization_locations": [
+      "Miami"
+    ],
+    "organization_num_employees_ranges": [
+      "11,50",
+      "51,200",
+      "201,500"
+    ]
+  },
+  "total_available": 3621,
+  "scraped": 10,
+  "targets": 5,
+  "target_rate": 0.5,
+  "target_domains": [
+    "smxusa.com",
+    "coderio.com",
+    "innovecs.com",
+    "koombea.com",
+    "revelo.com"
+  ]
+}
