@@ -1926,7 +1926,7 @@ async def process_getsales_reply(
 
     Returns the created/updated ProcessedReply, or None if skipped.
     """
-    from sqlalchemy import func as sa_func
+    from sqlalchemy import func as sa_func, text as sa_text
 
     lead_email = (contact.email or "").lower().strip() or None
 
@@ -1950,6 +1950,9 @@ async def process_getsales_reply(
     message_hash = hashlib.md5(body_for_hash.encode()).hexdigest()
 
     # --- Find project for sender identity + prompt template ---
+    # Priority: sender UUID (most reliable for shared GetSales automations
+    # like "EasyStaff - Russian DM [>500 connects]" which spans 6 projects)
+    # → campaign name exact match → ownership rules prefix match.
     custom_reply_prompt = None
     proj_sender_name = None
     proj_sender_position = None
@@ -1958,11 +1961,37 @@ async def process_getsales_reply(
     matched_via_prefix = False
     _knowledge_entries = []
 
-    if flow_name:
+    # 1. Sender UUID → project (each sender belongs to exactly one project)
+    _sender_uuid = (
+        raw_data.get("sender_profile_uuid")
+        or (raw_data.get("automation", {}) or {}).get("sender_profile_uuid")
+        or ""
+    )
+    if _sender_uuid:
+        try:
+            from app.models.contact import Project
+            sender_project_result = await session.execute(
+                select(Project).where(
+                    and_(
+                        Project.getsales_senders.isnot(None),
+                        Project.deleted_at.is_(None),
+                        sa_text(
+                            "EXISTS (SELECT 1 FROM jsonb_array_elements_text(projects.getsales_senders) AS s "
+                            "WHERE s = :suuid)"
+                        ),
+                    )
+                ).params(suuid=_sender_uuid).limit(1)
+            )
+            project = sender_project_result.scalar()
+            if project:
+                logger.info(f"[GETSALES] Project '{project.name}' resolved via sender UUID {_sender_uuid[:8]}")
+        except Exception as sender_err:
+            logger.debug(f"[GETSALES] Sender UUID project lookup failed (non-fatal): {sender_err}")
+
+    if not project and flow_name:
         try:
             from app.models.contact import Project
             from app.models.reply import ReplyPromptTemplateModel
-            from sqlalchemy import text as sa_text
 
             # Try exact match first
             project_result = await session.execute(
