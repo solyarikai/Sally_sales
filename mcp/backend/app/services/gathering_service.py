@@ -461,10 +461,7 @@ Analyze the company website below using VIA NEGATIVA — focus on what RULES IT 
 
 Exclusion criteria (reject if ANY apply):
 - Company is a DIRECT COMPETITOR (offers the exact same product/service as us){competitor_exclusion}
-- Company USES the technology/service we're looking for but does NOT BUILD/DEVELOP/PROVIDE it (operators ≠ technology providers, users ≠ makers)
-- Company is a marketing agency, advertising firm, or PR company (unless we specifically look for those)
-- Company is a hosting provider, generic IT/analytics firm not specialized in the target segment
-- Company is an affiliate site, review site, comparison site, or media outlet
+- Company is completely unrelated to the segment we're looking for
 - Company is a freelancer/solo consultant (no real team)
 - Website is a placeholder, parked domain, or under construction
 - Company is in a completely unrelated industry
