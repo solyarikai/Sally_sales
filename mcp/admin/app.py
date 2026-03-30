@@ -50,7 +50,7 @@ def check_auth(request: Request):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page():
-    return HTML_LOGIN
+    return _render(HTML_LOGIN, style=STYLE)
 
 @app.post("/login")
 async def login(request: Request):
@@ -59,7 +59,7 @@ async def login(request: Request):
         resp = RedirectResponse("/", status_code=302)
         resp.set_cookie("admin_session", SESSION_SECRET, httponly=True, max_age=86400)
         return resp
-    return HTMLResponse(HTML_LOGIN.replace("<!-- error -->", '<div style="color:#ef4444;margin-bottom:16px">Invalid credentials</div>'))
+    return HTMLResponse(_render(HTML_LOGIN, style=STYLE).replace("<!-- error -->", '<div style="color:#ef4444;margin-bottom:16px">Invalid credentials</div>'))
 
 @app.get("/logout")
 async def logout():
@@ -123,7 +123,7 @@ async def dashboard(request: Request, date_from: str = "", date_to: str = ""):
             <td><a href="/user/{u['id']}/conversations">{u['conversations']}</a></td>
         </tr>"""
 
-    return _render(HTML_DASHBOARD,
+    return _render(HTML_DASHBOARD, style=STYLE,
         rows=rows_html,
         total_users=totals["total_users"],
         total_tool_calls=totals["total_tool_calls"],
@@ -153,7 +153,7 @@ async def user_detail(request: Request, user_id: int):
 
     # Recent activity
     recent = await pool.fetch("""
-        SELECT tool_name, action, created_at, extra_data
+        SELECT tool_name, action, created_at
         FROM mcp_usage_logs WHERE user_id = $1
         ORDER BY created_at DESC LIMIT 30
     """, user_id)
@@ -178,7 +178,7 @@ async def user_detail(request: Request, user_id: int):
     recent_html = "".join(f"<tr><td>{a['created_at'].strftime('%m/%d %H:%M') if a['created_at'] else ''}</td><td>{a['tool_name']}</td><td>{a['action']}</td></tr>" for a in recent)
 
     created = user["created_at"].strftime("%Y-%m-%d %H:%M") if user["created_at"] else "—"
-    return _render(HTML_USER,
+    return _render(HTML_USER, style=STYLE,
         user_id=user_id, email=user["email"], name=user["name"] or "—", created=created,
         tools_rows=tools_html, integrations_rows=integrations_html,
         runs_rows=runs_html, recent_rows=recent_html,
@@ -219,7 +219,7 @@ async def user_conversations(request: Request, user_id: int):
             <td><details><summary style="cursor:pointer;font-size:11px">JSON</summary><pre style="font-size:10px;max-height:200px;overflow:auto;background:#f5f5f5;padding:8px;border-radius:4px">{raw}</pre></details></td>
         </tr>"""
 
-    return _render(HTML_CONVERSATIONS,
+    return _render(HTML_CONVERSATIONS, style=STYLE,
         user_id=user_id, email=user["email"], name=user["name"] or "—",
         rows=rows_html, count=len(convos),
     )
@@ -256,7 +256,7 @@ STYLE = """
 </style>
 """
 
-HTML_LOGIN = f"""<!DOCTYPE html><html><head><title>MCP Admin</title>{STYLE}</head><body>
+HTML_LOGIN = """<!DOCTYPE html><html><head><title>MCP Admin</title>%%style%%</head><body>
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
 <div class="card" style="width:360px">
     <h1 style="text-align:center;margin-bottom:24px">MCP Admin</h1>
@@ -269,7 +269,7 @@ HTML_LOGIN = f"""<!DOCTYPE html><html><head><title>MCP Admin</title>{STYLE}</hea
 </div>
 </div></body></html>"""
 
-HTML_DASHBOARD = f"""<!DOCTYPE html><html><head><title>MCP Admin</title>{STYLE}</head><body>
+HTML_DASHBOARD = """<!DOCTYPE html><html><head><title>MCP Admin</title>%%style%%</head><body>
 <div class="nav">
     <div><b>MCP Admin</b> <a href="/" style="margin-left:16px">Dashboard</a></div>
     <a href="/logout">Logout</a>
@@ -299,7 +299,7 @@ HTML_DASHBOARD = f"""<!DOCTYPE html><html><head><title>MCP Admin</title>{STYLE}<
     </div>
 </div></body></html>"""
 
-HTML_USER = f"""<!DOCTYPE html><html><head><title>User %%user_id%% — MCP Admin</title>{STYLE}</head><body>
+HTML_USER = """<!DOCTYPE html><html><head><title>User %%user_id%% — MCP Admin</title>%%style%%</head><body>
 <div class="nav">
     <div><b>MCP Admin</b> <a href="/">Dashboard</a> → User #%%user_id%%</div>
     <a href="/logout">Logout</a>
@@ -336,7 +336,7 @@ HTML_USER = f"""<!DOCTYPE html><html><head><title>User %%user_id%% — MCP Admin
     </div>
 </div></body></html>"""
 
-HTML_CONVERSATIONS = f"""<!DOCTYPE html><html><head><title>Conversations — %%email%% — MCP Admin</title>{STYLE}</head><body>
+HTML_CONVERSATIONS = """<!DOCTYPE html><html><head><title>Conversations — %%email%% — MCP Admin</title>%%style%%</head><body>
 <div class="nav">
     <div><b>MCP Admin</b> <a href="/">Dashboard</a> → <a href="/user/%%user_id%%">%%email%%</a> → Conversations</div>
     <a href="/logout">Logout</a>
