@@ -462,6 +462,20 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         if not project or project.user_id != user.id:
             raise ValueError("Project not found")
 
+        # Bug 11: Offer verification — MUST know what user sells before gathering
+        if "api" in args.get("source_type", "") and not project.target_segments:
+            return {
+                "error": "offer_unknown",
+                "message": (
+                    "Before searching, I need to understand what you sell so I can correctly identify targets vs competitors.\n\n"
+                    "Please either:\n"
+                    "1. Tell me your company website (I'll scrape it to understand your offer)\n"
+                    "2. Describe what you sell and who your customers are\n\n"
+                    "Use update_project with target_segments to set this, or call create_project with a website."
+                ),
+                "project_id": project.id,
+            }
+
         source_type = args["source_type"]
         filters = args.get("filters", {})
 
@@ -532,6 +546,31 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         est_credits = max_pages if "api" in source_type else 0
         est_companies = max_pages * per_page
 
+        # Bug 2: Filter confirmation — show filters before running, wait for approval
+        if "api" in source_type and not args.get("confirm_filters"):
+            return {
+                "status": "awaiting_filter_confirmation",
+                "message": (
+                    f"I'll search Apollo with these filters:\n\n"
+                    f"  Keywords: {filters.get('q_organization_keyword_tags', [])}\n"
+                    f"  Location: {filters.get('organization_locations', ['(any)'])}\n"
+                    f"  Size: {filters.get('organization_num_employees_ranges', ['(any)'])}\n"
+                    f"  Pages: {max_pages} (≈{est_companies} companies)\n"
+                    f"  Estimated cost: {est_credits} Apollo credit{'s' if est_credits != 1 else ''}\n\n"
+                    f"Proceed? Call tam_gather again with confirm_filters=true to start."
+                ),
+                "filters_preview": {
+                    "q_organization_keyword_tags": filters.get("q_organization_keyword_tags", []),
+                    "organization_locations": filters.get("organization_locations", []),
+                    "organization_num_employees_ranges": filters.get("organization_num_employees_ranges", []),
+                    "max_pages": max_pages,
+                    "per_page": per_page,
+                },
+                "estimated_credits": est_credits,
+                "project_id": project.id,
+                "project_name": project.name,
+            }
+
         # Get user's Apollo service for API sources
         apollo_svc = None
         if "apollo" in source_type:
@@ -549,6 +588,15 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             apollo_service=apollo_svc,
         )
 
+        # Bug 6: Credit tracking — calculate actual credits used
+        credits_spent = run.credits_used or (max_pages if "api" in source_type else 0)
+        credits_remaining = None
+        if apollo_svc and hasattr(apollo_svc, 'get_credits'):
+            try:
+                credits_remaining = await apollo_svc.get_credits()
+            except Exception:
+                pass
+
         result = {
             "run_id": run.id,
             "status": run.status,
@@ -556,18 +604,22 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "new_companies": run.new_companies_count,
             "existing_in_project": run.duplicate_count,
             "source_type": source_type,
+            "credits_spent": credits_spent,
+            "credits_remaining": credits_remaining,
+            "estimated_next_step_cost": 0 if "manual" in source_type else 5,
             "message": (
                 f"Gathered {run.new_companies_count} companies from {source_type.split('.')[0].upper()} "
                 f"for project '{project.name}'. "
-                + (f"{run.new_companies_count} new, {run.duplicate_count} duplicate (already gathered for this project)."
+                + (f"{run.new_companies_count} new, {run.duplicate_count} duplicate."
                    if run.duplicate_count > 0
-                   else f"All {run.new_companies_count} are new to this project.")
+                   else f"All {run.new_companies_count} are new.")
+                + (f"\n\nCredits used: {credits_spent}."
+                   + (f" Remaining: {credits_remaining}." if credits_remaining is not None else "")
+                   + f"\nNext step: blacklist check (free) → scrape (free) → analyze (free) → enrich top 5 (5 credits)."
+                   if credits_spent > 0 else "")
             ),
             "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
         }
-        # Only include cost info for paid sources
-        if est_credits > 0:
-            result["estimated_credits"] = est_credits
         return result
 
     if tool_name == "tam_blacklist_check":
