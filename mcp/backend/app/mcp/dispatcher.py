@@ -1814,7 +1814,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 if people:
                     companies_with_people += 1
             except Exception as e:
-                logger.debug(f"People search for {company.domain} failed: {e}")
+                logger.error(f"People search for {company.domain} failed: {e}", exc_info=True)
 
         return {
             "people_found": total_people,
