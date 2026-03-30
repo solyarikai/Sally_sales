@@ -146,14 +146,18 @@ class ApolloService:
             return []
 
         # Step 1: FREE search got people IDs
-        # Step 2: bulk_match to get emails (1 credit per person — REQUIRED for SmartLead)
         people_ids = [p["id"] for p in people if p.get("id")]
+        logger.info(f"People search for {domain}: found {len(people)} people, {len(people_ids)} with IDs")
         if not people_ids:
             return []
-        return await self.enrich_people_emails(people_ids)
+        # Step 2: bulk_match to get emails (1 credit per person — REQUIRED for SmartLead)
+        enriched = await self.enrich_people_emails(people_ids)
+        logger.info(f"People enrichment for {domain}: {len(enriched)} with emails")
+        return enriched
 
     async def enrich_people_emails(self, people_ids: List[str]) -> List[Dict[str, Any]]:
-        """Enrich people with emails via bulk_match (1 credit per person). Optional step."""
+        """Enrich people with emails via bulk_match (1 credit per person)."""
+        logger.info(f"bulk_match: enriching {len(people_ids)} people IDs")
         if not self.api_key or not people_ids:
             return []
         details = [{"id": pid} for pid in people_ids]
