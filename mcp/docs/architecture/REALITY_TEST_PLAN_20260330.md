@@ -323,6 +323,105 @@ TEST 6.3: Session continuity
 
 ---
 
+### Phase 7: Iterations — the Core Loop (steps 26-33)
+
+The pipeline has ITERATIONS. Each change = new iteration. ALL must be visible in UI.
+
+**Iteration lifecycle:**
+```
+Iteration 1: Initial search + classify (draft filters, initial prompt)
+  → User/Opus reviews → provides feedback
+Iteration 2: Improved prompt + optimized Apollo filters (from exploration enrichment)
+  → Better accuracy, better target rate
+Iteration 3+: Scale — same prompt + filters, more pages from Apollo
+  → "find more" = increase max_pages, next offset
+```
+
+```
+TEST 7.1: Iteration 1 visible in UI after first classify
+  [After Checkpoint 2 from Phase 4]
+
+  VERIFY:
+  - Screenshot: /pipeline/{id} → iteration selector visible in top area
+  - Iteration 1 selected by default
+  - Shows: Apollo filters applied (keywords, industries, location, size)
+  - Shows: GPT prompt used (or link to prompts page)
+  - Shows: companies count, target count, target rate
+  - Clicking a company row → modal shows reasoning from THIS iteration
+
+TEST 7.2: Re-analyze creates Iteration 2
+  User provides feedback: "Roobet is an operator, not a provider"
+  → tam_re_analyze called
+
+  VERIFY:
+  - Iteration 2 created in pipeline_iterations table
+  - UI: iteration selector now shows "Iter 1" and "Iter 2"
+  - Iteration 2 selected by default (most recent)
+  - Apollo filters may differ from Iter 1 (if exploration ran)
+  - GPT prompt differs from Iter 1 (feedback incorporated)
+  - Target count/rate different from Iter 1
+  - Screenshot: compare Iter 1 vs Iter 2 in UI
+  - DB: pipeline_iterations has 2 records for this run
+
+TEST 7.3: ALL iterations selected by default shows latest result per company
+  VERIFY:
+  - When "All iterations" selected → each company shows LATEST classification
+  - NO duplicate companies (same company from Iter 1 and Iter 2 = show Iter 2 result)
+  - Target/rejected status from most recent iteration
+  - Segment label from most recent iteration
+
+TEST 7.4: Clicking Iteration 1 shows historical state
+  User clicks "Iter 1" in selector
+
+  VERIFY:
+  - Companies show Iter 1 classifications (may differ from current)
+  - Apollo filters shown are from Iter 1 (not Iter 2)
+  - Target count/rate from Iter 1
+  - Can compare: "Iter 1: 15 targets at 48%" vs "Iter 2: 25 targets at 81%"
+
+TEST 7.5: Exploration changes filters → visible across iterations
+  [After tam_explore enriches top 5 targets]
+
+  VERIFY:
+  - Iter 1 filters: original keywords (e.g. "IT consulting", "technology consulting")
+  - Iter 2 filters: + new keywords from enrichment (e.g. "it services & it consulting", "managed services")
+  - UI shows filter diff or at least both filter sets are viewable
+  - Screenshot: /pipeline/{id} filters panel shows Iter 2 keywords
+
+TEST 7.6: Scale = more pages, same filters → Iteration 3
+  User: "find more companies with the same filters"
+
+  VERIFY:
+  - tam_gather called with same filters but higher max_pages or next page offset
+  - Does NOT re-search already gathered companies (offset/page handling)
+  - Does NOT spend credits on already-fetched pages
+  - New companies added to the same pipeline run
+  - Iteration 3 created with trigger="scale"
+  - UI: iteration selector shows 3 iterations
+  - Filters same as Iter 2 (only max_pages changed)
+  - Screenshot: companies table has MORE rows than before
+  - DB: new company_source_links added, gathering_run credits_used increased
+
+TEST 7.7: Apollo filters visible per iteration
+  VERIFY for EACH iteration:
+  - Keywords shown (array of Apollo keyword tags)
+  - Industries shown (if any)
+  - Location shown
+  - Size ranges shown
+  - max_pages / per_page shown
+  - Total available shown (from Apollo probe)
+  - Credits used for this iteration shown
+
+TEST 7.8: Prompt visible per iteration
+  VERIFY:
+  - Link to prompts page from pipeline detail
+  - Prompts page shows: Iter 1 prompt, Iter 2 prompt (different)
+  - Each prompt has a summary line (not just raw text)
+  - No tool_call rows mixed in (filtered out per Pavel feedback #25)
+```
+
+---
+
 ## Edge Case Tests
 
 ```
