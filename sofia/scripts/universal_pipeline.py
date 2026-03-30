@@ -34,7 +34,7 @@ Universal Lead Generation Pipeline
 Pipeline flow (technical):
   Steps 0-8:  Backend gathering API (Clay/Apollo → Dedup → Blacklist → Scrape → Classify)
   Step 9:     Export targets from DB
-  Step 10:    Apollo People UI Search (auto via apollo_scraper.js) or CSV import (--apollo-csv fallback)
+  Step 10:    Import Apollo People CSV (manual search results)
   Step 11:    FindyMail email enrichment
   Step 12:    SmartLead upload (with per-step checkpoints)
 
@@ -48,10 +48,7 @@ Usage:
   # Full pipeline from gathering
   python3 universal_pipeline.py --project-id 42 --mode structured --segment influencer_platforms
 
-  # Resume from people search (auto Apollo UI search)
-  python3 universal_pipeline.py --project-id 42 --from-step people
-
-  # Resume with manual CSV (fallback)
+  # Resume from Apollo import
   python3 universal_pipeline.py --project-id 42 --from-step people --apollo-csv export.csv
 
   # Lookalike search
@@ -74,7 +71,6 @@ import csv
 import json
 import os
 import re
-import subprocess
 import sys
 import time
 from collections import Counter
@@ -317,33 +313,6 @@ def _upload_to_sheets(headers: list[str], rows: list[dict], sheet_name: str):
         print(f"  ⚠ Sheet upload skipped: {e}")
 
 
-def _upload_to_sheets_direct(data: list[list], sheet_name: str):
-    """Fallback: upload via google_sheets_service directly (raw data, no header mapping)."""
-    try:
-        script = f'''
-import sys, csv, json
-sys.path.insert(0, "/app")
-import os; os.environ.setdefault("DATABASE_URL", os.environ.get("DATABASE_URL", ""))
-from app.services.google_sheets_service import google_sheets_service
-data = json.loads(sys.stdin.read())
-sid = google_sheets_service.create_and_populate(title="{sheet_name}", data=data["data"], share_with=["pn@getsally.io"])
-print(sid if isinstance(sid, str) else "")
-'''
-        payload = json.dumps({"data": data})
-        result = subprocess.run(
-            ["docker", "exec", "-i", "leadgen-backend", "python3", "-c", script],
-            input=payload, capture_output=True, text=True, timeout=60,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            out = result.stdout.strip()
-            sheet_id = out.split("spreadsheets/d/")[1].split("/")[0] if "spreadsheets/d/" in out else out
-            print(f"  -> Sheet: {sheet_name} — https://docs.google.com/spreadsheets/d/{sheet_id}")
-        else:
-            print(f"  ⚠ Sheet upload failed: {result.stderr[:200]}")
-    except Exception as e:
-        print(f"  ⚠ Sheet upload skipped: {e}")
-
-
 def normalize_company(name: str) -> str:
     """Clean company name for display."""
     if not name:
@@ -375,35 +344,49 @@ def api(method: str, path: str, raise_on_error: bool = True, **kwargs) -> dict:
 
 
 def api_long(method: str, path: str, expected_phase: str, run_id: int,
-             timeout: int = 3600, **kwargs) -> dict:
-    """Resilient API call for long operations (scrape, analyze).
-    If HTTP connection drops (ReadTimeout, ConnectionError), polls run phase
-    until it advances to expected_phase or fails.
-    Timeout parameter overrides default httpx timeout for the initial call.
+             timeout: int = 3600, poll_interval: int = 30, **kwargs) -> dict:
+    """Устойчивый вызов долгих API операций (scrape, analyze).
+
+    Проблема: scrape 500 сайтов занимает 5-15 минут, analyze 500 компаний — 10-20 мин.
+    За это время HTTP соединение может разорваться (timeout, backend restart).
+    Но backend сохраняет результаты в DB инкрементально — данные не теряются.
+
+    Решение: если соединение упало — не паникуем, а опрашиваем (poll) статус рана
+    каждые 30 сек, пока фаза не продвинется. Backend закончит работу сам.
+
+    Args:
+        expected_phase: фаза ПОСЛЕ завершения шага (напр. "scraped" для scrape)
+        run_id: ID рана для опроса статуса
+        timeout: макс. время ожидания (по умолчанию 1 час)
+        poll_interval: интервал опроса в секундах
     """
+    url = f"{BACKEND_BASE}/api{path}"
     try:
-        return api(method, path, timeout=timeout, **kwargs)
-    except (httpx.ReadTimeout, httpx.ConnectError, httpx.RemoteProtocolError) as e:
-        print(f"    Connection lost ({type(e).__name__}), polling...")
-        if not run_id:
-            raise
-        for attempt in range(120):
-            time.sleep(10)
+        r = getattr(httpx, method)(url, headers=BACKEND_HEADERS, timeout=timeout, **kwargs)
+        if r.status_code >= 400:
+            return {"_error": r.status_code, "_detail": r.text[:500]}
+        return r.json()
+    except (httpx.ReadTimeout, httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadError) as e:
+        print(f"  Connection lost ({type(e).__name__}). Backend may still be working...")
+        print(f"  Polling until phase reaches '{expected_phase}'...")
+
+        start = time.time()
+        while time.time() - start < timeout:
+            time.sleep(poll_interval)
             try:
-                r = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-                phase = r.get("current_phase", "")
-                status = r.get("status", "")
-                if phase == expected_phase or phase in ("analyzed", "cp2", "awaiting_targets_ok"):
-                    print(f"    Polling: phase={phase} — done")
-                    return r
-                if status == "failed":
-                    print(f"    Run failed: {r.get('error_message', '?')[:200]}")
-                    return r
-                if attempt % 6 == 0:
-                    print(f"    Polling... phase={phase}, status={status}")
+                r2 = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                               headers=BACKEND_HEADERS, timeout=30)
+                if r2.status_code == 200:
+                    phase = r2.json().get("current_phase", "")
+                    elapsed = int(time.time() - start)
+                    print(f"  [{elapsed}s] Phase: {phase}")
+                    if phase == expected_phase or phase.startswith("awaiting_"):
+                        print(f"  Backend finished — phase is now '{phase}'")
+                        return r2.json()
             except Exception:
-                pass
-        print("    Polling timeout (20 min)")
+                print(f"  [{int(time.time()-start)}s] Backend unreachable, waiting...")
+
+        print(f"  Timeout after {timeout}s. Check manually.")
         return {"_timeout": True}
 
 
@@ -441,6 +424,136 @@ def _checkpoint(message: str) -> bool:
     else:
         print("  Non-interactive mode — proceeding.")
         return True
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# БАТЧИНГ — разбивка больших списков на маленькие раны
+# Backend не выдерживает scrape/analyze 3000+ компаний одним запросом.
+# Если доменов > BATCH_SIZE, создаём несколько ранов по BATCH_SIZE каждый.
+# Каждый ран проходит pipeline самостоятельно. Результаты в общей DB.
+# ══════════════════════════════════════════════════════════════════════════════
+
+BATCH_SIZE = 500  # Max domains per gathering run (for scrape stability)
+
+
+def create_batched_runs(config: ProjectConfig, domains: list[str],
+                        mode: str, notes_prefix: str = "") -> list[int]:
+    """Create multiple gathering runs if domains > BATCH_SIZE.
+    Returns list of run IDs."""
+    if len(domains) <= BATCH_SIZE:
+        batches = [domains]
+    else:
+        batches = [domains[i:i+BATCH_SIZE] for i in range(0, len(domains), BATCH_SIZE)]
+        print(f"\n  Splitting {len(domains)} domains into {len(batches)} batches of ~{BATCH_SIZE}")
+
+    run_ids = []
+    for i, batch in enumerate(batches):
+        batch_label = f" (batch {i+1}/{len(batches)})" if len(batches) > 1 else ""
+        result = api("post", "/pipeline/gathering/start", json={
+            "project_id": config.project_id,
+            "source_type": "manual.companies.manual",
+            "filters": {"domains": batch},
+            "triggered_by": "operator",
+            "input_mode": mode,
+            "notes": f"{notes_prefix}{batch_label} — {len(batch)} domains",
+        })
+        run_id = result["id"]
+        run_ids.append(run_id)
+        print(f"  Run #{run_id}: {len(batch)} domains{batch_label}")
+
+    return run_ids
+
+
+def process_run_pipeline(config: ProjectConfig, run_id: int,
+                         prompt_text: str = None, skip_gather_wait: bool = False):
+    """Прогоняет один ран через полный pipeline автоматически:
+    1. Ждём завершения сбора компаний (gather)
+    2. Проверяем по blacklist — убираем тех, кому уже писали
+    3. Pre-filter — убираем офлайн-бизнесы и мусорные домены
+    4. Scrape — скачиваем сайты компаний (resilient к падению backend)
+    5. Analyze — GPT классифицирует каждую компанию (resilient к падению)
+    6. Одобряем таргеты и добавляем в blacklist для будущих ранов
+
+    Используется вместе с create_batched_runs() — каждый батч по 500 компаний
+    проходит этот pipeline отдельно, не перегружая backend."""
+    print(f"\n{'─'*40}")
+    print(f"  Processing Run #{run_id}")
+    print(f"{'─'*40}")
+
+    # Ждём пока backend соберёт компании (manual source — быстро, dedup)
+    if not skip_gather_wait:
+        for i in range(60):
+            time.sleep(10)
+            try:
+                r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                              headers=BACKEND_HEADERS, timeout=30)
+                phase = r.json().get("current_phase", "")
+                if phase != "gather":
+                    break
+            except Exception:
+                pass
+
+    # Проверяем на какой фазе ран — чтобы не повторять уже пройденные шаги
+    run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info.get("current_phase", "")
+
+    # Blacklist — проверяем домены против списка уже собранных и обработанных компаний
+    if phase == "gathered":
+        api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
+        approve_pending_gate(config, run_id)
+        phase = "scope_approved"
+
+    if phase in ("awaiting_scope_ok", "scope_approved"):
+        approve_pending_gate(config, run_id)
+
+    # Pre-filter — убираем офлайн-индустрии, мусорные домены (.gov, .edu)
+    run_info2 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info2.get("current_phase", "")
+    if phase == "scope_approved":
+        r = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter")
+        print(f"  Pre-filter: passed={r.get('passed', '?')}")
+
+    # Scrape — скачиваем сайты. Если backend упадёт, polling дождётся восстановления
+    run_info3 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info3.get("current_phase", "")
+    if phase == "filtered":
+        step4_scrape(run_id)
+
+    # Analyze — GPT-4o-mini классифицирует каждую компанию по скрейпнутому тексту
+    run_info4 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info4.get("current_phase", "")
+    if phase == "scraped":
+        text = prompt_text or config.prompt_text
+        if text:
+            result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
+                              expected_phase="analyzed", run_id=run_id, timeout=3600,
+                              params={"prompt_text": text, "model": "gpt-4o-mini"})
+            targets = result.get("targets_found", "?")
+            total = result.get("total_analyzed", "?")
+            print(f"  Analyze: {targets}/{total} targets")
+
+    # Одобряем таргеты (CP2) — после classify все target компании утверждены
+    approve_pending_gate(config, run_id)
+
+    # Добавляем утверждённые домены в blacklist — следующий ран не будет их обрабатывать повторно
+    blacklist_approved_targets(config, run_id)
+
+
+def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
+    """Find and approve pending gate for this run."""
+    try:
+        gates = api("get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}",
+                    raise_on_error=False)
+        items = gates if isinstance(gates, list) else gates.get("items", [])
+        for g in items:
+            if g.get("gathering_run_id") == run_id and g.get("status") == "pending":
+                api("post", f"/pipeline/gathering/approval-gates/{g['id']}/approve",
+                    json={}, raise_on_error=False)
+                print(f"  Gate #{g['id']} approved")
+                return True
+    except Exception:
+        pass
+    return False
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -529,10 +642,9 @@ def step3_prefilter(run_id: int) -> dict:
 
 
 def step4_scrape(run_id: int) -> dict:
-    print(f"\n{'='*60}")
-    print(f"STEP 4: Scrape websites (run #{run_id})")
-    print(f"  This may take 10-60 min. Resilient to backend restarts.")
-    print(f"{'='*60}")
+    """Scrape websites. Resilient to backend restarts — polls until phase advances."""
+    print(f"\n  Step 4: Scrape websites (run #{run_id})")
+    print(f"  This may take 10-60 min depending on company count...")
     result = api_long("post", f"/pipeline/gathering/runs/{run_id}/scrape",
                       expected_phase="scraped", run_id=run_id, timeout=3600)
     if not result.get("_timeout"):
@@ -553,8 +665,7 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
     print(f"  Prompt: #{config.prompt_id or '?'} ({len(text)} chars)")
 
     result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
-                      expected_phase="analyzed", run_id=run_id, timeout=3600,
-                      params=params)
+                      expected_phase="analyzed", run_id=run_id, timeout=3600, params=params)
     targets = result.get("targets_found", 0)
     total = result.get("total_analyzed", 0)
     print(f"  Targets: {targets}/{total} ({targets/total*100:.0f}%)" if total else "  No companies analyzed")
@@ -574,38 +685,10 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
     return {"targets_found": targets, "total_analyzed": total}
 
 
-def step5_reanalyze(config: ProjectConfig, run_id: int,
-                     prompt_text: str = None, model: str = "gpt-4o-mini") -> dict:
-    """Re-run analysis with different prompt (no re-scrape needed)."""
-    print(f"\n{'='*60}")
-    print(f"STEP 5 (RE-ANALYZE): run #{run_id}")
-    text = prompt_text or config.prompt_text
-    if not text:
-        print("  ERROR: No prompt text available.")
-        sys.exit(1)
-    print(f"  Prompt: {text[:100]}...")
-    print(f"{'='*60}")
-
-    result = api("post", f"/pipeline/gathering/runs/{run_id}/re-analyze",
-                 params={"model": model, "prompt_text": text})
-
-    target_rate = result.get("target_rate", 0)
-    targets_count = result.get("targets_count", 0)
-    print(f"\n  New target rate: {target_rate*100:.1f}%")
-    print(f"  Targets: {targets_count}")
-
-    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
-    pending = [g for g in gates if g["status"] == "pending"]
-    if pending:
-        gate_id = pending[0]["id"]
-        save_state(config.state_dir, run_id, "awaiting_targets_ok", gate_id=gate_id)
-        return {"gate_id": gate_id, "target_rate": target_rate, "targets_count": targets_count}
-    return {"target_rate": target_rate, "targets_count": targets_count}
-
-
 def blacklist_approved_targets(config: ProjectConfig, run_id: int):
-    """Add approved target domains to project_blacklist after CP2.
-    Prevents next gathering run from picking up the same companies."""
+    """Добавляет домены классифицированных компаний в project_blacklist.
+    Blacklist = все компании, которые уже прошли сбор и обработку (не только те, кому писали).
+    Следующий gathering run не будет тратить время на повторную обработку этих доменов."""
     import subprocess
     sql = (f"SELECT DISTINCT dc.domain FROM discovered_companies dc "
            f"JOIN company_source_links csl ON csl.discovered_company_id = dc.id "
@@ -632,100 +715,6 @@ def blacklist_approved_targets(config: ProjectConfig, run_id: int):
         capture_output=True, text=True, timeout=30,
     )
     print(f"  Blacklist: +{len(domains)} target domains added (run #{run_id})")
-
-
-BATCH_SIZE = 500
-
-
-def create_batched_runs(config: ProjectConfig, domains: list[str],
-                        notes_prefix: str = "", batch_size: int = BATCH_SIZE) -> list[int]:
-    """Split large domain list into batched gathering runs (manual.companies.manual).
-    Backend crashes on 3000+ sites in one run — batching prevents this."""
-    batches = [domains[i:i + batch_size] for i in range(0, len(domains), batch_size)]
-    print(f"\n  Creating {len(batches)} batched runs ({len(domains)} domains, batch size {batch_size})")
-    run_ids = []
-    for i, batch in enumerate(batches):
-        label = f"{notes_prefix} batch {i+1}/{len(batches)}"
-        result = api("post", "/pipeline/gathering/start", json={
-            "project_id": config.project_id,
-            "source_type": "manual.companies.manual",
-            "filters": {"domains": batch, "source_description": label},
-            "input_mode": "structured",
-            "notes": label,
-        })
-        rid = result["id"]
-        run_ids.append(rid)
-        print(f"    Run #{rid}: {len(batch)} domains")
-        time.sleep(1)
-    return run_ids
-
-
-def _approve_pending(config: ProjectConfig, run_id: int) -> bool:
-    """Find and approve the latest pending gate for a run."""
-    gates = api("get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}",
-                raise_on_error=False)
-    gates_list = gates if isinstance(gates, list) else gates.get("items", [])
-    pending = [g for g in gates_list
-               if g.get("gathering_run_id") == run_id and g.get("status") == "pending"]
-    if pending:
-        gate = pending[0]
-        approve_gate(gate["id"], note=f"Auto-approve batch run #{run_id}")
-        return True
-    return False
-
-
-def process_run_pipeline(config: ProjectConfig, run_id: int,
-                         prompt_text: str = None) -> dict:
-    """Process a single run through: gather wait → blacklist → prefilter → scrape → analyze.
-    Resilient to disconnects via api_long polling.
-    Used with create_batched_runs() — each batch of 500 companies runs through this."""
-    print(f"\n{'─'*40}")
-    print(f"  Processing Run #{run_id}")
-    print(f"{'─'*40}")
-
-    # Wait for gather phase to complete
-    for i in range(60):
-        time.sleep(10)
-        try:
-            r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
-                          headers=BACKEND_HEADERS, timeout=30)
-            phase = r.json().get("current_phase", "")
-            if phase != "gather":
-                break
-        except Exception:
-            pass
-
-    # Blacklist + approve CP1
-    run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-    phase = run_info.get("current_phase", "")
-    if phase == "gathered":
-        api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check", raise_on_error=False)
-    _approve_pending(config, run_id)
-
-    # Pre-filter
-    run_info2 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-    if run_info2.get("current_phase") == "scope_approved":
-        r = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter", raise_on_error=False)
-        print(f"  Pre-filter: passed={r.get('passed', '?')}")
-
-    # Scrape (resilient)
-    run_info3 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-    if run_info3.get("current_phase") == "filtered":
-        step4_scrape(run_id)
-
-    # Analyze (resilient)
-    run_info4 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-    if run_info4.get("current_phase") == "scraped":
-        text = prompt_text or config.prompt_text
-        result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
-                          expected_phase="analyzed", run_id=run_id, timeout=3600,
-                          params={"prompt_text": text, "model": "gpt-4o-mini"})
-        print(f"  Analyze: {result.get('targets_found', '?')}/{result.get('total_analyzed', '?')} targets")
-
-    # Approve CP2
-    _approve_pending(config, run_id)
-    # Add targets to blacklist
-    blacklist_approved_targets(config, run_id)
 
 
 def step6_prepare_verify(run_id: int) -> dict:
@@ -816,228 +805,15 @@ def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 10: ПОИСК ЛЮДЕЙ (ЛПР) В APOLLO PEOPLE UI
-# Автоматический поиск через Puppeteer (apollo_scraper.js):
-# - Берёт домены таргет-компаний из шага 9
-# - Группирует по сегменту → подбирает titles/seniorities из apollo-filters-v3
-# - Батчит по 30 доменов, строит Apollo People URL с organizationDomains[]
-# - Запускает apollo_scraper.js (headless Chrome) для каждого батча
-# - Парсит JSON → маппит в наш формат контактов (имя, должность, LinkedIn)
-# - Назначает segment и social_proof по стране человека
+# ШАГ 10: ИМПОРТ КОНТАКТОВ ИЗ APOLLO
+# Оператор вручную ищет людей (ЛПР) в Apollo People UI по списку компаний
+# из шага 9. Экспортирует результат как CSV. Этот шаг импортирует CSV:
+# - Маппит колонки Apollo → наш формат (имя, должность, LinkedIn, компания)
+# - Подтягивает domain из базы таргетов (чтобы связать человека с компанией)
+# - Назначает social_proof по стране человека (для персонализации писем)
 # - Убирает дубли по LinkedIn URL
-# Fallback: --apollo-csv для ручного CSV импорта.
 # Результат: список людей с LinkedIn, готовых к поиску email.
 # ══════════════════════════════════════════════════════════════════════════════
-
-APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
-APOLLO_PEOPLE_BATCH_SIZE = 30
-APOLLO_PEOPLE_MAX_PAGES = 5
-
-# Seniorities and titles per segment (from apollo-filters-v3.md)
-SEGMENT_PEOPLE_FILTERS = {
-    "INFLUENCER_PLATFORMS": {
-        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
-        "titles": [
-            "CTO", "VP Engineering", "VP of Engineering", "Head of Engineering",
-            "Head of Product", "Chief Product Officer", "VP Product",
-            "Director of Engineering", "Director of Product",
-            "Co-Founder", "Founder", "CEO", "COO",
-        ],
-    },
-    "IM_FIRST_AGENCIES": {
-        "seniorities": ["founder", "c_suite", "director", "owner"],
-        "titles": [
-            "CEO", "Founder", "Co-Founder", "Managing Director", "Managing Partner",
-            "Head of Influencer Marketing", "Director of Influencer",
-            "Head of Partnerships", "VP Strategy", "Head of Strategy",
-            "General Manager", "Partner", "Owner",
-        ],
-    },
-    "AFFILIATE_PERFORMANCE": {
-        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
-        "titles": [
-            "CTO", "VP Engineering", "VP of Engineering", "VP Product",
-            "Head of Product", "Head of Partnerships", "VP Partnerships",
-            "Director of Partnerships", "Co-Founder", "Founder", "CEO", "COO",
-        ],
-    },
-}
-SEGMENT_PEOPLE_FILTERS["OTHER"] = SEGMENT_PEOPLE_FILTERS["INFLUENCER_PLATFORMS"]
-
-
-def _build_apollo_people_url(domains: list[str], titles: list[str], seniorities: list[str]) -> str:
-    """Build Apollo People search URL with domain + title + seniority filters."""
-    from urllib.parse import quote
-    url = "https://app.apollo.io/#/people?finderViewId=5b8050d050a0710001ca27c1"
-    for d in domains:
-        url += f"&organizationDomains[]={quote(d)}"
-    for t in titles:
-        url += f"&personTitles[]={quote(t)}"
-    for s in seniorities:
-        url += f"&personSeniorities[]={quote(s)}"
-    return url
-
-
-def _run_apollo_scraper(url: str, max_pages: int, output_path: str) -> list[dict]:
-    """Run apollo_scraper.js and return list of people dicts."""
-    script = Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT
-    if not script.exists():
-        script = Path(".") / APOLLO_SCRAPER_SCRIPT
-    if not script.exists():
-        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found")
-        return []
-    args = ["node", str(script), "--url", url, "--max-pages", str(max_pages), "--output", output_path]
-    try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=300,
-                              cwd=str(script.parent.parent),
-                              env={**os.environ, "CHROME_PATH": os.environ.get("CHROME_PATH", "/usr/bin/google-chrome")})
-        if result.returncode != 0:
-            err = result.stderr[-300:] if result.stderr else result.stdout[-300:]
-            print(f"    Scraper error (rc={result.returncode}): {err}")
-            return []
-        if Path(output_path).exists():
-            with open(output_path) as f:
-                return json.load(f)
-    except subprocess.TimeoutExpired:
-        print(f"    Scraper timeout (300s)")
-    except Exception as e:
-        print(f"    Scraper error: {e}")
-    return []
-
-
-def _map_apollo_person(person: dict, targets_by_domain: dict, config: ProjectConfig = None,
-                       batch_domain: str = None) -> dict:
-    """Map an Apollo scraper JSON person to our contact format."""
-    name = person.get("name", "")
-    parts = name.split(None, 1) if name else ["", ""]
-    first_name = parts[0] if parts else ""
-    last_name = parts[1] if len(parts) > 1 else ""
-
-    domain = batch_domain or _normalize_domain(person.get("domain", "") or person.get("company_url", ""))
-    if not domain:
-        company = person.get("company", "")
-        for d, t in targets_by_domain.items():
-            if t.get("company_name", "").lower() == company.lower():
-                domain = d
-                break
-
-    target = targets_by_domain.get(domain, {})
-    segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
-
-    seg_slug = ""
-    if config:
-        for slug, seg_data in config.segments.items():
-            if seg_data["name"] == segment:
-                seg_slug = slug
-                break
-
-    country = person.get("location", "").split(",")[-1].strip() if person.get("location") else ""
-    if not country:
-        country = target.get("country", "")
-    social_proof = config.get_social_proof(country, seg_slug) if config and seg_slug else ""
-
-    return {
-        "first_name": first_name,
-        "last_name": last_name,
-        "email": person.get("email", ""),
-        "title": person.get("title", ""),
-        "company_name": normalize_company(person.get("company", "") or target.get("company_name", domain)),
-        "domain": domain,
-        "segment": segment,
-        "linkedin_url": person.get("linkedin_url", person.get("linkedin", "")),
-        "country": country,
-        "employees": person.get("employees", "") or target.get("employees", ""),
-        "social_proof": social_proof,
-    }
-
-
-def step10_apollo_people_search(config: ProjectConfig, targets: list[dict],
-                                 force: bool = False) -> list[dict]:
-    """Search Apollo People UI for contacts at target companies (automated)."""
-    contacts_file = config.state_dir / "contacts.json"
-    print(f"\n{'='*60}")
-    print(f"STEP 10: Apollo People UI Search (automated)")
-    print(f"{'='*60}")
-
-    if contacts_file.exists() and not force:
-        contacts = load_json(contacts_file)
-        print(f"  Loaded from cache: {len(contacts)} contacts")
-        return contacts
-
-    targets_by_domain = {t.get("domain", "").strip().lower(): t for t in targets if t.get("domain")}
-
-    by_segment: dict[str, list[str]] = {}
-    for t in targets:
-        d = t.get("domain", "").strip().lower()
-        if not d:
-            continue
-        seg = t.get("segment", t.get("analysis_segment", "UNKNOWN"))
-        by_segment.setdefault(seg, []).append(d)
-
-    print(f"  Targets: {len(targets_by_domain)} domains across {len(by_segment)} segments")
-    for seg, domains in by_segment.items():
-        print(f"    {seg}: {len(domains)} domains")
-
-    all_contacts = []
-    total_batches_done = 0
-
-    for seg, domains in by_segment.items():
-        filters = SEGMENT_PEOPLE_FILTERS.get(seg, SEGMENT_PEOPLE_FILTERS["OTHER"])
-        titles = filters["titles"]
-        seniorities = filters["seniorities"]
-
-        batches = [domains[i:i + APOLLO_PEOPLE_BATCH_SIZE] for i in range(0, len(domains), APOLLO_PEOPLE_BATCH_SIZE)]
-        print(f"\n  [{seg}] {len(domains)} domains -> {len(batches)} batches (titles: {len(titles)})")
-
-        for batch_idx, batch_domains in enumerate(batches):
-            print(f"    Batch {batch_idx + 1}/{len(batches)}: {len(batch_domains)} domains...", end=" ", flush=True)
-
-            url = _build_apollo_people_url(batch_domains, titles, seniorities)
-            output_path = f"/tmp/apollo_people_batch_{seg}_{batch_idx}.json"
-
-            people = _run_apollo_scraper(url, APOLLO_PEOPLE_MAX_PAGES, output_path)
-            print(f"{len(people)} people")
-
-            for person in people:
-                batch_domain = batch_domains[0] if len(batch_domains) == 1 else None
-                contact = _map_apollo_person(person, targets_by_domain, config, batch_domain)
-                if contact["first_name"] and contact["domain"]:
-                    all_contacts.append(contact)
-
-            try:
-                Path(output_path).unlink(missing_ok=True)
-            except Exception:
-                pass
-
-            total_batches_done += 1
-            time.sleep(3)
-
-    # Dedupe by linkedin_url or (first_name + last_name + domain)
-    seen = set()
-    deduped = []
-    for c in all_contacts:
-        key = c["linkedin_url"] or f"{c['first_name']}|{c['last_name']}|{c['domain']}"
-        if key not in seen:
-            seen.add(key)
-            deduped.append(c)
-    all_contacts = deduped
-
-    save_json(contacts_file, all_contacts)
-
-    with_email = sum(1 for c in all_contacts if c["email"])
-    with_li = sum(1 for c in all_contacts if c["linkedin_url"])
-    segments = Counter(c["segment"] for c in all_contacts)
-
-    print(f"\n  Total: {len(all_contacts)} contacts ({total_batches_done} batches)")
-    print(f"  With email: {with_email}, with LinkedIn: {with_li}")
-    print(f"  Segments: {dict(segments)}")
-
-    today = tag()
-    code = config.project_name[:2].upper()
-    save_csv(config.csv_dir / f"import_apollo_{today}.csv", all_contacts,
-             sheet_name=f"{code} | Import | Apollo People — {today}")
-
-    return all_contacts
 
 APOLLO_CSV_COLUMNS = {
     "first_name": ["First Name", "first_name"],
@@ -1176,71 +952,6 @@ def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list
              sheet_name=f"{code} | Import | Apollo People — {today}")
 
     return all_contacts
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# GETSALES EXPORT — contacts without email → GetSales-ready CSV for LinkedIn outreach
-# ══════════════════════════════════════════════════════════════════════════════
-
-GETSALES_HEADERS = [
-    "system_uuid", "pipeline_stage", "full_name", "first_name", "last_name",
-    "position", "headline", "about", "linkedin_id", "sales_navigator_id",
-    "linkedin_nickname", "linkedin_url", "facebook_nickname", "twitter_nickname",
-    "work_email", "personal_email", "work_phone", "personal_phone",
-    "connections_number", "followers_number", "primary_language",
-    "has_open_profile", "has_verified_profile", "has_premium",
-    "location_country", "location_state", "location_city",
-    "active_flows", "list_name", "tags",
-    "company_name", "company_industry", "company_linkedin_id", "company_domain",
-    "company_linkedin_url", "company_employees_range", "company_headquarter",
-    "cf_location", "cf_competitor_client",
-    "cf_message1", "cf_message2", "cf_message3",
-    "cf_personalization", "cf_compersonalization", "cf_personalization1",
-    "cf_message4", "cf_linkedin_personalization", "cf_subject", "created_at",
-]
-
-
-def _extract_linkedin_nickname(url: str) -> str:
-    m = re.search(r"linkedin\.com/in/([^/?]+)", url or "")
-    return m.group(1) if m else ""
-
-
-def export_getsales(config: ProjectConfig, without_email: list[dict], today: str) -> Path:
-    """Convert without-email contacts to GetSales-ready CSV."""
-    date_folder = datetime.now().strftime("%d_%m")
-    gs_dir = SOFIA_DIR / "get_sales_hub" / date_folder
-    gs_dir.mkdir(parents=True, exist_ok=True)
-
-    seg = without_email[0].get("segment", "UNKNOWN") if without_email else "UNKNOWN"
-    out_path = gs_dir / f"GetSales — {seg}_without_email — {date_folder.replace('_', '.')}.csv"
-
-    gs_rows = []
-    for c in without_email:
-        li_url = c.get("linkedin_url", "").strip()
-        if li_url and not li_url.startswith("http"):
-            li_url = f"https://{li_url}"
-
-        gs = {h: "" for h in GETSALES_HEADERS}
-        gs["full_name"] = f"{c.get('first_name', '')} {c.get('last_name', '')}".strip()
-        gs["first_name"] = c.get("first_name", "")
-        gs["last_name"] = c.get("last_name", "")
-        gs["position"] = c.get("title", "")
-        gs["linkedin_nickname"] = _extract_linkedin_nickname(li_url)
-        gs["linkedin_url"] = li_url
-        gs["company_name"] = normalize_company(c.get("company_name", ""))
-        gs["company_domain"] = c.get("domain", "")
-        gs["cf_location"] = c.get("country", "")
-        gs["list_name"] = f"{seg} Without Email {today}"
-        gs["tags"] = seg
-        gs_rows.append(gs)
-
-    with out_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=GETSALES_HEADERS)
-        writer.writeheader()
-        writer.writerows(gs_rows)
-
-    print(f"  GetSales-ready: {out_path.name} ({len(gs_rows)} contacts)")
-    return out_path
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1521,10 +1232,6 @@ def load_sequences_from_file(config: ProjectConfig, segment_slug: str) -> list[d
             for m in pattern.finditer(text):
                 label, subject, body = m.group(1), m.group(2), m.group(3).strip()
                 body = re.sub(r'\n`\d+ words`', '', body).strip()
-                # SmartLead formatting: \n→<br>, em dash→regular dash
-                body = body.replace("\n\n", "<br><br>").replace("\n", "<br>")
-                body = body.replace("\u2014", "-").replace("\u2013", "-")  # em/en dash
-                subject = subject.replace("\u2014", "-").replace("\u2013", "-")
                 steps.append({"label": label, "subject": subject, "body": body})
             if steps:
                 print(f"  Loaded {len(steps)} steps from {full_path.name}")
@@ -1735,19 +1442,11 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
                 seq_payload = []
                 for i, (num, variants) in enumerate(sorted(step_groups.items())):
                     wait_days = TIMING[i] if i < len(TIMING) else 7
-                    subject = variants[0]["subject"]
-                    body = variants[0]["body"]
-                    # SmartLead requires <br> for line breaks, ignores \n
-                    if "\n" in body and "<br>" not in body:
-                        body = body.replace("\n\n", "<br><br>").replace("\n", "<br>")
-                    # Replace em dash with regular dash for email compatibility
-                    subject = subject.replace("\u2014", "-").replace("\u2013", "-")
-                    body = body.replace("\u2014", "-").replace("\u2013", "-")
                     seq_payload.append({
                         "seq_number": i + 1,
                         "seq_delay_details": {"delay_in_days": wait_days},
-                        "subject": subject,
-                        "email_body": body,
+                        "subject": variants[0]["subject"],
+                        "email_body": variants[0]["body"],
                     })
 
                 r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/sequences",
@@ -2109,8 +1808,8 @@ def main():
                 print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
             contacts = all_contacts
         else:
-            # Default: automated Apollo People UI search
-            contacts = step10_apollo_people_search(config, targets, force=args.force)
+            print("\n  ERROR: --apollo-csv required for people step")
+            sys.exit(1)
     else:
         contacts = load_json(config.state_dir / "contacts.json") or \
                    load_json(config.state_dir / "enriched.json") or []
