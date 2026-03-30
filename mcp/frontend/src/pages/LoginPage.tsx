@@ -9,6 +9,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [signupToken, setSignupToken] = useState<string | null>(null)
+  const [tokenCopied, setTokenCopied] = useState(false)
 
   const handleLogin = async () => {
     if (!email || !password) { setError('Email and password required'); return }
@@ -38,7 +40,7 @@ export default function LoginPage() {
       const data = await res.json()
       if (data.api_token) {
         localStorage.setItem('mcp_token', data.api_token)
-        window.location.href = '/'
+        setSignupToken(data.api_token)
       } else { setError(data.detail || 'Signup failed') }
     } catch { setError('Connection failed') }
     setLoading(false)
