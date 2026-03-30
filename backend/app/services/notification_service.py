@@ -1087,14 +1087,27 @@ async def notify_linkedin_reply(
     if inbox_link:
         inbox_line = f'\n<a href="{inbox_link}">💼 Open in GetSales</a>'
 
-    # Find project first so we can include it in the Replies UI link
+    # Find project so we can include it in the Replies UI link.
+    # Priority: sender UUID (most reliable for GetSales — shared automations
+    # contain leads from multiple projects, but each sender belongs to exactly
+    # one project) → campaign name → project_id fallback.
     project = None
-    lookup_name = campaign_name or flow_name
-    if lookup_name:
+
+    if sender_profile_uuid:
         try:
-            project = await _get_project_for_campaign(lookup_name)
+            project = await _get_project_by_sender(sender_profile_uuid)
+            if project:
+                logger.info(f"LinkedIn reply routed via sender UUID={sender_profile_uuid} ({project.get('name')})")
         except Exception as e:
-            logger.warning(f"LinkedIn campaign routing failed (non-fatal): {e}")
+            logger.warning(f"LinkedIn sender routing failed (non-fatal): {e}")
+
+    if not project:
+        lookup_name = campaign_name or flow_name
+        if lookup_name:
+            try:
+                project = await _get_project_for_campaign(lookup_name)
+            except Exception as e:
+                logger.warning(f"LinkedIn campaign routing failed (non-fatal): {e}")
 
     if not project and project_id:
         try:
@@ -1103,14 +1116,6 @@ async def notify_linkedin_reply(
                 logger.info(f"LinkedIn reply routed via project_id={project_id} ({project.get('name')})")
         except Exception as e:
             logger.warning(f"LinkedIn project_id routing failed (non-fatal): {e}")
-
-    if not project and sender_profile_uuid:
-        try:
-            project = await _get_project_by_sender(sender_profile_uuid)
-            if project:
-                logger.info(f"LinkedIn reply routed via sender UUID={sender_profile_uuid} ({project.get('name')})")
-        except Exception as e:
-            logger.warning(f"LinkedIn sender routing failed (non-fatal): {e}")
 
     is_real_email = contact_email and "@" in contact_email and "@linkedin.placeholder" not in contact_email and not contact_email.startswith("gs_")
 
