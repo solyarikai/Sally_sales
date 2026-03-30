@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react'
 
 const API = '/api'
-const ALL_SERVICES = ['smartlead', 'apollo', 'openai', 'gemini']
+const ALL_SERVICES = ['smartlead', 'apollo', 'openai', 'apify', 'getsales']
+
+const SERVICE_LABELS: Record<string, { label: string; hint: string }> = {
+  smartlead: { label: 'SmartLead', hint: 'Email outreach platform' },
+  apollo: { label: 'Apollo', hint: 'Company & people search' },
+  openai: { label: 'OpenAI', hint: 'AI for sequence generation' },
+  apify: { label: 'Apify Proxy', hint: 'Residential proxy for website scraping (29% more companies scraped)' },
+  getsales: { label: 'GetSales', hint: 'LinkedIn outreach platform' },
+}
 
 const inputStyle: React.CSSProperties = {
   width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
@@ -95,9 +103,9 @@ export default function SetupPage() {
 
                 {/* Service name + status */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, textTransform: 'capitalize' }}>{service}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{SERVICE_LABELS[service]?.label || service}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
-                    {connected ? (info?.info || 'Connected') : 'Not connected'}
+                    {connected ? (info?.info || 'Connected') : (SERVICE_LABELS[service]?.hint || 'Not connected')}
                   </div>
                 </div>
 

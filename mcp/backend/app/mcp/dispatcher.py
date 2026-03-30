@@ -395,33 +395,27 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         if project.sender_company:
             user_offer = f"{project.sender_company}: {user_offer}"
 
-        # Get API keys
+        # Get OpenAI key
         from app.services.encryption import decrypt_value
-        openai_key = gemini_key = None
-        for svc_name in ("openai", "gemini"):
-            r = await session.execute(
-                select(MCPIntegrationSetting).where(
-                    MCPIntegrationSetting.user_id == user.id,
-                    MCPIntegrationSetting.integration_name == svc_name,
-                )
+        openai_key = None
+        r = await session.execute(
+            select(MCPIntegrationSetting).where(
+                MCPIntegrationSetting.user_id == user.id,
+                MCPIntegrationSetting.integration_name == "openai",
             )
-            row = r.scalar_one_or_none()
-            if row and row.api_key_encrypted:
-                try:
-                    key = decrypt_value(row.api_key_encrypted)
-                    if svc_name == "openai":
-                        openai_key = key
-                    else:
-                        gemini_key = key
-                except Exception:
-                    pass
+        )
+        row = r.scalar_one_or_none()
+        if row and row.api_key_encrypted:
+            try:
+                openai_key = decrypt_value(row.api_key_encrypted)
+            except Exception:
+                pass
 
         from app.services.intent_parser import parse_gathering_intent
         result = await parse_gathering_intent(
             query=args["query"],
             user_offer=user_offer,
             openai_key=openai_key,
-            gemini_key=gemini_key,
         )
 
         segments = result.get("segments", [])
@@ -489,10 +483,9 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     apollo_probe = await ctx_probe.get_apollo_service()
                     openai_key = await ctx_probe.get_key("openai") or _s.OPENAI_API_KEY
                     anthropic_key = await ctx_probe.get_key("anthropic") or _s.ANTHROPIC_API_KEY
-                    gemini_key = await ctx_probe.get_key("gemini") or _s.GEMINI_API_KEY
                     from app.services.filter_intelligence import suggest_filters
                     suggestion = await suggest_filters(
-                        query, apollo_probe, openai_key, anthropic_key, gemini_key,
+                        query, apollo_probe, openai_key, anthropic_key, None,
                         args.get("target_count", 10),
                     )
                     if suggestion.get("suggested_filters"):
@@ -1139,7 +1132,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             raise ValueError("GetSales not configured (GETSALES_API_KEY missing)")
 
         svc = GetSalesAutomationService(gs_key, gs_team or "7430")
-        gemini_key = getattr(_cfg, "GEMINI_API_KEY", None)
         openai_key = getattr(_cfg, "OPENAI_API_KEY", None)
 
         seq = await svc.generate_flow(
@@ -1147,7 +1139,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             flow_name=args.get("flow_name"),
             flow_type=args.get("flow_type", "standard"),
             instructions=args.get("instructions"),
-            gemini_key=gemini_key,
             openai_key=openai_key,
         )
 
@@ -1443,7 +1434,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         from app.config import settings as _cfg
         openai_key = await ctx.get_key("openai") or _cfg.OPENAI_API_KEY
         anthropic_key = await ctx.get_key("anthropic") or _cfg.ANTHROPIC_API_KEY
-        gemini_key = await ctx.get_key("gemini") or _cfg.GEMINI_API_KEY
 
         from app.services.filter_intelligence import suggest_filters
         result = await suggest_filters(
@@ -1451,7 +1441,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             apollo_service=apollo_svc,
             openai_key=openai_key,
             anthropic_key=anthropic_key,
-            gemini_key=gemini_key,
+            gemini_key=None,
             target_count=args.get("target_count", 10),
         )
         return result

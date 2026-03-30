@@ -125,14 +125,16 @@ class ScraperService:
         }
 
     def _get_proxy_url(self) -> Optional[str]:
-        """Build Apify residential proxy URL if configured."""
+        """Build Apify residential proxy URL if configured (env var or Setup page)."""
+        import os
         from app.config import settings
-        if not getattr(settings, 'APIFY_PROXY_PASSWORD', None):
+        password = os.environ.get('APIFY_PROXY_PASSWORD') or getattr(settings, 'APIFY_PROXY_PASSWORD', None)
+        if not password:
             return None
         session_id = f"scrape_{random.randint(10000, 99999)}"
         host = getattr(settings, 'APIFY_PROXY_HOST', 'proxy.apify.com')
         port = getattr(settings, 'APIFY_PROXY_PORT', 8000)
-        return f"http://groups-RESIDENTIAL,session-{session_id}:{settings.APIFY_PROXY_PASSWORD}@{host}:{port}"
+        return f"http://groups-RESIDENTIAL,session-{session_id}:{password}@{host}:{port}"
 
     async def scrape_website(self, url: str, timeout: int = 15) -> Dict[str, Any]:
         original = url

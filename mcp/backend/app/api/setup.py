@@ -1,4 +1,4 @@
-"""Integration setup API — connect SmartLead, Apollo, OpenAI, Gemini, GetSales."""
+"""Integration setup API — connect SmartLead, Apollo, OpenAI, Apify, GetSales."""
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -71,15 +71,22 @@ async def configure_integration(
         else:
             message = "Connection failed — check API key"
 
+    elif req.integration_name == "apify":
+        # Store + set as env var so scraper picks it up immediately
+        import os
+        os.environ["APIFY_PROXY_PASSWORD"] = req.api_key
+        connected = True
+        message = "Apify proxy password saved — website scraping will use residential proxy"
+
     elif req.integration_name == "getsales":
         # Just store — GetSales uses JWT token, no simple test
         connected = True
         message = "GetSales key saved"
 
-    elif req.integration_name in ("openai", "gemini"):
+    elif req.integration_name == "openai":
         # Just store — no easy test endpoint
         connected = True
-        message = f"{req.integration_name} key saved"
+        message = "OpenAI key saved"
 
     # Upsert integration setting
     existing = await session.execute(
