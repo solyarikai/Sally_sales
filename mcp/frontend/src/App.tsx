@@ -171,6 +171,17 @@ export default function App() {
   )
 }
 
+// Source type → human label
+const SOURCE_LABELS: Record<string, string> = {
+  'apollo.companies.api': 'Apollo',
+  'apollo.people.emulator': 'Apollo People',
+  'apollo.companies.emulator': 'Apollo Free',
+  'clay.companies.emulator': 'Clay',
+  'google_sheets.companies.manual': 'Google Sheet',
+  'csv.companies.manual': 'CSV Import',
+  'manual.companies.manual': 'Manual',
+}
+
 // Pipeline runs list
 function PipelineRunsPage() {
   const [runs, setRuns] = useState<any[]>([])
@@ -193,7 +204,7 @@ function PipelineRunsPage() {
             <th style={{ paddingBottom: 8 }}>Project</th>
             <th style={{ paddingBottom: 8 }}>Segment</th>
             <th style={{ paddingBottom: 8 }}>Source</th>
-            <th style={{ paddingBottom: 8 }}>Raw</th>
+            <th style={{ paddingBottom: 8 }}>Found</th>
             <th style={{ paddingBottom: 8 }}>Targets</th>
             <th style={{ paddingBottom: 8 }}>People</th>
             <th style={{ paddingBottom: 8 }}>Credits</th>
@@ -210,7 +221,7 @@ function PipelineRunsPage() {
                   <span key={s} style={{ padding: '1px 5px', borderRadius: 3, background: 'rgba(99,102,241,0.12)', color: '#818cf8', marginRight: 3, display: 'inline-block', marginBottom: 2 }}>{s}</span>
                 )) : '—'}
               </td>
-              <td style={{ padding: '8px 8px 8px 0', fontSize: 12 }}>{r.source_type?.replace('companies.', '').replace('.manual', '').replace('apollo.', '')}</td>
+              <td style={{ padding: '8px 8px 8px 0', fontSize: 12 }}>{SOURCE_LABELS[r.source_type] || r.source_type}</td>
               <td style={{ padding: '8px 8px 8px 0' }}>
                 {r.raw_companies > 0 ? <Link to={`/pipeline/${r.id}`} style={{ color: 'var(--text-link)' }}>{r.raw_companies}</Link> : <span style={{ color: 'var(--text-muted)' }}>0</span>}
               </td>

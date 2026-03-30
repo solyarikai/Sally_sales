@@ -35,13 +35,16 @@ export default function PromptsPage() {
       .finally(() => setLoading(false))
   }, [runId])
 
+  // Filter out tool_call rows without prompt text (tam_blacklist_check, tam_scrape, tam_analyze etc.)
+  const visiblePrompts = prompts.filter(p => p.type !== 'tool_call' || p.prompt_text)
+
   // Group prompts by chain (parent_prompt_id)
   const chains: any[][] = []
   const standalone: any[] = []
   const byId: Record<number, any> = {}
-  prompts.forEach(p => { byId[p.id] = p })
+  visiblePrompts.forEach(p => { byId[p.id] = p })
 
-  prompts.forEach(p => {
+  visiblePrompts.forEach(p => {
     if (p.parent_prompt_id && byId[p.parent_prompt_id]) {
       // Part of a chain — find or create chain
       let found = false
@@ -55,7 +58,7 @@ export default function PromptsPage() {
       if (!found) {
         chains.push([byId[p.parent_prompt_id], p])
       }
-    } else if (!prompts.some(other => other.parent_prompt_id === p.id)) {
+    } else if (!visiblePrompts.some(other => other.parent_prompt_id === p.id)) {
       standalone.push(p)
     }
   })
@@ -144,7 +147,7 @@ export default function PromptsPage() {
 
       {loading ? (
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
-      ) : prompts.length === 0 ? (
+      ) : visiblePrompts.length === 0 ? (
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
           No prompts used yet. Run the analyze phase to see GPT prompts.
         </div>

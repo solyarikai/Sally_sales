@@ -5,8 +5,8 @@ import { authHeaders } from '../App'
 const API = '/api'
 const PAGE_SIZE = 50
 
-const STAGES = ['gather','blacklist','awaiting_scope_ok','pre_filter','scrape','analyze','awaiting_targets_ok','prepare_verification','awaiting_verify_ok','verified','completed']
-const STAGE_LABELS: Record<string,string> = { gather:'Gather',blacklist:'Blacklist',awaiting_scope_ok:'CP1: Scope',pre_filter:'Pre-Filter',scrape:'Scrape',analyze:'Analysis',awaiting_targets_ok:'CP2: Targets',prepare_verification:'Verification',awaiting_verify_ok:'CP3: Cost',verified:'Done',completed:'Done' }
+const STAGES = ['gather','blacklist','awaiting_scope_ok','pre_filter','scrape','analyze','awaiting_targets_ok','prepare_verification','awaiting_verify_ok','completed']
+const STAGE_LABELS: Record<string,string> = { gather:'Gather',blacklist:'Blacklist',awaiting_scope_ok:'CP1: Scope',pre_filter:'Pre-Filter',scrape:'Scrape',analyze:'Analysis',awaiting_targets_ok:'CP2: Targets',prepare_verification:'Verify',awaiting_verify_ok:'CP3: Cost',completed:'Done' }
 
 const STATUS_COLORS: Record<string,string> = {
   gathered: 'var(--text-muted)', blacklisted: 'var(--danger)', filtered: 'var(--text-muted)',
@@ -120,11 +120,6 @@ function CompanyModal({ company, onClose }: { company: any; onClose: () => void 
                         {c.analysis_segment}
                       </div>
                     )}
-                    {c.analysis_confidence != null && (
-                      <div style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', fontWeight: 600, color: c.analysis_confidence >= 0.8 ? 'var(--success)' : c.analysis_confidence >= 0.5 ? 'var(--warning)' : 'var(--text-muted)' }}>
-                        {(c.analysis_confidence*100).toFixed(0)}% confidence
-                      </div>
-                    )}
                     <div style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', color: STATUS_COLORS[c.status] || 'var(--text-muted)', fontWeight: 500 }}>
                       {c.status}
                     </div>
@@ -156,9 +151,18 @@ function CompanyModal({ company, onClose }: { company: any; onClose: () => void 
                 ['Phone', c.phone],
               ].map(([l, v]) => v ? <div key={l as string}><span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{l}:</span> <span style={{ fontSize: 13 }}>{v}</span></div> : null)}
 
+              {/* Growth & Apollo people */}
+              {(c.headcount_growth_12m || c.source_data?.headcount_12m_growth) && (
+                <div><span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Growth:</span> <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 500 }}>+{c.headcount_growth_12m || c.source_data?.headcount_12m_growth}%</span></div>
+              )}
+              {(c.num_contacts_apollo || c.source_data?.num_contacts_in_apollo) && (
+                <div><span style={{ color: 'var(--text-muted)', fontSize: 12 }}>People in Apollo:</span> <span style={{ fontSize: 13 }}>{c.num_contacts_apollo || c.source_data?.num_contacts_in_apollo}</span></div>
+              )}
+
               {/* Links with copy buttons */}
               {c.linkedin_url && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>LinkedIn:</span>
                   <a href={c.linkedin_url} target="_blank" rel="noopener" style={{ color: 'var(--text-link)', fontSize: 13 }}>{c.linkedin_url.replace('http://www.linkedin.com/company/', '').replace('https://www.linkedin.com/company/', 'linkedin.com/…/')}</a>
                   <CopyBtn text={c.linkedin_url} />
                 </div>
@@ -202,9 +206,12 @@ function CompanyModal({ company, onClose }: { company: any; onClose: () => void 
           )}
 
           {tab === 'source' && (
-            <pre style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: 12, borderRadius: 6, overflow: 'auto', maxHeight: 500, whiteSpace: 'pre-wrap' }}>
-              {JSON.stringify(c.source_data || {}, null, 2)}
-            </pre>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Raw Apollo Data</div>
+              <pre style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: 12, borderRadius: 6, overflow: 'auto', maxHeight: 500, whiteSpace: 'pre-wrap' }}>
+                {JSON.stringify(c.source_data || {}, null, 2)}
+              </pre>
+            </div>
           )}
         </div>
       </div>
@@ -309,7 +316,7 @@ export default function PipelinePage() {
     return result
   }, [companies, filters, sortCol, sortDir, selectedIteration])
 
-  const currentStageIdx = run ? STAGES.indexOf(run.current_phase) : -1
+  const currentStageIdx = run ? STAGES.indexOf(run.current_phase === 'verified' ? 'completed' : run.current_phase) : -1
   const isGathering = run?.status === 'running' && run?.current_phase === 'gather'
 
   // Column visibility — persisted per run in localStorage
@@ -335,7 +342,6 @@ export default function PipelinePage() {
     { key: 'domain', label: 'Domain', filterType: 'text' as const, essential: true },
     { key: 'name', label: 'Name', filterType: 'text' as const, essential: true },
     { key: 'status', label: 'Status', filterType: 'dropdown' as const, essential: true },
-    { key: 'is_target', label: 'Target', filterType: 'dropdown' as const, essential: true },
     { key: 'analysis_segment', label: 'Segment', filterType: 'dropdown' as const, essential: true },
   ]
 
