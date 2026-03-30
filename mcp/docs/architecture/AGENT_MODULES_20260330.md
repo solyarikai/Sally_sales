@@ -301,33 +301,47 @@ Enrich examples (tam_enrich_from_examples) → discover real Apollo keywords
 | `auth` | None (direct tool) | login → returns session |
 | `setup_keys` | None (UI redirect) | "Go to Setup page [link]" |
 | `create_project` | None (direct tool) | create_project → scrapes website for offer |
-| `gather` | **A1 → A2 → A3 → A4** | Full chain: parse → map filters → craft rules → classify |
+| `gather` | **A7 → A1 → A2 → A3 → A4** | Size infer → parse → map filters → craft rules → classify |
 | `gather_from_file` | **U1** → tam_enrich_from_examples | Opus extracts examples → Apollo enrichment → filters |
 | `edit_sequence` | None (direct tool) | edit_sequence_step |
 | `edit_targets` | None (direct tool) | override_company_target |
 | `provide_feedback` | None (direct tool) | provide_feedback → stored for re-analyze |
 | `activate_campaign` | None (direct tool) | activate_campaign + auto monitoring |
-| `check_status` | None (direct tool) | get_context / pipeline_status / replies_summary |
-| `re_analyze` | **A3 → A4** | Re-craft rules from feedback → re-classify same companies |
+| `check_status` | None or **A9** | get_context / pipeline_status / replies_summary (A9 if reply classification needed) |
+| `re_analyze` | **A8 → A3 → A4** | Tune prompt from feedback → re-craft rules → re-classify |
 | `approve_checkpoint` | None (direct tool) | tam_approve_checkpoint |
 | `explore` | **A6** | After CP2: enrich top 5 → optimize filters |
 | `push_campaign` | **A5** | Generate sequence → push to SmartLead |
 
-**6 GPT agents** (A1-A6) — only used in gathering + exploration + campaign chains.
+**9 GPT agents** (A1-A9) — every OpenAI call = an agent.
 **2 user-side agents** (U1, U2) — run by Opus, not MCP.
-**8 direct tools** — no GPT agent needed, just execute.
+**5 direct tools** — no GPT, just DB/API operations.
 
 ---
 
 ## Agent Registry
 
-| ID | Agent | Model | Task |
-|----|-------|-------|------|
-| A1 | Intent Parser | gpt-4o-mini | Split query → segments with geo |
-| A2 | Filter Mapper | gpt-4.1-mini | Segment → Apollo filter set from taxonomy |
-| A3 | Prompt Creator | gpt-4.1-mini | Craft domain-specific via negativa rules |
-| A4 | Company Classifier | gpt-4o-mini | Apply rules to N companies → target/not-target |
-| A5 | Sequence Generator | gpt-4o-mini | Create email sequence from offer + patterns |
-| A6 | Filter Optimizer | gpt-4.1-mini | Select relevant keywords from enrichment, reject noise |
-| U1 | File Processor | Opus (user) | Read large docs → structured JSON |
-| U2 | Quality Reviewer | Opus (user) | Review targets → corrections |
+**Rule**: If it calls OpenAI, it's an agent. No exceptions.
+
+| ID | Agent | Model | Task | Called by |
+|----|-------|-------|------|----------|
+| A1 | Intent Parser | gpt-4o-mini | Split query → segments with geo | `parse_gathering_intent` |
+| A2 | Filter Mapper | gpt-4.1-mini | Segment → Apollo filter set from taxonomy | `filter_mapper.map_query_to_filters` |
+| A3 | Prompt Creator | gpt-4.1-mini | Craft domain-specific via negativa rules | `gathering_service.analyze` (first call) |
+| A4 | Company Classifier | gpt-4o-mini | Apply rules to N companies → target/not-target | `gathering_service.analyze` (batch call × N) |
+| A5 | Sequence Generator | gpt-4o-mini | Create email sequence from offer + patterns | `campaign_intelligence.generate_sequence` |
+| A6 | Filter Optimizer | gpt-4.1-mini | Select relevant keywords from enrichment | `exploration_service._build_optimized_filters` |
+| A7 | Size Inferrer | gpt-4o-mini | Infer target company size from offer text | `offer_analyzer.infer_target_size` |
+| A8 | Prompt Tuner | gpt-4o-mini | Improve classification prompt from feedback mismatches | `prompt_tuner.tune_classification_prompt` |
+| A9 | Reply Classifier | gpt-4o-mini | Classify campaign replies (warm/cold/OOO/etc.) | `reply_analysis_service.analyze_campaign_replies` |
+| U1 | File Processor | Opus (user) | Read large docs → structured JSON | User's agent |
+| U2 | Quality Reviewer | Opus (user) | Review targets → corrections | User's agent |
+
+### Direct tools (no GPT):
+| Tool | What it does |
+|------|-------------|
+| `login` | Verify MCP token → return session |
+| `get_context` | Query DB → return user state |
+| `activate_campaign` | SmartLead API call → set ACTIVE |
+| `provide_feedback` | Store text in DB |
+| `override_company_target` | Update is_target flag in DB |
