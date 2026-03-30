@@ -234,4 +234,8 @@ campaigns, accounts, companies, and yeah, actually, if user tells to, like, find
 more in Apollo, then this Apollo filter change, so it's another iteration. I mean,   
 max page filter change, so also shows this filter and ensure this flow works well,   
 and, like, analyze this flow carefully, as this is also part of requirements default 
- that you must follow. That's essential. Ask me any questions if you have concerns.  
+ that you must follow. That's essential. Ask me any questions if you have concerns. 
+
+  also make this 1       
+adjustment iteration max as rule in code , so that for speed (and since 1 iteration is enough for        
+adjsutemntns from your tests right?) not to waste more time  

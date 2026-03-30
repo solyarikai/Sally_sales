@@ -78,8 +78,14 @@ class SmartLeadService:
     # ── Campaign Creation ──
 
     async def create_campaign(self, name: str) -> Optional[Dict[str, Any]]:
-        """Create a DRAFT campaign."""
-        return await self._api_call("POST", "/campaigns/create", {"name": name})
+        """Create a DRAFT campaign. Retries once on 'Plan expired' intermittent error."""
+        import asyncio
+        result = await self._api_call("POST", "/campaigns/create", {"name": name})
+        if result is None:
+            # Retry once — SmartLead sometimes returns "Plan expired!" intermittently
+            await asyncio.sleep(2)
+            result = await self._api_call("POST", "/campaigns/create", {"name": name})
+        return result
 
     async def set_campaign_sequences(self, campaign_id: int, sequences: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Set email sequence steps with A/B variant support.
