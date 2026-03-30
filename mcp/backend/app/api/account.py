@@ -187,12 +187,24 @@ async def get_account(
     apify_bytes = 0
     apify_cost = 0.0
 
+    # ── MCP protocol tokens ──
+    mcp_input_tokens = 0
+    mcp_output_tokens = 0
+    mcp_calls = 0
+
+    # Re-query for apify + mcp (can't reuse exhausted iterator)
     for (extra,) in (await session.execute(usage_logs_q)).all():
-        if not isinstance(extra, dict) or extra.get("service") != "apify":
+        if not isinstance(extra, dict):
             continue
-        apify_domains += extra.get("domains_scraped", 0)
-        apify_bytes += extra.get("bytes_used", 0)
-        apify_cost += extra.get("cost_usd", 0)
+        svc = extra.get("service")
+        if svc == "apify":
+            apify_domains += extra.get("domains_scraped", 0)
+            apify_bytes += extra.get("bytes_used", 0)
+            apify_cost += extra.get("cost_usd", 0)
+        elif svc == "mcp":
+            mcp_input_tokens += extra.get("input_tokens", 0)
+            mcp_output_tokens += extra.get("output_tokens", 0)
+            mcp_calls += 1
 
     apollo_cost_usd = total_apollo * 0.01  # $0.01 per credit estimate
 
@@ -230,6 +242,13 @@ async def get_account(
                 "bytes_used": apify_bytes,
                 "gb_used": round(apify_bytes / (1024**3), 3) if apify_bytes else 0,
                 "cost_usd": round(apify_cost, 4),
+            },
+            "mcp": {
+                "tool_calls": mcp_calls,
+                "input_tokens": mcp_input_tokens,
+                "output_tokens": mcp_output_tokens,
+                "total_tokens": mcp_input_tokens + mcp_output_tokens,
+                "cost_usd": 0,  # free for now
             },
         },
         "stats": {

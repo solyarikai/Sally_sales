@@ -64,8 +64,27 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
         result = await dispatch_tool(name, arguments, token, None)
 
-        # Flush cost entries to DB
+        # Track MCP protocol tokens (input args + output result)
+        result_json = json.dumps(result, default=str)
+        args_json = json.dumps(arguments, default=str)
+        mcp_input_chars = len(args_json)
+        mcp_output_chars = len(result_json)
+        # ~4 chars per token estimate
+        mcp_input_tokens = mcp_input_chars // 4
+        mcp_output_tokens = mcp_output_chars // 4
         tracker = get_tracker()
+        tracker.entries.append({
+            "service": "mcp",
+            "tool": name,
+            "input_tokens": mcp_input_tokens,
+            "output_tokens": mcp_output_tokens,
+            "total_tokens": mcp_input_tokens + mcp_output_tokens,
+            "input_chars": mcp_input_chars,
+            "output_chars": mcp_output_chars,
+            "cost_usd": 0,  # free for now
+        })
+
+        # Flush cost entries to DB
         if tracker.entries:
             try:
                 from app.db.database import async_session_maker
