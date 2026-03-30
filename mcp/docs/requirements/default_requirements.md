@@ -211,4 +211,27 @@ use caes from default_reqeruiemtns.md files and exploration.md files
                                                                                      
   that's task reqruiing deep focus, act as focused god building best mcp             
   ever!!!!!!! do your best , don't stop until recheck everythinh 10 times , act as   
-  god, write full-covering plan files as result     
+  god, write full-covering plan files as result    
+
+
+  ❯ also add the testing ensurng itreations are seen in ui and can be clicked!!!!!     
+[Image #30]  that's essential . also that's the most recent iteration is selected by 
+ default, by also it's possible to slect all iterations (which mustn't need to show  
+duplicated companies and show thel atest iteration rsult on each company) so better  
+to show ALL itereations selected by default , but check that clicking to the first   
+oteration for historcal reasons is also possible,, aslo check that apollo fitlers    
+are changed across iterations and also viisable in ui                                
+                                                                                     
+So actually, the flow is as following. There are only two, another agent made the    
+approach for, and you should, like, make it run only for, like, two iterations for a 
+ start and then go on. I mean, the first one, initial, then after initial analysis   
+by users, agent, opus, then improved prompt, improved Apollo filters, and that's the 
+ second iteration, and then this prompt and these Apollo filters use first of scale  
+for next, just gathering more pages, more pages. Decide yourself. It is actually     
+also in Apollo filters. Max pages filter must be applied and some kind of page       
+number, limit offset, something like that. Don't spend credits for already gathered  
+campaigns, accounts, companies, and yeah, actually, if user tells to, like, find     
+more in Apollo, then this Apollo filter change, so it's another iteration. I mean,   
+max page filter change, so also shows this filter and ensure this flow works well,   
+and, like, analyze this flow carefully, as this is also part of requirements default 
+ that you must follow. That's essential. Ask me any questions if you have concerns.  
