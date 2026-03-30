@@ -586,12 +586,27 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             except Exception as e:
                 logger.warning(f"Apollo probe failed: {e}")
 
-            # Cost estimation with typical target rate (~30-50%)
-            TARGET_RATE = 0.35  # conservative estimate
-            pages_for_30_targets = max(1, int(30 / (per_page * TARGET_RATE)) + 1) if total_available > 0 else max_pages
-            pages_for_all = max(1, (total_available + per_page - 1) // per_page) if total_available > 0 else max_pages
-            cost_30_targets = min(pages_for_30_targets, pages_for_all)
-            cost_all = pages_for_all
+            # A8: Cost Estimator
+            from app.services.cost_estimator import estimate_cost
+            target_count = args.get("target_count", 100)
+            contacts_per_company = filters.get("contacts_per_company", 3)
+            cost_est = estimate_cost(
+                target_count=target_count,
+                contacts_per_company=contacts_per_company,
+                total_available=total_available,
+                per_page=per_page,
+            )
+
+            # A7: People filter defaults (if not set)
+            people_defaults = ""
+            try:
+                from app.services.people_mapper import infer_people_filters
+                openai_key_raw = await UserServiceContext(user.id, session).get_key("openai")
+                if openai_key_raw:
+                    pf = await infer_people_filters(project.target_segments or "", openai_key_raw)
+                    people_defaults = f"\n  Roles: {', '.join(pf.get('person_titles', []))}\n  Seniority: {', '.join(pf.get('person_seniorities', []))}"
+            except Exception:
+                pass
 
             keywords = filters.get("q_organization_keyword_tags", [])
             locations = filters.get("organization_locations", ["(any)"])
@@ -605,10 +620,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     "organization_locations": locations,
                     "organization_num_employees_ranges": sizes,
                 },
-                "cost_breakdown": {
-                    "default_30_targets": {"pages": cost_30_targets, "credits": cost_30_targets, "estimated_targets": int(cost_30_targets * per_page * TARGET_RATE)},
-                    "full_run_all": {"pages": cost_all, "credits": cost_all, "companies": total_available},
-                },
+                "cost_estimate": cost_est,
                 "next_action": {
                     "tool": "tam_gather",
                     "args": {"project_id": project.id, "source_type": source_type, "filters": filters, "confirm_filters": True},
@@ -620,12 +632,14 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     f"  Location: {', '.join(locations)}\n"
                     f"  Size: {', '.join(sizes)}\n"
                     f"  Total available: {total_available:,} companies\n\n"
-                    f"Cost options:\n"
-                    f"  Default (≈30 targets): {cost_30_targets} credit{'s' if cost_30_targets != 1 else ''} → ≈{int(cost_30_targets * per_page * TARGET_RATE)} targets from {cost_30_targets * per_page} companies\n"
-                    f"  Full run (all {total_available:,}): {cost_all} credits → ≈{int(total_available * TARGET_RATE):,} estimated targets\n"
-                    f"  (estimated target conversion: {int(TARGET_RATE * 100)}%)\n\n"
-                    f"Show this preview to user and ask: 'Proceed with gathering?'\n"
-                    f"When user confirms, call tam_gather with confirm_filters=true using the same project_id, source_type, and filters."
+                    f"For {target_count} contacts ({contacts_per_company} per company):\n"
+                    f"  Search: {cost_est['pages_needed']} pages = {cost_est['search_credits']} credits (${cost_est['search_credits'] * 0.01:.2f})\n"
+                    f"  Exploration: {cost_est['enrichment_credits']} credits (${cost_est['enrichment_credits'] * 0.01:.2f})\n"
+                    f"  People search: FREE\n"
+                    f"  Total: {cost_est['total_credits']} credits (${cost_est['total_cost_usd']:.2f})\n"
+                    f"  Estimated target rate: {int(cost_est['target_rate_used']*100)}%"
+                    f"{people_defaults}\n\n"
+                    f"Proceed? You can also change target count, roles, or filters."
                 ),
                 "project_id": project.id,
                 "project_name": project.name,
