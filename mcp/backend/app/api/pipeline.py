@@ -594,9 +594,15 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False, contacts_count=0)
     if not keywords:
         parts = []
         for code in (sd.get("sic_codes") or []):
-            parts.append(_SIC.get(str(code)[:2], str(code)))
+            sc = str(code)
+            label = _SIC.get(sc) or _SIC.get(sc[:4]) or _SIC.get(sc[:2])
+            if label:
+                parts.append(label)
         for code in (sd.get("naics_codes") or []):
-            parts.append(_NAICS.get(str(code)[:3], str(code)))
+            nc = str(code)
+            label = _NAICS.get(nc) or _NAICS.get(nc[:5]) or _NAICS.get(nc[:3])
+            if label:
+                parts.append(label)
         # Deduplicate and remove empties
         seen = set()
         keywords = []
