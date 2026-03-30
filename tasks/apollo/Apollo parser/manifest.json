@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Contacts Table Scraper",
+  "version": "1.0.0",
+  "description": "Scrape contacts table and export to CSV",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.apollo.io/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
+

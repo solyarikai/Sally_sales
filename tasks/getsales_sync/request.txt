@@ -1,0 +1,76 @@
+Request URL
+https://amazing.getsales.io/leads/c3/api/mass-actions?limit=20&offset=0&order_field=created_at&order_type=desc&filter=%7B%7D
+Request Method
+GET
+Status Code
+200 OK
+Remote Address
+104.21.4.228:443
+Referrer Policy
+strict-origin-when-cross-origin
+alt-svc
+h3=":443"; ma=86400
+cache-control
+private, must-revalidate
+cf-cache-status
+DYNAMIC
+cf-ray
+9d8b5c102bf0d625-LCA
+content-encoding
+zstd
+content-type
+application/json
+date
+Sat, 07 Mar 2026 17:35:57 GMT
+expires
+-1
+nel
+{"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+pragma
+no-cache
+priority
+u=1,i
+report-to
+{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=sAUpZ%2BnV%2FV0h5%2FYQ213WqAvoZoLa0oVoBLPuBUMjS8DMvVOBFzH5LXZYloOzLUMsSWCIHTPH04AzKCn%2FjYj%2BBJfocKcPIn83AEEBAw2EoczP"}]}
+server
+cloudflare
+server-timing
+cfExtPri
+x-request-id
+c6463625-80b0-44b2-8cff-a585aad2f54b
+:authority
+amazing.getsales.io
+:method
+GET
+:path
+/leads/c3/api/mass-actions?limit=20&offset=0&order_field=created_at&order_type=desc&filter=%7B%7D
+:scheme
+https
+accept
+application/json
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7
+cookie
+gs_attr=eyJ0c19maXJzdCI6MTc3MDA3MDA2MTM5MH0=; _ga=GA1.1.1302164194.1770070062; _fbp=fb.1.1770070068081.858740716359298636; intercom-device-id-w53hsque=b3c4fb0b-c2b7-4b42-9a15-26987e6ab4ed; rewardful.referral={%22id%22:%22bc2a49f1-49cc-4f7a-b264-779479a532b6%22%2C%22created_at%22:%222026-02-03T17:46:18.910Z%22%2C%22affiliate%22:{%22id%22:%22e478bae0-cc41-4582-aca4-7ebc0b32cea8%22%2C%22name%22:%22Matthew%20Barton%22%2C%22first_name%22:%22Matthew%22%2C%22last_name%22:%22Barton%22%2C%22token%22:%22matthew%22}%2C%22campaign%22:{%22id%22:%22f5f21d11-cbb7-4a13-a3dd-2d995828f1df%22%2C%22name%22:%22GetSales.io%20Affiliate%20Program%22}%2C%22coupon%22:null%2C%22cookie%22:{%22domain%22:%22getsales.io%22}}; _gcl_gs=2.1.k1$i1772017115$u181096625; token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vYW1hemluZy5nZXRzYWxlcy5pby9hcGkvdXNlcnMvcmVmcmVzaC1qd3QtdG9rZW4iLCJpYXQiOjE3NzAwNzAwOTUsImV4cCI6MTc3MjkwNTI5MiwibmJmIjoxNzcyOTAxNjkyLCJqdGkiOiJHZGo2THFYY1dpWWptTjk4Iiwic3ViIjoiNzk4OCIsInVzciI6eyJpZCI6Nzk4OCwidXVpZCI6ImUwYmQ4MzE4LTRhMGQtMTFmMC04YmFiLWE4YTE1OWMwYmZiYyIsImZpcnN0X25hbWUiOiJTZXJnZSIsImxhc3RfbmFtZSI6Ikt1em5ldHNvdiIsImVtYWlsIjoic2VyZ2VAaW54eWRpZ2l0YWwuY29tIiwiZ2FfdHJhY2tpbmdfaWQiOiI0NTk2NDk3MjEuMTc0MjU2NTM3OC4iLCJmYl9jbGlja19pZCI6bnVsbCwiZmJfYnJvd3Nlcl9pZCI6ImZiLjEuMTc0MjU2NTM3ODYyMS4yODgyNDQ0OTI1MzM0NjU4MDUiLCJ3aGl0ZWxhYmVsX3V1aWQiOm51bGwsImNyZWF0ZWRfYXQiOiIyMDI1LTAzLTIxVDEzOjU2OjU5LjAwMDAwMFoifSwic3BlY2lmaWNfdGVhbV9pZCI6bnVsbCwidXNlcl90ZWFtcyI6eyI3NDMwIjozfSwidG9rZW5fdHlwZSI6ImxvZ2luIn0.z0sMpo6M1cy0AO6HVXNVqmGOpnbdv7gC74iWIy2K-IY; _gcl_au=1.1.958810904.1770070062.423617244.1772903294.1772904496; _ga_YPT38Q920D=GS2.1.s1772901691$o47$g1$t1772904941$j59$l0$h517678251; amp_503f86=IZFtaMlBKf4sF2p9-ccxG5.Nzk4OA==..1jj4ipsdj.1jj4lt2ip.0.27.27; intercom-session-w53hsque=SzZOb1BHK01ZVSttYVQyaDl5dG5jMTZWSzNRUjZIeFVydnJCb1RlNm9pNnNZRnZJbTgrSnRGUVEweEd4cmFmdlV3Z1RKS3ZNVUZ1NHVqZEdEVHdNZVFkcXBFUEVkRG5qQ2lTUlZ6a2d5SnBSNEVqTHg5U3BabndJblpZbXcybzliaGhKOExPQnlTRlVrSXJrUm1iOSt5U2ZFVlprekErRy8rc01oaktmRVRlSll4ai80MFBtZFJDOFRtNDZlRWd2Mi9MRTliMHA1Nm14eUwrTE95eUhSYXRReHVTMTFpQkNNWnJxK3JoNStGcz0tLVZHNGRUWjkzNlJrSWVQdko0aEtIc0E9PQ==--0557dc84b6747ac6bb8164b07f983d32a2979117
+priority
+u=1, i
+referer
+https://amazing.getsales.io/crm/contacts
+sec-ch-ua
+"Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"
+sec-ch-ua-mobile
+?0
+sec-ch-ua-platform
+"macOS"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-origin
+team-id
+7430
+user-agent
+Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36
