@@ -25,8 +25,9 @@ USER_AGENTS = [
 
 
 class ScraperService:
-    def __init__(self):
+    def __init__(self, apify_proxy_password: Optional[str] = None):
         self._request_count = 0
+        self._apify_proxy_password = apify_proxy_password
 
     def _validate_url(self, url: str) -> tuple[bool, str, str]:
         if not url:
@@ -125,10 +126,10 @@ class ScraperService:
         }
 
     def _get_proxy_url(self) -> Optional[str]:
-        """Build Apify residential proxy URL if configured (env var or Setup page)."""
+        """Build Apify residential proxy URL. Checks: user key → env var → settings."""
         import os
         from app.config import settings
-        password = os.environ.get('APIFY_PROXY_PASSWORD') or getattr(settings, 'APIFY_PROXY_PASSWORD', None)
+        password = self._apify_proxy_password or os.environ.get('APIFY_PROXY_PASSWORD') or getattr(settings, 'APIFY_PROXY_PASSWORD', None)
         if not password:
             return None
         session_id = f"scrape_{random.randint(10000, 99999)}"

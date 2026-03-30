@@ -56,4 +56,5 @@ class UserServiceContext:
 
     async def get_scraper_service(self):
         from app.services.scraper_service import ScraperService
-        return ScraperService()
+        apify_key = await self.get_key("apify")
+        return ScraperService(apify_proxy_password=apify_key)
