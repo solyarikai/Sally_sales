@@ -47,15 +47,9 @@
 3. Show user: "Your initial filters got 55% targets. I found better filters that should get ~70%. Re-search?"
 4. This is the CORE differentiator — without it, MCP is just a fancy Apollo wrapper
 
-### GAP 2: People Enrichment Not Implemented in MCP
-**Status**: Apollo people search endpoint exists in apollo_service.py but NOT called in pipeline
-**Impact**: Pipeline stops at target companies. No contacts gathered. User has to do it manually.
-**What's needed**:
-1. After targets confirmed at Checkpoint 2 → auto-search people (C-level by default)
-2. Offer-adjusted roles: payroll → HR directors; fashion → brand managers
-3. 3 contacts per company minimum
-4. Store as ExtractedContact records in DB
-**This blocks the entire campaign creation flow** — can't push to SmartLead without contacts
+### ~~GAP 2: People Enrichment~~ — ACTUALLY DONE
+**Correction**: `god_push_to_smartlead` already queries `ExtractedContact` records with emails and uploads them. Apollo gathering returns contacts alongside companies. Test campaigns got real leads uploaded. Test accounts also get hardcoded test leads (pn@, services@).
+**What COULD be improved**: Explicit people search step for target companies that have 0 contacts (some Apollo company searches don't return people). But the basic flow works.
 
 ### GAP 3: Default Flow Not End-to-End
 **default_requirements.md describes**: user says segment → MCP does EVERYTHING → campaign with test email ready
@@ -94,19 +88,15 @@ From his actual usage (iGaming tech providers for Mifort):
 
 ## BOTTLENECKS (ordered by impact)
 
-### #1: People enrichment missing → campaigns can't be created from gathered companies
-Without contacts, the SmartLead push uploads 0 leads. The entire pipeline stops.
-**Fix**: Add people search step after Checkpoint 2 approval.
-
-### #2: Exploration not wired → suboptimal filters → low target rate
+### #1: Exploration not wired → suboptimal filters → low target rate
 Users like Pavel get 48% target rate. With exploration (enrich top 5 → discover real keywords → re-search), this should be 70%+.
 **Fix**: Wire exploration_service into dispatcher, run automatically after initial classify.
 
-### #3: No end-to-end orchestration → user must call 8+ tools manually
+### #2: No end-to-end orchestration → user must call 8+ tools manually
 The agent (Claude/Cursor) must know the exact tool sequence. This breaks when the agent makes wrong decisions (Bug 2 — auto-launching without confirmation).
 **Fix**: Create `run_full_pipeline` that orchestrates everything with checkpoints.
 
-### #4: Classification quality for niche B2B segments
+### #3: Classification quality for niche B2B segments
 GPT-4o-mini with generic via negativa gets 48% on iGaming (operators vs providers confusion).
 The gpt-4.1-mini domain-specific rule generation is deployed but untested on Pavel's case.
 **Fix**: Test on Pavel's exact segment. If still <90%, add more examples to the prompt.
