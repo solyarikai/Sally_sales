@@ -633,12 +633,13 @@ def create_batched_runs(config: ProjectConfig, domains: list[str],
     return run_ids
 
 
-def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
+def _approve_pending(config: ProjectConfig, run_id: int) -> bool:
     """Find and approve the latest pending gate for a run."""
-    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates", raise_on_error=False)
-    if isinstance(gates, dict) and gates.get("_error"):
-        return False
-    pending = [g for g in gates if g.get("status") == "pending"]
+    gates = api("get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}",
+                raise_on_error=False)
+    gates_list = gates if isinstance(gates, list) else gates.get("items", [])
+    pending = [g for g in gates_list
+               if g.get("gathering_run_id") == run_id and g.get("status") == "pending"]
     if pending:
         gate = pending[0]
         approve_gate(gate["id"], note=f"Auto-approve batch run #{run_id}")
@@ -648,29 +649,56 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 
 def process_run_pipeline(config: ProjectConfig, run_id: int,
                          prompt_text: str = None) -> dict:
-    """Process one run through full pipeline: blacklist → CP1 → pre-filter → scrape → analyze → CP2.
-    Used with create_batched_runs() — each batch of 500 companies runs through this.
-    Backend saves results incrementally, so partial progress survives crashes."""
+    """Process a single run through: gather wait → blacklist → prefilter → scrape → analyze.
+    Resilient to disconnects via api_long polling.
+    Used with create_batched_runs() — each batch of 500 companies runs through this."""
     print(f"\n{'─'*40}")
-    print(f"  Processing run #{run_id}")
+    print(f"  Processing Run #{run_id}")
     print(f"{'─'*40}")
 
-    # Blacklist check
-    step2_blacklist(config, run_id)
-    # Auto-approve CP1
-    approve_pending_gate(config, run_id)
+    # Wait for gather phase to complete
+    for i in range(60):
+        time.sleep(10)
+        try:
+            r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                          headers=BACKEND_HEADERS, timeout=30)
+            phase = r.json().get("current_phase", "")
+            if phase != "gather":
+                break
+        except Exception:
+            pass
+
+    # Blacklist + approve CP1
+    run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    phase = run_info.get("current_phase", "")
+    if phase == "gathered":
+        api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check", raise_on_error=False)
+    _approve_pending(config, run_id)
+
     # Pre-filter
-    step3_prefilter(run_id)
-    # Scrape (uses api_long with polling)
-    step4_scrape(run_id)
-    # Analyze (uses api_long with polling)
-    result = step5_analyze(config, run_id, prompt_text=prompt_text)
-    # Auto-approve CP2
-    approve_pending_gate(config, run_id)
+    run_info2 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    if run_info2.get("current_phase") == "scope_approved":
+        r = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter", raise_on_error=False)
+        print(f"  Pre-filter: passed={r.get('passed', '?')}")
+
+    # Scrape (resilient)
+    run_info3 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    if run_info3.get("current_phase") == "filtered":
+        step4_scrape(run_id)
+
+    # Analyze (resilient)
+    run_info4 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+    if run_info4.get("current_phase") == "scraped":
+        text = prompt_text or config.prompt_text
+        result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
+                          expected_phase="analyzed", run_id=run_id, timeout=3600,
+                          params={"prompt_text": text, "model": "gpt-4o-mini"})
+        print(f"  Analyze: {result.get('targets_found', '?')}/{result.get('total_analyzed', '?')} targets")
+
+    # Approve CP2
+    _approve_pending(config, run_id)
     # Add targets to blacklist
     blacklist_approved_targets(config, run_id)
-
-    return result
 
 
 def step6_prepare_verify(run_id: int) -> dict:
