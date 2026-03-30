@@ -236,6 +236,20 @@ max page filter change, so also shows this filter and ensure this flow works wel
 and, like, analyze this flow carefully, as this is also part of requirements default 
  that you must follow. That's essential. Ask me any questions if you have concerns. 
 
-  also make this 1       
-adjustment iteration max as rule in code , so that for speed (and since 1 iteration is enough for        
+  also make that 1 adjustment iteration max as rule in code , so that for speed (and since 1 iteration is enough for        
 adjsutemntns from your tests right?) not to waste more time  
+
+ Also, ensure that the pipeline is smart enough not to stop gathering until these   
+   100 people are gathered. I mean, ensure also while testing that in UI, filters    
+  applied, also people filters are applied, right? So once, once all the, like,    
+  the flow is, what is the flow? Apollo provides, describe to yourself the flow.   
+  Find architectural leaks here for optimization and not stop gathering until      
+  targets is achieved. Targets is 100 target people, up to 3 per company, so about 
+   30 target companies, right, or 40. So make it the flow, the pipeline flow,      
+  optimize it. I mean, once target campaign is found, the campaign is labeled as   
+  target, peoples there must be found, right? And like new pages from Apollo must  
+  be obtained. This, like, page number also filter must be shown, filter is        
+  applied for each iteration, new page, that means new iteration, you remember? So 
+   that the pipeline works always finding new companies from Apollo, scraping      
+  websites, analyzing them by GPT, determining targets, extracting people until    
+  this KPI, 100 people, up to 3 per company is achieved.   
