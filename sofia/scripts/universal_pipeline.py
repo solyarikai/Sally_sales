@@ -808,15 +808,48 @@ def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 10: ИМПОРТ КОНТАКТОВ ИЗ APOLLO
-# Оператор вручную ищет людей (ЛПР) в Apollo People UI по списку компаний
-# из шага 9. Экспортирует результат как CSV. Этот шаг импортирует CSV:
-# - Маппит колонки Apollo → наш формат (имя, должность, LinkedIn, компания)
-# - Подтягивает domain из базы таргетов (чтобы связать человека с компанией)
-# - Назначает social_proof по стране человека (для персонализации писем)
-# - Убирает дубли по LinkedIn URL
-# Результат: список людей с LinkedIn, готовых к поиску email.
+# ШАГ 10: ПОИСК ЛЮДЕЙ (ЛПР) В APOLLO PEOPLE UI
+# Автоматический поиск через Puppeteer (apollo_scraper.js):
+# - Берёт домены таргет-компаний, группирует по сегменту
+# - Подбирает titles/seniorities из apollo-filters-v3
+# - Батчит по 30 доменов, запускает apollo_scraper.js
+# - Парсит JSON → маппит в формат контактов
+# Fallback: --apollo-csv для ручного CSV импорта.
 # ══════════════════════════════════════════════════════════════════════════════
+
+APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
+APOLLO_PEOPLE_BATCH_SIZE = 30
+APOLLO_PEOPLE_MAX_PAGES = 5
+
+SEGMENT_PEOPLE_FILTERS = {
+    "INFLUENCER_PLATFORMS": {
+        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
+        "titles": [
+            "CTO", "VP Engineering", "VP of Engineering", "Head of Engineering",
+            "Head of Product", "Chief Product Officer", "VP Product",
+            "Director of Engineering", "Director of Product",
+            "Co-Founder", "Founder", "CEO", "COO",
+        ],
+    },
+    "IM_FIRST_AGENCIES": {
+        "seniorities": ["founder", "c_suite", "director", "owner"],
+        "titles": [
+            "CEO", "Founder", "Co-Founder", "Managing Director", "Managing Partner",
+            "Head of Influencer Marketing", "Director of Influencer",
+            "Head of Partnerships", "VP Strategy", "Head of Strategy",
+            "General Manager", "Partner", "Owner",
+        ],
+    },
+    "AFFILIATE_PERFORMANCE": {
+        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
+        "titles": [
+            "CTO", "VP Engineering", "VP of Engineering", "VP Product",
+            "Head of Product", "Head of Partnerships", "VP Partnerships",
+            "Director of Partnerships", "Co-Founder", "Founder", "CEO", "COO",
+        ],
+    },
+}
+SEGMENT_PEOPLE_FILTERS["OTHER"] = SEGMENT_PEOPLE_FILTERS["INFLUENCER_PLATFORMS"]
 
 APOLLO_CSV_COLUMNS = {
     "first_name": ["First Name", "first_name"],
