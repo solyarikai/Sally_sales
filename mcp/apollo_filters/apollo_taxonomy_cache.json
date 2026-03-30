@@ -246,7 +246,7 @@
     },
     "information technology & services": {
       "embedding": null,
-      "seen_count": 22,
+      "seen_count": 26,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -322,11 +322,12 @@
     },
     "marketing & advertising": {
       "embedding": null,
-      "seen_count": 17,
+      "seen_count": 18,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "mechanical or industrial engineering": {
@@ -693,21 +694,21 @@
       ]
     },
     "enterprise solutions": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "it services & it consulting": {
-      "seen_count": 14,
+      "seen_count": 17,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "agile development": {
-      "seen_count": 9,
+      "seen_count": 10,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -735,7 +736,7 @@
       ]
     },
     "technology consulting": {
-      "seen_count": 15,
+      "seen_count": 17,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -743,7 +744,7 @@
       ]
     },
     "b2b": {
-      "seen_count": 32,
+      "seen_count": 36,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -754,14 +755,14 @@
       ]
     },
     "cloud infrastructure": {
-      "seen_count": 9,
+      "seen_count": 10,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "consulting": {
-      "seen_count": 19,
+      "seen_count": 22,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -777,14 +778,14 @@
       ]
     },
     "big data analytics": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "services": {
-      "seen_count": 38,
+      "seen_count": 42,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -808,7 +809,7 @@
       ]
     },
     "automated testing": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -844,7 +845,7 @@
       ]
     },
     "retail": {
-      "seen_count": 32,
+      "seen_count": 34,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -905,7 +906,7 @@
       ]
     },
     "e-commerce": {
-      "seen_count": 36,
+      "seen_count": 37,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -925,14 +926,14 @@
       ]
     },
     "continuous integration": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "scalable solutions": {
-      "seen_count": 10,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -946,14 +947,14 @@
       ]
     },
     "custom software development": {
-      "seen_count": 16,
+      "seen_count": 17,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "software modernization": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -988,7 +989,7 @@
       ]
     },
     "software development": {
-      "seen_count": 22,
+      "seen_count": 24,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1025,7 +1026,7 @@
       ]
     },
     "information technology and services": {
-      "seen_count": 18,
+      "seen_count": 21,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1047,7 +1048,7 @@
       ]
     },
     "enterprise software": {
-      "seen_count": 25,
+      "seen_count": 27,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1099,7 +1100,7 @@
       ]
     },
     "cybersecurity services": {
-      "seen_count": 6,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1155,14 +1156,14 @@
       ]
     },
     "technology partner": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "digital transformation": {
-      "seen_count": 22,
+      "seen_count": 25,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1179,7 +1180,7 @@
       ]
     },
     "cloud computing": {
-      "seen_count": 17,
+      "seen_count": 19,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1193,7 +1194,7 @@
       ]
     },
     "ai integration": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1207,7 +1208,7 @@
       ]
     },
     "mobile app development": {
-      "seen_count": 14,
+      "seen_count": 15,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1223,7 +1224,7 @@
       ]
     },
     "staff augmentation": {
-      "seen_count": 14,
+      "seen_count": 16,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1250,7 +1251,7 @@
       ]
     },
     "quality assurance": {
-      "seen_count": 17,
+      "seen_count": 18,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1260,7 +1261,7 @@
       ]
     },
     "microservices architecture": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1274,7 +1275,7 @@
       ]
     },
     "it consulting": {
-      "seen_count": 13,
+      "seen_count": 14,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1295,7 +1296,7 @@
       ]
     },
     "computer systems design and related services": {
-      "seen_count": 17,
+      "seen_count": 20,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1316,7 +1317,7 @@
       ]
     },
     "machine learning": {
-      "seen_count": 10,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1337,7 +1338,7 @@
       ]
     },
     "data security": {
-      "seen_count": 6,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1372,7 +1373,7 @@
       ]
     },
     "e-commerce solutions": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1386,7 +1387,7 @@
       ]
     },
     "managed services": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1414,7 +1415,7 @@
       ]
     },
     "custom software solutions": {
-      "seen_count": 9,
+      "seen_count": 10,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1428,7 +1429,7 @@
       ]
     },
     "project management": {
-      "seen_count": 18,
+      "seen_count": 21,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1500,7 +1501,7 @@
       ]
     },
     "blockchain solutions": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1542,7 +1543,7 @@
       ]
     },
     "consulting services": {
-      "seen_count": 10,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1556,7 +1557,7 @@
       ]
     },
     "data analytics": {
-      "seen_count": 12,
+      "seen_count": 14,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1565,14 +1566,14 @@
       ]
     },
     "healthcare": {
-      "seen_count": 7,
+      "seen_count": 9,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "finance": {
-      "seen_count": 14,
+      "seen_count": 17,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1602,7 +1603,7 @@
       ]
     },
     "information technology & services": {
-      "seen_count": 53,
+      "seen_count": 58,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1615,14 +1616,14 @@
       ]
     },
     "mobile": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "internet": {
-      "seen_count": 44,
+      "seen_count": 46,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1635,7 +1636,7 @@
       ]
     },
     "computer software": {
-      "seen_count": 25,
+      "seen_count": 27,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1652,7 +1653,7 @@
       ]
     },
     "management consulting": {
-      "seen_count": 18,
+      "seen_count": 20,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1660,7 +1661,7 @@
       ]
     },
     "enterprises": {
-      "seen_count": 25,
+      "seen_count": 27,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1670,14 +1671,14 @@
       ]
     },
     "internet infrastructure": {
-      "seen_count": 9,
+      "seen_count": 10,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "consumer internet": {
-      "seen_count": 44,
+      "seen_count": 46,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1690,7 +1691,7 @@
       ]
     },
     "consumers": {
-      "seen_count": 44,
+      "seen_count": 46,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1710,7 +1711,7 @@
       ]
     },
     "financial services": {
-      "seen_count": 15,
+      "seen_count": 18,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1731,21 +1732,21 @@
       ]
     },
     "artificial intelligence": {
-      "seen_count": 10,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "computer & network security": {
-      "seen_count": 7,
+      "seen_count": 10,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "design": {
-      "seen_count": 12,
+      "seen_count": 14,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1755,7 +1756,7 @@
       ]
     },
     "productivity": {
-      "seen_count": 18,
+      "seen_count": 21,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -1769,7 +1770,7 @@
       ]
     },
     "health care": {
-      "seen_count": 9,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1778,14 +1779,14 @@
       ]
     },
     "health, wellness & fitness": {
-      "seen_count": 7,
+      "seen_count": 9,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
       ]
     },
     "hospital & health care": {
-      "seen_count": 9,
+      "seen_count": 11,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1800,9 +1801,10 @@
       ]
     },
     "open banking": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "neo banks": {
@@ -2346,10 +2348,11 @@
       ]
     },
     "information technology": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "EasyStaff IT consulting Miami",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "financial inclusion tools": {
@@ -2377,9 +2380,10 @@
       ]
     },
     "banking": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "open banking apis": {
@@ -2437,7 +2441,7 @@
       ]
     },
     "operational efficiency": {
-      "seen_count": 6,
+      "seen_count": 8,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting"
@@ -2509,9 +2513,10 @@
       ]
     },
     "risk management": {
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "api for digital wallets": {
@@ -2527,61 +2532,63 @@
       ]
     },
     "distribution": {
-      "seen_count": 14,
+      "seen_count": 15,
       "segments": [
         "EasyStaff IT consulting Miami",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
         "OnSocial Creator platforms UK",
-        "fashion"
+        "fashion",
+        "IT consulting"
       ]
     },
     "transportation & logistics": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it outsourcing": {
-      "seen_count": 7,
+      "seen_count": 9,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "project based solutions": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting"
       ]
     },
     "recruitment process outsourcing": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting"
       ]
     },
     "technology staff augmentation": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting"
       ]
     },
     "sow": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting"
       ]
     },
     "statement of work  project based solutions": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "IT consulting"
       ]
     },
     "outsourcing/offshoring": {
-      "seen_count": 7,
+      "seen_count": 9,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -2794,7 +2801,7 @@
       ]
     },
     "cloud solutions": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -2819,7 +2826,7 @@
       ]
     },
     "software development lifecycle": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -2832,7 +2839,7 @@
       ]
     },
     "nearshore engineering": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -2845,7 +2852,7 @@
       ]
     },
     "agile software development": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -2888,7 +2895,7 @@
       ]
     },
     "nearshore outsourcing": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -2907,7 +2914,7 @@
       ]
     },
     "software engineering": {
-      "seen_count": 12,
+      "seen_count": 13,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3004,7 +3011,7 @@
       ]
     },
     "software development support": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3215,7 +3222,7 @@
       ]
     },
     "it staff augmentation": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3396,7 +3403,7 @@
       ]
     },
     "software outsourcing": {
-      "seen_count": 12,
+      "seen_count": 13,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3536,7 +3543,7 @@
       ]
     },
     "remote team management": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3555,7 +3562,7 @@
       ]
     },
     "cost-effective development": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3568,14 +3575,14 @@
       ]
     },
     "full-cycle development": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "agile methodologies": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3606,14 +3613,14 @@
       ]
     },
     "devops integration": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "blockchain development": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3626,7 +3633,7 @@
       ]
     },
     "ai and machine learning": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3658,7 +3665,7 @@
       ]
     },
     "cross-functional teams": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3677,7 +3684,7 @@
       ]
     },
     "time zone alignment": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3737,14 +3744,14 @@
       ]
     },
     "python": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "java": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3758,7 +3765,7 @@
       ]
     },
     "outsourcing": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3793,14 +3800,14 @@
       ]
     },
     "talent acquisition": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
       ]
     },
     "software quality assurance": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -3940,7 +3947,7 @@
       ]
     },
     "remote team integration": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -4273,7 +4280,7 @@
       ]
     },
     "application development": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -4355,7 +4362,7 @@
       ]
     },
     "automation solutions": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -4398,7 +4405,7 @@
       ]
     },
     "digital marketing": {
-      "seen_count": 15,
+      "seen_count": 16,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4425,7 +4432,7 @@
       ]
     },
     "cloud services": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -4457,7 +4464,7 @@
       ]
     },
     "predictive analytics": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -4673,7 +4680,7 @@
       ]
     },
     "social media marketing": {
-      "seen_count": 17,
+      "seen_count": 18,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4682,7 +4689,7 @@
       ]
     },
     "full-stack development": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "IT consulting",
         "EasyStaff IT consulting Miami"
@@ -4711,7 +4718,7 @@
       ]
     },
     "app development": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4720,7 +4727,7 @@
       ]
     },
     "apps": {
-      "seen_count": 9,
+      "seen_count": 11,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4735,7 +4742,7 @@
       ]
     },
     "marketing & advertising": {
-      "seen_count": 23,
+      "seen_count": 24,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4893,11 +4900,12 @@
       ]
     },
     "brand innovation": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Fashion brands",
         "TFP Fashion brands Italy",
-        "fashion"
+        "fashion",
+        "IT consulting"
       ]
     },
     "luxury accessories": {
@@ -5053,11 +5061,12 @@
       ]
     },
     "data protection": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Fashion brands",
         "TFP Fashion brands Italy",
-        "fashion"
+        "fashion",
+        "IT consulting"
       ]
     },
     "fashion": {
@@ -5359,11 +5368,12 @@
       ]
     },
     "consumer engagement": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Fashion brands",
         "TFP Fashion brands Italy",
-        "fashion"
+        "fashion",
+        "IT consulting"
       ]
     },
     "newsletter subscription": {
@@ -6906,11 +6916,12 @@
       ]
     },
     "ecommerce": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Fashion brands",
         "EasyStaff IT consulting Miami",
-        "TFP Fashion brands Italy"
+        "TFP Fashion brands Italy",
+        "IT consulting"
       ]
     },
     "contemporary": {
@@ -7959,11 +7970,12 @@
       ]
     },
     "influencer marketing": {
-      "seen_count": 20,
+      "seen_count": 21,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "paid social": {
@@ -8031,11 +8043,12 @@
       ]
     },
     "market research": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "influencer marketing campaigns": {
@@ -8047,11 +8060,12 @@
       ]
     },
     "event marketing": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "influencer roi": {
@@ -8119,19 +8133,21 @@
       ]
     },
     "advertising and marketing": {
-      "seen_count": 10,
+      "seen_count": 11,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "social media strategy": {
-      "seen_count": 14,
+      "seen_count": 15,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "influencer marketing roi": {
@@ -8175,11 +8191,12 @@
       ]
     },
     "brand awareness": {
-      "seen_count": 11,
+      "seen_count": 12,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "social media content creation": {
@@ -8199,11 +8216,12 @@
       ]
     },
     "campaign strategy": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "social media engagement tactics": {
@@ -8239,11 +8257,12 @@
       ]
     },
     "creative campaigns": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "marketing automation": {
@@ -8295,11 +8314,12 @@
       ]
     },
     "advertising services": {
-      "seen_count": 17,
+      "seen_count": 18,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "social media influencer outreach": {
@@ -8343,11 +8363,12 @@
       ]
     },
     "brand activation": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "brand awareness campaigns": {
@@ -8383,11 +8404,12 @@
       ]
     },
     "content creation": {
-      "seen_count": 19,
+      "seen_count": 20,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "social media influencer campaigns": {
@@ -8543,11 +8565,12 @@
       ]
     },
     "advertising agencies": {
-      "seen_count": 12,
+      "seen_count": 13,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "content creation tools": {
@@ -8591,11 +8614,12 @@
       ]
     },
     "brand engagement": {
-      "seen_count": 14,
+      "seen_count": 15,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "social media influencer collaborations": {
@@ -8655,11 +8679,12 @@
       ]
     },
     "brand storytelling": {
-      "seen_count": 10,
+      "seen_count": 11,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "social platform advertising": {
@@ -8735,19 +8760,21 @@
       ]
     },
     "strategic planning": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "campaign management": {
-      "seen_count": 15,
+      "seen_count": 16,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "audience engagement": {
@@ -8847,11 +8874,12 @@
       ]
     },
     "community building": {
-      "seen_count": 10,
+      "seen_count": 11,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "performance tracking": {
@@ -8871,19 +8899,21 @@
       ]
     },
     "consumer insights": {
-      "seen_count": 7,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand positioning": {
       "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
+      ]
+    },
+    "brand positioning": {
+      "seen_count": 9,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "culturally relevant content": {
@@ -8983,36 +9013,40 @@
       ]
     },
     "events": {
-      "seen_count": 7,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "events services": {
       "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
+      ]
+    },
+    "events services": {
+      "seen_count": 9,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "marketing": {
-      "seen_count": 18,
+      "seen_count": 20,
       "segments": [
         "Creator platforms",
         "EasyStaff IT consulting Miami",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "creative": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "creator marketing": {
@@ -9048,12 +9082,13 @@
       ]
     },
     "data": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
         "EasyStaff IT consulting Miami",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "esports": {
@@ -9257,11 +9292,12 @@
       ]
     },
     "cultural relevance": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "advertising & marketing": {
@@ -9273,11 +9309,12 @@
       ]
     },
     "digital strategy": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "creator-led campaigns": {
@@ -9289,11 +9326,12 @@
       ]
     },
     "creative agency": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "creator ecosystem": {
@@ -9409,11 +9447,12 @@
       ]
     },
     "cultural engagement": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "social media trends": {
@@ -9617,11 +9656,12 @@
       ]
     },
     "creative services": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "gamification": {
@@ -9916,11 +9956,12 @@
       ]
     },
     "campaign analytics": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "content quality assurance": {
@@ -10038,10 +10079,11 @@
       ]
     },
     "brand campaigns": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "content creation services": {
@@ -10143,10 +10185,11 @@
       ]
     },
     "talent development": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "international modeling": {
@@ -10353,10 +10396,11 @@
       ]
     },
     "agency history": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "influencer marketing"
+        "influencer marketing",
+        "IT consulting"
       ]
     },
     "entertainment providers": {
@@ -10522,11 +10566,12 @@
       ]
     },
     "technology": {
-      "seen_count": 4,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
         "EasyStaff IT consulting Miami",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "creator product launches": {
@@ -10565,10 +10610,11 @@
       ]
     },
     "brand building": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "audience building": {
@@ -11107,1803 +11153,2060 @@
     },
     "web based applications": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "sap": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "migration": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "business": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "international": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "project": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "staffing": {
       "embedding": null,
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "insurance": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "program": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "real estate": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "job opportunities": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "modernization": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "network support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it compliance frameworks": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it service desk": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it security assessment": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "sap services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "telecom network support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it compliance management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cybersecurity vulnerability assessment": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it infrastructure services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "telecom staffing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it deployment services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it talent acquisition": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "remote engineering staffing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it service management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it infrastructure management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it service automation": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it support desk": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "enterprise application support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "government": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "crm support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it modernization": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it security": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 3,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it talent pool": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "salesforce": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it staffing solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it support outsourcing services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it compliance consulting": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it security services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it talent solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it process automation": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cybersecurity threat mitigation": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "enterprise it solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "salesforce services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "professional services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it infrastructure support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cyber threat detection": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it project management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it support solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it staffing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it asset management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it talent": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "network security": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it workforce solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it project lifecycle management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it talent sourcing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it workforce": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it system upgrade services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it risk assessment": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it recruitment": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cybersecurity incident response": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it system integration": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "outsourced it services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "sap s/4hana": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it governance": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it consulting services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it consulting firm": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "compliance": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "digital transformation services": {
       "embedding": null,
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it consulting and staffing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it workforce management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "technology outsourcing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it support services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it help desk": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cybersecurity risk analysis": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "remote it support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it infrastructure": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cybersecurity assessment": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 3,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it staffing agency": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cloud security services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cloud migration services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it project consulting": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it infrastructure optimization": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it data protection": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it solutions": {
       "embedding": null,
-      "seen_count": 2,
+      "seen_count": 4,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "help desk services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cybersecurity": {
       "embedding": null,
-      "seen_count": 2,
+      "seen_count": 5,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "help desk support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "enterprise cybersecurity": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it support team": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it risk management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "digital health it solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it talent vetting": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "salesforce integration services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it deployment": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "sap cloud solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cloud infrastructure management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "enterprise resource planning": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cloud support services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "salesforce lightning": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "network support services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it disaster recovery": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it outsourcing services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it compliance": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it talent acquisition strategies": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "engineering staffing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it managed services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it project delivery": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "salesforce solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it support outsourcing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it compliance audits": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cybersecurity solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 3,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cloud support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "telecommunications": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 3,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "technology service desk": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "healthcare solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "staff onboarding": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "technical support services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "expert it consultants": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "remote support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "data recovery": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "technical support help desk": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "healthcare applications": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "custom hiring solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "contract-to-hire": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "virtual assistance": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "data security solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "incident resolution": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "user account management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "customer experience enhancement": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "supply chain optimization": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "it operational efficiency": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "talent acquisition strategies": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "employee retention solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "business process outsourcing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "talent access": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "onsite technical support": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "continuous monitoring": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "operational continuity": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "strategic it consulting": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "agile project management": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "crm optimization": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "custom integrations": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "system migrations": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "resource management services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "incident reporting": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "professional training & coaching": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "staffing & recruiting": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "remote developers": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "api": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "startups": {
       "embedding": null,
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "EasyStaff IT consulting Miami",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "android": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "web": {
       "embedding": null,
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "development": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "digital evolution": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "uxui": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "nearshore partner": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "html": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ios": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "backend": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "frontend": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "scrum": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "technical consulting": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "strategic partner": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "english-proficient engineers": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "rapid team assembly": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "high-performing teams": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "data governance solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "financial technology solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "fully vetted developers": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "data governance": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "customer retention": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "software testing and qa": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "microservices migration": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai comment analysis": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai in wellness": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai automation in development": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "open banking studio": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai churn prediction": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "iot solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "fortune 500 experience": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "scalable tech teams": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai-powered development": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai in automotive": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai in fintech": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "legacy application migration": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cloud-native applications": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai in retail": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "software project scaling": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "project management tools": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "innovative solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "specialized tech studios": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "client-focused solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "nearshore engineering teams": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "healthcare technology": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "machine learning studio": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai in entertainment": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "development squads": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "data security compliance": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cloud computing services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ui/ux design": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cloud app development": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "logistics and supply chain": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cross-industry experience": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "high-performance engineering": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai-driven development": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "software testing & qa": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai customer experience": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "full-cycle software development": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "tech talent sourcing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "timezone-aligned teams": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "port operations efficiency": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "open banking technology": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "enterprise software solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai-assisted software lifecycle": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "legacy system modernization": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai in logistics": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "software deployment": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "legacy system migration": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "software engineering best practices": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "data governance studio": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai in healthcare": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "client-centric approach": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai in e-commerce": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "software architecture": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "api development": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai content optimization": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "ai in finance": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "delivery squads": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "technical expertise": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "enterprise-level talent": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "vetted developers": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "coding bootcamps": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "meticulous talent selection": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "tech stack mastery": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "high-performance teams": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "dedicated development squads": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "innovation in technology": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "scalable teams": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "rapid deployment": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "continuous improvement": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "expert developers": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "software engineering services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "custom development services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "strong communication skills": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "deep industry knowledge": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "project delivery": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "problem-solving": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "cost-effective solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "retail tech services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "integration services": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "business intelligence solutions": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "talent pool access": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "collaboration tools": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "EasyStaff IT consulting Miami"
+        "EasyStaff IT consulting Miami",
+        "IT consulting"
       ]
     },
     "logistics & supply chain": {
       "embedding": null,
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "EasyStaff IT consulting Miami",
-        "TFP Fashion brands Italy"
+        "TFP Fashion brands Italy",
+        "IT consulting"
       ]
     },
     "scms": {
@@ -13356,9 +13659,10 @@
     },
     "global presence": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "TFP Fashion brands Italy"
+        "TFP Fashion brands Italy",
+        "IT consulting"
       ]
     },
     "premium outerwear": {
@@ -13881,9 +14185,10 @@
     },
     "advertising": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "media analytics": {
@@ -13937,9 +14242,10 @@
     },
     "cross-channel marketing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "marketing and advertising": {
@@ -13979,9 +14285,10 @@
     },
     "media planning": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "digital audio": {
@@ -14007,9 +14314,10 @@
     },
     "creative development": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "performance data": {
@@ -14112,9 +14420,10 @@
     },
     "market insights": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "digital media buying": {
@@ -14231,9 +14540,10 @@
     },
     "media buying": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "performance marketing best practices": {
@@ -14525,9 +14835,10 @@
     },
     "integrated marketing": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "user experience (ux)": {
@@ -14616,9 +14927,10 @@
     },
     "public relations": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "employee engagement": {
@@ -14728,9 +15040,10 @@
     },
     "brand strategy": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "long-term brand strategy": {
@@ -14742,9 +15055,10 @@
     },
     "cultural impact": {
       "embedding": null,
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "IT consulting"
       ]
     },
     "media partnerships": {
@@ -14766,6 +15080,1182 @@
       "seen_count": 1,
       "segments": [
         "OnSocial Creator platforms UK"
+      ]
+    },
+    "pci qualified security assessor": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "managed security services": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "information security products": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "information security consulting": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security consulting services": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "mobile security & applications": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "managed detection & response": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "product distribution": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "vulnerability management & policy compliance": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "pci approved scanning vendor": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "pci qualified pin assessors": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity compliance automation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat landscape analysis": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat detection": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security operations center (soc)": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat detection algorithms": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat hunting": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security automation tools": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity incident simulation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat intelligence sharing": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "compliance support": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ai cybersecurity platform": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity threat modeling": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security compliance": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity expertise": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat intelligence platform": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security vulnerability management": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity cost optimization": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "managed detection and response": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security automation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security management platform": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cyber adversary analysis": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security alert management": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity automation tools": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security operations center": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat landscape": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security monitoring": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security risk assessment": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat profiling": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat response": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "attack surface management": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity provider": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security integration": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "attack path simulation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ot security": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "physical and cyber security integration": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security strategy": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security posture": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ai-driven cybersecurity": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security policy": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "xmdr platform": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cloud security": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cyber attack simulation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat actor profiling": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "asset visibility": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security architecture": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security risk management": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security data visualization": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "generative ai in cybersecurity": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "internet of things": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security posture improvement": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security compliance tools": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity innovation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security training": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security incident response": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "generative ai": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat intelligence feeds": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat detection rules development": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cyber defense": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cyber threat intelligence": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security assessment": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity consulting": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "on-premises security": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security event analysis": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "vulnerability assessment": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "automated threat detection": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat intelligence automation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat landscape monitoring": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity risk quantification": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat behavior modeling": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cyber kill chain prediction": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "hybrid cybersecurity": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat prediction": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat hunting tools": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat hunting engine": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity automation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity training": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat actor tracking": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat response automation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "vulnerability management": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat mitigation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat hunting": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "incident response": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity threat intelligence": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security orchestration": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security event correlation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security operations": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "risk assessment": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cybersecurity industry": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security performance metrics": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security policy enforcement": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security information and event management (siem)": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security architecture design": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat intelligence platforms": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security automation solutions": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat analysis tools": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security monitoring tools": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security incident investigation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security kpis": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security incident management": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "ai-powered security recommendations": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "compliance management": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security technology integration": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "penetration testing": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security technology": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "threat detection and response": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security analytics": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "security threat intelligence analysis": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "keeping brands interesting": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "digital interactive": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "integrated strategic planning": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "multicultural marketing": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency awards": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "award-winning campaigns": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "creative ideas": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural competence": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural insights agency": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "multicultural branding": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural honesty": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "video production": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural branding": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency culture": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural communication": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural campaigns": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "entertainment": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural inclusion": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency leadership": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural marketing agency": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural innovation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural representation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency clients": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency expansion": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "award-winning agency": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural storytelling": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "inclusive advertising": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "multicultural campaigns": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency philosophy": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "full-service advertising": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural fluency": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "advertising innovation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "diverse workforce": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural insights": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency capabilities": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural sensitivity": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "diversity in advertising": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency services": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural strategy": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency diversity": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "market segmentation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "automotive": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "leadership development": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "digital campaigns": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "inclusive marketing": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency offices": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency recognition": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cross-cultural expertise": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural authenticity": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural diversity campaigns": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "multicultural advertising": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural awareness": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "agency growth": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural diversity": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "diversity": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "social innovation": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "brand purpose": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "advertising strategy": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "client partnerships": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "tv commercial production": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "feedback loops": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "branded content": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "experiential marketing": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "creative problem solving": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "performance advertising": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "network partnerships": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "creative direction": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "team collaboration": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "hybrid work models": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "brand activations": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "u.s. and latam marketing": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "brand identities": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "oreo campaigns": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "verizon partnerships": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "in-house production": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "campaign effectiveness": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "client services": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
+      ]
+    },
+    "cultural analysis": {
+      "seen_count": 1,
+      "segments": [
+        "IT consulting"
       ]
     }
   },
