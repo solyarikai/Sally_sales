@@ -159,12 +159,24 @@ class PipelineOrchestrator:
                 for company_data in (results or []):
                     domain = company_data.get("domain", "").lower().strip()
                     if not domain or domain in existing_domains:
+                        self.run.duplicate_count = (self.run.duplicate_count or 0) + 1
+                        continue
+                    # Check DB too (across all runs in this project)
+                    db_exists = (await self.session.execute(
+                        select(DiscoveredCompany.id).where(
+                            DiscoveredCompany.project_id == self.run.project_id,
+                            DiscoveredCompany.domain == domain,
+                        )
+                    )).scalar_one_or_none()
+                    if db_exists:
+                        existing_domains.add(domain)
+                        self.run.duplicate_count = (self.run.duplicate_count or 0) + 1
                         continue
                     existing_domains.add(domain)
 
                     dc = DiscoveredCompany(
                         project_id=self.run.project_id,
-                        company_id=self.run.company_id,  # Fix: use run's company_id
+                        company_id=self.run.company_id,
                         domain=domain,
                         name=company_data.get("name"),
                         industry=company_data.get("industry"),

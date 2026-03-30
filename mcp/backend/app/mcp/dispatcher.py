@@ -470,6 +470,9 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         if not project or project.user_id != user.id:
             raise ValueError("Project not found")
 
+        # Auto-set active project during pipeline work
+        user.active_project_id = project.id
+
         # Bug 11: Offer verification — MUST know what user sells before gathering
         if "api" in args.get("source_type", "") and not project.target_segments:
             return {
@@ -1782,12 +1785,22 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         from app.models.pipeline import ExtractedContact
         for company in targets:
             try:
-                # Try with offer-specific titles first
+                # Try 3 approaches: specific titles → seniority only → any person
                 people = await apollo_svc.enrich_by_domain(
                     company.domain, limit=people_per_company, titles=person_titles,
                 )
-                # Fallback: broader search without title filter if 0 results
                 if not people:
+                    # Fallback 1: search by seniority (director+)
+                    payload = {"q_organization_domains": company.domain, "per_page": people_per_company,
+                               "person_seniorities": person_seniorities}
+                    seniority_data = await apollo_svc._api_call("POST", "/mixed_people/api_search", payload)
+                    if seniority_data:
+                        people = [{"first_name": p.get("first_name"), "last_name": p.get("last_name"),
+                                   "title": p.get("title"), "email": p.get("email"),
+                                   "linkedin_url": p.get("linkedin_url")}
+                                  for p in seniority_data.get("people", [])[:people_per_company]]
+                if not people:
+                    # Fallback 2: any person at the company
                     people = await apollo_svc.enrich_by_domain(
                         company.domain, limit=people_per_company, titles=None,
                     )
