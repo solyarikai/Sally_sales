@@ -128,6 +128,11 @@ class ApolloService:
         return all_orgs
 
     async def enrich_by_domain(self, domain: str, limit: int = 5, titles: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Search people at a domain. FREE via /mixed_people/api_search.
+
+        Returns partial profiles (name, title, linkedin). Email requires bulk_match (1 credit each).
+        For MCP: return partial profiles first — email enrichment is optional.
+        """
         if not self.api_key:
             return []
         payload: Dict[str, Any] = {"q_organization_domains": domain, "page": 1, "per_page": min(limit, 10)}
@@ -139,9 +144,27 @@ class ApolloService:
         people = search_data.get("people", [])[:limit]
         if not people:
             return []
-        details = [{"id": p["id"]} for p in people if p.get("id")]
-        if not details:
+
+        # Return partial profiles directly (FREE — no credits)
+        results = []
+        for p in people:
+            results.append({
+                "id": p.get("id"),
+                "first_name": p.get("first_name"),
+                "last_name": p.get("last_name"),
+                "name": p.get("name"),
+                "title": p.get("title"),
+                "email": p.get("email"),  # May be None in free search
+                "linkedin_url": p.get("linkedin_url"),
+                "organization_name": p.get("organization", {}).get("name") if isinstance(p.get("organization"), dict) else None,
+            })
+        return results
+
+    async def enrich_people_emails(self, people_ids: List[str]) -> List[Dict[str, Any]]:
+        """Enrich people with emails via bulk_match (1 credit per person). Optional step."""
+        if not self.api_key or not people_ids:
             return []
+        details = [{"id": pid} for pid in people_ids]
         bulk_data = await self._api_call("POST", "/people/bulk_match", {"details": details, "reveal_personal_emails": True})
         if not bulk_data:
             return []
