@@ -1786,14 +1786,18 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         # ExtractedContact already imported at top of file
         for company in targets:
             try:
-                # Search + enrich: titles first → any person fallback
+                # Always search WITHOUT titles first (reliable), then prefer matching titles
                 people = await apollo_svc.enrich_by_domain(
-                    company.domain, limit=people_per_company, titles=person_titles,
+                    company.domain, limit=people_per_company * 2, titles=None,
                 )
-                if not people:
-                    people = await apollo_svc.enrich_by_domain(
-                        company.domain, limit=people_per_company, titles=None,
-                    )
+                # Prefer people matching offer roles, but take anyone with email
+                if people and person_titles and len(people) > people_per_company:
+                    title_lower = [t.lower() for t in (person_titles or [])]
+                    preferred = [p for p in people if any(t in (p.get("title", "") or "").lower() for t in title_lower)]
+                    others = [p for p in people if p not in preferred]
+                    people = (preferred + others)[:people_per_company]
+                else:
+                    people = people[:people_per_company]
                 for person in people:
                     contact = ExtractedContact(
                         project_id=run.project_id,
