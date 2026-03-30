@@ -542,6 +542,60 @@ EDGE 8: Pavel's bug — MCP must show filters + cost BEFORE gathering
 EDGE 9: Classification accuracy too low
   User sees 48% target rate → "exclude operators, they're not tech providers"
   VERIFY: provide_feedback → tam_re_analyze → new iteration → improved accuracy
+
+EDGE 10: User sets high target count
+  User: "I want 1000 contacts"
+  VERIFY:
+  - MCP calculates: 1000/3 = 334 companies, at 35% = 954 from Apollo, 10 pages
+  - Shows cost: "10 credits ($0.10) + 5 enrichment ($0.05) = $0.15"
+  - User confirms → pipeline runs with max_pages=10
+  - After completion: shows actual contacts gathered vs target
+
+EDGE 11: User says "find more" / "continue"
+  User: "find more contacts"
+  VERIFY:
+  - MCP detects existing run, shows current count
+  - Calculates next batch cost
+  - "Current: 102 contacts. Next 4 pages: 4 credits. Estimated: +105 contacts."
+  - User confirms → tam_gather with reuse_run_id + page_offset
+  - Does NOT re-search already gathered companies
+  - Credits shown after completion
+
+EDGE 12: User changes roles
+  User: "I want VP Marketing and CMO, not technical roles"
+  VERIFY:
+  - MCP updates people_filters on the run
+  - Shows: "Updated roles: VP Marketing, CMO. Will apply to next people search."
+  - People search is FREE — no credit warning needed
+  - If contacts already gathered: "Re-gather contacts with new roles?"
+
+EDGE 13: User changes contacts per company
+  User: "5 contacts per company"
+  VERIFY:
+  - MCP updates contacts_per_company=5
+  - Shows: "34 targets × 5 = 170 contacts (was 102). People search is FREE."
+
+EDGE 14: User provides sequence from file
+  User: "use the approach from tasks/easystaff/sequence.md for emails"
+  VERIFY:
+  - Agent (Opus) reads file, extracts approach
+  - MCP stores in ProjectKnowledge(category="sequence_approach")
+  - When smartlead_generate_sequence runs: uses the stored approach
+  - Sequence matches the user's style, not generic
+
+EDGE 15: User adjusts default KPI
+  User: "I need at least 50 targets"
+  VERIFY:
+  - MCP: "Current: 34 targets. Need 16 more. 2 pages = 2 credits. Continue?"
+  - User confirms → gathers more
+
+EDGE 16: Cost shown at every credit-spending step
+  VERIFY across ALL steps:
+  - Filter preview: shows credits + dollars
+  - Exploration: "5 credits ($0.05)"
+  - Continue/scale: shows incremental cost
+  - Never spends credits without user confirmation
+  - After each step: "Credits used: X. Remaining estimate: Y."
 ```
 
 ---

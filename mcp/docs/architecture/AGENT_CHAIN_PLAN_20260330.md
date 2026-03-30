@@ -195,3 +195,119 @@ MCP: LAUNCH
 6. **Campaign pre-push checklist**: sequence approved? email accounts selected? contacts uploaded? ALL must be true.
 7. **Every response includes links** — pipeline page, CRM, SmartLead campaign, wherever relevant.
 8. **Credits tracked in every response** — spent, remaining, next step cost.
+9. **Target count configurable** — default 100 contacts (34 companies × 3). User can set any number.
+10. **Roles configurable** — default inferred from offer, user can override anytime.
+11. **Continue/scale** — user says "find more" → resume from last page, show cost for next batch.
+
+---
+
+## User Control Flows
+
+### Flow: Set Target Count
+```
+User: "I want 1000 contacts"
+MCP (A8): target_count=1000, contacts_per_company=3 → 334 companies needed
+           at 35% rate → 954 from Apollo → 10 pages = 10 credits ($0.10)
+MCP → User: "For 1000 contacts: 10 credits ($0.10) + 5 enrichment ($0.05).
+             Total: $0.15. Proceed?"
+```
+
+### Flow: Continue Gathering
+```
+User: "find more" / "I need more contacts" / "continue"
+MCP: Detects existing run #249 with 102 contacts from 34 targets
+MCP (A8): Current page=4, next batch=pages 5-8 = 4 credits
+MCP → User: "Current: 102 contacts. Next 4 pages: 4 credits ($0.04).
+             Estimated: +35 targets → +105 contacts. Total ~207.
+             Same filters? Or adjust?"
+User: "same, go ahead"
+→ tam_gather(reuse_run_id=249, page_offset=5)
+```
+
+### Flow: Change Roles
+```
+User: "change roles to VP Marketing and CMO"
+MCP (A7): Maps → person_titles=["VP Marketing", "CMO", "Head of Marketing"]
+                  person_seniorities=["vp", "director", "c_suite"]
+MCP → User: "Updated roles. Will apply to next people search.
+             Current 34 target companies × 3 contacts = 102 contacts.
+             People search is FREE. Want me to re-gather contacts with new roles?"
+User: "yes"
+→ Re-run people search on existing targets with new filters
+```
+
+### Flow: Change Contacts Per Company
+```
+User: "5 contacts per company instead of 3"
+MCP: contacts_per_company=5
+MCP → User: "Updated: 5 per company. 34 targets × 5 = 170 contacts (was 102).
+             People search is FREE."
+```
+
+### Flow: Provide Sequence Approach
+```
+User: "use this approach for emails: [paste or file path]"
+  → If file: User's Opus reads file, extracts approach
+  → If paste: MCP stores directly
+MCP: Stores in ProjectKnowledge(category="sequence_approach")
+MCP → User: "Saved your sequence approach. It'll be used for email generation.
+             Key elements: [tone, structure, CTA style extracted]."
+
+Later, when smartlead_generate_sequence runs:
+  → Reads sequence_approach from ProjectKnowledge
+  → Generates emails following the user's style
+```
+
+### Flow: Change Filters
+```
+User: "also include 201-500 size" / "add London to locations"
+MCP: Updates filters, re-probes Apollo
+MCP → User: "Updated filters:
+             Size: 11-50, 51-200, 201-500 (added 201-500)
+             Apollo total: 5,230 (was 3,864)
+             Cost for 100 contacts: 2 credits ($0.02). Proceed?"
+```
+
+### Flow: Change KPIs
+```
+User: "I want at least 50 targets, not 30"
+MCP: min_targets=50
+MCP → User: "Updated: minimum 50 targets.
+             Current run has 34. Need 16 more.
+             Next 2 pages = 2 credits. Shall I continue?"
+```
+
+---
+
+## Edge Cases Handled
+
+| Case | Agent | Response |
+|------|-------|----------|
+| User says "find more" with no run | MCP | "No pipeline running. Start gathering first: tell me the segment." |
+| User changes roles after campaign created | MCP | "Campaign already created with previous roles. Create a new campaign?" |
+| User provides file >2K tokens | User's Opus | Opus reads, extracts, calls MCP tools with structured data |
+| User wants different roles per campaign | MCP | Stores per-run people_filters, each campaign can have different roles |
+| User asks cost mid-pipeline | MCP | "Credits spent so far: 6. Estimated remaining: 5. Total: $0.11." |
+| User cancels mid-gathering | MCP | "Pipeline paused. Resume anytime with 'continue gathering'." |
+| 0 targets found | MCP | "No targets found with these filters. Suggestions: broaden keywords, expand size range, try different segment." |
+| Target rate <10% | MCP | "Only 3 targets from 100 companies (3%). Filters may be too broad. Want to explore to find better keywords?" |
+| Apollo returns 0 companies | MCP | "No companies in Apollo matching these filters. Check: keywords too specific? Location too narrow? Size too restrictive?" |
+| User asks about credits/cost | MCP | Shows account page link + current run costs |
+
+---
+
+## Updated Agent Registry
+
+| Agent | Model | Task | Added |
+|-------|-------|------|-------|
+| A0 | gpt-4o-mini | Intent router | v1 |
+| A1 | gpt-4o-mini | Industry picker | v1 |
+| A2 | gpt-4.1-mini | Keyword picker + embedding pre-filter | v1 |
+| A3 | gpt-4o-mini | Size inferrer from offer | v1 |
+| A4 | regex | Location extractor | v1 |
+| A5 | gpt-4o-mini (tuned prompt) | Company classifier | v1 |
+| A6 | gpt-4.1-mini | Filter optimizer (post-enrichment) | v1 |
+| **A7** | **gpt-4o-mini** | **People filter mapper (roles, titles, seniority)** | **v2** |
+| **A8** | **none (math)** | **Cost estimator (credits, pages, dollars)** | **v2** |
+| U1 | Claude Opus | File processor (user side) | v1 |
+| U2 | Claude Opus | Quality reviewer / target selector (user side) | v1 |

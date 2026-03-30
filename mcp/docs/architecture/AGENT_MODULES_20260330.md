@@ -158,6 +158,36 @@ if "api" in source_type and not args.get("confirm_filters"):
 | **Output** | Optimized keyword_tags list (original + selected new ones) |
 | **Does NOT** | Run the search. Enrich companies. Classify anything. |
 
+### A7: People Filter Mapper (gpt-4o-mini)
+
+| Field | Value |
+|-------|-------|
+| **Model** | gpt-4o-mini |
+| **Single task** | Map offer text → people search filters (titles, seniorities) |
+| **Input** | Offer text + user's role preferences (if any) |
+| **Output** | `{person_titles: ["VP HR", "CHRO"], person_seniorities: ["vp", "director", "c_suite"], contacts_per_company: 3}` |
+| **Does NOT** | Search for people. Create campaigns. |
+
+Default mappings (inferred from offer):
+- Payroll → HR roles (VP HR, CHRO, Head of People)
+- DevTools → Tech roles (CTO, VP Engineering)
+- Marketing tool → Marketing roles (CMO, VP Marketing)
+- General B2B → C-suite (CEO, CTO, COO)
+
+User can override: "change roles to VP Marketing and CMO"
+
+### A8: Cost Estimator (no GPT, pure calculation)
+
+| Field | Value |
+|-------|-------|
+| **Model** | None (pure math) |
+| **Single task** | Calculate Apollo credits needed for a given target count |
+| **Input** | target_count, contacts_per_company, target_rate, per_page |
+| **Output** | `{pages: 5, search_credits: 5, enrichment_credits: 5, total_usd: 0.10, people_cost: "FREE"}` |
+| **Does NOT** | Call any API. Make decisions. |
+
+Called at every cost checkpoint: filter preview, continue/scale, exploration.
+
 ---
 
 ## Agents NOT in MCP (run on user's side)
