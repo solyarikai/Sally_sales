@@ -1,9 +1,9 @@
 {
   "id": "01_default_smartlead_flow",
   "description": "FULL DEFAULT FLOW per REALITY_TEST_PLAN: onboarding > project > filters preview > gathering > exploration > iterations > campaign > replies",
-  "user_email": "test9@getsally.io",
+  "user_email": "test11@getsally.io",
   "user_password": "testtest123",
-  "user_token": "mcp_6b1c8eef1d43dcc3675e0785d11112eb9fddd46262d818603f01bad9645381c5",
+  "user_token": "mcp_c9397f9a80c6dc54f1eb8578e616151c4ce0e74ae62d5f91bf867243cfec7184",
   "project_name": "EasyStaff",
   "steps": [
     {
@@ -19,7 +19,7 @@
     {
       "step": 2,
       "phase": "1.2_login",
-      "user_prompt": "Here is my token: mcp_6b1c8eef1d43dcc3675e0785d11112eb9fddd46262d818603f01bad9645381c5",
+      "user_prompt": "Here is my token: mcp_c9397f9a80c6dc54f1eb8578e616151c4ce0e74ae62d5f91bf867243cfec7184",
       "expected_tool_calls": ["login"],
       "expected_behavior": {
         "response_must_contain_any": ["logged", "ready", "tools", "user_id"]
