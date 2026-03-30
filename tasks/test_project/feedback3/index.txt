@@ -1,0 +1,5 @@
+1. "why number still 1 after reply.png" - find the cause of the issue and solve architecture
+2. "crm view after click.png" - is total shit, as
+- no contact shown as required, ad to your autottests end-to-end in browser, auto-otests are pereft not to break anythonh while scaling
+- crm ui ux itself is shit, as you can see from teh screenshot, so improve it by removijng all redundnacy, prefering table embeeded fitler alwaywa, show extra controls on click or hover, make best ui ux, simplicity and speed is your god
+3. ensure the conversation histopry in replies page andcrm page arethe same: sowing same camapijngs and using the same compment, also make end-to-end testssee 
