@@ -1256,6 +1256,216 @@ async function main() {
   const endSession = endCookies.find(c => c.name === 'claysession');
   if (endSession) saveSession(endSession.value);
 
+  // Step 13: Save search in Clay (if --save-search was provided)
+  // This navigates back to Find Companies, applies only the specified filter types,
+  // and saves the search. Useful for reusing industry filters across geos.
+  if (saveSearchName) {
+    console.log(`\n[13] Saving search as "${saveSearchName}"...`);
+    if (saveFilterTypes) {
+      console.log(`  Saving only filter types: ${saveFilterTypes.join(', ')}`);
+    }
+
+    // Build subset of filters to save
+    const subsetFilters = {};
+    const allFilterKeys = ['industries', 'industries_exclude', 'sizes', 'types', 'country_names',
+      'states', 'country_names_exclude', 'annual_revenues', 'description_keywords',
+      'description_keywords_exclude', 'minimum_member_count', 'maximum_member_count'];
+
+    for (const key of allFilterKeys) {
+      if (filters[key] !== undefined) {
+        if (!saveFilterTypes || saveFilterTypes.includes(key)) {
+          subsetFilters[key] = filters[key];
+        }
+      }
+    }
+    console.log(`  Subset filters: ${JSON.stringify(Object.keys(subsetFilters))}`);
+
+    // Navigate back to Find Companies
+    await page.goto(`https://app.clay.com/workspaces/${WORKSPACE_ID}/home`, { waitUntil: 'networkidle2', timeout: 30000 });
+    await humanDelay(2000, 3000);
+
+    // Click "Find leads"
+    await page.evaluate(() => {
+      const els = [...document.querySelectorAll('button, div[role="button"]')];
+      const el = els.find(e => e.textContent?.includes('Find leads') && e.textContent?.includes('Find people'));
+      if (el) el.click();
+    });
+    await humanDelay(1500, 2500);
+
+    // Select Companies tab
+    const compBtn2 = await findByText(page, 'Companies');
+    if (compBtn2) {
+      await page.mouse.click(compBtn2.x, compBtn2.y);
+      await humanDelay(1500, 2500);
+    }
+
+    // Apply ONLY the subset filters
+    if (subsetFilters.sizes?.length) {
+      await fillFilterField(page, '11-50 employees', subsetFilters.sizes);
+    }
+    if (subsetFilters.industries?.length) {
+      await fillFilterField(page, 'Software development', subsetFilters.industries);
+    }
+    if (subsetFilters.industries_exclude?.length) {
+      await fillFilterField(page, 'Advertising services', subsetFilters.industries_exclude);
+    }
+    if (subsetFilters.description_keywords?.length) {
+      await fillFilterField(page, 'sales, data, outbound', subsetFilters.description_keywords);
+    }
+
+    // Close any dropdowns
+    await page.keyboard.press('Escape');
+    await humanDelay(1000, 1500);
+
+    // Wait for results to settle
+    await humanDelay(3000, 5000);
+    await screenshot(page, 'tam_13_save_search_filters');
+
+    // Look for "Save search" or "Save" button in the UI
+    // Clay's Find Companies page may have a save option near the top or as a menu item
+    let saved = false;
+
+    // Strategy 1: Look for explicit "Save search" text
+    const saveSearchBtn = await findByText(page, 'Save search', false)
+      || await findByText(page, 'Save this search', false);
+    if (saveSearchBtn) {
+      console.log('  Found "Save search" button — clicking...');
+      await page.mouse.click(saveSearchBtn.x, saveSearchBtn.y);
+      await humanDelay(1500, 2000);
+
+      // Enter search name in dialog
+      const nameInput = await page.$('input[placeholder*="name"]')
+        || await page.$('input[placeholder*="Name"]')
+        || await page.$('input[placeholder*="search"]');
+      if (nameInput) {
+        await nameInput.click();
+        await nameInput.type(saveSearchName, { delay: 30 + Math.random() * 20 });
+        await humanDelay(500, 800);
+        // Confirm
+        const confirmBtn = await findByText(page, 'Save', true)
+          || await findByText(page, 'Confirm', true);
+        if (confirmBtn) {
+          await page.mouse.click(confirmBtn.x, confirmBtn.y);
+          await humanDelay(1500, 2000);
+          saved = true;
+          console.log(`  Search saved as "${saveSearchName}"`);
+        }
+      }
+    }
+
+    // Strategy 2: Look for a bookmark/star icon near the search area
+    if (!saved) {
+      const bookmarkIcon = await page.evaluate(() => {
+        // Look for SVG icons that might be bookmark/star/save
+        const svgs = [...document.querySelectorAll('svg')].filter(s => {
+          const rect = s.getBoundingClientRect();
+          return s.offsetParent !== null && rect.y < 200 && rect.x > 300;
+        });
+        // Look for title or aria-label attributes
+        for (const svg of svgs) {
+          const title = svg.querySelector('title')?.textContent || '';
+          const label = svg.getAttribute('aria-label') || svg.parentElement?.getAttribute('aria-label') || '';
+          if (title.toLowerCase().includes('save') || label.toLowerCase().includes('save') ||
+              title.toLowerCase().includes('bookmark') || label.toLowerCase().includes('bookmark')) {
+            const rect = svg.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+          }
+        }
+        return null;
+      });
+      if (bookmarkIcon) {
+        console.log('  Found bookmark/save icon — clicking...');
+        await page.mouse.click(bookmarkIcon.x, bookmarkIcon.y);
+        await humanDelay(1500, 2000);
+      }
+    }
+
+    // Strategy 3: Try the "..." or overflow menu
+    if (!saved) {
+      const menuBtn = await page.evaluate(() => {
+        const btns = [...document.querySelectorAll('button')].filter(b => {
+          const t = b.textContent?.trim();
+          return b.offsetParent !== null && (t === '...' || t === '⋯' || t === '•••');
+        });
+        if (btns.length > 0) {
+          const rect = btns[0].getBoundingClientRect();
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+        }
+        return null;
+      });
+      if (menuBtn) {
+        console.log('  Found "..." menu — clicking...');
+        await page.mouse.click(menuBtn.x, menuBtn.y);
+        await humanDelay(1000, 1500);
+        const saveOption = await findByText(page, 'Save', false);
+        if (saveOption) {
+          await page.mouse.click(saveOption.x, saveOption.y);
+          await humanDelay(1500, 2000);
+        }
+      }
+    }
+
+    // Strategy 4: Use Clay's internal API to save the search
+    if (!saved) {
+      console.log('  Trying Clay API to save search...');
+      const apiResult = await page.evaluate(async (name, filterData) => {
+        try {
+          // Try to save via Clay's saved searches API
+          const res = await fetch('https://api.clay.com/v3/saved-searches', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+              workspaceId: '889252',
+              name: name,
+              searchType: 'companies',
+              filters: filterData,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            return { success: true, data };
+          }
+          // Try alternative endpoint
+          const res2 = await fetch('https://api.clay.com/v3/workspaces/889252/saved-searches', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ name: name, searchType: 'companies', filters: filterData }),
+          });
+          if (res2.ok) {
+            const data = await res2.json();
+            return { success: true, data };
+          }
+          return { success: false, status: res.status, status2: res2.status };
+        } catch (e) {
+          return { success: false, error: e.message };
+        }
+      }, saveSearchName, subsetFilters);
+
+      if (apiResult.success) {
+        saved = true;
+        console.log(`  Search saved via API as "${saveSearchName}"`);
+      } else {
+        console.log(`  API save result: ${JSON.stringify(apiResult)}`);
+      }
+    }
+
+    if (!saved) {
+      console.log(`  WARNING: Could not auto-save search "${saveSearchName}".`);
+      console.log('  The industry filters are saved in exports/filters.json for manual import.');
+      // Save the subset filters separately for manual use
+      fs.writeFileSync(path.join(OUT_DIR, 'saved_search_filters.json'), JSON.stringify({
+        name: saveSearchName,
+        filterTypes: saveFilterTypes,
+        filters: subsetFilters,
+        timestamp: new Date().toISOString(),
+      }, null, 2));
+    }
+
+    await screenshot(page, 'tam_13_save_search_done');
+  }
+
   console.log('\n=== Pipeline complete! ===');
   console.log(`Results saved to ${OUT_DIR}/`);
 
