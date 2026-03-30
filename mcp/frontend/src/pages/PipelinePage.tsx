@@ -5,8 +5,8 @@ import { authHeaders } from '../App'
 const API = '/api'
 const PAGE_SIZE = 50
 
-const STAGES = ['gather','blacklist','awaiting_scope_ok','pre_filter','scrape','analyze','awaiting_targets_ok','prepare_verification','awaiting_verify_ok','completed']
-const STAGE_LABELS: Record<string,string> = { gather:'Gather',blacklist:'Blacklist',awaiting_scope_ok:'CP1: Scope',pre_filter:'Pre-Filter',scrape:'Scrape',analyze:'Analysis',awaiting_targets_ok:'CP2: Targets',prepare_verification:'Verify',awaiting_verify_ok:'CP3: Cost',completed:'Done' }
+const STAGES = ['gather','blacklist','awaiting_scope_ok','scrape','analyze','awaiting_targets_ok','completed']
+const STAGE_LABELS: Record<string,string> = { gather:'Collect',blacklist:'Check',awaiting_scope_ok:'Approve',scrape:'Scrape',analyze:'Analyze',awaiting_targets_ok:'Review',pre_filter:'Filter',prepare_verification:'Verify',awaiting_verify_ok:'Approve',completed:'Done',verified:'Done' }
 
 const STATUS_COLORS: Record<string,string> = {
   gathered: 'var(--text-muted)', blacklisted: 'var(--danger)', filtered: 'var(--text-muted)',

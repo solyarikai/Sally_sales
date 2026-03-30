@@ -75,20 +75,34 @@ async def run_exploration(
     result["credits_used"] += len(enriched)
     result["exploration_stats"]["enriched_targets"] = len(enriched)
 
-    # Step 5: Extract common labels from enriched targets
-    logger.info("Exploration step 5: Extracting common labels")
-    common_labels = _extract_common_labels(enriched)
-    result["exploration_stats"]["common_labels"] = common_labels
+    # Return full enriched company data (for taxonomy update downstream)
+    result["enriched_companies"] = [e.get("enriched", {}) for e in enriched]
 
-    # Step 6: Build optimized filters
-    optimized = await _build_optimized_filters(initial_filters, common_labels, query, openai_key)
-    result["optimized_filters"] = optimized
-    result["exploration_stats"]["filters_added"] = {
-        k: v for k, v in optimized.items() if k not in initial_filters or v != initial_filters.get(k)
+    # Step 5: Update shared taxonomy map with enrichment data
+    logger.info("Exploration step 5: Updating taxonomy map")
+    from app.services.taxonomy_service import taxonomy_service
+    new_keywords_total = 0
+    for e in enriched:
+        org = e.get("enriched", {})
+        if org:
+            new_keywords_total += taxonomy_service.add_from_enrichment(org, segment=query)
+    if new_keywords_total > 0:
+        await taxonomy_service.rebuild_embeddings_if_needed(openai_key)
+    result["exploration_stats"]["new_keywords_added"] = new_keywords_total
+
+    # Step 6: Re-generate filters with enriched taxonomy (replaces old _build_optimized_filters)
+    logger.info("Exploration step 6: Re-generating filters with enriched map")
+    from app.services.filter_mapper import map_query_to_filters
+    optimized_result = await map_query_to_filters(query, offer_text, openai_key)
+    result["optimized_filters"] = {
+        "q_organization_keyword_tags": optimized_result["q_organization_keyword_tags"],
+        "organization_locations": optimized_result.get("organization_locations", initial_filters.get("organization_locations")),
+        "organization_num_employees_ranges": optimized_result.get("organization_num_employees_ranges", initial_filters.get("organization_num_employees_ranges")),
     }
+    result["exploration_stats"]["optimized_mapping"] = optimized_result.get("mapping_details", {})
 
     logger.info(f"Exploration complete: {result['credits_used']} credits, "
-                f"{len(targets)} targets, filters enhanced with {len(common_labels)} label groups")
+                f"{len(targets)} targets, +{new_keywords_total} keywords")
     return result
 
 
