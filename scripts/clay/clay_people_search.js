@@ -7,19 +7,21 @@
  *
  * System-level: supports filter splitting for >5000 results.
  *
- * Flow:
- * 1. Find leads → People tab → apply filters
- * 2. Continue → Save to new workbook and table
- * 3. Skip enrichments → Create table
- * 4. Actions → Export/Download CSV
- * 5. Read CSV file
+ * Two modes:
+ * A) TABLE MODE (--table-id): Uses Clay's native table reference.
+ *    1. Navigate to TAM companies table → Tools → Send table data → New table (Domain only)
+ *    2. Find leads → People tab → select table in "Table of companies" filter
+ *    3. Continue → Save to new table → export
+ *    No domain typing, no batching — Clay handles the domain list internally.
  *
- * For >5000 results: split by geo regions, run multiple searches, merge + dedup.
+ * B) LEGACY DOMAIN MODE (--domains-file or default): Types domains one by one into UI.
+ *    Slow but works without a pre-existing table.
  *
  * Usage:
- *   node clay_people_search.js                    # Gaming skins ICP
- *   node clay_people_search.js --auto             # Close browser after
- *   node clay_people_search.js --icp "SaaS CFOs"  # Custom ICP
+ *   node clay_people_search.js --table-id t_xxxxx --auto --headless   # Table mode (fast)
+ *   node clay_people_search.js --table-id t_xxxxx --table-name "Arkansas domains" --auto --headless
+ *   node clay_people_search.js --domains-file domains.csv --auto      # Legacy domain mode
+ *   node clay_people_search.js --auto                                 # Default known domains
  */
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
@@ -28,7 +30,7 @@ const path = require('path');
 
 puppeteer.use(StealthPlugin());
 
-const WORKSPACE_ID = process.env.CLAY_WORKSPACE_ID || '588071';
+let WORKSPACE_ID = process.env.CLAY_WORKSPACE_ID || '588071'; // Will be resolved dynamically from /me API
 const OUT_DIR = path.join(__dirname, 'exports');
 const DOWNLOADS_DIR = path.join(OUT_DIR, 'downloads');
 const SESSION_FILE = path.join(__dirname, 'clay_session.json');
@@ -204,6 +206,290 @@ async function fillFilterField(page, placeholder, values) {
 }
 
 // ============================================================
+// Table mode: create domains-only table from TAM table
+// ============================================================
+
+/**
+ * Navigate to a TAM companies table, use Tools → Send table data → New table
+ * to create a domains-only table that Clay People search can reference.
+ *
+ * @param {Page} page - Puppeteer page
+ * @param {string} tableId - TAM companies table ID (e.g., "t_0tcppy1bH2FqaFgfFYM")
+ * @param {string} tableName - Name for the new domains table (e.g., "Arkansas domains")
+ * @param {string} [directUrl] - Optional direct URL to navigate to (skips metadata lookup)
+ * @returns {string|null} - Name of the created table, or null on failure
+ */
+async function createDomainsTable(page, tableId, tableName, directUrl) {
+  console.log(`\n[TABLE MODE] Creating domains-only table from ${tableId}...`);
+
+  // If a direct URL was provided, use it and skip metadata lookup
+  if (directUrl) {
+    console.log(`  Navigating to table (direct URL): ${directUrl}`);
+    await page.goto(directUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    await humanDelay(3000, 5000);
+    await screenshot(page, 'table_mode_01_source_table');
+  } else {
+  // Get table metadata via API to build the correct full URL
+  console.log('  Fetching table metadata via API...');
+  const tableInfo = await page.evaluate(async (tid) => {
+    try {
+      // Get table metadata
+      const tableRes = await fetch(`https://api.clay.com/v3/tables/${tid}`, {
+        credentials: 'include', headers: { 'Accept': 'application/json' },
+      });
+      const tableData = await tableRes.json();
+      const table = tableData?.table || tableData;
+      // Get user workspace info
+      const meRes = await fetch('https://api.clay.com/v3/me', {
+        credentials: 'include', headers: { 'Accept': 'application/json' },
+      });
+      const me = await meRes.json();
+      return {
+        workbookId: table?.workbookId,
+        firstViewId: table?.firstViewId,
+        name: table?.name,
+        wsId: me?.sessionState?.last_workspace_visited_id,
+        tableStatus: tableRes.status,
+        meStatus: meRes.status,
+      };
+    } catch (e) { return { error: e.message }; }
+  }, tableId);
+
+  console.log(`  Table metadata: workbook=${tableInfo?.workbookId}, view=${tableInfo?.firstViewId}, ws=${tableInfo?.wsId}, name="${tableInfo?.name}"`);
+  if (tableInfo?.error) {
+    console.log(`  WARNING: Metadata fetch failed: ${tableInfo.error}`);
+  }
+
+  // Build full table URL — Clay REQUIRES /workspaces/{ws}/workbooks/{wb}/tables/{t}/views/{v}
+  const wsId = tableInfo?.wsId || WORKSPACE_ID;
+  let tableUrl;
+  if (tableInfo?.workbookId && tableInfo?.firstViewId) {
+    tableUrl = `https://app.clay.com/workspaces/${wsId}/workbooks/${tableInfo.workbookId}/tables/${tableId}/views/${tableInfo.firstViewId}`;
+  } else {
+    console.log('  WARNING: Missing workbookId or firstViewId — using simple URL (may fail)');
+    tableUrl = `https://app.clay.com/workspaces/${wsId}/tables/${tableId}`;
+  }
+  console.log(`  Navigating to table: ${tableUrl}`);
+  await page.goto(tableUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+  await humanDelay(3000, 5000);
+  await screenshot(page, 'table_mode_01_source_table');
+  } // end else (no directUrl)
+
+  // Click "Tools" button (top right of table view)
+  console.log('  Looking for Tools button...');
+  const toolsBtn = await findByText(page, 'Tools', true)
+    || await findByText(page, 'Tools', false);
+  if (!toolsBtn) {
+    console.log('  ERROR: Tools button not found');
+    const buttons = await page.evaluate(() =>
+      [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null)
+        .map(b => b.textContent?.trim().substring(0, 40))
+        .filter(t => t && t.length > 1)
+    );
+    console.log('  Visible buttons:', buttons.join(' | '));
+    return null;
+  }
+  await page.mouse.click(toolsBtn.x, toolsBtn.y);
+  await humanDelay(1500, 2500);
+  await screenshot(page, 'table_mode_02_tools_panel');
+
+  // The Tools panel has tabs: Sources, Enrichments, Signals, Exports
+  // "Send table data" is under the Exports tab
+  console.log('  Clicking Exports tab...');
+  const exportsTab = await findByText(page, 'Exports', true)
+    || await findByText(page, 'Exports', false);
+  if (exportsTab) {
+    await page.mouse.click(exportsTab.x, exportsTab.y);
+    await humanDelay(1000, 1500);
+    await screenshot(page, 'table_mode_02b_exports_tab');
+  } else {
+    console.log('  WARNING: Exports tab not found — trying to find Send table data directly');
+  }
+
+  // Look for "Send table data" option
+  console.log('  Looking for "Send table data"...');
+  const sendDataOpt = await findByText(page, 'Send table data', false)
+    || await findByText(page, 'Send to table', false)
+    || await findByText(page, 'Export to table', false)
+    || await findByText(page, 'Send data', false);
+  if (!sendDataOpt) {
+    console.log('  ERROR: "Send table data" option not found');
+    // Debug: list all visible text in the tools panel
+    const panelItems = await page.evaluate(() =>
+      [...document.querySelectorAll('div, span, button, a')]
+        .filter(el => {
+          const r = el.getBoundingClientRect();
+          return el.offsetParent !== null && r.x > 300 && el.textContent?.trim().length > 2 && el.textContent.trim().length < 60;
+        })
+        .map(el => el.textContent.trim())
+        .filter((v, i, arr) => arr.indexOf(v) === i)
+        .slice(0, 30)
+    );
+    console.log('  Panel items:', panelItems.join(' | '));
+    await page.keyboard.press('Escape');
+    return null;
+  }
+  await page.mouse.click(sendDataOpt.x, sendDataOpt.y);
+  await humanDelay(1500, 2500);
+  await screenshot(page, 'table_mode_03_send_table_data');
+
+  // Select "New table" option (or similar)
+  console.log('  Looking for "New table"...');
+  const newTableOpt = await findByText(page, 'New table', false)
+    || await findByText(page, 'new table', false)
+    || await findByText(page, 'Create new table', false);
+  if (newTableOpt) {
+    await page.mouse.click(newTableOpt.x, newTableOpt.y);
+    await humanDelay(1500, 2500);
+  }
+  await screenshot(page, 'table_mode_04_new_table_dialog');
+
+  // Name the table if a name input is available
+  if (tableName) {
+    console.log(`  Setting table name: "${tableName}"...`);
+    // Look for name/title input in the dialog
+    const nameInput = await page.evaluate(() => {
+      const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
+      for (const input of inputs) {
+        const ph = (input.placeholder || '').toLowerCase();
+        if (ph.includes('name') || ph.includes('table') || ph.includes('title') || ph === '') {
+          const rect = input.getBoundingClientRect();
+          // Only consider inputs in the dialog area (center of screen)
+          if (rect.width > 100 && rect.y > 100 && rect.y < 700) {
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder };
+          }
+        }
+      }
+      return null;
+    });
+    if (nameInput) {
+      await page.mouse.click(nameInput.x, nameInput.y);
+      await humanDelay(200, 400);
+      // Select all existing text and replace
+      await page.keyboard.down('Control');
+      await page.keyboard.press('a');
+      await page.keyboard.up('Control');
+      await humanDelay(100, 200);
+      await page.keyboard.type(tableName, { delay: 25 + Math.random() * 30 });
+      await humanDelay(500, 800);
+      console.log(`    Table name set: "${tableName}"`);
+    } else {
+      console.log('    Name input not found — using default name');
+    }
+  }
+
+  // Deselect all columns except Domain
+  // Clay's "Send table data" dialog shows checkboxes for each column.
+  // Strategy: look for column checkboxes/toggles and uncheck all except "Domain".
+  console.log('  Configuring columns (Domain only)...');
+
+  // First, try to find a "Deselect all" or "Select none" option
+  const deselectAll = await findByText(page, 'Deselect all', false)
+    || await findByText(page, 'Select none', false)
+    || await findByText(page, 'Uncheck all', false);
+  if (deselectAll) {
+    await page.mouse.click(deselectAll.x, deselectAll.y);
+    await humanDelay(500, 800);
+    console.log('    Deselected all columns');
+  }
+
+  // Now find and check only the Domain column
+  // Look for checkboxes/labels containing "Domain"
+  const domainCheckbox = await page.evaluate(() => {
+    // Strategy 1: find checkbox or label with "Domain" text
+    const allEls = [...document.querySelectorAll('label, span, div, input[type="checkbox"]')];
+    for (const el of allEls) {
+      if (el.offsetParent === null) continue;
+      const text = el.textContent?.trim();
+      if (text === 'Domain' || text === 'domain') {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 5 && rect.height > 5) {
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text };
+        }
+      }
+    }
+    // Strategy 2: check for a list of items with checkboxes
+    const items = [...document.querySelectorAll('[class*="checkbox"], [role="checkbox"], input[type="checkbox"]')];
+    for (const item of items) {
+      const parent = item.closest('label, div, li');
+      if (parent?.textContent?.trim().includes('Domain')) {
+        const rect = parent.getBoundingClientRect();
+        return { x: rect.x + 15, y: rect.y + rect.height / 2, text: parent.textContent.trim().substring(0, 30) };
+      }
+    }
+    return null;
+  });
+
+  if (domainCheckbox) {
+    await page.mouse.click(domainCheckbox.x, domainCheckbox.y);
+    await humanDelay(500, 800);
+    console.log(`    Selected Domain column: "${domainCheckbox.text}"`);
+  } else {
+    console.log('    WARNING: Domain column checkbox not found — all columns may be included');
+    // Debug: list visible text in dialog
+    const dialogText = await page.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"]') || document.querySelector('.modal') || document.body;
+      return [...dialog.querySelectorAll('span, label, div')]
+        .filter(el => el.offsetParent !== null && el.textContent?.trim().length > 1 && el.textContent.trim().length < 40)
+        .map(el => el.textContent.trim())
+        .slice(0, 30);
+    });
+    console.log('    Dialog text:', dialogText.join(' | '));
+  }
+
+  await screenshot(page, 'table_mode_05_columns_configured');
+
+  // Click "Run for all" / "Save and run" / confirmation button
+  console.log('  Looking for run/save button...');
+  const runBtn = await findByText(page, 'Run for all', false)
+    || await findByText(page, 'Run all', false)
+    || await findByText(page, 'Save and run', false)
+    || await findByText(page, 'Save', true)
+    || await findByText(page, 'Create', false)
+    || await findByText(page, 'Confirm', false);
+
+  if (runBtn) {
+    console.log(`  Clicking "${runBtn.text || 'run button'}"...`);
+    await page.mouse.click(runBtn.x, runBtn.y);
+    await humanDelay(5000, 8000);
+  } else {
+    console.log('  WARNING: Run/save button not found — trying Enter key');
+    await page.keyboard.press('Enter');
+    await humanDelay(5000, 8000);
+  }
+
+  await screenshot(page, 'table_mode_06_running');
+
+  // Wait for the new table to be created and domains to populate
+  console.log('  Waiting for domains table to populate...');
+  await humanDelay(10000, 15000);
+
+  // Check if we navigated to a new table
+  const newUrl = page.url();
+  const newTableId = newUrl.match(/tableId=([^&]+)/)?.[1]
+    || newUrl.match(/tables\/([^/?]+)/)?.[1];
+
+  if (newTableId && newTableId !== tableId) {
+    console.log(`  New domains table created: ${newTableId}`);
+  }
+
+  await screenshot(page, 'table_mode_07_domains_table_ready');
+
+  // Navigate back to workspace home to reset page state before People search
+  console.log('  Navigating back to workspace home to reset page state...');
+  const homeWsId = await page.evaluate(async () => {
+    const res = await fetch('https://api.clay.com/v3/me', { credentials: 'include' });
+    const me = await res.json();
+    return me?.sessionState?.last_workspace_visited_id;
+  }) || WORKSPACE_ID;
+  await page.goto(`https://app.clay.com/workspaces/${homeWsId}/home`, { waitUntil: 'networkidle2', timeout: 30000 });
+  await humanDelay(2000, 3000);
+
+  console.log(`  Domains table "${tableName}" ready`);
+  return tableName;
+}
+
+// ============================================================
 // Core: run a single People search + table creation + CSV export
 // ============================================================
 async function runPeopleSearch(page, filters, label = 'default') {
@@ -325,17 +611,13 @@ async function runPeopleSearch(page, filters, label = 'default') {
     await screenshot(page, `${label}_02a2_name`);
   }
 
-  // Step B: Type company domains into the "Companies" field (placeholder: "amazon.com, microsoft.com")
-  // This is the most important filter — targets specific gaming companies
-  if (filters.company_domains?.length) {
-    console.log(`  Typing ${filters.company_domains.length} company domains...`);
+  // Step B: Company targeting — either via "Table of companies" (fast) or domain typing (legacy)
+  if (filters.company_table_name) {
+    // TABLE MODE: Select the domains table in "Table of companies" filter
+    console.log(`  Selecting table "${filters.company_table_name}" in Table of companies filter...`);
 
-    // "Companies" section is near the bottom of the sidebar — scroll down to it
+    // Scroll sidebar down to find Companies section
     await page.evaluate(() => {
-      const sidebar = document.querySelector('[class*="sidebar"]')
-        || document.querySelector('[class*="filter"]')?.closest('div[style*="overflow"]')
-        || document.querySelector('div[class*="scroll"]');
-      // Try to find and scroll the sidebar container
       const sections = [...document.querySelectorAll('div, section')].filter(el => {
         const style = window.getComputedStyle(el);
         return style.overflowY === 'auto' || style.overflowY === 'scroll';
@@ -349,22 +631,119 @@ async function runPeopleSearch(page, filters, label = 'default') {
     });
     await humanDelay(800, 1200);
 
-    // Click "Companies" section to expand it (exact text, not "Company attributes")
-    const compSection = await findByText(page, 'Companies', true);
+    // Expand Companies section
+    const compSection = await findByText(page, 'Companies', true)
+      || await findByText(page, 'Companies', false);
     if (compSection) {
       await page.mouse.click(compSection.x, compSection.y);
       await humanDelay(1200, 1800);
-    } else {
-      // Fallback: try finding it with icon prefix
-      const compAlt = await findByText(page, 'Companies', false);
-      if (compAlt) {
-        await page.mouse.click(compAlt.x, compAlt.y);
-        await humanDelay(1200, 1800);
-      }
     }
 
-    // Find the domain input (placeholder contains "amazon.com" or similar)
-    // Use evaluate to get coordinates — more reliable than ElementHandle.click()
+    // Look for "Table of companies" dropdown/field
+    // This is a select/dropdown in the Companies section of the People search sidebar
+    const tableField = await page.evaluate(() => {
+      const inputs = [...document.querySelectorAll('input, select, [role="combobox"], [role="listbox"]')].filter(i => i.offsetParent !== null);
+      for (const input of inputs) {
+        const ph = (input.placeholder || '').toLowerCase();
+        const label = input.getAttribute('aria-label')?.toLowerCase() || '';
+        if (ph.includes('table') || label.includes('table') || ph.includes('company table')) {
+          const rect = input.getBoundingClientRect();
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder, type: 'input' };
+        }
+      }
+      // Also try finding by nearby text label
+      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walk.nextNode()) {
+        const text = walk.currentNode.textContent?.trim().toLowerCase();
+        if (text && (text.includes('table of companies') || text === 'company table' || text === 'from table')) {
+          const parent = walk.currentNode.parentElement;
+          if (parent?.offsetParent !== null) {
+            // Look for the nearest input/select/clickable after this label
+            const sibling = parent.nextElementSibling || parent.parentElement?.querySelector('input, select, [role="combobox"]');
+            if (sibling) {
+              const rect = sibling.getBoundingClientRect();
+              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, type: 'sibling' };
+            }
+            // Click the label area itself — might open a dropdown
+            const rect = parent.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, type: 'label' };
+          }
+        }
+      }
+      return null;
+    });
+
+    if (tableField) {
+      console.log(`    Found table field (${tableField.type}): clicking...`);
+      await page.mouse.click(tableField.x, tableField.y);
+      await humanDelay(800, 1200);
+      await screenshot(page, `${label}_02b_table_dropdown`);
+
+      // Type the table name to search/filter the dropdown
+      await page.keyboard.type(filters.company_table_name, { delay: 30 + Math.random() * 40 });
+      await humanDelay(1000, 1500);
+
+      // Select from dropdown — press Enter or click matching option
+      const matchOpt = await findByText(page, filters.company_table_name, false);
+      if (matchOpt) {
+        await page.mouse.click(matchOpt.x, matchOpt.y);
+        await humanDelay(500, 800);
+        console.log(`    Selected table: "${filters.company_table_name}"`);
+      } else {
+        // Fallback: just press Enter to accept
+        await page.keyboard.press('Enter');
+        await humanDelay(500, 800);
+        console.log(`    Pressed Enter for table selection`);
+      }
+    } else {
+      console.log('    WARNING: "Table of companies" field not found!');
+      // Debug: show all available inputs
+      const allInputs = await page.evaluate(() =>
+        [...document.querySelectorAll('input, select, [role="combobox"]')].filter(i => i.offsetParent !== null)
+          .map(i => ({ placeholder: i.placeholder, ariaLabel: i.getAttribute('aria-label'), tag: i.tagName }))
+      );
+      console.log('    Available inputs:', JSON.stringify(allInputs));
+      // Debug: show all visible text in sidebar area
+      const sidebarText = await page.evaluate(() =>
+        [...document.querySelectorAll('div, span, label')]
+          .filter(el => {
+            const r = el.getBoundingClientRect();
+            return el.offsetParent !== null && r.x < 400 && el.textContent?.trim().length > 2 && el.textContent.trim().length < 40;
+          })
+          .map(el => el.textContent.trim())
+          .filter((v, i, arr) => arr.indexOf(v) === i)
+          .slice(0, 30)
+      );
+      console.log('    Sidebar text:', sidebarText.join(' | '));
+    }
+    await screenshot(page, `${label}_02b_table_selected`);
+
+  } else if (filters.company_domains?.length) {
+    // LEGACY MODE: Type company domains one by one
+    console.log(`  [LEGACY] Typing ${filters.company_domains.length} company domains...`);
+
+    // "Companies" section is near the bottom of the sidebar — scroll down to it
+    await page.evaluate(() => {
+      const sections = [...document.querySelectorAll('div, section')].filter(el => {
+        const style = window.getComputedStyle(el);
+        return style.overflowY === 'auto' || style.overflowY === 'scroll';
+      });
+      for (const s of sections) {
+        if (s.scrollHeight > s.clientHeight && s.clientHeight > 200) {
+          s.scrollTop = s.scrollHeight;
+          break;
+        }
+      }
+    });
+    await humanDelay(800, 1200);
+
+    const compSection = await findByText(page, 'Companies', true)
+      || await findByText(page, 'Companies', false);
+    if (compSection) {
+      await page.mouse.click(compSection.x, compSection.y);
+      await humanDelay(1200, 1800);
+    }
+
     async function findDomainInput() {
       return page.evaluate(() => {
         const selectors = [
@@ -1125,6 +1504,12 @@ async function main() {
   const splitByGeo = args.includes('--split-geo');
   const headless = args.includes('--headless');
   const useTitles = args.includes('--titles');
+  const tableIdIdx = args.indexOf('--table-id');
+  const sourceTableId = tableIdIdx >= 0 ? args[tableIdIdx + 1] : null;
+  const tableNameIdx = args.indexOf('--table-name');
+  const domainsTableName = tableNameIdx >= 0 ? args[tableNameIdx + 1] : null;
+  const tableUrlIdx = args.indexOf('--table-url');
+  const sourceTableUrl = tableUrlIdx >= 0 ? args[tableUrlIdx + 1] : null;
   const domainsFileIdx = args.indexOf('--domains-file');
   const externalDomainsFile = domainsFileIdx >= 0 ? args[domainsFileIdx + 1] : null;
   const countriesIdx = args.indexOf('--countries');
@@ -1222,27 +1607,77 @@ async function main() {
   const creditsBefore = check.credits;
   console.log(`  Credits: ${JSON.stringify(creditsBefore)}`);
 
-  // Load domains — from external file if provided, else from known sources
-  let allDomains;
-  if (externalDomainsFile && fs.existsSync(externalDomainsFile)) {
-    const lines = fs.readFileSync(externalDomainsFile, 'utf-8').split('\n');
-    allDomains = lines.map(l => l.trim().toLowerCase().replace(/^www\./, '')).filter(d => d && d.includes('.'));
-    console.log(`  External domains file: ${externalDomainsFile} (${allDomains.length} domains)`);
-  } else if (customSchools || customCountries) {
-    // Filter-based search: no domains needed
-    allDomains = [];
-    console.log(`  Filter-based search (no domains). Schools: ${customSchools?.length || 0}, Countries: ${customCountries?.length || 0}`);
-  } else {
-    allDomains = loadKnownDomains();
-    console.log(`  Known gaming ICP domains: ${allDomains.length}`);
+  // Resolve correct workspace ID from /me API
+  const resolvedWsId = check.wsId || await page.evaluate(async () => {
+    const res = await fetch('https://api.clay.com/v3/me', { credentials: 'include' });
+    const me = await res.json();
+    return me?.sessionState?.last_workspace_visited_id;
+  });
+  if (resolvedWsId && resolvedWsId !== WORKSPACE_ID) {
+    console.log(`  Workspace ID resolved: ${resolvedWsId} (was ${WORKSPACE_ID})`);
+    WORKSPACE_ID = resolvedWsId;
+  }
+
+  // TABLE MODE: Create domains table from TAM table, then use "Table of companies" filter
+  let companyTableName = null;
+  if (sourceTableId) {
+    // Try to get the full table URL from --table-url or tam_results.json
+    let tableDirectUrl = sourceTableUrl;
+    if (!tableDirectUrl) {
+      // Search all tam_results files for matching table ID
+      try {
+        const tamResults = JSON.parse(fs.readFileSync(path.join(OUT_DIR, 'tam_results.json'), 'utf-8'));
+        if (tamResults.tableUrl) {
+          // Check if this tam_results has the matching table ID
+          if (tamResults.tableId === sourceTableId) {
+            tableDirectUrl = tamResults.tableUrl;
+            console.log(`  Found exact table URL in tam_results.json`);
+          } else {
+            // Extract workspace/workbook pattern from tam_results URL to build ours
+            const urlMatch = tamResults.tableUrl.match(/workspaces\/(\d+)/);
+            if (urlMatch) {
+              console.log(`  tam_results.json has different table (${tamResults.tableId}), but extracting workspace ID: ${urlMatch[1]}`);
+            }
+          }
+        }
+      } catch {}
+    }
+    console.log(`\n[TABLE MODE] Source table: ${sourceTableId}`);
+    companyTableName = domainsTableName || `Domains ${new Date().toISOString().slice(0, 10)}`;
+    // Create domains-only table
+    companyTableName = await createDomainsTable(page, sourceTableId, companyTableName, tableDirectUrl);
+    if (!companyTableName) {
+      console.log('  ERROR: Failed to create domains table. Falling back to legacy domain mode.');
+    } else {
+      console.log(`  Domains table ready: "${companyTableName}"`);
+    }
+  }
+
+  // Load domains — only needed for legacy mode (no --table-id)
+  let allDomains = [];
+  if (!companyTableName) {
+    if (externalDomainsFile && fs.existsSync(externalDomainsFile)) {
+      const lines = fs.readFileSync(externalDomainsFile, 'utf-8').split('\n');
+      allDomains = lines.map(l => l.trim().toLowerCase().replace(/^www\./, '')).filter(d => d && d.includes('.'));
+      console.log(`  External domains file: ${externalDomainsFile} (${allDomains.length} domains)`);
+    } else if (customSchools || customCountries) {
+      allDomains = [];
+      console.log(`  Filter-based search (no domains). Schools: ${customSchools?.length || 0}, Countries: ${customCountries?.length || 0}`);
+    } else {
+      allDomains = loadKnownDomains();
+      console.log(`  Known gaming ICP domains: ${allDomains.length}`);
+    }
   }
   GAMING_ICP_FILTERS.company_domains = allDomains;
 
+  // Set table name in filters if table mode
+  if (companyTableName) {
+    GAMING_ICP_FILTERS.company_table_name = companyTableName;
+    GAMING_ICP_FILTERS.company_domains = []; // Don't type domains in table mode
+  }
+
   // Build search configs
-  // Clay limit is ~500 domains per search and 5000 people per table.
-  // If we have >500 domains, split into batches.
   let searches;
-  const DOMAIN_BATCH_SIZE = 200; // Conservative batch size for UI input
 
   // Inject custom countries into all searches if provided
   if (customCountries) {
@@ -1274,12 +1709,17 @@ async function main() {
     console.log(`  Country EXCLUDE filter: ${customCountriesExclude.join(', ')}`);
   }
 
-  if (allDomains.length === 0) {
+  if (companyTableName) {
+    // TABLE MODE: single search using "Table of companies" filter — no batching needed
+    searches = [{ label: 'table_mode', filters: GAMING_ICP_FILTERS }];
+    console.log(`\n[2] Running table-mode search (using "${companyTableName}")...`);
+  } else if (allDomains.length === 0) {
     // No domains — filter-based search (schools + countries + titles)
     searches = [{ label: 'filter_based', filters: GAMING_ICP_FILTERS }];
     console.log('\n[2] Running filter-based search (no domains)...');
-  } else if (allDomains.length > DOMAIN_BATCH_SIZE) {
-    // Split domains into batches
+  } else if (allDomains.length > 200) {
+    // Split domains into batches (legacy mode)
+    const DOMAIN_BATCH_SIZE = 200;
     searches = [];
     for (let i = 0; i < allDomains.length; i += DOMAIN_BATCH_SIZE) {
       const batch = allDomains.slice(i, i + DOMAIN_BATCH_SIZE);
