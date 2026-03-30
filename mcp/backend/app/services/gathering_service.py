@@ -453,10 +453,14 @@ class GatheringService:
         # Build clear offer description (not just company name)
         offer_description = project.sender_company or "our product"
         if project.target_segments:
-            # Extract actual offer from target_segments (before the website dump)
-            offer_parts = (project.target_segments or "").split("Company website", 1)[0].strip()
-            if offer_parts and len(offer_parts) > 10:
-                offer_description = offer_parts[:300]
+            ts = project.target_segments or ""
+            if "Company website" in ts:
+                # Website scrape stored — extract the useful part (after the URL)
+                # Format: "Company website (https://...): EasyStaff - Global Platform for Payroll..."
+                after_url = ts.split("): ", 1)[1] if "): " in ts else ts.split("Company website", 1)[1]
+                offer_description = after_url[:300].strip()
+            elif len(ts) > 10:
+                offer_description = ts[:300]
 
         via_negativa_system = f"""OUR PRODUCT: {offer_description}
 TARGET SEGMENT: {icp_text}
