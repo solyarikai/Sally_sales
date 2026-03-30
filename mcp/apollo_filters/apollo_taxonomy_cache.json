@@ -322,7 +322,7 @@
     },
     "marketing & advertising": {
       "embedding": null,
-      "seen_count": 13,
+      "seen_count": 17,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -662,7 +662,7 @@
       ]
     },
     "saas": {
-      "seen_count": 11,
+      "seen_count": 12,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -743,7 +743,7 @@
       ]
     },
     "b2b": {
-      "seen_count": 30,
+      "seen_count": 32,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -784,7 +784,7 @@
       ]
     },
     "services": {
-      "seen_count": 34,
+      "seen_count": 38,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -844,7 +844,7 @@
       ]
     },
     "retail": {
-      "seen_count": 31,
+      "seen_count": 32,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -885,7 +885,7 @@
       ]
     },
     "b2c": {
-      "seen_count": 32,
+      "seen_count": 35,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -905,7 +905,7 @@
       ]
     },
     "e-commerce": {
-      "seen_count": 34,
+      "seen_count": 36,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1047,7 +1047,7 @@
       ]
     },
     "enterprise software": {
-      "seen_count": 24,
+      "seen_count": 25,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1162,12 +1162,13 @@
       ]
     },
     "digital transformation": {
-      "seen_count": 21,
+      "seen_count": 22,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "fintech": {
@@ -1229,7 +1230,7 @@
       ]
     },
     "d2c": {
-      "seen_count": 27,
+      "seen_count": 28,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1578,16 +1579,17 @@
       ]
     },
     "education": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "consumer products & retail": {
-      "seen_count": 28,
+      "seen_count": 31,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1600,7 +1602,7 @@
       ]
     },
     "information technology & services": {
-      "seen_count": 50,
+      "seen_count": 53,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1620,7 +1622,7 @@
       ]
     },
     "internet": {
-      "seen_count": 41,
+      "seen_count": 44,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1633,7 +1635,7 @@
       ]
     },
     "computer software": {
-      "seen_count": 24,
+      "seen_count": 25,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1658,7 +1660,7 @@
       ]
     },
     "enterprises": {
-      "seen_count": 24,
+      "seen_count": 25,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1675,7 +1677,7 @@
       ]
     },
     "consumer internet": {
-      "seen_count": 41,
+      "seen_count": 44,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -1688,7 +1690,7 @@
       ]
     },
     "consumers": {
-      "seen_count": 41,
+      "seen_count": 44,
       "segments": [
         "EasyStaff IT consulting Miami",
         "IT consulting",
@@ -4326,7 +4328,7 @@
       ]
     },
     "social media management": {
-      "seen_count": 13,
+      "seen_count": 15,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4396,7 +4398,7 @@
       ]
     },
     "digital marketing": {
-      "seen_count": 13,
+      "seen_count": 15,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4510,13 +4512,14 @@
       ]
     },
     "customer engagement": {
-      "seen_count": 12,
+      "seen_count": 13,
       "segments": [
         "IT consulting",
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "ai for credit profiling": {
@@ -4670,7 +4673,7 @@
       ]
     },
     "social media marketing": {
-      "seen_count": 14,
+      "seen_count": 17,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4732,7 +4735,7 @@
       ]
     },
     "marketing & advertising": {
-      "seen_count": 19,
+      "seen_count": 23,
       "segments": [
         "IT consulting",
         "Creator platforms",
@@ -4855,13 +4858,14 @@
       ]
     },
     "brand identity": {
-      "seen_count": 10,
+      "seen_count": 11,
       "segments": [
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
         "OnSocial Creator platforms UK",
-        "fashion"
+        "fashion",
+        "influencer marketing"
       ]
     },
     "luxury fragrances": {
@@ -5515,7 +5519,7 @@
       ]
     },
     "apparel & fashion": {
-      "seen_count": 15,
+      "seen_count": 16,
       "segments": [
         "Fashion brands",
         "Creator platforms",
@@ -5610,12 +5614,13 @@
       ]
     },
     "brand collaboration": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "fashion design": {
@@ -6396,7 +6401,7 @@
       ]
     },
     "fashion campaigns": {
-      "seen_count": 8,
+      "seen_count": 9,
       "segments": [
         "Fashion brands",
         "Creator platforms",
@@ -6454,12 +6459,13 @@
       ]
     },
     "social impact": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Fashion brands",
         "Creator platforms",
         "TFP Fashion brands Italy",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "designer brand": {
@@ -6568,7 +6574,7 @@
       ]
     },
     "celebrity endorsements": {
-      "seen_count": 9,
+      "seen_count": 10,
       "segments": [
         "Fashion brands",
         "Creator platforms",
@@ -7816,7 +7822,7 @@
       ]
     },
     "brand collaborations": {
-      "seen_count": 7,
+      "seen_count": 9,
       "segments": [
         "Fashion brands",
         "Creator platforms",
@@ -7945,7 +7951,7 @@
       ]
     },
     "fashion influencers": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Fashion brands",
         "Creator platforms",
@@ -7953,7 +7959,7 @@
       ]
     },
     "influencer marketing": {
-      "seen_count": 16,
+      "seen_count": 20,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -7961,7 +7967,7 @@
       ]
     },
     "paid social": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -7969,7 +7975,7 @@
       ]
     },
     "social strategy": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -7977,7 +7983,7 @@
       ]
     },
     "studio production": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -7985,7 +7991,7 @@
       ]
     },
     "celebrity partnerships": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -7993,7 +7999,7 @@
       ]
     },
     "marketing services": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8001,7 +8007,7 @@
       ]
     },
     "social media influencer management tools": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8009,7 +8015,7 @@
       ]
     },
     "social content strategy": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8017,7 +8023,7 @@
       ]
     },
     "in-person activations": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8025,7 +8031,7 @@
       ]
     },
     "market research": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8033,7 +8039,7 @@
       ]
     },
     "influencer marketing campaigns": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8041,7 +8047,7 @@
       ]
     },
     "event marketing": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8049,7 +8055,7 @@
       ]
     },
     "influencer roi": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8057,446 +8063,6 @@
       ]
     },
     "influencer outreach": {
-      "seen_count": 11,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer talent": {
-      "seen_count": 9,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer marketing analytics": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer partnership management": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand partnerships": {
-      "seen_count": 12,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media growth": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer and social strategies": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "advertising and marketing": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media strategy": {
-      "seen_count": 11,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer marketing roi": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer marketing platforms": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer recruitment": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "performance analytics": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "paid social advertising": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand awareness": {
-      "seen_count": 9,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media content creation": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "content strategy": {
-      "seen_count": 13,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "campaign strategy": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media engagement tactics": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer campaigns": {
-      "seen_count": 10,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media analytics": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer campaign analytics": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "creative campaigns": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "marketing automation": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "content production": {
-      "seen_count": 11,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media campaigns": {
-      "seen_count": 11,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "creator partnerships": {
-      "seen_count": 10,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "creative content": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer marketing case studies": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "advertising services": {
-      "seen_count": 13,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media influencer outreach": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media influencer strategy": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand loyalty": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "marketing agency": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand engagement strategies": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand activation": {
-      "seen_count": 7,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand awareness campaigns": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer marketing measurement": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer collaborations": {
-      "seen_count": 9,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand loyalty programs": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "content creation": {
-      "seen_count": 15,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media influencer campaigns": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer marketing best practices": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media influencer outreach tools": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media advertising": {
-      "seen_count": 9,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media content strategy": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "audience segmentation": {
-      "seen_count": 7,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media activations": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand community building": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "community engagement": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer collaboration tools": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer talent sourcing": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand visibility": {
-      "seen_count": 7,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer marketing trends": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media metrics": {
-      "seen_count": 9,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer management": {
       "seen_count": 14,
       "segments": [
         "Creator platforms",
@@ -8504,8 +8070,448 @@
         "influencer marketing"
       ]
     },
+    "influencer talent": {
+      "seen_count": 11,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing analytics": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer partnership management": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand partnerships": {
+      "seen_count": 15,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media growth": {
+      "seen_count": 9,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer and social strategies": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "advertising and marketing": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media strategy": {
+      "seen_count": 14,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing roi": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing platforms": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer recruitment": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "performance analytics": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "paid social advertising": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand awareness": {
+      "seen_count": 11,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media content creation": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "content strategy": {
+      "seen_count": 16,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "campaign strategy": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media engagement tactics": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer campaigns": {
+      "seen_count": 12,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media analytics": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer campaign analytics": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creative campaigns": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "marketing automation": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "content production": {
+      "seen_count": 14,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media campaigns": {
+      "seen_count": 14,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creator partnerships": {
+      "seen_count": 12,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creative content": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing case studies": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "advertising services": {
+      "seen_count": 17,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media influencer outreach": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media influencer strategy": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand loyalty": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "marketing agency": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand engagement strategies": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand activation": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand awareness campaigns": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing measurement": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer collaborations": {
+      "seen_count": 11,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand loyalty programs": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "content creation": {
+      "seen_count": 19,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media influencer campaigns": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing best practices": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media influencer outreach tools": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media advertising": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media content strategy": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "audience segmentation": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media activations": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand community building": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "community engagement": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer collaboration tools": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer talent sourcing": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand visibility": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer marketing trends": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media metrics": {
+      "seen_count": 11,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer management": {
+      "seen_count": 18,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
     "digital marketing tools": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8513,7 +8519,7 @@
       ]
     },
     "influencer management software": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8521,7 +8527,7 @@
       ]
     },
     "digital amplification": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8529,7 +8535,7 @@
       ]
     },
     "influencer talent scouting": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8537,7 +8543,7 @@
       ]
     },
     "advertising agencies": {
-      "seen_count": 10,
+      "seen_count": 12,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8545,7 +8551,7 @@
       ]
     },
     "content creation tools": {
-      "seen_count": 9,
+      "seen_count": 11,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8553,7 +8559,7 @@
       ]
     },
     "influencer talent network": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8561,7 +8567,7 @@
       ]
     },
     "content amplification": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8569,7 +8575,7 @@
       ]
     },
     "social media trend analysis": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8577,7 +8583,7 @@
       ]
     },
     "social media content": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8585,7 +8591,7 @@
       ]
     },
     "brand engagement": {
-      "seen_count": 11,
+      "seen_count": 14,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8593,7 +8599,7 @@
       ]
     },
     "social media influencer collaborations": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8601,7 +8607,7 @@
       ]
     },
     "social media influencers": {
-      "seen_count": 10,
+      "seen_count": 13,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8609,7 +8615,7 @@
       ]
     },
     "digital campaign management": {
-      "seen_count": 7,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8617,7 +8623,7 @@
       ]
     },
     "celebrity advocacy": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8625,7 +8631,7 @@
       ]
     },
     "influencer marketing industry insights": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8633,7 +8639,7 @@
       ]
     },
     "influencer advocacy": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8641,7 +8647,7 @@
       ]
     },
     "influencer marketing automation": {
-      "seen_count": 6,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -8649,54 +8655,6 @@
       ]
     },
     "brand storytelling": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social platform advertising": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "audience targeting": {
-      "seen_count": 9,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer talent management": {
-      "seen_count": 9,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer partnerships": {
-      "seen_count": 11,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "campaign measurement": {
-      "seen_count": 9,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "campaign optimization": {
       "seen_count": 10,
       "segments": [
         "Creator platforms",
@@ -8704,63 +8662,7 @@
         "influencer marketing"
       ]
     },
-    "influencer marketing roi measurement": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "influencer marketing platform integration": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social media agency": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "strategic planning": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "campaign management": {
-      "seen_count": 12,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "audience engagement": {
-      "seen_count": 12,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "relationship building": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "data-driven insights": {
+    "social platform advertising": {
       "seen_count": 7,
       "segments": [
         "Creator platforms",
@@ -8768,143 +8670,7 @@
         "influencer marketing"
       ]
     },
-    "paid media strategies": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "seo optimization": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "platform partnerships": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "pop-up events": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "creative storytelling": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social selling": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "trend analysis": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "reactive content": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "cross-platform marketing": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "community building": {
-      "seen_count": 8,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "performance tracking": {
-      "seen_count": 7,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "roi measurement": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "consumer insights": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "brand positioning": {
-      "seen_count": 7,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "culturally relevant content": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "multi-channel marketing": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "engagement metrics": {
-      "seen_count": 9,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "creator economy": {
+    "audience targeting": {
       "seen_count": 11,
       "segments": [
         "Creator platforms",
@@ -8912,79 +8678,39 @@
         "influencer marketing"
       ]
     },
-    "advertising campaigns": {
-      "seen_count": 6,
+    "influencer talent management": {
+      "seen_count": 11,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
         "influencer marketing"
       ]
     },
-    "consumer trial": {
-      "seen_count": 6,
+    "influencer partnerships": {
+      "seen_count": 14,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
         "influencer marketing"
       ]
     },
-    "user-generated content": {
-      "seen_count": 6,
+    "campaign measurement": {
+      "seen_count": 11,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
         "influencer marketing"
       ]
     },
-    "viral content creation": {
-      "seen_count": 6,
+    "campaign optimization": {
+      "seen_count": 12,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
         "influencer marketing"
       ]
     },
-    "platform-specific strategies": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "long-form content": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "real-time analytics": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "social trends": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "events": {
-      "seen_count": 6,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "events services": {
+    "influencer marketing roi measurement": {
       "seen_count": 7,
       "segments": [
         "Creator platforms",
@@ -8992,8 +8718,288 @@
         "influencer marketing"
       ]
     },
-    "marketing": {
+    "influencer marketing platform integration": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media agency": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "strategic planning": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "campaign management": {
       "seen_count": 15,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "audience engagement": {
+      "seen_count": 15,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "relationship building": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "data-driven insights": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "paid media strategies": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "seo optimization": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "platform partnerships": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "pop-up events": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creative storytelling": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social selling": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "trend analysis": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "reactive content": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "cross-platform marketing": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "community building": {
+      "seen_count": 10,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "performance tracking": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "roi measurement": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "consumer insights": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand positioning": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "culturally relevant content": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "multi-channel marketing": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "engagement metrics": {
+      "seen_count": 11,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creator economy": {
+      "seen_count": 14,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "advertising campaigns": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "consumer trial": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "user-generated content": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "viral content creation": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "platform-specific strategies": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "long-form content": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "real-time analytics": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social trends": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "events": {
+      "seen_count": 7,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "events services": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "marketing": {
+      "seen_count": 18,
       "segments": [
         "Creator platforms",
         "EasyStaff IT consulting Miami",
@@ -9002,35 +9008,39 @@
       ]
     },
     "creative": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creator marketing": {
       "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creator marketing": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "tiktok": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "instagram": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "content marketing": {
-      "seen_count": 7,
+      "seen_count": 9,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -9038,141 +9048,160 @@
       ]
     },
     "data": {
-      "seen_count": 4,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
         "EasyStaff IT consulting Miami",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "esports": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer marketing agency": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "paid & performance": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "gaming": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "twitter": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "strategy": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer marketing tools": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "community activation": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital advertising": {
-      "seen_count": 5,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media community building": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "community engagement tactics": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "culture and community marketing": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social listening": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creator marketing strategy": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "culture marketing": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "brand relevance": {
       "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "community activation": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital advertising": {
+      "seen_count": 6,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media community building": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "community engagement tactics": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "culture and community marketing": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social listening": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creator marketing strategy": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "culture marketing": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand relevance": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "media & content creation": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer network": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -9180,56 +9209,63 @@
       ]
     },
     "content development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "performance marketing": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "audience analysis": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital content": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "community-focused advertising": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social engagement strategies": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "cultural relevance": {
       "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital content": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "community-focused advertising": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social engagement strategies": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "cultural relevance": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "advertising & marketing": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -9237,21 +9273,23 @@
       ]
     },
     "digital strategy": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creator-led campaigns": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creative agency": {
-      "seen_count": 6,
+      "seen_count": 8,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -9259,91 +9297,103 @@
       ]
     },
     "creator ecosystem": {
-      "seen_count": 3,
+      "seen_count": 5,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "digital community building": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "paid media": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "culture-driven marketing": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer content": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "community insights": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social insights": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "community influence": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "community marketing": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social media influence": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "cultural relevance in marketing": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "social-first strategy": {
-      "seen_count": 2,
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "influencer engagement": {
-      "seen_count": 5,
+      "seen_count": 7,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -9351,356 +9401,30 @@
       ]
     },
     "creative strategy": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "cultural engagement": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media trends": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creator agency": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "culture-focused campaigns": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "community management": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "community-driven campaigns": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creator collaborations": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social-first marketing": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital engagement": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "cultural moments": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creator network": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "community storytelling": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social media insights": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "brand growth": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital culture": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "community-driven content": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social-first campaigns": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "cultural marketing": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "influencer content creation": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "content innovation": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital community": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "audience connection": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social agency": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "data strategy": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "audience insights": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creator marketplace": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creative services": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "gamification": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "targeted advertising": {
       "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "trendsetting": {
-      "seen_count": 2,
+    "cultural engagement": {
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "organic reach": {
-      "seen_count": 2,
+    "social media trends": {
+      "seen_count": 3,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
-    "community culture": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social commerce": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "platform strategy": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "emerging creators": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "cross-platform content": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creator roster": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital media insights": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "authentic storytelling": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "market innovation": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "social analytics": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "virality": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "engagement strategies": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creative production": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "digital storytelling": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "collective creativity": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "market disruption": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "consumer behavior": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "games": {
-      "seen_count": 2,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK"
-      ]
-    },
-    "creator management": {
+    "creator agency": {
       "seen_count": 5,
       "segments": [
         "Creator platforms",
@@ -9708,42 +9432,375 @@
         "influencer marketing"
       ]
     },
-    "content standards": {
+    "culture-focused campaigns": {
       "seen_count": 3,
       "segments": [
         "Creator platforms",
+        "OnSocial Creator platforms UK",
         "influencer marketing"
       ]
     },
-    "digital influencer campaigns": {
+    "community management": {
       "seen_count": 3,
       "segments": [
         "Creator platforms",
+        "OnSocial Creator platforms UK",
         "influencer marketing"
       ]
     },
-    "influencer engagement metrics": {
+    "community-driven campaigns": {
       "seen_count": 3,
       "segments": [
         "Creator platforms",
+        "OnSocial Creator platforms UK",
         "influencer marketing"
       ]
     },
-    "content creation studio": {
+    "creator collaborations": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social-first marketing": {
       "seen_count": 3,
       "segments": [
         "Creator platforms",
+        "OnSocial Creator platforms UK",
         "influencer marketing"
       ]
     },
-    "influencer growth": {
+    "digital engagement": {
       "seen_count": 3,
       "segments": [
         "Creator platforms",
+        "OnSocial Creator platforms UK",
         "influencer marketing"
       ]
     },
-    "talent management": {
+    "cultural moments": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creator network": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "community storytelling": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social media insights": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "brand growth": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital culture": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "community-driven content": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social-first campaigns": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "cultural marketing": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "influencer content creation": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "content innovation": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital community": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "audience connection": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social agency": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "data strategy": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "audience insights": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creator marketplace": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creative services": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "gamification": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "targeted advertising": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "trendsetting": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "organic reach": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "community culture": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social commerce": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "platform strategy": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "emerging creators": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "cross-platform content": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creator roster": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital media insights": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "authentic storytelling": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "market innovation": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "social analytics": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "virality": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "engagement strategies": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creative production": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital storytelling": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "collective creativity": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "market disruption": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "consumer behavior": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "games": {
+      "seen_count": 3,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "creator management": {
       "seen_count": 6,
       "segments": [
         "Creator platforms",
@@ -9751,43 +9808,86 @@
         "influencer marketing"
       ]
     },
+    "content standards": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "digital influencer campaigns": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "influencer engagement metrics": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "content creation studio": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "influencer growth": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "talent management": {
+      "seen_count": 8,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
     "campaign performance analytics": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "digital talent agency": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "content vetting": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "community-driven influencer campaigns": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "high-impact influencer marketing": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "content distribution": {
-      "seen_count": 5,
+      "seen_count": 6,
       "segments": [
         "Creator platforms",
         "OnSocial Creator platforms UK",
@@ -9795,106 +9895,27 @@
       ]
     },
     "content standards enforcement": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "influencer vetting": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "influencer representation": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "campaign analytics": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "content quality assurance": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "influencer marketing"
-      ]
-    },
-    "influencer industry": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "influencer marketing"
-      ]
-    },
-    "digital influencer marketing": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "influencer marketing"
-      ]
-    },
-    "sustainable influencer marketing": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "influencer marketing"
-      ]
-    },
-    "content strategy development": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "influencer marketing"
-      ]
-    },
-    "influencer roster": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "influencer marketing"
-      ]
-    },
-    "content creators": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "influencer marketing"
-      ]
-    },
-    "management consulting services": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "influencer marketing"
-      ]
-    },
-    "global influencer network": {
-      "seen_count": 3,
-      "segments": [
-        "Creator platforms",
-        "influencer marketing"
-      ]
-    },
-    "campaign reporting": {
-      "seen_count": 4,
-      "segments": [
-        "Creator platforms",
-        "OnSocial Creator platforms UK",
-        "influencer marketing"
-      ]
-    },
-    "digital content creators": {
       "seen_count": 5,
       "segments": [
         "Creator platforms",
@@ -9902,358 +9923,437 @@
         "influencer marketing"
       ]
     },
+    "content quality assurance": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "influencer industry": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "digital influencer marketing": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "sustainable influencer marketing": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "content strategy development": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "influencer roster": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "content creators": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "management consulting services": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "global influencer network": {
+      "seen_count": 4,
+      "segments": [
+        "Creator platforms",
+        "influencer marketing"
+      ]
+    },
+    "campaign reporting": {
+      "seen_count": 5,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
+    "digital content creators": {
+      "seen_count": 6,
+      "segments": [
+        "Creator platforms",
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
+      ]
+    },
     "digital influencer agency": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "influencer analytics": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "content quality": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "influencer growth strategies": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "brand alignment": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "brand campaigns": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "content creation services": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "campaign management tools": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "influencer platform": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "influencer collaboration platforms": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "authentic influencer marketing": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "influencer outreach tools": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "digital talent management": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "modeling agency": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "connect creators": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "global representation": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "creative projects": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "branding partnerships": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "photo requirements": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "model application": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "talent development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "international modeling": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "social media presence": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "casting calls": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "portfolio building": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "model scouting": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "creative industries": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "online submissions": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "headshots": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "model portfolio": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "creative innovation": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "brand ambassador": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "modeling submissions": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "fashion photography": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "application process": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "model representation": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "talent showcase": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "photography collaborations": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "global talent": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "influencer platforms": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "model management": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "agency queries": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "photo guidelines": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "model profiles": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "collaboration projects": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "in-house development": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "application review": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "model recruitment": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "emerging talent": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "creative collaborations": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
       ]
     },
     "agency history": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
         "influencer marketing"
@@ -10323,10 +10423,11 @@
       ]
     },
     "public relations agencies": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creator business scaling": {
@@ -10492,10 +10593,11 @@
       ]
     },
     "creator growth strategies": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "creator tools": {
@@ -10646,10 +10748,11 @@
       ]
     },
     "digital content creation": {
-      "seen_count": 3,
+      "seen_count": 4,
       "segments": [
         "Creator platforms",
-        "OnSocial Creator platforms UK"
+        "OnSocial Creator platforms UK",
+        "influencer marketing"
       ]
     },
     "ad management": {
@@ -10940,57 +11043,66 @@
       ]
     },
     "tiktok creator houses": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "creator development": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "long-term creator careers": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "entertainment and media": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "creator talent management": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "creator wellness": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "sustainable influencer careers": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "creator mental health support": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "platform diversification": {
-      "seen_count": 1,
+      "seen_count": 2,
       "segments": [
-        "Creator platforms"
+        "Creator platforms",
+        "influencer marketing"
       ]
     },
     "web based applications": {

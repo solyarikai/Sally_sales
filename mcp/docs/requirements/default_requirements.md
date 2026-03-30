@@ -253,3 +253,40 @@ adjsutemntns from your tests right?) not to waste more time
    that the pipeline works always finding new companies from Apollo, scraping      
   websites, analyzing them by GPT, determining targets, extracting people until    
   this KPI, 100 people, up to 3 per company is achieved.   
+
+
+                                                                                 
+❯ and people are agathered nonblocking in parllel right? so that when the first      
+company i                                                                            
+                                                                                     
+                                                                                     
+When the first target company is revealed, people in the company must be gathered.   
+Do you see the logic? Like two separate processes. Process of gathering companies    
+should go until 100 target people not found. People finding must be launched for     
+each target company found immediately. If, for example, somehow there are, you know, 
+ once these companies gathering, maybe companies gathering, how does it work         
+actually? I mean, it should first, it should not pause until 40 target companies     
+found at least. Then, if for that moment 100 people is found, then it should stop.   
+But if for that moment 100 people is not found, it should continue and wait for      
+page, like load page, it's called like a new new feed, like how, how this pagination 
+ in the app will implement? You can like use pagination, right? Limit offset or how  
+that works. So that you, for the same search request, you... not using the same      
+page, right, for new companies to get. And you remember, new page means new          
+iteration. But all iterations are selected by default in UI in pipeline page, you    
+remember also. So, you shouldn't stop, company's case, you shouldn't stop until 100  
+target people are gathered, however, it should first get like, it should not load,   
+it should load new pages, I mean, immediately it can load four pages, as an initial  
+request, or I mean, initial with one, then this like reimprovement of Apollo filters 
+ and search, you remember? Then, then, uh, launch four pages immediately, for I      
+mean, four new pages immediately, then analyze them, wait until people get gathered, 
+ and launch a new page and then analyze of this new page, or better iterate, iterate 
+ with two pages, yeah. So, like, initially, one page, then improvement cycle for     
+Apollo filters to be improved and GPT-4 to be improved, then four pages, then again  
+four pages. Yeah, loop by four pages each time. And analyze the, and after for each  
+batch of, like, each page analyzed and people are found from targets, answer, are    
+there a hundred target people? If not, go on looping by four pages. And in such way, 
+ if, like, filter is changed somehow, so it's four pages, not like increasing by one 
+ page, then it goes within like one iteration. You understand? Like as a guide to    
+build this system, ask me any questions if you need to clarify anything, but be God, 
+ think better than me, and implement this all. ONCE 100 COMPANIES GATHRERED STOP     
+GATETING NEW PAGES FROM APOOLLO AND CREATE SMARTLEAD CAMPAIGN!!!      
