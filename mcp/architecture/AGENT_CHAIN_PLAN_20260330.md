@@ -45,71 +45,38 @@ Every pipeline needs ALL of these. MCP must collect each one before proceeding. 
 
 ---
 
-## Two Modes of Operation
+## Single Adaptive Flow — No Modes
 
-### Mode A: Step-by-step (casual user)
+There are no "modes." MCP always runs the same pre-flight checklist. The only difference is how much data the user provides upfront:
 
-User provides info one piece at a time. MCP asks ONE question, processes, asks next.
+- User sends 3 words → 1/10 items filled → MCP asks 9 questions (one at a time)
+- User sends a strategy doc → Opus extracts 9/10 items → MCP asks 1 question
+- User says "launch for EasyStaff-Global, same as before" → 10/10 from context → MCP confirms and runs
 
+**MCP never decides a "mode." It checks the checklist. Whatever's missing, it asks. Whatever's provided, it uses.**
+
+### Example: minimal input
 ```
 User: "I want to gather IT consulting companies"
-MCP:  "What's your company website? I need to understand your offer first."
+MCP:  [checks: offer=❌] "What's your company website?"
 User: "easystaff.io"
-MCP:  [scrapes, extracts offer] "Got it — EasyStaff does payroll & contractor
-       management. Where should we look? Which geo?"
+MCP:  [checks: geo=❌] "Got it — EasyStaff does payroll. Where should we look?"
 User: "Miami, 50-200 employees"
-MCP:  [maps filters] "Here's what I'll search:
-       Keywords: it consulting, management consulting, ...
-       Location: Miami
-       Size: 51-200
-       Total available: 3,908 companies
-       Cost: 4 credits (≈35 targets) or 157 credits (all 3,908, ≈1,368 targets)
-       Proceed with default (4 credits)?"
-User: "yes"
-MCP:  [gathers, scrapes, classifies, shows results]
+MCP:  [checks: all ✅] → shows filter preview → proceeds
 ```
 
-### Mode B: Brief mode (power user)
-
-User provides a strategy document (like cases/IGAMING_PROVIDERS_BRIEF.md) with everything: offer, segment, examples, exclusions, geo, size.
-
+### Example: strategy doc
 ```
-User: "Use this file: cases/IGAMING_PROVIDERS_BRIEF.md — launch everything"
-```
-
-**Who processes the file?** The user's agent (Opus in Claude Code) — NOT MCP's gpt-4o-mini. Opus reads the 160-line file, extracts structured data, and calls MCP tools with it.
-
-**Boundary rule**: If data fits in <2000 tokens → MCP's GPT-4o-mini can process it. If >2000 tokens → user's agent (Opus) must summarize and pass structured data to MCP.
-
-**What Opus extracts from the brief and passes to MCP:**
-
-```json
-{
-  "project_name": "Mifort-iGaming",
-  "website": "mifort.org",
-  "offer_summary": "IT outsourcing for iGaming. Web/Mobile/ML dev teams. Anti-fraud cases.",
-  "segment": "iGaming technology providers",
-  "geo": ["Malta", "Gibraltar", "Cyprus", "UK", "Estonia", "Armenia", "Israel"],
-  "size": ["11,50", "51,200", "201,500", "501,1000"],
-  "example_domains": ["softswiss.com", "pragmaticplay.com", "betconstruct.com", "digitain.com", "evoplay.games"],
-  "exclusion_rules": [
-    "Casino operators (run casinos, don't build tech)",
-    "Affiliate/SEO review sites",
-    "Land-based only / lottery",
-    "IT outsourcing competitors",
-    "Regulators and industry bodies"
-  ],
-  "email_accounts": "from previous Mifort campaigns",
-  "destination": "smartlead"
-}
+User: "Use cases/IGAMING_PROVIDERS_BRIEF.md — launch in SmartLead"
+  → User's Opus reads the 160-line doc, extracts structured data, calls MCP tools
+MCP:  [checks: email_accounts=❌] "All ready. Which SmartLead email accounts?"
+User: "from Mifort campaigns"
+MCP:  [checks: all ✅] → proceeds with exploration from examples → full pipeline
 ```
 
-**MCP receives this and auto-runs**:
-1. create_project → scrape mifort.org
-2. tam_enrich_from_examples (5 domains) → discover real Apollo keywords
-3. tam_gather with discovered filters → show preview → user confirms
-4. Full pipeline: blacklist → scrape → classify → explore → scale
-5. Sequence generation → push to SmartLead → test email
+### File processing boundary
+- **<2K tokens**: MCP's gpt-4o-mini handles it (short user messages, small CSVs)
+- **>2K tokens**: User's agent (Opus) must read and extract structured data before calling MCP tools. MCP can't process huge strategy docs — it's the agent's job to summarize.
 
 ---
 
