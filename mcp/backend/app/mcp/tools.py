@@ -18,9 +18,9 @@ NEVER ask for name or email — only accept a token that starts with mcp_.""",
     {
         "name": "get_context",
         "description": """Get the user's current state — projects, pipelines, campaigns, pending actions.
-ALWAYS call this after login to understand where the user left off.
-Returns: active projects, pipeline runs with phases, draft campaigns awaiting approval,
-reply counts, recent conversations. This lets you resume exactly where the user stopped.""",
+Call this ONLY after login or when user asks "what was I working on?" / "status" / "resume".
+DO NOT call this when the user asks to DO something (gather, explore, generate, activate).
+For those actions, call the specific tool directly (tam_gather, tam_explore, smartlead_generate_sequence, activate_campaign).""",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
@@ -128,19 +128,20 @@ Example: "find IT consulting and media production companies in Miami"
     # ── Pipeline ──
     {
         "name": "tam_gather",
-        "description": """Phase 1: Gather companies from a source.
+        "description": """Gather companies from Apollo/CSV/Sheet. THIS is the tool for "find companies", "gather", "search", "launch pipeline".
 
-FLOW for Apollo API:
-1. Ensure project has offer context (target_segments). If not, ask user for website first.
-2. Call parse_gathering_intent to get structured segments
-3. Call tam_gather WITHOUT confirm_filters → returns filter preview for user approval
-4. Show user the filter preview. Wait for their OK.
-5. Call tam_gather WITH confirm_filters=true → actually runs the search
+WHEN USER SAYS: "find IT consulting in Miami", "gather companies", "start pipeline", "search for" → call THIS tool.
+DO NOT call parse_gathering_intent or suggest_apollo_filters — tam_gather handles everything.
 
-For CSV/Sheet/Drive: no confirmation needed, just call directly.
+TWO-STEP for Apollo:
+  Step 1: Call WITHOUT confirm_filters → returns FILTER PREVIEW (keywords, total available, cost estimate). Show to user, ask "Proceed?"
+  Step 2: Call WITH confirm_filters=true → actually searches Apollo and spends credits.
+NEVER skip the preview step. NEVER call twice without user confirmation between calls.
 
-IMPORTANT: For Apollo, the first call returns a filter preview (not results).
-The user MUST approve before credits are spent.""",
+Pass query= with the user's natural language (e.g. "IT consulting in Miami"). System auto-generates Apollo filters from taxonomy maps.
+Pass filters= with at least organization_num_employees_ranges (e.g. ["11,50","51,200"]).
+
+AFTER gathering starts, ask: "Which email accounts to use for the campaign?" (call list_email_accounts).""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -260,10 +261,11 @@ Multi-step chains: Provide prompt_steps array for sequential classification (eac
     },
     {
         "name": "tam_explore",
-        "description": """Exploration phase: enrich top 5 target companies in Apollo to discover their REAL keyword tags and industries. Then suggests optimized search filters that will find MORE similar companies.
+        "description": """Exploration: enrich top 5 targets to discover better Apollo filters.
 
-Call AFTER tam_analyze (Checkpoint 2) when you have targets. Costs ~5 Apollo credits for enrichment.
-Returns: optimized filters with real Apollo vocabulary. Use with tam_gather to re-search.""",
+WHEN USER SAYS: "explore", "find better filters", "optimize", "enrich targets" → call THIS.
+Costs 5 Apollo credits. Returns optimized filters with real Apollo vocabulary.
+Call AFTER classification is done (targets exist in the pipeline).""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -289,12 +291,12 @@ Use case: user says 'companies like X, Y, Z' or provides a file with example com
     },
     {
         "name": "tam_re_analyze",
-        "description": """Re-classify EXISTING companies with improved prompt. Two modes:
-1. Manual: provide prompt_text with improved rules
-2. Auto-tune: provide agent_verdicts ({domain: {target: bool, reason: str}}) and system auto-improves prompt to match
+        "description": """Re-classify same companies with better prompt. Creates new pipeline iteration.
 
-Does NOT re-gather. Works on same companies. Creates new iteration for UI comparison.
-Each re-analysis tracked in pipeline_iterations table.""",
+WHEN USER SAYS: "these aren't right", "exclude X", "re-analyze", "wrong targets" → call provide_feedback FIRST, then THIS.
+WHEN USER'S AGENT provides verdicts: pass agent_verdicts={domain: {target: bool, reason: str}} for auto-tuning.
+
+Does NOT re-gather. Same companies, different classification. New iteration visible in UI.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -372,7 +374,11 @@ Each re-analysis tracked in pipeline_iterations table.""",
     },
     {
         "name": "smartlead_generate_sequence",
-        "description": "Generate a 5-step email sequence using extracted patterns + project knowledge.",
+        "description": """Generate email sequence for a campaign.
+
+WHEN USER SAYS: "generate sequence", "create emails", "write the campaign" → call THIS.
+Returns a DRAFT sequence (4-5 steps). Show preview to user, then call smartlead_approve_sequence.
+FLOW: generate → user approves → smartlead_approve_sequence → smartlead_push_campaign.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -580,7 +586,10 @@ Only call when user explicitly says "activate", "start", "launch", or "go live".
     },
     {
         "name": "pipeline_status",
-        "description": "Get the current status of a pipeline run: phase, progress, next action needed.",
+        "description": """Pipeline status — phase, progress, targets found, next action.
+
+WHEN USER SAYS: "pipeline status", "how is gathering going", "what's the progress" → call THIS.
+DO NOT call get_context for pipeline questions — use pipeline_status with the run_id.""",
         "inputSchema": {
             "type": "object",
             "properties": {"run_id": {"type": "integer"}},
@@ -797,10 +806,13 @@ Stores override + reasoning for learning.""",
     },
     {
         "name": "provide_feedback",
-        "description": """Store user feedback about any pipeline aspect. General-purpose feedback tool.
+        "description": """Store feedback to improve pipeline. Use feedback_type to categorize:
+- "targets": user says which companies are/aren't targets → then call tam_re_analyze
+- "filters": user wants different Apollo filters
+- "sequence": user wants to change email content
+- "general": anything else
 
-Use when user says: "Apollo filters should include X", "sequence tone is too formal", "focus more on Y segment".
-Stored per-project, used to improve future runs. Most recent feedback takes priority over older.""",
+WHEN USER SAYS: "these aren't targets", "exclude software companies", "wrong classifications" → call THIS with feedback_type="targets", then tam_re_analyze.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -814,15 +826,10 @@ Stored per-project, used to improve future runs. Most recent feedback takes prio
     },
     {
         "name": "activate_campaign",
-        "description": """Activate a SmartLead campaign — START sending emails to real leads.
+        "description": """Activate a campaign — START sending to real leads.
 
-CRITICAL: NEVER call without EXPLICIT user approval. User must confirm they reviewed:
-1. Sequence content (all steps)
-2. Leads list (target companies)
-3. Campaign settings (timezone, accounts)
-4. Test email (received and correct)
-
-Only call when user explicitly says "activate", "start", or "go live".""",
+WHEN USER SAYS: "activate", "launch", "start the campaign", "go live" → call THIS.
+NEVER call without explicit user approval.""",
         "inputSchema": {
             "type": "object",
             "properties": {
