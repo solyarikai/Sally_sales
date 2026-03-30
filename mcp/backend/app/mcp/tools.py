@@ -289,17 +289,20 @@ Use case: user says 'companies like X, Y, Z' or provides a file with example com
     },
     {
         "name": "tam_re_analyze",
-        "description": """Re-run Phase 5 with an adjusted prompt. Use when YOU (Opus) reviewed GPT's target list at Checkpoint 2 and found accuracy < 90%.
+        "description": """Re-classify EXISTING companies with improved prompt. Two modes:
+1. Manual: provide prompt_text with improved rules
+2. Auto-tune: provide agent_verdicts ({domain: {target: bool, reason: str}}) and system auto-improves prompt to match
 
-Resets the run to scraped phase and re-analyzes all companies with the new prompt.
-Iterate until GPT's results meet your quality bar.""",
+Does NOT re-gather. Works on same companies. Creates new iteration for UI comparison.
+Each re-analysis tracked in pipeline_iterations table.""",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "run_id": {"type": "integer"},
-                "prompt_text": {"type": "string", "description": "Improved ICP prompt based on what GPT got wrong"},
+                "prompt_text": {"type": "string", "description": "Improved classification prompt (manual mode)"},
+                "agent_verdicts": {"type": "object", "description": "Auto-tune: {domain: {target: bool, reason: str}}"},
             },
-            "required": ["run_id", "prompt_text"],
+            "required": ["run_id"],
         },
     },
     # FindyMail DISABLED in MVP — uncomment when ready for production
