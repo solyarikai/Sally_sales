@@ -638,7 +638,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     f"For {target_count} contacts ({contacts_per_company} per company):\n"
                     f"  Search: {cost_est['pages_needed']} pages = {cost_est['search_credits']} credits (${cost_est['search_credits'] * 0.01:.2f})\n"
                     f"  Exploration: {cost_est['enrichment_credits']} credits (${cost_est['enrichment_credits'] * 0.01:.2f})\n"
-                    f"  People search: FREE\n"
+                    f"  People emails: {cost_est.get('people_credits',target_count)} credits (${cost_est.get('people_cost_usd', target_count*0.01):.2f}) — 1 credit per email\n"
                     f"  Total: {cost_est['total_credits']} credits (${cost_est['total_cost_usd']:.2f})\n"
                     f"  Estimated target rate: {int(cost_est['target_rate_used']*100)}%"
                     f"{people_defaults}\n\n"
