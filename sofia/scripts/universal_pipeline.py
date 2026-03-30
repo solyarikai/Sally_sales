@@ -2085,8 +2085,8 @@ def main():
                 print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
             contacts = all_contacts
         else:
-            print("\n  ERROR: --apollo-csv required for people step")
-            sys.exit(1)
+            # Default: automated Apollo People UI search
+            contacts = step10_apollo_people_search(config, targets, force=args.force)
     else:
         contacts = load_json(config.state_dir / "contacts.json") or \
                    load_json(config.state_dir / "enriched.json") or []
