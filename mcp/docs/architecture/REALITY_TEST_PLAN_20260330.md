@@ -290,7 +290,85 @@ TEST 5.3: User approves launch
   - DB: campaigns.status = 'active', monitoring_enabled = true
 ```
 
-### Phase 6: Post-Launch (steps 22-25)
+### Phase 5b: Auto-Pipeline KPI Loop (steps 22-28)
+
+The `run_auto_pipeline` tool runs the full loop automatically. Test that it:
+- Gathers pages until 100 contacts found
+- Extracts people in parallel (non-blocking)
+- Creates iterations per batch
+- Stops when KPI met
+
+```
+TEST 5b.1: Auto-pipeline starts after filter confirmation
+  User confirms filters → agent calls run_auto_pipeline
+
+  VERIFY:
+  - Iteration 1: 1 page (25 companies), scrape + classify
+  - People extraction starts immediately for any targets
+  - Response shows progress: "{N} targets, {M} contacts so far"
+
+TEST 5b.2: Exploration runs after iteration 1
+  VERIFY:
+  - Top targets enriched in Apollo (5 credits)
+  - Filters optimized with real keywords
+  - Iteration 2 uses BETTER filters than iteration 1
+  - Screenshot: /pipeline/{id} shows iteration selector with 2+ iterations
+
+TEST 5b.3: Scale batches (4 pages each) continue automatically
+  VERIFY:
+  - Iteration 2: pages 2-5 (100 companies)
+  - Iteration 3: pages 6-9 (if needed)
+  - Each iteration visible in UI
+  - People extracted in parallel for each new target
+
+TEST 5b.4: People extraction happens per target company (non-blocking)
+  VERIFY:
+  - As soon as a company is classified as target → people search launched
+  - 3 contacts per company (offer-adjusted roles from A7)
+  - Person titles match offer (e.g. VP HR for payroll, CTO for SaaS)
+  - People visible in CRM: /crm?pipeline={run_id}
+  - DB: extracted_contacts linked to discovered_company
+
+TEST 5b.5: KPI check — stops at 100 contacts
+  VERIFY:
+  - Pipeline STOPS loading Apollo pages when total_people >= 100
+  - Does NOT over-gather (wastes credits)
+  - Response shows: "KPI MET: {N} contacts >= 100"
+  - kpi_met = true in response
+  - Screenshot: /pipeline/{id} shows total contacts count
+
+TEST 5b.6: If KPI not met after many pages — reports insufficient
+  VERIFY:
+  - After 20 iterations (500 pages max) → stops with warning
+  - status = "insufficient", kpi_met = false
+  - Suggests: "Consider broader filters"
+
+TEST 5b.7: People filters visible in UI
+  VERIFY:
+  - Pipeline detail shows people filters applied (person_titles, person_seniorities)
+  - Different from company filters (keywords, industries, location, size)
+  - Screenshot: /pipeline/{id} shows both company filters + people filters
+```
+
+### Phase 5c: Auto-Campaign Creation (step 29)
+
+```
+TEST 5c.1: Campaign auto-created after 100 contacts
+  After run_auto_pipeline completes with kpi_met=true
+
+  VERIFY:
+  - Sequence generated automatically
+  - Campaign pushed to SmartLead (DRAFT)
+  - All 100+ contacts uploaded with segments + normalized names
+  - Test email sent to user
+  - Response includes: SL link + CRM link + "check inbox" + "approve"
+  - Screenshot: /campaigns shows new DRAFT campaign
+  - Screenshot: /crm?campaign={name} shows 100+ contacts
+```
+
+---
+
+### Phase 6: Post-Launch (steps 30-33)
 
 ```
 TEST 6.1: Warm replies
@@ -388,19 +466,18 @@ TEST 7.5: Exploration changes filters → visible across iterations
   - UI shows filter diff or at least both filter sets are viewable
   - Screenshot: /pipeline/{id} filters panel shows Iter 2 keywords
 
-TEST 7.6: Scale = more pages, same filters → Iteration 3
-  User: "find more companies with the same filters"
+TEST 7.6: Scale via auto-pipeline creates multiple iterations automatically
+  run_auto_pipeline loops by 4 pages
 
   VERIFY:
-  - tam_gather called with same filters but higher max_pages or next page offset
-  - Does NOT re-search already gathered companies (offset/page handling)
-  - Does NOT spend credits on already-fetched pages
-  - New companies added to the same pipeline run
-  - Iteration 3 created with trigger="scale"
-  - UI: iteration selector shows 3 iterations
-  - Filters same as Iter 2 (only max_pages changed)
-  - Screenshot: companies table has MORE rows than before
-  - DB: new company_source_links added, gathering_run credits_used increased
+  - Iteration 1: page 1 (exploration)
+  - Iteration 2: pages 2-5 (optimized filters, 4 pages)
+  - Iteration 3: pages 6-9 (same filters, next 4 pages)
+  - Each iteration: different page_range, same/improved filters
+  - Does NOT re-fetch already-fetched pages
+  - UI: iteration selector shows all iterations
+  - Screenshot: companies table grows with each iteration
+  - DB: company_source_links grow, credits_used increases per batch
 
 TEST 7.7: Apollo filters visible per iteration
   VERIFY for EACH iteration:
