@@ -2201,12 +2201,12 @@ def main():
     else:
         targets = load_json(config.state_dir / "targets.json") or []
 
+    # ── Step 8: Apollo People Search ──
     if "people" in steps:
         if args.apollo_csv:
             all_contacts = []
             seg_override = None
             if args.apollo_csv_agencies:
-                # Two CSVs — platforms + agencies
                 for slug, seg_data in config.segments.items():
                     if "platform" in slug.lower():
                         seg_override = seg_data["name"]
@@ -2227,18 +2227,29 @@ def main():
                 print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
             contacts = all_contacts
         else:
-            # Default: automated Apollo People UI search
             contacts = step10_apollo_people_search(config, targets, force=args.force)
+
+        # CP3: approve FindyMail cost before proceeding
+        with_li = sum(1 for c in contacts if c.get("linkedin_url") and not c.get("email"))
+        cost_est = with_li * 0.01
+        print(f"\n  ★ CP3 — FindyMail cost estimate:")
+        print(f"  Contacts to enrich: {with_li}")
+        print(f"  Estimated cost: ${cost_est:.2f}")
+        print(f"  PAUSING. Approve cost, then resume:")
+        print(f"    --from-step findymail --run-id {run_id}")
+        return
     else:
         contacts = load_json(config.state_dir / "contacts.json") or \
                    load_json(config.state_dir / "enriched.json") or []
 
+    # ── Step 9: FindyMail email enrichment ──
     if "findymail" in steps:
         contacts = asyncio.run(step11_findymail(config, contacts,
                                                  max_contacts=args.max_findymail, force=args.force))
     else:
         contacts = load_json(config.state_dir / "enriched.json") or contacts
 
+    # ── Step 10: SmartLead upload ──
     if "upload" in steps:
         step12_upload(config, contacts)
 
