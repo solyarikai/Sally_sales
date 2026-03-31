@@ -60,6 +60,9 @@ Input modes:
   --mode keywords   : Direct Clay search by description_keywords (no AI mapping).
                       Pass --filters JSON with "description_keywords" list.
                       Faster and more precise than icp_text — keywords go straight to Clay UI.
+  --mode apollo     : Apollo Companies internal API search (via apollo_companies_search.js).
+                      Pass --filters JSON with "keyword_tags" and "locations" lists.
+                      Uses q_organization_keyword_tags for precise matching. FREE.
   --mode lookalike  : Reverse-engineers filters from example company domains
   --mode expand     : Clones a previous run with JSON overrides
 
