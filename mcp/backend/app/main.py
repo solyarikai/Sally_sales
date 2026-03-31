@@ -243,6 +243,12 @@ class MCPApp:
                             break
                     _session_tokens["_latest"] = token
 
+                # If no token from HTTP headers, look up from session store (set by login tool)
+                if not token and session_id:
+                    token = _session_tokens.get(session_id, "")
+                if not token:
+                    token = _session_tokens.get("_latest", "")
+
                 # Intercept request body for conversation logging
                 body_chunks = []
                 async def logging_receive():
@@ -256,12 +262,14 @@ class MCPApp:
                 try:
                     await sse_transport.handle_post_message(scope, logging_receive, send)
                 finally:
-                    # Log after response is sent (M23: capture errors from background task)
+                    # Log after response is sent
                     if body_chunks:
                         import asyncio
+                        # Re-read token from session store (login tool may have just set it)
+                        log_token = token or _session_tokens.get(session_id, "") or _session_tokens.get("_latest", "")
                         full_body = b"".join(body_chunks)
                         task = asyncio.create_task(
-                            _log_conversation_message(full_body, token, session_id)
+                            _log_conversation_message(full_body, log_token, session_id)
                         )
                         task.add_done_callback(lambda t: logger.error(f"Conversation log failed: {t.exception()}") if t.exception() else None)
             else:
