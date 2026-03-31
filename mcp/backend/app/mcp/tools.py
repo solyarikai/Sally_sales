@@ -605,7 +605,7 @@ Only call when user explicitly says "activate", "start", "launch", or "go live".
 WHEN USER SAYS: "pipeline status", "how is gathering going", "what's the progress" → call THIS.
 DO NOT call get_context for pipeline questions — use pipeline_status with the run_id.
 
-Returns: KPI targets (target_count, contacts_per_company, min_targets), progress (people/targets found, percentages), timing (elapsed, ETA), cost (credits used/remaining).""",
+Returns: KPI targets (target_people, max_people_per_company, target_companies), progress (people/targets found, percentages), timing (elapsed, ETA), cost (credits used/remaining).""",
         "inputSchema": {
             "type": "object",
             "properties": {"run_id": {"type": "integer"}},
@@ -617,16 +617,19 @@ Returns: KPI targets (target_count, contacts_per_company, min_targets), progress
         "description": """Change pipeline KPI targets. Works on running or paused pipelines.
 
 WHEN USER SAYS: "gather 200 contacts", "I need 50 companies", "set max 5 per company", "change target to 1000" → call THIS.
-Returns updated KPIs + cost estimate for remaining work.
+Returns updated KPIs + cost estimate for remaining work. KPIs auto-align: changing one recalculates the others.
 
-Orchestrator reads KPIs from DB each iteration, so changes take effect on the next batch.""",
+Alignment rules:
+- Change target_people → target_companies = ceil(target_people / max_people_per_company)
+- Change max_people_per_company → target_companies = ceil(target_people / max_people_per_company)
+- Change target_companies → target_people = target_companies * max_people_per_company""",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "run_id": {"type": "integer"},
-                "target_count": {"type": "integer", "description": "Target total contacts (e.g. 200)"},
-                "min_targets": {"type": "integer", "description": "Target number of target companies"},
-                "contacts_per_company": {"type": "integer", "description": "Max contacts per company (e.g. 5)"},
+                "target_people": {"type": "integer", "description": "Target total contacts to gather (e.g. 200)"},
+                "target_companies": {"type": "integer", "description": "Target number of target companies (e.g. 50)"},
+                "max_people_per_company": {"type": "integer", "description": "Maximum contacts per company (e.g. 5)"},
             },
             "required": ["run_id"],
         },
@@ -693,9 +696,9 @@ Requires: project with offer context, Apollo + OpenAI keys configured.""",
             "properties": {
                 "run_id": {"type": "integer", "description": "Gathering run to auto-continue"},
                 "filters": {"type": "object", "description": "Apollo filters (from tam_gather preview)"},
-                "target_count": {"type": "integer", "description": "Target total contacts to gather (default 100). User says 'gather 200 contacts' → 200."},
-                "contacts_per_company": {"type": "integer", "description": "Max contacts per company (default 3). User says '5 per company' → 5."},
-                "min_targets": {"type": "integer", "description": "Min target companies (auto-derived from target_count / contacts_per_company if not set)"},
+                "target_people": {"type": "integer", "description": "Target total contacts to gather (default 100). User says 'gather 200 contacts' → 200."},
+                "max_people_per_company": {"type": "integer", "description": "Maximum contacts per company (default 3). User says '5 per company' → 5."},
+                "target_companies": {"type": "integer", "description": "Target companies (auto-derived: ceil(target_people/max_people_per_company))"},
             },
             "required": ["run_id"],
         },

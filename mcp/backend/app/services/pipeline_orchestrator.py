@@ -85,8 +85,8 @@ class PipelineOrchestrator:
     def _read_kpis(self):
         """Read KPI targets from the run (may change mid-run via set_pipeline_kpi)."""
         return (
-            self.run.target_count or DEFAULT_TARGET_COUNT,
-            self.run.contacts_per_company or DEFAULT_CONTACTS_PER_COMPANY,
+            self.run.target_people or DEFAULT_TARGET_COUNT,
+            self.run.max_people_per_company or DEFAULT_CONTACTS_PER_COMPANY,
         )
 
     async def _persist_progress(self, iteration: int):
@@ -400,17 +400,18 @@ class PipelineOrchestrator:
         return result.scalar() or 0
 
     def _finalize(self, result: Dict) -> Dict:
-        target_people = self.run.target_count or DEFAULT_TARGET_COUNT
-        result["status"] = "completed" if self.total_people >= target_people else "insufficient"
+        tp = self.run.target_people or DEFAULT_TARGET_COUNT
+        mpc = self.run.max_people_per_company or DEFAULT_CONTACTS_PER_COMPANY
+        result["status"] = "completed" if self.total_people >= tp else "insufficient"
         result["total_targets"] = self.total_targets
         result["total_people"] = self.total_people
         result["total_companies"] = self.total_companies
         result["pages_fetched"] = self.pages_fetched
-        result["kpi_met"] = self.total_people >= target_people
+        result["kpi_met"] = self.total_people >= tp
         result["kpi"] = {
-            "target_count": target_people,
-            "contacts_per_company": self.run.contacts_per_company or DEFAULT_CONTACTS_PER_COMPANY,
-            "min_targets": self.run.min_targets or ceil(target_people / (self.run.contacts_per_company or DEFAULT_CONTACTS_PER_COMPANY)),
+            "target_people": tp,
+            "max_people_per_company": mpc,
+            "target_companies": self.run.target_companies or ceil(tp / mpc),
         }
         result["message"] = (
             f"Pipeline {'complete' if result['kpi_met'] else 'paused' if self.run.status == 'paused' else 'incomplete'}: "

@@ -265,9 +265,9 @@ async def get_run_status(
 
     # KPI fields
     from math import ceil
-    target_count = run.target_count or 100
-    contacts_per_company = run.contacts_per_company or 3
-    min_targets = run.min_targets or ceil(target_count / contacts_per_company)
+    tp = run.target_people or 100
+    mpc = run.max_people_per_company or 3
+    tc = run.target_companies or ceil(tp / mpc)
     people_found = run.total_people_found or live_people_count
     targets_found = run.total_targets_found or live_targets_count
 
@@ -279,9 +279,9 @@ async def get_run_status(
         now = datetime.now(tz.utc)
         started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=tz.utc)
         elapsed_seconds = int((now - started).total_seconds())
-        if people_found > 0 and people_found < target_count and elapsed_seconds > 0:
+        if people_found > 0 and people_found < tp and elapsed_seconds > 0:
             rate = people_found / elapsed_seconds
-            eta_seconds = int((target_count - people_found) / rate)
+            eta_seconds = int((tp - people_found) / rate)
 
     return {
         "id": run.id,
@@ -304,17 +304,17 @@ async def get_run_status(
         "campaign": campaign_info,
         # KPI + Progress
         "kpi": {
-            "target_count": target_count,
-            "contacts_per_company": contacts_per_company,
-            "min_targets": min_targets,
+            "target_people": tp,
+            "max_people_per_company": mpc,
+            "target_companies": tc,
         },
         "progress": {
             "targets_found": targets_found,
             "people_found": people_found,
             "pages_fetched": run.pages_fetched or 0,
             "iteration": run.current_iteration or 0,
-            "people_pct": round(people_found / target_count * 100, 1) if target_count > 0 else 0,
-            "targets_pct": round(targets_found / min_targets * 100, 1) if min_targets > 0 else 0,
+            "people_pct": round(people_found / tp * 100, 1) if tp > 0 else 0,
+            "targets_pct": round(targets_found / tc * 100, 1) if tc > 0 else 0,
         },
         "timing": {
             "started_at": str(run.started_at) if run.started_at else None,
@@ -392,9 +392,9 @@ async def resume_run(
 
 
 class KPIUpdateRequest(BaseModel):
-    target_count: Optional[int] = None
-    contacts_per_company: Optional[int] = None
-    min_targets: Optional[int] = None
+    target_people: Optional[int] = None
+    max_people_per_company: Optional[int] = None
+    target_companies: Optional[int] = None
 
 
 @router.patch("/runs/{run_id}/kpi")
@@ -414,27 +414,34 @@ async def update_run_kpi(
             raise HTTPException(404, "Run not found")
 
     from math import ceil
-    if body.target_count is not None:
-        run.target_count = body.target_count
-    if body.contacts_per_company is not None:
-        run.contacts_per_company = body.contacts_per_company
-    if body.min_targets is not None:
-        run.min_targets = body.min_targets
+    user_set = set()
+    if body.target_people is not None:
+        run.target_people = body.target_people
+        user_set.add("target_people")
+    if body.max_people_per_company is not None:
+        run.max_people_per_company = body.max_people_per_company
+        user_set.add("max_people_per_company")
+    if body.target_companies is not None:
+        run.target_companies = body.target_companies
+        user_set.add("target_companies")
 
-    # Derive min_targets if not set
-    tc = run.target_count or 100
-    cpc = run.contacts_per_company or 3
-    if not run.min_targets:
-        run.min_targets = ceil(tc / cpc)
+    # KPI alignment
+    tp = run.target_people or 100
+    mpc = run.max_people_per_company or 3
+    if "target_companies" in user_set and "target_people" not in user_set:
+        tp = run.target_companies * mpc
+        run.target_people = tp
+    else:
+        run.target_companies = ceil(tp / mpc)
 
     await session.commit()
 
     return {
         "id": run.id,
         "kpi": {
-            "target_count": tc,
-            "contacts_per_company": cpc,
-            "min_targets": run.min_targets,
+            "target_people": run.target_people,
+            "max_people_per_company": run.max_people_per_company,
+            "target_companies": run.target_companies,
         },
     }
 

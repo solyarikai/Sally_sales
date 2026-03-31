@@ -247,9 +247,9 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
   const timing = run.timing || {}
   const isPaused = run.status === 'paused'
 
-  const targetCount = kpi.target_count || 100
-  const contactsPerCompany = kpi.contacts_per_company || 3
-  const minTargets = kpi.min_targets || Math.ceil(targetCount / contactsPerCompany)
+  const targetCount = kpi.target_people || kpi.target_count || 100
+  const contactsPerCompany = kpi.max_people_per_company || kpi.contacts_per_company || 3
+  const minTargets = kpi.target_companies || kpi.min_targets || Math.ceil(targetCount / contactsPerCompany)
   const peoplePct = progress.people_pct || 0
   const targetsPct = progress.targets_pct || 0
 
@@ -671,7 +671,7 @@ export default function PipelinePage() {
             </span>
             <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
               <span style={{ color: 'var(--text-muted)' }}>max per company:</span>{' '}
-              {run?.kpi?.contacts_per_company || run?.people_filters?.contacts_per_company || 3}
+              {run?.kpi?.max_people_per_company || run?.kpi?.contacts_per_company || run?.people_filters?.max_people_per_company || 3}
             </span>
           </div>
           {totalContacts > 0 && (
