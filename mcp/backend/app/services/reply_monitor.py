@@ -235,15 +235,37 @@ class ReplyMonitor:
     async def _notify_telegram(self, campaign, email: str, category: str, text: str):
         """Send Telegram notification for warm reply."""
         try:
-            # Use the Telegram bot if configured
             import os
             bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
             if not bot_token:
                 return
 
             import httpx
-            # Get chat IDs from Redis or env
-            chat_id = os.environ.get("TELEGRAM_NOTIFY_CHAT_ID")
+
+            # Try per-user Telegram chat_id from DB first, then fall back to env var
+            chat_id = None
+            if hasattr(campaign, 'project_id') and campaign.project_id:
+                try:
+                    from app.db import async_session_maker
+                    from app.models.project import Project
+                    from app.models.integration import MCPIntegrationSetting
+                    async with async_session_maker() as db_session:
+                        project = await db_session.get(Project, campaign.project_id)
+                        if project and project.user_id:
+                            tg_result = await db_session.execute(
+                                select(MCPIntegrationSetting).where(
+                                    MCPIntegrationSetting.user_id == project.user_id,
+                                    MCPIntegrationSetting.integration_name == "telegram",
+                                )
+                            )
+                            tg_setting = tg_result.scalar_one_or_none()
+                            if tg_setting and tg_setting.config:
+                                chat_id = tg_setting.config.get("chat_id")
+                except Exception as e:
+                    logger.debug(f"Failed to get per-user telegram chat_id: {e}")
+
+            if not chat_id:
+                chat_id = os.environ.get("TELEGRAM_NOTIFY_CHAT_ID")
             if not chat_id:
                 return
 

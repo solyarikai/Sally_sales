@@ -117,12 +117,43 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             _session_user_tokens[id(ctx.session)] = token_val
         except (LookupError, AttributeError):
             pass
-        return {"user_id": user.id, "name": user.name, "email": user.email,
-                "message": f"Logged in as {user.name}. All tools ready."}
+        # Check integrations status at login — guide user to set up missing keys
+        integrations = (await session.execute(
+            select(MCPIntegrationSetting).where(MCPIntegrationSetting.user_id == user.id)
+        )).scalars().all()
+        configured = {i.integration_name for i in integrations}
+        required = {"apollo", "openai", "smartlead", "apify"}
+        missing = required - configured
+
+        if missing:
+            setup_msg = (
+                f"Logged in as {user.name}.\n\n"
+                f"Before we can launch campaigns, set up these integrations: **{', '.join(sorted(missing))}**.\n"
+                f"Go to http://46.62.210.24:3000/setup to add your API keys.\n\n"
+                f"Already configured: {', '.join(sorted(configured)) or 'none'}."
+            )
+        else:
+            setup_msg = f"Logged in as {user.name}. All integrations configured — ready to go!"
+
+        return {
+            "user_id": user.id, "name": user.name, "email": user.email,
+            "integrations_configured": sorted(configured),
+            "integrations_missing": sorted(missing),
+            "all_keys_set": len(missing) == 0,
+            "message": setup_msg,
+            "_links": {"setup": "http://46.62.210.24:3000/setup"},
+        }
 
     if tool_name == "get_context":
         user = await _get_user(token, session)
         from sqlalchemy import func
+
+        # Check integrations
+        integrations_result = await session.execute(
+            select(MCPIntegrationSetting).where(MCPIntegrationSetting.user_id == user.id)
+        )
+        configured_keys = {i.integration_name for i in integrations_result.scalars().all()}
+        missing_keys = {"apollo", "openai", "smartlead", "apify"} - configured_keys
 
         # Projects
         projects = (await session.execute(
@@ -181,16 +212,23 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             )
             pending_gates = gate_result.scalars().all()
 
+        # Integration status message
+        keys_msg = ""
+        if missing_keys:
+            keys_msg = f"\nMissing integrations: **{', '.join(sorted(missing_keys))}** — set up at http://46.62.210.24:3000/setup\n"
+
         context = {
             "user": {"name": user.name, "email": user.email},
             "active_project_id": user.active_project_id,
+            "integrations": {"configured": sorted(configured_keys), "missing": sorted(missing_keys)},
             "projects": [{"id": p.id, "name": p.name, "icp": (p.target_segments or "")[:100]} for p in projects],
-            "pipeline_runs": [{"id": r.id, "phase": r.current_phase, "companies": r.new_companies_count, "project_id": r.project_id} for r in runs],
+            "pipeline_runs": [{"id": r.id, "phase": r.current_phase, "status": r.status, "companies": r.new_companies_count, "people": r.total_people_found, "project_id": r.project_id} for r in runs],
             "draft_campaigns": [{"id": c.id, "name": c.name, "status": c.status, "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None} for c in drafts],
             "replies": {"total": reply_count, "warm": warm_count},
             "recent_activity": [{"method": c.method, "summary": c.content_summary, "at": str(c.created_at)} for c in recent_convos],
             "message": (
                 f"Welcome back, {user.name}!\n\n"
+                + keys_msg
                 + (f"You have {len(projects)} project{'s' if len(projects) != 1 else ''}: {', '.join(p.name for p in projects)}\n" if projects else "No projects yet. Create one with create_project.\n")
                 + (f"{len(runs)} pipeline run{'s' if len(runs) != 1 else ''} ({sum(1 for r in runs if r.current_phase in ('awaiting_targets_ok','awaiting_scope_ok'))} awaiting approval)\n" if runs else "")
                 + (f"{len(drafts)} DRAFT campaign{'s' if len(drafts) != 1 else ''} pending review\n" if drafts else "")
