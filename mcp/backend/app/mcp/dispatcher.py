@@ -835,7 +835,7 @@ Return ONLY valid JSON."""
         if "api" in source_type:
             target_count = args.get("target_people") or filters.pop("target_count", None)
             if target_count and not filters.get("max_pages"):
-                per_page = filters.get("per_page", 25)
+                per_page = filters.get("per_page", 100)
                 companies_needed = int(int(target_count) / 0.3)
                 filters["max_pages"] = max(1, (companies_needed + per_page - 1) // per_page)
 
@@ -870,14 +870,14 @@ Return ONLY valid JSON."""
                     "hint": "You can say 'I want 10 target companies' and I'll calculate the rest.",
                 }
 
-            filters.setdefault("per_page", 25)
+            filters.setdefault("per_page", 100)
             filters.setdefault("max_pages", 4)
 
         import hashlib, json as _json
         filter_hash = hashlib.sha256(_json.dumps(filters, sort_keys=True).encode()).hexdigest()[:16]
 
         max_pages = filters.get("max_pages", 4)
-        per_page = filters.get("per_page", 25)
+        per_page = filters.get("per_page", 100)
         est_credits = max_pages if "api" in source_type else 0
         est_companies = max_pages * per_page
 
@@ -2805,7 +2805,7 @@ Return ONLY valid JSON."""
                     page=1, per_page=1,
                 )
                 total = probe.get("pagination", {}).get("total_entries", 0) if probe else 0
-                per_page = 25
+                per_page = 100
                 TARGET_RATE = 0.35
                 pages_30 = max(1, int(30 / (per_page * TARGET_RATE)) + 1)
                 pages_all = max(1, (total + per_page - 1) // per_page) if total > 0 else 1
@@ -3183,7 +3183,7 @@ Return ONLY valid JSON."""
         source = args.get("source_type", "apollo.companies.api")
         filters = args.get("filters") or {}
         max_pages = filters.get("max_pages", 4)
-        per_page = filters.get("per_page", 25)
+        per_page = filters.get("per_page", 100)
         if "api" in source:
             return {"estimated_credits": max_pages, "estimated_cost_usd": 0,
                     "estimated_companies": max_pages * per_page,
