@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/setup", tags=["setup"])
 
-SUPPORTED_INTEGRATIONS = {"smartlead", "apollo", "openai", "apify", "getsales"}
+SUPPORTED_INTEGRATIONS = {"smartlead", "apollo", "openai", "apify", "getsales", "telegram"}
 
 
 class IntegrationRequest(BaseModel):
@@ -88,6 +88,12 @@ async def configure_integration(
         connected = True
         message = "OpenAI key saved"
 
+    elif req.integration_name == "telegram":
+        # Store telegram chat_id for reply notifications
+        # api_key here is the chat_id (sent from Telegram bot on /start)
+        connected = True
+        message = f"Telegram connected (chat {req.api_key})"
+
     # Upsert integration setting
     existing = await session.execute(
         select(MCPIntegrationSetting).where(
@@ -115,6 +121,55 @@ async def configure_integration(
 
     await session.commit()
     return IntegrationResponse(connected=connected, message=message)
+
+
+class TelegramConnectRequest(BaseModel):
+    mcp_token: str
+    chat_id: str
+    username: str = ""
+
+
+@router.post("/telegram-connect")
+async def telegram_connect(
+    req: TelegramConnectRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Called by the Telegram bot when user sends /start with their MCP token.
+    Stores chat_id so reply_monitor can send notifications."""
+    from app.auth.middleware import verify_token
+    user = await verify_token(session, req.mcp_token)
+    if not user:
+        raise HTTPException(401, "Invalid MCP token")
+
+    # Upsert telegram integration
+    existing = await session.execute(
+        select(MCPIntegrationSetting).where(
+            MCPIntegrationSetting.user_id == user.id,
+            MCPIntegrationSetting.integration_name == "telegram",
+        )
+    )
+    setting = existing.scalar_one_or_none()
+
+    # Store chat_id as the "api_key" (encrypted) — reply_monitor reads it
+    encrypted = encrypt_value(req.chat_id)
+    info = f"Connected (@{req.username})" if req.username else f"Connected (chat {req.chat_id})"
+
+    if setting:
+        setting.api_key_encrypted = encrypted
+        setting.is_connected = True
+        setting.connection_info = info
+    else:
+        setting = MCPIntegrationSetting(
+            user_id=user.id,
+            integration_name="telegram",
+            api_key_encrypted=encrypted,
+            is_connected=True,
+            connection_info=info,
+        )
+        session.add(setting)
+
+    await session.commit()
+    return {"connected": True, "message": f"Telegram notifications enabled for {user.name}"}
 
 
 @router.get("/integrations")
