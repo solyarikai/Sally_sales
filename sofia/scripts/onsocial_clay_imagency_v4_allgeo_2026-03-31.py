@@ -1399,6 +1399,7 @@ def main():
     p.add_argument("--max-findymail", type=int, default=1500)
     p.add_argument("--force", action="store_true", help="Force re-run (ignore cache)")
     p.add_argument("--prompt-file", help="Custom analysis prompt file")
+    p.add_argument("--re-analyze", action="store_true", help="Re-analyze with new prompt (Step 7)")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
