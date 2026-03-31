@@ -444,8 +444,9 @@ const buildPrompt = () => {
     return `Pick the most important issue from \`bd list\` and implement it.
 
 CRITICAL RULES:
-- You are on branch Danila. Do NOT switch branches or create feature branches.
-- Edit files DIRECTLY in the repo (this IS the source of truth).
+- You are on branch main. Do NOT switch branches or create feature branches.
+- Edit files DIRECTLY in the repo (this IS the source of truth). Use Edit tool for targeted changes, NEVER rewrite entire files with Write.
+- IMPORTANT: When editing large files (TelegramOutreachPage.tsx, CampaignDetailPage.tsx), make ONLY targeted edits. Do NOT rewrite the whole file — you will lose existing UI/design code.
 - Key TG Outreach files:
   Backend: backend/app/api/telegram_outreach.py, backend/app/models/telegram_outreach.py,
            backend/app/schemas/telegram_outreach.py, backend/app/services/sending_worker.py,
@@ -456,11 +457,11 @@ CRITICAL RULES:
             frontend/src/api/telegramOutreach.ts, frontend/src/index.css
 - After editing, DEPLOY to server:
   1. \`git add <files> && git commit -m "description"\`
-  2. \`git push origin Danila\`
-  3. Use ssh-agent: \`eval $(ssh-agent -s) && ssh-add ~/.ssh/id_ed25519_gitlab\`
-  4. \`ssh -A hetzner "cd /home/leadokol/magnum-opus-project/repo && git pull origin Danila"\`
-  5. Backend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker-compose up -d --force-recreate backend"\`
-  6. Frontend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker image rm repo-frontend 2>/dev/null; docker-compose build --no-cache frontend && docker-compose up -d --force-recreate frontend"\`
+  2. \`git push origin main\`
+  3. \`scp -O ~/.ssh/id_ed25519_gitlab hetzner:/tmp/gitlab_key && ssh hetzner 'chmod 600 /tmp/gitlab_key && GIT_SSH_COMMAND="ssh -i /tmp/gitlab_key" cd /home/leadokol/magnum-opus-project/repo && git pull origin main'\`
+  4. Backend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker-compose up -d --force-recreate backend"\`
+  5. Frontend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker image rm repo-frontend 2>/dev/null; docker-compose build --no-cache frontend && docker-compose up -d --force-recreate frontend"\`
+  6. Clean up: \`ssh hetzner "rm -f /tmp/gitlab_key"\`
 - Test by calling API: \`ssh hetzner "curl -s http://localhost:8000/api/..."\`
 - After verifying the fix works, close the task using \`bd close <id>\``
   }
@@ -475,8 +476,9 @@ Use \`bd show ${ISSUE_ID}\` to learn details.
 ${isTask ? `This task belongs to epic ${epicId}.` : 'If it has children, pick the most important child task and work on it.'}
 
 CRITICAL RULES:
-- You are on branch Danila. Do NOT switch branches or create feature branches.
-- Edit files DIRECTLY in the repo (this IS the source of truth).
+- You are on branch main. Do NOT switch branches or create feature branches.
+- Edit files DIRECTLY in the repo (this IS the source of truth). Use Edit tool for targeted changes, NEVER rewrite entire files with Write.
+- IMPORTANT: When editing large files (TelegramOutreachPage.tsx, CampaignDetailPage.tsx), make ONLY targeted edits. Do NOT rewrite the whole file — you will lose existing UI/design code.
 - Key TG Outreach files:
   Backend: backend/app/api/telegram_outreach.py, backend/app/models/telegram_outreach.py,
            backend/app/schemas/telegram_outreach.py, backend/app/services/sending_worker.py,
@@ -487,10 +489,11 @@ CRITICAL RULES:
             frontend/src/api/telegramOutreach.ts, frontend/src/index.css
 - After editing, DEPLOY to server:
   1. \`git add <files> && git commit -m "description"\`
-  2. \`git push origin Danila\`
-  3. \`ssh -A hetzner "cd /home/leadokol/magnum-opus-project/repo && git pull origin Danila"\`
+  2. \`git push origin main\`
+  3. \`scp -O ~/.ssh/id_ed25519_gitlab hetzner:/tmp/gitlab_key && ssh hetzner 'chmod 600 /tmp/gitlab_key && GIT_SSH_COMMAND="ssh -i /tmp/gitlab_key" cd /home/leadokol/magnum-opus-project/repo && git pull origin main'\`
   4. Backend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker-compose up -d --force-recreate backend"\`
   5. Frontend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker image rm repo-frontend 2>/dev/null; docker-compose build --no-cache frontend && docker-compose up -d --force-recreate frontend"\`
+  6. Clean up: \`ssh hetzner "rm -f /tmp/gitlab_key"\`
 - Test by calling API: \`ssh hetzner "curl -s http://localhost:8000/api/..."\`
 - Close completed tasks with \`bd close <id> -r "reason"\` AFTER verifying the fix works
 
