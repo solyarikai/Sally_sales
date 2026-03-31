@@ -86,18 +86,24 @@ class AdaptiveSemaphore:
         }
 
 
-# ── Global per-service semaphores ──
+# ── Per-user per-service semaphores ──
+# Key: "user_{user_id}:{service}" → each user's API key has its own rate limits
 _semaphores: Dict[str, AdaptiveSemaphore] = {}
 
 
-def get_semaphore(service: str, initial: int = 100, min_concurrent: int = 5) -> AdaptiveSemaphore:
-    """Get or create an adaptive semaphore for a service."""
-    if service not in _semaphores:
-        _semaphores[service] = AdaptiveSemaphore(service, initial, min_concurrent)
-    return _semaphores[service]
+def get_semaphore(service: str, user_id: int = 0, initial: int = 100, min_concurrent: int = 5) -> AdaptiveSemaphore:
+    """Get or create an adaptive semaphore for a user+service combo.
+
+    Rate limits are per API key = per user account. Different users have different
+    OpenAI tiers, Apify plans, Apollo quotas. Each gets their own semaphore.
+    """
+    key = f"user_{user_id}:{service}"
+    if key not in _semaphores:
+        _semaphores[key] = AdaptiveSemaphore(f"{service}:u{user_id}", initial, min_concurrent)
+    return _semaphores[key]
 
 
 # Pre-configured defaults based on real testing (2026-03-31 Hetzner)
-OPENAI_SEM = lambda: get_semaphore("openai", initial=100, min_concurrent=10)
-APIFY_SEM = lambda: get_semaphore("apify", initial=100, min_concurrent=10)
-APOLLO_SEM = lambda: get_semaphore("apollo", initial=5, min_concurrent=1)  # Apollo has hard 300ms rate limit
+def OPENAI_SEM(user_id: int = 0): return get_semaphore("openai", user_id, initial=100, min_concurrent=10)
+def APIFY_SEM(user_id: int = 0): return get_semaphore("apify", user_id, initial=100, min_concurrent=10)
+def APOLLO_SEM(user_id: int = 0): return get_semaphore("apollo", user_id, initial=5, min_concurrent=1)

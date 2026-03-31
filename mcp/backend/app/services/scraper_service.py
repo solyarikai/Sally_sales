@@ -233,7 +233,7 @@ class ScraperService:
         """Scrape batch with adaptive concurrency via Apify residential proxies.
         Starts at max_concurrent, shrinks on 429, grows back when OK."""
         from app.services.adaptive_semaphore import get_semaphore
-        sem = get_semaphore("apify", initial=max_concurrent, min_concurrent=10)
+        sem = get_semaphore("apify", user_id=0, initial=max_concurrent, min_concurrent=10)
         results = [] if not on_result else None
         completed = 0
         total = len(urls)
