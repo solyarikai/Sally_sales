@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_TARGET_COUNT = 100
 DEFAULT_CONTACTS_PER_COMPANY = 3
 PAGES_PER_BATCH = 4
-COMPANIES_PER_PAGE = 25
+COMPANIES_PER_PAGE = 100  # Apollo supports up to 100 per page
 
 # Background task registry — tracks running orchestrator tasks by run_id
 _running_tasks: Dict[int, asyncio.Task] = {}
@@ -360,32 +360,38 @@ class PipelineOrchestrator:
             except Exception:
                 pass
 
-        # Search people for each target company (FREE — /mixed_people/api_search)
-        for company in companies:
-            if self.total_people >= target_people:
-                break
-            try:
-                people = await self.apollo.enrich_by_domain(
-                    company.domain,
-                    limit=people_per_company,
-                    titles=person_titles,
-                )
-                for person in people:
-                    contact = ExtractedContact(
-                        project_id=self.run.project_id,
-                        discovered_company_id=company.id,
-                        email=person.get("email"),
-                        first_name=person.get("first_name"),
-                        last_name=person.get("last_name"),
-                        job_title=person.get("title") or person.get("job_title"),
-                        linkedin_url=person.get("linkedin_url"),
-                        source_data=person,
+        # Search people for each target company — PARALLEL (5 concurrent)
+        import asyncio as _aio
+        sem = _aio.Semaphore(5)
+        found_contacts = []
+
+        async def _search_one(company):
+            async with sem:
+                try:
+                    people = await self.apollo.enrich_by_domain(
+                        company.domain, limit=people_per_company, titles=person_titles,
                     )
-                    self.session.add(contact)
-                self.total_people += len(people)
-                await self.session.flush()
-            except Exception as e:
-                logger.warning(f"People search for {company.domain} failed: {e}")
+                    for person in people:
+                        found_contacts.append(ExtractedContact(
+                            project_id=self.run.project_id,
+                            discovered_company_id=company.id,
+                            email=person.get("email"),
+                            first_name=person.get("first_name"),
+                            last_name=person.get("last_name"),
+                            job_title=person.get("title") or person.get("job_title"),
+                            linkedin_url=person.get("linkedin_url"),
+                            source_data=person,
+                        ))
+                except Exception as e:
+                    logger.debug(f"People search {company.domain}: {e}")
+
+        await _aio.gather(*[_search_one(c) for c in companies])
+        for contact in found_contacts:
+            self.session.add(contact)
+        self.total_people += len(found_contacts)
+        if found_contacts:
+            await self.session.flush()
+            logger.info(f"Extracted {len(found_contacts)} contacts from {len(companies)} target companies")
 
         await self.session.flush()
 
