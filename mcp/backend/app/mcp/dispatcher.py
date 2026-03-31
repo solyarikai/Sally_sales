@@ -414,7 +414,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             if not website.startswith("http"):
                 website = f"https://{website}"
             import httpx as _hx, re as _re, json as _jn
-            from app.services.user_context import UserServiceContext
             ctx = UserServiceContext(user.id, session)
             wt = ""  # website_text
             # Layer 1: Apify proxy
@@ -562,7 +561,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         elif feedback:
             # User provides feedback — update offer and re-analyze
             old_offer = project.offer_summary or {}
-            from app.services.user_context import UserServiceContext
             ctx = UserServiceContext(user.id, session)
             openai_key = await ctx.get_key("openai")
 
