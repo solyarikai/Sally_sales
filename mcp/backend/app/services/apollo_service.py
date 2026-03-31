@@ -201,6 +201,24 @@ class ApolloService:
             return data["organization"]
         return None
 
+    async def bulk_enrich_organizations(self, domains: List[str]) -> List[Dict[str, Any]]:
+        """Bulk enrich companies by domain — returns full Apollo labels.
+        Max 10 per call, 1 credit per company returned.
+        Use for adjustment phase: extract keywords/industries from top targets."""
+        if not self.api_key or not domains:
+            return []
+        results = []
+        # Apollo bulk_enrich: max 10 per request
+        for i in range(0, len(domains), 10):
+            batch = domains[i:i+10]
+            data = await self._api_call("POST", "/organizations/bulk_enrich", {"domains": batch})
+            if data and data.get("organizations"):
+                orgs = data["organizations"]
+                self.credits_used += len(orgs)
+                get_tracker().log_apollo(len(orgs), "bulk_enrich")
+                results.extend(orgs)
+        return results
+
     async def test_connection(self) -> bool:
         if not self.api_key:
             return False
