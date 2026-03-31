@@ -2151,6 +2151,7 @@ def main():
     p.add_argument("--run-id", type=int, help="Resume existing run")
     p.add_argument("--apollo-csv", help="Apollo People CSV (platforms or single)")
     p.add_argument("--apollo-csv-agencies", help="Apollo People CSV for agencies segment")
+    p.add_argument("--apollo-profile", help="Puppeteer profile path for Apollo login (--mode apollo)")
     p.add_argument("--max-findymail", type=int, default=1500)
     p.add_argument("--prompt-file", help="Custom analysis prompt file")
     p.add_argument("--re-analyze", action="store_true")
