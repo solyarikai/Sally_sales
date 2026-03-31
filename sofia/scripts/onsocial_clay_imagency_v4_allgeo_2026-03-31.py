@@ -821,9 +821,9 @@ def _map_apollo_person(person: dict, targets_by_domain: dict, batch_domain: str 
 
 
 def step10_apollo_people_search(targets: list[dict], force: bool = False) -> list[dict]:
-    """Search Apollo People UI for contacts at target companies."""
+    """Search Apollo People via internal API (apollo_people_search.js)."""
     print(f"\n{'='*60}")
-    print(f"STEP 10: Apollo People UI Search (automated)")
+    print(f"STEP 10: Apollo People Search (Internal API)")
     print(f"{'='*60}")
 
     if CONTACTS_FILE.exists() and not force:
@@ -836,31 +836,22 @@ def step10_apollo_people_search(targets: list[dict], force: bool = False) -> lis
 
     print(f"  Targets: {len(domains)} domains")
     print(f"  Seniorities: {', '.join(PEOPLE_SENIORITIES)}")
-    print(f"  Titles: {len(PEOPLE_TITLES)}")
+    print(f"  Titles (post-filter): {len(PEOPLE_TITLES)}")
+    print(f"  Batch size: {APOLLO_PEOPLE_BATCH_SIZE}, max pages: {APOLLO_PEOPLE_MAX_PAGES}")
 
-    batches = [domains[i:i + APOLLO_PEOPLE_BATCH_SIZE]
-               for i in range(0, len(domains), APOLLO_PEOPLE_BATCH_SIZE)]
-    print(f"  Batches: {len(batches)} x {APOLLO_PEOPLE_BATCH_SIZE}")
+    output_path = f"/tmp/apollo_people_clay_imagency_v4_all.json"
+    people = _run_apollo_people_api(
+        domains, PEOPLE_SENIORITIES, output_path,
+        batch_size=APOLLO_PEOPLE_BATCH_SIZE,
+        max_pages=APOLLO_PEOPLE_MAX_PAGES,
+    )
+    print(f"  Raw results: {len(people)} people")
 
     all_contacts = []
-    for batch_idx, batch_domains in enumerate(batches):
-        print(f"    Batch {batch_idx + 1}/{len(batches)}: {len(batch_domains)} domains...", end=" ", flush=True)
-        url = _build_apollo_people_url(batch_domains, PEOPLE_TITLES, PEOPLE_SENIORITIES)
-        output_path = f"/tmp/apollo_people_clay_imagency_v4_{batch_idx}.json"
-        people = _run_apollo_scraper(url, APOLLO_PEOPLE_MAX_PAGES, output_path)
-        print(f"{len(people)} people")
-
-        for person in people:
-            batch_domain = batch_domains[0] if len(batch_domains) == 1 else None
-            contact = _map_apollo_person(person, targets_by_domain, batch_domain)
-            if contact["first_name"] and contact["domain"]:
-                all_contacts.append(contact)
-
-        try:
-            Path(output_path).unlink(missing_ok=True)
-        except Exception:
-            pass
-        time.sleep(3)
+    for person in people:
+        contact = _map_apollo_person(person, targets_by_domain)
+        if contact["first_name"] and contact["domain"]:
+            all_contacts.append(contact)
 
     # Post-filter: exclude contacts with excluded titles
     before_filter = len(all_contacts)
