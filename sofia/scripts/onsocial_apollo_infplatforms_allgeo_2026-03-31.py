@@ -1021,7 +1021,7 @@ def step10_import_apollo_csv(csv_path: str, targets: list[dict], force: bool = F
             "linkedin_url": _get("linkedin_url"),
             "country": country,
             "employees": _get("employees") or target.get("employees", ""),
-            "social_proof": "",
+            "social_proof": get_social_proof(country),
         }
         if contact["first_name"] and contact["domain"]:
             all_contacts.append(contact)
