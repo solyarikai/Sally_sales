@@ -1279,11 +1279,16 @@ Return ONLY valid JSON."""
         from app.services.exploration_service import _extract_common_labels, _build_optimized_filters
         common_labels = _extract_common_labels(enriched)
 
+        # If no segment_description, infer from enriched data
+        seg_desc = args.get("segment_description", "")
+        if not seg_desc:
+            seg_desc = ", ".join(common_labels.get("industries", [])[:3]) or "target companies"
+
         # Build filters from the examples
         optimized = await _build_optimized_filters(
             {"organization_locations": args.get("locations", [])},
             common_labels,
-            args.get("segment_description", ""),
+            seg_desc,
             openai_key or "",
         )
 
@@ -1390,10 +1395,42 @@ Return ONLY valid JSON."""
             enriched = await _enrich_targets(apollo_key, example_companies)
             common_labels = _extract_common_labels(enriched)
 
+            # If no segment_desc, INFER it from enriched data (critical for filter optimization)
+            filter_query = segment_desc
+            if not filter_query and openai_key and enriched:
+                try:
+                    import httpx as _hx
+                    enriched_summary = "\n".join(
+                        f"- {e.get('domain', '?')}: industry={e.get('enriched', {}).get('industry', '?')}, "
+                        f"keywords={e.get('enriched', {}).get('keywords', [])[:5]}"
+                        for e in enriched[:10]
+                    )
+                    async with _hx.AsyncClient(timeout=15) as _c:
+                        _resp = await _c.post(
+                            "https://api.openai.com/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                            json={
+                                "model": "gpt-4o-mini",
+                                "messages": [{"role": "user", "content": (
+                                    f"These companies are examples of the user's target market:\n{enriched_summary}\n\n"
+                                    f"In ONE sentence, describe what business segment these companies belong to. "
+                                    f"Be specific: what do they DO, who are their CUSTOMERS, what industry?"
+                                )}],
+                                "max_tokens": 100, "temperature": 0,
+                            },
+                        )
+                        _data = _resp.json()
+                        filter_query = _data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                        logger.info(f"Inferred segment from examples: {filter_query}")
+                        result["inferred_segment"] = filter_query
+                except Exception as _e:
+                    logger.warning(f"Segment inference from examples failed: {_e}")
+                    filter_query = ", ".join(common_labels.get("industries", [])[:3])
+
             enriched_filters = await _build_optimized_filters(
                 {"organization_locations": locations, "organization_num_employees_ranges": [employee_range] if employee_range else []},
                 common_labels,
-                segment_desc or "",
+                filter_query or ", ".join(common_labels.get("industries", [])[:3]),
                 openai_key or "",
             )
 
@@ -1401,11 +1438,12 @@ Return ONLY valid JSON."""
             result["credits_used"] = len(enriched)
             result["filters_from_examples"] = enriched_filters
             result["common_labels"] = common_labels
+            result["filter_query_used"] = filter_query
             result["skip_exploration"] = True
 
-            # Store enriched filters on project for tam_gather to use
-            if not project.target_segments and common_labels.get("industries"):
-                project.target_segments = f"Companies in: {', '.join(common_labels['industries'][:5])}"
+            # Store inferred/provided segment on project
+            if not project.target_segments:
+                project.target_segments = filter_query or f"Companies in: {', '.join(common_labels.get('industries', [])[:5])}"
 
         await session.commit()
 
