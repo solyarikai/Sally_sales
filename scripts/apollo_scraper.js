@@ -197,8 +197,22 @@ async function main() {
     await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
     await sleep(3000);
 
+    // Wait for grid to appear (critical — without this, scrape finds 0 rows)
+    try {
+      await page.waitForSelector('[role="gridcell"][aria-rowindex]', { timeout: 15000 });
+      console.log('  Grid loaded');
+    } catch (e) {
+      console.log('  WARNING: Grid cells not found after 15s — page may be empty or layout changed');
+      // Save diagnostic screenshot + HTML
+      await page.screenshot({ path: path.join(OUT_DIR, 'apollo_no_grid.png'), fullPage: true });
+      const html = await page.content();
+      fs.writeFileSync(path.join(OUT_DIR, 'apollo_no_grid.html'), html.substring(0, 50000));
+      console.log('  Saved diagnostic screenshot + HTML to data/');
+    }
+
     const allContacts = [];
     let pageNum = 1;
+    let consecutiveEmpty = 0;  // Track consecutive empty pages for retry logic
 
     while (pageNum <= maxPages) {
       await sleep(2000 + Math.random() * 1000); // Human-like delay
@@ -207,11 +221,39 @@ async function main() {
       console.log(`  Page ${pageNum}: ${rows.length} contacts`);
 
       if (rows.length === 0) {
-        console.log('  No more contacts — stopping');
-        break;
+        consecutiveEmpty++;
+        if (consecutiveEmpty >= 3) {
+          console.log(`  ${consecutiveEmpty} consecutive empty pages — stopping`);
+          // Save diagnostic on unexpected empty
+          if (pageNum === 1) {
+            await page.screenshot({ path: path.join(OUT_DIR, 'apollo_empty_p1.png'), fullPage: true });
+            console.log('  Saved diagnostic screenshot (empty first page)');
+          }
+          break;
+        }
+        // Retry: wait longer and try again (page might still be loading)
+        console.log(`  Empty page (attempt ${consecutiveEmpty}/3) — waiting 5s and retrying...`);
+        await sleep(5000);
+        const retryRows = await scrapeCurrentPage(page);
+        if (retryRows.length > 0) {
+          console.log(`  Retry successful: ${retryRows.length} contacts`);
+          allContacts.push(...retryRows);
+          consecutiveEmpty = 0;
+        } else {
+          // Try clicking next page — maybe this page is genuinely empty
+          const hasNext = await clickNextPage(page);
+          if (!hasNext) {
+            console.log('  No next page button — stopping');
+            break;
+          }
+          pageNum++;
+          await sleep(2000 + Math.random() * 2000);
+          continue;
+        }
+      } else {
+        consecutiveEmpty = 0;
+        allContacts.push(...rows);
       }
-
-      allContacts.push(...rows);
 
       // Save after each page
       fs.writeFileSync(outputFile, JSON.stringify(allContacts, null, 2));
@@ -232,7 +274,12 @@ async function main() {
 
   } catch (err) {
     console.error('Error:', err.message);
-    await page.screenshot({ path: path.join(OUT_DIR, 'apollo_error.png') });
+    try {
+      await page.screenshot({ path: path.join(OUT_DIR, 'apollo_error.png'), fullPage: true });
+      const html = await page.content();
+      fs.writeFileSync(path.join(OUT_DIR, 'apollo_error.html'), html.substring(0, 50000));
+      console.log('Saved error screenshot + HTML to data/');
+    } catch (_) {}
   } finally {
     await browser.close();
   }
