@@ -21,14 +21,19 @@ Universal Lead Generation Pipeline
     Быстрее и точнее, чем ICP. Ключевые слова идут как есть.
     Стоимость: ~$0.01/компания.
 
-  Источник C — Apollo Internal API (--mode apollo)
+  Источник C — Clay Lookalike (--mode lookalike)
+    Reverse-engineering фильтров по примерам доменов.
+    Анализирует компании-примеры и строит похожий поиск.
+    Стоимость: ~$0.01/компания.
+
+  Источник D — Apollo Internal API (--mode apollo)
     Puppeteer логинится в Apollo, вызывает internal API
     (POST /api/v1/mixed_companies/search) с q_organization_keyword_tags.
     Точное совпадение по keyword tags компаний в Apollo.
     Скрипт: scripts/sofia/onsocial_apollo_companies_search.js
     Стоимость: БЕСПЛАТНО (0 credits).
 
-  Все три источника на выходе дают список доменов компаний,
+  Все четыре источника на выходе дают список доменов компаний,
   который дальше идёт в единый pipeline (шаги 1-10).
 
 ═══════════════════════════════════════════════════════════
