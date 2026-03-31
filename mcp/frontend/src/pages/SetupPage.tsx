@@ -29,6 +29,20 @@ export default function SetupPage() {
   const [tokenCopied, setTokenCopied] = useState(false)
   const [showToken, setShowToken] = useState(false)
 
+  const copyToken = () => {
+    // Fallback for HTTP (navigator.clipboard requires HTTPS)
+    const ta = document.createElement('textarea')
+    ta.value = token
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    setTokenCopied(true)
+    setTimeout(() => setTokenCopied(false), 2000)
+  }
+
   useEffect(() => {
     if (!token) { window.location.href = '/'; return }
     fetch(`${API}/auth/me`, { headers: { 'X-MCP-Token': token } })
@@ -83,7 +97,7 @@ export default function SetupPage() {
             <button onClick={() => setShowToken(!showToken)} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px', opacity: 0.6 }}>
               {showToken ? 'Hide' : 'Show'}
             </button>
-            <button onClick={() => { navigator.clipboard.writeText(token); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000) }}
+            <button onClick={() => { copyToken() }}
               style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: tokenCopied ? '#22c55e' : 'transparent', color: tokenCopied ? 'white' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               {tokenCopied ? 'Copied!' : 'Copy'}
             </button>
@@ -173,7 +187,7 @@ export default function SetupPage() {
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           Then paste your token:
           <code style={{ fontSize: 11, background: 'var(--bg)', padding: '2px 6px', borderRadius: 3, wordBreak: 'break-all' }}>{showToken ? token : `${token.slice(0, 24)}...`}</code>
-          <button onClick={() => { navigator.clipboard.writeText(token); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000) }}
+          <button onClick={() => { copyToken() }}
             style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: tokenCopied ? '#22c55e' : 'transparent', color: tokenCopied ? 'white' : '#3b82f6', cursor: 'pointer' }}>
             {tokenCopied ? 'Copied!' : 'Copy token'}
           </button>
