@@ -23,7 +23,7 @@ const MAX_ITERATIONS = 30
 
 const hasCommand = (cmd) => {
   try {
-    execSync(`command -v ${cmd}`, { stdio: 'ignore' })
+    execSync(process.platform === 'win32' ? `where ${cmd}` : `command -v ${cmd}`, { stdio: 'ignore' })
     return true
   } catch {
     return false
@@ -433,54 +433,36 @@ const getCurrentBranch = () => {
 }
 
 const ensureFeatureBranch = (issueId) => {
-  const targetBranch = getBranchName(issueId)
+  // Deploy is via scp, not git flow — stay on current branch
   const currentBranch = getCurrentBranch()
-
-  if (currentBranch === targetBranch) {
-    log(`Already on branch ${cyan(targetBranch)}`)
-    return true
-  }
-
-  try {
-    // Check if branch exists
-    const branchExists = execSync(`git branch --list ${targetBranch}`, { encoding: 'utf8' }).trim()
-
-    if (branchExists) {
-      log(`Switching to existing branch ${cyan(targetBranch)}`)
-      execSync(`git checkout ${targetBranch}`, { encoding: 'utf8' })
-    } else {
-      // Create from main (or master)
-      const baseBranch = execSync('git branch --list main', { encoding: 'utf8' }).trim() ? 'main' : 'master'
-      log(`Creating branch ${cyan(targetBranch)} from ${baseBranch}`)
-      execSync(`git checkout -b ${targetBranch} ${baseBranch}`, { encoding: 'utf8' })
-    }
-    return true
-  } catch (err) {
-    log(`${red('Failed to setup branch:')} ${err.message}`)
-    return false
-  }
+  log(`Working on branch ${cyan(currentBranch)} (git deploy mode, no branch switching)`)
+  return true
 }
 
 const buildPrompt = () => {
   if (ISSUE_ID === 'all') {
     return `Pick the most important issue from \`bd list\` and implement it.
 
-Requirements:
-- Work in a feature branch (create one if needed: \`git checkout -b feature/<epic-id>\`)
-- Verify the build passes (\`npm run build\`)
-- Verify linting passes (\`npm run lint\`)
-- Verify tests pass (\`npm run test\`)
-- Commit your changes with meaningful commit messages
-
-TESTING RULES (обязательно):
-- После реализации каждой таски — НАПИСАТЬ unit-тесты (vitest) покрывающие основную логику
-- Прогнать ВСЕ тесты: \`npm run test\` (включая ранее существующие, НЕ только новые)
-- Если тесты падают — ИСПРАВИТЬ КОД, НЕ удалять и НЕ скипать тесты
-- Итерировать пока \`npm run build && npm run lint && npm run test\` не пройдут полностью
-- Таска НЕ считается закрытой пока все тесты не проходят
-
-When done, close the task using \`bd close <id>\`.
-NOTE: PRs are created only when the ENTIRE EPIC is closed, not individual tasks.`
+CRITICAL RULES:
+- You are on branch Danila. Do NOT switch branches or create feature branches.
+- Edit files DIRECTLY in the repo (this IS the source of truth).
+- Key TG Outreach files:
+  Backend: backend/app/api/telegram_outreach.py, backend/app/models/telegram_outreach.py,
+           backend/app/schemas/telegram_outreach.py, backend/app/services/sending_worker.py,
+           backend/app/services/telegram_engine.py, backend/app/services/telegram_dm_service.py,
+           backend/app/services/inbox_sync_service.py, backend/app/services/auto_responder.py,
+           backend/app/main.py
+  Frontend: frontend/src/pages/TelegramOutreachPage.tsx, frontend/src/pages/CampaignDetailPage.tsx,
+            frontend/src/api/telegramOutreach.ts, frontend/src/index.css
+- After editing, DEPLOY to server:
+  1. \`git add <files> && git commit -m "description"\`
+  2. \`git push origin Danila\`
+  3. Use ssh-agent: \`eval $(ssh-agent -s) && ssh-add ~/.ssh/id_ed25519_gitlab\`
+  4. \`ssh -A hetzner "cd /home/leadokol/magnum-opus-project/repo && git pull origin Danila"\`
+  5. Backend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker-compose up -d --force-recreate backend"\`
+  6. Frontend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker image rm repo-frontend 2>/dev/null; docker-compose build --no-cache frontend && docker-compose up -d --force-recreate frontend"\`
+- Test by calling API: \`ssh hetzner "curl -s http://localhost:8000/api/..."\`
+- After verifying the fix works, close the task using \`bd close <id>\``
   }
 
   const epicId = getParentEpicId(ISSUE_ID)
@@ -493,23 +475,24 @@ Use \`bd show ${ISSUE_ID}\` to learn details.
 ${isTask ? `This task belongs to epic ${epicId}.` : 'If it has children, pick the most important child task and work on it.'}
 
 CRITICAL RULES:
-- You are on branch \`${currentBranch}\`. Do NOT switch to main or any other branch.
-- COMMIT your changes BEFORE finishing. Use \`git add <files> && git commit -m "..."\`.
-- Close completed tasks with \`bd close <id> -r "reason"\` AFTER committing.
-- If a task is partially done, commit what you have and close it anyway.
-
-Requirements:
-- Verify the build passes (\`npm run build\`)
-- Verify linting passes (\`npm run lint\`)
-- Verify tests pass (\`npm run test\`)
-- Commit your changes with meaningful commit messages
-
-TESTING RULES (обязательно):
-- После реализации каждой таски — НАПИСАТЬ unit-тесты (vitest) покрывающие основную логику
-- Прогнать ВСЕ тесты: \`npm run test\` (включая ранее существующие, НЕ только новые)
-- Если тесты падают — ИСПРАВИТЬ КОД, НЕ удалять и НЕ скипать тесты
-- Итерировать пока \`npm run build && npm run lint && npm run test\` не пройдут полностью
-- Таска НЕ считается закрытой пока все тесты не проходят
+- You are on branch Danila. Do NOT switch branches or create feature branches.
+- Edit files DIRECTLY in the repo (this IS the source of truth).
+- Key TG Outreach files:
+  Backend: backend/app/api/telegram_outreach.py, backend/app/models/telegram_outreach.py,
+           backend/app/schemas/telegram_outreach.py, backend/app/services/sending_worker.py,
+           backend/app/services/telegram_engine.py, backend/app/services/telegram_dm_service.py,
+           backend/app/services/inbox_sync_service.py, backend/app/services/auto_responder.py,
+           backend/app/main.py
+  Frontend: frontend/src/pages/TelegramOutreachPage.tsx, frontend/src/pages/CampaignDetailPage.tsx,
+            frontend/src/api/telegramOutreach.ts, frontend/src/index.css
+- After editing, DEPLOY to server:
+  1. \`git add <files> && git commit -m "description"\`
+  2. \`git push origin Danila\`
+  3. \`ssh -A hetzner "cd /home/leadokol/magnum-opus-project/repo && git pull origin Danila"\`
+  4. Backend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker-compose up -d --force-recreate backend"\`
+  5. Frontend: \`ssh hetzner "cd /home/leadokol/magnum-opus-project/repo && docker image rm repo-frontend 2>/dev/null; docker-compose build --no-cache frontend && docker-compose up -d --force-recreate frontend"\`
+- Test by calling API: \`ssh hetzner "curl -s http://localhost:8000/api/..."\`
+- Close completed tasks with \`bd close <id> -r "reason"\` AFTER verifying the fix works
 
 When done, close it using \`bd close <id> -r "reason"\`.
 ${isTask ? `NOTE: PR will be created only when the entire epic (${epicId}) is closed, not this individual task.` : ''}`
@@ -632,21 +615,36 @@ const getCurrentEpic = () => {
     const output = execSync('bd list --json', { encoding: 'utf8' })
     const issues = JSON.parse(output)
 
-    // Find epic that is in_progress
-    const inProgressEpic = issues.find(i => i.issue_type === 'epic' && i.status === 'in_progress')
-    if (inProgressEpic) return inProgressEpic
-
-    // Find epic that has open/in_progress children (by checking issue ID prefix)
-    const epics = issues.filter(i => i.issue_type === 'epic' && i.status === 'open')
-    for (const epic of epics) {
-      const hasActiveChildren = issues.some(i =>
-        i.id.startsWith(epic.id + '.') &&
-        (i.status === 'open' || i.status === 'in_progress')
-      )
-      if (hasActiveChildren) return epic
+    // bd list --json returns tasks with 'parent' field pointing to epic ID
+    // Collect unique parent epic IDs and their priorities
+    const epicMap = new Map() // epicId -> { id, priority, hasActive }
+    for (const issue of issues) {
+      // Check if issue itself is an epic
+      if (issue.issue_type === 'epic') {
+        if (!epicMap.has(issue.id)) {
+          epicMap.set(issue.id, { id: issue.id, title: issue.title, priority: issue.priority || 99, status: issue.status })
+        }
+        continue
+      }
+      // Otherwise it's a task with a parent
+      const parentId = issue.parent
+      if (parentId && (issue.status === 'open' || issue.status === 'in_progress')) {
+        if (!epicMap.has(parentId)) {
+          epicMap.set(parentId, { id: parentId, title: '', priority: issue.priority || 99, status: 'open' })
+        }
+      }
     }
 
-    // Return first open epic
+    // Also try to get epic details via bd show for proper priority
+    const epics = Array.from(epicMap.values())
+      .filter(e => e.status === 'open' || e.status === 'in_progress')
+      .sort((a, b) => (a.priority || 99) - (b.priority || 99) || a.id.localeCompare(b.id))
+
+    // Prefer in_progress epic
+    const inProgress = epics.find(e => e.status === 'in_progress')
+    if (inProgress) return inProgress
+
+    // Return highest priority epic with active children
     return epics[0] || null
   } catch {
     return null

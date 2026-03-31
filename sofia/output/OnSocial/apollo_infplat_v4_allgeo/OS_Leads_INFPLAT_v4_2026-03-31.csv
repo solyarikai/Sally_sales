@@ -1,0 +1,400 @@
+first_name,last_name,email,title,company_name,domain,country,city,employees,linkedin_url,segment,social_proof
+Sagar,Pushp,sagar@clanconnect.ai,Chief Executive Officer and Co-Founder,ClanConnect,clanconnect.ai,India,Gurugram,,http://www.linkedin.com/in/sagar-p-97520311,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Amit,Singh,amit@galvor.com,Co-Founder & CEO,Galvor,galvor.ai,India,Bengaluru,,http://www.linkedin.com/in/amitsingh178,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Ucha,Gviniashvili,ucha@settr.com,Chief Technology Officer,Settr,settr.com,Georgia,Tbilisi,,http://www.linkedin.com/in/ucha-gviniashvili-11870a76,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Pooja,Doshi-Sharma,pooja@aer.media,Co-Founder,Aer Media,aer.media,India,Mumbai,,http://www.linkedin.com/in/pooja2006,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Ritwik,Mitra,ritwik.mitra@verse.in,Senior Director of Engineering,VerSe Innovation,verse.in,India,Bengaluru,,http://www.linkedin.com/in/ritwikmitra,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Arun,Kolhapur,arun.k@pantech.digital,Chief Technology Officer,VerSe Innovation,verse.in,India,Bengaluru,,http://www.linkedin.com/in/arunkolhapur,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Vikash,Jain,vikash.jain@verse.in,Director of Engineering,VerSe Innovation,verse.in,India,Bengaluru,,http://www.linkedin.com/in/vikash-jain-889b9a49,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Vaibhav,Thakkar,vaibhav.thakkar@verse.in,Director of Engineering,VerSe Innovation,verse.in,India,Bengaluru,,http://www.linkedin.com/in/vaibhav-thakkar-27681a2a,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Abhilash,Somanchi,abhilash.somanchi@verse.in,Chief Operating Officer Magzter,VerSe Innovation,verse.in,India,Bengaluru,,http://www.linkedin.com/in/abhilashsomanchi,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Karandeep,Gujral,karandeep.gujral@verse.in,Director of Product Management,VerSe Innovation,verse.in,India,Bengaluru,,http://www.linkedin.com/in/karandeep-singh-gujral-03130228,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Jack,Reeve,jack@go-nuggit.com,Co-Founder and Head of Creator Engagement,Nuggit,go-nuggit.com,United Kingdom,London,,http://www.linkedin.com/in/jackreeve1,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Kellie,Matzen,kellie.matzen@influencer.com,"Vice President, Brand & Platform Partnerships",Influencer,influencer.uk,United States,New York,,http://www.linkedin.com/in/kellie-matzen-b2787517,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Maria,Bersteneva,maria.bersteneva@brandwatch.com,Senior Director of Product Marketing,Brandwatch,brandwatch.com,United Kingdom,London,,http://www.linkedin.com/in/maria-bersteneva,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Akash,Chaudhary,akash@fancall.in,Founder and CEO,Fancall Private Limited,fancall.in,India,,,http://www.linkedin.com/in/akash-chaudhary-99733a197,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Rodrigo,Jun,rodrigo.jun@infleux.co,Chief Executive Officer,Infleux,infleux.co,Brazil,Sao Bernardo do Campo,,http://www.linkedin.com/in/rodrigojun,INFLUENCER_PLATFORMS,Modash and Captiv8
+Dan,Abbitt,dan.abbitt@dizplai.com,Head of Engineering,Dizplai,dizplai.com,United Kingdom,London,,http://www.linkedin.com/in/danielabbitt,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Gary,Stubbenhagen,gary.stubbenhagen@bravebison.com,Head of Data,Brave Bison,bravebison.com,United Kingdom,London,,http://www.linkedin.com/in/gstubbenhagen,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Paul,Brothers,paul@convosphere.com,Co-Founder,Convosphere,convosphere.com,United Kingdom,London,,http://www.linkedin.com/in/paul-brothers-1b16a3,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Sam,Elstob,selstob@brandwatch.com,Director of Engineering,Brandwatch,brandwatch.com,United Kingdom,Hassocks,,http://www.linkedin.com/in/samelstob,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Dennis,Dryden,dennis.dryden@cision.com,Director of Engineering,Brandwatch,brandwatch.com,United Kingdom,Cambridge,,http://www.linkedin.com/in/dennis-dryden,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Dafne,Ulucinar,dafne.ulucinar@icmturkey.com,Founder,Hyperiser,hyperiser.com,Turkey,,,http://www.linkedin.com/in/dafne-ulu%c3%a7%c4%b1nar-87504a54,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Vaisakh,Babu,vaisakh.babu@brandwatch.com,Director of Engineering,Brandwatch,brandwatch.com,India,Chennai,,http://www.linkedin.com/in/vaisakh-babu-57387119,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Matthew,Kavanagh,matthew.kavanagh@brandwatch.com,Director of Engineering,Brandwatch,brandwatch.com,United Kingdom,,,http://www.linkedin.com/in/matthew-kavanagh-7b7b2b24,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Jamie,Pollitt,jamie@risingballers.co.uk,Founder & Director,Rising Ballers,risingballers.co,United Kingdom,,,http://www.linkedin.com/in/jamie-pollitt-309b59104,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Mark,Clifford,mark.clifford@dizplai.com,Director of Product and Innovation,Dizplai,dizplai.com,United Kingdom,,,http://www.linkedin.com/in/mark-clifford-84607086,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Ross,Wilson,ross.wilson@bravebison.com,Head of AI Engineering,Brave Bison,bravebison.com,United Kingdom,,,http://www.linkedin.com/in/ross-wilson-dev,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Peter,Berks,peter.berks@stonegroup.co.uk,Chief Procurement Officer & Vice President Operations-UK,Converge Technology Solutions UK,convergetp.co.uk,United Kingdom,Acton Trussell,,http://www.linkedin.com/in/peter-berks-09bb2313,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Wilhelm,Raider,wilhelm.raider@eyva.ai,Co-Founder & CTO,Eyva,eyva.ai,Germany,Cologne,,http://www.linkedin.com/in/wilhelm-raider-60097156,INFLUENCER_PLATFORMS,Zalando and Intermate
+Djef,Rifamole,djef.rifamole@eyva.ai,Co-Founder & CEO,Eyva,eyva.ai,Germany,Bonn,,http://www.linkedin.com/in/djef-riady-rifamole-8b836a175,INFLUENCER_PLATFORMS,Zalando and Intermate
+Manish,Makwana,mak@formulamedia.com,Chief Executive Officer,Formula Media,formulamedia.com,United Kingdom,London,,http://www.linkedin.com/in/makformula,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Katie,Shamash,katie@overton.io,Head of Data,Overton,overton.io,United Kingdom,,,http://www.linkedin.com/in/katie-shamash-4b34a8171,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Andreas,Wissel,andreas.wissel@angulararchitects.io,Head of Product,Facelift,facelift-bbt.com,Germany,Hamburg,,http://www.linkedin.com/in/andreaswissel,INFLUENCER_PLATFORMS,Zalando and Intermate
+Robert,Albrecht,ra@facelift-bbt.com,Chief Product Technology Officer,Facelift,facelift-bbt.com,Germany,Berlin,,http://www.linkedin.com/in/robertalbrecht74,INFLUENCER_PLATFORMS,Zalando and Intermate
+Euan,Adie,euan@overton.io,Founder,Overton,overton.io,United Kingdom,London,,http://www.linkedin.com/in/euanadie,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Rana,Harake,rh@facelift-bbt.com,Founder,Facelift,facelift-bbt.com,Lebanon,Beirut,,http://www.linkedin.com/in/ranaharake,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Kunal,Dawn,kunal.dawn@bobble.ai,VP of Engineering,Bobble AI,bobble.ai,India,Bengaluru,,http://www.linkedin.com/in/kunal-dawn,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Rahul,Prasad,prasad@bobble.ai,"Co-Founder, CTO",Bobble AI,bobble.ai,India,Gurgaon,,http://www.linkedin.com/in/therahulprasad,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Ankit,Prasad,prasad@bobble.ai,Founder & CEO,Bobble AI,bobble.ai,India,Gurugram,,http://www.linkedin.com/in/prasadankit,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Sanjay,Agrawal,sanjay.agrawal@bobble.ai,AVP Engineering - Backend,Bobble AI,bobble.ai,India,,,http://www.linkedin.com/in/sanjay-agrawal-00645815,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Guillaume,Degrave,guillaume.degrave@dataventure.com,CTO,Dataventure | EDG Group,dataventure.com,France,La Garenne-Colombes,,http://www.linkedin.com/in/guillaume-degrave-0961a432,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Louise,Racine,louise@lookoom.co,Co-founder,Lookoom,lookoom.co,France,Paris,,http://www.linkedin.com/in/louise-racine,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Christine,Cazottes,christine.cazottes@dataventure.com,Co-founder,Dataventure | EDG Group,dataventure.com,France,Paris,,http://www.linkedin.com/in/christinecazottes,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Vasco,Gomes,vasco.gomes@eviden.com,Office of the CTO - Cybersecurity,Bull,bull.com,United Kingdom,London,,http://www.linkedin.com/in/vasco-gomes-eviden,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Eric,Eppe,eric.eppe@eviden.com,Group Vice President - Chief Technology Officer,Bull,bull.com,France,Paris,,http://www.linkedin.com/in/ericeppe,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Marcus,Camen,marcus.camen@eviden.com,CTO Bull Science + Computing,Bull,bull.com,Germany,Stuttgart,,http://www.linkedin.com/in/marcus-camen-75a01326,INFLUENCER_PLATFORMS,Zalando and Intermate
+Jan,Prochazka,jan.prochazka@eviden.com,Enterprise AI Global CTO,Bull,bull.com,Czech Republic,Prague,,http://www.linkedin.com/in/jan-prochazka-consultant,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Prasad,Kothari,prasad.kothari@hansacequity.com,Head of Data Science and AI,Hansa Cequity,hansacequity.com,India,Mumbai,,http://www.linkedin.com/in/pk2006mis,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Florent,Chabaud,florent.chabaud@eviden.com,Chief Information and Product Security Officer,Bull,bull.com,France,Paris,,http://www.linkedin.com/in/fchabaud,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Gaurav,Srivastava,gaurav@bobble.ai,SVP - Mobile Engineering,Bobble AI,bobble.ai,India,New Delhi,,http://www.linkedin.com/in/gsrivast,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+David,Denjean,david.denjean@eviden.com,Head of EAI France & Global Leader for Sovereign Platform,Bull,bull.com,France,St-Laurent-du-Var,,http://www.linkedin.com/in/daviddenjean,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Rajendra,Engla,engla@bobble.ai,AVP Server Side Engineering,Bobble AI,bobble.ai,India,New Delhi,,http://www.linkedin.com/in/rajendra-engla-38a85746,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Ravi,Shharma,ravi.shharma@bobble.ai,Chief Business Officer,Bobble AI,bobble.ai,India,Gurugram,,http://www.linkedin.com/in/ravikshh,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Kaushik,Parashar,kaushik@bobble.ai,"Founding Member, CPO",Bobble AI,bobble.ai,India,New Delhi,,http://www.linkedin.com/in/kaushik-parashar-a808a2124,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Danae,Vara Borrell,dvara@redpoints.com,Chief Product Officer,Red Points,redpoints.com,Spain,Barcelona,,http://www.linkedin.com/in/danaevara,INFLUENCER_PLATFORMS,SAMY Alliance
+Sebastian,Pedavoli,sebastian@skedsocial.com,Chief Product Officer,Sked Social,skedsocial.com,Australia,Sydney,,http://www.linkedin.com/in/sebastianpedavoli,INFLUENCER_PLATFORMS,TRIBEGroup
+Tania,Calvo,tcalvo@ravenpack.com,Chief Operations Officer,RavenPack,ravenpack.com,Spain,Malaga,,http://www.linkedin.com/in/tania-calvo-ba419027,INFLUENCER_PLATFORMS,SAMY Alliance
+Raul,Balanzino,rbalanzino@ravenpack.com,Vice President of Product,RavenPack,ravenpack.com,Spain,Malaga,,http://www.linkedin.com/in/raul-balanzino-a590b875,INFLUENCER_PLATFORMS,SAMY Alliance
+David,Torrejon Moya,dtorrejon@redpoints.com,VP of Data,Red Points,redpoints.com,Spain,,,http://www.linkedin.com/in/dtorrejon,INFLUENCER_PLATFORMS,SAMY Alliance
+Nick,Pavord,nick@windsorborn.com,Chief Operating Officer,Windsorborn,windsorborn.com,Australia,Sydney,,http://www.linkedin.com/in/nickpavord,INFLUENCER_PLATFORMS,TRIBEGroup
+Hemang,Amin,hemang.amin@bcci.tv,Interim Chief Executive Officer,BCCI,bcci.tv,India,Mumbai,,http://www.linkedin.com/in/hemang-amin-a126145,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Darragh,Oriordan,darragh@skedsocial.com,Head of Engineering 🔧,Sked Social,skedsocial.com,Australia,Sydney,,http://www.linkedin.com/in/darraghoriordan,INFLUENCER_PLATFORMS,TRIBEGroup
+Daniel,Benitez,dbenitez@ravenpack.com,"SVP, Head of Product - Bigdata",RavenPack,ravenpack.com,United States,New York,,http://www.linkedin.com/in/daniel-benitez-14b60240,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Alejandro,Cano,acano@ravenpack.com,Head of Data Services,RavenPack,ravenpack.com,Spain,Malaga,,http://www.linkedin.com/in/alexcanolp,INFLUENCER_PLATFORMS,SAMY Alliance
+Gaurav,Mehrotra,gaurav@webfries.com,CEO & Managing Director,Webfries,webfries.com,India,Gurgaon,,http://www.linkedin.com/in/iamgauravmehrotra,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Marko,Kangrga,mkangrga@ravenpack.com,"SVP, Head of AI Product | Bigdata.com",RavenPack,ravenpack.com,United States,New York,,http://www.linkedin.com/in/markokangrga,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+James,Stevenson,jstevenson@ravenpack.com,Engineering Manager (AVP),RavenPack,ravenpack.com,Spain,Mijas,,http://www.linkedin.com/in/jamesrwstevenson,INFLUENCER_PLATFORMS,SAMY Alliance
+Chloe,Potts,cpotts@ravenpack.com,Product Specialist (AVP),RavenPack,ravenpack.com,Spain,Marbella,,http://www.linkedin.com/in/chloe-potts-26a486a2,INFLUENCER_PLATFORMS,SAMY Alliance
+Abdulaziz,Alhaysony,abdulaziz@smartcode.sa,Founder and CEO,سمارت كود Smart Code,smartcode.sa,Saudi Arabia,Riyadh,,http://www.linkedin.com/in/abdulaziz-alhaysony-8403a027a,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Warris,Ansari,warris@muhimmaapp.com,Chief Executive Officer,Muhimma Digital Platform Co.,muhimmaapp.com,Saudi Arabia,Riyadh,,http://www.linkedin.com/in/warrisansari,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Tameem,Alkharashi,tameem@smartcode.sa,Founder and GM,سمارت كود Smart Code,smartcode.sa,Saudi Arabia,Riyadh,,http://www.linkedin.com/in/tameemalkharashi,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Alaa,Almajhad,alaa@tact.sa,Co-Founder& Creative Director,tact Digital Communication,tact.sa,Saudi Arabia,,,http://www.linkedin.com/in/alaa-almajhad,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Hadar,Kess,hadar@hamaniot.org,Founder and CEO,Sunflowers - חמניות,hamaniot.org,Israel,,,http://www.linkedin.com/in/hadar-kess-873557198,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Niki,Russo,niki@imprint-social.com,Chief Technology Officer,Imprint,cycurity-imprint.com,Israel,,,http://www.linkedin.com/in/niki-russo-aa850243,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Sami,Kade,sami@farventure.com,CEO,AKM,akm.com.br,United Kingdom,,,http://www.linkedin.com/in/sami-kade-b76b49136,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Devrim,Altayli,devrim.altayli@buzz.work,Co-Founder,BUZZ,buzz.work,Turkey,Istanbul,,http://www.linkedin.com/in/altayli,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Kate,Knowles,kate@yellowdogpromotions.com,Founder,Creative Agency,creative.com.eg,United States,Round Hill,,http://www.linkedin.com/in/kathleenknowles,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Idan,Rubinstein,idanr@shout.market,Co-Founder,SHOUT.GROUP,shout.market,Israel,,,http://www.linkedin.com/in/idan-rubinstein-737813114,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Sameeh,Selim,sameeh@kairo.me,Head of Strategy & Data,KAIRO,kairo.me,Egypt,Cairo,,http://www.linkedin.com/in/sameeh-selim-1750344,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Fernanda,Malcher,fernanda@tmcomunicacoes.com.br,Founder and CEO,TM Comunicações,tmcomunicacoes.com.br,Brazil,Sao Paulo,,http://www.linkedin.com/in/fernandamalcher,INFLUENCER_PLATFORMS,Modash and Captiv8
+Leonardo,Viragine,leonardo.viragine@vtracker.com.br,CTO,v-tracker,vtracker.com.br,Brazil,,,http://www.linkedin.com/in/leonardo-viragine-35863347,INFLUENCER_PLATFORMS,Modash and Captiv8
+Matheus,Altoe,maltoe@inbazz.com.br,CTO,Inbazz,inbazz.com.br,Brazil,Vila Velha,,http://www.linkedin.com/in/matheus-alto%c3%a9-661276183,INFLUENCER_PLATFORMS,Modash and Captiv8
+Murilo,Souza,murilo@agenciakoko.com.br,CEO,Koko Agency,agenciakoko.com.br,Brazil,Rio de Janeiro,,http://www.linkedin.com/in/murilo-koko,INFLUENCER_PLATFORMS,Modash and Captiv8
+Gabriel,Viragine,gabriel.viragine@vtracker.com.br,CEO,v-tracker,vtracker.com.br,Brazil,,,http://www.linkedin.com/in/gabriel-viragine-42469944,INFLUENCER_PLATFORMS,Modash and Captiv8
+Davi,Neves,davi@dzestudio.com.br,co-CEO,DZ Estúdio,dzestudio.com.br,Brazil,Porto Alegre,,http://www.linkedin.com/in/davineves,INFLUENCER_PLATFORMS,Modash and Captiv8
+Nelson,Fragoso,nelson.fragoso@fcbfrst.com,Socio/CEO,FRST,fcbfrst.com,Peru,,,http://www.linkedin.com/in/nelsonfragoso,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Thiago,Barone,thiago@ftwcomunicacao.com.br,Sócio & CEO,FTW Co.,ftwcomunicacao.com.br,Brazil,Sao Paulo,,http://www.linkedin.com/in/thiagobarone,INFLUENCER_PLATFORMS,Modash and Captiv8
+Arthur,Jacintho,ajacintho@inbazz.com.br,Head of Data & Analytics,Inbazz,inbazz.com.br,Brazil,Vitoria,,http://www.linkedin.com/in/arthurjacintho,INFLUENCER_PLATFORMS,Modash and Captiv8
+Luz,Torres Ramos,luz.torres@bbdomexico.com,Head of Data Science,BBDO México,bbdomexico.com,Mexico,Naucalpan,,http://www.linkedin.com/in/luz-adriana-torres-ramos-b2b3b94b,INFLUENCER_PLATFORMS,Modash and Captiv8
+Gustavo,Correa,gustavo.correa@bbdomexico.com,VP Chief Operating Officer,BBDO México,bbdomexico.com,Mexico,Mexico City,,http://www.linkedin.com/in/gustavo-correa-26032215,INFLUENCER_PLATFORMS,Modash and Captiv8
+Natalia,Andrea Saldarriaga,natalia.saldarriaga@fcbfrst.com,COO Colombia Fcbfrst,FRST,fcbfrst.com,Colombia,,,http://www.linkedin.com/in/natalia-andrea-saldarriaga-45460b27,INFLUENCER_PLATFORMS,Modash and Captiv8
+Camilo,Plazas Michelsen,camilo.plazas@bbdomexico.com,Chief Executive Officer/ Digital Transformation BBDO México,BBDO México,bbdomexico.com,Mexico,Mexico City,,http://www.linkedin.com/in/camilo-plazas-michelsen-053495b,INFLUENCER_PLATFORMS,Modash and Captiv8
+Stevison,Rocha,srocha@inbazz.com.br,Head de Produto,Inbazz,inbazz.com.br,Brazil,Vitoria,,http://www.linkedin.com/in/stevison-rocha-b44826212,INFLUENCER_PLATFORMS,Modash and Captiv8
+Pablo,Cavallo,pablo@wisecx.com,CTO,Wise CX,wisecx.com,Argentina,,,http://www.linkedin.com/in/pablo-cavallo-4b73856,INFLUENCER_PLATFORMS,Modash and Captiv8
+Natalia,Grisales Moreno,ngrisales@infobae.com,Chief Technology Officer,Infobae,infobae.com,Colombia,Bogota,,http://www.linkedin.com/in/ngrisales,INFLUENCER_PLATFORMS,Modash and Captiv8
+Andrea,Lopezbarrios,alopezbarrios@infobae.com,CEO,Infobae,infobae.com,Argentina,Buenos Aires,,http://www.linkedin.com/in/andrea-lopezbarrios-199972334,INFLUENCER_PLATFORMS,Modash and Captiv8
+Joaquin,Chervero,joaquin.chervero@prosumia.la,Chief Operating Officer,Prosumia,prosumia.la,Argentina,,,http://www.linkedin.com/in/joaquin-chervero-058365101,INFLUENCER_PLATFORMS,Modash and Captiv8
+Nicola,Gomme,nicola.gomme@theleap.io,Founder,theLEAP,theleap.io,United Kingdom,Royal Leamington Spa,,http://www.linkedin.com/in/nicolagomme,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Olivier,Lasonder,lasonder@teleforwarding.com,Cofounder,Unravel,unravelapp.com,Netherlands,Amsterdam,,http://www.linkedin.com/in/olivier-lasonder-88098517b,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Michael,Odai,michael@mosaicventures.com,Chief Operating Officer / General Counsel,Mosaic Ventures,mosaicventures.com,United States,San Francisco,,http://www.linkedin.com/in/michaelodai,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Thomas,Drachkovitch,thomas@dreambaygroup.com,Founder & Managing Director,Dream Bay Group,dreambaygroup.com,United Kingdom,,,http://www.linkedin.com/in/tdrach,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Matias,Chervonagura,matias@prosumia.la,Chief Technology and Innovation Officer,Prosumia,prosumia.la,Argentina,Buenos Aires,,http://www.linkedin.com/in/chervonagura,INFLUENCER_PLATFORMS,Modash and Captiv8
+Vinod,Narayanan,vinod@unravelapp.com,VP Sales Engineering,Unravel,unravelapp.com,India,,,http://www.linkedin.com/in/vinodn1,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Daniel,Hadad,daniel@infobae.com,Founding Director,Infobae,infobae.com,Argentina,,,http://www.linkedin.com/in/daniel-hadad-77a2b1175,INFLUENCER_PLATFORMS,Modash and Captiv8
+Jonathan,Francisco Helver,jfrancisco@infobae.com,Technical Chief,Infobae,infobae.com,Argentina,Buenos Aires,,http://www.linkedin.com/in/jonathan-francisco-helver-6002aa296,INFLUENCER_PLATFORMS,Modash and Captiv8
+Luko,Gjenero,luko@layla.ai,Head of Engineering,Layla AI Travel Agent,layla.ai,Croatia,,,http://www.linkedin.com/in/luko-gjenero-02246012,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Ahmed,Fourati,ahmed@nclip.io,CTO,NClip,nclip.io,Germany,Darmstadt,,http://www.linkedin.com/in/ahmed-fourati-7487901ba,INFLUENCER_PLATFORMS,Zalando and Intermate
+Bhavya,Bhambhani,bhavyabhambhani@nmmarble.com,Co-Founder,Wish A Brand,wishabrand.in,India,Gurgaon,,http://www.linkedin.com/in/bhavya-bhambhani-978b408b,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Silke,Bolms,silke@silk-relations.com,Co Founder,LUKSO,lukso.network,Germany,Berlin,,http://www.linkedin.com/in/silke-bolms-345a669,INFLUENCER_PLATFORMS,Zalando and Intermate
+Emir,Pasic,emir@layla.ai,Head of Backend & ML Engineering,Layla AI Travel Agent,layla.ai,Bosnia and Herzegovina,,,http://www.linkedin.com/in/emirpasic,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Joby,Joseph,joby@scoop.app,Co-Founder & CTO,Scoop,scoop.app,India,Kochi,,http://www.linkedin.com/in/jobymathewjoseph,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Alejandro,Jattin,alejandro@vibran.io,"Co-Founder, CEO",Vibran,vibran.io,United States,Miami Beach,,http://www.linkedin.com/in/alejandro-jattin-22977240,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Michel,Chahda,michel@talentplus.me,Co-founder / CEO,Talent Plus,talentplus.me,United Arab Emirates,Dubai,,http://www.linkedin.com/in/michel-chahda-62848066,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Javier,Gutierrez,j.gutierrez@vibran.io,Chief Operating Officer,Vibran,vibran.io,Colombia,,,http://www.linkedin.com/in/javier-gutierrez-490769b2,INFLUENCER_PLATFORMS,Modash and Captiv8
+Vivian,Gomez,vivian@scoop.app,Co-Founder,Scoop,scoop.app,United States,San Francisco,,http://www.linkedin.com/in/vivian-gomez-409ab638,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Abid,Aboobaker,abid@scoop.app,Co-Founder,Scoop,scoop.app,India,,,http://www.linkedin.com/in/abidaboobaker,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+David,Noguerol,david@flowos.ai,Fractional CTO,Flint.me,flint.me,United Kingdom,London,,http://www.linkedin.com/in/david-noguerol,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Brunno,Rey,brey@mohz.com.br,Head of Product Design,Basemaker,basemaker.co,Brazil,Tijucas,,http://www.linkedin.com/in/brunnorey,INFLUENCER_PLATFORMS,Modash and Captiv8
+Gaston,Ruiz Diaz,gaston@adme.com.ar,Co-founder | Full Stack Developer | Product Owner,Adme,adme.com.ar,Argentina,,,http://www.linkedin.com/in/gaston-ruiz-diaz,INFLUENCER_PLATFORMS,Modash and Captiv8
+Neil,Taylor,ntaylor@global.com,Head of Platform Engineering,Global,global.com,United Kingdom,,,http://www.linkedin.com/in/neil-taylor-5598b136,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Jens,Klingelhoefer,jens.klingelhoefer@bookwire.de,CEO & Co-Founder,Bookwire GmbH,bookwire.de,Germany,Frankfurt,,http://www.linkedin.com/in/jens-klingelhofer,INFLUENCER_PLATFORMS,Zalando and Intermate
+Alex,Bennett,alex@justmediahouse.com,CEO Founder,Just Media House,justmediahouse.com,United States,New York,,http://www.linkedin.com/in/alex-bennett-436609172,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+John,S,jsalat@cisco.com,Head of Engineering and Product,Global,global.com,United Kingdom,London,,http://www.linkedin.com/in/john-s-13a01823,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Jessica,Connell,jessica.connell@global.com,Head of Product - Data,Global,global.com,United Kingdom,Barnet,,http://www.linkedin.com/in/jessica-connell-1608b0114,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Marc,Harper,marc.harper@lumiglobal.com,Chief Technology Officer,Lumi Global,lumiglobal.com,United Kingdom,,,http://www.linkedin.com/in/marc-harper-36a133a,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Alex,Duncan,alex.duncan@global.com,Chief Technology Officer,Global,global.com,United Kingdom,London,,http://www.linkedin.com/in/alexduncancto,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Richard,Taylor,richard@lumiglobal.com,CEO,Lumi Global,lumiglobal.com,United Kingdom,,,http://www.linkedin.com/in/randomrock,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Simon,Rowe,simon.rowe@global.com,Head of Engineering,Global,global.com,United Kingdom,London,,http://www.linkedin.com/in/simon-rowe-2a94ab1,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Gadi,Tellez,gadi.tellez@global.com,Head of Engineering,Global,global.com,United Kingdom,Orpington,,http://www.linkedin.com/in/gaditellez,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Samuel,Rayment,sam.rayment@global.com,Head of Engineering,Global,global.com,United Kingdom,Brighton,,http://www.linkedin.com/in/samuel-rayment-65539242,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Pierre,Capton,pacapton@mediawan.eu,Chief Executive Officer,Mediawan,mediawan.com,France,,,http://www.linkedin.com/in/pierre-antoine-capton-3094b4168,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Joseph,Craven,joseph@hybrid.co,Chief Operating Officer,Hybrid,hybrid.co,United States,Philadelphia,,http://www.linkedin.com/in/joseph-craven-b3ba00b,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Holger,Tuletz,holger.tuletz@bookwire.de,Head of Product,Bookwire GmbH,bookwire.de,Germany,Freiburg,,http://www.linkedin.com/in/holger-tuletz-96b6b76a,INFLUENCER_PLATFORMS,Zalando and Intermate
+Laura,Garcia,laura@greengrants.org,Chief Executive Officer,Global,global.com,,,,http://www.linkedin.com/in/laura-garcia-5b9571399,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Philip,Martin,pmartin@gbastudy.com,Chief Executive Officer,Global,global.com,,,,http://www.linkedin.com/in/philip-martin-4202253a4,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Zigar,Mehta,zmehta@cisco.com,Chief Executive Officer,Global,global.com,,,,http://www.linkedin.com/in/zigar-mehta-a0981a253,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Vincent,Lowry,vlowry@globalbetaadvisors.com,Chief Executive Officer,Global,global.com,,,,http://www.linkedin.com/in/vincent-lowry-0aab34347,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Michael,Bartl,michael.bartl@tawny.ai,Founder,TAWNY.AI,tawny.ai,Germany,Munich,,http://www.linkedin.com/in/michael-bartl,INFLUENCER_PLATFORMS,Zalando and Intermate
+Mathieu,Yerle,myerle@intuiface.com,President & Chief Executive Officer,Intuiface,intuiface.com,France,,,http://www.linkedin.com/in/mathieu-yerle-a7578227,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Matthew,Daniel,matthew.daniel@global.com,Head of Engineering Assurance,Global,global.com,United Kingdom,London,,http://www.linkedin.com/in/matthew-daniel-324584a8,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Harley,Ayers,harley.ayers@global.com,Head of Data Strategy,Global,global.com,United Kingdom,London,,http://www.linkedin.com/in/harleyayers,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Lucy,Crowe,lucy.crowe@theaudienceagency.org,Head of Product Sales,The Audience Agency,theaudienceagency.org,United Kingdom,London,,http://www.linkedin.com/in/lucy-crowe-53103459,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Jacob,Gyldenkaerne,jacob@assemblyvoting.com,"CEO, Lumi Denmark",Lumi Global,lumiglobal.com,Denmark,Copenhagen,,http://www.linkedin.com/in/jacob-gyldenk%c3%a6rne-8046635,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Luc,Schoumacher,lschoumacher@mediawan.eu,COO Mediawan Rights,Mediawan,mediawan.com,France,Paris,,http://www.linkedin.com/in/luc-schoumacher-7a722a81,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Shaun,Palmer,shaun.palmer@matchroom.com,Chief Operating Officer and General Counsel,Matchroom Boxing,matchroom.com,United States,New York,,http://www.linkedin.com/in/shaun-palmer-8857935a,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Christian,Lindemann,christian.lindemann@bookwire.de,Managing Director & COO,Bookwire GmbH,bookwire.de,Germany,Bonn,,http://www.linkedin.com/in/christian-lindemann-97a93588,INFLUENCER_PLATFORMS,Zalando and Intermate
+Chris,France,chris.france@theaudienceagency.org,Head of Data Solutions & Partnerships,The Audience Agency,theaudienceagency.org,United Kingdom,,,http://www.linkedin.com/in/cfrance,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Christy,Johnston,christy.johnston@global.com,"Head of Product Marketing, Outdoor",Global,global.com,United Kingdom,London,,http://www.linkedin.com/in/christy-johnston,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Thomas,Walker,thomas.walker@global.com,Technical Director - Product,Global,global.com,United Kingdom,,,http://www.linkedin.com/in/thomaselliotwalker,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Paul,Johnson,paul.johnson@global.com,Head of Data Science Modelling,Global,global.com,United Kingdom,London,,http://www.linkedin.com/in/paul-johnson-3a5220155,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Ben,Walker,ben.walker@global.com,"Head of Product & Operations, DAX Audio",Global,global.com,United Kingdom,,,http://www.linkedin.com/in/bwalker1994,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Dominik,Schmelck,dschmelck@mediawan.eu,COO | Directeur Général at Mediawan Studio,Mediawan,mediawan.com,France,Paris,,http://www.linkedin.com/in/schmelck,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Mark,Asquith,mark@thisisglobal.com,Managing Director & Co-Founder - Captivate,Global,global.com,United Kingdom,Manchester,,http://www.linkedin.com/in/markasquith,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Sonia,Esteban Roba,sonia.esteban@global.com,Executive Assitant to CEO and to Managing Director,Global,global.com,Spain,Madrid,,http://www.linkedin.com/in/sonia-esteban-roba-50691327,INFLUENCER_PLATFORMS,SAMY Alliance
+Delphine,Cazaux,dcazaux@mediawan.eu,Directrice Générale en Charge des Opérations - COO,Mediawan,mediawan.com,France,Paris,,http://www.linkedin.com/in/delphine-cazaux-89779413,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Suzanne,Richardson,sryder@global.com,"Director, Global Goodness; CEO Global's Make Some Noise",Global,global.com,United Kingdom,,,http://www.linkedin.com/in/suzanne-ryder-richardson-501a7714,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Louis-Cyrille,Trebuchet,louis-cyrille.trebuchet@afp.com,Chief Technology and Information Officer,Mediawan,mediawan.com,France,Paris,,http://www.linkedin.com/in/louis-cyrille-trebuchet-4a81107,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Liam,McAllister,liam.mcallister@global.com,Head of Consumer Product,Global,global.com,United Kingdom,London,,http://www.linkedin.com/in/liam-mcallister-85b550116,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Anna,Brown,anna.brown@global.com,Head of People Operations and Data,Global,global.com,United Kingdom,Walton-on-Thames,,http://www.linkedin.com/in/anna-brown-hrd,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Simon,Price,simon.price@thisisglobal.com,Head of Broadcast Engineering,Global,global.com,United Kingdom,,,http://www.linkedin.com/in/simon-price-926424a,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Peter,Cropley,peter.cropley@thisisglobal.com,"Engineering Director, Global Player",Global,global.com,United Kingdom,Royston,,http://www.linkedin.com/in/peter-cropley-b7150178,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Marco,Saal,saal@horizont.net,Head of Content & Data Journalism,HORIZONT,horizont.net,Germany,Frankfurt,,http://www.linkedin.com/in/marcosaal,INFLUENCER_PLATFORMS,Zalando and Intermate
+Paul,McCormack,paul.mccormack@global.com,Head of Commercial Product Positioning,Global,global.com,United Kingdom,,,http://www.linkedin.com/in/paulmccormack1975,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Cedric,Rouse,cedric.rouse@global.com,"Outdoor Product, Director",Global,global.com,United Kingdom,London,,http://www.linkedin.com/in/cedric-rouse-0aaa1b16,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Paul,Etherington,paul@global.com,Head of Commercial Product - Outdoor Roadside,Global,global.com,United Kingdom,,,http://www.linkedin.com/in/paul-etherington-2b183225,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Miguel,Angel Zambrana,mzambrana@npaw.com,"Vice President, Engineering",NPAW,npaw.com,Spain,Barcelona,,http://www.linkedin.com/in/miguelzambrana,INFLUENCER_PLATFORMS,SAMY Alliance
+Benjamin,Masse,benjamin.masse@tritondigital.com,Chief Product Officer,Triton Digital,tritondigital.com,United Kingdom,London,,http://www.linkedin.com/in/bmasse,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Yurdana,Burgoa Valtierra,yurdana@lasttour.org,CEO,LAST TOUR,lasttour.org,Spain,Bilbao,,http://www.linkedin.com/in/yurdana-burgoa-valtierra-aa117a19,INFLUENCER_PLATFORMS,SAMY Alliance
+Gowtham,P,gowtham@marketbytes.in,Chief Executive Officer,MarketBytes WebWorks Pvt. Ltd,marketbytes.in,India,Alappuzha,,http://www.linkedin.com/in/gowtham-krishna-p-585740210,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Karan,Murarka,karan@karastudios.com,Founder,KARA Studios,karastudios.com,India,Mumbai,,http://www.linkedin.com/in/karanmurarka,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+John,Rosso,john.rosso@tritondigital.com,President & CEO at Triton Digital,Triton Digital,tritondigital.com,United States,New York,,http://www.linkedin.com/in/jrosso,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Rahul,Bajaj,rahul.bajaj@pocketaces.in,Associate Manager - CEO's Office,Pocket Aces,pocketaces.in,India,Mumbai,,http://www.linkedin.com/in/rahulbajaj6,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Ashish,Sedani,ashish.sedani@neoniche.com,Co-Founder & Director of Experiential Deliveries,NeoNiche Integrated Solutions Pvt. Ltd.,neoniche.com,India,Mumbai,,http://www.linkedin.com/in/ashish-sedani,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Sagar,Chauhan,sagar@communiqueindia.com,Founder,The Briefcase Club,briefcase.media,India,New Delhi,,http://www.linkedin.com/in/sagarsinghchauhan,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Yogesh,Sonar,yogesh.sonar@neoniche.com,Vice President Business Product Development,NeoNiche Integrated Solutions Pvt. Ltd.,neoniche.com,India,Mumbai,,http://www.linkedin.com/in/sonaryogesh,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Michiel,Bugher,michiel.bugher@tritondigital.com,Director of Software Engineering [QA],Triton Digital,tritondigital.com,United States,Boise,,http://www.linkedin.com/in/michielbugher,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Sharon,Taylor,sharon.taylor@tritondigital.com,"Senior Vice President, Podcast Strategy & Product Operations",Triton Digital,tritondigital.com,Canada,Montreal,,http://www.linkedin.com/in/sharontaylorau,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Felipe,Jaramillo Caro,felipe@lasttour.org,Cofundador y Director en América,LAST TOUR,lasttour.org,Colombia,Bogota,,http://www.linkedin.com/in/felipe-jaramillo-caro,INFLUENCER_PLATFORMS,Modash and Captiv8
+Ryan,Trutch,ryan@p-1.me,Founder & CEO,Pole Position,p-1.me,United Arab Emirates,Dubai,,http://www.linkedin.com/in/ryantrutch,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Jenny,Tan,jenny@toorly.com,Founder/CEO,TOORLY,toorly.com,Hong Kong,Hong Kong,,http://www.linkedin.com/in/jenny-tan-681b6065,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Saif,Al-Noaimi,saif.alnoaimi@ethara.com,Chief Executive Officer,Ethara,ethara.com,United Arab Emirates,,,http://www.linkedin.com/in/saif-rashid-al-noaimi-7b0474147,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Maximiliano,Cabrera,mcabrera@torneos.com,Chief Executive Officer,Torneos,torneos.com,Argentina,,,http://www.linkedin.com/in/maximiliano-cabrera-40a10616,INFLUENCER_PLATFORMS,Modash and Captiv8
+Fabio,Madia,fabio.madia@btsbrasil.tv,CEO,BTS Brasil,btsbrasil.tv,Brazil,Sao Paulo,,http://www.linkedin.com/in/fmadia,INFLUENCER_PLATFORMS,Modash and Captiv8
+Sam,Barnett,sambarnett@mbc.net,Chief Executive Officer,MBC GROUP,mbc.net,United Arab Emirates,Dubai,,http://www.linkedin.com/in/sam-barnett-366b58356,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Dominic,Farrell,dominic.farrell@mbc.net,Group Chief Technology Officer,MBC GROUP,mbc.net,United Arab Emirates,,,http://www.linkedin.com/in/dominic-farrell-6576ba,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Olivier,Bachelier,olivier.bachelier@mbc.net,Senior Manager Corporate Operations - CEO Office,MBC GROUP,mbc.net,United Arab Emirates,Dubai,,http://www.linkedin.com/in/olivierbachelier,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Marcelo,Rizzi,mrizzi@grupoclarin.com,Corporate CTO Grupo Clarín,Grupo Clarín,grupoclarin.com,Argentina,Buenos Aires,,http://www.linkedin.com/in/marcelorizzi,INFLUENCER_PLATFORMS,Modash and Captiv8
+Jorge,Dibildox Valls,jdibildox@grupoexpansion.com,CEO División de Events y Out of Home,Grupo Expansión,grupoexpansion.com,Mexico,Mexico City,,http://www.linkedin.com/in/jorge-dibildox-valls-a62aa83,INFLUENCER_PLATFORMS,Modash and Captiv8
+Haidar,Shukry,haidar.shukry@ethara.com,Chief Event Operations Officer,Ethara,ethara.com,United Arab Emirates,,,http://www.linkedin.com/in/haidarshukri,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Damian,Alejandro Molinari,damian@mediainbox.net,Head of VOD Platform at Grupo Clarin,Artear,artear.com,Argentina,,,http://www.linkedin.com/in/damian-alejandro-molinari-30025622,INFLUENCER_PLATFORMS,Modash and Captiv8
+Juan,Duche,jduche@torneos.com,Chief of Operations,Torneos,torneos.com,Argentina,,,http://www.linkedin.com/in/juan-duche-4537b7106,INFLUENCER_PLATFORMS,Modash and Captiv8
+Felipe,Tobalina,ftobalina@torneos.com,Technical Chief,Torneos,torneos.com,Argentina,,,http://www.linkedin.com/in/felipe-tobalina-4b2012206,INFLUENCER_PLATFORMS,Modash and Captiv8
+Mario,Cuomo,mcuomo@artear.com,Chief of Operations,Artear,artear.com,Argentina,,,http://www.linkedin.com/in/mario-cuomo-3003a250,INFLUENCER_PLATFORMS,Modash and Captiv8
+Guillermo,Testa,gtesta@artear.com,Technical Chief,Artear,artear.com,Argentina,Buenos Aires,,http://www.linkedin.com/in/guillermo-testa-5a9485333,INFLUENCER_PLATFORMS,Modash and Captiv8
+Isaurralde,Javier,javier.isaurralde@torneos.com,Technical Chief,Torneos,torneos.com,Argentina,,,http://www.linkedin.com/in/isaurralde-javier-254a1a115,INFLUENCER_PLATFORMS,Modash and Captiv8
+Darryll,Bayes,darryll@thing-or-two.com,Founder CEO,Thing or Two,thing-or-two.com,United Kingdom,Milton Keynes,,http://www.linkedin.com/in/darryllbayes,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Lukasz,Kapusniak,lukasz.kapusniak@cloudtechnologies.pl,CTO,OnAudience,onaudience.com,Poland,Warsaw,,http://www.linkedin.com/in/biggerdata,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Ben,Hookway,ben@relativeinsight.com,CEO,Relative Insight,relativeinsight.com,United Kingdom,,,http://www.linkedin.com/in/benhookway,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Alejandro,Pablo Tkachuk,atkachuk@atlantida.com.ar,Chief Technology Officer,Grupo Atlántida,atlantida.com.ar,Argentina,,,http://www.linkedin.com/in/alejandropablotkachuk,INFLUENCER_PLATFORMS,Modash and Captiv8
+Phil,Greenwood,phil@relativeinsight.com,Chief Technology Officer,Relative Insight,relativeinsight.com,United Kingdom,Lancaster,,http://www.linkedin.com/in/phil-greenwood-50408051,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Neil,Barber,neil.barber@interactcc.com,Chief Executive Officer,Interact Contact Centres,interactcc.com,United Kingdom,Wigan,,http://www.linkedin.com/in/neil-barber-49641926,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Russell,Kearney,russell@encoredigitalmedia.net,CEO,Encore Digital Media,encoredigitalmedia.net,United Kingdom,London,,http://www.linkedin.com/in/kearneyrussell,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Bahaa,Zyoud,bahaa@spica.media,Chief Executive Officer,Spica Media,spica.media,United Arab Emirates,,,http://www.linkedin.com/in/bahaa-al-zyoud-25117a31,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+-Maria,Ferres,maria@themixglobal.com,Chief Operations Officer & Partner,The Mix Global,themixglobal.com,Brazil,Sao Paulo,,http://www.linkedin.com/in/maferres,INFLUENCER_PLATFORMS,Modash and Captiv8
+Tash,Walker,tash@themixglobal.com,Founder,The Mix Global,themixglobal.com,United States,,,http://www.linkedin.com/in/tashwalker1,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Natalia,Rachlin,natalia@mothertonguemagazine.com,Co-Founder,Mother Tongue,mothertongue.com,United Kingdom,London,,http://www.linkedin.com/in/natalia-rachlin-40a761250,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Alva,Platform,platform@pentagroup.com,Founder,alva,alva-group.com,Netherlands,Amsterdam,,http://www.linkedin.com/in/abr-sport-1389331a1,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Stuart,Findlay,stuart.findlay@walnutunlimited.com,Head of Data Services,"Walnut, Part of Accenture Song",walnutunlimited.com,United Kingdom,Southampton,,http://www.linkedin.com/in/stuart-findlay-47517689,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Lauren,Whitehurst,lauren@sfreporter.com,"Founder, Director, Teacher",Mother Tongue,mothertongue.com,United States,Santa Fe,,http://www.linkedin.com/in/lauren-a-whitehurst-433a2310,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Alex,Ross,alex.ross@redtorch.co,"Global Director of Sport, Co-founder",Redtorch,redtorch.sport,United Kingdom,London,,http://www.linkedin.com/in/alex-ross-redtorch,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Daniel,Lewis,danl@encoredigitalmedia.net,Head of Delivery & Product,Encore Digital Media,encoredigitalmedia.net,United Kingdom,Saint Albans,,http://www.linkedin.com/in/daniel-lewis-46959585,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Ben,Duncan,benjamin.duncan@tribalworldwide.co.uk,Group Product Director,Tribal Worldwide London,tribal.london,United Kingdom,,,http://www.linkedin.com/in/benjaminjamesduncan,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Marcus,Hickman,marcus@levellr.com,Head Related to Search Terms in Your Query of Related to Search Terms in Your Query Product Related to Search Terms in Your Query,Levellr,levellr.com,United Kingdom,Sheffield,,http://www.linkedin.com/in/marcushickman1,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Olly,Blitz,olly@20ten.co.uk,Founding Partner/Director,20ten Creative,20tencreative.com,United Kingdom,London,,http://www.linkedin.com/in/olly-blitz-b05a7689,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Rajesh,Nair,rajesh@tonicworldwide.com,Chief Technology Officer,Tonic Worldwide,tonicworldwide.com,India,Bhopal,,http://www.linkedin.com/in/rajesh-nair-68a53811,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Reda,Aboulkacem,reda@netino.com,Chief Technology Officer,Netino,netino.fr,France,Poitiers,,http://www.linkedin.com/in/reda-aboulkacem,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Florence,Hussenot,fhussenot@adwise-research.com,CEO,Adwise,adwise-research.com,France,Paris,,http://www.linkedin.com/in/florence-hussenot-2837392a5,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+TG,Srinivasan,tgs@pixel-studios.com,Chief Executive Officer,Pixel Studios Pvt. Ltd.,pixel-studios.com,India,Chennai,,http://www.linkedin.com/in/tgsrinivasan,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Nicolas,Riou,nriou@brainvalue.com,CEO,Brainvalue,brainvalue.com,France,Paris,,http://www.linkedin.com/in/nicolas-riou-brainvalue,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Christine,Bonnin,cbonnin@akio.com,Analytics COO,AKIO,akio.com,France,Paris,,http://www.linkedin.com/in/christinebonnin,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Maxime,Cohendet,mc@reseau-entreprendre.org,Co-fondateur & CEO,European Digital Group,europeandigital-group.com,France,Lyon,,http://www.linkedin.com/in/maximecohendet,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Henrik,Grubak,henrik.grubak@stanworldwide.com,Co-Founder CD,STAN GROUP,stan-studios.com,United States,Marina del Rey,,http://www.linkedin.com/in/grubaknielsen,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Lars,Jorgensen,lars@heroiq.co,Chair and Co-founder,STAN GROUP,stan-studios.com,Denmark,Copenhagen,,http://www.linkedin.com/in/larshemming,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Kristian,Moller,mk@stan-studios.com,"Co-Founder, Creative Director",STAN GROUP,stan-studios.com,United States,Los Angeles,,http://www.linkedin.com/in/krisscreol,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Felicity,Fellows,felicity@stanworldwide.com,"Co-Founder, Chief Strategy Officer",STAN GROUP,stan-studios.com,France,Paris,,http://www.linkedin.com/in/felicityfellows,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Sudish,B,sudish@tonicworldwide.com,Co-Founder and Chief Creative Officer,Tonic Worldwide,tonicworldwide.com,India,,,http://www.linkedin.com/in/sudish-b-86227011,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Rohit,Bhat,rohit@experiencecommerce.com,AVP - QA and Product Management,Experience Commerce,experiencecommerce.com,India,,,http://www.linkedin.com/in/rohit-bhat-65786929,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Samuel,Rumeur,srumeur@akio.com,Directeur Produits,AKIO,akio.com,France,Paris,,http://www.linkedin.com/in/samuel-rumeur-352855123,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Rishi,Malhotra,rishi@teamcafeteria.com,Founder & CEO [cafeteria],[cafeteria],teamcafeteria.com,United States,New York,,http://www.linkedin.com/in/malhotrarishi,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Clint,Balcom,clint@teamcafeteria.com,Chief Product Officer,[cafeteria],teamcafeteria.com,United States,New York,,http://www.linkedin.com/in/clintob,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Ryan,Peterson,ryan@teamcafeteria.com,Head of Engineering,[cafeteria],teamcafeteria.com,United States,,,http://www.linkedin.com/in/ryan-j-peterson-4b21b75,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Lav,Kumar,lav.kumar@xebecindia.com,Chief Executive Officer,Xebec Communications Pvt.Ltd.,xebecindia.com,India,Mumbai,,http://www.linkedin.com/in/lavkumar,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Oleg,Vorontsov,o.vorontsov@dezzai.com,Chief Executive Officer,dezzai,dezzai.com,Spain,Las Rozas de Madrid,,http://www.linkedin.com/in/oleg-vorontsov-phd-586b24152,INFLUENCER_PLATFORMS,SAMY Alliance
+Jo,Grierson,jo.grierson@onegreenbean.com,Chief Executive Officer,One Green Bean,onegreenbean.com,United Kingdom,,,http://www.linkedin.com/in/jo-grierson-b41a0213,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Pradip,Mandal,pradipkumar.mandal@futurlytic.com,CEO,Futurlytic Private Limited,futurlytic.com,India,Bengaluru,,http://www.linkedin.com/in/pradip-kumar-mandal-3b99682,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Athikur,Ansari,athik.ansari@cerebratesolutions.in,Founder,Cerebrate Solutions,cerebratesolutions.in,India,Mumbai,,http://www.linkedin.com/in/athikurrehman,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Amit,Anand,amit@loqal.ai,Co-Founder,LoQal AI Ventures,loqal.ai,India,New Delhi,,http://www.linkedin.com/in/akanand,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Anirban,Nayek,anirban@brandwind.in,Founder,Brandwind,brandwind.in,India,Birbhum,,http://www.linkedin.com/in/anirbanbrandwind,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Mark,Silverstein,mark@teamcafeteria.com,Co-Founder & Chief Business Officer,[cafeteria],teamcafeteria.com,United States,New York,,http://www.linkedin.com/in/silversteinmark,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Leeann,Sheely,leeann@teamcafeteria.com,Co-Founder & Chief Design Officer,[cafeteria],teamcafeteria.com,United States,Carlisle,,http://www.linkedin.com/in/leeann-sheely-4188b949,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Luis,Velasco Quijano,l.velasco@dezzai.com,CO Founder & CFO,dezzai,dezzai.com,Spain,Madrid,,http://www.linkedin.com/in/luis-m-velasco-quijano-96128b46,INFLUENCER_PLATFORMS,SAMY Alliance
+Shadab,Khan,shadab.khan@cerebratesolutions.in,Chief Business Officer,Cerebrate Solutions,cerebratesolutions.in,India,Mumbai,,http://www.linkedin.com/in/shadabkhan8484,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Julian,Garcia Torres,julian.garcia@relevanttraffic.com,Chief Executive Officer (CEO),Relevant Group,relevantgroup.media,Spain,Madrid,,http://www.linkedin.com/in/juliangarciatorres,INFLUENCER_PLATFORMS,SAMY Alliance
+Wael,Anwar,wanwar@sphere-consulting.com,Chief Operations Officer,Sphere Consulting (SCIS),sphere-consulting.com,Egypt,,,http://www.linkedin.com/in/wael-anwar-a51b1026,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Natalia,Melo,natalia.melo@nr7.ag,COO,NR7 | Full Cycle Agency,nr7.ag,United States,Orlando,,http://www.linkedin.com/in/nataliamelo,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Mohamed,Amin,mamin@sphere-consulting.com,CEO,Sphere Consulting (SCIS),sphere-consulting.com,United Arab Emirates,Dubai,,http://www.linkedin.com/in/mohamed-amin-859b0826,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Regan,Rodrigues,regan@yardstick-marketing.com,Head of Product,Yardstick Marketing Management,yardstick-marketing.com,United Arab Emirates,Dubai,,http://www.linkedin.com/in/regan-rodrigues,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Amir,R,ar@xdbscorp.com,Founder,XDBS Worldwide,xdbsworldwide.com,India,Pune,,http://www.linkedin.com/in/amir-r-490a52355,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Lucas,Rangel,lucasrangel@lrcontents.com.br,Co-founder e CEO,MO-LO 135,molo135.com.br,Brazil,Belo Horizonte,,http://www.linkedin.com/in/lucas-rangel-281492164,INFLUENCER_PLATFORMS,Modash and Captiv8
+Marwane,Bejgane,marwane@amarelo.fr,CEO,Amarelo,aamarelo.com.br,Martinique,Arrondissement of La Trinite,,http://www.linkedin.com/in/marwanebejgane,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Ouriel,Boiria-Lesaffre,ouriel@kinoba.fr,CEO,Orbit,orbitdatascience.com,France,Lyon,,http://www.linkedin.com/in/ourielboiria,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Amanda,Abrao,amanda@aamarelo.com.br,Co-Founder,Amarelo,aamarelo.com.br,Brazil,Sao Paulo,,http://www.linkedin.com/in/amanda-abr%c3%a3o-1b2a6325,INFLUENCER_PLATFORMS,Modash and Captiv8
+Mariane,Maciel,mariane@aamarelo.com.br,Founder,Amarelo,aamarelo.com.br,Brazil,Rio de Janeiro,,http://www.linkedin.com/in/mariane-maciel,INFLUENCER_PLATFORMS,Modash and Captiv8
+Gerson,Ribeiro,gerson@biosphera.net,Co-Founder & Partner,Vitrio,vitrio.com.br,Brazil,Sao Paulo,,http://www.linkedin.com/in/gersonribeiro,INFLUENCER_PLATFORMS,Modash and Captiv8
+Tere,Sordo,tere@morfina.mx,COO,Morfina,morfina.mx,Mexico,Naucalpan,,http://www.linkedin.com/in/tere-sordo-77420732,INFLUENCER_PLATFORMS,Modash and Captiv8
+Stiwar,Garcia,stiwar.garcia@brm.com.co,Chief Technology Officer,BRM S.A.S,brm.com.co,Colombia,,,http://www.linkedin.com/in/stiwar-garcia-9661095b,INFLUENCER_PLATFORMS,Modash and Captiv8
+Ana,Maria Lozano,ana.lozano@dipaolalatina.com,CEO,di Paola Latina,dipaolalatina.com,Colombia,,,http://www.linkedin.com/in/ana-maria-lozano-5aa61614,INFLUENCER_PLATFORMS,Modash and Captiv8
+Damian,Suarez,damian.suarez@megaresearch.net,Director & Founder,Mega Research,megaresearch.net,Argentina,,,http://www.linkedin.com/in/damiansuarez,INFLUENCER_PLATFORMS,Modash and Captiv8
+Eduardo,Fritsch,fritsch@morfina.mx,President | Founder,Morfina,morfina.mx,Mexico,Naucalpan,,http://www.linkedin.com/in/eduardo-fritsch-a9bb3a12,INFLUENCER_PLATFORMS,Modash and Captiv8
+Jesus,Hoyos,jesus.hoyos@solvisconsulting.com,Chief Strategist - Founder (Active),Solvis Consulting LLC,solvisconsulting.com,United States,Fort Lauderdale,,http://www.linkedin.com/in/jesushoyos,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Eliezer,Enriquez,e.enriquez@difraxion.com,Socio Fundador/ Director,Difraxion Group,difraxion.com,Mexico,,,http://www.linkedin.com/in/eliezer-enriquez-b9519152,INFLUENCER_PLATFORMS,Modash and Captiv8
+Matti,Kokkola,matti.kokkola@trademarknow.com,VP Engineering,Corsearch,corsearch.com,Finland,Helsinki,,http://www.linkedin.com/in/mattikokkola,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Chase,Richards,chase.richards@corsearch.com,VP of Engineering,Corsearch,corsearch.com,United States,Seattle,,http://www.linkedin.com/in/chasesrichards,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Ankush,Jain,ankush@digitalizetheglobe.com,Founder & CEO,GUV Corporation LLP,globalunityventures.com,India,Baramati,,http://www.linkedin.com/in/ankush-bagmar-digital-marketer,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+James,Pearson,james.pearson@corsearch.com,Senior Director of Product Management,Corsearch,corsearch.com,United Kingdom,Norwich,,http://www.linkedin.com/in/jrbpearson,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Anand,Rangaswamy,anandkumar@linkedin.com,Founder - CEO,ATON Network Pvt Ltd,atonnetwork.com,India,Bengaluru,,http://www.linkedin.com/in/anand-kumar-r-2813b246,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Alexey,Salmin,alexey.salmin@navee.co,Senior Vice President of Engineering,Corsearch,corsearch.com,France,Paris,,http://www.linkedin.com/in/asalmin,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Mazlum,Agar,mazlum.agar@brandefense.io,CTO,BRANDEFENSE,brandefense.io,Turkey,Istanbul,,http://www.linkedin.com/in/mazlumagar,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Jonas,Monserrat,jonas.bru-monserrat@partoo.co,CTO,Partoo,partoo.co,France,Paris,,http://www.linkedin.com/in/jonasbru,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Patricia,Finoti,patricia.finoti@missionbrasil.com.br,Chief Operating Officer,Mission Brasil,missionbrasil.com.br,Brazil,Sao Paulo,,http://www.linkedin.com/in/patricia-finoti-58055921,INFLUENCER_PLATFORMS,Modash and Captiv8
+Bahadir,Kinali,bahadir.kinali@brandefense.io,Head of Product,BRANDEFENSE,brandefense.io,Turkey,Ankara,,http://www.linkedin.com/in/bahadirkinali,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Sergio,Teubal,sergio@orishinal.com,CEO - Founder,ORISHINAL,orishinal.com,Argentina,,,http://www.linkedin.com/in/sergio-teubal-647188104,INFLUENCER_PLATFORMS,Modash and Captiv8
+Manohar,Kashyap,manohar@gfactors.co.in,Co-Founder,Gfactors,gfactors.co.in,India,Bengaluru,,http://www.linkedin.com/in/manoharkashyap,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Thibault,Renouf,thibault.renouf@partoo.fr,co-CEO,Partoo,partoo.co,France,Paris,,http://www.linkedin.com/in/thibault-renouf-partoo,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Goktug,E,goktug.eren@brandefense.io,CEO Office,BRANDEFENSE,brandefense.io,Netherlands,,,http://www.linkedin.com/in/goktugeren,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Srinivas,,srinivas@atonnetwork.com,Co-Founder,ATON Network Pvt Ltd,atonnetwork.com,India,Bengaluru,,http://www.linkedin.com/in/srinivas-m-r-b3a8a717,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Silvana,Frenquel,silvana.frenquel@orishinal.com,Global Chief Operating Officer,ORISHINAL,orishinal.com,Argentina,,,http://www.linkedin.com/in/silvana-frenquel-845636b,INFLUENCER_PLATFORMS,Modash and Captiv8
+Danielle,Jager,danielle.dejager@corsearch.com,Head of Data Operations,Corsearch,corsearch.com,Netherlands,Haarlem,,http://www.linkedin.com/in/danielle-de-jager-b33423292,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Julius,Stobbs,julius.stobbs@iamstobbs.com,Founder/ Chairman,Obviously,obviously.digital,United Kingdom,Cambridge,,http://www.linkedin.com/in/julius-stobbs-24b50814,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Eleni,Nicolaidis,eleni.nicolaidis@corsearch.com,Director of Product Marketing,Corsearch,corsearch.com,United Kingdom,,,http://www.linkedin.com/in/eleni-leila-nicolaidis-303849158,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Jonathan,Jaggers,jonathan.jaggers@corsearch.com,Director of Product Management,Corsearch,corsearch.com,United States,Cleveland,,http://www.linkedin.com/in/jonathan-jaggers-68117b12,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Meghan,Medeiros,meghan.medeiros@corsearch.com,Director of Product Marketing,Corsearch,corsearch.com,United States,Boston,,http://www.linkedin.com/in/meghan-medeiros,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Hakan,Eryavuz,hakan.eryavuz@brandefense.io,Co-Founder & Managing Partner at Brandefense,BRANDEFENSE,brandefense.io,Turkey,Ankara,,http://www.linkedin.com/in/hakaneryavuz,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Jonathan,Levitre,jonathan.levitre@partoo.fr,Product Director,Partoo,partoo.co,France,Paris,,http://www.linkedin.com/in/jonathanlevitre,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Svetlana,Ilnitskaya,svetlana.ilnitskaya@corsearch.com,Global Director of Sales Engineering,Corsearch,corsearch.com,United States,New York,,http://www.linkedin.com/in/ilnitskaya,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Lewis,Whiting,lewis@iaido.ai,Chief Executive,Obviously,obviously.digital,United Kingdom,London,,http://www.linkedin.com/in/lewiswhiting,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Ankit,Mishra,mishraa@google.com,VP of Engineering,Eloelo,eloelo.in,India,Bengaluru,,http://www.linkedin.com/in/ankit-mishra-99375437,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Akhil,Dev,akhil@lsd.productions,CEO,LSD Productions Private Limited,lsd.productions,India,,,http://www.linkedin.com/in/akhildev,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Ricardo,Ribeiro,ricardo.ribeiro@lounges.tv,Head of Engineering,Lounges.tv,lounges.tv,United Kingdom,Milton Keynes,,http://www.linkedin.com/in/ricardo-lu%c3%ads-ribeiro-62b14551,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Kartikey,Yadav,kartikey@ylytic.com,Chief Executive Officer,Ylytic,ylytic.com,India,Gurgaon,,http://www.linkedin.com/in/kartikey19,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Gsn,Aditya,aditya@eloelo.in,Chief Operating Officer,Eloelo,eloelo.in,India,Bengaluru,,http://www.linkedin.com/in/gsn-aditya-13819b3a,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Aamir,Shaikh,aamir@adxpoint.com,Chief Product & Technology Officer,Ventes Avenues,ventesavenues.in,India,Mumbai,,http://www.linkedin.com/in/aamir-shaikh-ba097a50,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Balamurugan,Mani,mani@ventesavenues.in,Co-Founder,Ventes Avenues,ventesavenues.in,India,Mumbai,,http://www.linkedin.com/in/balam20,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Daniel,Ward,daniel@rerightmusic.com,Co-Founder,ReRight,rerightmusic.com,United Kingdom,London,,http://www.linkedin.com/in/danielward72,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Niloufer,Dundh,nilouferdundh@ventesavenues.in,Founder,Ventes Avenues,ventesavenues.in,India,Mumbai,,http://www.linkedin.com/in/niloufer-dundh-53980313,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Thomas,Breslin,thomas@rerightmusic.com,Co-Founder,ReRight,rerightmusic.com,Portugal,,,http://www.linkedin.com/in/thomas-breslin-3536a53a,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+James,Turner,jt@delineate.ai,Founder & CEO,Delineate,delineate.ai,United Kingdom,,,http://www.linkedin.com/in/jamesturner247,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Anil,Srivatsa,anil@sochcast.com,Co-Founder CEO,Sochcast,sochcast.com,India,Bengaluru,,http://www.linkedin.com/in/anil-srivatsa-b0a7543,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Nadav,Shmuel,nadav@precise.tv,Co-Founder & CEO,Precisify,precisify.com,United Kingdom,London,,http://www.linkedin.com/in/nadavshmuel,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Christian,Dankl,christian@precisify.com,Co-Founder & Co-CEO,Precisify,precisify.com,United Kingdom,London,,http://www.linkedin.com/in/dankl,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Niamh,Fitzpatrick,niamh.fitzpatrick@pureprofile.com,Chief Product Officer,Pureprofile,pureprofile.com,Australia,Surry Hills,,http://www.linkedin.com/in/niamhfitzpatrick,INFLUENCER_PLATFORMS,TRIBEGroup
+Sergio,Grinbaum,sergio@think-thanks.com,CEO,Think Thanks,think-thanks.com,Argentina,,,http://www.linkedin.com/in/sergiogrinbaum,INFLUENCER_PLATFORMS,Modash and Captiv8
+Mark,Benjamin,mark.benjamin@convertr.io,VP of Product,Convertr,convertr.io,United Kingdom,,,http://www.linkedin.com/in/markjbenjamin,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+John,Griffin,john@pureprofile.com,Chief Technology Officer,Pureprofile,pureprofile.com,Australia,Melbourne,,http://www.linkedin.com/in/john-griffin-5a297540,INFLUENCER_PLATFORMS,TRIBEGroup
+Fabio,Barone,fabio.barone@dataprev.gov.br,"Gerente de TI, Founder & CEO",DATAPREV,dataprev.gov.br,Brazil,Belo Horizonte,,http://www.linkedin.com/in/fabbarone,INFLUENCER_PLATFORMS,Modash and Captiv8
+Melinda,Sheppard,melinda@pureprofile.com,Chief Operating Officer,Pureprofile,pureprofile.com,Australia,Sydney,,http://www.linkedin.com/in/mesheppard,INFLUENCER_PLATFORMS,TRIBEGroup
+Gayathri,Maalige,gayathri@catalysts.team,Head of Product,Catalysts,catalysts.team,India,Bengaluru,,http://www.linkedin.com/in/gayathri-maalige-183620166,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Richard,Parsons,richard@trueagency.com,Co-Founder,True,trueagency.com,United Kingdom,London,,http://www.linkedin.com/in/linkedinrichardparsons,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+George,Georgopoulos,ggeorgopoulos@pureprofile.com,Head of Engineering EU,Pureprofile,pureprofile.com,Greece,,,http://www.linkedin.com/in/georgeageorgopoulos,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Sam,Brown,sbrown@precisify.com,Director of Product,Precisify,precisify.com,United Kingdom,Edinburgh,,http://www.linkedin.com/in/sam-r-brown,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Anuj,Sharma,asharma@precisify.com,Head of Data Science,Precisify,precisify.com,United Kingdom,,,http://www.linkedin.com/in/anujsharma80,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Peter,Stoeckl,peter@precisify.com,Co-Founder Related to Search Terms in Your Query and CTO Related to Search Terms in Your Query,Precisify,precisify.com,Austria,Zell am See,,http://www.linkedin.com/in/peter-stoeckl,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Juliana,Ferris,juliana.ferris@dataprev.gov.br,Chief Data & Analytics Officer,DATAPREV,dataprev.gov.br,Brazil,Rio de Janeiro,,http://www.linkedin.com/in/julianaferris,INFLUENCER_PLATFORMS,Modash and Captiv8
+Daniel,Ana,daniel.ana@dataprev.gov.br,Audio Engineer and Technical Producer (Co-founder),DATAPREV,dataprev.gov.br,Brazil,Sao Paulo,,http://www.linkedin.com/in/daniel-alves-sant-ana,INFLUENCER_PLATFORMS,Modash and Captiv8
+Ivan,Chen,ivan.chen@pureprofile.com,Head of Sales - Data & Insights,Pureprofile,pureprofile.com,Australia,,,http://www.linkedin.com/in/chenivan1,INFLUENCER_PLATFORMS,TRIBEGroup
+Katiemay,Gardner,katiemay.gardner@pureprofile.com,Head of Sales ANZ (Data and Insights),Pureprofile,pureprofile.com,Australia,Sydney,,http://www.linkedin.com/in/katiemay-gardner-a0950258,INFLUENCER_PLATFORMS,TRIBEGroup
+Ayub,Subhaniya,ayub.subhaniya@gocommotion.com,Senior Director of Engineering,Commotion,gocommotion.com,United Arab Emirates,Dubai,,http://www.linkedin.com/in/ayub-subhaniya-7632a4112,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Aleksandar,Nikolic,aleksandar.nikolic@fairplaysportsmedia.com,Head of Platform Infrastructure,FairPlay Sports Media,fairplaysportsmedia.com,United Kingdom,London,,http://www.linkedin.com/in/aleksandar-nikolic-03964b134,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Vasant,Srinivasan,vsrinivasan@gocommotion.com,Chief Technology Officer,Commotion,gocommotion.com,India,Chennai,,http://www.linkedin.com/in/vasantsrinivasan,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Laurent,Givaudan,l.givaudan@aplusaresearch.com,Chief Technology Officer,APLUSA,aplusaresearch.com,France,Saint-Hilaire-de-Brens,,http://www.linkedin.com/in/laurentgivaudan,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Keith,Buzzard,keith.buzzard@pgitl.com,Chief Technology Officer,Protection Group International,pgitl.com,United Kingdom,,,http://www.linkedin.com/in/keith-buzzard-72a5a848,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Chinni,Krishnan,chinni@ninestars.in,Chief Operating Officer,Ninestars Information Technologies Pvt. Ltd.,ninestarsglobal.com,India,Tiruvallur,,http://www.linkedin.com/in/chinnikrishnanck,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Samy,Trigui,samy.trigui@fairplaysportsmedia.com,Head of Product,FairPlay Sports Media,fairplaysportsmedia.com,United Kingdom,London,,http://www.linkedin.com/in/samy-trigui-357bbb3,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Sam,Stratton,sam@commotion.agency,Founder,Commotion,gocommotion.com,United Kingdom,Bristol,,http://www.linkedin.com/in/sam-stratton-a023aa35,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Des,Kane,d.kane@proxymity.io,CTO | Product & Engineering Leader | Payments | FX,Proxymity,proxymity.io,United Kingdom,London,,http://www.linkedin.com/in/des-kane-2a807b20,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Pierre,Pigeon,p.pigeon@aplusaresearch.com,Founder,APLUSA,aplusaresearch.com,France,Lyon,,http://www.linkedin.com/in/pierre-pigeon-987a709,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Sagar,Savaliya,ssavaliya@gocommotion.com,Director of Engineering,Commotion,gocommotion.com,India,Gurgaon,,http://www.linkedin.com/in/sagar-savaliya-0825a3128,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Kishin,Karra,kkarra@gocommotion.com,Director of Engineering,Commotion,gocommotion.com,India,Thane,,http://www.linkedin.com/in/kishin-karra,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Sam,Cockburn,sam@sendtrumpet.com,Director of Engineering,trumpet 🎺,sendtrumpet.com,United Kingdom,London,,http://www.linkedin.com/in/sam-cockburn-a993388a,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Gema,Parlange Iturmendi,g.parlangeiturmendi@aplusaresearch.com,CEO & President,APLUSA,aplusaresearch.com,Spain,Madrid,,http://www.linkedin.com/in/gema-parlange-iturmendi-25731118,INFLUENCER_PLATFORMS,SAMY Alliance
+Mustafa,Bilge,mustafa@dengage.com,Interim COO,Dengage,dengage.com,United Kingdom,,,http://www.linkedin.com/in/mbilge,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Tugce,Temel,tugce@dengage.com,Director of Product,Dengage,dengage.com,Turkey,Istanbul,,http://www.linkedin.com/in/tu%c4%9f%c3%a7e-esenkar-temel-87192732,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Jonathan,Dunbar,jonathan@valinorintelligence.com,COO/Head of Intelligence,Valinor Intelligence,valinorintelligence.com,United Kingdom,,,http://www.linkedin.com/in/jonathan-dunbar-9b308857,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Ilaria,Gatti,ilaria@sendtrumpet.com,Head of Product Design,trumpet 🎺,sendtrumpet.com,United Kingdom,London,,http://www.linkedin.com/in/ilariagatti,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Jonathan,Branagan,j.branagan@proxymity.io,Head of Product Delivery,Proxymity,proxymity.io,Canada,,,http://www.linkedin.com/in/jonathan-branagan-04978577,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Prashant,Akhawat,prashant.a@ninestars.in,CTO & Chief AI Officer (CTAO),Ninestars Information Technologies Pvt. Ltd.,ninestarsglobal.com,India,Bengaluru,,http://www.linkedin.com/in/prashantakhawat,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Chirag,Shah,cshah@gocommotion.com,Associate Director of Engineering,Commotion,gocommotion.com,India,Mumbai,,http://www.linkedin.com/in/ichiragshah,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Ravi,Bv,ravi.bv@ninestars.in,AVP Product & UI/UX,Ninestars Information Technologies Pvt. Ltd.,ninestarsglobal.com,India,Bengaluru,,http://www.linkedin.com/in/raviprasadbv,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Nic,Parry,nic@hook.co,Engineering Director,Hook,hook.co,United Kingdom,,,http://www.linkedin.com/in/nic-parry-58683111,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Julian,Matthews,julian.matthews@targetgroup.com,"Head of Architecture, Data and Solutions",Target Group,targetgroup.com,United Kingdom,Newport,,http://www.linkedin.com/in/julian-matthews-249b94,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Murat,Darcin,murat.darcin@dengage.com,VP of Software Engineering,Dengage,dengage.com,Turkey,,,http://www.linkedin.com/in/murat-dar%c3%a7%c4%b1n-aa60ab1b,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Jeyaprakash,X,jeyaprakash@ninestars.in,AVP Software Engineering,Ninestars Information Technologies Pvt. Ltd.,ninestarsglobal.com,India,Bengaluru,,http://www.linkedin.com/in/jeyaprakash-xavier,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Mohan,Doshi,mohandoshi@ninestars.in,Chief Business Officer,Ninestars Information Technologies Pvt. Ltd.,ninestarsglobal.com,India,Bengaluru,,http://www.linkedin.com/in/mohan-doshi-27a0817,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Mark,Seemann,mark@staffcircle.com,Founder & CEO,StaffCircle,staffcircle.com,United Kingdom,Leicester,,http://www.linkedin.com/in/markseemann,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Antoine,Guenard,antoine@batch.com,"CPO, COO & Co-founder",Batch,batch.com,France,Paris,,http://www.linkedin.com/in/guenard,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Pierre-Philippe,Avril,pierre@uptale.io,Head of Engineering,Uptale - Immersive Learning,uptale.io,France,Issy-les-Moulineaux,,http://www.linkedin.com/in/pierre-philippe-avril-9b039968,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Herve,Lourdin,herve@batch.com,Chief Technology Officer,Batch,batch.com,France,Paris,,http://www.linkedin.com/in/herve-lourdin-234760,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Mik,Cons,mik.cons@moneyinfo.com,CEO,Moneyinfo,moneyinfo.com,United Kingdom,Royal Leamington Spa,,http://www.linkedin.com/in/mikcons,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+David,Kane,dave@aimhi.earth,Chief Operating Officer,AimHi Earth,aimhi.earth,United Kingdom,London,,http://www.linkedin.com/in/david-s-kane,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Hugo,Benzaida,hugo@uptale.io,Head of Product,Uptale - Immersive Learning,uptale.io,France,Paris,,http://www.linkedin.com/in/hugobenzaida,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Remi,Ferrez,remi@batch.com,Head of Platform,Batch,batch.com,France,Lyon,,http://www.linkedin.com/in/r%c3%a9mi-ferrez-182b99105,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Paul,Shepherd,paul@wbb.ai,Founder,logicdialog,logicdialog.ai,United Kingdom,London,,http://www.linkedin.com/in/paulshepherd1975,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Tomas,Aguiar,t.aguiar@innoloft.com,Head of Product Growth,Innoloft,innoloft.com,Germany,Aachen,,http://www.linkedin.com/in/tomas-ds-aguiar,INFLUENCER_PLATFORMS,Zalando and Intermate
+Yohann,Merran,yohann@angelspartners.com,"Founding Partner, CEO",Angels Partners,angelspartners.com,United Kingdom,,,http://www.linkedin.com/in/yohann-merran,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Hans,Mina,hans@weareinnoit.com,Owner & Co-Founder,INNOIT Werbeagentur,weareinnoit.com,Germany,Augsburg,,http://www.linkedin.com/in/hansmina,INFLUENCER_PLATFORMS,Zalando and Intermate
+Andy,Feltham,andy@logicdialog.ai,Product Director,logicdialog,logicdialog.ai,United Kingdom,Chandler's Ford,,http://www.linkedin.com/in/andyfeltham,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Thomas,Loup,thomas.loup@batch.com,Head of Solutions Engineering & Customer Care,Batch,batch.com,France,,,http://www.linkedin.com/in/thomasloup,INFLUENCER_PLATFORMS,"Kolsquare, Skeepers, and Favikon"
+Jarron,Aizen,jarron.aizen@hapana.com,CEO & Founder,Hapana,hapana.com,Australia,Sydney,,http://www.linkedin.com/in/jarronaizen,INFLUENCER_PLATFORMS,TRIBEGroup
+Ben,Williamson,ben.williamson@investorhub.com,Co-Founder & Co-CEO,InvestorHub,investorhub.com,Australia,Melbourne,,http://www.linkedin.com/in/benwilliamson,INFLUENCER_PLATFORMS,TRIBEGroup
+Rhys,Davis,rhys@investorhub.com,Co-CEO & Co-Founder,InvestorHub,investorhub.com,Australia,Melbourne,,http://www.linkedin.com/in/rhysldavis,INFLUENCER_PLATFORMS,TRIBEGroup
+Riddhi,Mazumdar,riddhi@cadmus.io,Chief Product Officer,Cadmus,cadmus.io,India,,,http://www.linkedin.com/in/riddhi-mazumdar-629a299,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Jose,Cantero Ruiz,josemiguel@genially.com,Quality Assurance Manager,Genially,genially.com,Spain,Cordoba,,http://www.linkedin.com/in/jos%c3%a9-miguel-cantero-ruiz-83141966,INFLUENCER_PLATFORMS,SAMY Alliance
+Jose,Luis Fernandez,joseluis@hanzo.es,CTO,Hanzo,hanzo.es,Spain,,,http://www.linkedin.com/in/jos%c3%a9-luis-fern%c3%a1ndez-72516783,INFLUENCER_PLATFORMS,SAMY Alliance
+Travis,Shannon,travis.shannon@hapana.com,Chief Technology Officer,Hapana,hapana.com,United States,Pleasanton,,http://www.linkedin.com/in/travis-shannon,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Jimmy,Qiu,jimmy@investorhub.com,Head of Engineering,InvestorHub,investorhub.com,Australia,Melbourne,,http://www.linkedin.com/in/jimmy-qiu-b75ab293,INFLUENCER_PLATFORMS,TRIBEGroup
+Cristina,Gomez Prada,cristina@hanzo.es,Chief Executive Officer,Hanzo,hanzo.es,Spain,Madrid,,http://www.linkedin.com/in/cristina-g%c3%b3mez-prada-8571a63,INFLUENCER_PLATFORMS,SAMY Alliance
+Alan,Sacharowitz,alan.sacharowitz@hapana.com,Chief Operating Officer,Hapana,hapana.com,Australia,Sydney,,http://www.linkedin.com/in/alansach,INFLUENCER_PLATFORMS,TRIBEGroup
+Ben,Cochrane,ben.cochrane@hapana.com,Director of Engineering,Hapana,hapana.com,Australia,Sydney,,http://www.linkedin.com/in/benjamincochrane,INFLUENCER_PLATFORMS,TRIBEGroup
+Miguel,Leo Garcia,miguel@ideawisegroup.com,Director of Product & Brand,Ideawise Group,ideawisegroup.com,Spain,Barcelona,,http://www.linkedin.com/in/miguelleogarcia,INFLUENCER_PLATFORMS,SAMY Alliance
+Ruben,Cogollor Fernandez,ruben@hanzo.es,Engineering Director,Hanzo,hanzo.es,Spain,Madrid,,http://www.linkedin.com/in/rubencogollor,INFLUENCER_PLATFORMS,SAMY Alliance
+Manuel,Vida Carrion,manuel@genially.com,Chief of Growth Product Officer (CGPO),Genially,genially.com,Spain,Cordoba,,http://www.linkedin.com/in/manuel-vida-carri%c3%b3n-28aa582a,INFLUENCER_PLATFORMS,SAMY Alliance
+Alaa,Ashkar,alaa@apliman.com,Director of Software Engineering,Apliman,apliman.com,Lebanon,Beirut,,http://www.linkedin.com/in/alaaashkar,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Gopal,Agrawal,gopal.agrawal@hapana.com,Product Operation | Director,Hapana,hapana.com,India,New Delhi,,http://www.linkedin.com/in/gopalagrawal,INFLUENCER_PLATFORMS,Phyllo and KlugKlug
+Fabio,Lacerda,fabio.lacerda@blip.ai,Chief Technology Officer,Blip,blip.ai,Brazil,Belo Horizonte,,http://www.linkedin.com/in/fablacer,INFLUENCER_PLATFORMS,Modash and Captiv8
+Carlos,Velez Lopez,carloslopez@comfama.com.co,CTO,COMFAMA,comfama.com,Colombia,,,http://www.linkedin.com/in/carlos-andres-velez-lopez-57355346,INFLUENCER_PLATFORMS,Modash and Captiv8
+Anderson,Fonseca,anderson.fonseca@blip.ai,Head of Engineering,Blip,blip.ai,Brazil,Sao Paulo,,http://www.linkedin.com/in/andersonfonseca,INFLUENCER_PLATFORMS,Modash and Captiv8
+Doruk,Mutlu,doruk@evam.com,Chief Executive Officer,EVAM,evam.com,Netherlands,Amsterdam,,http://www.linkedin.com/in/dorukmutlu,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Facundo,Armentano,facundo@leadgenios.com,Chief Operating Officer,Leadgenios,leadgenios.com,Argentina,Mendoza,,http://www.linkedin.com/in/f-armentano,INFLUENCER_PLATFORMS,Modash and Captiv8
+Emin,Ozden,emin@evam.com,Head of Product,EVAM,evam.com,Turkey,Istanbul,,http://www.linkedin.com/in/emin-ozden,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Renato,Dias,renato.dias@ambevtech.com.br,Head of Product,Ambev Tech,ambevtech.com.br,Brazil,Sao Paulo,,http://www.linkedin.com/in/renatodiassilva,INFLUENCER_PLATFORMS,Modash and Captiv8
+Onur,Yavuz,onur@kunduz.com,Head of Product,Kunduz,kunduz.com,United Kingdom,,,http://www.linkedin.com/in/onur-yavuz-94007628,INFLUENCER_PLATFORMS,Whalar and Billion Dollar Boy
+Thiago,Nigro,thiago.nigro@timeprimo.com,CEO e Fundador,Grupo PRIMO,grupo-primo.com,Brazil,,,http://www.linkedin.com/in/thiago-nigro,INFLUENCER_PLATFORMS,Modash and Captiv8
+Helena,Bello,helena.bello@blip.ai,Director of Product Design,Blip,blip.ai,Brazil,,,http://www.linkedin.com/in/helenabello,INFLUENCER_PLATFORMS,Modash and Captiv8
+Candas,Guler,candas@evam.com,Director of Product Marketing,EVAM,evam.com,Turkey,Istanbul,,http://www.linkedin.com/in/candas-guler-97a279243,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Gabriel,Campos,gabriel.campos@blip.ai,Chief of Staff to the CTO,Blip,blip.ai,Brazil,Sao Paulo,,http://www.linkedin.com/in/gabrielbfcampos,INFLUENCER_PLATFORMS,Modash and Captiv8
+Goekay,Akin,gokayakin@ogoodigital.com,"Co-Founder, Chief Technology Architect",Worksy,worksy.co,Turkey,Cesme,,http://www.linkedin.com/in/gokayakin,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Anderson,Oliveira,anderson@timeprimo.com,"Financial, Co-Founder na Grão",Grupo PRIMO,grupo-primo.com,Brazil,Sao Paulo,,http://www.linkedin.com/in/aaoliver,INFLUENCER_PLATFORMS,Modash and Captiv8
+Adrian,Oskam Roux,adrian@kplr.mx,Chief Commercial Officer (CCO) & CoFounder,BLUERABBIT,bluerabbit.io,Mexico,Mexico City,,http://www.linkedin.com/in/adrianoskam,INFLUENCER_PLATFORMS,Modash and Captiv8
+Larissa,Santos,larissa.marchi@ambevtech.com.br,Head of Software Engineering,Ambev Tech,ambevtech.com.br,Brazil,Blumenau,,http://www.linkedin.com/in/larissa-marchi,INFLUENCER_PLATFORMS,Modash and Captiv8
+Berkay,Akbas,berkay@kunduz.com,Head of AI & Data,Kunduz,kunduz.com,Turkey,Istanbul,,http://www.linkedin.com/in/berkayakbas,INFLUENCER_PLATFORMS,ArabyAds and Sociata
+Valeria,Golinoski,valeria.golinoski@ambevtech.com.br,Head of IT Engineering,Ambev Tech,ambevtech.com.br,Brazil,Curitiba,,http://www.linkedin.com/in/valeriagolinoski,INFLUENCER_PLATFORMS,Modash and Captiv8
+Ishvann,Larsen,ishvann.larsen@blip.ai,"Director of Data | Engineering, Science & Analytics",Blip,blip.ai,Brazil,Florianopolis,,http://www.linkedin.com/in/ishvannvillate,INFLUENCER_PLATFORMS,Modash and Captiv8
+Micheline,Pimenta,micheline.pimenta@ambevtech.com.br,"Head of Methodology Chapter ( Design, Product and Agility) SAZ [South America Zone]",Ambev Tech,ambevtech.com.br,Brazil,Sao Paulo,,http://www.linkedin.com/in/michelinepimenta,INFLUENCER_PLATFORMS,Modash and Captiv8
+Leticia,Rezende,lr@opco-sante.fr,Head of Products,Blip,blip.ai,Brazil,Sao Paulo,,http://www.linkedin.com/in/leticiarezendes,INFLUENCER_PLATFORMS,Modash and Captiv8
+Matheus,Villar,matheus.villar@timeprimo.com,Head de Produto,Grupo PRIMO,grupo-primo.com,Brazil,Rio de Janeiro,,http://www.linkedin.com/in/matheusvillar,INFLUENCER_PLATFORMS,Modash and Captiv8
+Cristian,Soto,cristian.soto@gointegro.com,Chief Technology Officer,GOintegro,gointegro.com,Argentina,,,http://www.linkedin.com/in/cristiansoto,INFLUENCER_PLATFORMS,Modash and Captiv8
+Lionel,Medori,lionel.medori@gointegro.com,Chief Product Officer (CPO),GOintegro,gointegro.com,Argentina,Belen de Escobar,,http://www.linkedin.com/in/lionelmedori,INFLUENCER_PLATFORMS,Modash and Captiv8
+Agustina,Bamba,agustina@gruponods.com,Chief Operating Officer,Grupo NODS,gruponods.com,Argentina,Cordoba,,http://www.linkedin.com/in/agustina-bamba,INFLUENCER_PLATFORMS,Modash and Captiv8
+Luis,Isamit,luis.moreno@gointegro.com,Head of Product,GOintegro,gointegro.com,Italy,Rome,,http://www.linkedin.com/in/luismorenoisamit,INFLUENCER_PLATFORMS,"Modash, Captiv8, and Lefty"
+Maria,Florencia Tarantola,florencia.tarantola@gointegro.com,COO Latam South,GOintegro,gointegro.com,Argentina,,,http://www.linkedin.com/in/mar%c3%ada-florencia-tarantola-475b2222,INFLUENCER_PLATFORMS,Modash and Captiv8

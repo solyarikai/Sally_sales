@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen, Activity, Shield, Brain, Send } from 'lucide-react';
+import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen, Activity, Shield, Users, Gamepad2, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -51,13 +51,14 @@ export function Layout({ children }: LayoutProps) {
     { path: '/', icon: Search, label: 'Data Search', global: true },
     { path: '/search-results', icon: Target, label: 'Query Investigation', global: true },
     { path: '/pipeline', icon: Layers, label: 'Pipeline', global: true },
+    { path: '/tam', icon: Users, label: 'TAM', global: true },
     { path: '/dashboard/queries', icon: BarChart2, label: 'Query Dashboard', global: true },
     { path: '/projects', icon: FolderOpen, label: 'Projects', global: true },
     { path: '/tasks/replies', icon: ListTodo, label: 'Tasks', global: true },
     { path: '/knowledge/icp', icon: BookOpen, label: 'Knowledge', global: true },
     { path: '/actions', icon: Activity, label: 'Actions', global: true },
-    { path: '/knowledge/intelligence', icon: Brain, label: 'Intelligence', global: true },
     { path: '/god-panel', icon: Shield, label: 'God Panel', global: true, badge: true },
+    { path: '/igaming', icon: Gamepad2, label: 'iGaming', global: true },
     { path: '/telegram-outreach', icon: Send, label: 'TG Outreach', global: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
     { path: '/settings', icon: Settings, label: 'Settings', global: true },
@@ -115,7 +116,6 @@ export function Layout({ children }: LayoutProps) {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         if (/^\/projects\/\d+/.test(location.pathname)) return; // ProjectPage handles its own Cmd+K
-        if (location.pathname === '/contacts') return; // ContactsPage handles its own Cmd+K (CRM Spotlight)
         e.preventDefault();
         setShowSpotlight(prev => !prev);
       }
@@ -137,11 +137,8 @@ export function Layout({ children }: LayoutProps) {
     if (path.startsWith('/tasks/')) {
       return location.pathname.startsWith('/tasks');
     }
-    if (path === '/knowledge/intelligence') {
-      return location.pathname === '/knowledge/intelligence';
-    }
     if (path.startsWith('/knowledge/')) {
-      return location.pathname.startsWith('/knowledge') && location.pathname !== '/knowledge/intelligence';
+      return location.pathname.startsWith('/knowledge');
     }
     return location.pathname.startsWith(path);
   };

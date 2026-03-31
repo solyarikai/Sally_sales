@@ -7,12 +7,12 @@ import asyncio
 import logging
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.telegram_outreach import (
-    TgInboxDialog, TgRecipient,
+    TgInboxDialog, TgRecipient, TgAccount, TgOutreachMessage,
 )
 from app.models.telegram_dm import TelegramDMAccount
 from app.services.telegram_dm_service import telegram_dm_service
@@ -34,6 +34,20 @@ class InboxSyncService:
             return 0
         if account.auth_status == "error":
             logger.debug(f"Inbox sync: account {account_id} ({account.phone}) auth_status=error, skipping")
+            return 0
+
+        # Resolve DM account ID → TG outreach account ID via phone.
+        # TgInboxDialog.account_id FK references tg_accounts.id, not telegram_dm_accounts.id.
+        tg_account_id = None
+        if account.phone:
+            tg_result = await session.execute(
+                select(TgAccount.id).where(TgAccount.phone == account.phone).limit(1)
+            )
+            row = tg_result.first()
+            if row:
+                tg_account_id = row[0]
+        if not tg_account_id:
+            logger.warning(f"Inbox sync: no TG outreach account found for phone {account.phone} — cannot sync")
             return 0
 
         # Check if already connected — avoid disconnect at the end if so
@@ -71,25 +85,51 @@ class InboxSyncService:
                         except (ValueError, AttributeError):
                             pass
 
-                    # last_message_outbound is not available from get_dialogs — set None
-                    last_outbound = None
+                    last_outbound = d.get("last_message_outbound")
 
                     # Try to link to campaign via recipient username
                     campaign_id = None
                     if peer_username:
+                        # Primary: match by username + assigned account (most accurate)
                         recipient_q = await session.execute(
                             select(TgRecipient.campaign_id).where(
                                 TgRecipient.username == peer_username,
-                                TgRecipient.assigned_account_id == account_id,
-                            ).limit(1)
+                                TgRecipient.assigned_account_id == tg_account_id,
+                            ).order_by(TgRecipient.id.desc()).limit(1)
                         )
                         row = recipient_q.first()
                         if row:
                             campaign_id = row[0]
+                        else:
+                            # Fallback: match by username only
+                            recipient_q = await session.execute(
+                                select(TgRecipient.campaign_id).where(
+                                    TgRecipient.username == peer_username,
+                                ).order_by(TgRecipient.id.desc()).limit(1)
+                            )
+                            row = recipient_q.first()
+                            if row:
+                                campaign_id = row[0]
 
-                    # Upsert into tg_inbox_dialogs
+                    # Fallback: check sent messages from this account to this peer
+                    if campaign_id is None and peer_username:
+                        msg_q = await session.execute(
+                            select(TgOutreachMessage.campaign_id)
+                            .join(TgRecipient, TgOutreachMessage.recipient_id == TgRecipient.id)
+                            .where(
+                                TgOutreachMessage.account_id == tg_account_id,
+                                TgRecipient.username == peer_username,
+                            )
+                            .order_by(TgOutreachMessage.sent_at.desc())
+                            .limit(1)
+                        )
+                        row = msg_q.first()
+                        if row:
+                            campaign_id = row[0]
+
+                    # Upsert into tg_inbox_dialogs (use TG outreach account ID for FK)
                     stmt = pg_insert(TgInboxDialog).values(
-                        account_id=account_id,
+                        account_id=tg_account_id,
                         peer_id=peer_id,
                         peer_name=peer_name,
                         peer_username=peer_username,
@@ -99,7 +139,9 @@ class InboxSyncService:
                         unread_count=unread_count,
                         campaign_id=campaign_id,
                         synced_at=datetime.utcnow(),
-                    ).on_conflict_do_update(
+                    )
+                    # COALESCE: never overwrite existing campaign_id with NULL
+                    stmt = stmt.on_conflict_do_update(
                         index_elements=["account_id", "peer_id"],
                         set_={
                             "peer_name": peer_name,
@@ -108,14 +150,17 @@ class InboxSyncService:
                             "last_message_at": last_at,
                             "last_message_outbound": last_outbound,
                             "unread_count": unread_count,
-                            "campaign_id": campaign_id,
+                            "campaign_id": func.coalesce(
+                                stmt.excluded.campaign_id,
+                                TgInboxDialog.__table__.c.campaign_id,
+                            ),
                             "synced_at": datetime.utcnow(),
                         },
                     )
                     await session.execute(stmt)
                     synced += 1
                 except Exception as e:
-                    logger.debug(f"Inbox sync: skip dialog peer_id={d.get('peer_id')}: {e}")
+                    logger.warning(f"Inbox sync: skip dialog peer_id={d.get('peer_id')}: {e}")
                     continue
 
             await session.commit()

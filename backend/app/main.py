@@ -124,6 +124,32 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Sally bot start failed: {e}")
 
+
+    # Start Telegram Outreach workers (sending + reply detection)
+    try:
+        from app.services.sending_worker import sending_worker
+        from app.services.reply_detector import reply_detector
+        from app.services.auto_responder import auto_responder
+        sending_worker.start()
+        reply_detector.start()
+        auto_responder.start()
+        logger.info("Telegram Outreach workers started (sending + reply detection + auto-reply)")
+    except Exception as e:
+        logger.warning(f"Telegram Outreach worker start failed: {e}")
+
+
+    # Start Telegram Outreach workers (sending + reply detection)
+    try:
+        from app.services.sending_worker import sending_worker
+        from app.services.reply_detector import reply_detector
+        from app.services.auto_responder import auto_responder
+        sending_worker.start()
+        reply_detector.start()
+        auto_responder.start()
+        logger.info("Telegram Outreach workers started (sending + reply detection + auto-reply)")
+    except Exception as e:
+        logger.warning(f"Telegram Outreach worker start failed: {e}")
+
     yield
     
     # Shutdown

@@ -156,6 +156,10 @@ class ReplyDetector:
                     "username": p.username, "password": p.password,
                     "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol,
                 }
+            else:
+                logger.warning(f"[PROXY] Account {account.phone}: assigned_proxy_id={account.assigned_proxy_id} not found in DB")
+        else:
+            logger.debug(f"[PROXY] Reply detector: account {account.phone} has no proxy assigned")
 
         # Connect
         try:

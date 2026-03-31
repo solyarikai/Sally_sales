@@ -129,15 +129,21 @@ class TgAccountResponse(BaseModel):
     system_lang_code: Optional[str] = None
     status: str = "active"
     spamblock_type: str = "none"
+    spamblock_end: Optional[datetime] = None
     daily_message_limit: int = 10
+    effective_daily_limit: Optional[int] = None
+    warmup_day: Optional[int] = None
+    is_young_session: bool = False
     messages_sent_today: int = 0
     total_messages_sent: int = 0
     proxy_group_id: Optional[int] = None
     proxy_group_name: Optional[str] = None
     assigned_proxy_id: Optional[int] = None
+    assigned_proxy_host: Optional[str] = None
     tags: list[TgAccountTagResponse] = []
     campaigns_count: int = 0
     country_code: Optional[str] = None
+    telegram_created_at: Optional[datetime] = None
     session_created_at: Optional[datetime] = None
     last_connected_at: Optional[datetime] = None
     last_checked_at: Optional[datetime] = None
@@ -165,6 +171,7 @@ class TgCampaignBase(BaseModel):
     delay_between_sends_max: int = 25
     delay_randomness_percent: int = 20
     spamblock_errors_to_skip: int = 5
+    followup_priority: int = 100
     link_preview: bool = False
     silent: bool = False
     delete_dialog_after: bool = False
@@ -184,6 +191,7 @@ class TgCampaignUpdate(BaseModel):
     delay_between_sends_max: Optional[int] = None
     delay_randomness_percent: Optional[int] = None
     spamblock_errors_to_skip: Optional[int] = None
+    followup_priority: Optional[int] = None
     link_preview: Optional[bool] = None
     silent: Optional[bool] = None
     delete_dialog_after: Optional[bool] = None
@@ -198,6 +206,7 @@ class TgCampaignResponse(TgCampaignBase):
     total_messages_sent: int = 0
     total_recipients: int = 0
     accounts_count: int = 0
+    replies_count: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
@@ -393,6 +402,30 @@ class TgIncomingReplyResponse(BaseModel):
 
 class TgIncomingReplyListResponse(BaseModel):
     items: list[TgIncomingReplyResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+# ── Blacklist ─────────────────────────────────────────────────────────
+
+class TgBlacklistUploadText(BaseModel):
+    """Upload blacklisted usernames as raw text (one per line, supports @user, t.me/user, etc.)."""
+    raw_text: str
+    reason: Optional[str] = None
+
+
+class TgBlacklistResponse(BaseModel):
+    id: int
+    username: str
+    reason: Optional[str] = None
+    added_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+
+class TgBlacklistListResponse(BaseModel):
+    items: list[TgBlacklistResponse]
     total: int
     page: int
     page_size: int

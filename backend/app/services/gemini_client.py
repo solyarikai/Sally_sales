@@ -35,6 +35,7 @@ async def gemini_generate(
     max_tokens: int = 4000,
     model: Optional[str] = None,
     project_id: Optional[int] = None,
+    thinking_budget: Optional[int] = None,
 ) -> dict:
     """
     Call Gemini API for text generation.
@@ -51,13 +52,19 @@ async def gemini_generate(
     try:
         from google.genai import types
 
+        config_kwargs = {
+            "temperature": temperature,
+            "max_output_tokens": max_tokens,
+        }
+        if thinking_budget is not None:
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=thinking_budget,
+            )
+
         response = await client.aio.models.generate_content(
             model=model_name,
             contents=full_prompt,
-            config=types.GenerateContentConfig(
-                temperature=temperature,
-                max_output_tokens=max_tokens,
-            ),
+            config=types.GenerateContentConfig(**config_kwargs),
         )
 
         # Extract text — response.text can be None for thinking models
