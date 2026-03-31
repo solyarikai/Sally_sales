@@ -470,7 +470,7 @@ def step0_scrape_companies(force: bool = False) -> list[dict]:
     print(f"STEP 0: Apollo Companies UI Scrape (Puppeteer)")
     print(f"  Keywords: {len(COMPANY_KEYWORDS)} (v4 expanded)")
     print(f"  Sizes: {COMPANY_SIZES}")
-    print(f"  Geo: ALL (no location filter)")
+    print(f"  Geo: {len(SOCIAL_PROOF_LOCATIONS)} social proof regions")
     print(f"  Target: 3,000-5,000 companies (v4 estimate)")
     print(f"{'='*60}")
 
