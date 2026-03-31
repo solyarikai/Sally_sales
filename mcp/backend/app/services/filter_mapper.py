@@ -127,6 +127,7 @@ async def map_query_to_filters(
 
     result = {
         "q_organization_keyword_tags": keyword_tags,
+        "industries": industries_clean,
         "organization_locations": locations,
         "organization_num_employees_ranges": ranges_clean,
         "mapping_details": {
