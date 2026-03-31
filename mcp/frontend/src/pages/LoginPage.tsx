@@ -23,7 +23,7 @@ export default function LoginPage() {
       const data = await res.json()
       if (data.api_token) {
         localStorage.setItem('mcp_token', data.api_token)
-        window.location.href = '/'
+        window.location.reload()  // Reload preserves the URL user was trying to visit
       } else { setError(data.detail || 'Invalid email or password') }
     } catch { setError('Connection failed') }
     setLoading(false)
@@ -41,7 +41,9 @@ export default function LoginPage() {
       if (data.api_token) {
         localStorage.setItem('mcp_token', data.api_token)
         setSignupToken(data.api_token)
-      } else { setError(data.detail || 'Signup failed') }
+        // Auto-redirect after 3 seconds to where user was going
+        setTimeout(() => { window.location.reload() }, 3000)
+      } else { setError(data.detail || data.message || 'Signup failed') }
     } catch { setError('Connection failed') }
     setLoading(false)
   }
@@ -57,6 +59,22 @@ export default function LoginPage() {
         width: 400, background: 'var(--bg-card, #fff)', borderRadius: 16,
         boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: '40px 36px',
       }}>
+        {/* Token display after signup */}
+        {signupToken && (
+          <div style={{ marginBottom: 24, padding: '16px 20px', borderRadius: 12, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#22c55e', marginBottom: 8 }}>Account created!</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #666)', marginBottom: 8 }}>Save your API token — you'll need it for Claude Code:</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <code style={{ flex: 1, fontSize: 11, padding: '8px 10px', background: 'var(--bg, #f5f5f5)', borderRadius: 6, wordBreak: 'break-all', fontFamily: 'monospace' }}>{signupToken}</code>
+              <button onClick={() => { navigator.clipboard.writeText(signupToken); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000) }}
+                style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border, #e5e5e5)', background: tokenCopied ? '#22c55e' : 'var(--bg, #fff)', color: tokenCopied ? 'white' : 'var(--text, #333)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {tokenCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted, #999)', marginTop: 8 }}>Redirecting in 3 seconds...</div>
+          </div>
+        )}
+
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
           <div style={{
