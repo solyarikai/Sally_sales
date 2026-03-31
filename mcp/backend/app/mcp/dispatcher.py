@@ -1300,6 +1300,143 @@ Return ONLY valid JSON."""
             ),
         }
 
+    # ── Define Targets (god tool — examples + description + enrichment) ──
+    if tool_name == "define_targets":
+        user = await _get_user(token, session)
+        project = await session.get(Project, args["project_id"])
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        segment_desc = args.get("segment_description")
+        example_domains = args.get("example_domains", [])
+        locations = args.get("locations", [])
+        employee_range = args.get("employee_range")
+        skip_exploration = args.get("skip_exploration", bool(example_domains))
+
+        # Determine which case
+        has_examples = bool(example_domains)
+        has_description = bool(segment_desc)
+
+        if not has_examples and not has_description:
+            raise ValueError(
+                "Provide at least one of:\n"
+                "  - segment_description: who are the targets? (e.g. 'IT consulting in Miami')\n"
+                "  - example_domains: example target company domains (e.g. ['stripe.com'])\n\n"
+                "Or both for best results."
+            )
+
+        # TIER 1: Preview before executing
+        if not args.get("confirm"):
+            case_label = (
+                "CASE 4: Examples + Description (best)" if has_examples and has_description
+                else "CASE 1: Examples with domains → enrich → extract filters" if has_examples
+                else "CASE 3: Segment description → normal pipeline with exploration"
+            )
+            preview_msg = f"I will define targets for project '{project.name}':\n\n"
+            preview_msg += f"  Mode: {case_label}\n"
+            if has_description:
+                preview_msg += f"  Segment: {segment_desc}\n"
+            if has_examples:
+                preview_msg += f"  Examples: {', '.join(example_domains[:5])}" + (f" (+{len(example_domains)-5} more)" if len(example_domains) > 5 else "") + "\n"
+                preview_msg += f"  Will enrich {len(example_domains)} companies in Apollo ({len(example_domains)} credits)\n"
+                preview_msg += f"  Exploration phase: SKIP (filters from examples)\n"
+            else:
+                preview_msg += f"  Exploration phase: will run (1 page + enrich top 5)\n"
+            if locations:
+                preview_msg += f"  Locations: {', '.join(locations)}\n"
+            if employee_range:
+                preview_msg += f"  Size: {employee_range}\n"
+            preview_msg += "\nApprove?"
+
+            return {
+                "status": "awaiting_confirmation",
+                "preview": {
+                    "case": case_label,
+                    "has_examples": has_examples,
+                    "has_description": has_description,
+                    "example_count": len(example_domains),
+                    "skip_exploration": skip_exploration,
+                },
+                "message": preview_msg,
+                "next_action": {"tool": "define_targets", "args": {**args, "confirm": True}},
+            }
+
+        # ── Execute ──
+        result = {"project_id": project.id, "project_name": project.name}
+
+        # Store segment description on project
+        if has_description:
+            project.target_segments = segment_desc
+            result["segment_stored"] = True
+
+        # Store locations
+        if locations:
+            project.target_industries = ", ".join(locations)  # reuse field for geo
+
+        # Enrich examples if provided
+        enriched_filters = None
+        if has_examples:
+            ctx = UserServiceContext(user.id, session)
+            apollo_key = await ctx.get_key("apollo")
+            openai_key = await ctx.get_key("openai")
+            if not apollo_key:
+                from app.config import settings as _cfg
+                apollo_key = _cfg.APOLLO_API_KEY
+            if not apollo_key:
+                raise ValueError("Apollo not connected — needed for enrichment")
+
+            from app.services.exploration_service import _enrich_targets, _extract_common_labels, _build_optimized_filters
+            example_companies = [{"domain": d.strip(), "name": d.split(".")[0]} for d in example_domains[:10]]
+            enriched = await _enrich_targets(apollo_key, example_companies)
+            common_labels = _extract_common_labels(enriched)
+
+            enriched_filters = await _build_optimized_filters(
+                {"organization_locations": locations, "organization_num_employees_ranges": [employee_range] if employee_range else []},
+                common_labels,
+                segment_desc or "",
+                openai_key or "",
+            )
+
+            result["enriched_count"] = len(enriched)
+            result["credits_used"] = len(enriched)
+            result["filters_from_examples"] = enriched_filters
+            result["common_labels"] = common_labels
+            result["skip_exploration"] = True
+
+            # Store enriched filters on project for tam_gather to use
+            if not project.target_segments and common_labels.get("industries"):
+                project.target_segments = f"Companies in: {', '.join(common_labels['industries'][:5])}"
+
+        await session.commit()
+
+        # Build message
+        msg = f"Target definition saved for '{project.name}'.\n\n"
+        if has_description:
+            msg += f"  Segment: {segment_desc}\n"
+        if enriched_filters:
+            msg += f"  Enriched {result['enriched_count']} examples ({result['credits_used']} Apollo credits)\n"
+            msg += f"  Keywords: {enriched_filters.get('q_organization_keyword_tags', [])}\n"
+            msg += f"  Exploration: SKIP (filters from examples)\n"
+        msg += f"\nNext: call tam_gather with these filters to start pipeline."
+
+        result["message"] = msg
+        result["_links"] = {
+            "project": f"http://46.62.210.24:3000/projects/{project.id}",
+            "pipelines": "http://46.62.210.24:3000/pipeline",
+        }
+        if enriched_filters:
+            result["next_action"] = {
+                "tool": "tam_gather",
+                "args": {
+                    "project_id": project.id,
+                    "source_type": "apollo.companies.api",
+                    "filters": enriched_filters,
+                },
+                "description": "Start gathering with enriched filters. Will skip exploration phase.",
+            }
+
+        return result
+
     if tool_name == "tam_re_analyze":
         user = await _get_user(token, session)
         run = await session.get(GatheringRun, args["run_id"])

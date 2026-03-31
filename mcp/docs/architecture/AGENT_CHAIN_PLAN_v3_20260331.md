@@ -123,6 +123,39 @@ import_smartlead_campaigns(contains=["petr"])                     [TIER 1 — pr
   → "View contacts: http://46.62.210.24:3000/crm?project_id={id}"
 ```
 
+### Phase 1.5: Target Definition (define_targets tool)
+
+User can define targets in 4 ways — `define_targets` handles ALL:
+
+```
+CASE 1: Examples with domains
+  User: "find companies like stripe.com, shopify.com, hubspot.com"
+  → define_targets(project_id, example_domains=["stripe.com", ...])
+  → Apollo enriches → extracts keyword_tags, industries
+  → Filters built from REAL Apollo labels
+  → Pipeline SKIPS exploration (already have real filters)
+
+CASE 2: Examples without domains (company names only)
+  User: "find companies like Stripe, Shopify, HubSpot"
+  → USER'S AGENT (Opus) must find domains first
+  → Then calls define_targets with resolved domains
+
+CASE 3: Segment description only
+  User: "find IT consulting companies in Miami, 50-200 employees"
+  → define_targets(project_id, segment_description="IT consulting Miami")
+  → Normal pipeline flow with exploration phase
+
+CASE 4: Both examples + description (BEST)
+  User provides strategy doc with ICP + example companies
+  → define_targets(project_id, segment_description=..., example_domains=[...])
+  → Enriches examples for filters + uses description for classification prompt
+  → SKIPS exploration
+```
+
+**File processing boundary**: If user provides a file (PDF, doc, brief), the USER'S AGENT reads it and extracts structured data before calling MCP. MCP does NOT read files.
+
+**TWO-STEP**: Preview shows what will happen → user approves → executes.
+
 ### Phase 2: Gathering (Filter Discovery + Confirmation)
 ```
 User: "find IT consulting in Miami"
