@@ -150,10 +150,14 @@ class PipelineOrchestrator:
             logger.info(f"Pipeline orchestrator: Exploring (enriching top {min(5, self.total_targets)} targets)")
             try:
                 from app.services.exploration_service import run_exploration
+                # Get project's segment description for exploration context
+                _project = await self.session.get(Project, self.run.project_id)
+                _segment = _project.target_segments if _project else ""
+                _keywords = filters.get("q_organization_keyword_tags", [])
                 exploration = await run_exploration(
-                    query=filters.get("q_organization_keyword_tags", [""])[0] if filters.get("q_organization_keyword_tags") else "",
+                    query=_segment or (_keywords[0] if _keywords else ""),
                     initial_filters=filters,
-                    offer_text="",
+                    offer_text=_segment or "",
                     apollo_key=self.apollo.api_key if self.apollo else "",
                     openai_key=self.openai_key,
                     apify_proxy_password=self.apify_proxy,
