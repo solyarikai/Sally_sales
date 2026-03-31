@@ -40,9 +40,7 @@ export default function LoginPage() {
       const data = await res.json()
       if (data.api_token) {
         localStorage.setItem('mcp_token', data.api_token)
-        setSignupToken(data.api_token)
-        // Auto-redirect after 3 seconds to where user was going
-        setTimeout(() => { window.location.reload() }, 3000)
+        window.location.reload()
       } else { setError(data.detail || data.message || 'Signup failed') }
     } catch { setError('Connection failed') }
     setLoading(false)
