@@ -471,6 +471,11 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         await session.flush()
         user.active_project_id = project.id
 
+        # Queue for background re-analysis if inline scrape failed
+        if not offer_summary and website:
+            from app.services.offer_scraper import queue_offer_analysis
+            queue_offer_analysis(project.id)
+
         # ── Build response with offer for user alignment ──
         offer_display = ""
         if offer_summary:
