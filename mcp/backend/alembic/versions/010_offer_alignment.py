@@ -12,6 +12,7 @@ down_revision = "009_kpi_progress"
 
 
 def upgrade():
+    op.add_column("projects", sa.Column("website", sa.String(512), nullable=True))
     op.add_column("projects", sa.Column("offer_summary", JSONB, nullable=True))
     op.add_column("projects", sa.Column("offer_approved", sa.Boolean(), server_default="false"))
 
@@ -19,3 +20,4 @@ def upgrade():
 def downgrade():
     op.drop_column("projects", "offer_approved")
     op.drop_column("projects", "offer_summary")
+    op.drop_column("projects", "website")

@@ -27,6 +27,7 @@ class Project(Base):
     user_id = Column(Integer, ForeignKey("mcp_users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     name = Column(String(255), nullable=False)
+    website = Column(String(512), nullable=True)
     target_segments = Column(Text, nullable=True)
     target_industries = Column(Text, nullable=True)
 
