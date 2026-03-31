@@ -583,29 +583,72 @@ Only call when user explicitly says "activate", "start", "launch", or "go live".
     },
     {
         "name": "pipeline_status",
-        "description": """Pipeline status — phase, progress, targets found, next action.
+        "description": """Pipeline status — phase, progress, KPIs, timing, targets found, next action.
 
 WHEN USER SAYS: "pipeline status", "how is gathering going", "what's the progress" → call THIS.
-DO NOT call get_context for pipeline questions — use pipeline_status with the run_id.""",
+DO NOT call get_context for pipeline questions — use pipeline_status with the run_id.
+
+Returns: KPI targets (target_count, contacts_per_company, min_targets), progress (people/targets found, percentages), timing (elapsed, ETA), cost (credits used/remaining).""",
         "inputSchema": {
             "type": "object",
             "properties": {"run_id": {"type": "integer"}},
             "required": ["run_id"],
         },
     },
+    {
+        "name": "set_pipeline_kpi",
+        "description": """Change pipeline KPI targets. Works on running or paused pipelines.
+
+WHEN USER SAYS: "gather 200 contacts", "I need 50 companies", "set max 5 per company", "change target to 1000" → call THIS.
+Returns updated KPIs + cost estimate for remaining work.
+
+Orchestrator reads KPIs from DB each iteration, so changes take effect on the next batch.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer"},
+                "target_count": {"type": "integer", "description": "Target total contacts (e.g. 200)"},
+                "min_targets": {"type": "integer", "description": "Target number of target companies"},
+                "contacts_per_company": {"type": "integer", "description": "Max contacts per company (e.g. 5)"},
+            },
+            "required": ["run_id"],
+        },
+    },
+    {
+        "name": "control_pipeline",
+        "description": """Pause or resume a running pipeline.
+
+WHEN USER SAYS: "pause", "stop gathering", "hold on", "wait" → action="pause"
+WHEN USER SAYS: "resume", "continue", "keep going", "find more" → action="resume"
+
+Pause: pipeline stops gracefully after current batch. All progress saved.
+Resume: pipeline continues from where it stopped (same filters, same page offset).""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer"},
+                "action": {"type": "string", "enum": ["pause", "resume"]},
+            },
+            "required": ["run_id", "action"],
+        },
+    },
 
     {
         "name": "run_auto_pipeline",
-        "description": """Run the FULL automated pipeline that gathers until 100 target contacts found.
+        "description": """Run the FULL automated pipeline that gathers until target contacts found.
 
 Does everything automatically:
 1. Apollo search page 1 → scrape → classify → extract people for targets
 2. Exploration: enrich top 5 targets → optimize filters
 3. Loop: 4 pages at a time → scrape → classify → extract people
-4. Stops when 100 contacts (up to 3 per company) gathered
+4. Stops when target_count contacts gathered (default 100)
 5. Each batch = new iteration (visible in UI)
 
 People extraction runs IN PARALLEL — as soon as a target is found, contacts are gathered.
+Pipeline runs in BACKGROUND — returns immediately. Use pipeline_status to track progress.
+
+KPIs are configurable: target_count, contacts_per_company, min_targets.
+User can change KPIs mid-run via set_pipeline_kpi, or pause/resume via control_pipeline.
 
 Call AFTER user confirms filters (tam_gather with confirm_filters returned the preview).
 Requires: project with offer context, Apollo + OpenAI keys configured.""",
@@ -614,6 +657,9 @@ Requires: project with offer context, Apollo + OpenAI keys configured.""",
             "properties": {
                 "run_id": {"type": "integer", "description": "Gathering run to auto-continue"},
                 "filters": {"type": "object", "description": "Apollo filters (from tam_gather preview)"},
+                "target_count": {"type": "integer", "description": "Target total contacts to gather (default 100). User says 'gather 200 contacts' → 200."},
+                "contacts_per_company": {"type": "integer", "description": "Max contacts per company (default 3). User says '5 per company' → 5."},
+                "min_targets": {"type": "integer", "description": "Min target companies (auto-derived from target_count / contacts_per_company if not set)"},
             },
             "required": ["run_id"],
         },

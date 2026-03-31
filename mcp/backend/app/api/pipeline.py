@@ -245,6 +245,44 @@ async def get_run_status(
                 "status": campaign.status,
             }
 
+    # Count extracted contacts for this run's targets
+    from app.models.pipeline import ExtractedContact
+    people_count_q = await session.execute(
+        select(sa_func.count(ExtractedContact.id))
+        .join(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
+        .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+        .where(CompanySourceLink.gathering_run_id == run_id, DiscoveredCompany.is_target == True)
+    )
+    live_people_count = people_count_q.scalar() or 0
+
+    # Count target companies
+    targets_count_q = await session.execute(
+        select(sa_func.count(DiscoveredCompany.id))
+        .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+        .where(CompanySourceLink.gathering_run_id == run_id, DiscoveredCompany.is_target == True)
+    )
+    live_targets_count = targets_count_q.scalar() or 0
+
+    # KPI fields
+    from math import ceil
+    target_count = run.target_count or 100
+    contacts_per_company = run.contacts_per_company or 3
+    min_targets = run.min_targets or ceil(target_count / contacts_per_company)
+    people_found = run.total_people_found or live_people_count
+    targets_found = run.total_targets_found or live_targets_count
+
+    # Timing
+    from datetime import datetime, timezone as tz
+    elapsed_seconds = None
+    eta_seconds = None
+    if run.started_at:
+        now = datetime.now(tz.utc)
+        started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=tz.utc)
+        elapsed_seconds = int((now - started).total_seconds())
+        if people_found > 0 and people_found < target_count and elapsed_seconds > 0:
+            rate = people_found / elapsed_seconds
+            eta_seconds = int((target_count - people_found) / rate)
+
     return {
         "id": run.id,
         "status": run.status,
@@ -263,6 +301,26 @@ async def get_run_status(
         "credits_used": run.credits_used,
         "created_at": str(run.created_at) if run.created_at else None,
         "campaign": campaign_info,
+        # KPI + Progress
+        "kpi": {
+            "target_count": target_count,
+            "contacts_per_company": contacts_per_company,
+            "min_targets": min_targets,
+        },
+        "progress": {
+            "targets_found": targets_found,
+            "people_found": people_found,
+            "pages_fetched": run.pages_fetched or 0,
+            "iteration": run.current_iteration or 0,
+            "people_pct": round(people_found / target_count * 100, 1) if target_count > 0 else 0,
+            "targets_pct": round(targets_found / min_targets * 100, 1) if min_targets > 0 else 0,
+        },
+        "timing": {
+            "started_at": str(run.started_at) if run.started_at else None,
+            "elapsed_seconds": elapsed_seconds,
+            "eta_seconds": eta_seconds,
+        },
+        "paused_at": str(run.paused_at) if run.paused_at else None,
         "gates": [
             {
                 "gate_id": g.id,
@@ -274,6 +332,109 @@ async def get_run_status(
             }
             for g in all_gates
         ],
+    }
+
+
+@router.post("/runs/{run_id}/pause")
+async def pause_run(
+    run_id: int,
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Pause a running pipeline. Progress is saved; resume continues from here."""
+    run = await session.get(GatheringRun, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+    if user:
+        project = await session.get(Project, run.project_id)
+        if project and project.user_id != user.id:
+            raise HTTPException(404, "Run not found")
+    if run.status != "running":
+        raise HTTPException(400, f"Cannot pause: status is '{run.status}'")
+
+    from datetime import datetime, timezone
+    run.status = "paused"
+    run.paused_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    return {"id": run.id, "status": "paused", "paused_at": str(run.paused_at)}
+
+
+@router.post("/runs/{run_id}/resume")
+async def resume_run(
+    run_id: int,
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Resume a paused pipeline from where it stopped."""
+    run = await session.get(GatheringRun, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+    if user:
+        project = await session.get(Project, run.project_id)
+        if project and project.user_id != user.id:
+            raise HTTPException(404, "Run not found")
+    if run.status not in ("paused", "insufficient"):
+        raise HTTPException(400, f"Cannot resume: status is '{run.status}'")
+
+    from datetime import datetime, timezone
+    run.status = "running"
+    run.resumed_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    # Spawn background orchestrator task
+    from app.services.pipeline_orchestrator import is_pipeline_running, start_pipeline_background
+    if not is_pipeline_running(run.id):
+        start_pipeline_background(run.id, run.filters or {}, user.id if user else 0)
+
+    return {"id": run.id, "status": "running", "resumed_at": str(run.resumed_at)}
+
+
+class KPIUpdateRequest(BaseModel):
+    target_count: Optional[int] = None
+    contacts_per_company: Optional[int] = None
+    min_targets: Optional[int] = None
+
+
+@router.patch("/runs/{run_id}/kpi")
+async def update_run_kpi(
+    run_id: int,
+    body: KPIUpdateRequest,
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Update KPI targets on a pipeline run."""
+    run = await session.get(GatheringRun, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+    if user:
+        project = await session.get(Project, run.project_id)
+        if project and project.user_id != user.id:
+            raise HTTPException(404, "Run not found")
+
+    from math import ceil
+    if body.target_count is not None:
+        run.target_count = body.target_count
+    if body.contacts_per_company is not None:
+        run.contacts_per_company = body.contacts_per_company
+    if body.min_targets is not None:
+        run.min_targets = body.min_targets
+
+    # Derive min_targets if not set
+    tc = run.target_count or 100
+    cpc = run.contacts_per_company or 3
+    if not run.min_targets:
+        run.min_targets = ceil(tc / cpc)
+
+    await session.commit()
+
+    return {
+        "id": run.id,
+        "kpi": {
+            "target_count": tc,
+            "contacts_per_company": cpc,
+            "min_targets": run.min_targets,
+        },
     }
 
 
