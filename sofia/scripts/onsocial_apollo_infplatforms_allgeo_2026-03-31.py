@@ -1,37 +1,40 @@
 #!/usr/bin/env python3
 """
-OnSocial Apollo→SmartLead Pipeline (INFLUENCER_PLATFORMS, ALL GEO, 2026-03-31)
+OnSocial Apollo Pipeline (INFLUENCER_PLATFORMS v4, ALL GEO, 2026-03-31)
 
-Full pipeline: Apollo Companies UI (Puppeteer) → Backend dedup/blacklist/scrape/classify →
-Apollo People UI Search → FindyMail email enrichment → SmartLead upload.
+Full pipeline: Apollo Companies UI (Puppeteer) -> Backend dedup/blacklist/scrape/classify ->
+Apollo People UI Search -> FindyMail email enrichment -> SmartLead upload.
 
 Company search: Apollo Companies tab via apollo_universal_search.js (FREE, no credits).
 People search:  Apollo People tab via apollo_scraper.js (FREE, no credits).
 
-Filters from: sofia/projects/OnSocial/docs/apollo-filters-v3.md (Segment 1)
-  - Keywords: influencer marketing platform, creator analytics, etc. (17 keywords)
+Filters from: sofia/projects/OnSocial/docs/apollo-filters-v4.md (Segment 1)
+  - 34 company keywords (v3 had 17 + 17 new adjacent keywords)
   - Employees: 5-5,000
-  - Excluded keywords: recruitment, staffing, etc.
+  - Expanded excluded keywords (post-filter)
   - ALL GEO (no location filter)
-  - Target: 10,000 companies
+  - Target: 3,000-5,000 companies (v4 estimate)
 
-People filters:
-  - Management Level: C-Suite, VP, Director, Owner, Senior, Head, Partner, Founder
-  - Titles from apollo-filters-v3.md
+People filters (v4):
+  - Management Level: c_suite, vp, director, owner, senior, head, partner, founder
+  - Titles: 18 titles from v4 (added Head of Data, VP Data, CDO, Head of Platform, VP Platform)
+  - Excluded titles applied as post-filter after scrape
+
+Changes from v3 script:
+  - +17 new company keywords (social intelligence, earned media, digital PR, creator CRM, etc.)
+  - +senior seniority level
+  - +5 new people titles (data/platform leadership)
+  - Post-filter for excluded titles (senior ICs that slip through)
+  - Post-filter for excluded company keywords
 
 Steps:
   Step 0:     Apollo Companies UI scrape (apollo_universal_search.js on Hetzner)
   Step 1:     Feed scraped companies into backend as manual.companies.manual
-  Steps 2-8:  Backend pipeline (dedup → blacklist → scrape → classify)
+  Steps 2-8:  Backend pipeline (dedup -> blacklist -> scrape -> classify)
   Step 9:     Export targets from DB
   Step 10:    Apollo People UI Search (auto via apollo_scraper.js)
   Step 11:    FindyMail email enrichment
   Step 12:    SmartLead upload
-
-Google Sheets & Drive:
-  All CSVs are duplicated to Google Sheets (sofia@getsally.io OAuth).
-  Sheets placed in Google Drive folders by TYPE.
-  Naming: OS | [TYPE] | INFPLAT — [DATE]
 
 Usage (run on Hetzner via SSH):
   cd ~/magnum-opus-project/repo
@@ -76,10 +79,10 @@ SCRIPT_DIR = Path(__file__).parent
 SOFIA_DIR = SCRIPT_DIR.parent
 REPO_DIR = SOFIA_DIR.parent  # magnum-opus-project/repo on Hetzner
 
-STATE_DIR = SOFIA_DIR.parent / "state" / "onsocial" / "apollo_infplat_allgeo"
+STATE_DIR = SOFIA_DIR.parent / "state" / "onsocial" / "apollo_infplat_v4_allgeo"
 STATE_DIR.mkdir(parents=True, exist_ok=True)
 
-CSV_DIR = SOFIA_DIR / "output" / "OnSocial" / "apollo_infplat_allgeo"
+CSV_DIR = SOFIA_DIR / "output" / "OnSocial" / "apollo_infplat_v4_allgeo"
 CSV_DIR.mkdir(parents=True, exist_ok=True)
 
 # State files
@@ -113,10 +116,12 @@ APOLLO_COMPANY_SCRAPER = "scripts/apollo_universal_search.js"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# APOLLO COMPANY SEARCH FILTERS (from apollo-filters-v3.md, Segment 1)
+# APOLLO COMPANY SEARCH FILTERS (from apollo-filters-v4.md, Segment 1)
 # ══════════════════════════════════════════════════════════════════════════════
 
+# v4: 34 keywords (v3 had 17 + 17 new adjacent keywords)
 COMPANY_KEYWORDS = [
+    # --- Original v3 keywords ---
     "influencer marketing platform",
     "creator analytics",
     "creator marketplace",
@@ -134,6 +139,40 @@ COMPANY_KEYWORDS = [
     "influencer intelligence",
     "audience intelligence",
     "social data",
+    # --- New v4 keywords (adjacent companies missed by v3) ---
+    "social intelligence platform",
+    "content intelligence",
+    "earned media platform",
+    "earned media analytics",
+    "digital PR platform",
+    "media monitoring platform",
+    "creator CRM",
+    "creator relationship management",
+    "talent marketplace technology",
+    "social ROI platform",
+    "reputation management platform",
+    "sentiment analysis platform",
+    "social media intelligence",
+    "brand intelligence",
+    "content analytics platform",
+    "engagement analytics",
+    "creator economy infrastructure",
+    "social proof platform",
+    "review management platform",
+    "word of mouth platform",
+]
+
+# Post-filter: exclude companies matching these keywords in their description
+EXCLUDED_COMPANY_KEYWORDS = [
+    "recruitment", "staffing", "accounting", "legal", "healthcare",
+    "logistics", "manufacturing", "real estate", "fintech", "insurance",
+    "construction", "education", "nonprofit", "government", "defense",
+    "food service", "restaurant", "hospitality", "travel agency",
+    "web design only", "SEO only", "PPC only", "print",
+    "freelance", "solo consultant",
+    "antivirus", "cybersecurity", "network monitoring",
+    "IT infrastructure", "cloud hosting", "data center",
+    "ERP", "payroll", "HRIS", "applicant tracking",
 ]
 
 COMPANY_SIZES = [
@@ -144,7 +183,7 @@ COMPANY_SIZES = [
     "1001,5000",
 ]
 
-# People filters
+# People filters (v4: added senior seniority + expanded titles)
 PEOPLE_SENIORITIES = [
     "c_suite", "vp", "director", "owner", "senior", "head", "partner", "founder",
 ]
@@ -154,9 +193,40 @@ PEOPLE_TITLES = [
     "Head of Product", "Chief Product Officer", "VP Product",
     "Director of Engineering", "Director of Product",
     "Co-Founder", "Founder", "CEO", "COO",
-    "Head of Partnerships", "VP Strategy", "Head of Strategy",
-    "Senior Director", "Senior VP", "Partner",
+    "Senior Director of Engineering", "Senior Director of Product",
+    "Senior VP Engineering", "Senior VP Product",
+    # v4 additions
+    "Head of Data", "VP Data", "Chief Data Officer",
+    "Head of Platform", "VP Platform",
 ]
+
+# Post-filter: exclude contacts with these titles (senior ICs, not decision-makers)
+EXCLUDED_TITLES_PATTERNS = [
+    "intern", "junior", "assistant", "student", "freelance",
+    "marketing manager", "sales representative", "account executive",
+    "customer success", "support", "hr", "people", "recruiter",
+    "content writer", "designer", "social media manager",
+    "solutions architect", "technical architect", "enterprise architect",
+    "staff engineer", "principal engineer", "lead engineer", "lead developer",
+]
+
+
+def _title_excluded(title: str) -> bool:
+    """Check if a title matches any exclusion pattern."""
+    t = title.lower().strip()
+    for pattern in EXCLUDED_TITLES_PATTERNS:
+        if pattern in t:
+            return True
+    return False
+
+
+def _company_excluded(description: str) -> bool:
+    """Check if company description matches exclusion keywords."""
+    d = description.lower()
+    for kw in EXCLUDED_COMPANY_KEYWORDS:
+        if kw.lower() in d:
+            return True
+    return False
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -212,7 +282,6 @@ def api(method: str, path: str, raise_on_error: bool = True, **kwargs) -> dict:
 
 def api_long(method: str, path: str, expected_phase: str, run_id: int,
              timeout: int = 3600, poll_interval: int = 30, **kwargs) -> dict:
-    """Resilient API call for long operations (scrape, analyze)."""
     url = f"{BACKEND_BASE}/api{path}"
     try:
         r = getattr(httpx, method)(url, headers=BACKEND_HEADERS, timeout=timeout, **kwargs)
@@ -355,10 +424,10 @@ def step0_scrape_companies(force: bool = False) -> list[dict]:
     """Scrape Apollo Companies tab via Puppeteer. Returns list of companies."""
     print(f"\n{'='*60}")
     print(f"STEP 0: Apollo Companies UI Scrape (Puppeteer)")
-    print(f"  Keywords: {len(COMPANY_KEYWORDS)}")
+    print(f"  Keywords: {len(COMPANY_KEYWORDS)} (v4 expanded)")
     print(f"  Sizes: {COMPANY_SIZES}")
     print(f"  Geo: ALL (no location filter)")
-    print(f"  Target: 10,000 companies")
+    print(f"  Target: 3,000-5,000 companies (v4 estimate)")
     print(f"{'='*60}")
 
     if COMPANIES_RAW_FILE.exists() and not force:
@@ -376,9 +445,8 @@ def step0_scrape_companies(force: bool = False) -> list[dict]:
 
     output_dir = REPO_DIR / "gathering-data"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = "onsocial_infplat_allgeo_companies.json"
+    output_file = "onsocial_infplat_v4_allgeo_companies.json"
 
-    # Build command args
     cmd = [
         "node", str(scraper_path),
         "--keywords", ",".join(COMPANY_KEYWORDS),
@@ -387,11 +455,8 @@ def step0_scrape_companies(force: bool = False) -> list[dict]:
         "--resume",
     ]
 
-    # Add sizes
     for size in COMPANY_SIZES:
         cmd.extend(["--sizes", size])
-
-    # No --location flag = ALL GEO
 
     print(f"  Running: {' '.join(cmd[:6])}...")
     print(f"  Output: {output_dir / output_file}")
@@ -402,13 +467,12 @@ def step0_scrape_companies(force: bool = False) -> list[dict]:
             cmd,
             capture_output=True,
             text=True,
-            timeout=7200,  # 2 hours max
+            timeout=7200,
             cwd=str(scraper_path.parent.parent),
         )
         if result.returncode != 0:
             err = result.stderr[-500:] if result.stderr else result.stdout[-500:]
             print(f"  Scraper error (rc={result.returncode}): {err}")
-            # Try to load partial results
             partial_path = output_dir / output_file
             if partial_path.exists():
                 companies = json.loads(partial_path.read_text())
@@ -426,33 +490,45 @@ def step0_scrape_companies(force: bool = False) -> list[dict]:
             return companies
         sys.exit(1)
 
-    # Load results
     result_path = output_dir / output_file
     if not result_path.exists():
         print(f"  ERROR: Output file not found: {result_path}")
         sys.exit(1)
 
     companies = json.loads(result_path.read_text())
-    print(f"\n  Scraped: {len(companies)} companies")
+    print(f"\n  Scraped: {len(companies)} companies (raw)")
 
-    # Save to state
+    # Post-filter: exclude companies matching excluded keywords
+    before = len(companies)
+    filtered = []
+    for c in companies:
+        desc = " ".join([
+            c.get("description", ""),
+            c.get("industry", ""),
+            c.get("keywords", ""),
+        ]).lower()
+        if not _company_excluded(desc):
+            filtered.append(c)
+    companies = filtered
+    excluded = before - len(companies)
+    if excluded:
+        print(f"  Post-filter: removed {excluded} companies (excluded keywords)")
+    print(f"  Final: {len(companies)} companies")
+
     save_json(COMPANIES_RAW_FILE, companies)
 
-    # Save CSV + Google Sheet
     today = tag()
     save_csv(CSV_DIR / f"import_apollo_companies_{today}.csv", companies,
-             sheet_name=f"{PROJECT_CODE} | Import | {SEGMENT_CODE} Apollo Companies - {today}")
+             sheet_name=f"{PROJECT_CODE} | Import | {SEGMENT_CODE} Apollo Companies v4 - {today}")
 
     return companies
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 1: FEED TO BACKEND
-# Take scraped companies, extract domains, feed to backend as manual source.
-# Backend handles dedup, blacklist, scrape, classify.
 # ══════════════════════════════════════════════════════════════════════════════
 
-BATCH_SIZE = 500  # Max domains per gathering run
+BATCH_SIZE = 500
 
 
 def step1_feed_to_backend(companies: list[dict], force: bool = False) -> list[int]:
@@ -461,7 +537,6 @@ def step1_feed_to_backend(companies: list[dict], force: bool = False) -> list[in
     print(f"STEP 1: Feed to Backend (manual.companies.manual)")
     print(f"{'='*60}")
 
-    # Extract unique domains
     domains = []
     seen = set()
     for c in companies:
@@ -477,7 +552,6 @@ def step1_feed_to_backend(companies: list[dict], force: bool = False) -> list[in
         print("  ERROR: No domains extracted")
         sys.exit(1)
 
-    # Batch into runs of BATCH_SIZE
     batches = [domains[i:i+BATCH_SIZE] for i in range(0, len(domains), BATCH_SIZE)]
     print(f"  Batches: {len(batches)} x ~{BATCH_SIZE}")
 
@@ -493,7 +567,7 @@ def step1_feed_to_backend(companies: list[dict], force: bool = False) -> list[in
             "filters": {"domains": batch},
             "triggered_by": "operator",
             "input_mode": "natural",
-            "notes": f"Apollo Companies UI scrape - {SEGMENT_NAME} ALL GEO{batch_label} - {len(batch)} domains",
+            "notes": f"Apollo Companies UI v4 - {SEGMENT_NAME} ALL GEO{batch_label} - {len(batch)} domains",
         })
         run_id = result["id"]
         run_ids.append(run_id)
@@ -505,7 +579,6 @@ def step1_feed_to_backend(companies: list[dict], force: bool = False) -> list[in
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEPS 2-8: BACKEND PIPELINE
-# Process each run through the full pipeline.
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_latest_prompt() -> tuple[int | None, str | None]:
@@ -578,7 +651,6 @@ def process_run(run_id: int, prompt_text: str = None):
     print(f"  Processing Run #{run_id}")
     print(f"{'_'*40}")
 
-    # Wait for gather to complete
     for i in range(60):
         time.sleep(10)
         try:
@@ -593,7 +665,6 @@ def process_run(run_id: int, prompt_text: str = None):
     run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
     phase = run_info.get("current_phase", "")
 
-    # Blacklist
     if phase == "gathered":
         api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
         approve_pending_gate(run_id)
@@ -602,20 +673,17 @@ def process_run(run_id: int, prompt_text: str = None):
     if phase in ("awaiting_scope_ok", "scope_approved"):
         approve_pending_gate(run_id)
 
-    # Pre-filter
     run_info2 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
     phase = run_info2.get("current_phase", "")
     if phase == "scope_approved":
         r = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter")
         print(f"  Pre-filter: passed={r.get('passed', '?')}")
 
-    # Scrape
     run_info3 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
     phase = run_info3.get("current_phase", "")
     if phase == "filtered":
         step4_scrape(run_id)
 
-    # Analyze
     run_info4 = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
     phase = run_info4.get("current_phase", "")
     if phase == "scraped":
@@ -627,10 +695,7 @@ def process_run(run_id: int, prompt_text: str = None):
             total = result.get("total_analyzed", "?")
             print(f"  Analyze: {targets}/{total} targets")
 
-    # Approve targets (CP2)
     approve_pending_gate(run_id)
-
-    # Add to blacklist
     blacklist_approved_targets(run_id)
 
 
@@ -693,18 +758,10 @@ def step9_export_targets(force: bool = False) -> list[dict]:
 
     save_json(TARGETS_FILE, targets)
 
-    # Stats & CSV
     today = tag()
-    by_seg = {}
-    for t in targets:
-        seg = t.get("segment", "UNKNOWN")
-        by_seg.setdefault(seg, []).append(t)
-
+    save_csv(CSV_DIR / f"targets_{SEGMENT_CODE}_{today}.csv", targets,
+             sheet_name=f"{PROJECT_CODE} | Targets | {SEGMENT_CODE} v4 - {today}")
     print(f"  Exported: {len(targets)} targets")
-    for seg_name, seg_targets in sorted(by_seg.items()):
-        save_csv(CSV_DIR / f"targets_{SEGMENT_CODE}_{today}.csv", seg_targets,
-                 sheet_name=f"{PROJECT_CODE} | Targets | {SEGMENT_CODE} - {today}")
-        print(f"    {seg_name}: {len(seg_targets)}")
 
     return targets
 
@@ -780,7 +837,7 @@ def _map_apollo_person(person: dict, targets_by_domain: dict, batch_domain: str 
         "linkedin_url": person.get("linkedin_url", person.get("linkedin", "")),
         "country": country,
         "employees": person.get("employees", "") or target.get("employees", ""),
-        "social_proof": "",  # filled at upload step
+        "social_proof": "",
     }
 
 
@@ -810,7 +867,7 @@ def step10_apollo_people_search(targets: list[dict], force: bool = False) -> lis
     for batch_idx, batch_domains in enumerate(batches):
         print(f"    Batch {batch_idx + 1}/{len(batches)}: {len(batch_domains)} domains...", end=" ", flush=True)
         url = _build_apollo_people_url(batch_domains, PEOPLE_TITLES, PEOPLE_SENIORITIES)
-        output_path = f"/tmp/apollo_people_infplat_{batch_idx}.json"
+        output_path = f"/tmp/apollo_people_infplat_v4_{batch_idx}.json"
         people = _run_apollo_scraper(url, APOLLO_PEOPLE_MAX_PAGES, output_path)
         print(f"{len(people)} people")
 
@@ -825,6 +882,13 @@ def step10_apollo_people_search(targets: list[dict], force: bool = False) -> lis
         except Exception:
             pass
         time.sleep(3)
+
+    # Post-filter: exclude contacts with excluded titles
+    before_filter = len(all_contacts)
+    all_contacts = [c for c in all_contacts if not _title_excluded(c.get("title", ""))]
+    excluded = before_filter - len(all_contacts)
+    if excluded:
+        print(f"\n  Post-filter: removed {excluded} contacts (excluded titles)")
 
     # Dedupe
     seen = set()
@@ -845,7 +909,7 @@ def step10_apollo_people_search(targets: list[dict], force: bool = False) -> lis
 
     today = tag()
     save_csv(CSV_DIR / f"import_apollo_people_{today}.csv", all_contacts,
-             sheet_name=f"{PROJECT_CODE} | Import | {SEGMENT_CODE} Apollo People - {today}")
+             sheet_name=f"{PROJECT_CODE} | Import | {SEGMENT_CODE} Apollo People v4 - {today}")
 
     return all_contacts
 
@@ -912,6 +976,13 @@ def step10_import_apollo_csv(csv_path: str, targets: list[dict], force: bool = F
         if contact["first_name"] and contact["domain"]:
             all_contacts.append(contact)
 
+    # Post-filter excluded titles
+    before_filter = len(all_contacts)
+    all_contacts = [c for c in all_contacts if not _title_excluded(c.get("title", ""))]
+    excluded = before_filter - len(all_contacts)
+    if excluded:
+        print(f"  Post-filter: removed {excluded} contacts (excluded titles)")
+
     # Dedupe
     seen = set()
     deduped = []
@@ -927,7 +998,7 @@ def step10_import_apollo_csv(csv_path: str, targets: list[dict], force: bool = F
 
     today = tag()
     save_csv(CSV_DIR / f"import_apollo_people_{today}.csv", all_contacts,
-             sheet_name=f"{PROJECT_CODE} | Import | {SEGMENT_CODE} Apollo People - {today}")
+             sheet_name=f"{PROJECT_CODE} | Import | {SEGMENT_CODE} Apollo People v4 - {today}")
 
     return all_contacts
 
@@ -1089,9 +1160,9 @@ async def step11_findymail(contacts: list[dict], max_contacts: int = 1500,
 
     today = tag()
     save_csv(CSV_DIR / f"leads_verified_{today}.csv", with_email,
-             sheet_name=f"{PROJECT_CODE} | Leads | {SEGMENT_CODE} Verified Emails - {today}")
+             sheet_name=f"{PROJECT_CODE} | Leads | {SEGMENT_CODE} Verified Emails v4 - {today}")
     save_csv(CSV_DIR / f"leads_no_email_{today}.csv", without_email,
-             sheet_name=f"{PROJECT_CODE} | Leads | {SEGMENT_CODE} No Email - {today}")
+             sheet_name=f"{PROJECT_CODE} | Leads | {SEGMENT_CODE} No Email v4 - {today}")
 
     if without_email:
         export_getsales(without_email, today)
@@ -1218,7 +1289,7 @@ STEPS = ["scrape-companies", "feed", "backend", "export", "people", "findymail",
 
 
 def main():
-    p = argparse.ArgumentParser(description="OnSocial Apollo INFLUENCER_PLATFORMS ALL GEO Pipeline")
+    p = argparse.ArgumentParser(description="OnSocial Apollo INFLUENCER_PLATFORMS v4 ALL GEO Pipeline")
     p.add_argument("--from-step", choices=STEPS, default="scrape-companies",
                    help="Start from this step")
     p.add_argument("--apollo-csv", help="Apollo People CSV (skip auto scrape)")
@@ -1229,26 +1300,37 @@ def main():
     args = p.parse_args()
 
     print(f"\n{'='*60}")
-    print(f"  OnSocial Apollo Pipeline - {SEGMENT_NAME} ALL GEO")
+    print(f"  OnSocial Apollo Pipeline - {SEGMENT_NAME} v4 ALL GEO")
     print(f"  {ts()}")
     print(f"{'='*60}")
     print(f"  Project: OnSocial (ID {PROJECT_ID})")
     print(f"  Segment: {SEGMENT_NAME} ({SEGMENT_CODE})")
+    print(f"  Filters: v4 (34 keywords, expanded titles)")
     print(f"  Company source: Apollo Companies UI (Puppeteer, FREE)")
     print(f"  People source: Apollo People UI (Puppeteer, FREE)")
-    print(f"  Keywords: {len(COMPANY_KEYWORDS)}")
+    print(f"  Keywords: {len(COMPANY_KEYWORDS)} (v3: 17 + v4: 17 new)")
     print(f"  Sizes: {COMPANY_SIZES}")
     print(f"  Geo: ALL")
     print(f"  People seniorities: {', '.join(PEOPLE_SENIORITIES)}")
+    print(f"  People titles: {len(PEOPLE_TITLES)}")
+    print(f"  Excluded title patterns: {len(EXCLUDED_TITLES_PATTERNS)}")
     print(f"  From step: {args.from_step}")
 
     if args.dry_run:
         print(f"\n  DRY RUN - no actions taken")
+        print(f"\n  Company keywords ({len(COMPANY_KEYWORDS)}):")
+        for kw in COMPANY_KEYWORDS:
+            print(f"    - {kw}")
+        print(f"\n  People titles ({len(PEOPLE_TITLES)}):")
+        for t in PEOPLE_TITLES:
+            print(f"    - {t}")
+        print(f"\n  Excluded title patterns ({len(EXCLUDED_TITLES_PATTERNS)}):")
+        for t in EXCLUDED_TITLES_PATTERNS:
+            print(f"    - {t}")
         return
 
     steps = STEPS[STEPS.index(args.from_step):]
 
-    # Custom prompt
     prompt_text = None
     if args.prompt_file:
         prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
