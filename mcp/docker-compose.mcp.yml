@@ -47,6 +47,8 @@ services:
       - TELEGRAM_NOTIFY_BOT_TOKEN=7786811624:AAHbIUkMOvEB5A8wqw1koyhCNOZaSBgEvUI
     env_file:
       - .env
+    volumes:
+      - apollo_taxonomy:/app/apollo_filters
     depends_on:
       mcp-postgres:
         condition: service_healthy
@@ -111,3 +113,4 @@ networks:
 volumes:
   mcp_postgres_data:
   mcp_redis_data:
+  apollo_taxonomy:
