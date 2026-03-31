@@ -304,6 +304,44 @@ Use case: user says 'companies like X, Y, Z' or provides a file with example com
         },
     },
     {
+        "name": "define_targets",
+        "description": """Define target companies for pipeline — accepts segment description AND/OR example companies.
+
+This is the GOD TOOL for target definition. Handles ALL cases:
+
+CASE 1: User provides EXAMPLES WITH DOMAINS (e.g. "companies like stripe.com, shopify.com")
+  → Enrich in Apollo → extract filters → store on project → SKIP exploration in pipeline
+  → Domains REQUIRED. If user gives company names without domains, YOU (the agent) must find the domains first.
+
+CASE 2: User provides EXAMPLES WITHOUT DOMAINS (e.g. "companies like Stripe, Shopify")
+  → YOU must find domains first (search web, check Apollo, etc.) → then call this tool with domains
+  → NEVER call this tool with company names only — always resolve to domains.
+
+CASE 3: User provides SEGMENT DESCRIPTION ONLY (e.g. "IT consulting in Miami, 50-200 employees")
+  → Store as project.target_segments → normal pipeline flow with exploration phase
+
+CASE 4: User provides BOTH examples + description
+  → Best case: enrich examples for filters + use description for classification prompt
+
+TWO-STEP: Call WITHOUT confirm → preview what will happen. Call WITH confirm=true → execute.
+
+IMPORTANT: If user provides a document/file with target definitions, the USER'S AGENT (Opus/Claude Code)
+must extract the structured data and pass it to this tool. This tool does NOT read files.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer", "description": "Project to define targets for"},
+                "segment_description": {"type": "string", "description": "ICP description: who are the targets? (e.g. 'IT consulting companies in Miami, 50-200 employees')"},
+                "example_domains": {"type": "array", "items": {"type": "string"}, "description": "Example target company domains (e.g. ['stripe.com', 'shopify.com']). Max 10."},
+                "locations": {"type": "array", "items": {"type": "string"}, "description": "Target locations/geos (e.g. ['Miami', 'London'])"},
+                "employee_range": {"type": "string", "description": "Company size range (e.g. '50,200' for 50-200 employees)"},
+                "skip_exploration": {"type": "boolean", "description": "If true, skip exploration phase in pipeline (use when examples provide enough filter data)"},
+                "confirm": {"type": "boolean", "description": "Set true AFTER user approves the preview"},
+            },
+            "required": ["project_id"],
+        },
+    },
+    {
         "name": "tam_re_analyze",
         "description": """Re-classify companies with better prompt. Creates new pipeline iteration.
 

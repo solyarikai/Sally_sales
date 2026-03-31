@@ -141,8 +141,12 @@ class PipelineOrchestrator:
 
         # === EXPLORATION: Enrich top 5 → optimize filters (1 MAX — per default_requirements.md) ===
         # Exploration runs ONCE after iteration 1, never again. Scale phase uses optimized filters.
+        # SKIP if: resuming past exploration, OR filters came from define_targets (examples already enriched)
         exploration_done = self.pages_fetched > 1  # Skip if resuming past exploration
-        if self.total_targets >= 1 and not exploration_done:
+        skip_from_examples = filters.get("skip_exploration", False)  # Skip if enriched from examples
+        if skip_from_examples:
+            logger.info("Pipeline orchestrator: SKIP exploration (filters from enriched examples)")
+        if self.total_targets >= 1 and not exploration_done and not skip_from_examples:
             logger.info(f"Pipeline orchestrator: Exploring (enriching top {min(5, self.total_targets)} targets)")
             try:
                 from app.services.exploration_service import run_exploration
