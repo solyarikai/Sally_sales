@@ -266,19 +266,16 @@ working with social media creators.
 - website_content is EMPTY and no description -> "OTHER | No data available"
 - Domain is parked / for sale / dead -> "OTHER | Domain inactive"
 - 5000+ employees -> "OTHER | Enterprise, too large"
-- <20 employees -> "OTHER | Too small for affiliate segment"
+- <10 employees -> "OTHER | Too small for agency segment"
 
 If none triggered -> continue to Step 2.
 
 == STEP 2: SEGMENTS ==
 
-AFFILIATE_PERFORMANCE
-  Affiliate networks, performance marketing platforms, partnership platforms,
-  social commerce tools, creator monetization platforms, link-in-bio tools,
-  loyalty/rewards/cashback platforms converging with creator/affiliate space,
-  attribution platforms, commission tracking, referral marketing platforms.
-  KEY TEST: they OPERATE or BUILD technology for affiliate/performance
-  marketing, partner ecosystems, or creator monetization - not just use it.
+IM_FIRST_AGENCIES
+  Agency where influencer/creator campaigns are THE primary business,
+  not a side service. 10-500 employees.
+  KEY TEST: 60%+ of their visible offering is about creator/influencer work.
 
 INFLUENCER_PLATFORMS
   Builds SaaS / software / tools for influencer marketing: analytics,
@@ -288,10 +285,13 @@ INFLUENCER_PLATFORMS
   KEY TEST: they have a PRODUCT (software/platform/API) that brands or
   agencies use to find, analyze, manage, or pay creators.
 
-IM_FIRST_AGENCIES
-  Agency where influencer/creator campaigns are THE primary business,
-  not a side service. 10-500 employees.
-  KEY TEST: 60%+ of their visible offering is about creator/influencer work.
+AFFILIATE_PERFORMANCE
+  Affiliate networks, performance marketing platforms, partnership platforms,
+  social commerce tools, creator monetization platforms, link-in-bio tools,
+  loyalty/rewards/cashback platforms converging with creator/affiliate space,
+  attribution platforms, commission tracking, referral marketing platforms.
+  KEY TEST: they OPERATE or BUILD technology for affiliate/performance
+  marketing, partner ecosystems, or creator monetization - not just use it.
 
 OTHER
   Everything that does NOT fit above. Includes: generic digital agencies,
@@ -299,22 +299,23 @@ OTHER
   they BUILD creator tools), consulting, recruitment, fintech, etc.
 
 == STEP 3: CONFLICT RESOLUTION ==
-- Company does BOTH affiliate AND has a SaaS creator product -> INFLUENCER_PLATFORMS
+- Company is a "full-service digital agency" that also does influencer -> OTHER
+  (not influencer-first)
+- Company does influencer marketing AND has a SaaS product -> INFLUENCER_PLATFORMS
   (product companies are higher-value targets)
-- Company is a "full-service digital agency" that also does affiliate -> OTHER
-  (not affiliate-first)
-- Company description mentions "affiliate" but core is e-commerce brand -> OTHER
-- Company is a loyalty platform with NO creator/influencer connection -> OTHER
-- Company is an affiliate network without creator focus -> OTHER
+- Company is a PR agency that also does influencer campaigns -> OTHER
+- Company is a talent management firm but NOT for creators/influencers -> OTHER
+- Company is a modelling/casting agency -> OTHER
+- Company says "influencer" but core is event management or experiential -> OTHER
 
 == OUTPUT FORMAT (strict) ==
 SEGMENT | confidence (0.0-1.0) | one-line reasoning
 
 Examples:
-AFFILIATE_PERFORMANCE | 0.92 | Affiliate network connecting brands with influencer-publishers
-AFFILIATE_PERFORMANCE | 0.85 | Performance marketing platform with creator monetization tools
+IM_FIRST_AGENCIES | 0.92 | Influencer-first agency running creator campaigns for brands
+IM_FIRST_AGENCIES | 0.85 | Creator talent agency managing influencer partnerships
 INFLUENCER_PLATFORMS | 0.88 | SaaS platform for influencer discovery and analytics
-OTHER | 0.95 | Generic digital marketing agency, affiliate is one of 8 services listed
+OTHER | 0.95 | Generic digital marketing agency, influencer is one of 8 services listed
 """
 
 
