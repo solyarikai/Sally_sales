@@ -736,46 +736,59 @@ def step9_export_targets(force: bool = False) -> list[dict]:
 # STEP 10: APOLLO PEOPLE SEARCH
 # ══════════════════════════════════════════════════════════════════════════════
 
-APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
-APOLLO_PEOPLE_BATCH_SIZE = 30
+APOLLO_PEOPLE_SCRIPT = "scripts/apollo_people_search.js"
+APOLLO_PEOPLE_BATCH_SIZE = 10  # Internal API uses smaller batches
 APOLLO_PEOPLE_MAX_PAGES = 5
 
 
-def _build_apollo_people_url(domains: list[str], titles: list[str], seniorities: list[str]) -> str:
-    from urllib.parse import quote
-    url = "https://app.apollo.io/#/people?finderViewId=5b8050d050a0710001ca27c1"
-    for d in domains:
-        url += f"&organizationDomains[]={quote(d)}"
-    for t in titles:
-        url += f"&personTitles[]={quote(t)}"
-    for s in seniorities:
-        url += f"&personSeniorities[]={quote(s)}"
-    return url
-
-
-def _run_apollo_scraper(url: str, max_pages: int, output_path: str) -> list[dict]:
-    script = REPO_DIR / APOLLO_SCRAPER_SCRIPT
+def _run_apollo_people_api(domains: list[str], seniorities: list[str],
+                           output_path: str, batch_size: int = 10,
+                           max_pages: int = 5) -> list[dict]:
+    """Run apollo_people_search.js (internal API via browser session)."""
+    script = REPO_DIR / APOLLO_PEOPLE_SCRIPT
     if not script.exists():
-        script = Path(".") / APOLLO_SCRAPER_SCRIPT
+        script = Path(".") / APOLLO_PEOPLE_SCRIPT
     if not script.exists():
-        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found")
+        print(f"    ERROR: {APOLLO_PEOPLE_SCRIPT} not found")
         return []
-    args = ["node", str(script), "--url", url, "--max-pages", str(max_pages), "--output", output_path]
+
+    # Write domains to temp file
+    domains_file = f"/tmp/apollo_domains_{int(time.time())}.txt"
+    with open(domains_file, "w") as f:
+        f.write("\n".join(domains))
+
+    args = [
+        "node", str(script),
+        "--domains-file", domains_file,
+        "--seniorities", ",".join(seniorities),
+        "--batch-size", str(batch_size),
+        "--max-pages", str(max_pages),
+        "--output", output_path,
+    ]
     try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=300,
-                              cwd=str(script.parent.parent),
-                              env={**os.environ, "CHROME_PATH": os.environ.get("CHROME_PATH", "/usr/bin/google-chrome")})
+        result = subprocess.run(
+            args, capture_output=True, text=True,
+            timeout=3600,  # 1 hour for large batches
+            cwd=str(script.parent.parent),
+        )
         if result.returncode != 0:
-            err = result.stderr[-300:] if result.stderr else result.stdout[-300:]
-            print(f"    Scraper error (rc={result.returncode}): {err}")
-            return []
+            err = result.stderr[-500:] if result.stderr else result.stdout[-500:]
+            print(f"    Apollo API error (rc={result.returncode}): {err}")
         if Path(output_path).exists():
             with open(output_path) as f:
                 return json.load(f)
     except subprocess.TimeoutExpired:
-        print(f"    Scraper timeout (300s)")
+        print(f"    Apollo API timeout (3600s)")
+        if Path(output_path).exists():
+            with open(output_path) as f:
+                return json.load(f)
     except Exception as e:
-        print(f"    Scraper error: {e}")
+        print(f"    Apollo API error: {e}")
+    finally:
+        try:
+            Path(domains_file).unlink(missing_ok=True)
+        except Exception:
+            pass
     return []
 
 
