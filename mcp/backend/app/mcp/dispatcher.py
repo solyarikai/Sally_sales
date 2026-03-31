@@ -2136,39 +2136,56 @@ Return ONLY valid JSON."""
         if is_pipeline_running(run.id):
             raise ValueError(f"Pipeline {run.id} is already running. Use pipeline_status to check progress.")
 
-        # Store KPIs on the run
         from math import ceil as _ceil
-        target_count = args.get("target_people", 100)
-        contacts_per_company = args.get("max_people_per_company", 3)
-        run.target_people = target_count
-        run.max_people_per_company = contacts_per_company
-        run.target_companies = args.get("target_companies") or _ceil(target_count / contacts_per_company)
+        tp = args.get("target_people", 100)
+        mpc = args.get("max_people_per_company", 3)
+        tc = args.get("target_companies") or _ceil(tp / mpc)
+
+        # TIER 1: Preview before executing
+        if not args.get("confirm"):
+            return {
+                "status": "awaiting_confirmation",
+                "preview": {
+                    "action": "run_auto_pipeline",
+                    "run_id": run.id,
+                    "project": project.name,
+                    "kpi": {"target_people": tp, "max_people_per_company": mpc, "target_companies": tc},
+                    "filters": run.filters,
+                },
+                "message": (
+                    f"I will run auto pipeline on #{run.id} ({project.name}):\n"
+                    f"  Target: {tp} contacts, max {mpc}/company, ~{tc} target companies\n"
+                    f"  Filters: {run.filters.get('q_organization_keyword_tags', [])}\n"
+                    f"  Estimated cost: ~{tc} credits\n\n"
+                    f"Approve?"
+                ),
+                "next_action": {"tool": "run_auto_pipeline", "args": {**args, "confirm": True}},
+            }
+
+        # Confirmed — execute
+        run.target_people = tp
+        run.max_people_per_company = mpc
+        run.target_companies = tc
         run.status = "running"
         from datetime import datetime as _dt, timezone as _tz
         run.started_at = _dt.now(_tz.utc)
         await session.commit()
 
-        # Spawn background task
         filters = args.get("filters") or run.filters or {}
         start_pipeline_background(run.id, filters, user.id)
 
         return {
             "run_id": run.id,
             "status": "started",
-            "kpi": {
-                "target_people": run.target_people,
-                "max_people_per_company": run.max_people_per_company,
-                "target_companies": run.target_companies,
-            },
+            "kpi": {"target_people": tp, "max_people_per_company": mpc, "target_companies": tc},
             "message": (
-                f"Pipeline running in background. Target: {run.target_people} contacts "
-                f"(up to {run.max_people_per_company} per company, ~{run.target_companies} target companies).\n"
-                f"Use pipeline_status to track progress. Use set_pipeline_kpi to change targets. "
-                f"Use control_pipeline to pause/resume."
+                f"Pipeline running in background. Target: {tp} contacts "
+                f"(max {mpc}/company, ~{tc} target companies).\n"
+                f"Use pipeline_status to track. Use control_pipeline to pause/resume."
             ),
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -2274,60 +2291,70 @@ Return ONLY valid JSON."""
 
         from math import ceil as _ceil
 
-        # Track which fields the user explicitly set for alignment
+        # Calculate new KPIs with alignment
         user_set = set()
+        new_tp = run.target_people or 100
+        new_mpc = run.max_people_per_company or 3
+        new_tc = run.target_companies or _ceil(new_tp / new_mpc)
+
         if "target_people" in args:
-            run.target_people = args["target_people"]
+            new_tp = args["target_people"]
             user_set.add("target_people")
         if "max_people_per_company" in args:
-            run.max_people_per_company = args["max_people_per_company"]
+            new_mpc = args["max_people_per_company"]
             user_set.add("max_people_per_company")
         if "target_companies" in args:
-            run.target_companies = args["target_companies"]
+            new_tc = args["target_companies"]
             user_set.add("target_companies")
 
-        # KPI alignment (see tests/test_kpi_alignment.md for all scenarios)
-        tp = run.target_people or 100
-        mpc = run.max_people_per_company or 3
-        tc = run.target_companies
-
+        # Alignment (see tests/test_kpi_alignment.md)
         if "target_companies" in user_set and "target_people" not in user_set:
-            # Scenario 3/6: user set companies → derive people
-            tp = tc * mpc
-            run.target_people = tp
+            new_tp = new_tc * new_mpc
         else:
-            # Scenarios 1/2/4/7: derive companies from people
-            tc = _ceil(tp / mpc)
-            run.target_companies = tc
+            new_tc = _ceil(new_tp / new_mpc)
 
-        await session.commit()
-
-        # Cost estimate (A8 agent pattern)
+        old_tp = run.target_people or 100
+        old_mpc = run.max_people_per_company or 3
         people_found = run.total_people_found or 0
-        remaining_people = max(0, tc - people_found)
-        remaining_companies = _ceil(remaining_people / cpc) if remaining_people > 0 else 0
+        remaining = max(0, new_tp - people_found)
+        remaining_companies = _ceil(remaining / new_mpc) if remaining > 0 else 0
         pages_needed = max(0, _ceil(remaining_companies / 8.75))
 
+        # TIER 1: Preview before executing
+        if not args.get("confirm"):
+            return {
+                "status": "awaiting_confirmation",
+                "preview": {
+                    "action": "set_pipeline_kpi",
+                    "run_id": run.id,
+                    "old_kpi": {"target_people": old_tp, "max_people_per_company": old_mpc},
+                    "new_kpi": {"target_people": new_tp, "max_people_per_company": new_mpc, "target_companies": new_tc},
+                },
+                "message": (
+                    f"I will change KPIs on pipeline #{run.id} ({project.name}):\n"
+                    f"  Target people: {old_tp} → {new_tp}\n"
+                    f"  Max per company: {old_mpc} → {new_mpc}\n"
+                    f"  Target companies: ~{new_tc}\n"
+                    f"  Current progress: {people_found} contacts found\n"
+                    f"  Remaining: {remaining} contacts, ~{pages_needed} credits\n\n"
+                    f"Approve?"
+                ),
+                "next_action": {"tool": "set_pipeline_kpi", "args": {**args, "confirm": True}},
+            }
+
+        # Confirmed — execute
+        run.target_people = new_tp
+        run.max_people_per_company = new_mpc
+        run.target_companies = new_tc
+        await session.commit()
+
         return {
-            "kpi": {
-                "target_people": tc,
-                "max_people_per_company": cpc,
-                "target_companies": run.target_companies,
-            },
-            "progress": {
-                "people_found": people_found,
-                "targets_found": run.total_targets_found or 0,
-                "remaining_people": remaining_people,
-            },
-            "cost_estimate": {
-                "pages_needed": pages_needed,
-                "credits": pages_needed,
-                "usd": f"${pages_needed * 0.01:.2f}",
-            },
+            "kpi": {"target_people": new_tp, "max_people_per_company": new_mpc, "target_companies": new_tc},
+            "progress": {"people_found": people_found, "targets_found": run.total_targets_found or 0, "remaining_people": remaining},
+            "cost_estimate": {"pages_needed": pages_needed, "credits": pages_needed, "usd": f"${pages_needed * 0.01:.2f}"},
             "message": (
-                f"KPIs updated: {tc} contacts, {cpc}/company, ~{run.target_companies} target companies.\n"
-                f"Current: {people_found} contacts found. Remaining: {remaining_people}.\n"
-                f"Estimated cost: {pages_needed} credits (${pages_needed * 0.01:.2f})."
+                f"KPIs updated: {new_tp} contacts, max {new_mpc}/company, ~{new_tc} target companies.\n"
+                f"Current: {people_found} found. Remaining: {remaining}. Est: {pages_needed} credits."
             ),
             "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
         }
@@ -2342,40 +2369,57 @@ Return ONLY valid JSON."""
         if not project or project.user_id != user.id:
             raise ValueError("Project not found")
 
-        pf = dict(run.people_filters or {})
+        # Build new filter set
+        new_pf = dict(run.people_filters or {})
         if "person_titles" in args:
-            pf["person_titles"] = args["person_titles"]
+            new_pf["person_titles"] = args["person_titles"]
         if "person_seniorities" in args:
             valid = {"owner", "founder", "c_suite", "partner", "vp", "head", "director", "manager", "senior", "entry"}
-            pf["person_seniorities"] = [s for s in args["person_seniorities"] if s in valid]
-        if "max_people_per_company" in args or "contacts_per_company" in args:
-            val = args.get("max_people_per_company") or args.get("contacts_per_company")
-            pf["max_people_per_company"] = val
-            run.max_people_per_company = val
+            new_pf["person_seniorities"] = [s for s in args["person_seniorities"] if s in valid]
+        new_mpc = args.get("max_people_per_company") or run.max_people_per_company or 3
 
-        run.people_filters = pf
+        old_pf = run.people_filters or {}
+        targets_found = run.total_targets_found or 0
+
+        # TIER 1: Preview before executing
+        if not args.get("confirm"):
+            return {
+                "status": "awaiting_confirmation",
+                "preview": {
+                    "action": "set_people_filters",
+                    "run_id": run.id,
+                    "old_filters": old_pf,
+                    "new_filters": new_pf,
+                },
+                "message": (
+                    f"I will change people filters on pipeline #{run.id} ({project.name}):\n"
+                    f"  Titles: {', '.join(new_pf.get('person_titles', ['(default)']))}\n"
+                    f"  Seniority: {', '.join(new_pf.get('person_seniorities', ['(default)']))}\n"
+                    f"  Max per company: {new_mpc}\n"
+                    f"  {targets_found} target companies x {new_mpc} = up to {targets_found * new_mpc} contacts\n"
+                    f"  People search is FREE. Takes effect on next batch.\n\n"
+                    f"Approve?"
+                ),
+                "next_action": {"tool": "set_people_filters", "args": {**args, "confirm": True}},
+            }
+
+        # Confirmed — execute
+        run.people_filters = new_pf
+        run.max_people_per_company = new_mpc
         from sqlalchemy.orm.attributes import flag_modified
         flag_modified(run, "people_filters")
         await session.commit()
 
-        tc = run.target_people or 100
-        cpc = run.max_people_per_company or 3
-        targets_found = run.total_targets_found or 0
-
         return {
-            "people_filters": pf,
+            "people_filters": new_pf,
             "message": (
-                f"People filters updated.\n"
-                f"  Titles: {', '.join(pf.get('person_titles', ['(default)']))}\n"
-                f"  Seniority: {', '.join(pf.get('person_seniorities', ['(default)']))}\n"
-                f"  Max per company: {cpc}\n"
-                f"Current: {targets_found} target companies x {cpc} = up to {targets_found * cpc} contacts.\n"
-                f"People search is FREE. Changes take effect on next extraction batch."
+                f"People filters updated. Titles: {', '.join(new_pf.get('person_titles', ['(default)']))}. "
+                f"Max {new_mpc}/company. FREE — takes effect on next batch."
             ),
             "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
         }
 
-    # ── Control Pipeline (pause/resume) ──
+    # ── Control Pipeline (pause/resume) — TIER 1: preview + confirm ──
     if tool_name == "control_pipeline":
         user = await _get_user(token, session)
         run = await session.get(GatheringRun, args["run_id"])
@@ -2387,21 +2431,36 @@ Return ONLY valid JSON."""
 
         action = args["action"]
         from datetime import datetime as _dt, timezone as _tz
+        tp = run.target_people or 100
+        pf = run.total_people_found or 0
+        tf = run.total_targets_found or 0
+        pg = run.pages_fetched or 0
 
         if action == "pause":
             if run.status != "running":
                 raise ValueError(f"Cannot pause: pipeline status is '{run.status}', not 'running'")
+
+            # Preview before executing
+            if not args.get("confirm"):
+                return {
+                    "status": "awaiting_confirmation",
+                    "preview": {"action": "pause", "run_id": run.id, "project": project.name,
+                                "progress": f"{pf}/{tp} contacts, {tf} targets, page {pg}"},
+                    "message": (
+                        f"I will pause pipeline #{run.id} ({project.name}).\n"
+                        f"  Progress: {pf}/{tp} contacts, {tf} targets, {pg} pages.\n"
+                        f"  All progress will be saved — resume anytime.\n\n"
+                        f"Approve?"
+                    ),
+                    "next_action": {"tool": "control_pipeline", "args": {**args, "confirm": True}},
+                }
+
             run.status = "paused"
             run.paused_at = _dt.now(_tz.utc)
             await session.commit()
             return {
-                "run_id": run.id,
-                "status": "paused",
-                "message": (
-                    f"Pipeline paused. Progress saved: {run.total_people_found or 0} contacts, "
-                    f"{run.total_targets_found or 0} targets, {run.pages_fetched or 0} pages.\n"
-                    f"Use control_pipeline(action='resume') to continue."
-                ),
+                "run_id": run.id, "status": "paused",
+                "message": f"Pipeline #{run.id} paused. Progress saved: {pf} contacts, {tf} targets, {pg} pages.",
                 "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
             }
 
@@ -2413,6 +2472,21 @@ Return ONLY valid JSON."""
             if is_pipeline_running(run.id):
                 raise ValueError(f"Pipeline {run.id} is already running.")
 
+            # Preview before executing
+            if not args.get("confirm"):
+                return {
+                    "status": "awaiting_confirmation",
+                    "preview": {"action": "resume", "run_id": run.id, "project": project.name,
+                                "resume_from": f"page {pg}, {pf} contacts found", "target": tp},
+                    "message": (
+                        f"I will resume pipeline #{run.id} ({project.name}) from page {pg}.\n"
+                        f"  Current: {pf}/{tp} contacts, {tf} targets.\n"
+                        f"  Target: {tp} contacts.\n\n"
+                        f"Approve?"
+                    ),
+                    "next_action": {"tool": "control_pipeline", "args": {**args, "confirm": True}},
+                }
+
             run.status = "running"
             run.resumed_at = _dt.now(_tz.utc)
             await session.commit()
@@ -2421,12 +2495,8 @@ Return ONLY valid JSON."""
             start_pipeline_background(run.id, filters, user.id)
 
             return {
-                "run_id": run.id,
-                "status": "running",
-                "message": (
-                    f"Pipeline resumed from {run.total_people_found or 0} contacts, page {run.pages_fetched or 0}.\n"
-                    f"Target: {run.target_people or 100} contacts. Use pipeline_status to track."
-                ),
+                "run_id": run.id, "status": "running",
+                "message": f"Pipeline #{run.id} resumed from page {pg}. Target: {tp} contacts.",
                 "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
             }
 
@@ -2674,6 +2744,23 @@ Return ONLY valid JSON."""
                     f"  prefixes=['ES Global'] — matches campaigns starting with 'ES Global'"
                 ),
                 "_links": {"setup": "http://46.62.210.24:3000/setup"},
+            }
+
+        # TIER 1: Preview matched campaigns before importing
+        if not args.get("confirm"):
+            campaign_preview = [{"name": c.get("name", ""), "id": c.get("id"), "status": c.get("status", "")} for c in matched[:20]]
+            return {
+                "status": "awaiting_confirmation",
+                "campaigns_matched": len(matched),
+                "preview": campaign_preview,
+                "message": (
+                    f"Found {len(matched)} campaigns matching your rules:\n"
+                    + "\n".join(f"  - {c['name']} (ID {c['id']})" for c in campaign_preview)
+                    + f"\n\nI will download all contacts from these campaigns and add their domains to the blacklist.\n"
+                    f"This ensures the pipeline won't gather companies already contacted.\n\n"
+                    f"Approve import?"
+                ),
+                "next_action": {"tool": "import_smartlead_campaigns", "args": {**args, "confirm": True}},
             }
 
         # ACTUALLY DOWNLOAD contacts from each campaign → build blacklist

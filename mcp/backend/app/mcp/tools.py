@@ -617,12 +617,9 @@ Returns: KPI targets (target_people, max_people_per_company, target_companies), 
         "description": """Change pipeline KPI targets. Works on running or paused pipelines.
 
 WHEN USER SAYS: "gather 200 contacts", "I need 50 companies", "set max 5 per company", "change target to 1000" → call THIS.
-Returns updated KPIs + cost estimate for remaining work. KPIs auto-align: changing one recalculates the others.
 
-Alignment rules:
-- Change target_people → target_companies = ceil(target_people / max_people_per_company)
-- Change max_people_per_company → target_companies = ceil(target_people / max_people_per_company)
-- Change target_companies → target_people = target_companies * max_people_per_company""",
+TWO-STEP: Call WITHOUT confirm → shows preview of changes + cost impact. Call WITH confirm=true → applies changes.
+KPIs auto-align: changing one recalculates the others.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -630,6 +627,7 @@ Alignment rules:
                 "target_people": {"type": "integer", "description": "Target total contacts to gather (e.g. 200)"},
                 "target_companies": {"type": "integer", "description": "Target number of target companies (e.g. 50)"},
                 "max_people_per_company": {"type": "integer", "description": "Maximum contacts per company (e.g. 5)"},
+                "confirm": {"type": "boolean", "description": "Set true AFTER user approves the preview"},
             },
             "required": ["run_id"],
         },
@@ -641,13 +639,14 @@ Alignment rules:
 WHEN USER SAYS: "pause", "stop gathering", "hold on", "wait" → action="pause"
 WHEN USER SAYS: "resume", "continue", "keep going", "find more" → action="resume"
 
-Pause: pipeline stops gracefully after current batch. All progress saved.
-Resume: pipeline continues from where it stopped (same filters, same page offset).""",
+TWO-STEP: Call WITHOUT confirm → shows preview of action + pipeline state. Call WITH confirm=true → executes.
+If user has 2+ pipelines, ALWAYS ask which one first.""",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "run_id": {"type": "integer"},
                 "action": {"type": "string", "enum": ["pause", "resume"]},
+                "confirm": {"type": "boolean", "description": "Set true AFTER user approves the preview"},
             },
             "required": ["run_id", "action"],
         },
@@ -658,7 +657,8 @@ Resume: pipeline continues from where it stopped (same filters, same page offset
         "description": """Change which roles/titles to search for when extracting contacts from target companies.
 
 WHEN USER SAYS: "I want VP Marketing and CMO", "change roles to HR directors", "search for CTOs only" → call THIS.
-Updates people_filters on the pipeline run. Takes effect on next people extraction batch.
+
+TWO-STEP: Call WITHOUT confirm → shows preview of new filters. Call WITH confirm=true → applies.
 People search is FREE (Apollo mixed_people endpoint).""",
         "inputSchema": {
             "type": "object",
@@ -666,7 +666,8 @@ People search is FREE (Apollo mixed_people endpoint).""",
                 "run_id": {"type": "integer"},
                 "person_titles": {"type": "array", "items": {"type": "string"}, "description": "Job titles to search (e.g. ['VP Marketing', 'CMO', 'Head of Marketing'])"},
                 "person_seniorities": {"type": "array", "items": {"type": "string"}, "description": "Seniority levels: owner, founder, c_suite, partner, vp, head, director, manager, senior"},
-                "contacts_per_company": {"type": "integer", "description": "Override max contacts per company"},
+                "max_people_per_company": {"type": "integer", "description": "Maximum contacts per company"},
+                "confirm": {"type": "boolean", "description": "Set true AFTER user approves the preview"},
             },
             "required": ["run_id"],
         },
@@ -686,9 +687,9 @@ Does everything automatically:
 People extraction runs IN PARALLEL — as soon as a target is found, contacts are gathered.
 Pipeline runs in BACKGROUND — returns immediately. Use pipeline_status to track progress.
 
-KPIs are configurable: target_count, contacts_per_company, min_targets.
-User can change KPIs mid-run via set_pipeline_kpi, or pause/resume via control_pipeline.
+KPIs are configurable: target_people, max_people_per_company, target_companies.
 
+TWO-STEP: Call WITHOUT confirm → shows preview of KPIs + cost. Call WITH confirm=true → starts pipeline.
 Call AFTER user confirms filters (tam_gather with confirm_filters returned the preview).
 Requires: project with offer context, Apollo + OpenAI keys configured.""",
         "inputSchema": {
@@ -696,9 +697,10 @@ Requires: project with offer context, Apollo + OpenAI keys configured.""",
             "properties": {
                 "run_id": {"type": "integer", "description": "Gathering run to auto-continue"},
                 "filters": {"type": "object", "description": "Apollo filters (from tam_gather preview)"},
-                "target_people": {"type": "integer", "description": "Target total contacts to gather (default 100). User says 'gather 200 contacts' → 200."},
-                "max_people_per_company": {"type": "integer", "description": "Maximum contacts per company (default 3). User says '5 per company' → 5."},
+                "target_people": {"type": "integer", "description": "Target total contacts to gather (default 100)"},
+                "max_people_per_company": {"type": "integer", "description": "Maximum contacts per company (default 3)"},
                 "target_companies": {"type": "integer", "description": "Target companies (auto-derived: ceil(target_people/max_people_per_company))"},
+                "confirm": {"type": "boolean", "description": "Set true AFTER user approves the preview"},
             },
             "required": ["run_id"],
         },
@@ -776,7 +778,9 @@ Returns contacts + a CRM link with filters applied so the user can view them in 
 
 WHEN USER SAYS: "campaigns with petr", "I launched X before", "previous campaigns include Y" → call THIS.
 Loads existing contacts so pipeline knows who NOT to gather again.
-Pass rules.contains=["petr"] if user says "campaigns with petr in name".""",
+
+TWO-STEP: Call WITHOUT confirm → shows matched campaigns. Call WITH confirm=true → downloads contacts.
+If 0 campaigns matched → shows available campaigns and asks to clarify.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -791,6 +795,7 @@ Pass rules.contains=["petr"] if user says "campaigns with petr in name".""",
                         "exact_names": {"type": "array", "items": {"type": "string"}, "description": "Exact campaign names"},
                     },
                 },
+                "confirm": {"type": "boolean", "description": "Set true AFTER user approves matched campaigns"},
             },
             "required": ["project_id", "rules"],
         },
