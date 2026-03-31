@@ -155,13 +155,8 @@ async def _pick_industries(
     prompt = f"""Which 2-3 Apollo industries DIRECTLY describe companies matching: "{query}"?
 Available: {json.dumps(industries)}
 
-Rules:
-- Pick industries where MOST companies in that industry match the query
-- "information technology & services" is good for "IT consulting" (most IT consulting firms are tagged this)
-- "internet" is BAD for "influencer platforms" (too broad — includes everything online)
-- "publishing" is BAD for "influencer platforms" (publishers ≠ platforms)
-- Prefer SPECIFIC industries over CATCH-ALL ones
-
+Pick industries where MOST companies in that industry would match the query.
+Reject industries that are too broad — if an industry contains mostly irrelevant companies, don't pick it.
 Return JSON: {{"industries": ["exact name from list"]}}"""
 
     for try_model in [model, "gpt-4o-mini"]:
@@ -205,12 +200,8 @@ STEP 2 — KEYWORDS
 Pick 3-7 from this list of real Apollo keyword tags (ranked by relevance):
 {json.dumps(keyword_shortlist)}
 
-CRITICAL RULES:
-- Pick keywords that SPECIFICALLY describe "{query}" — not generic categories
-- "computer software" is TOO BROAD for "IT consulting" — pick "it consulting" instead
-- "internet" is TOO BROAD for "influencer platforms" — pick "influencer marketing platforms" instead
-- Prefer SPECIFIC keywords (50-5000 companies) over GENERIC ones (100K+ companies)
-- Each keyword should narrow the search, not broaden it
+Pick keywords that SPECIFICALLY match "{query}". Each keyword should narrow the search.
+Reject overly broad keywords that would match millions of unrelated companies.
 If fewer than 3 match, suggest up to 2 new specific ones in "unverified_keywords"."""
     else:
         keyword_section = """
