@@ -1206,7 +1206,7 @@ def upload_leads(campaign_id: int, contacts: list[dict]) -> int:
 
 def _load_sequences() -> list[dict] | None:
     """Load v4 sequence from markdown file."""
-    seq_file = SCRIPT_DIR.parent / "projects" / "OnSocial" / "sequences" / "v4_affiliate_performance.md"
+    seq_file = SCRIPT_DIR.parent / "projects" / "OnSocial" / "sequences" / "v4_im_first_agencies.md"
     if not seq_file.exists():
         # Fallback to influencer platforms sequence
         seq_file = SCRIPT_DIR.parent / "projects" / "OnSocial" / "sequences" / "v4_influencer_platforms.md"
