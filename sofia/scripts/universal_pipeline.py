@@ -2225,6 +2225,23 @@ def main():
         if any(kw in json.dumps(args.filters).lower() for kw in ["agency", "agencies", "im_first"]):
             segment = "IM_FIRST_AGENCIES"
         mode_config = {"segment": segment, "filters": args.filters}
+    elif args.mode == "apollo":
+        if not args.filters:
+            print("ERROR: --filters JSON required for --mode apollo")
+            print('  Must contain "keyword_tags" and "locations" lists.')
+            print('  Example: --filters \'{"keyword_tags": ["influencer marketing platform"], '
+                  '"locations": ["United Kingdom", "India"], "max_pages": 25}\'')
+            sys.exit(1)
+        if "keyword_tags" not in args.filters:
+            print("ERROR: --filters must contain 'keyword_tags' list for --mode apollo")
+            sys.exit(1)
+        if "locations" not in args.filters:
+            print("ERROR: --filters must contain 'locations' list for --mode apollo")
+            sys.exit(1)
+        segment = args.segment or "INFLUENCER_PLATFORMS"
+        if any(kw in json.dumps(args.filters).lower() for kw in ["agency", "agencies", "im_first"]):
+            segment = "IM_FIRST_AGENCIES"
+        mode_config = {"segment": segment, "filters": args.filters}
     elif args.mode == "lookalike":
         if not args.examples:
             print("ERROR: --examples required for --mode lookalike")
