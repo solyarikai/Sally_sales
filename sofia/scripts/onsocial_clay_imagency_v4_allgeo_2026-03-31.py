@@ -512,36 +512,85 @@ def save_csv(path: Path, rows: list[dict], sheet_name: str = None):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 0: START GATHERING (Clay with description_keywords)
+# STEP 0: START SEARCH (batch-segments API for influencer_agencies)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step0_start() -> int:
-    """Start Clay gathering via backend API with description_keywords (no AI mapping)."""
+# Search config segment key (matches backend search_config)
+SEARCH_SEGMENT_KEY = "influencer_agencies"
+
+# Also search talent_management segment (maps to IM_FIRST_AGENCIES)
+SEARCH_SEGMENT_KEYS = ["influencer_agencies", "talent_management"]
+
+
+def step0_start(geos: list[str] = None) -> list[int]:
+    """Start search via batch-segments API. Returns list of job_ids."""
     print(f"\n{'='*60}")
-    print(f"STEP 0: Clay Gathering - {SEGMENT_NAME} v4 ALL GEO")
-    print(f"  Source: clay.companies.emulator (description_keywords)")
-    print(f"  Keywords: {len(CLAY_FILTERS['description_keywords'])} description_keywords")
-    print(f"  Excluded: {len(CLAY_FILTERS['description_keywords_exclude'])} keywords")
-    print(f"  Industries: {', '.join(CLAY_FILTERS['industries'])}")
-    print(f"  Employees: {CLAY_FILTERS['minimum_member_count']}-{CLAY_FILTERS['maximum_member_count']}")
-    print(f"  Geo: ALL (no country_names filter)")
-    print(f"  Max results: {CLAY_FILTERS['max_results']}")
+    print(f"STEP 0: Search - {SEGMENT_NAME} v4 ALL GEO")
+    print(f"  Source: Google SERP + AI classification")
+    print(f"  Segments: {', '.join(SEARCH_SEGMENT_KEYS)}")
+    print(f"  Geos: {', '.join(geos) if geos else 'ALL (from search_config)'}")
     print(f"{'='*60}")
 
-    result = api("post", "/pipeline/gathering/start", json={
-        "project_id": PROJECT_ID,
-        "source_type": "clay.companies.emulator",
-        "filters": CLAY_FILTERS,
-        "triggered_by": "operator",
-        "input_mode": "structured",
-        "notes": f"v4 Clay description_keywords - {SEGMENT_NAME} ALL GEO - {len(CLAY_FILTERS['description_keywords'])} keywords",
-    })
+    job_ids = []
+    for seg_key in SEARCH_SEGMENT_KEYS:
+        payload = {
+            "segments": [seg_key],
+            "search_engine": "google_serp",
+            "ai_expand_rounds": 1,
+            "max_concurrent": 2,
+        }
+        if geos:
+            payload["geos"] = geos
 
-    run_id = result["id"]
-    print(f"\n  Run created: #{run_id}")
-    print(f"  Status: {result['status']} / {result['current_phase']}")
-    save_state(run_id, "started")
-    return run_id
+        result = api("post", f"/search/projects/{PROJECT_ID}/batch-segments", json=payload)
+        print(f"  {seg_key}: {result.get('message', result)}")
+        job_ids.append(result)
+
+    save_state(0, "search_started")
+    return job_ids
+
+
+def step0_run_simple(max_queries: int = 500, target_goal: int = 3000) -> int:
+    """Alternative: run general project search (all segments). Returns job_id."""
+    print(f"\n{'='*60}")
+    print(f"STEP 0: Project Search - {SEGMENT_NAME} v4")
+    print(f"  Max queries: {max_queries}")
+    print(f"  Target goal: {target_goal}")
+    print(f"{'='*60}")
+
+    result = api("post", f"/search/projects/{PROJECT_ID}/run", json={
+        "max_queries": max_queries,
+        "target_goal": target_goal,
+    })
+    job_id = result.get("job_id")
+    print(f"  Job created: #{job_id}")
+    save_state(job_id, "search_started")
+    return job_id
+
+
+def wait_for_search_jobs(timeout: int = 3600) -> dict:
+    """Poll search jobs until all complete or timeout."""
+    print("\n  Waiting for search jobs to complete...")
+    start = time.time()
+    while time.time() - start < timeout:
+        time.sleep(30)
+        jobs = api("get", f"/search/jobs?project_id={PROJECT_ID}", raise_on_error=False)
+        if isinstance(jobs, dict) and jobs.get("_error"):
+            # Try list endpoint
+            jobs = api("get", "/search/jobs", raise_on_error=False)
+        job_list = jobs if isinstance(jobs, list) else jobs.get("items", [])
+        running = [j for j in job_list if j.get("status") in ("PENDING", "RUNNING")]
+        if not running:
+            elapsed = int(time.time() - start)
+            print(f"  All jobs complete ({elapsed}s)")
+            # Get stats
+            stats = api("get", f"/search/projects/{PROJECT_ID}/results/stats", raise_on_error=False)
+            if stats and not stats.get("_error"):
+                print(f"  Stats: {json.dumps(stats, indent=2)[:500]}")
+            return stats or {}
+        print(f"  ..{len(running)} jobs still running")
+    print(f"  Timeout after {timeout}s")
+    return {}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
