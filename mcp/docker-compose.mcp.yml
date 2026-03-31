@@ -47,8 +47,6 @@ services:
       - TELEGRAM_NOTIFY_BOT_TOKEN=7786811624:AAHbIUkMOvEB5A8wqw1koyhCNOZaSBgEvUI
     env_file:
       - .env
-    volumes:
-      - ./backend:/app
     depends_on:
       mcp-postgres:
         condition: service_healthy
