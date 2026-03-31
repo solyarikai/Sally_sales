@@ -221,7 +221,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "user": {"name": user.name, "email": user.email},
             "active_project_id": user.active_project_id,
             "integrations": {"configured": sorted(configured_keys), "missing": sorted(missing_keys)},
-            "projects": [{"id": p.id, "name": p.name, "icp": (p.target_segments or "")[:100]} for p in projects],
+            "projects": [{"id": p.id, "name": p.name, "icp": (p.target_segments or "")[:100], "offer_approved": p.offer_approved, "link": f"http://46.62.210.24:3000/projects/{p.id}"} for p in projects],
             "pipeline_runs": [{"id": r.id, "phase": r.current_phase, "status": r.status, "companies": r.new_companies_count, "people": r.total_people_found, "project_id": r.project_id} for r in runs],
             "draft_campaigns": [{"id": c.id, "name": c.name, "status": c.status, "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None} for c in drafts],
             "replies": {"total": reply_count, "warm": warm_count},
@@ -229,10 +229,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "message": (
                 f"Welcome back, {user.name}!\n\n"
                 + keys_msg
-                + (f"You have {len(projects)} project{'s' if len(projects) != 1 else ''}: {', '.join(p.name for p in projects)}\n" if projects else "No projects yet. Create one with create_project.\n")
+                + (("\n".join(f"- Project: {p.name} — {'OFFER NOT CONFIRMED' if not p.offer_approved else 'ready'} — http://46.62.210.24:3000/projects/{p.id}" for p in projects) + "\n") if projects else "No projects yet. Create one with create_project.\n")
                 + (f"{len(runs)} pipeline run{'s' if len(runs) != 1 else ''} ({sum(1 for r in runs if r.current_phase in ('awaiting_targets_ok','awaiting_scope_ok'))} awaiting approval)\n" if runs else "")
                 + (f"{len(drafts)} DRAFT campaign{'s' if len(drafts) != 1 else ''} pending review\n" if drafts else "")
                 + (f"{reply_count} replies tracked ({warm_count} warm)\n" if reply_count else "")
+                # Critical: surface unapproved offers as top-priority action
+                + ("".join(f"\n⚠️ CRITICAL: Offer not confirmed for '{p.name}'. Must call confirm_offer before gathering can start.\n" for p in projects if not p.offer_approved))
                 + "\nWhat would you like to do?"
             ),
         }
