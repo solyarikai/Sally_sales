@@ -491,7 +491,12 @@ Return ONLY valid JSON, no markdown."""
                 f"Once confirmed, I'll proceed with gathering."
             )
         else:
-            offer_display = "\n\nCouldn't extract offer automatically. Please describe your offer/product so I can find the right companies."
+            offer_display = (
+                f"\n\nCouldn't extract offer from {website} automatically (site may use JavaScript rendering)."
+                f"\n\n**ACTION REQUIRED**: Open {website} yourself using WebFetch, read the page content, "
+                f"then call confirm_offer with feedback describing the company's product/offer. "
+                f"Example: confirm_offer(project_id={project.id}, feedback='EasyStaff provides payroll and contractor payment services for companies hiring internationally')"
+            )
 
         return {
             "project_id": project.id,
