@@ -38,6 +38,12 @@ class PipelineIteration(Base):
     # What changed
     change_detail = Column(JSONB, nullable=True)  # {action: "add", step_name: "...", ...}
 
+    # Snapshots for historical comparison
+    filters_snapshot = Column(JSONB, nullable=True)   # Apollo filters used in this iteration
+    prompt_snapshot = Column(Text, nullable=True)      # Classification prompt text used
+    target_count = Column(Integer, nullable=True)      # Targets found in this iteration
+    target_rate = Column(Float, nullable=True)         # Target rate (targets/total)
+
     status = Column(String(30), server_default="pending")  # pending, running, completed, failed
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)

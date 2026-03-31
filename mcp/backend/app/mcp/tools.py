@@ -305,18 +305,22 @@ Use case: user says 'companies like X, Y, Z' or provides a file with example com
     },
     {
         "name": "tam_re_analyze",
-        "description": """Re-classify same companies with better prompt. Creates new pipeline iteration.
+        "description": """Re-classify companies with better prompt. Creates new pipeline iteration.
 
-WHEN USER SAYS: "these aren't right", "exclude X", "re-analyze", "wrong targets" → call provide_feedback FIRST, then THIS.
-WHEN USER'S AGENT provides verdicts: pass agent_verdicts={domain: {target: bool, reason: str}} for auto-tuning.
+WHEN USER SAYS: "these aren't right", "exclude X", "re-analyze", "wrong targets", "use this prompt" → call THIS.
+User can provide their own classification prompt via prompt_text parameter.
 
-Does NOT re-gather. Same companies, different classification. New iteration visible in UI.""",
+TWO-STEP: Call WITHOUT confirm → shows preview (how many companies, prompt preview). Call WITH confirm=true → executes.
+
+IMPORTANT: If user doesn't specify WHICH pipeline to re-analyze and has multiple runs, ASK which one first.
+Applies to ALL companies in the specified run. Same companies, new classification. Previous results preserved (new iteration in UI + prompts history page).""",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "run_id": {"type": "integer"},
-                "prompt_text": {"type": "string", "description": "Improved classification prompt (manual mode)"},
+                "prompt_text": {"type": "string", "description": "Custom classification prompt from user. Can be pasted text or extracted from a file."},
                 "agent_verdicts": {"type": "object", "description": "Auto-tune: {domain: {target: bool, reason: str}}"},
+                "confirm": {"type": "boolean", "description": "Set true AFTER user approves the preview"},
             },
             "required": ["run_id"],
         },
