@@ -985,13 +985,18 @@ Stores override + reasoning for learning.""",
     },
     {
         "name": "provide_feedback",
-        "description": """Store feedback to improve pipeline. Use feedback_type to categorize:
-- "targets": user says which companies are/aren't targets → then call tam_re_analyze
-- "filters": user wants different Apollo filters
-- "sequence": user wants to change email content
+        "description": """Store feedback and get ACTIVE next steps. Feedback types:
+
+- "targets": wrong classifications → stores feedback, then suggests tam_re_analyze (new iteration with approval)
+- "filters": wrong Apollo filters → stores feedback, shows current filters, suggests tam_gather with adjusted filters
+- "sequence": wrong email content → stores for next sequence generation
 - "general": anything else
 
-WHEN USER SAYS: "these aren't targets", "exclude software companies", "wrong classifications" → call THIS with feedback_type="targets", then tam_re_analyze.""",
+WHEN USER SAYS: "these aren't targets" → feedback_type="targets" → then call tam_re_analyze
+WHEN USER SAYS: "wrong filters", "too broad", "add keyword X" → feedback_type="filters" → prepare new tam_gather
+WHEN USER SAYS: "wrong roles", "search for CTOs" → use set_people_filters instead (direct tool)
+
+Each feedback type returns specific next_action with the right tool to call.""",
         "inputSchema": {
             "type": "object",
             "properties": {

@@ -3302,11 +3302,67 @@ Return ONLY valid JSON."""
             },
         )
         session.add(log)
-        return {
-            "stored": True,
-            "feedback_type": args["feedback_type"],
-            "message": f"Feedback stored for '{project.name}'. Will be used in future runs — most recent feedback takes priority.",
-        }
+
+        feedback_type = args["feedback_type"]
+        feedback_text = args["feedback_text"]
+
+        # ── ACTIVE responses by feedback type ──
+        if feedback_type == "filters":
+            # Find latest run for this project
+            latest_run = (await session.execute(
+                select(GatheringRun).where(GatheringRun.project_id == project.id)
+                .order_by(GatheringRun.created_at.desc()).limit(1)
+            )).scalar_one_or_none()
+            current_filters = latest_run.filters if latest_run else {}
+
+            return {
+                "stored": True,
+                "feedback_type": "filters",
+                "message": (
+                    f"Feedback stored: \"{feedback_text}\"\n\n"
+                    f"Current Apollo filters: {current_filters.get('q_organization_keyword_tags', [])}\n"
+                    f"Location: {current_filters.get('organization_locations', [])}\n"
+                    f"Size: {current_filters.get('organization_num_employees_ranges', [])}\n\n"
+                    f"To apply new filters, call tam_gather with updated filters (new pipeline run).\n"
+                    f"Or tell me what to change and I'll prepare the updated filters for your approval."
+                ),
+                "current_filters": current_filters,
+                "next_action": {
+                    "tool": "tam_gather",
+                    "description": "Start new pipeline run with adjusted filters. Show preview first.",
+                },
+                "_links": {"pipelines": "http://46.62.210.24:3000/pipeline"},
+            }
+
+        elif feedback_type == "targets":
+            # Find latest run with CP2 gate
+            latest_run = (await session.execute(
+                select(GatheringRun).where(GatheringRun.project_id == project.id)
+                .order_by(GatheringRun.created_at.desc()).limit(1)
+            )).scalar_one_or_none()
+            run_id = latest_run.id if latest_run else None
+
+            return {
+                "stored": True,
+                "feedback_type": "targets",
+                "message": (
+                    f"Feedback stored: \"{feedback_text}\"\n\n"
+                    f"Next: call tam_re_analyze to re-classify companies with improved prompt.\n"
+                    f"Previous results preserved — new iteration will show before/after."
+                ),
+                "next_action": {
+                    "tool": "tam_re_analyze",
+                    "args": {"run_id": run_id} if run_id else {},
+                    "description": "Re-analyze with feedback incorporated into prompt. Will ask approval first.",
+                },
+            }
+
+        else:
+            return {
+                "stored": True,
+                "feedback_type": feedback_type,
+                "message": f"Feedback stored for '{project.name}'.",
+            }
 
     if tool_name == "activate_campaign":
         user = await _get_user(token, session)
