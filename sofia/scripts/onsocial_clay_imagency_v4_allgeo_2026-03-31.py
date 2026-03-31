@@ -1448,6 +1448,23 @@ def main():
 
     run_id = args.run_id or load_state().get("run_id")
 
+    # Step 7: Re-analyze with new prompt (iterate until accuracy ≥90%)
+    if args.re_analyze:
+        if not run_id:
+            print("ERROR: --run-id required for --re-analyze")
+            sys.exit(1)
+        text = prompt_text or DEFAULT_ANALYSIS_PROMPT
+        print(f"\n  Step 7: RE-ANALYZE with updated prompt (run #{run_id})")
+        result = api("post", f"/pipeline/gathering/runs/{run_id}/re-analyze",
+                      params={"prompt_text": text, "model": "gpt-4o-mini"})
+        targets_found = result.get("targets_found", "?")
+        target_rate = result.get("target_rate", 0)
+        print(f"  Targets: {targets_found} ({target_rate*100:.1f}%)")
+        print(f"\n  ★ Back to Step 6: Verify targets in chat.")
+        print(f"  If accuracy ≥90% → --from-step verify --run-id {run_id}")
+        print(f"  If accuracy <90% → adjust prompt → --re-analyze --run-id {run_id}")
+        return
+
     # -- Step 0: Start Clay gathering --
     if "start" in steps:
         run_id = step0_start()
