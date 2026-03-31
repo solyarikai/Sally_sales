@@ -332,8 +332,8 @@ class GatheringService:
 
     # ── Phase 5: Analyze ──
 
-    ANALYSIS_BATCH_SIZE = 100  # Process 100 companies per batch (was 25)
-    ANALYSIS_CONCURRENCY = 50  # 50 concurrent GPT-4o-mini calls (tested: 100 concurrent = 0 429s on Hetzner)
+    ANALYSIS_BATCH_SIZE = 200  # Process all at once — semaphore controls concurrency
+    # Concurrency controlled by AdaptiveSemaphore: starts at 100, shrinks on 429, grows back
 
     async def analyze(
         self, session: AsyncSession, run: GatheringRun,
@@ -538,7 +538,8 @@ Rules:
         import httpx
         import json as _json
 
-        semaphore = asyncio.Semaphore(self.ANALYSIS_CONCURRENCY)
+        from app.services.adaptive_semaphore import OPENAI_SEM
+        sem = OPENAI_SEM()
 
         async def analyze_one(dc: DiscoveredCompany, scrape_text: Optional[str]) -> Dict:
             """Analyze a single company with GPT-4o-mini."""
@@ -552,7 +553,7 @@ Rules:
             if scrape_text:
                 company_text += f"\n\nWebsite content:\n{scrape_text[:3000]}"
 
-            async with semaphore:
+            async with sem.acquire():
                 try:
                     async with httpx.AsyncClient(timeout=30) as client:
                         resp = await client.post(
@@ -568,6 +569,10 @@ Rules:
                                 "temperature": 0.1,
                             },
                         )
+                        if resp.status_code == 429:
+                            sem.report_429()
+                            return {"domain": dc.domain, "error": "rate_limited"}
+                        sem.report_ok()
                         data = resp.json()
                         extract_openai_usage(data, "gpt-4o-mini", "analyze_company")
                         content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
@@ -730,8 +735,7 @@ Rules:
 
     # ── Company Name Normalization (targets only) ──
 
-    NORMALIZE_BATCH_SIZE = 100  # (was 20)
-    NORMALIZE_CONCURRENCY = 50  # (was 10, tested: 100 = 0 429s)
+    NORMALIZE_BATCH_SIZE = 200  # All at once — semaphore controls concurrency
 
     NORMALIZE_SYSTEM_PROMPT = (
         "You are a data normalization expert. Normalize the company name to its clean, "
@@ -752,7 +756,8 @@ Rules:
         import asyncio
         import httpx
 
-        semaphore = asyncio.Semaphore(self.NORMALIZE_CONCURRENCY)
+        from app.services.adaptive_semaphore import OPENAI_SEM
+        semaphore = OPENAI_SEM().acquire()  # Adaptive: starts 100, shrinks on 429
         changed = 0
 
         async def normalize_one(dc: DiscoveredCompany) -> Optional[str]:
@@ -847,7 +852,8 @@ Rules:
             if scrape_text:
                 working_set[dc.id] = (dc, scrape_text, {})
 
-        semaphore = asyncio.Semaphore(self.ANALYSIS_CONCURRENCY)
+        from app.services.adaptive_semaphore import OPENAI_SEM
+        semaphore = OPENAI_SEM().acquire()  # Adaptive: starts 100, shrinks on 429
 
         for step_idx, step in enumerate(prompt_steps):
             step_name = step.get("name", f"step_{step_idx}")
