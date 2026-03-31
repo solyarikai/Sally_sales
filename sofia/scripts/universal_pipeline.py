@@ -6,125 +6,99 @@ Universal Lead Generation Pipeline
 вся конфигурация (сегменты, тексты, аккаунты) загружается из базы данных.
 Ничего не захардкожено под конкретный проект.
 
-Как работает pipeline (простым языком):
+═══════════════════════════════════════════════════════════
+  ШАГ 0: ПОИСК КОМПАНИЙ (3 источника на выбор)
+═══════════════════════════════════════════════════════════
 
-  Шаг 0:    ПОИСК КОМПАНИЙ — ищем компании через Clay (бесплатно, 0 кредитов)
-            по ICP-тексту или ключевым словам.
-  Шаг 1:    DEDUP — убираем компании, уже найденные в предыдущих запусках (auto).
+  Источник A — Clay ICP (--mode structured / --mode natural)
+    AI (Gemini) конвертирует текстовое описание ICP в Clay фильтры.
+    Хорош для первого поиска, когда фильтры ещё не определены.
+    Менее предсказуем — AI сам решает какие keywords использовать.
+    Стоимость: ~$0.01/компания.
+
+  Источник B — Clay Keywords (--mode keywords)
+    Явный список description_keywords → напрямую в Clay UI (без AI).
+    Быстрее и точнее, чем ICP. Ключевые слова идут как есть.
+    Стоимость: ~$0.01/компания.
+
+  Источник C — Apollo Internal API (--mode apollo)
+    Puppeteer логинится в Apollo, вызывает internal API
+    (POST /api/v1/mixed_companies/search) с q_organization_keyword_tags.
+    Точное совпадение по keyword tags компаний в Apollo.
+    Скрипт: scripts/sofia/onsocial_apollo_companies_search.js
+    Стоимость: БЕСПЛАТНО (0 credits).
+
+  Все три источника на выходе дают список доменов компаний,
+  который дальше идёт в единый pipeline (шаги 1-10).
+
+═══════════════════════════════════════════════════════════
+  ШАГИ 1-10: ЕДИНЫЙ PIPELINE (одинаковый для всех источников)
+═══════════════════════════════════════════════════════════
+
+  Шаг 1:    DEDUP — убираем компании, уже найденные в предыдущих запусках.
   Шаг 2:    BLACKLIST — проверяем компании по чёрному списку проекта.
+            ★ CP1: "Правильный проект? Правильный scope?"
   Шаг 3-4:  ФИЛЬТРАЦИЯ И СКРЕЙПИНГ — убираем мусор (офлайн-бизнесы,
             мёртвые сайты). Скачиваем содержимое сайтов для анализа.
   Шаг 5:    CLASSIFY (GPT-4o-mini) — AI классифицирует каждую компанию:
             is_target? confidence? сегмент? reasoning? ~$0.01-0.05 за батч из 500.
-  Шаг 6:    VERIFY (Claude Code в чате) — оператор с Claude проверяют ВСЕ
-            таргеты GPT. Находят false positives: SaaS продукты, solo консультанты,
-            неправильная география, гос. организации.
-  Шаг 7:    ADJUST PROMPT → повторить 5-6 — если accuracy <90%, корректируем
-            промпт и re-analyze. Цикл завершается когда accuracy ≥90%.
-  Шаг 8:    ПОИСК ЛЮДЕЙ — Apollo People UI Search через Puppeteer
-            (apollo_scraper.js). Батчит по 30 доменов, фильтрует по seniority
-            и titles. Fallback: --apollo-csv.
-  Шаг 9:    ПОИСК EMAIL — FindyMail ищет email по LinkedIn профилям.
-            Платим только за найденные email ($0.01/шт).
-  Шаг 10:   ЗАГРУЗКА В SMARTLEAD — загружаем лиды в существующие кампании
-            по сегментам. Каждый подшаг требует подтверждения.
-            Активация — НИКОГДА не запускается автоматически.
+            ★ CP2: "Список компаний корректный?"
+  Шаг 6:    VERIFY — оператор с Claude проверяют таргеты GPT.
+  Шаг 7:    ADJUST PROMPT → повторить 5-6 если accuracy <90%.
+  Шаг 8:    ПОИСК ЛЮДЕЙ — Apollo People Search (auto или --apollo-csv).
+            ★ CP3: "Одобряете расходы на email enrichment?"
+  Шаг 9:    ПОИСК EMAIL — FindyMail ($0.01/найденный email).
+  Шаг 10:   ЗАГРУЗКА В SMARTLEAD — в существующие кампании.
+            Активация — НИКОГДА автоматически.
 
-  ★ Контрольные точки (Checkpoints):
-    CP1 — после blacklist (шаг 2): "Правильный проект? Правильный scope?"
-    CP2 — после classify (шаг 5): "Список компаний корректный?"
-         → Claude Code верифицирует таргеты в чате (шаг 6)
-         → Если accuracy <90%: adjust prompt + re-analyze (шаг 7 → шаг 5)
-    CP3 — перед FindyMail (шаг 9): "Одобряете расходы на email enrichment?"
+═══════════════════════════════════════════════════════════
+  GOOGLE SHEETS & DRIVE
+═══════════════════════════════════════════════════════════
 
-  ★ Google Sheets & Drive:
-    Все CSV автоматически дублируются в Google Sheets (аккаунт sofia@getsally.io).
-    OAuth credentials: ~/.claude/google-sheets/token.json (локально) или
-                       sofia/.google-sheets/token.json (Hetzner).
-    Sheets размещаются в папках Google Drive по TYPE из naming convention:
-      Leads → Onsocial/Leads/, Import → Onsocial/Import/, Targets → Onsocial/Target/,
-      Ops → Onsocial/Ops/, Analytics → Onsocial/Analytics/, Archive → Onsocial/Archive/.
-    Naming: [PROJECT] | [TYPE] | [SEGMENT] — [DATE]
-    Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
+  Все CSV дублируются в Google Sheets (аккаунт sofia@getsally.io).
+  OAuth: ~/.claude/google-sheets/token.json (локально) или
+         sofia/.google-sheets/token.json (Hetzner).
+  Naming: [PROJECT] | [TYPE] | [SEGMENT] — [DATE]
+  Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
 
-Pipeline flow (technical):
-  Steps 0-5:  Backend gathering API (Clay → Dedup → Blacklist → Pre-filter → Scrape → Classify)
-  Steps 6-7:  Claude Code verification in chat + prompt iteration until ≥90% accuracy
-  Step 8:     Apollo People UI Search (auto via apollo_scraper.js) or CSV import (--apollo-csv fallback)
-  Step 9:     FindyMail email enrichment ($0.01/email)
-  Step 10:    SmartLead upload (with per-step checkpoints)
+═══════════════════════════════════════════════════════════
+  USAGE
+═══════════════════════════════════════════════════════════
 
-Input modes:
-  --mode natural    : Claude generates filters in conversation, passes as --filters JSON
-  --mode structured : Uses CLAY_FILTERS from project config (segment-based)
-  --mode keywords   : Direct Clay search by description_keywords (no AI mapping).
-                      Pass --filters JSON with "description_keywords" list.
-                      Faster and more precise than icp_text — keywords go straight to Clay UI.
-  --mode apollo     : Apollo Companies internal API search (via apollo_companies_search.js).
-                      Pass --filters JSON with "keyword_tags" and "locations" lists.
-                      Uses q_organization_keyword_tags for precise matching. FREE.
-  --mode lookalike  : Reverse-engineers filters from example company domains
-  --mode expand     : Clones a previous run with JSON overrides
-
-Clay search modes (Step 0):
-  Backend supports two Clay company search strategies:
-
-  1. icp_text (AI-mapped): Pass natural language ICP description.
-     Backend uses Gemini 2.5 Pro to map ICP → Clay filters (industries, keywords, etc).
-     Good for exploratory searches. Less predictable — AI decides the keywords.
-     Used by: --mode natural, --mode structured (default_filters with icp_text).
-
-  2. description_keywords (direct): Pass explicit keyword list.
-     Keywords go directly to Clay UI — no AI round-trip. Faster, deterministic.
-     Good for precise searches with known filter parameters (e.g. from apollo-filters docs).
-     Used by: --mode keywords, or --mode natural with description_keywords in --filters.
-
-  Filter fields accepted by Clay backend (ClayCompaniesFilters):
-    icp_text                      — natural language ICP (triggers AI mapping)
-    description_keywords          — list of company description keywords (direct search)
-    description_keywords_exclude  — list of keywords to exclude
-    industries / industries_exclude — Clay industry tags
-    country_names / country_names_exclude — countries (omit for ALL GEO)
-    minimum_member_count / maximum_member_count — employee range
-    max_results                   — cap (5000 per geo split, auto-splits if exceeded)
-
-Usage:
-  # Full pipeline from gathering (icp_text from DB config)
+  # Clay ICP — AI маппит ICP → Clay фильтры
   python3 universal_pipeline.py --project-id 42 --mode structured --segment influencer_platforms
 
-  # Direct keyword search (no AI mapping)
-  python3 universal_pipeline.py --project-id 42 --mode keywords \
+  # Clay Keywords — явные keywords, без AI
+  python3 universal_pipeline.py --project-id 42 --mode keywords \\
     --filters '{"description_keywords": ["influencer marketing platform", "creator analytics"],
                 "description_keywords_exclude": ["recruitment", "staffing"],
                 "industries": ["Computer Software", "Internet"],
                 "minimum_member_count": 5, "maximum_member_count": 5000,
                 "max_results": 5000}'
 
-  # Resume from people search (auto Apollo UI search)
-  python3 universal_pipeline.py --project-id 42 --from-step people
-
-  # Resume with manual CSV (fallback)
-  python3 universal_pipeline.py --project-id 42 --from-step people --apollo-csv export.csv
-
-  # Lookalike search
-  python3 universal_pipeline.py --project-id 42 --mode lookalike --examples "impact.com,modash.io"
-
-  # Expand previous run to new geography
-  python3 universal_pipeline.py --project-id 42 --mode expand --base-run 198 \
-    --override '{"country_names": ["Singapore", "Thailand"]}'
-
-  # Apollo Companies internal API search (FREE, precise keyword_tags)
-  python3 universal_pipeline.py --project-id 42 --mode apollo \
+  # Apollo Internal API — FREE, точные keyword_tags
+  python3 universal_pipeline.py --project-id 42 --mode apollo \\
     --filters '{"keyword_tags": ["influencer marketing platform", "creator analytics"],
                 "locations": ["United Kingdom", "India", "France"],
                 "sizes": ["5,50", "51,200", "201,500", "501,1000", "1001,5000"],
                 "excluded_keywords": ["recruitment", "staffing"],
                 "max_pages": 25}'
 
-  # Dry run
+  # Lookalike — reverse-engineering фильтров по примерам
+  python3 universal_pipeline.py --project-id 42 --mode lookalike --examples "impact.com,modash.io"
+
+  # Expand — клон предыдущего рана с новыми параметрами
+  python3 universal_pipeline.py --project-id 42 --mode expand --base-run 198 \\
+    --override '{"country_names": ["Singapore", "Thailand"]}'
+
+  # Resume — продолжить с любого шага
+  python3 universal_pipeline.py --project-id 42 --from-step people
+  python3 universal_pipeline.py --project-id 42 --from-step people --apollo-csv export.csv
+
+  # Dry run — напечатать параметры без API вызовов
   python3 universal_pipeline.py --project-id 42 --mode structured --segment agencies_mena --dry-run
 
-Env vars: APOLLO_API_KEY, FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
+Env vars: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
 Backend must be running on localhost:8000 (Hetzner)
 """
 
