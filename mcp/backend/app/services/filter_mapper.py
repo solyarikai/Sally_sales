@@ -152,12 +152,15 @@ async def _pick_industries(
     openai_key: str, model: str = "gpt-4o-mini",
 ) -> List[str]:
     """Separate focused call for industry selection. gpt-4o-mini tested at 100%."""
-    prompt = f"""Which 2-3 Apollo industries DIRECTLY describe companies matching: "{query}"?
-Available: {json.dumps(industries)}
+    prompt = f"""I'm searching Apollo.io for: "{query}"
 
-Pick industries where MOST companies in that industry would match the query.
-Reject industries that are too broad — if an industry contains mostly irrelevant companies, don't pick it.
-Return JSON: {{"industries": ["exact name from list"]}}"""
+Score each industry 0-100 for: "What % of companies in this Apollo industry would match my search?"
+Only return industries scoring 60+.
+
+Available Apollo industries:
+{json.dumps(industries)}
+
+Return JSON: {{"industries": [{{"name": "exact name", "score": 85, "reason": "why"}}]}}"""
 
     for try_model in [model, "gpt-4o-mini"]:
         try:
@@ -176,7 +179,13 @@ Return JSON: {{"industries": ["exact name from list"]}}"""
                 if content.startswith("```"):
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0]
                 result = json.loads(content)
-                return result.get("industries", [])
+                scored = result.get("industries", [])
+                # Extract names from scored list, sorted by score
+                if scored and isinstance(scored[0], dict):
+                    scored.sort(key=lambda x: x.get("score", 0), reverse=True)
+                    logger.info(f"Industry scores for '{query}': {[(s.get('name'), s.get('score')) for s in scored]}")
+                    return [s["name"] for s in scored if s.get("score", 0) >= 60]
+                return scored  # fallback: plain list
         except Exception:
             continue
     return industries[:2]
@@ -196,13 +205,14 @@ async def _gpt_pick_filters(
     keyword_section = ""
     if keyword_shortlist:
         keyword_section = f"""
-STEP 2 — KEYWORDS
-Pick 3-7 from this list of real Apollo keyword tags (ranked by relevance):
+KEYWORDS
+Score each keyword 0-100: "If I filter Apollo by ONLY this keyword, what % of results would match '{query}'?"
+Pick keywords scoring 50+. Return them sorted by score.
+
+Available Apollo keywords (pre-filtered by semantic relevance):
 {json.dumps(keyword_shortlist)}
 
-Pick keywords that SPECIFICALLY match "{query}". Each keyword should narrow the search.
-Reject overly broad keywords that would match millions of unrelated companies.
-If fewer than 3 match, suggest up to 2 new specific ones in "unverified_keywords"."""
+If fewer than 3 score 50+, suggest up to 2 new specific ones in "unverified_keywords"."""
     else:
         keyword_section = """
 STEP 2 — KEYWORDS
@@ -225,7 +235,7 @@ Available ranges: {json.dumps(employee_ranges)}
 Think: what size companies would buy this product?
 
 Return ONLY valid JSON:
-{{"keywords": ["exact keyword from list"],
+{{"keywords": [{{"term": "exact keyword from list", "score": 85}}],
   "unverified_keywords": ["suggested keyword not in list"],
   "employee_ranges": ["11,50", "51,200"]}}"""
 
@@ -252,6 +262,12 @@ Return ONLY valid JSON:
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0]
                 result = json.loads(content)
                 result["model_used"] = try_model
+                # Extract scored keywords → plain list, filtered by score
+                raw_kw = result.get("keywords", [])
+                if raw_kw and isinstance(raw_kw[0], dict):
+                    raw_kw.sort(key=lambda x: x.get("score", 0), reverse=True)
+                    logger.info(f"Keyword scores for '{query}': {[(k.get('term'), k.get('score')) for k in raw_kw]}")
+                    result["keywords"] = [k["term"] for k in raw_kw if k.get("score", 0) >= 50]
                 return result
         except Exception as e:
             logger.warning(f"Filter mapper {try_model} failed: {e}")
