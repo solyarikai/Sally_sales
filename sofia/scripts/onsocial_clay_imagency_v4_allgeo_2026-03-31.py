@@ -1509,7 +1509,7 @@ def main():
         if phase == "filtered":
             step4_scrape(run_id)
 
-    # -- Step 5: Analyze -> CP2 --
+    # -- Step 5: Analyze (GPT classify) -> CP2 --
     if "analyze" in steps and run_id:
         _, prompt = get_latest_prompt()
         text = prompt_text or prompt or DEFAULT_ANALYSIS_PROMPT
@@ -1518,46 +1518,52 @@ def main():
         if phase == "scraped":
             cp2 = step5_analyze(run_id, text)
             if cp2.get("gate_id"):
-                print(f"\n  PAUSING at CP2. Approve gate #{cp2['gate_id']}, then resume:")
+                print(f"\n  ★ PAUSING AT CP2.")
+                print(f"  Step 6: Verify targets with Claude Code in chat.")
+                print(f"  Step 7: If accuracy <90% → adjust prompt → re-analyze:")
+                print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
+                print(f"  When accuracy ≥90% → approve gate and resume:")
                 print(f"    --from-step verify --run-id {run_id}")
                 return
 
-    # -- Step 6: Verify -> CP3 --
+    # -- Steps 6-7 done in chat. Verify = approve CP2 + blacklist + export --
     if "verify" in steps and run_id:
         run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
         phase = run_info.get("current_phase", "")
         if phase == "awaiting_targets_ok":
             approve_pending_gate(run_id)
         blacklist_approved_targets(run_id)
-        cp3 = step6_prepare_verify(run_id)
-        if cp3.get("gate_id"):
-            print(f"\n  PAUSING at CP3. Approve gate #{cp3['gate_id']}, then resume:")
-            print(f"    --from-step export --run-id {run_id}")
-            return
-
-    # -- Step 9: Export targets --
-    if "export" in steps:
         targets = step9_export_targets(force=args.force)
     else:
         targets = load_json(TARGETS_FILE) or []
 
-    # -- Step 10: Apollo People Search --
+    # -- Step 8: Apollo People Search (Puppeteer UI) --
     if "people" in steps:
         if args.apollo_csv:
             contacts = step10_import_apollo_csv(args.apollo_csv, targets, force=args.force)
         else:
             contacts = step10_apollo_people_search(targets, force=args.force)
+
+        # CP3: approve FindyMail cost before proceeding
+        with_li = sum(1 for c in contacts if c.get("linkedin_url") and not c.get("email"))
+        cost_est = with_li * 0.01
+        print(f"\n  ★ CP3 — FindyMail cost estimate:")
+        print(f"  Contacts to enrich: {with_li}")
+        print(f"  Estimated cost: ${cost_est:.2f}")
+        print(f"  PAUSING. Approve cost, then resume:")
+        print(f"    --from-step findymail --run-id {run_id}")
+        return
     else:
         contacts = load_json(CONTACTS_FILE) or []
 
-    # -- Step 11: FindyMail --
+    # -- Step 9: FindyMail email enrichment --
     if "findymail" in steps:
         contacts = asyncio.run(step11_findymail(contacts, max_contacts=args.max_findymail,
                                                   force=args.force))
     else:
         contacts = load_json(ENRICHED_FILE) or contacts
 
-    # -- Step 12: SmartLead Upload --
+    # -- Step 10: SmartLead Upload --
     if "upload" in steps:
         step12_upload(contacts)
 
