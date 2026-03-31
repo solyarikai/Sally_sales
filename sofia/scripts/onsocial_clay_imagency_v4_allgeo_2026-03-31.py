@@ -1144,7 +1144,7 @@ async def step11_findymail(contacts: list[dict], max_contacts: int = 1500,
 # STEP 12: SMARTLEAD UPLOAD
 # ══════════════════════════════════════════════════════════════════════════════
 
-CAMPAIGN_NAME = "c-OnSocial_AFFILIATE PERFORMANCE v4 Clay ALL GEO #C"
+CAMPAIGN_NAME = "c-OnSocial_IM FIRST AGENCIES v4 Clay ALL GEO #C"
 TIMING = [0, 4, 4, 6, 7]  # Day offsets between emails
 
 
