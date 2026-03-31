@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision = "011_offer_alignment"
-down_revision = "010_rename_kpi_columns"
+down_revision = "010_rename_kpi"
 
 
 def upgrade():
