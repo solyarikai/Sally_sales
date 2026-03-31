@@ -229,12 +229,15 @@ PEOPLE_TITLES = [
 
 EXCLUDED_TITLES_PATTERNS = [
     "intern", "junior", "assistant", "student", "freelance",
-    "marketing manager", "sales representative", "account executive",
-    "account manager", "customer success", "support", "hr", "people",
-    "recruiter", "content writer", "designer", "social media manager",
-    "affiliate manager", "partner manager",
-    "solutions architect", "technical architect", "enterprise architect",
-    "staff engineer", "principal engineer", "lead engineer", "lead developer",
+    "campaign manager", "campaign coordinator",
+    "social media manager", "content creator", "designer",
+    "account coordinator", "media planner", "media buyer",
+    "pr manager", "communications manager",
+    "hr", "people", "recruiter", "finance", "accounting",
+    "executive assistant", "office manager", "operations coordinator",
+    "community manager", "senior community manager",
+    "influencer coordinator", "senior influencer coordinator",
+    "talent coordinator", "senior talent coordinator",
 ]
 
 
