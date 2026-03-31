@@ -22,9 +22,12 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-CACHE_PATH = Path(__file__).parent.parent.parent.parent / "apollo_filters" / "apollo_taxonomy_cache.json"
-EMBEDDINGS_PATH = Path(__file__).parent.parent.parent.parent / "apollo_filters" / "apollo_embeddings.npz"
-TAXONOMY_PATH = Path(__file__).parent.parent.parent.parent / "apollo_filters" / "apollo_taxonomy.json"
+# In Docker: /app/apollo_filters/ (volume-mounted, persists across restarts)
+# Local dev: mcp/backend/apollo_filters/ (relative to working dir)
+_APP_ROOT = Path("/app") if Path("/app/apollo_filters").exists() else Path(__file__).parent.parent.parent
+CACHE_PATH = _APP_ROOT / "apollo_filters" / "apollo_taxonomy_cache.json"
+EMBEDDINGS_PATH = _APP_ROOT / "apollo_filters" / "apollo_embeddings.npz"
+TAXONOMY_PATH = _APP_ROOT / "apollo_filters" / "apollo_taxonomy.json"
 
 EMPLOYEE_RANGES = [
     "1,10", "11,50", "51,200", "201,500",
