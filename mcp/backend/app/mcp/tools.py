@@ -87,6 +87,23 @@ AFTER creating project, ask: "Have you launched campaigns for this project befor
         },
     },
     {
+        "name": "confirm_offer",
+        "description": """Confirm or adjust the project's offer before gathering can start.
+
+MANDATORY before tam_gather. After create_project extracts the offer from the website, the user MUST confirm it.
+- If user says "yes", "correct", "looks good" → call with approved=true
+- If user says "no, I sell payroll not invoicing" → call with feedback="we sell payroll, not invoicing"
+- After feedback, show the updated offer and ask again until user confirms""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "integer", "description": "Project ID (optional if active project set)"},
+                "approved": {"type": "boolean", "description": "True = user confirms the offer is correct"},
+                "feedback": {"type": "string", "description": "User's correction/clarification about the offer"},
+            },
+        },
+    },
+    {
         "name": "list_projects",
         "description": "List all your projects.",
         "inputSchema": {"type": "object", "properties": {}},

@@ -35,6 +35,10 @@ class Project(Base):
     sender_company = Column(String(255), nullable=True)
     sender_position = Column(String(255), nullable=True)
 
+    # Offer alignment — user must approve before gathering
+    offer_summary = Column(JSONB, nullable=True)  # {product, value_props, target_audience, raw_website_text}
+    offer_approved = Column(Boolean, server_default="false")
+
     # Campaign management
     campaign_filters = Column(JSONB, server_default="[]")
 

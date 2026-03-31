@@ -374,30 +374,72 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             session.add(company)
             await session.flush()
 
-        # Scrape website to extract value proposition for ICP context
         website = args.get("website")
         target_segments = args.get("target_segments") or ""
-        website_context = ""
-        skip_scrape = args.get("skip_scrape", False)
-        if website and not skip_scrape:
-            import httpx as _httpx
-            try:
-                async with _httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-                    resp = await client.get(website)
-                    if resp.status_code == 200:
-                        import re
-                        html = resp.text
-                        # Strip HTML tags for plain text
-                        text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
-                        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
-                        text = re.sub(r'<[^>]+>', ' ', text)
-                        text = re.sub(r'\s+', ' ', text).strip()[:2000]
-                        website_context = f"\n\nCompany website ({website}): {text}"
-            except Exception as e:
-                website_context = f"\n\nWebsite scrape failed: {e}"
+        offer_summary = None
+        scrape_status = "not_scraped"
 
-        if website_context:
-            target_segments = (target_segments + website_context).strip()
+        # ── Step 1: Scrape website via Apify residential proxy ──
+        if website:
+            if not website.startswith("http"):
+                website = f"https://{website}"
+            try:
+                from app.services.user_context import UserServiceContext
+                ctx = UserServiceContext(user.id, session)
+                scraper = await ctx.get_scraper_service()
+                scrape_result = await scraper.scrape_website(website)
+                website_text = scrape_result.get("text", "")[:4000]
+                scrape_status = "scraped" if website_text else "empty"
+
+                # ── Step 2: AI analysis of offer via GPT-4.1-mini ──
+                if website_text:
+                    openai_key = await ctx.get_key("openai")
+                    if openai_key:
+                        import httpx as _httpx
+                        analysis_prompt = f"""Analyze this company website and extract a structured offer summary.
+
+Website: {website}
+Website content:
+{website_text[:3000]}
+
+Return JSON with:
+- "company_name": official company name
+- "products": list of products/services offered (each with "name" and "description")
+- "primary_offer": the MAIN product/service in 1 sentence
+- "value_proposition": what problem they solve, for whom
+- "target_audience": who buys this (company types, sizes, industries)
+- "key_differentiators": 2-3 bullet points on why customers choose them
+
+Return ONLY valid JSON, no markdown."""
+
+                        try:
+                            async with _httpx.AsyncClient(timeout=20) as client:
+                                resp = await client.post(
+                                    "https://api.openai.com/v1/chat/completions",
+                                    headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                                    json={"model": "gpt-4.1-mini", "messages": [{"role": "user", "content": analysis_prompt}],
+                                          "max_tokens": 800, "temperature": 0},
+                                )
+                                data = resp.json()
+                                content = data["choices"][0]["message"]["content"].strip()
+                                if content.startswith("```"):
+                                    content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+                                import json as _json
+                                offer_summary = _json.loads(content)
+                                offer_summary["_raw_website_text"] = website_text[:2000]
+                                # Use AI-extracted offer as target_segments
+                                target_segments = f"{offer_summary.get('primary_offer', '')}. Target: {offer_summary.get('target_audience', '')}"
+                                scrape_status = "analyzed"
+                        except Exception as e:
+                            logger.warning(f"Offer analysis failed: {e}")
+                            target_segments = f"Company website ({website}): {website_text[:2000]}"
+                            scrape_status = "scrape_only"
+                    else:
+                        target_segments = f"Company website ({website}): {website_text[:2000]}"
+                        scrape_status = "scrape_only_no_openai"
+            except Exception as e:
+                logger.warning(f"Website scrape failed: {e}")
+                scrape_status = f"failed: {str(e)[:100]}"
 
         project = Project(
             company_id=company.id, user_id=user.id, name=args["name"],
@@ -406,23 +448,156 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             sender_name=args.get("sender_name"),
             sender_company=args.get("sender_company"),
             sender_position=args.get("sender_position"),
+            offer_summary=offer_summary,
+            offer_approved=False,
         )
         session.add(project)
         await session.flush()
-        # P0-1: After project creation, ask about previous campaigns (for blacklist)
+        user.active_project_id = project.id
+
+        # ── Build response with offer for user alignment ──
+        offer_display = ""
+        if offer_summary:
+            offer_display = (
+                f"\n\n**Offer extracted from {website}:**\n"
+                f"  Product: {offer_summary.get('primary_offer', 'N/A')}\n"
+                f"  Value prop: {offer_summary.get('value_proposition', 'N/A')}\n"
+                f"  Target audience: {offer_summary.get('target_audience', 'N/A')}\n"
+            )
+            if offer_summary.get("products"):
+                offer_display += "  All products: " + ", ".join(p.get("name", "") for p in offer_summary["products"]) + "\n"
+            offer_display += (
+                f"\n**Is this the right offer for this campaign?** "
+                f"If you sell multiple products (e.g. payroll vs invoicing), tell me which one. "
+                f"Once confirmed, I'll proceed with gathering."
+            )
+        else:
+            offer_display = "\n\nCouldn't extract offer automatically. Please describe your offer/product so I can find the right companies."
+
         return {
             "project_id": project.id,
             "name": project.name,
-            "website_scraped": bool(website_context),
-            "next_question": "Have you launched campaigns for this project before? If yes, tell me the campaign name pattern (e.g. 'campaigns with petr in name') so I can load contacts for blacklist.",
+            "offer_summary": offer_summary,
+            "offer_approved": False,
+            "scrape_status": scrape_status,
             "message": (
                 f"Project '{project.name}' created."
-                + (f" Website {website} scraped for ICP context." if website_context else "")
-                + f"\n\nProject page: http://46.62.210.24:3000/projects"
-                + f"\n\nBefore gathering, have you launched campaigns for this project before? Tell me the campaign name pattern for blacklist."
+                + offer_display
+                + f"\n\nProject page: http://46.62.210.24:3000/projects/{project.id}"
             ),
-            "_links": {"project": "http://46.62.210.24:3000/projects"},
+            "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+            "next_step": "confirm_offer — user must approve the offer before gathering can start",
         }
+
+    if tool_name == "confirm_offer":
+        user = await _get_user(token, session)
+        project_id = args.get("project_id") or (user.active_project_id if hasattr(user, 'active_project_id') else None)
+        if not project_id:
+            raise ValueError("project_id required")
+        project = await session.get(Project, project_id)
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        approved = args.get("approved", False)
+        feedback = args.get("feedback", "")
+
+        if approved and not feedback:
+            # User confirms — offer is good
+            project.offer_approved = True
+            return {
+                "project_id": project.id,
+                "offer_approved": True,
+                "message": (
+                    f"Offer confirmed for '{project.name}'! Now ready to gather.\n\n"
+                    f"Have you launched campaigns for this project before? "
+                    f"If yes, tell me the campaign name pattern (e.g. 'campaigns with petr in name') so I can load contacts for blacklist."
+                ),
+                "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+            }
+        elif feedback:
+            # User provides feedback — update offer and re-analyze
+            old_offer = project.offer_summary or {}
+            from app.services.user_context import UserServiceContext
+            ctx = UserServiceContext(user.id, session)
+            openai_key = await ctx.get_key("openai")
+
+            if openai_key:
+                import httpx as _httpx
+                update_prompt = f"""The user reviewed the extracted offer and provided feedback.
+
+Current offer:
+- Product: {old_offer.get('primary_offer', 'N/A')}
+- Value prop: {old_offer.get('value_proposition', 'N/A')}
+- Target: {old_offer.get('target_audience', 'N/A')}
+- Products: {', '.join(p.get('name','') for p in old_offer.get('products', []))}
+
+User feedback: "{feedback}"
+
+Update the offer based on user feedback. Return JSON with same structure:
+- "primary_offer": updated main product in 1 sentence
+- "value_proposition": updated
+- "target_audience": updated
+- "products": updated list
+- "key_differentiators": updated
+
+Return ONLY valid JSON."""
+
+                try:
+                    async with _httpx.AsyncClient(timeout=15) as client:
+                        resp = await client.post(
+                            "https://api.openai.com/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                            json={"model": "gpt-4.1-mini", "messages": [{"role": "user", "content": update_prompt}],
+                                  "max_tokens": 600, "temperature": 0},
+                        )
+                        data = resp.json()
+                        content = data["choices"][0]["message"]["content"].strip()
+                        if content.startswith("```"):
+                            content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+                        import json as _json
+                        updated = _json.loads(content)
+                        # Preserve raw website text
+                        updated["_raw_website_text"] = old_offer.get("_raw_website_text", "")
+                        project.offer_summary = updated
+                        project.target_segments = f"{updated.get('primary_offer', '')}. Target: {updated.get('target_audience', '')}"
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(project, "offer_summary")
+                except Exception as e:
+                    logger.warning(f"Offer update failed: {e}")
+                    # Fallback: just store user's feedback as target_segments
+                    project.target_segments = feedback
+            else:
+                project.target_segments = feedback
+
+            project.offer_approved = False
+            updated_offer = project.offer_summary or {}
+            return {
+                "project_id": project.id,
+                "offer_approved": False,
+                "offer_summary": updated_offer,
+                "message": (
+                    f"Offer updated based on your feedback.\n\n"
+                    f"**Updated offer:**\n"
+                    f"  Product: {updated_offer.get('primary_offer', project.target_segments)}\n"
+                    f"  Target: {updated_offer.get('target_audience', 'N/A')}\n\n"
+                    f"**Is this correct now?** Confirm to proceed, or provide more feedback."
+                ),
+                "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+            }
+        else:
+            # No approved, no feedback — just show current offer
+            offer = project.offer_summary or {}
+            return {
+                "project_id": project.id,
+                "offer_approved": project.offer_approved,
+                "offer_summary": offer,
+                "message": (
+                    f"Current offer for '{project.name}':\n"
+                    f"  Product: {offer.get('primary_offer', project.target_segments or 'Not set')}\n"
+                    f"  Target: {offer.get('target_audience', 'N/A')}\n\n"
+                    f"Confirm (approved=true) or provide feedback to adjust."
+                ),
+            }
 
     if tool_name == "list_projects":
         user = await _get_user(token, session)
@@ -520,6 +695,21 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         project = await session.get(Project, project_id)
         if not project or project.user_id != user.id:
             raise ValueError("Project not found")
+
+        # ── OFFER GATE: must be approved before gathering ──
+        if not project.offer_approved:
+            offer = project.offer_summary or {}
+            return {
+                "error": "offer_not_approved",
+                "message": (
+                    f"Cannot start gathering — offer not confirmed yet for '{project.name}'.\n\n"
+                    + (f"Current offer: {offer.get('primary_offer', project.target_segments or 'Not set')}\n"
+                       f"Target: {offer.get('target_audience', 'N/A')}\n\n" if offer else "")
+                    + "Confirm the offer first with confirm_offer (approved=true), or provide feedback to adjust it."
+                ),
+                "project_id": project.id,
+                "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+            }
 
         # Auto-set active project during pipeline work
         user.active_project_id = project.id
