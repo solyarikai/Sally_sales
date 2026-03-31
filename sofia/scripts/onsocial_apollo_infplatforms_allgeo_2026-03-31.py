@@ -887,7 +887,7 @@ def _map_apollo_person(person: dict, targets_by_domain: dict, batch_domain: str 
         "linkedin_url": person.get("linkedin_url", person.get("linkedin", "")),
         "country": country,
         "employees": person.get("employees", "") or target.get("employees", ""),
-        "social_proof": "",
+        "social_proof": get_social_proof(country),
     }
 
 
