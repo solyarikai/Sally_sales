@@ -160,9 +160,10 @@ async def get_account(
     openai_total_cost = 0.0
     openai_total_tokens = 0
 
+    # Match both old format (action="api_cost") and new format (action="cost_openai", "cost_apollo", etc.)
     usage_logs_q = select(MCPUsageLog.extra_data).where(
         MCPUsageLog.user_id == user.id,
-        MCPUsageLog.action == "api_cost",
+        (MCPUsageLog.action == "api_cost") | (MCPUsageLog.action.like("cost_%")),
     )
     if date_filter_from:
         usage_logs_q = usage_logs_q.where(MCPUsageLog.created_at >= date_filter_from)
