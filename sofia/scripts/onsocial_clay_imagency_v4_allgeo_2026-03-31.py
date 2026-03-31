@@ -108,8 +108,8 @@ SMARTLEAD_EMAIL_ACCOUNTS = [
 # Project
 PROJECT_ID = 42  # OnSocial
 PROJECT_CODE = "OS"
-SEGMENT_NAME = "AFFILIATE_PERFORMANCE"
-SEGMENT_CODE = "AFFPERF"
+SEGMENT_NAME = "IM_FIRST_AGENCIES"
+SEGMENT_CODE = "IMAGENCY"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
