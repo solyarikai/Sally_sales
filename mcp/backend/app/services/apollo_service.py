@@ -201,5 +201,19 @@ class ApolloService:
         data = await self._api_call("POST", "/mixed_people/api_search", {"q_organization_domains": "apollo.io", "per_page": 1})
         return data is not None
 
+    async def get_account_info(self) -> dict:
+        """Get account info including plan type and credit limit."""
+        if not self.api_key:
+            return {}
+        data = await self._api_call("GET", "/auth/check")
+        if not data:
+            return {}
+        bd = data.get("bootstrapped_data", {})
+        return {
+            "is_core": bd.get("is_core", False),
+            "free_lead_credit_limit": bd.get("free_lead_credit_limit", 0),
+            "team_id": bd.get("current_team_id"),
+        }
+
     def reset_credits(self):
         self.credits_used = 0
