@@ -1,0 +1,273 @@
+{
+  "timestamp": "2026-03-31T21:01:29.103598",
+  "results": [
+    {
+      "label": "easystaff_it_miami",
+      "query": "IT consulting companies in Miami",
+      "offer": "EasyStaff payroll for remote teams",
+      "industries": [
+        "information technology & services",
+        "management consulting",
+        "computer software",
+        "computer & network security"
+      ],
+      "keywords": [
+        "information technology & services",
+        "management consulting",
+        "computer software",
+        "computer & network security",
+        "it consulting",
+        "it consulting services",
+        "it consulting firm",
+        "it services & it consulting",
+        "technology consulting",
+        "it consulting and staffing",
+        "management consulting services",
+        "consulting services"
+      ],
+      "locations": [
+        "Miami"
+      ],
+      "sizes": [
+        "11,50",
+        "51,200",
+        "201,500"
+      ],
+      "unverified_keywords": [],
+      "shortlist_size": 50,
+      "keyword_map_size": 2356,
+      "model_used": "gpt-4.1-mini"
+    },
+    {
+      "label": "easystaff_video_london",
+      "query": "Video production companies in London",
+      "offer": "EasyStaff payroll for remote teams",
+      "industries": [
+        "information technology & services",
+        "marketing & advertising"
+      ],
+      "keywords": [
+        "information technology & services",
+        "marketing & advertising",
+        "video production",
+        "creative production",
+        "content production",
+        "media & content creation",
+        "studio production"
+      ],
+      "locations": [
+        "London"
+      ],
+      "sizes": [
+        "11,50",
+        "51,200"
+      ],
+      "unverified_keywords": [],
+      "shortlist_size": 50,
+      "keyword_map_size": 2356,
+      "model_used": "gpt-4.1-mini"
+    },
+    {
+      "label": "tfp_fashion_italy",
+      "query": "Fashion brands in Italy",
+      "offer": "The Fashion People talent management",
+      "industries": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "textiles",
+        "retail"
+      ],
+      "keywords": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "textiles",
+        "retail",
+        "fashion brand italy",
+        "italian fashion",
+        "made in italy fashion",
+        "italian luxury brands",
+        "luxury fashion italy",
+        "italian designer",
+        "luxury fashion brands",
+        "fashion brand florence",
+        "made in italy",
+        "florence-based fashion"
+      ],
+      "locations": [
+        "Italy"
+      ],
+      "sizes": [
+        "11,50",
+        "51,200",
+        "201,500"
+      ],
+      "unverified_keywords": [],
+      "shortlist_size": 50,
+      "keyword_map_size": 2356,
+      "model_used": "gpt-4.1-mini"
+    },
+    {
+      "label": "onsocial_agencies_uk",
+      "query": "Social media Influencer agencies in UK",
+      "offer": "OnSocial creator marketing platform",
+      "industries": [
+        "marketing & advertising",
+        "public relations & communications",
+        "online media"
+      ],
+      "keywords": [
+        "marketing & advertising",
+        "public relations & communications",
+        "online media",
+        "influencer marketing agency",
+        "digital influencer agency",
+        "influencer marketing",
+        "influencer collaborations",
+        "influencer campaigns",
+        "social media influencer campaigns"
+      ],
+      "locations": [
+        "UK"
+      ],
+      "sizes": [
+        "11,50",
+        "51,200"
+      ],
+      "unverified_keywords": [],
+      "shortlist_size": 50,
+      "keyword_map_size": 2356,
+      "model_used": "gpt-4.1-mini"
+    },
+    {
+      "label": "onsocial_platforms_uk",
+      "query": "Social media Influencer platforms in UK",
+      "offer": "OnSocial influencer marketing platform",
+      "industries": [
+        "marketing & advertising",
+        "online media",
+        "entertainment",
+        "public relations & communications"
+      ],
+      "keywords": [
+        "marketing & advertising",
+        "online media",
+        "entertainment",
+        "public relations & communications",
+        "influencer platforms",
+        "influencer marketing platforms",
+        "social media influencers",
+        "influencer platform",
+        "influencer collaboration platforms"
+      ],
+      "locations": [
+        "UK"
+      ],
+      "sizes": [
+        "11,50",
+        "51,200",
+        "201,500"
+      ],
+      "unverified_keywords": [],
+      "shortlist_size": 50,
+      "keyword_map_size": 2356,
+      "model_used": "gpt-4.1-mini"
+    },
+    {
+      "label": "easystaff_fintech_berlin",
+      "query": "Fintech startups in Berlin",
+      "offer": "EasyStaff payroll for remote teams",
+      "industries": [
+        "financial services",
+        "venture capital & private equity",
+        "investment management",
+        "investment banking"
+      ],
+      "keywords": [
+        "financial services",
+        "venture capital & private equity",
+        "investment management",
+        "investment banking",
+        "fintech",
+        "startups",
+        "fintech platform",
+        "fintech innovation",
+        "fintech solutions",
+        "financial technology",
+        "financial innovation"
+      ],
+      "locations": [
+        "Berlin"
+      ],
+      "sizes": [
+        "11,50",
+        "51,200"
+      ],
+      "unverified_keywords": [],
+      "shortlist_size": 50,
+      "keyword_map_size": 2356,
+      "model_used": "gpt-4.1-mini"
+    },
+    {
+      "label": "easystaff_ecommerce_dubai",
+      "query": "E-commerce companies in Dubai",
+      "offer": "EasyStaff payroll for remote teams",
+      "industries": [
+        "information technology & services",
+        "marketing & advertising"
+      ],
+      "keywords": [
+        "information technology & services",
+        "marketing & advertising",
+        "e-commerce",
+        "ecommerce",
+        "e-commerce platforms",
+        "e-commerce platform",
+        "e-commerce solutions",
+        "ecommerce solutions",
+        "online shopping"
+      ],
+      "locations": [
+        "Dubai"
+      ],
+      "sizes": [
+        "11,50",
+        "51,200"
+      ],
+      "unverified_keywords": [],
+      "shortlist_size": 50,
+      "keyword_map_size": 2356,
+      "model_used": "gpt-4.1-mini"
+    },
+    {
+      "label": "easystaff_gamedev_la",
+      "query": "Game development studios in Los Angeles",
+      "offer": "EasyStaff payroll for remote teams",
+      "industries": [
+        "computer games",
+        "entertainment",
+        "media production",
+        "computer software"
+      ],
+      "keywords": [
+        "computer games",
+        "entertainment",
+        "media production",
+        "computer software",
+        "gaming",
+        "creative studio",
+        "studio production"
+      ],
+      "locations": [
+        "Los Angeles"
+      ],
+      "sizes": [
+        "11,50",
+        "51,200"
+      ],
+      "unverified_keywords": [],
+      "shortlist_size": 50,
+      "keyword_map_size": 2356,
+      "model_used": "gpt-4.1-mini"
+    }
+  ]
+}
