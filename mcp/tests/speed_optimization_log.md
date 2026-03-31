@@ -32,6 +32,36 @@
 - After: ~35s per iteration (5 pages)
 - **3.5x faster overall**
 
+## REAL TEST RESULTS — Hetzner 2026-03-31
+
+### OpenAI GPT-4o-mini (tested on mcp-backend container)
+
+| Concurrent | Success | 429s | Total Time | Avg/req | Effective RPM |
+|---|---|---|---|---|---|
+| 10 | 100% | 0 | 1.5s | 0.59s | 798 |
+| 25 | 100% | 0 | 2.5s | 0.68s | 1,216 |
+| 50 | 100% | 0 | 4.7s | 0.84s | 1,288 |
+| 75 | 100% | 0 | 2.1s | 0.92s | 2,860 |
+| **100** | **100%** | **0** | **1.7s** | **0.99s** | **3,615** |
+
+**Verdict: ZERO 429s at 100 concurrent. Account has high-tier limits (3600+ effective RPM).**
+**Decision: Set ANALYSIS_CONCURRENCY = 50 (conservative, 2x headroom)**
+
+### Apify Residential Proxy
+
+Test failed: stored key has leading whitespace (`" apify_proxy_..."`) causing 407 auth error.
+Proxy format is correct — the data bug needs fixing (trim whitespace on store/read).
+No concurrency limit discovered yet. Will retest after key fix.
+
+### Applied Settings (based on tests)
+
+| Component | Old | New | Basis |
+|-----------|-----|-----|-------|
+| GPT Analysis | concurrent=10, batch=25 | **concurrent=50, batch=100** | 0 429s at 100 concurrent |
+| GPT Normalization | concurrent=10, batch=20 | **concurrent=50, batch=100** | Same test |
+| Scraper | concurrent=10, delay=100ms | **concurrent=50, delay=20ms** | Apify has no connection limit |
+| People extraction | concurrent=5 | **concurrent=20** | Apollo rate limit is the bottleneck |
+
 ## Limits to Test (Future)
 
 ### Apify Residential Proxy

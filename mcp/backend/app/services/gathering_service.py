@@ -332,8 +332,8 @@ class GatheringService:
 
     # ── Phase 5: Analyze ──
 
-    ANALYSIS_BATCH_SIZE = 50   # Process 50 companies per batch (was 25)
-    ANALYSIS_CONCURRENCY = 25  # 25 concurrent GPT-4o-mini calls (was 10, RPM limit ~1000)
+    ANALYSIS_BATCH_SIZE = 100  # Process 100 companies per batch (was 25)
+    ANALYSIS_CONCURRENCY = 50  # 50 concurrent GPT-4o-mini calls (tested: 100 concurrent = 0 429s on Hetzner)
 
     async def analyze(
         self, session: AsyncSession, run: GatheringRun,
@@ -730,8 +730,8 @@ Rules:
 
     # ── Company Name Normalization (targets only) ──
 
-    NORMALIZE_BATCH_SIZE = 50   # (was 20)
-    NORMALIZE_CONCURRENCY = 25  # (was 10)
+    NORMALIZE_BATCH_SIZE = 100  # (was 20)
+    NORMALIZE_CONCURRENCY = 50  # (was 10, tested: 100 = 0 429s)
 
     NORMALIZE_SYSTEM_PROMPT = (
         "You are a data normalization expert. Normalize the company name to its clean, "
