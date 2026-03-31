@@ -1,31 +1,26 @@
 #!/usr/bin/env python3
 """
-OnSocial Clay Pipeline (IM_FIRST_AGENCIES v4, ALL GEO, 2026-03-31)
+OnSocial Pipeline (IM_FIRST_AGENCIES v4, ALL GEO, 2026-03-31)
 
-Full pipeline: Clay Company Search (description_keywords, no AI mapping) ->
-Backend dedup/blacklist/scrape/classify -> Apollo People UI Search ->
+Full pipeline: Google SERP search (batch-segments API) ->
+Backend scrape/classify -> Export targets -> Apollo People UI Search ->
 FindyMail email enrichment -> SmartLead upload.
 
-Company search: Clay via backend API with description_keywords (direct, FREE - no credits).
+Company search: Google SERP via /api/search/projects/42/batch-segments
+  - Segments: influencer_agencies, talent_management (from search_config)
+  - Backend generates queries, searches Google, scrapes, classifies automatically
 People search:  Apollo People tab via apollo_scraper.js (FREE, no credits).
 
-Filters from: sofia/projects/OnSocial/docs/apollo-filters-v4.md (Segment 3)
-  - 31 description_keywords (v3 base + v4 new: creator studio, talent management, etc.)
-  - 33 description_keywords_exclude
-  - Employees: 10-500
-  - Industries: 1 (Marketing and Advertising only)
-  - ALL GEO (no country_names filter)
-  - Target: 1,500-3,000 companies (v4 estimate)
-
-People filters (v4):
+People filters from: sofia/projects/OnSocial/docs/apollo-filters-v4.md (Segment 3)
   - Management Level: c_suite, vp, director, owner, senior, head, partner, founder
-  - Titles: 30 titles (v4: added Head of Creator Partnerships, Director of Talent, etc.)
+  - Titles: 25 titles (v4: added Head of Creator Partnerships, Director of Talent, etc.)
   - Excluded titles applied as post-filter after scrape
 
+Clay filters also stored for reference (manual Clay search if needed).
+
 Steps:
-  Step 0:     Clay Company Search via backend API (clay.companies.emulator)
-  Steps 2-8:  Backend pipeline (dedup -> blacklist -> scrape -> classify)
-  Step 9:     Export targets from DB
+  Step 0:     Search via batch-segments API (Google SERP + AI classification)
+  Step 9:     Export targets from DB (search_results or discovered_companies)
   Step 10:    Apollo People UI Search (auto via apollo_scraper.js)
   Step 11:    FindyMail email enrichment
   Step 12:    SmartLead upload
@@ -33,11 +28,14 @@ Steps:
 Usage (run on Hetzner via SSH):
   cd ~/magnum-opus-project/repo
 
-  # Full pipeline from Clay search
+  # Full pipeline from search
   python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step start
 
   # Dry run (print filters, no API calls)
   python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --dry-run
+
+  # Skip search, export existing targets + people search
+  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step export
 
   # Resume from people search (auto Apollo)
   python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step people
