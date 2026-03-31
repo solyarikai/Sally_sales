@@ -2002,7 +2002,7 @@ STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
 def main():
     p = argparse.ArgumentParser(description="Universal Lead Generation Pipeline")
     p.add_argument("--project-id", type=int, required=True, help="Project ID from database")
-    p.add_argument("--mode", choices=["natural", "structured", "lookalike", "expand"],
+    p.add_argument("--mode", choices=["natural", "structured", "keywords", "lookalike", "expand"],
                    default="structured", help="Input mode for filter generation")
     p.add_argument("--segment", help="Segment slug (for structured mode)")
     p.add_argument("--input", dest="input_text", help="Mode 1: natural language description")
