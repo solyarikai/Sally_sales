@@ -6,7 +6,7 @@ Full pipeline: Clay Company Search (description_keywords, no AI mapping) ->
 Backend dedup/blacklist/scrape/classify -> Apollo People UI Search ->
 FindyMail email enrichment -> SmartLead upload.
 
-Company search: Clay via backend API with description_keywords (direct, ~$0.01/company).
+Company search: Clay via backend API with description_keywords (direct, FREE - no credits).
 People search:  Apollo People tab via apollo_scraper.js (FREE, no credits).
 
 Filters from: sofia/projects/OnSocial/docs/apollo-filters-v4.md (Segment 1)
