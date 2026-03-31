@@ -148,8 +148,9 @@ async def enrich_for_taxonomy(
     enriched_industries = Counter()
     credits_spent = 0
 
-    for domain in domains[:5]:
-        org_data = await apollo_service.enrich_organization(domain)
+    # Use bulk_enrich (1 API call for up to 10 domains) instead of sequential single-enrich
+    orgs = await apollo_service.bulk_enrich_organizations(domains[:10])
+    for org_data in orgs:
         if org_data:
             credits_spent += 1
             ind = org_data.get("industry")
