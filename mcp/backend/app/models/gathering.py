@@ -45,9 +45,9 @@ class GatheringRun(Base):
     raw_output_sample = Column(JSONB, nullable=True)
 
     # KPI configuration (user-settable via MCP prompts)
-    target_count = Column(Integer, nullable=True)          # target people count (default 100)
-    min_targets = Column(Integer, nullable=True)            # target companies count (derived if not set)
-    contacts_per_company = Column(Integer, nullable=True)   # max contacts per company (default 3)
+    target_people = Column(Integer, nullable=True)            # total contacts to gather (default 100)
+    target_companies = Column(Integer, nullable=True)         # target companies needed (derived: ceil(target_people/max_people_per_company))
+    max_people_per_company = Column(Integer, nullable=True)   # max contacts per company (default 3)
 
     # Auto-pipeline progress (written by orchestrator each iteration)
     total_targets_found = Column(Integer, server_default="0")

@@ -390,86 +390,71 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         offer_summary = None
         scrape_status = "not_scraped"
 
-        # ── Step 1: Scrape website via Apify residential proxy ──
+        # ── 3-layer offer extraction: proxy -> direct+meta -> GPT knowledge ──
         if website:
             if not website.startswith("http"):
                 website = f"https://{website}"
+            import httpx as _hx, re as _re, json as _jn
+            from app.services.user_context import UserServiceContext
+            ctx = UserServiceContext(user.id, session)
+            wt = ""  # website_text
+            # Layer 1: Apify proxy
             try:
-                from app.services.user_context import UserServiceContext
-                ctx = UserServiceContext(user.id, session)
-                scraper = await ctx.get_scraper_service()
-                scrape_result = await scraper.scrape_website(website)
-                website_text = scrape_result.get("text", "")[:4000]
-
-                # Fallback: if proxy scrape returned empty (JS-rendered sites), try direct fetch
-                if not website_text:
-                    import httpx as _httpx
-                    try:
-                        async with _httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-                            resp = await client.get(website, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"})
-                            if resp.status_code == 200:
-                                import re
-                                html = resp.text
-                                text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
-                                text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
-                                text = re.sub(r'<[^>]+>', ' ', text)
-                                text = re.sub(r'\s+', ' ', text).strip()[:4000]
-                                if len(text) > 50:
-                                    website_text = text
-                    except Exception:
-                        pass
-
-                scrape_status = "scraped" if website_text else "empty"
-
-                # ── Step 2: AI analysis of offer via GPT-4.1-mini ──
-                if website_text:
-                    openai_key = await ctx.get_key("openai")
-                    if openai_key:
-                        import httpx as _httpx
-                        analysis_prompt = f"""Analyze this company website and extract a structured offer summary.
-
-Website: {website}
-Website content:
-{website_text[:3000]}
-
-Return JSON with:
-- "company_name": official company name
-- "products": list of products/services offered (each with "name" and "description")
-- "primary_offer": the MAIN product/service in 1 sentence
-- "value_proposition": what problem they solve, for whom
-- "target_audience": who buys this (company types, sizes, industries)
-- "key_differentiators": 2-3 bullet points on why customers choose them
-
-Return ONLY valid JSON, no markdown."""
-
-                        try:
-                            async with _httpx.AsyncClient(timeout=20) as client:
-                                resp = await client.post(
-                                    "https://api.openai.com/v1/chat/completions",
-                                    headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
-                                    json={"model": "gpt-4.1-mini", "messages": [{"role": "user", "content": analysis_prompt}],
-                                          "max_tokens": 800, "temperature": 0},
-                                )
-                                data = resp.json()
-                                content = data["choices"][0]["message"]["content"].strip()
-                                if content.startswith("```"):
-                                    content = content.split("\n", 1)[1].rsplit("```", 1)[0]
-                                import json as _json
-                                offer_summary = _json.loads(content)
-                                offer_summary["_raw_website_text"] = website_text[:2000]
-                                # Use AI-extracted offer as target_segments
-                                target_segments = f"{offer_summary.get('primary_offer', '')}. Target: {offer_summary.get('target_audience', '')}"
-                                scrape_status = "analyzed"
-                        except Exception as e:
-                            logger.warning(f"Offer analysis failed: {e}")
-                            target_segments = f"Company website ({website}): {website_text[:2000]}"
-                            scrape_status = "scrape_only"
-                    else:
-                        target_segments = f"Company website ({website}): {website_text[:2000]}"
-                        scrape_status = "scrape_only_no_openai"
+                sc = await ctx.get_scraper_service()
+                wt = (await sc.scrape_website(website)).get("text", "")[:4000]
             except Exception as e:
-                logger.warning(f"Website scrape failed: {e}")
-                scrape_status = f"failed: {str(e)[:100]}"
+                logger.warning(f"Proxy scrape: {e}")
+            # Layer 2: Direct + meta
+            if not wt:
+                try:
+                    async with _hx.AsyncClient(timeout=15, follow_redirects=True) as c:
+                        r = await c.get(website, headers={"User-Agent": "Mozilla/5.0"})
+                        if r.status_code == 200:
+                            h = r.text
+                            mp = []
+                            for p in [r'<meta\s+name="description"\s+content="([^"]+)"', r'<meta\s+property="og:description"\s+content="([^"]+)"', r'<title>([^<]+)</title>']:
+                                m = _re.search(p, h, _re.IGNORECASE)
+                                if m:
+                                    mp.append(m.group(1).strip())
+                            b = _re.sub(r'<script[^>]*>.*?</script>', '', h, flags=_re.DOTALL|_re.IGNORECASE)
+                            b = _re.sub(r'<style[^>]*>.*?</style>', '', b, flags=_re.DOTALL|_re.IGNORECASE)
+                            b = _re.sub(r'<[^>]+>', ' ', b)
+                            b = _re.sub(r'\s+', ' ', b).strip()[:4000]
+                            wt = b if len(b) > 100 else ("Meta: " + " | ".join(mp) if mp else "")
+                except Exception:
+                    pass
+            # GPT analysis — ALWAYS (scraped text OR Layer 3: GPT knowledge)
+            openai_key = await ctx.get_key("openai")
+            if openai_key:
+                dom = website.replace("https://", "").replace("http://", "").rstrip("/")
+                if wt:
+                    pr = f"Analyze this company website.\nWebsite: {website}\nContent: {wt[:3000]}\n\n"
+                else:
+                    pr = f"What does the company at {dom} do? Use your knowledge.\n\n"
+                pr += 'Return JSON: {"company_name":"...","products":[{"name":"...","description":"..."}],"primary_offer":"main product in 1 sentence","value_proposition":"problem solved","target_audience":"who buys","key_differentiators":["..."]}\nIf unknown: {"unknown":true}\nOnly JSON.'
+                try:
+                    async with _hx.AsyncClient(timeout=25) as c:
+                        rr = await c.post("https://api.openai.com/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                            json={"model": "gpt-4.1-mini", "messages": [{"role": "user", "content": pr}], "max_tokens": 800, "temperature": 0})
+                        ct = rr.json()["choices"][0]["message"]["content"].strip()
+                        if ct.startswith("```"):
+                            ct = ct.split("\n", 1)[1].rsplit("```", 1)[0]
+                        offer_summary = _jn.loads(ct)
+                        if offer_summary.get("unknown"):
+                            offer_summary = None
+                            scrape_status = "unknown"
+                        else:
+                            if wt:
+                                offer_summary["_raw_website_text"] = wt[:2000]
+                            offer_summary["_source"] = "website" if wt else "gpt_knowledge"
+                            target_segments = f"{offer_summary.get('primary_offer', '')}. Target: {offer_summary.get('target_audience', '')}"
+                            scrape_status = "analyzed"
+                except Exception as e:
+                    logger.warning(f"GPT offer: {e}")
+                    if wt:
+                        target_segments = f"Website ({website}): {wt[:2000]}"
+                    scrape_status = "gpt_failed"
 
         project = Project(
             company_id=company.id, user_id=user.id, name=args["name"],
@@ -802,7 +787,7 @@ Return ONLY valid JSON."""
                         from app.services.filter_intelligence import suggest_filters
                         suggestion = await suggest_filters(
                             query, apollo_probe, openai_key, anthropic_key, None,
-                            args.get("target_count", 10),
+                            args.get("target_people", 10),
                         )
                         if suggestion.get("suggested_filters"):
                             sf = suggestion["suggested_filters"]
@@ -814,7 +799,7 @@ Return ONLY valid JSON."""
 
         # ── Auto-calculate pages from target_count BEFORE validation ──
         if "api" in source_type:
-            target_count = args.get("target_count") or filters.pop("target_count", None)
+            target_count = args.get("target_people") or filters.pop("target_count", None)
             if target_count and not filters.get("max_pages"):
                 per_page = filters.get("per_page", 25)
                 companies_needed = int(int(target_count) / 0.3)
@@ -882,11 +867,11 @@ Return ONLY valid JSON."""
 
             # A8: Cost Estimator
             from app.services.cost_estimator import estimate_cost
-            target_count = args.get("target_count", 100)
-            contacts_per_company = filters.get("contacts_per_company", 3)
+            target_people = args.get("target_people", 100)
+            max_ppc = args.get("max_people_per_company") or filters.get("max_people_per_company", 3)
             cost_est = estimate_cost(
-                target_count=target_count,
-                contacts_per_company=contacts_per_company,
+                target_count=target_people,
+                contacts_per_company=max_ppc,
                 total_available=total_available,
                 per_page=per_page,
             )
@@ -926,10 +911,10 @@ Return ONLY valid JSON."""
                     f"  Location: {', '.join(locations)}\n"
                     f"  Size: {', '.join(sizes)}\n"
                     f"  Total available: {total_available:,} companies\n\n"
-                    f"For {target_count} contacts ({contacts_per_company} per company):\n"
+                    f"For {target_people} contacts (max {max_ppc} per company):\n"
                     f"  Search: {cost_est['pages_needed']} pages = {cost_est['search_credits']} credits (${cost_est['search_credits'] * 0.01:.2f})\n"
                     f"  Exploration: {cost_est['enrichment_credits']} credits (${cost_est['enrichment_credits'] * 0.01:.2f})\n"
-                    f"  People emails: {cost_est.get('people_credits',target_count)} credits (${cost_est.get('people_cost_usd', target_count*0.01):.2f}) — 1 credit per email\n"
+                    f"  People emails: {cost_est.get('people_credits',target_people)} credits (${cost_est.get('people_cost_usd', target_people*0.01):.2f}) — 1 credit per email\n"
                     f"  Total: {cost_est['total_credits']} credits (${cost_est['total_cost_usd']:.2f})\n"
                     f"  Estimated target rate: {int(cost_est['target_rate_used']*100)}%"
                     f"{people_defaults}\n\n"
@@ -2153,11 +2138,11 @@ Return ONLY valid JSON."""
 
         # Store KPIs on the run
         from math import ceil as _ceil
-        target_count = args.get("target_count", 100)
-        contacts_per_company = args.get("contacts_per_company", 3)
-        run.target_count = target_count
-        run.contacts_per_company = contacts_per_company
-        run.min_targets = args.get("min_targets") or _ceil(target_count / contacts_per_company)
+        target_count = args.get("target_people", 100)
+        contacts_per_company = args.get("max_people_per_company", 3)
+        run.target_people = target_count
+        run.max_people_per_company = contacts_per_company
+        run.target_companies = args.get("target_companies") or _ceil(target_count / contacts_per_company)
         run.status = "running"
         from datetime import datetime as _dt, timezone as _tz
         run.started_at = _dt.now(_tz.utc)
@@ -2171,13 +2156,13 @@ Return ONLY valid JSON."""
             "run_id": run.id,
             "status": "started",
             "kpi": {
-                "target_count": run.target_count,
-                "contacts_per_company": run.contacts_per_company,
-                "min_targets": run.min_targets,
+                "target_people": run.target_people,
+                "max_people_per_company": run.max_people_per_company,
+                "target_companies": run.target_companies,
             },
             "message": (
-                f"Pipeline running in background. Target: {run.target_count} contacts "
-                f"(up to {run.contacts_per_company} per company, ~{run.min_targets} target companies).\n"
+                f"Pipeline running in background. Target: {run.target_people} contacts "
+                f"(up to {run.max_people_per_company} per company, ~{run.target_companies} target companies).\n"
                 f"Use pipeline_status to track progress. Use set_pipeline_kpi to change targets. "
                 f"Use control_pipeline to pause/resume."
             ),
@@ -2201,9 +2186,9 @@ Return ONLY valid JSON."""
 
         # KPI defaults
         from math import ceil as _ceil
-        target_count = run.target_count or 100
-        contacts_per_company = run.contacts_per_company or 3
-        min_targets = run.min_targets or _ceil(target_count / contacts_per_company)
+        target_count = run.target_people or 100
+        contacts_per_company = run.max_people_per_company or 3
+        min_targets = run.target_companies or _ceil(target_count / contacts_per_company)
         people_found = run.total_people_found or 0
         targets_found = run.total_targets_found or 0
 
@@ -2245,9 +2230,9 @@ Return ONLY valid JSON."""
             "rejected": run.rejected_count,
             "credits_used": run.credits_used,
             "kpi": {
-                "target_count": target_count,
-                "contacts_per_company": contacts_per_company,
-                "min_targets": min_targets,
+                "target_people": target_count,
+                "max_people_per_company": contacts_per_company,
+                "target_companies": min_targets,
             },
             "progress": {
                 "targets_found": targets_found,
@@ -2289,19 +2274,31 @@ Return ONLY valid JSON."""
 
         from math import ceil as _ceil
 
-        # Update KPIs
-        if "target_count" in args:
-            run.target_count = args["target_count"]
-        if "contacts_per_company" in args:
-            run.contacts_per_company = args["contacts_per_company"]
-        if "min_targets" in args:
-            run.min_targets = args["min_targets"]
+        # Track which fields the user explicitly set for alignment
+        user_set = set()
+        if "target_people" in args:
+            run.target_people = args["target_people"]
+            user_set.add("target_people")
+        if "max_people_per_company" in args:
+            run.max_people_per_company = args["max_people_per_company"]
+            user_set.add("max_people_per_company")
+        if "target_companies" in args:
+            run.target_companies = args["target_companies"]
+            user_set.add("target_companies")
 
-        # Derive min_targets if not explicitly set
-        tc = run.target_count or 100
-        cpc = run.contacts_per_company or 3
-        if not run.min_targets:
-            run.min_targets = _ceil(tc / cpc)
+        # KPI alignment (see tests/test_kpi_alignment.md for all scenarios)
+        tp = run.target_people or 100
+        mpc = run.max_people_per_company or 3
+        tc = run.target_companies
+
+        if "target_companies" in user_set and "target_people" not in user_set:
+            # Scenario 3/6: user set companies → derive people
+            tp = tc * mpc
+            run.target_people = tp
+        else:
+            # Scenarios 1/2/4/7: derive companies from people
+            tc = _ceil(tp / mpc)
+            run.target_companies = tc
 
         await session.commit()
 
@@ -2313,9 +2310,9 @@ Return ONLY valid JSON."""
 
         return {
             "kpi": {
-                "target_count": tc,
-                "contacts_per_company": cpc,
-                "min_targets": run.min_targets,
+                "target_people": tc,
+                "max_people_per_company": cpc,
+                "target_companies": run.target_companies,
             },
             "progress": {
                 "people_found": people_found,
@@ -2328,7 +2325,7 @@ Return ONLY valid JSON."""
                 "usd": f"${pages_needed * 0.01:.2f}",
             },
             "message": (
-                f"KPIs updated: {tc} contacts, {cpc}/company, ~{run.min_targets} target companies.\n"
+                f"KPIs updated: {tc} contacts, {cpc}/company, ~{run.target_companies} target companies.\n"
                 f"Current: {people_found} contacts found. Remaining: {remaining_people}.\n"
                 f"Estimated cost: {pages_needed} credits (${pages_needed * 0.01:.2f})."
             ),
@@ -2351,17 +2348,18 @@ Return ONLY valid JSON."""
         if "person_seniorities" in args:
             valid = {"owner", "founder", "c_suite", "partner", "vp", "head", "director", "manager", "senior", "entry"}
             pf["person_seniorities"] = [s for s in args["person_seniorities"] if s in valid]
-        if "contacts_per_company" in args:
-            pf["contacts_per_company"] = args["contacts_per_company"]
-            run.contacts_per_company = args["contacts_per_company"]
+        if "max_people_per_company" in args or "contacts_per_company" in args:
+            val = args.get("max_people_per_company") or args.get("contacts_per_company")
+            pf["max_people_per_company"] = val
+            run.max_people_per_company = val
 
         run.people_filters = pf
         from sqlalchemy.orm.attributes import flag_modified
         flag_modified(run, "people_filters")
         await session.commit()
 
-        tc = run.target_count or 100
-        cpc = run.contacts_per_company or 3
+        tc = run.target_people or 100
+        cpc = run.max_people_per_company or 3
         targets_found = run.total_targets_found or 0
 
         return {
@@ -2427,7 +2425,7 @@ Return ONLY valid JSON."""
                 "status": "running",
                 "message": (
                     f"Pipeline resumed from {run.total_people_found or 0} contacts, page {run.pages_fetched or 0}.\n"
-                    f"Target: {run.target_count or 100} contacts. Use pipeline_status to track."
+                    f"Target: {run.target_people or 100} contacts. Use pipeline_status to track."
                 ),
                 "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
             }
@@ -2453,7 +2451,7 @@ Return ONLY valid JSON."""
             openai_key=openai_key,
             anthropic_key=anthropic_key,
             gemini_key=None,
-            target_count=args.get("target_count", 10),
+            target_count=args.get("target_people", 10),
         )
 
         # Add total_available + cost estimate (probe Apollo)
