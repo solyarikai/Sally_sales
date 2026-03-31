@@ -51,12 +51,45 @@ Pipeline flow (technical):
 Input modes:
   --mode natural    : Claude generates filters in conversation, passes as --filters JSON
   --mode structured : Uses CLAY_FILTERS from project config (segment-based)
+  --mode keywords   : Direct Clay search by description_keywords (no AI mapping).
+                      Pass --filters JSON with "description_keywords" list.
+                      Faster and more precise than icp_text — keywords go straight to Clay UI.
   --mode lookalike  : Reverse-engineers filters from example company domains
   --mode expand     : Clones a previous run with JSON overrides
 
+Clay search modes (Step 0):
+  Backend supports two Clay company search strategies:
+
+  1. icp_text (AI-mapped): Pass natural language ICP description.
+     Backend uses Gemini 2.5 Pro to map ICP → Clay filters (industries, keywords, etc).
+     Good for exploratory searches. Less predictable — AI decides the keywords.
+     Used by: --mode natural, --mode structured (default_filters with icp_text).
+
+  2. description_keywords (direct): Pass explicit keyword list.
+     Keywords go directly to Clay UI — no AI round-trip. Faster, deterministic.
+     Good for precise searches with known filter parameters (e.g. from apollo-filters docs).
+     Used by: --mode keywords, or --mode natural with description_keywords in --filters.
+
+  Filter fields accepted by Clay backend (ClayCompaniesFilters):
+    icp_text                      — natural language ICP (triggers AI mapping)
+    description_keywords          — list of company description keywords (direct search)
+    description_keywords_exclude  — list of keywords to exclude
+    industries / industries_exclude — Clay industry tags
+    country_names / country_names_exclude — countries (omit for ALL GEO)
+    minimum_member_count / maximum_member_count — employee range
+    max_results                   — cap (5000 per geo split, auto-splits if exceeded)
+
 Usage:
-  # Full pipeline from gathering
+  # Full pipeline from gathering (icp_text from DB config)
   python3 universal_pipeline.py --project-id 42 --mode structured --segment influencer_platforms
+
+  # Direct keyword search (no AI mapping)
+  python3 universal_pipeline.py --project-id 42 --mode keywords \
+    --filters '{"description_keywords": ["influencer marketing platform", "creator analytics"],
+                "description_keywords_exclude": ["recruitment", "staffing"],
+                "industries": ["Computer Software", "Internet"],
+                "minimum_member_count": 5, "maximum_member_count": 5000,
+                "max_results": 5000}'
 
   # Resume from people search (auto Apollo UI search)
   python3 universal_pipeline.py --project-id 42 --from-step people
