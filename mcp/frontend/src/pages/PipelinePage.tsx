@@ -662,13 +662,16 @@ export default function PipelinePage() {
           <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>People Filters (Apollo People Search)</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
-              <span style={{ color: 'var(--text-muted)' }}>titles:</span> CEO, CTO, Founder, CFO, VP Engineering, Head of HR
+              <span style={{ color: 'var(--text-muted)' }}>titles:</span>{' '}
+              {run?.people_filters?.person_titles?.join(', ') || 'CEO, CTO, Founder, CFO, VP Engineering, Head of HR'}
             </span>
             <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
-              <span style={{ color: 'var(--text-muted)' }}>seniority:</span> C-level, VP, Director
+              <span style={{ color: 'var(--text-muted)' }}>seniority:</span>{' '}
+              {run?.people_filters?.person_seniorities?.join(', ') || 'c_suite, vp, director'}
             </span>
             <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
-              <span style={{ color: 'var(--text-muted)' }}>max per company:</span> 3
+              <span style={{ color: 'var(--text-muted)' }}>max per company:</span>{' '}
+              {run?.kpi?.contacts_per_company || run?.people_filters?.contacts_per_company || 3}
             </span>
           </div>
           {totalContacts > 0 && (

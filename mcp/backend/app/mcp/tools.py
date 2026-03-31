@@ -634,6 +634,25 @@ Resume: pipeline continues from where it stopped (same filters, same page offset
     },
 
     {
+        "name": "set_people_filters",
+        "description": """Change which roles/titles to search for when extracting contacts from target companies.
+
+WHEN USER SAYS: "I want VP Marketing and CMO", "change roles to HR directors", "search for CTOs only" → call THIS.
+Updates people_filters on the pipeline run. Takes effect on next people extraction batch.
+People search is FREE (Apollo mixed_people endpoint).""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer"},
+                "person_titles": {"type": "array", "items": {"type": "string"}, "description": "Job titles to search (e.g. ['VP Marketing', 'CMO', 'Head of Marketing'])"},
+                "person_seniorities": {"type": "array", "items": {"type": "string"}, "description": "Seniority levels: owner, founder, c_suite, partner, vp, head, director, manager, senior"},
+                "contacts_per_company": {"type": "integer", "description": "Override max contacts per company"},
+            },
+            "required": ["run_id"],
+        },
+    },
+
+    {
         "name": "run_auto_pipeline",
         "description": """Run the FULL automated pipeline that gathers until target contacts found.
 

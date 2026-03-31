@@ -299,6 +299,7 @@ async def get_run_status(
         "scraped_errors": scraped_err,
         "target_rate": run.target_rate,
         "credits_used": run.credits_used,
+        "people_filters": run.people_filters,
         "created_at": str(run.created_at) if run.created_at else None,
         "campaign": campaign_info,
         # KPI + Progress
