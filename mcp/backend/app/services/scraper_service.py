@@ -131,7 +131,7 @@ class ScraperService:
         """Build Apify residential proxy URL. Checks: user key → env var → settings."""
         import os
         from app.config import settings
-        password = self._apify_proxy_password or os.environ.get('APIFY_PROXY_PASSWORD') or getattr(settings, 'APIFY_PROXY_PASSWORD', None)
+        password = (self._apify_proxy_password or os.environ.get('APIFY_PROXY_PASSWORD') or getattr(settings, 'APIFY_PROXY_PASSWORD', None) or "").strip()
         if not password:
             return None
         session_id = f"scrape_{random.randint(10000, 99999)}"
@@ -227,18 +227,20 @@ class ScraperService:
 
     async def scrape_batch(
         self, urls: List[Dict[str, Any]], timeout: int = 15,
-        max_concurrent: int = 50, delay: float = 0.05,
+        max_concurrent: int = 100, delay: float = 0.02,
         on_result: Optional[Callable] = None,
     ) -> List[Dict[str, Any]]:
-        """Scrape batch with 50 concurrent requests via Apify residential proxies."""
-        semaphore = asyncio.Semaphore(max_concurrent)
+        """Scrape batch with adaptive concurrency via Apify residential proxies.
+        Starts at max_concurrent, shrinks on 429, grows back when OK."""
+        from app.services.adaptive_semaphore import get_semaphore
+        sem = get_semaphore("apify", initial=max_concurrent, min_concurrent=10)
         results = [] if not on_result else None
         completed = 0
         total = len(urls)
 
         async def process(item):
             nonlocal completed
-            async with semaphore:
+            async with sem.acquire():
                 await asyncio.sleep(delay)
                 try:
                     result = await self.scrape_website(item["url"], timeout=timeout)
