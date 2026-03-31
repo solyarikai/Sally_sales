@@ -47,11 +47,21 @@
 **Verdict: ZERO 429s at 100 concurrent. Account has high-tier limits (3600+ effective RPM).**
 **Decision: Set ANALYSIS_CONCURRENCY = 50 (conservative, 2x headroom)**
 
-### Apify Residential Proxy
+### Apify Residential Proxy (tested on mcp-backend container, key trimmed)
 
-Test failed: stored key has leading whitespace (`" apify_proxy_..."`) causing 407 auth error.
-Proxy format is correct — the data bug needs fixing (trim whitespace on store/read).
-No concurrency limit discovered yet. Will retest after key fix.
+| Concurrent | Success | 429s | Timeouts | Errors | Total Time |
+|---|---|---|---|---|---|
+| 25 | 76% | **0** | 5 | 7 | 36.2s |
+| **50** | **94%** | **0** | 1 | 2 | **22.4s** |
+| 100 | 88% | **0** | 3 | 3 | 24.6s |
+| 150 | 90% | **0** | 3 | 2 | 18.3s |
+| 200 | 82% | **0** | 3 | 6 | 20.2s |
+
+**Verdict: ZERO 429s from Apify at ANY concurrency (up to 200). Failures are target site timeouts/blocks.**
+**Best: 50 concurrent = 94% success, 22s for 50 domains. Higher concurrency = more timeouts but faster overall.**
+**Decision: Start at 100 (adaptive), let it find the sweet spot per batch.**
+
+Note: Previous test failed due to leading whitespace in stored API key. Fixed with `.strip()` on all key inputs.
 
 ### Applied Settings (based on tests)
 

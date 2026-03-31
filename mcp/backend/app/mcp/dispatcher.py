@@ -300,8 +300,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
     if tool_name == "configure_integration":
         user = await _get_user(token, session)
         from app.services.encryption import encrypt_value
-        integration_name = args["integration_name"]
-        api_key = args["api_key"]
+        integration_name = args["integration_name"].strip()
+        api_key = args["api_key"].strip()
         connected = False
         message = ""
 

@@ -36,6 +36,8 @@ async def configure_integration(
 ):
     if req.integration_name not in SUPPORTED_INTEGRATIONS:
         raise HTTPException(400, f"Unsupported integration: {req.integration_name}")
+    # Always trim whitespace from user input
+    req.api_key = req.api_key.strip()
     if not req.api_key or len(req.api_key) < 8:
         raise HTTPException(400, "API key too short (minimum 8 characters)")
     if len(req.api_key) > 4000:
