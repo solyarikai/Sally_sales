@@ -36,7 +36,7 @@ function ProjectCard({ project }: { project: any }) {
             {project.offer_approved ? (
               <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontWeight: 600 }}>OFFER CONFIRMED</span>
             ) : (
-              <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontWeight: 600 }}>OFFER PENDING</span>
+              <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontWeight: 600 }}>APPROVAL PENDING</span>
             )}
             <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{expanded ? '\u25B2' : '\u25BC'}</span>
           </div>

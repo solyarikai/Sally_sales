@@ -257,11 +257,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 + (f"{reply_count} replies ({warm_count} warm)\n" if reply_count else "")
                 # CRITICAL: if any project has unapproved offer, this is THE next step
                 + ("".join(
-                    f"\n🚨 NEXT STEP: Offer not confirmed for '{p.name}'."
-                    + (f" Website: {p.website}." if getattr(p, 'website', None) else "")
+                    f"\n🚨 OFFER NOT CONFIRMED for '{p.name}' — gathering blocked until confirmed."
+                    + f"\nProject page: http://46.62.210.24:3000/projects/{p.id}"
                     + (f"\nCurrent offer: {(p.offer_summary or {}).get('primary_offer', p.target_segments or 'NOT SET')}" if p.offer_summary or p.target_segments else "\nNo offer extracted yet.")
-                    + f"\nYou MUST either: (1) open {p.website or 'the website'} yourself, read it, and call confirm_offer(feedback='description of the offer'), OR (2) ask the user what they sell."
-                    + f"\nGathering is BLOCKED until the offer is confirmed.\n"
+                    + f"\nShow the user the offer and project page link. Ask: is this correct? If user provides feedback, call confirm_offer(feedback=...). If user says yes, call confirm_offer(approved=true).\n"
                     for p in projects if not p.offer_approved))
                 + ("\nWhat would you like to do?" if all(p.offer_approved for p in projects) else "")
             ),
