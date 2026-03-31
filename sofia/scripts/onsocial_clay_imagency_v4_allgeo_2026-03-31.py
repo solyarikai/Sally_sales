@@ -141,7 +141,7 @@ def get_social_proof(country: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CLAY FILTERS (from apollo-filters-v4.md, Segment 2 - description_keywords)
+# CLAY FILTERS (from apollo-filters-v4.md, Segment 3 - description_keywords)
 # Uses description_keywords for direct Clay search - NO AI/Gemini mapping.
 # ══════════════════════════════════════════════════════════════════════════════
 
