@@ -2648,6 +2648,24 @@ Return ONLY valid JSON."""
                 matched.append(c)
             # Tags matching would need campaign tags from SmartLead API
 
+        # Warn if 0 campaigns matched — don't silently succeed
+        if not matched:
+            # Show similar campaign names to help user fix their query
+            all_names = [c.get("name", "") for c in all_campaigns[:20]]
+            return {
+                "campaigns_imported": 0,
+                "error": "no_campaigns_matched",
+                "message": (
+                    f"No campaigns matched your rules.\n\n"
+                    f"Rules applied: prefixes={prefixes}, contains={contains}, exact={exact_names}, tags={tags}\n\n"
+                    f"Available campaigns (first 20):\n" + "\n".join(f"  - {n}" for n in all_names) + "\n\n"
+                    f"Try again with different rules. For example:\n"
+                    f"  contains=['petr'] — matches any campaign with 'petr' in the name\n"
+                    f"  prefixes=['ES Global'] — matches campaigns starting with 'ES Global'"
+                ),
+                "_links": {"setup": "http://46.62.210.24:3000/setup"},
+            }
+
         # ACTUALLY DOWNLOAD contacts from each campaign → build blacklist
         from app.services.domain_service import normalize_domain
         import logging as _log
