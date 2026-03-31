@@ -226,7 +226,7 @@ async function searchPeopleAPI(page, params) {
 
       for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
         const params = {
-          organization_domains: batchDomains,
+          q_organization_domains_list: batchDomains,
           person_titles: titles,
           person_seniorities: seniorities,
           page: pageNum,
