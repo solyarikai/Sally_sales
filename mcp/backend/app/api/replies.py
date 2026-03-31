@@ -227,10 +227,13 @@ async def smartlead_webhook(
     reply_text = body.get("reply_text", body.get("message", ""))[:2000]
     category = "interested" if event_type == "INTERESTED" else "meeting_request" if event_type == "MEETING_BOOKED" else "other"
 
+    if not campaign or not campaign.project_id:
+        return {"status": "ignored", "reason": "campaign not found in MCP"}
+
     reply = MCPReply(
-        project_id=campaign.project_id if campaign else None,
-        campaign_id=campaign.id if campaign else None,
-        campaign_name=campaign.name if campaign else f"Campaign {campaign_id}",
+        project_id=campaign.project_id,
+        campaign_id=campaign.id,
+        campaign_name=campaign.name,
         lead_email=email,
         lead_name=f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip(),
         reply_text=reply_text,
