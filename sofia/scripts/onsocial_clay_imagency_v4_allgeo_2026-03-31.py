@@ -793,29 +793,43 @@ def _run_apollo_people_api(domains: list[str], seniorities: list[str],
 
 
 def _map_apollo_person(person: dict, targets_by_domain: dict, batch_domain: str = None) -> dict:
-    name = person.get("name", "")
-    parts = name.split(None, 1) if name else ["", ""]
-    first_name = parts[0] if parts else ""
-    last_name = parts[1] if len(parts) > 1 else ""
-    domain = batch_domain or _normalize_domain(person.get("domain", "") or person.get("company_url", ""))
+    # Internal API returns first_name/last_name directly; fallback to name split
+    first_name = person.get("first_name", "")
+    last_name = person.get("last_name", "")
+    if not first_name and person.get("name"):
+        parts = person["name"].split(None, 1)
+        first_name = parts[0] if parts else ""
+        last_name = parts[1] if len(parts) > 1 else ""
+    # Domain: from person or batch
+    domain = batch_domain or _normalize_domain(
+        person.get("domain", "") or person.get("company_url", "")
+        or person.get("organization", {}).get("primary_domain", "")
+    )
     if not domain:
-        company = person.get("company", "")
+        company = person.get("company", "") or person.get("organization_name", "")
         for d, t in targets_by_domain.items():
             if t.get("company_name", "").lower() == company.lower():
                 domain = d
                 break
     target = targets_by_domain.get(domain, {})
-    country = person.get("location", "").split(",")[-1].strip() if person.get("location") else ""
+    # Country
+    country = person.get("country", "")
+    if not country:
+        loc = person.get("location", "") or person.get("city", "")
+        country = loc.split(",")[-1].strip() if loc else ""
     if not country:
         country = target.get("country", "")
     return {
         "first_name": first_name, "last_name": last_name,
         "email": person.get("email", ""), "title": person.get("title", ""),
-        "company_name": normalize_company(person.get("company", "") or target.get("company_name", domain)),
+        "company_name": normalize_company(
+            person.get("company", "") or person.get("organization_name", "")
+            or target.get("company_name", domain)
+        ),
         "domain": domain, "segment": SEGMENT_NAME,
         "linkedin_url": person.get("linkedin_url", person.get("linkedin", "")),
         "country": country,
-        "employees": person.get("employees", "") or target.get("employees", ""),
+        "employees": str(person.get("employees", "") or person.get("organization", {}).get("estimated_num_employees", "") or target.get("employees", "")),
         "social_proof": get_social_proof(country),
     }
 
