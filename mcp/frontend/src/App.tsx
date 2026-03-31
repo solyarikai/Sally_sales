@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link, useLocation, useParams, Navigate } from 'react-router-dom'
 import { useState, useEffect, createContext, useContext, useRef } from 'react'
 import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
@@ -102,6 +102,12 @@ function ProjectSelector() {
 import { useTheme as useThemeStore } from './hooks/useTheme'
 
 /** Watches URL ?project= param and auto-selects the project in the top-left selector */
+/** Redirects /projects/:id → /projects?project=:id so project gets auto-selected */
+function ProjectRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/projects?project=${id}`} replace />
+}
+
 function ProjectFromURL() {
   const loc = useLocation()
   const { projects, setProject } = useProject()
@@ -191,6 +197,7 @@ export default function App() {
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tasks/:tab" element={<TasksPage />} />
                 <Route path="/projects" element={<ProjectsPage />} />
+                <Route path="/projects/:id" element={<ProjectRedirect />} />
                 <Route path="/learning" element={<LearningPage />} />
                 <Route path="/conversations" element={<ConversationsPage />} />
                 <Route path="/account" element={<AccountPage />} />
