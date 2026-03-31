@@ -62,11 +62,12 @@ export default function SetupPage() {
   }
 
   const saveKey = async (service: string) => {
-    if (!newKey) return
+    const trimmed = newKey.trim()
+    if (!trimmed) return
     setSaving(true); setResult('')
     const res = await fetch(`${API}/setup/integrations`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-MCP-Token': token },
-      body: JSON.stringify({ integration_name: service, api_key: newKey }),
+      body: JSON.stringify({ integration_name: service, api_key: trimmed }),
     })
     const data = await res.json()
     setResult(data.message || JSON.stringify(data))
@@ -148,6 +149,7 @@ export default function SetupPage() {
                       type="password"
                       value={newKey}
                       onChange={e => setNewKey(e.target.value)}
+                      onPaste={e => { e.preventDefault(); setNewKey((e.clipboardData.getData('text') || '').trim()) }}
                       onKeyDown={e => e.key === 'Enter' && saveKey(service)}
                       autoFocus
                     />

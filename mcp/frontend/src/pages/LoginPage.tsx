@@ -13,12 +13,13 @@ export default function LoginPage() {
   const [tokenCopied, setTokenCopied] = useState(false)
 
   const handleLogin = async () => {
-    if (!email || !password) { setError('Email and password required'); return }
+    const trimmedEmail = email.trim()
+    if (!trimmedEmail || !password) { setError('Email and password required'); return }
     setLoading(true); setError('')
     try {
       const res = await fetch(`${API}/auth/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: trimmedEmail, password }),
       })
       const data = await res.json()
       if (data.api_token) {
@@ -30,12 +31,14 @@ export default function LoginPage() {
   }
 
   const handleSignup = async () => {
-    if (!email || !password) { setError('Email and password required'); return }
+    const trimmedEmail = email.trim()
+    const trimmedName = name.trim()
+    if (!trimmedEmail || !password) { setError('Email and password required'); return }
     setLoading(true); setError('')
     try {
       const res = await fetch(`${API}/auth/signup`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name: name || email.split('@')[0], password }),
+        body: JSON.stringify({ email: trimmedEmail, name: trimmedName || trimmedEmail.split('@')[0], password }),
       })
       const data = await res.json()
       if (data.api_token) {
@@ -152,7 +155,7 @@ export default function LoginPage() {
         {/* MCP token link */}
         <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #999)' }}>
           Have an API token? <button onClick={() => {
-            const t = prompt('Paste your mcp_ token:')
+            const t = prompt('Paste your mcp_ token:')?.trim()
             if (t?.startsWith('mcp_')) {
               fetch(`${API}/auth/me`, { headers: { 'X-MCP-Token': t } })
                 .then(r => r.ok ? r.json() : Promise.reject())
