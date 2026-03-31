@@ -8,7 +8,8 @@ from typing import Dict
 
 DEFAULT_TARGET_RATE = 0.35  # 35% of Apollo companies are targets
 DEFAULT_CONTACTS_PER_COMPANY = 3
-DEFAULT_PER_PAGE = 25
+DEFAULT_PER_PAGE = 100  # Apollo uses per_page=100 (was 25 — caused 4x overestimate)
+EFFECTIVE_PER_PAGE = 60  # Apollo returns ~60 unique per page in practice
 APOLLO_COST_PER_CREDIT = 0.01  # $0.01 per credit estimate
 ENRICHMENT_CREDITS = 5  # exploration enriches top 5
 
@@ -56,11 +57,15 @@ def estimate_cost(
     if total_available > 0:
         companies_from_apollo = min(companies_from_apollo, total_available)
 
-    pages = max(1, (companies_from_apollo + per_page - 1) // per_page)
+    # Use effective per_page (Apollo returns ~60 unique per 100 requested)
+    effective = EFFECTIVE_PER_PAGE if per_page >= 100 else per_page
+    pages = max(1, (companies_from_apollo + effective - 1) // effective)
     search_credits = pages
 
     enrichment = ENRICHMENT_CREDITS if include_enrichment else 0
-    people_credits = target_count  # 1 credit per net-new email via people/bulk_match
+    # People search via /mixed_people/api_search is FREE (no credits)
+    # Only people/bulk_match costs credits (1 per net-new email) — used for email verification, not extraction
+    people_credits = 0  # FREE via mixed_people/api_search
     total_credits = search_credits + enrichment + people_credits
     total_usd = total_credits * APOLLO_COST_PER_CREDIT
 
@@ -73,9 +78,9 @@ def estimate_cost(
         "enrichment_credits": enrichment,
         "total_credits": total_credits,
         "total_cost_usd": round(total_usd, 4),
-        "people_credits": target_count,
-        "people_cost_usd": round(target_count * APOLLO_COST_PER_CREDIT, 4),
-        "people_note": "1 credit per net-new email (people/bulk_match)",
+        "people_credits": 0,
+        "people_cost_usd": 0,
+        "people_note": "FREE via /mixed_people/api_search (no credits)",
         "target_rate_used": target_rate,
         "contacts_per_company": contacts_per_company,
         "note": "Estimated. Actual target rate varies by segment.",
