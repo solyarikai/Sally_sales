@@ -651,22 +651,41 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ШАГ 0: ЗАПУСК ПОИСКА КОМПАНИЙ
-# Отправляем описание идеального клиента (ICP) в Clay или Apollo.
-# Система ищет компании по ключевым словам, индустрии, размеру, географии.
+# Отправляем фильтры в Clay через backend API. Два режима:
+#   1. icp_text — AI (Gemini) конвертирует текст ICP в Clay фильтры
+#   2. description_keywords — ключевые слова идут напрямую в Clay UI (без AI)
 # Результат: список доменов компаний (например thegoatagency.com, modash.io).
-# Стоимость: Clay ~$0.01/компания, Apollo бесплатно (через UI эмулятор).
+# Стоимость: Clay ~$0.01/компания.
 # ══════════════════════════════════════════════════════════════════════════════
 
 def step0_start(config: ProjectConfig, filters: dict, mode: str,
                 input_text: str = None, notes: str = "") -> int:
-    """Start Clay/Apollo gathering via backend API. Returns run_id."""
+    """Start Clay/Apollo gathering via backend API. Returns run_id.
+
+    Filters can contain either:
+      - icp_text: natural language ICP -> AI maps to Clay filters (Gemini/GPT)
+      - description_keywords: explicit keyword list -> direct to Clay UI (no AI)
+    Both can include: industries, country_names, minimum/maximum_member_count, max_results.
+    """
+    has_keywords = bool(filters.get("description_keywords"))
+    has_icp = bool(filters.get("icp_text"))
+    search_mode = "description_keywords (direct)" if has_keywords else "icp_text (AI-mapped)" if has_icp else "unknown"
+
     print(f"\n{'='*60}")
     print(f"STEP 0: Start Gathering")
     print(f"  Project: {config.project_name} (ID {config.project_id})")
     print(f"  Mode: {mode}")
-    print(f"  Countries: {', '.join(filters.get('country_names', ['global']))}")
+    print(f"  Clay search: {search_mode}")
+    if has_keywords:
+        kw = filters["description_keywords"]
+        print(f"  Keywords: {len(kw)} description_keywords")
+        excl = filters.get("description_keywords_exclude", [])
+        if excl:
+            print(f"  Excluded: {len(excl)} keywords")
+    if has_icp:
+        print(f"  ICP: {filters['icp_text'][:100]}...")
+    print(f"  Countries: {', '.join(filters.get('country_names', ['ALL GEO']))}")
     print(f"  Max results: {filters.get('max_results', 5000)}")
-    print(f"  ICP: {filters.get('icp_text', '?')[:100]}...")
     print(f"{'='*60}")
 
     result = api("post", "/pipeline/gathering/start", json={
