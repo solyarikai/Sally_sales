@@ -114,25 +114,49 @@ class ApolloService:
         num_employees_ranges: Optional[List[str]] = None,
         latest_funding_stages: Optional[List[str]] = None,
         max_pages: int = 50, per_page: int = 100,
+        batch_size: int = 10,
     ) -> List[Dict[str, Any]]:
+        """Fetch multiple pages in parallel batches of batch_size.
+        Apollo has 300ms rate limit but we can pipeline requests.
+        Each batch of 10 pages runs concurrently, then next batch."""
         all_orgs: List[Dict[str, Any]] = []
-        for page in range(1, max_pages + 1):
-            data = await self.search_organizations(
-                keyword_tags=keyword_tags, locations=locations,
-                num_employees_ranges=num_employees_ranges,
-                latest_funding_stages=latest_funding_stages,
-                page=page, per_page=per_page,
-            )
-            if not data:
+        total_pages_apollo = max_pages  # Will update from first response
+
+        for batch_start in range(1, max_pages + 1, batch_size):
+            batch_end = min(batch_start + batch_size, max_pages + 1)
+            pages_to_fetch = list(range(batch_start, batch_end))
+
+            # Fetch batch in parallel
+            async def fetch_page(page):
+                return page, await self.search_organizations(
+                    keyword_tags=keyword_tags, locations=locations,
+                    num_employees_ranges=num_employees_ranges,
+                    latest_funding_stages=latest_funding_stages,
+                    page=page, per_page=per_page,
+                )
+
+            results = await asyncio.gather(*[fetch_page(p) for p in pages_to_fetch])
+
+            batch_orgs = 0
+            stop = False
+            for page, data in sorted(results, key=lambda x: x[0]):
+                if not data:
+                    stop = True
+                    break
+                orgs = data.get("organizations", []) or data.get("accounts", [])
+                all_orgs.extend(orgs)
+                batch_orgs += len(orgs)
+                pagination = data.get("pagination", {})
+                total_pages_apollo = pagination.get("total_pages", total_pages_apollo)
+                if page >= total_pages_apollo:
+                    stop = True
+                    break
+
+            logger.info(f"Apollo batch {batch_start}-{batch_end-1}: {batch_orgs} orgs (total: {len(all_orgs)}, apollo_pages: {total_pages_apollo})")
+
+            if stop:
                 break
-            # Apollo returns companies in "accounts" OR "organizations" depending on endpoint version
-            orgs = data.get("organizations", []) or data.get("accounts", [])
-            all_orgs.extend(orgs)
-            pagination = data.get("pagination", {})
-            total_pages = pagination.get("total_pages", 1)
-            logger.info(f"Apollo org search: page {page}/{total_pages}, got {len(orgs)} orgs (total: {len(all_orgs)})")
-            if page >= total_pages:
-                break
+
         return all_orgs
 
     async def enrich_by_domain(self, domain: str, limit: int = 5, titles: Optional[List[str]] = None) -> List[Dict[str, Any]]:
