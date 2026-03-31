@@ -646,14 +646,17 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 # Источник B — Clay Keywords (--mode keywords)
 #   Явные description_keywords напрямую в Clay UI. ~$0.01/компания.
 #
-# Источник C — Apollo Internal API (--mode apollo)
+# Источник C — Clay Lookalike (--mode lookalike)
+#   Reverse-engineering фильтров по примерам доменов. ~$0.01/компания.
+#
+# Источник D — Apollo Internal API (--mode apollo)
 #   Puppeteer + internal API (q_organization_keyword_tags). БЕСПЛАТНО.
 #   Скрипт: scripts/sofia/onsocial_apollo_companies_search.js
 #
-# Clay (A, B) → step0_start() → backend API → run_id
-# Apollo (C) → step0_apollo_companies() → JS scraper → domains → create_batched_runs()
+# Clay (A, B, C) → step0_start() → backend API → run_id
+# Apollo (D) → step0_apollo_companies() → JS scraper → domains → create_batched_runs()
 #
-# Все три на выходе дают run_id(s) → дальше единый pipeline (шаги 1-10).
+# Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-10).
 # ══════════════════════════════════════════════════════════════════════════════
 
 def step0_start(config: ProjectConfig, filters: dict, mode: str,
