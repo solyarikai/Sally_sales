@@ -185,10 +185,7 @@ async def trigger_sync(
 
 
 @router.post("/webhook/smartlead")
-async def smartlead_webhook(
-    body: dict,
-    session: AsyncSession = Depends(get_session),
-):
+async def smartlead_webhook(body: dict):
     """SmartLead webhook — receives reply notifications in real-time.
 
     SmartLead sends: {event_type, lead, campaign_id, ...}
@@ -208,41 +205,46 @@ async def smartlead_webhook(
     if not email:
         return {"status": "ignored", "reason": "no email"}
 
-    # Find campaign in our DB
+    # Use own session (don't block on shared pool)
+    from app.db import async_session_maker
     from app.models.campaign import Campaign
-    campaign = None
-    if campaign_id:
-        campaign = (await session.execute(
-            select(Campaign).where(Campaign.external_id == str(campaign_id))
-        )).scalar_one_or_none()
 
-    # Check if already exists
-    existing = (await session.execute(
-        select(MCPReply).where(MCPReply.lead_email == email)
-    )).scalar_one_or_none()
-    if existing:
-        return {"status": "duplicate"}
+    try:
+        async with async_session_maker() as session:
+            campaign = None
+            if campaign_id:
+                campaign = (await session.execute(
+                    select(Campaign).where(Campaign.external_id == str(campaign_id))
+                )).scalar_one_or_none()
 
-    # Classify
-    reply_text = body.get("reply_text", body.get("message", ""))[:2000]
-    category = "interested" if event_type == "INTERESTED" else "meeting_request" if event_type == "MEETING_BOOKED" else "other"
+            if not campaign or not campaign.project_id:
+                return {"status": "ignored", "reason": "campaign not found in MCP"}
 
-    if not campaign or not campaign.project_id:
-        return {"status": "ignored", "reason": "campaign not found in MCP"}
+            existing = (await session.execute(
+                select(MCPReply).where(MCPReply.lead_email == email)
+            )).scalar_one_or_none()
+            if existing:
+                return {"status": "duplicate"}
 
-    reply = MCPReply(
-        project_id=campaign.project_id,
-        campaign_id=campaign.id,
-        campaign_name=campaign.name,
-        lead_email=email,
-        lead_name=f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip(),
-        reply_text=reply_text,
-        category=category,
-        source="smartlead",
-        smartlead_lead_id=lead.get("id"),
-    )
-    session.add(reply)
-    await session.commit()
+            reply_text = body.get("reply_text", body.get("message", ""))[:2000]
+            category = "interested" if event_type == "INTERESTED" else "meeting_request" if event_type == "MEETING_BOOKED" else "other"
 
-    logger.info(f"Webhook: new {category} reply from {email} for campaign {campaign_id}")
-    return {"status": "processed", "category": category}
+            reply = MCPReply(
+                project_id=campaign.project_id,
+                campaign_id=campaign.id,
+                campaign_name=campaign.name,
+                lead_email=email,
+                lead_name=f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip(),
+                reply_text=reply_text,
+                category=category,
+                source="smartlead",
+                smartlead_lead_id=str(lead.get("id", "")),
+            )
+            session.add(reply)
+            await session.commit()
+
+            logger.info(f"Webhook: new {category} reply from {email}")
+            return {"status": "processed", "category": category}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return {"status": "error", "detail": str(e)[:200]}
