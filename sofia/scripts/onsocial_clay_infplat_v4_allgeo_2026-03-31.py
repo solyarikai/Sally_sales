@@ -1352,13 +1352,15 @@ def step12_upload(contacts: list[dict]):
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEPS = ["start", "backend", "export", "people", "findymail", "upload"]
+STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
+         "export", "people", "findymail", "upload"]
 
 
 def main():
     p = argparse.ArgumentParser(description="OnSocial Clay INFLUENCER_PLATFORMS v4 ALL GEO Pipeline")
     p.add_argument("--from-step", choices=STEPS, default="start",
                    help="Start from this step")
+    p.add_argument("--run-id", type=int, help="Resume existing run")
     p.add_argument("--apollo-csv", help="Apollo People CSV (skip auto scrape)")
     p.add_argument("--max-findymail", type=int, default=1500)
     p.add_argument("--force", action="store_true", help="Force re-run (ignore cache)")
