@@ -422,7 +422,7 @@ class PipelineOrchestrator:
                 user_id=uid,
                 action=f"cost_{entry['service']}",
                 tool_name=f"pipeline_iter_{iteration}",
-                metadata=entry,
+                extra_data=entry,
             ))
         await self.session.flush()
         reset_tracker()  # Clear for next iteration
@@ -598,19 +598,18 @@ async def _auto_generate_campaign(session, run, user_id: int, openai_key: str):
         if not project:
             return
 
-        # Generate sequence
-        from app.services.campaign_intelligence import generate_sequence
-        seq_result = await generate_sequence(
+        # Generate sequence via CampaignIntelligenceService
+        from app.services.campaign_intelligence import CampaignIntelligenceService
+        svc = CampaignIntelligenceService(openai_key=openai_key)
+        seq = await svc.generate_sequence(
             session=session,
-            project=project,
-            openai_key=openai_key,
+            project_id=run.project_id,
             campaign_name=f"{project.name} - Pipeline #{run.id}",
         )
 
-        if seq_result and seq_result.get("sequence_id"):
-            logger.info(f"Auto-generated sequence #{seq_result['sequence_id']} for pipeline {run.id}")
-            # Store reference on run for easy lookup
-            run.notes = (run.notes or "") + f"\nAuto-sequence: #{seq_result['sequence_id']}"
+        if seq and hasattr(seq, 'id'):
+            logger.info(f"Auto-generated sequence #{seq.id} for pipeline {run.id}")
+            run.notes = (run.notes or "") + f"\nAuto-sequence: #{seq.id}"
             await session.flush()
     except Exception as e:
         logger.warning(f"Auto campaign generation failed for pipeline {run.id}: {e}")
