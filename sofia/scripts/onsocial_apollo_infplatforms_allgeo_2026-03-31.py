@@ -114,39 +114,49 @@ SEGMENT_CODE = "INFPLAT"
 # Apollo Companies scraper
 APOLLO_COMPANY_SCRAPER = "scripts/apollo_universal_search.js"
 
-# ALL GEO: scraper requires --location, so we pass major regions to cover the world
-ALL_GEO_LOCATIONS = [
-    "United States",
+# GEO: social proof regions (search where we have proof points)
+SOCIAL_PROOF_LOCATIONS = [
     "United Kingdom",
     "Germany",
     "France",
-    "Canada",
-    "Australia",
-    "Netherlands",
-    "Spain",
-    "Italy",
-    "Sweden",
-    "Brazil",
     "India",
-    "Singapore",
-    "Japan",
-    "Israel",
-    "Poland",
-    "Mexico",
+    "Australia",
+    "Spain",
     "United Arab Emirates",
-    "South Korea",
-    "Indonesia",
-    "Turkey",
-    "South Africa",
-    "Argentina",
-    "Colombia",
-    "Philippines",
-    "Thailand",
-    "Vietnam",
-    "Nigeria",
+    "Saudi Arabia",
     "Egypt",
-    "Kenya",
+    "Turkey",
+    "Israel",
+    "Brazil",
+    "Mexico",
+    "Colombia",
+    "Argentina",
 ]
+
+# Social proof by country (INFLUENCER_PLATFORMS segment)
+SOCIAL_PROOF = {
+    "United Kingdom": "Whalar and Billion Dollar Boy",
+    "Germany": "Zalando and Intermate",
+    "France": "Kolsquare, Skeepers, and Favikon",
+    "India": "Phyllo and KlugKlug",
+    "Australia": "TRIBEGroup",
+    "Spain": "SAMY Alliance",
+    "United Arab Emirates": "ArabyAds and Sociata",
+    "Saudi Arabia": "ArabyAds and Sociata",
+    "Egypt": "ArabyAds and Sociata",
+    "Turkey": "ArabyAds and Sociata",
+    "Israel": "ArabyAds and Sociata",
+    "Brazil": "Modash and Captiv8",
+    "Mexico": "Modash and Captiv8",
+    "Colombia": "Modash and Captiv8",
+    "Argentina": "Modash and Captiv8",
+    "_default": "Modash, Captiv8, and Lefty",
+}
+
+
+def get_social_proof(country: str) -> str:
+    """Get social proof text for a country."""
+    return SOCIAL_PROOF.get(country, SOCIAL_PROOF["_default"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
