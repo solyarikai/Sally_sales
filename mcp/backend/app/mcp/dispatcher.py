@@ -389,6 +389,25 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 scraper = await ctx.get_scraper_service()
                 scrape_result = await scraper.scrape_website(website)
                 website_text = scrape_result.get("text", "")[:4000]
+
+                # Fallback: if proxy scrape returned empty (JS-rendered sites), try direct fetch
+                if not website_text:
+                    import httpx as _httpx
+                    try:
+                        async with _httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                            resp = await client.get(website, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"})
+                            if resp.status_code == 200:
+                                import re
+                                html = resp.text
+                                text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+                                text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+                                text = re.sub(r'<[^>]+>', ' ', text)
+                                text = re.sub(r'\s+', ' ', text).strip()[:4000]
+                                if len(text) > 50:
+                                    website_text = text
+                    except Exception:
+                        pass
+
                 scrape_status = "scraped" if website_text else "empty"
 
                 # ── Step 2: AI analysis of offer via GPT-4.1-mini ──
