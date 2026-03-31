@@ -235,7 +235,7 @@ async def smartlead_webhook(
         lead_name=f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip(),
         reply_text=reply_text,
         category=category,
-        platform="smartlead",
+        source="smartlead",
         smartlead_lead_id=lead.get("id"),
     )
     session.add(reply)
