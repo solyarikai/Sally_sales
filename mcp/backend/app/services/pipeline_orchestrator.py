@@ -41,9 +41,9 @@ logger = logging.getLogger(__name__)
 # Defaults (used when run.target_count / run.contacts_per_company are NULL)
 DEFAULT_TARGET_COUNT = 100
 DEFAULT_CONTACTS_PER_COMPANY = 3
-PAGES_PER_BATCH = 4
-EXPLORATION_PER_PAGE = 25    # Iteration 1: small sample for filter improvement
-SCALE_PER_PAGE = 100         # Iteration 2+: full speed after improvement
+PAGES_PER_BATCH = 5          # 5 pages × ~60 unique = ~300 companies per batch
+PER_PAGE = 100               # Apollo only works with 100 (25 returns 0)
+EFFECTIVE_PER_PAGE = 60      # Apollo returns ~60 unique per page in practice
 
 # Background task registry — tracks running orchestrator tasks by run_id
 _running_tasks: Dict[int, asyncio.Task] = {}
@@ -177,10 +177,11 @@ class PipelineOrchestrator:
             if await self._check_pause_and_reload_kpis():
                 return self._finalize(result)
 
-            logger.info(f"Pipeline orchestrator: Iteration {batch_num} — {PAGES_PER_BATCH} pages (people: {self.total_people}/{target_people})")
+            pages = 1 if batch_num == 1 else PAGES_PER_BATCH  # Iteration 1: 1 page exploration, then scale
+            logger.info(f"Pipeline orchestrator: Iteration {batch_num} — {pages} pages (people: {self.total_people}/{target_people})")
             iter_n = await self._gather_batch(
-                filters, pages=PAGES_PER_BATCH,
-                iteration_label=f"Scale batch {batch_num} ({PAGES_PER_BATCH} pages)"
+                filters, pages=pages,
+                iteration_label=f"{'Exploration' if batch_num == 1 else 'Scale'} batch {batch_num} ({pages} pages)"
             )
             result["iterations"].append(iter_n)
             result["credits_used"] += iter_n.get("credits", 0)
@@ -214,7 +215,7 @@ class PipelineOrchestrator:
         batch_filters = dict(filters)
         batch_filters["max_pages"] = pages
         batch_filters["page_offset"] = self.pages_fetched + 1
-        batch_filters["per_page"] = EXPLORATION_PER_PAGE if batch_num == 1 else SCALE_PER_PAGE
+        batch_filters["per_page"] = PER_PAGE  # Always 100 — Apollo returns 0 for anything else
 
         # Gather — use adapter directly to append to existing run
         try:
