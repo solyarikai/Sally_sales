@@ -143,9 +143,9 @@ class TaxonomyService:
         # pgvector cosine similarity search
         emb_str = "[" + ",".join(str(x) for x in query_emb) + "]"
         result = await session.execute(text(
-            f"SELECT term, 1 - (embedding <=> :emb::vector) as similarity "
+            f"SELECT term, 1 - (embedding <=> CAST(:emb AS vector)) as similarity "
             f"FROM apollo_taxonomy WHERE term_type='keyword' AND embedding IS NOT NULL "
-            f"ORDER BY embedding <=> :emb::vector LIMIT :n"
+            f"ORDER BY embedding <=> CAST(:emb AS vector) LIMIT :n"
         ), {"emb": emb_str, "n": top_n})
         rows = result.all()
 
@@ -225,7 +225,7 @@ class TaxonomyService:
                     emb = item["embedding"]
                     emb_str = "[" + ",".join(str(x) for x in emb) + "]"
                     await session.execute(text(
-                        "UPDATE apollo_taxonomy SET embedding = :emb::vector WHERE id = :id"
+                        "UPDATE apollo_taxonomy SET embedding = CAST(:emb AS vector) WHERE id = :id"
                     ), {"emb": emb_str, "id": ids[j]})
                     computed += 1
 

@@ -78,16 +78,28 @@ async def run_exploration(
     # Return full enriched company data (for taxonomy update downstream)
     result["enriched_companies"] = [e.get("enriched", {}) for e in enriched]
 
-    # Step 5: Update shared taxonomy map with enrichment data
-    logger.info("Exploration step 5: Updating taxonomy map")
+    # Step 5: Update shared taxonomy map with enrichment data (DB-backed)
+    logger.info("Exploration step 5: Updating taxonomy in DB")
     from app.services.taxonomy_service import taxonomy_service
+    from app.db import async_session_maker
+    from app.config import settings as _cfg
     new_keywords_total = 0
-    for e in enriched:
-        org = e.get("enriched", {})
-        if org:
-            new_keywords_total += taxonomy_service.add_from_enrichment(org, segment=query)
-    if new_keywords_total > 0:
-        await taxonomy_service.rebuild_embeddings_if_needed(openai_key)
+    try:
+        async with async_session_maker() as tax_session:
+            for e in enriched:
+                org = e.get("enriched", {})
+                if org:
+                    await taxonomy_service.add_from_enrichment(org, tax_session, segment=query)
+                    kws = org.get("keywords") or org.get("keyword_tags") or []
+                    new_keywords_total += len(kws) if isinstance(kws, list) else len(kws.split(","))
+            await tax_session.commit()
+            # Rebuild embeddings for new terms using system key
+            sys_key = _cfg.OPENAI_API_KEY
+            if sys_key and new_keywords_total > 0:
+                await taxonomy_service.rebuild_embeddings(sys_key, tax_session)
+                await tax_session.commit()
+    except Exception as e:
+        logger.warning(f"Taxonomy update failed: {e}")
     result["exploration_stats"]["new_keywords_added"] = new_keywords_total
 
     # Step 6: Re-generate filters with enriched taxonomy (replaces old _build_optimized_filters)
@@ -258,24 +270,38 @@ Companies:
 
 
 async def _enrich_targets(api_key: str, targets: List[Dict]) -> List[Dict]:
-    """Enrich top targets via Apollo to get all their labels. 1 credit each."""
+    """Bulk enrich top targets via Apollo /organizations/bulk_enrich. 1 credit per company, max 10/call."""
+    domains = [t.get("primary_domain") or t.get("domain", "") for t in targets if t.get("primary_domain") or t.get("domain")]
+    if not domains:
+        return []
+    domain_to_target = {(t.get("primary_domain") or t.get("domain", "")): t for t in targets}
+
     enriched = []
-    for target in targets:
-        domain = target.get("primary_domain") or target.get("domain", "")
-        if not domain:
-            continue
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(
-                    "https://api.apollo.io/api/v1/organizations/enrich",
-                    params={"api_key": api_key, "domain": domain},
-                )
-                data = resp.json()
-                org = data.get("organization", {})
-                if org:
-                    enriched.append({**target, "enriched": org})
-        except Exception as e:
-            logger.warning(f"Enrichment failed for {domain}: {e}")
+    try:
+        from app.services.apollo_service import ApolloService
+        svc = ApolloService(api_key=api_key)
+        orgs = await svc.bulk_enrich_organizations(domains)
+        for org in orgs:
+            domain = org.get("primary_domain") or org.get("website_url", "").replace("https://", "").replace("http://", "").split("/")[0]
+            target = domain_to_target.get(domain, {})
+            enriched.append({**target, "enriched": org})
+    except Exception as e:
+        logger.warning(f"Bulk enrichment failed: {e}")
+        # Fallback: single enrich
+        for domain in domains[:5]:
+            try:
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.post(
+                        "https://api.apollo.io/api/v1/organizations/enrich",
+                        headers={"X-Api-Key": api_key, "Content-Type": "application/json"},
+                        json={"domain": domain},
+                    )
+                    data = resp.json()
+                    org = data.get("organization", {})
+                    if org:
+                        enriched.append({**domain_to_target.get(domain, {}), "enriched": org})
+            except Exception:
+                pass
 
     return enriched
 
