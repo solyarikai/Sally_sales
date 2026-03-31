@@ -191,8 +191,9 @@ class PipelineOrchestrator:
             # Update people count
             self.total_people = await self._count_people()
 
-            # Persist progress
+            # Persist progress + flush costs for this iteration
             await self._persist_progress(batch_num)
+            await self._flush_costs(batch_num)
 
             logger.info(f"After iteration {batch_num}: {self.total_targets} targets, {self.total_people}/{target_people} people")
 
@@ -395,6 +396,28 @@ class PipelineOrchestrator:
             logger.info(f"Extracted {len(found_contacts)} contacts from {len(companies)} target companies")
 
         await self.session.flush()
+
+    async def _flush_costs(self, iteration: int):
+        """Persist accumulated costs from this iteration to DB for the user."""
+        from app.services.cost_tracker import get_tracker, reset_tracker
+        from app.models.usage import MCPUsageLog
+        tracker = get_tracker()
+        if not tracker.entries:
+            return
+        # Get user_id from project
+        project = await self.session.get(Project, self.run.project_id)
+        if not project:
+            return
+        uid = project.user_id
+        for entry in tracker.entries:
+            self.session.add(MCPUsageLog(
+                user_id=uid,
+                action=f"cost_{entry['service']}",
+                tool_name=f"pipeline_iter_{iteration}",
+                metadata=entry,
+            ))
+        await self.session.flush()
+        reset_tracker()  # Clear for next iteration
 
     async def _count_people(self) -> int:
         """Count total extracted contacts for this run's target companies."""
