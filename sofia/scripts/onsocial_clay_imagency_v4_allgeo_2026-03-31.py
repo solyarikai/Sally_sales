@@ -24,11 +24,14 @@ People filters (v4):
 
 Steps:
   Step 0:     Clay Company Search via backend API (clay.companies.emulator)
-  Steps 2-8:  Backend pipeline (dedup -> blacklist -> scrape -> classify)
-  Step 9:     Export targets from DB
-  Step 10:    Apollo People UI Search (auto via apollo_scraper.js)
-  Step 11:    FindyMail email enrichment
-  Step 12:    SmartLead upload
+  Step 2:     Blacklist check → CP1 СТОП
+  Steps 3-4:  Pre-filter + Scrape websites
+  Step 5:     Classify (GPT-4o-mini) → CP2 СТОП
+  Step 6:     Verify targets (Claude Code в чате) — ищем false positives
+  Step 7:     Adjust prompt → повторить 5-6 до accuracy ≥90%
+  Step 8:     Apollo People UI Search (apollo_scraper.js) → CP3 СТОП (approve FindyMail cost)
+  Step 9:     FindyMail email enrichment ($0.01/email)
+  Step 10:    SmartLead upload (per-segment checkpoints)
 
 Usage (run on Hetzner via SSH):
   cd ~/magnum-opus-project/repo
