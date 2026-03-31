@@ -7,8 +7,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = "010_offer_alignment"
-down_revision = "009_kpi_progress"
+revision = "011_offer_alignment"
+down_revision = "010_rename_kpi_columns"
 
 
 def upgrade():
