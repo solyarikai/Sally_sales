@@ -55,21 +55,26 @@ class ApolloService:
     async def _api_call(self, method: str, endpoint: str, json_data: dict = None) -> Optional[dict]:
         MAX_RETRIES = 3
         backoff_waits = [30, 60, 120]
+        from app.services.adaptive_semaphore import APOLLO_SEM
+        sem = APOLLO_SEM()
 
         for attempt in range(MAX_RETRIES + 1):
             await self._rate_limit()
             try:
-                async with httpx.AsyncClient(timeout=30) as client:
-                    if method == "POST":
-                        resp = await client.post(f"{self.base_url}{endpoint}", json=json_data, headers=self._get_headers())
-                    else:
-                        resp = await client.get(f"{self.base_url}{endpoint}", headers=self._get_headers())
-                    if resp.status_code == 429:
-                        if attempt < MAX_RETRIES:
-                            await asyncio.sleep(backoff_waits[attempt])
-                            self._last_call_time = time.monotonic()
-                            continue
-                        return None
+                async with sem.acquire():
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        if method == "POST":
+                            resp = await client.post(f"{self.base_url}{endpoint}", json=json_data, headers=self._get_headers())
+                        else:
+                            resp = await client.get(f"{self.base_url}{endpoint}", headers=self._get_headers())
+                        if resp.status_code == 429:
+                            sem.report_429()
+                            if attempt < MAX_RETRIES:
+                                await asyncio.sleep(backoff_waits[attempt])
+                                self._last_call_time = time.monotonic()
+                                continue
+                            return None
+                        sem.report_ok()
                     resp.raise_for_status()
                     return resp.json()
             except httpx.HTTPStatusError as e:

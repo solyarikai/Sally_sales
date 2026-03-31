@@ -555,26 +555,36 @@ Rules:
 
             async with sem.acquire():
                 try:
-                    async with httpx.AsyncClient(timeout=30) as client:
-                        resp = await client.post(
-                            "https://api.openai.com/v1/chat/completions",
-                            headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
-                            json={
-                                "model": "gpt-4o-mini",
-                                "messages": [
-                                    {"role": "system", "content": via_negativa_system},
-                                    {"role": "user", "content": company_text},
-                                ],
-                                "max_tokens": 200,
-                                "temperature": 0.1,
-                            },
-                        )
-                        if resp.status_code == 429:
-                            sem.report_429()
-                            return {"domain": dc.domain, "error": "rate_limited"}
-                        sem.report_ok()
-                        data = resp.json()
-                        extract_openai_usage(data, "gpt-4o-mini", "analyze_company")
+                    _MAX_RETRIES = 3
+                    _BACKOFF = [2, 5, 10]
+                    data = None
+                    for _attempt in range(_MAX_RETRIES + 1):
+                        async with httpx.AsyncClient(timeout=30) as client:
+                            resp = await client.post(
+                                "https://api.openai.com/v1/chat/completions",
+                                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                                json={
+                                    "model": "gpt-4o-mini",
+                                    "messages": [
+                                        {"role": "system", "content": via_negativa_system},
+                                        {"role": "user", "content": company_text},
+                                    ],
+                                    "max_tokens": 200,
+                                    "temperature": 0.1,
+                                },
+                            )
+                            if resp.status_code == 429:
+                                sem.report_429()
+                                if _attempt < _MAX_RETRIES:
+                                    await asyncio.sleep(_BACKOFF[_attempt])
+                                    continue
+                                return {"domain": dc.domain, "error": "rate_limited"}
+                            sem.report_ok()
+                            data = resp.json()
+                            break
+                    if not data:
+                        return {"domain": dc.domain, "error": "no_response"}
+                    extract_openai_usage(data, "gpt-4o-mini", "analyze_company")
                         content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                         clean = content.strip()
                         if clean.startswith("```"):
