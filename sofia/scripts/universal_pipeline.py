@@ -634,9 +634,6 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
     # Одобряем таргеты (CP2) — после classify все target компании утверждены
     approve_pending_gate(config, run_id)
 
-    # Добавляем утверждённые домены в blacklist — следующий ран не будет их обрабатывать повторно
-    blacklist_approved_targets(config, run_id)
-
 
 def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
     """Find and approve pending gate for this run."""
