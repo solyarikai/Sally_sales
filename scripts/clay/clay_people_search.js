@@ -639,82 +639,100 @@ async function runPeopleSearch(page, filters, label = 'default') {
       await humanDelay(1200, 1800);
     }
 
-    // Look for "Table of companies" dropdown/field
-    // This is a select/dropdown in the Companies section of the People search sidebar
-    const tableField = await page.evaluate(() => {
-      const inputs = [...document.querySelectorAll('input, select, [role="combobox"], [role="listbox"]')].filter(i => i.offsetParent !== null);
-      for (const input of inputs) {
-        const ph = (input.placeholder || '').toLowerCase();
-        const label = input.getAttribute('aria-label')?.toLowerCase() || '';
-        if (ph.includes('table') || label.includes('table') || ph.includes('company table')) {
-          const rect = input.getBoundingClientRect();
-          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder, type: 'input' };
-        }
-      }
-      // Also try finding by nearby text label
-      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      while (walk.nextNode()) {
-        const text = walk.currentNode.textContent?.trim().toLowerCase();
-        if (text && (text.includes('table of companies') || text === 'company table' || text === 'from table')) {
-          const parent = walk.currentNode.parentElement;
-          if (parent?.offsetParent !== null) {
-            // Look for the nearest input/select/clickable after this label
-            const sibling = parent.nextElementSibling || parent.parentElement?.querySelector('input, select, [role="combobox"]');
-            if (sibling) {
-              const rect = sibling.getBoundingClientRect();
-              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, type: 'sibling' };
-            }
-            // Click the label area itself — might open a dropdown
-            const rect = parent.getBoundingClientRect();
-            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, type: 'label' };
-          }
-        }
-      }
-      return null;
-    });
+    // The "Table of companies" section has a dropdown labeled "Select company table"
+    // It's a custom React dropdown (not <select> or <input>), so we need to:
+    // 1. Click "Select company table" to open the dropdown list
+    // 2. Find and click the table name in the dropdown
 
-    if (tableField) {
-      console.log(`    Found table field (${tableField.type}): clicking...`);
-      await page.mouse.click(tableField.x, tableField.y);
+    // First, try to expand "Table of companies" subsection if collapsed
+    const tableOfCompanies = await findByText(page, 'Table of companies', false);
+    if (tableOfCompanies) {
+      await page.mouse.click(tableOfCompanies.x, tableOfCompanies.y);
       await humanDelay(800, 1200);
-      await screenshot(page, `${label}_02b_table_dropdown`);
+      console.log('    Clicked "Table of companies" section');
+    }
 
-      // Type the table name to search/filter the dropdown
-      await page.keyboard.type(filters.company_table_name, { delay: 30 + Math.random() * 40 });
-      await humanDelay(1000, 1500);
+    await screenshot(page, `${label}_02b_table_section`);
 
-      // Select from dropdown — press Enter or click matching option
-      const matchOpt = await findByText(page, filters.company_table_name, false);
-      if (matchOpt) {
-        await page.mouse.click(matchOpt.x, matchOpt.y);
-        await humanDelay(500, 800);
+    // Find and click the "Select company table" dropdown
+    console.log('    Looking for "Select company table" dropdown...');
+    const selectDropdown = await findByText(page, 'Select company table', false)
+      || await findByText(page, 'select company table', false)
+      || await findByText(page, 'Select table', false);
+
+    if (selectDropdown) {
+      console.log(`    Found dropdown at (${Math.round(selectDropdown.x)}, ${Math.round(selectDropdown.y)})`);
+      await page.mouse.click(selectDropdown.x, selectDropdown.y);
+      await humanDelay(1500, 2000);
+      await screenshot(page, `${label}_02b_table_dropdown_open`);
+
+      // The dropdown should now show a list of tables. Find ours by name.
+      const tableOption = await findByText(page, filters.company_table_name, false);
+      if (tableOption) {
+        console.log(`    Found table "${filters.company_table_name}" in dropdown`);
+        await page.mouse.click(tableOption.x, tableOption.y);
+        await humanDelay(1500, 2000);
         console.log(`    Selected table: "${filters.company_table_name}"`);
       } else {
-        // Fallback: just press Enter to accept
-        await page.keyboard.press('Enter');
-        await humanDelay(500, 800);
-        console.log(`    Pressed Enter for table selection`);
+        console.log(`    Table "${filters.company_table_name}" not found in dropdown. Trying to type and search...`);
+        // Some dropdowns have a search input — try typing
+        await page.keyboard.type(filters.company_table_name, { delay: 30 + Math.random() * 40 });
+        await humanDelay(1000, 1500);
+        // Try clicking the first matching option
+        const searchResult = await findByText(page, filters.company_table_name, false);
+        if (searchResult) {
+          await page.mouse.click(searchResult.x, searchResult.y);
+          await humanDelay(1000, 1500);
+          console.log(`    Selected table via search: "${filters.company_table_name}"`);
+        } else {
+          await page.keyboard.press('Enter');
+          await humanDelay(500, 800);
+          console.log(`    Pressed Enter (hoping for first match)`);
+        }
       }
     } else {
-      console.log('    WARNING: "Table of companies" field not found!');
-      // Debug: show all available inputs
-      const allInputs = await page.evaluate(() =>
-        [...document.querySelectorAll('input, select, [role="combobox"]')].filter(i => i.offsetParent !== null)
-          .map(i => ({ placeholder: i.placeholder, ariaLabel: i.getAttribute('aria-label'), tag: i.tagName }))
-      );
-      console.log('    Available inputs:', JSON.stringify(allInputs));
-      // Debug: show all visible text in sidebar area
-      const sidebarText = await page.evaluate(() =>
-        [...document.querySelectorAll('div, span, label')]
-          .filter(el => {
-            const r = el.getBoundingClientRect();
-            return el.offsetParent !== null && r.x < 400 && el.textContent?.trim().length > 2 && el.textContent.trim().length < 40;
-          })
-          .map(el => el.textContent.trim())
-          .filter((v, i, arr) => arr.indexOf(v) === i)
-          .slice(0, 30)
-      );
-      console.log('    Sidebar text:', sidebarText.join(' | '));
+      // Fallback: look for any dropdown or clickable in the Companies section
+      console.log('    "Select company table" not found. Looking for dropdown alternatives...');
+      const dropdownAlt = await page.evaluate(() => {
+        // Find elements that look like dropdown triggers in the sidebar
+        const els = [...document.querySelectorAll('div, button, span')].filter(el => {
+          const r = el.getBoundingClientRect();
+          const t = (el.textContent || '').toLowerCase().trim();
+          return el.offsetParent !== null && r.x < 400 && r.y > 200
+            && (t.includes('select') || t.includes('choose') || t.includes('table'))
+            && t.length < 40 && r.width > 50;
+        });
+        for (const el of els) {
+          const r = el.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2, text: el.textContent.trim().substring(0, 40) };
+        }
+        return null;
+      });
+      if (dropdownAlt) {
+        console.log(`    Found alternative: "${dropdownAlt.text}" — clicking...`);
+        await page.mouse.click(dropdownAlt.x, dropdownAlt.y);
+        await humanDelay(1500, 2000);
+        const tableOpt = await findByText(page, filters.company_table_name, false);
+        if (tableOpt) {
+          await page.mouse.click(tableOpt.x, tableOpt.y);
+          await humanDelay(1000, 1500);
+          console.log(`    Selected table: "${filters.company_table_name}"`);
+        }
+      } else {
+        console.log('    WARNING: No dropdown found for table selection!');
+        // Debug: dump sidebar content
+        const sidebarText = await page.evaluate(() =>
+          [...document.querySelectorAll('div, span, label, button')]
+            .filter(el => {
+              const r = el.getBoundingClientRect();
+              return el.offsetParent !== null && r.x < 400 && el.textContent?.trim().length > 2 && el.textContent.trim().length < 50;
+            })
+            .map(el => el.textContent.trim())
+            .filter((v, i, arr) => arr.indexOf(v) === i)
+            .slice(0, 30)
+        );
+        console.log('    Sidebar text:', sidebarText.join(' | '));
+      }
     }
     await screenshot(page, `${label}_02b_table_selected`);
 
