@@ -1392,40 +1392,68 @@ Return ONLY valid JSON."""
 
             from app.services.exploration_service import _enrich_targets, _extract_common_labels, _build_optimized_filters
             example_companies = [{"domain": d.strip(), "name": d.split(".")[0]} for d in example_domains[:10]]
+
+            # Step 1: Scrape example websites (real signal > Apollo labels)
+            scraped_texts = {}
+            try:
+                from app.services.scraper_service import ScraperService
+                import os
+                scraper = ScraperService(apify_proxy_password=os.environ.get("APIFY_PROXY_PASSWORD"))
+                scrape_tasks = [scraper.scrape_website(f"https://{d.strip()}") for d in example_domains[:10]]
+                import asyncio as _aio
+                scrape_results = await _aio.gather(*scrape_tasks, return_exceptions=True)
+                for domain, sr in zip(example_domains[:10], scrape_results):
+                    if isinstance(sr, dict) and sr.get("success"):
+                        scraped_texts[domain.strip()] = sr["text"][:2000]
+                logger.info(f"Scraped {len(scraped_texts)}/{len(example_domains[:10])} example websites")
+            except Exception as _e:
+                logger.warning(f"Example scraping failed: {_e}")
+
+            # Step 2: Enrich in Apollo (keyword_tags, industries)
             enriched = await _enrich_targets(apollo_key, example_companies)
             common_labels = _extract_common_labels(enriched)
 
-            # If no segment_desc, INFER it from enriched data (critical for filter optimization)
+            # Step 3: Infer segment from SCRAPED TEXT + APOLLO DATA (if no description)
             filter_query = segment_desc
-            if not filter_query and openai_key and enriched:
+            if not filter_query and openai_key:
                 try:
                     import httpx as _hx
-                    enriched_summary = "\n".join(
-                        f"- {e.get('domain', '?')}: industry={e.get('enriched', {}).get('industry', '?')}, "
-                        f"keywords={e.get('enriched', {}).get('keywords', [])[:5]}"
-                        for e in enriched[:10]
-                    )
-                    async with _hx.AsyncClient(timeout=15) as _c:
+                    # Build rich summary: scraped text + apollo labels
+                    company_summaries = []
+                    for e in enriched[:10]:
+                        domain = e.get("domain", "?")
+                        apollo_info = f"industry={e.get('enriched', {}).get('industry', '?')}, keywords={e.get('enriched', {}).get('keywords', [])[:5]}"
+                        website_text = scraped_texts.get(domain, "")[:500]
+                        summary = f"- {domain}: {apollo_info}"
+                        if website_text:
+                            summary += f"\n  Website: {website_text[:300]}"
+                        company_summaries.append(summary)
+
+                    async with _hx.AsyncClient(timeout=20) as _c:
                         _resp = await _c.post(
                             "https://api.openai.com/v1/chat/completions",
                             headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
                             json={
                                 "model": "gpt-4o-mini",
                                 "messages": [{"role": "user", "content": (
-                                    f"These companies are examples of the user's target market:\n{enriched_summary}\n\n"
-                                    f"In ONE sentence, describe what business segment these companies belong to. "
-                                    f"Be specific: what do they DO, who are their CUSTOMERS, what industry?"
+                                    f"These companies are examples of the user's target market:\n"
+                                    + "\n".join(company_summaries) + "\n\n"
+                                    f"Based on their WEBSITES and Apollo data, in ONE sentence describe:\n"
+                                    f"What business segment do these companies belong to? What do they DO, "
+                                    f"who are their CUSTOMERS, what specific industry/niche?"
                                 )}],
-                                "max_tokens": 100, "temperature": 0,
+                                "max_tokens": 150, "temperature": 0,
                             },
                         )
                         _data = _resp.json()
                         filter_query = _data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-                        logger.info(f"Inferred segment from examples: {filter_query}")
+                        logger.info(f"Inferred segment from examples (scraped+apollo): {filter_query}")
                         result["inferred_segment"] = filter_query
                 except Exception as _e:
-                    logger.warning(f"Segment inference from examples failed: {_e}")
+                    logger.warning(f"Segment inference failed: {_e}")
                     filter_query = ", ".join(common_labels.get("industries", [])[:3])
+
+            result["scraped_count"] = len(scraped_texts)
 
             enriched_filters = await _build_optimized_filters(
                 {"organization_locations": locations, "organization_num_employees_ranges": [employee_range] if employee_range else []},
