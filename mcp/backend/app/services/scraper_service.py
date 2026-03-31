@@ -139,7 +139,7 @@ class ScraperService:
         port = getattr(settings, 'APIFY_PROXY_PORT', 8000)
         return f"http://groups-RESIDENTIAL,session-{session_id}:{password}@{host}:{port}"
 
-    async def scrape_website(self, url: str, timeout: int = 15, max_retries: int = 2) -> Dict[str, Any]:
+    async def scrape_website(self, url: str, timeout: int = 15, max_retries: int = 3) -> Dict[str, Any]:
         original = url
         is_valid, normalized, error = self._validate_url(url)
         if not is_valid:
