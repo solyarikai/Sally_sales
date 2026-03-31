@@ -1531,7 +1531,6 @@ def main():
         phase = run_info.get("current_phase", "")
         if phase == "awaiting_targets_ok":
             approve_pending_gate(run_id)
-        blacklist_approved_targets(run_id)
         targets = step9_export_targets(force=args.force)
     else:
         targets = load_json(TARGETS_FILE) or []
