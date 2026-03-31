@@ -68,22 +68,22 @@ export default function AccountPage() {
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500">From</label>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300" />
+            className="border rounded px-2 py-1 text-sm" />
         </div>
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500">To</label>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300" />
+            className="border rounded px-2 py-1 text-sm" />
         </div>
         {(dateFrom || dateTo) && (
           <button onClick={() => { setDateFrom(''); setDateTo('') }}
-            className="text-xs text-gray-500 hover:text-gray-300">Clear</button>
+            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Clear</button>
         )}
         <span className="text-xs text-gray-600">{dateFrom || dateTo ? `Showing: ${dateFrom || 'start'} → ${dateTo || 'now'}` : 'All time'}</span>
       </div>
 
       {/* Total Cost */}
-      <div className="border border-gray-700 rounded-lg p-5 bg-gray-800/30">
+      <div className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/30">
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-400">Total Spend</span>
           <span className="text-2xl font-bold text-white">${(costs.total_usd || 0).toFixed(2)}</span>
@@ -97,7 +97,7 @@ export default function AccountPage() {
         </h2>
         <div className="grid grid-cols-4 gap-4">
           {/* Apollo */}
-          <div className="border border-gray-700 rounded-lg p-4 space-y-2">
+          <div className="border rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
               <span className="text-sm font-medium">Apollo</span>
@@ -111,7 +111,7 @@ export default function AccountPage() {
           </div>
 
           {/* OpenAI */}
-          <div className="border border-gray-700 rounded-lg p-4 space-y-2">
+          <div className="border rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
               <span className="text-sm font-medium">OpenAI</span>
@@ -129,7 +129,7 @@ export default function AccountPage() {
           </div>
 
           {/* Apify */}
-          <div className="border border-gray-700 rounded-lg p-4 space-y-2">
+          <div className="border rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
               <span className="text-sm font-medium">Apify</span>
@@ -142,7 +142,7 @@ export default function AccountPage() {
           </div>
 
           {/* MCP */}
-          <div className="border border-gray-700 rounded-lg p-4 space-y-2">
+          <div className="border rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
               <span className="text-sm font-medium">MCP</span>
@@ -172,10 +172,10 @@ export default function AccountPage() {
       {runs.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Pipeline Runs</h2>
-          <div className="border border-gray-700 rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs uppercase text-gray-500 border-b border-gray-700">
+                <tr className="text-xs uppercase text-gray-500 border-b">
                   <th className="px-4 py-2 text-left">Run</th>
                   <th className="px-4 py-2 text-left">Source</th>
                   <th className="px-4 py-2 text-right">Companies</th>
@@ -185,7 +185,7 @@ export default function AccountPage() {
                   <th className="px-4 py-2 text-left">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-700">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {runs.map((r: any) => (
                   <tr key={r.id}>
                     <td className="px-4 py-2">
@@ -205,7 +205,7 @@ export default function AccountPage() {
                       )}
                     </td>
                     <td className="px-4 py-2">
-                      <span className="px-2 py-0.5 rounded text-xs bg-gray-700">{r.phase}</span>
+                      <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700">{r.phase}</span>
                     </td>
                     <td className="px-4 py-2 text-gray-500 text-xs">
                       {r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}
@@ -221,7 +221,7 @@ export default function AccountPage() {
       {/* Integrations */}
       <div className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Connected Services</h2>
-        <div className="border border-gray-700 rounded-lg divide-y divide-gray-700">
+        <div className="border rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
           {(account.integrations || []).length === 0 ? (
             <div className="px-4 py-3 text-sm text-gray-500">No integrations yet. <a href="/setup" className="text-blue-400 hover:underline">Set up API keys</a></div>
           ) : (
@@ -242,7 +242,7 @@ export default function AccountPage() {
       {Object.keys(byTool).length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Usage by Tool</h2>
-          <div className="border border-gray-700 rounded-lg divide-y divide-gray-700">
+          <div className="border rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
             {Object.entries(byTool).sort((a: any, b: any) => b[1] - a[1]).map(([tool, count]: any) => (
               <div key={tool} className="flex items-center justify-between px-4 py-2.5">
                 <span className="text-sm font-mono">{tool}</span>
@@ -257,7 +257,7 @@ export default function AccountPage() {
       {recent.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Recent Activity</h2>
-          <div className="border border-gray-700 rounded-lg divide-y divide-gray-700">
+          <div className="border rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
             {recent.map((r: any, i: number) => (
               <div key={i} className="flex items-center justify-between px-4 py-2">
                 <div className="flex items-center gap-3">
@@ -276,7 +276,7 @@ export default function AccountPage() {
 
 function CreditCard({ label, value, detail, color }: { label: string; value: number; detail: string; color: string }) {
   return (
-    <div className="border border-gray-700 rounded-lg p-4 space-y-2">
+    <div className="border rounded-lg p-4 space-y-2">
       <div className="flex items-center gap-2">
         <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
         <span className="text-sm font-medium">{label}</span>
@@ -289,7 +289,7 @@ function CreditCard({ label, value, detail, color }: { label: string; value: num
 
 function StatBox({ label, value }: { label: string; value: number }) {
   return (
-    <div className="border border-gray-700 rounded-lg p-3 text-center">
+    <div className="border rounded-lg p-3 text-center">
       <div className="text-xl font-bold tabular-nums">{(value || 0).toLocaleString()}</div>
       <div className="text-xs text-gray-500 mt-1">{label}</div>
     </div>
