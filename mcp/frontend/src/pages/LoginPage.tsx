@@ -122,8 +122,17 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {/* Switch hint */}
+        <div style={{ marginTop: 16, textAlign: 'center', fontSize: 13, color: 'var(--text-muted, #999)' }}>
+          {tab === 'login' ? (
+            <>New here? <button onClick={() => setTab('signup')} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>Sign up</button></>
+          ) : (
+            <>Already have an account? <button onClick={() => setTab('login')} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>Log in</button></>
+          )}
+        </div>
+
         {/* MCP token link */}
-        <div style={{ marginTop: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #999)' }}>
+        <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: 'var(--text-muted, #999)' }}>
           Have an API token? <button onClick={() => {
             const t = prompt('Paste your mcp_ token:')
             if (t?.startsWith('mcp_')) {
