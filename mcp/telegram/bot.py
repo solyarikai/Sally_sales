@@ -193,6 +193,17 @@ async def process_message(user_message: str, session: dict) -> tuple[str, dict]:
             # Update session state from result
             if tool_name == "login" and result.get("user_id"):
                 session["mcp_token"] = tool_args.get("token", session.get("mcp_token"))
+                # Auto-register Telegram chat_id for reply notifications
+                try:
+                    async with httpx.AsyncClient(timeout=10) as _hc:
+                        await _hc.post(f"{MCP_URL}/api/setup/telegram-connect", json={
+                            "mcp_token": session["mcp_token"],
+                            "chat_id": str(message.from_user.id),
+                            "username": message.from_user.username or "",
+                        })
+                    logger.info(f"Auto-linked Telegram chat {message.from_user.id} for notifications")
+                except Exception as _e:
+                    logger.debug(f"Telegram auto-link failed: {_e}")
 
             if tool_name == "setup_account" and result.get("api_token"):
                 session["mcp_token"] = result["api_token"]

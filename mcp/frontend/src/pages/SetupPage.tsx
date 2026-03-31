@@ -178,6 +178,52 @@ export default function SetupPage() {
         {result && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>{result}</div>}
       </div>
 
+      {/* Telegram Notifications */}
+      <div>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Telegram Notifications</h2>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+          {(() => {
+            const tg = serviceMap.get('telegram')
+            if (tg?.connected) {
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>Connected</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{tg.info || 'Receiving reply notifications'}</div>
+                  </div>
+                </div>
+              )
+            }
+            return (
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                  Get notified on Telegram when leads reply to your campaigns.
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <a
+                    href="https://t.me/leadgen_mcp_notify_bot?start=connect"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '8px 16px', borderRadius: 8,
+                      background: '#0088cc', color: 'white',
+                      fontSize: 13, fontWeight: 500, textDecoration: 'none',
+                    }}
+                  >
+                    Connect Telegram
+                  </a>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Open the bot, then paste your MCP token to link accounts.
+                  </span>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      </div>
+
       {/* MCP Connection Info */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Connect via Claude Code</div>

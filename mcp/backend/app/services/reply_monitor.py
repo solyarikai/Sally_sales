@@ -249,6 +249,7 @@ class ReplyMonitor:
                     from app.db import async_session_maker
                     from app.models.project import Project
                     from app.models.integration import MCPIntegrationSetting
+                    from app.services.encryption import decrypt_value
                     async with async_session_maker() as db_session:
                         project = await db_session.get(Project, campaign.project_id)
                         if project and project.user_id:
@@ -259,8 +260,8 @@ class ReplyMonitor:
                                 )
                             )
                             tg_setting = tg_result.scalar_one_or_none()
-                            if tg_setting and tg_setting.config:
-                                chat_id = tg_setting.config.get("chat_id")
+                            if tg_setting and tg_setting.api_key_encrypted:
+                                chat_id = decrypt_value(tg_setting.api_key_encrypted)
                 except Exception as e:
                     logger.debug(f"Failed to get per-user telegram chat_id: {e}")
 
