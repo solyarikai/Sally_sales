@@ -47,11 +47,11 @@ Universal Lead Generation Pipeline
     Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
 
 Pipeline flow (technical):
-  Steps 0-8:  Backend gathering API (Clay/Apollo → Dedup → Blacklist → Scrape → Classify)
-  Step 9:     Export targets from DB
-  Step 10:    Apollo People UI Search (auto via apollo_scraper.js) or CSV import (--apollo-csv fallback)
-  Step 11:    FindyMail email enrichment
-  Step 12:    SmartLead upload (with per-step checkpoints)
+  Steps 0-5:  Backend gathering API (Clay → Dedup → Blacklist → Scrape → Classify)
+  Steps 6-7:  Claude Code verification in chat + prompt iteration until ≥90% accuracy
+  Step 8:     Apollo People UI Search (auto via apollo_scraper.js) or CSV import (--apollo-csv fallback)
+  Step 9:     FindyMail email enrichment ($0.01/email)
+  Step 10:    SmartLead upload (with per-step checkpoints)
 
 Input modes:
   --mode natural    : Claude generates filters in conversation, passes as --filters JSON
