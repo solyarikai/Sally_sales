@@ -1374,7 +1374,7 @@ def main():
     print(f"{'='*60}")
     print(f"  Project: OnSocial (ID {PROJECT_ID})")
     print(f"  Segment: {SEGMENT_NAME} ({SEGMENT_CODE})")
-    print(f"  Company source: Clay (description_keywords, direct, ~$0.01/co)")
+    print(f"  Company source: Clay (description_keywords, direct, FREE)")
     print(f"  People source: Apollo People UI (Puppeteer, FREE)")
     print(f"  description_keywords: {len(CLAY_FILTERS['description_keywords'])}")
     print(f"  description_keywords_exclude: {len(CLAY_FILTERS['description_keywords_exclude'])}")
