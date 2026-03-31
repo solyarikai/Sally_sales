@@ -103,6 +103,23 @@ async def call_mcp_tool(tool_name: str, arguments: dict, mcp_token: str = None) 
         return data.get("result", {})
 
 
+async def log_conversation(mcp_token: str, direction: str, method: str, content: str, session_id: str = "telegram"):
+    """Log conversation message to MCP backend for admin visibility."""
+    try:
+        headers = {"Content-Type": "application/json"}
+        if mcp_token:
+            headers["X-MCP-Token"] = mcp_token
+        async with httpx.AsyncClient(timeout=5) as client:
+            await client.post(f"{MCP_URL}/api/conversations/log", headers=headers, json={
+                "direction": direction,
+                "method": method,
+                "content_summary": content[:500],
+                "session_id": session_id,
+            })
+    except Exception as e:
+        logger.debug(f"Conversation log failed: {e}")
+
+
 # ── AI Router ──
 
 def build_system_prompt(session: dict) -> str:
@@ -311,10 +328,17 @@ async def cmd_reset(message: types.Message):
 @dp.message(F.text)
 async def handle_text(message: types.Message):
     session = await get_session(message.from_user.id)
+    tg_session_id = f"telegram:{message.from_user.id}"
+
+    # Log user message
+    await log_conversation(session.get("mcp_token"), "client_to_server", "user_message", message.text, tg_session_id)
 
     try:
         response_text, updated_session = await process_message(message.text, session)
         await save_session(message.from_user.id, updated_session)
+
+        # Log bot response
+        await log_conversation(updated_session.get("mcp_token"), "server_to_client", "bot_response", response_text, tg_session_id)
 
         # Telegram has 4096 char limit
         for i in range(0, len(response_text), 4000):

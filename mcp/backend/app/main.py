@@ -148,6 +148,46 @@ async def call_tool_rest(
             logger.error(f"Tool call {req.name} failed: {e}")
             return {"error": "Internal error processing tool call"}
 
+# ── Conversation logging REST endpoint (for Telegram bot) ──
+
+class ConversationLogRequest(BaseModel):
+    direction: str
+    method: str
+    content_summary: str
+    session_id: str = "unknown"
+
+
+@app.post("/api/conversations/log")
+async def log_conversation_rest(
+    req: ConversationLogRequest,
+    x_mcp_token: Optional[str] = Header(None),
+):
+    """Log a conversation message. Used by Telegram bot to persist user messages + bot responses."""
+    user_id = None
+    if x_mcp_token:
+        try:
+            from app.db import async_session_maker
+            from app.auth.middleware import verify_token
+            async with async_session_maker() as session:
+                user = await verify_token(session, x_mcp_token)
+                if user:
+                    user_id = user.id
+                from app.models.usage import MCPConversationLog
+                session.add(MCPConversationLog(
+                    user_id=user_id,
+                    session_id=req.session_id,
+                    direction=req.direction,
+                    method=req.method,
+                    message_type="telegram",
+                    raw_json=None,
+                    content_summary=req.content_summary[:1000],
+                ))
+                await session.commit()
+        except Exception as e:
+            logger.debug(f"Conversation log failed: {e}")
+    return {"ok": True}
+
+
 # Contacts API — compatible with main app's ContactsPage
 from app.api.contacts import router as contacts_router
 app.include_router(contacts_router, prefix="/api")
