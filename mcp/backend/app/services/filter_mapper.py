@@ -152,10 +152,17 @@ async def _pick_industries(
     openai_key: str, model: str = "gpt-4o-mini",
 ) -> List[str]:
     """Separate focused call for industry selection. gpt-4o-mini tested at 100%."""
-    prompt = f"""Which 2-3 Apollo industries are DIRECTLY described by this query: "{query}"?
+    prompt = f"""Which 2-3 Apollo industries DIRECTLY describe companies matching: "{query}"?
 Available: {json.dumps(industries)}
-Pick ONLY industries that directly match the words in the query. Not related, not adjacent — directly described.
-Return JSON: {{"industries": ["exact name"]}}"""
+
+Rules:
+- Pick industries where MOST companies in that industry match the query
+- "information technology & services" is good for "IT consulting" (most IT consulting firms are tagged this)
+- "internet" is BAD for "influencer platforms" (too broad — includes everything online)
+- "publishing" is BAD for "influencer platforms" (publishers ≠ platforms)
+- Prefer SPECIFIC industries over CATCH-ALL ones
+
+Return JSON: {{"industries": ["exact name from list"]}}"""
 
     for try_model in [model, "gpt-4o-mini"]:
         try:
@@ -195,10 +202,16 @@ async def _gpt_pick_filters(
     if keyword_shortlist:
         keyword_section = f"""
 STEP 2 — KEYWORDS
-Pick 3-7 from this list of real Apollo keyword tags (ranked by relevance to your query):
+Pick 3-7 from this list of real Apollo keyword tags (ranked by relevance):
 {json.dumps(keyword_shortlist)}
-Pick the ones that best describe the TARGET COMPANIES (not our product).
-If fewer than 3 match, you may suggest up to 2 new ones in "unverified_keywords"."""
+
+CRITICAL RULES:
+- Pick keywords that SPECIFICALLY describe "{query}" — not generic categories
+- "computer software" is TOO BROAD for "IT consulting" — pick "it consulting" instead
+- "internet" is TOO BROAD for "influencer platforms" — pick "influencer marketing platforms" instead
+- Prefer SPECIFIC keywords (50-5000 companies) over GENERIC ones (100K+ companies)
+- Each keyword should narrow the search, not broaden it
+If fewer than 3 match, suggest up to 2 new specific ones in "unverified_keywords"."""
     else:
         keyword_section = """
 STEP 2 — KEYWORDS
