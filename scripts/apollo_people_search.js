@@ -225,9 +225,11 @@ async function searchPeopleAPI(page, params) {
       let batchPeople = 0;
 
       for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+        // Note: person_titles is NOT sent to API — it over-restricts results
+        // when combined with q_organization_domains_list. Instead, we use
+        // seniorities for broad filtering and apply title post-filter client-side.
         const params = {
           q_organization_domains_list: batchDomains,
-          person_titles: titles,
           person_seniorities: seniorities,
           page: pageNum,
           per_page: perPage,
