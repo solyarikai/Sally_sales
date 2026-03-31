@@ -28,11 +28,13 @@ class ApolloOrgApiAdapter(BaseGatheringAdapter):
         locations = filters.get("organization_locations")
         num_employees = filters.get("organization_num_employees_ranges")
         funding_stages = filters.get("organization_latest_funding_stage_cd")
+        industry_tag_ids = filters.get("organization_industry_tag_ids")  # From enrichment — BEST pagination
         max_pages = filters.get("max_pages", 4)
-        per_page = filters.get("per_page", 25)
+        per_page = filters.get("per_page", 100)
 
         orgs = await self._apollo.search_organizations_all_pages(
             keyword_tags=keyword_tags,
+            industry_tag_ids=industry_tag_ids,
             locations=locations,
             num_employees_ranges=num_employees,
             latest_funding_stages=funding_stages,

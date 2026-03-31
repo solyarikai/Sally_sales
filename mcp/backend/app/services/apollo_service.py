@@ -86,17 +86,35 @@ class ApolloService:
         return None
 
     async def search_organizations(
-        self, keyword_tags: List[str], locations: Optional[List[str]] = None,
+        self, keyword_tags: Optional[List[str]] = None,
+        industry_tag_ids: Optional[List[str]] = None,
+        locations: Optional[List[str]] = None,
         num_employees_ranges: Optional[List[str]] = None,
         latest_funding_stages: Optional[List[str]] = None,
+        q_organization_name: Optional[str] = None,
         page: int = 1, per_page: int = 100,
     ) -> Optional[Dict[str, Any]]:
+        """Search Apollo companies.
+
+        Best filter priority:
+        1. industry_tag_ids (from enrichment) → organization_industry_tag_ids → BEST pagination
+        2. keyword_tags → q_organization_keyword_tags → inconsistent pagination
+        3. q_organization_name → text search → OK pagination
+        """
         if not self.api_key:
             return None
         payload: Dict[str, Any] = {
-            "q_organization_keyword_tags": keyword_tags,
             "page": page, "per_page": min(per_page, 100),
         }
+        # Prefer industry_tag_ids (real Apollo IDs from enrichment — best pagination)
+        if industry_tag_ids:
+            payload["organization_industry_tag_ids"] = industry_tag_ids
+        # Add keyword_tags as secondary filter
+        if keyword_tags:
+            payload["q_organization_keyword_tags"] = keyword_tags
+        # Text search by company name
+        if q_organization_name:
+            payload["q_organization_name"] = q_organization_name
         if locations:
             payload["organization_locations"] = locations
         if num_employees_ranges:
@@ -105,33 +123,35 @@ class ApolloService:
             payload["organization_latest_funding_stage_cd"] = latest_funding_stages
         result = await self._api_call("POST", "/mixed_companies/search", payload)
         if result:
-            self.credits_used += 1  # 1 credit per page
+            self.credits_used += 1
             get_tracker().log_apollo(1, "search")
         return result
 
     async def search_organizations_all_pages(
-        self, keyword_tags: List[str], locations: Optional[List[str]] = None,
+        self, keyword_tags: Optional[List[str]] = None,
+        industry_tag_ids: Optional[List[str]] = None,
+        locations: Optional[List[str]] = None,
         num_employees_ranges: Optional[List[str]] = None,
         latest_funding_stages: Optional[List[str]] = None,
+        q_organization_name: Optional[str] = None,
         max_pages: int = 50, per_page: int = 100,
         batch_size: int = 10,
     ) -> List[Dict[str, Any]]:
         """Fetch multiple pages in parallel batches of batch_size.
-        Apollo has 300ms rate limit but we can pipeline requests.
-        Each batch of 10 pages runs concurrently, then next batch."""
+        Prefers industry_tag_ids (from enrichment) for best pagination."""
         all_orgs: List[Dict[str, Any]] = []
-        total_pages_apollo = max_pages  # Will update from first response
+        total_pages_apollo = max_pages
 
         for batch_start in range(1, max_pages + 1, batch_size):
             batch_end = min(batch_start + batch_size, max_pages + 1)
             pages_to_fetch = list(range(batch_start, batch_end))
 
-            # Fetch batch in parallel
             async def fetch_page(page):
                 return page, await self.search_organizations(
-                    keyword_tags=keyword_tags, locations=locations,
-                    num_employees_ranges=num_employees_ranges,
+                    keyword_tags=keyword_tags, industry_tag_ids=industry_tag_ids,
+                    locations=locations, num_employees_ranges=num_employees_ranges,
                     latest_funding_stages=latest_funding_stages,
+                    q_organization_name=q_organization_name,
                     page=page, per_page=per_page,
                 )
 
