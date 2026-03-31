@@ -1,21 +1,31 @@
-"""Pipeline Orchestrator — auto-gathers until 100 target contacts found.
+"""Pipeline Orchestrator — auto-gathers until target contacts KPI reached.
 
 Two parallel processes:
   Process 1: Company gathering (pages from Apollo, 4 at a time)
-  Process 2: People extraction (3 contacts per target, runs immediately per target)
+  Process 2: People extraction (up to N contacts per target, runs immediately)
 
-Stop condition: Process 2 reaches 100 people → Process 1 stops.
+Stop condition: Process 2 reaches target_count people → Process 1 stops.
+
+KPIs are user-settable via MCP prompts (set_pipeline_kpi tool):
+  - target_count: total contacts to gather (default 100)
+  - contacts_per_company: max people per company (default 3)
+  - min_targets: target companies needed (auto-derived if not set)
+
+Pause/Resume: orchestrator checks run.status between iterations.
+Progress persisted to DB after each batch for frontend display + resume.
 
 Flow:
   1. Page 1 (25 companies) → scrape → classify → start people for targets
   2. Exploration: enrich top 5 → optimize filters
   3. Pages 2-5 (100 companies) → scrape → classify → people for new targets
-  4. Loop pages by 4 until 100 people found
+  4. Loop pages by 4 until KPI reached
   5. Create SmartLead campaign automatically
 """
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from math import ceil
+from typing import Any, Dict, Optional
 
 from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,14 +38,24 @@ from app.models.campaign import Campaign
 
 logger = logging.getLogger(__name__)
 
-TARGET_PEOPLE_KPI = 100
-PEOPLE_PER_COMPANY = 3
+# Defaults (used when run.target_count / run.contacts_per_company are NULL)
+DEFAULT_TARGET_COUNT = 100
+DEFAULT_CONTACTS_PER_COMPANY = 3
 PAGES_PER_BATCH = 4
 COMPANIES_PER_PAGE = 25
 
+# Background task registry — tracks running orchestrator tasks by run_id
+_running_tasks: Dict[int, asyncio.Task] = {}
+
+
+def is_pipeline_running(run_id: int) -> bool:
+    """Check if a background pipeline task is active for this run."""
+    task = _running_tasks.get(run_id)
+    return task is not None and not task.done()
+
 
 class PipelineOrchestrator:
-    """Runs the full pipeline until 100 target contacts are gathered."""
+    """Runs the full pipeline until target contacts KPI is reached."""
 
     def __init__(self, session: AsyncSession, run: GatheringRun, openai_key: str,
                  apollo_service=None, apify_proxy: Optional[str] = None):
@@ -51,9 +71,45 @@ class PipelineOrchestrator:
         self.iterations = []
         self._stop = False
 
+    @classmethod
+    def resume(cls, session: AsyncSession, run: GatheringRun, openai_key: str,
+               apollo_service=None, apify_proxy: Optional[str] = None):
+        """Create orchestrator initialized from DB-persisted state (for resume)."""
+        orch = cls(session, run, openai_key, apollo_service, apify_proxy)
+        orch.total_people = run.total_people_found or 0
+        orch.total_targets = run.total_targets_found or 0
+        orch.total_companies = run.new_companies_count or 0
+        orch.pages_fetched = run.pages_fetched or 0
+        return orch
+
+    def _read_kpis(self):
+        """Read KPI targets from the run (may change mid-run via set_pipeline_kpi)."""
+        return (
+            self.run.target_count or DEFAULT_TARGET_COUNT,
+            self.run.contacts_per_company or DEFAULT_CONTACTS_PER_COMPANY,
+        )
+
+    async def _persist_progress(self, iteration: int):
+        """Write current progress to DB so frontend + pipeline_status can read it."""
+        self.run.total_targets_found = self.total_targets
+        self.run.total_people_found = self.total_people
+        self.run.pages_fetched = self.pages_fetched
+        self.run.current_iteration = iteration
+        await self.session.flush()
+
+    async def _check_pause_and_reload_kpis(self) -> bool:
+        """Reload run from DB to check pause flag + re-read KPIs. Returns True if paused."""
+        await self.session.refresh(self.run)
+        if self.run.status == "paused":
+            logger.info(f"Pipeline run {self.run.id} paused by user request")
+            return True
+        return False
+
     async def run_until_kpi(self, initial_filters: Dict) -> Dict:
-        """Main loop: gather companies + people until 100 contacts found."""
+        """Main loop: gather companies + people until target_count contacts found."""
         filters = dict(initial_filters)
+        target_people, people_per_company = self._read_kpis()
+
         result = {
             "status": "running",
             "iterations": [],
@@ -63,17 +119,24 @@ class PipelineOrchestrator:
             "credits_used": 0,
         }
 
+        # Set started_at if not already set
+        if not self.run.started_at:
+            self.run.started_at = datetime.now(timezone.utc)
+            await self.session.flush()
+
         # === ITERATION 1: Exploration (1 page) ===
         logger.info("Pipeline orchestrator: Iteration 1 — exploration (1 page)")
         iter1 = await self._gather_batch(filters, pages=1, iteration_label="Exploration (1 page)")
         result["iterations"].append(iter1)
         result["credits_used"] += iter1.get("credits", 0)
+        await self._persist_progress(1)
 
-        if self._stop:
+        if self._stop or await self._check_pause_and_reload_kpis():
             return self._finalize(result)
 
         # Start people extraction for any targets found
-        asyncio.create_task(self._extract_people_for_new_targets())
+        people_per_company = self._read_kpis()[1]
+        asyncio.create_task(self._extract_people_for_new_targets(people_per_company))
 
         # === EXPLORATION: Enrich top 5 → optimize filters ===
         if self.total_targets >= 1:
@@ -98,8 +161,20 @@ class PipelineOrchestrator:
 
         # === ITERATIONS 2+: Scale (4 pages per batch) ===
         batch_num = 2
-        while not self._stop and self.total_people < TARGET_PEOPLE_KPI:
-            logger.info(f"Pipeline orchestrator: Iteration {batch_num} — {PAGES_PER_BATCH} pages (people so far: {self.total_people})")
+        while not self._stop:
+            # Re-read KPIs (user may have changed them via set_pipeline_kpi)
+            target_people, people_per_company = self._read_kpis()
+
+            if self.total_people >= target_people:
+                self._stop = True
+                logger.info(f"KPI reached: {self.total_people} people >= {target_people}")
+                break
+
+            # Check pause
+            if await self._check_pause_and_reload_kpis():
+                return self._finalize(result)
+
+            logger.info(f"Pipeline orchestrator: Iteration {batch_num} — {PAGES_PER_BATCH} pages (people: {self.total_people}/{target_people})")
             iter_n = await self._gather_batch(
                 filters, pages=PAGES_PER_BATCH,
                 iteration_label=f"Scale batch {batch_num} ({PAGES_PER_BATCH} pages)"
@@ -108,15 +183,15 @@ class PipelineOrchestrator:
             result["credits_used"] += iter_n.get("credits", 0)
 
             # Extract people for new targets
-            await self._extract_people_for_new_targets()
+            await self._extract_people_for_new_targets(people_per_company)
 
             # Update people count
             self.total_people = await self._count_people()
-            logger.info(f"After iteration {batch_num}: {self.total_targets} targets, {self.total_people} people")
 
-            if self.total_people >= TARGET_PEOPLE_KPI:
-                self._stop = True
-                logger.info(f"KPI reached: {self.total_people} people >= {TARGET_PEOPLE_KPI}")
+            # Persist progress
+            await self._persist_progress(batch_num)
+
+            logger.info(f"After iteration {batch_num}: {self.total_targets} targets, {self.total_people}/{target_people} people")
 
             batch_num += 1
 
@@ -242,10 +317,12 @@ class PipelineOrchestrator:
             "filters": batch_filters,
         }
 
-    async def _extract_people_for_new_targets(self):
+    async def _extract_people_for_new_targets(self, people_per_company: int = DEFAULT_CONTACTS_PER_COMPANY):
         """Find people (contacts) for target companies that don't have contacts yet."""
         if not self.apollo:
             return
+
+        target_people, _ = self._read_kpis()
 
         # Get target companies without contacts
         targets_without_people = await self.session.execute(
@@ -263,7 +340,7 @@ class PipelineOrchestrator:
         if not companies:
             return
 
-        logger.info(f"Extracting people for {len(companies)} target companies")
+        logger.info(f"Extracting people for {len(companies)} target companies (max {people_per_company}/company)")
 
         # Get people filters from offer
         project = await self.session.get(Project, self.run.project_id)
@@ -281,12 +358,12 @@ class PipelineOrchestrator:
 
         # Search people for each target company (FREE — /mixed_people/api_search)
         for company in companies:
-            if self.total_people >= TARGET_PEOPLE_KPI:
+            if self.total_people >= target_people:
                 break
             try:
                 people = await self.apollo.enrich_by_domain(
                     company.domain,
-                    limit=PEOPLE_PER_COMPANY,
+                    limit=people_per_company,
                     titles=person_titles,
                 )
                 for person in people:
@@ -321,18 +398,89 @@ class PipelineOrchestrator:
         return result.scalar() or 0
 
     def _finalize(self, result: Dict) -> Dict:
-        result["status"] = "completed" if self.total_people >= TARGET_PEOPLE_KPI else "insufficient"
+        target_people = self.run.target_count or DEFAULT_TARGET_COUNT
+        result["status"] = "completed" if self.total_people >= target_people else "insufficient"
         result["total_targets"] = self.total_targets
         result["total_people"] = self.total_people
         result["total_companies"] = self.total_companies
         result["pages_fetched"] = self.pages_fetched
-        result["kpi_met"] = self.total_people >= TARGET_PEOPLE_KPI
+        result["kpi_met"] = self.total_people >= target_people
+        result["kpi"] = {
+            "target_count": target_people,
+            "contacts_per_company": self.run.contacts_per_company or DEFAULT_CONTACTS_PER_COMPANY,
+            "min_targets": self.run.min_targets or ceil(target_people / (self.run.contacts_per_company or DEFAULT_CONTACTS_PER_COMPANY)),
+        }
         result["message"] = (
-            f"Pipeline complete: {self.total_targets} target companies, {self.total_people} contacts gathered.\n"
+            f"Pipeline {'complete' if result['kpi_met'] else 'paused' if self.run.status == 'paused' else 'incomplete'}: "
+            f"{self.total_targets} target companies, {self.total_people}/{target_people} contacts.\n"
             f"Pages fetched: {self.pages_fetched} ({self.total_companies} total companies).\n"
             f"Credits used: {result.get('credits_used', 0)}.\n"
-            + (f"KPI MET: {self.total_people} contacts >= {TARGET_PEOPLE_KPI} target.\n"
-               if self.total_people >= TARGET_PEOPLE_KPI
-               else f"KPI NOT MET: {self.total_people} contacts < {TARGET_PEOPLE_KPI}. Consider broader filters.\n")
         )
         return result
+
+
+async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
+    """Background task — creates own DB session, runs orchestrator."""
+    from app.db import async_session_maker
+    try:
+        async with async_session_maker() as session:
+            run = await session.get(GatheringRun, run_id)
+            if not run:
+                logger.error(f"Background pipeline: run {run_id} not found")
+                return
+
+            # Get services
+            from app.services.user_service_context import UserServiceContext
+            ctx = UserServiceContext(user_id, session)
+            apollo_svc = await ctx.get_apollo_service()
+            openai_key = await ctx.get_key("openai")
+            if not openai_key:
+                from app.config import settings as _cfg
+                openai_key = _cfg.OPENAI_API_KEY
+
+            import os
+            apify_proxy = os.environ.get("APIFY_PROXY_PASSWORD")
+
+            # Check if resuming
+            if run.pages_fetched and run.pages_fetched > 0:
+                orchestrator = PipelineOrchestrator.resume(
+                    session, run, openai_key, apollo_svc, apify_proxy
+                )
+            else:
+                orchestrator = PipelineOrchestrator(
+                    session, run, openai_key, apollo_svc, apify_proxy
+                )
+
+            result = await orchestrator.run_until_kpi(filters)
+
+            # Mark complete (unless paused — then status stays "paused")
+            if run.status != "paused":
+                run.status = "completed" if result.get("kpi_met") else "insufficient"
+                run.completed_at = datetime.now(timezone.utc)
+                elapsed = (run.completed_at - run.started_at).total_seconds() if run.started_at else None
+                if elapsed:
+                    run.duration_seconds = int(elapsed)
+            await session.commit()
+
+            logger.info(f"Background pipeline {run_id} finished: {result.get('status')} — {result.get('total_people')} people")
+
+    except Exception as e:
+        logger.exception(f"Background pipeline {run_id} failed: {e}")
+        try:
+            async with async_session_maker() as session:
+                run = await session.get(GatheringRun, run_id)
+                if run:
+                    run.status = "failed"
+                    run.error_message = str(e)[:1000]
+                    await session.commit()
+        except Exception:
+            pass
+    finally:
+        _running_tasks.pop(run_id, None)
+
+
+def start_pipeline_background(run_id: int, filters: dict, user_id: int) -> asyncio.Task:
+    """Spawn a background pipeline task and register it."""
+    task = asyncio.create_task(run_pipeline_background(run_id, filters, user_id))
+    _running_tasks[run_id] = task
+    return task

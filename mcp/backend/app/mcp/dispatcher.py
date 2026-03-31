@@ -20,6 +20,19 @@ from app.services.user_context import UserServiceContext
 logger = logging.getLogger(__name__)
 
 
+def _format_duration(seconds: int) -> str:
+    """Format seconds into human-readable duration like '4m 32s' or '1h 12m'."""
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    secs = seconds % 60
+    if minutes < 60:
+        return f"{minutes}m {secs}s" if secs else f"{minutes}m"
+    hours = minutes // 60
+    mins = minutes % 60
+    return f"{hours}h {mins}m" if mins else f"{hours}h"
+
+
 async def _get_user(token: Optional[str], session) -> MCPUser:
     if not token:
         raise ValueError("Authentication required. Pass your API token.")
@@ -1837,7 +1850,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             },
         }
 
-    # ── Auto Pipeline ──
+    # ── Auto Pipeline (non-blocking — runs in background) ──
     if tool_name == "run_auto_pipeline":
         user = await _get_user(token, session)
         run = await session.get(GatheringRun, args["run_id"])
@@ -1847,26 +1860,40 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         if not project or project.user_id != user.id:
             raise ValueError("Project not found")
 
-        ctx = UserServiceContext(user.id, session)
-        apollo_svc = await ctx.get_apollo_service()
-        openai_key = await ctx.get_key("openai")
-        if not openai_key:
-            from app.config import settings as _cfg
-            openai_key = _cfg.OPENAI_API_KEY
+        from app.services.pipeline_orchestrator import is_pipeline_running, start_pipeline_background
+        if is_pipeline_running(run.id):
+            raise ValueError(f"Pipeline {run.id} is already running. Use pipeline_status to check progress.")
 
-        import os
-        apify_proxy = os.environ.get("APIFY_PROXY_PASSWORD")
+        # Store KPIs on the run
+        from math import ceil as _ceil
+        target_count = args.get("target_count", 100)
+        contacts_per_company = args.get("contacts_per_company", 3)
+        run.target_count = target_count
+        run.contacts_per_company = contacts_per_company
+        run.min_targets = args.get("min_targets") or _ceil(target_count / contacts_per_company)
+        run.status = "running"
+        from datetime import datetime as _dt, timezone as _tz
+        run.started_at = _dt.now(_tz.utc)
+        await session.commit()
 
-        from app.services.pipeline_orchestrator import PipelineOrchestrator
-        orchestrator = PipelineOrchestrator(
-            session=session, run=run, openai_key=openai_key,
-            apollo_service=apollo_svc, apify_proxy=apify_proxy,
-        )
+        # Spawn background task
         filters = args.get("filters") or run.filters or {}
-        result = await orchestrator.run_until_kpi(filters)
+        start_pipeline_background(run.id, filters, user.id)
 
         return {
-            **result,
+            "run_id": run.id,
+            "status": "started",
+            "kpi": {
+                "target_count": run.target_count,
+                "contacts_per_company": run.contacts_per_company,
+                "min_targets": run.min_targets,
+            },
+            "message": (
+                f"Pipeline running in background. Target: {run.target_count} contacts "
+                f"(up to {run.contacts_per_company} per company, ~{run.min_targets} target companies).\n"
+                f"Use pipeline_status to track progress. Use set_pipeline_kpi to change targets. "
+                f"Use control_pipeline to pause/resume."
+            ),
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
                 "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}",
@@ -1879,22 +1906,203 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         run = await session.get(GatheringRun, args["run_id"])
         if not run:
             raise ValueError("Run not found")
+
         gates = await session.execute(
             select(ApprovalGate).where(ApprovalGate.gathering_run_id == run.id, ApprovalGate.status == "pending")
         )
         pending = gates.scalars().all()
+
+        # KPI defaults
+        from math import ceil as _ceil
+        target_count = run.target_count or 100
+        contacts_per_company = run.contacts_per_company or 3
+        min_targets = run.min_targets or _ceil(target_count / contacts_per_company)
+        people_found = run.total_people_found or 0
+        targets_found = run.total_targets_found or 0
+
+        # Timing
+        from datetime import datetime as _dt, timezone as _tz
+        elapsed_seconds = None
+        eta_seconds = None
+        elapsed_human = None
+        eta_human = None
+        if run.started_at:
+            now = _dt.now(_tz.utc)
+            started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=_tz.utc)
+            elapsed_seconds = int((now - started).total_seconds())
+            elapsed_human = _format_duration(elapsed_seconds)
+            # ETA based on people/second rate
+            if people_found > 0 and people_found < target_count and elapsed_seconds > 0:
+                rate = people_found / elapsed_seconds
+                remaining = target_count - people_found
+                eta_seconds = int(remaining / rate)
+                eta_human = f"~{_format_duration(eta_seconds)}"
+            elif run.status in ("running",) and elapsed_seconds < 60:
+                eta_human = "calculating..."
+
+        # Cost estimate for remaining work
+        pages_fetched = run.pages_fetched or 0
+        remaining_people = max(0, target_count - people_found)
+        remaining_companies = _ceil(remaining_people / contacts_per_company) if remaining_people > 0 else 0
+        pages_remaining = max(0, _ceil(remaining_companies / 8.75) - pages_fetched) if remaining_companies > 0 else 0
+
+        from app.services.pipeline_orchestrator import is_pipeline_running
+        is_bg_running = is_pipeline_running(run.id)
+
         return {
-            "run_id": run.id, "status": run.status, "phase": run.current_phase,
+            "run_id": run.id,
+            "status": run.status if not (run.status == "running" and not is_bg_running) else run.status,
+            "phase": run.current_phase,
             "new_companies": run.new_companies_count,
             "duplicates": run.duplicate_count,
             "rejected": run.rejected_count,
             "credits_used": run.credits_used,
+            "kpi": {
+                "target_count": target_count,
+                "contacts_per_company": contacts_per_company,
+                "min_targets": min_targets,
+            },
+            "progress": {
+                "targets_found": targets_found,
+                "people_found": people_found,
+                "pages_fetched": pages_fetched,
+                "iteration": run.current_iteration or 0,
+                "people_pct": round(people_found / target_count * 100, 1) if target_count > 0 else 0,
+                "targets_pct": round(targets_found / min_targets * 100, 1) if min_targets > 0 else 0,
+            },
+            "timing": {
+                "started_at": str(run.started_at) if run.started_at else None,
+                "elapsed_seconds": elapsed_seconds,
+                "elapsed_human": elapsed_human,
+                "eta_seconds": eta_seconds,
+                "eta_human": eta_human,
+            },
+            "cost": {
+                "credits_used": run.credits_used or 0,
+                "estimated_remaining_credits": pages_remaining,
+            },
+            "paused_at": str(run.paused_at) if run.paused_at else None,
             "pending_gates": [{"gate_id": g.id, "type": g.gate_type, "scope": g.scope} for g in pending],
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
                 "targets": f"http://46.62.210.24:3000/pipeline/{run.id}/targets",
             },
         }
+
+    # ── Set Pipeline KPI ──
+    if tool_name == "set_pipeline_kpi":
+        user = await _get_user(token, session)
+        run = await session.get(GatheringRun, args["run_id"])
+        if not run:
+            raise ValueError("Run not found")
+        project = await session.get(Project, run.project_id)
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        from math import ceil as _ceil
+
+        # Update KPIs
+        if "target_count" in args:
+            run.target_count = args["target_count"]
+        if "contacts_per_company" in args:
+            run.contacts_per_company = args["contacts_per_company"]
+        if "min_targets" in args:
+            run.min_targets = args["min_targets"]
+
+        # Derive min_targets if not explicitly set
+        tc = run.target_count or 100
+        cpc = run.contacts_per_company or 3
+        if not run.min_targets:
+            run.min_targets = _ceil(tc / cpc)
+
+        await session.commit()
+
+        # Cost estimate (A8 agent pattern)
+        people_found = run.total_people_found or 0
+        remaining_people = max(0, tc - people_found)
+        remaining_companies = _ceil(remaining_people / cpc) if remaining_people > 0 else 0
+        pages_needed = max(0, _ceil(remaining_companies / 8.75))
+
+        return {
+            "kpi": {
+                "target_count": tc,
+                "contacts_per_company": cpc,
+                "min_targets": run.min_targets,
+            },
+            "progress": {
+                "people_found": people_found,
+                "targets_found": run.total_targets_found or 0,
+                "remaining_people": remaining_people,
+            },
+            "cost_estimate": {
+                "pages_needed": pages_needed,
+                "credits": pages_needed,
+                "usd": f"${pages_needed * 0.01:.2f}",
+            },
+            "message": (
+                f"KPIs updated: {tc} contacts, {cpc}/company, ~{run.min_targets} target companies.\n"
+                f"Current: {people_found} contacts found. Remaining: {remaining_people}.\n"
+                f"Estimated cost: {pages_needed} credits (${pages_needed * 0.01:.2f})."
+            ),
+            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+        }
+
+    # ── Control Pipeline (pause/resume) ──
+    if tool_name == "control_pipeline":
+        user = await _get_user(token, session)
+        run = await session.get(GatheringRun, args["run_id"])
+        if not run:
+            raise ValueError("Run not found")
+        project = await session.get(Project, run.project_id)
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        action = args["action"]
+        from datetime import datetime as _dt, timezone as _tz
+
+        if action == "pause":
+            if run.status != "running":
+                raise ValueError(f"Cannot pause: pipeline status is '{run.status}', not 'running'")
+            run.status = "paused"
+            run.paused_at = _dt.now(_tz.utc)
+            await session.commit()
+            return {
+                "run_id": run.id,
+                "status": "paused",
+                "message": (
+                    f"Pipeline paused. Progress saved: {run.total_people_found or 0} contacts, "
+                    f"{run.total_targets_found or 0} targets, {run.pages_fetched or 0} pages.\n"
+                    f"Use control_pipeline(action='resume') to continue."
+                ),
+                "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+            }
+
+        elif action == "resume":
+            if run.status not in ("paused", "insufficient"):
+                raise ValueError(f"Cannot resume: pipeline status is '{run.status}'. Must be 'paused' or 'insufficient'.")
+
+            from app.services.pipeline_orchestrator import is_pipeline_running, start_pipeline_background
+            if is_pipeline_running(run.id):
+                raise ValueError(f"Pipeline {run.id} is already running.")
+
+            run.status = "running"
+            run.resumed_at = _dt.now(_tz.utc)
+            await session.commit()
+
+            filters = run.filters or {}
+            start_pipeline_background(run.id, filters, user.id)
+
+            return {
+                "run_id": run.id,
+                "status": "running",
+                "message": (
+                    f"Pipeline resumed from {run.total_people_found or 0} contacts, page {run.pages_fetched or 0}.\n"
+                    f"Target: {run.target_count or 100} contacts. Use pipeline_status to track."
+                ),
+                "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+            }
+
+        raise ValueError(f"Unknown action: {action}. Use 'pause' or 'resume'.")
 
     # ── Filter Intelligence (DEPRECATED — use tam_gather without confirm_filters instead) ──
     if tool_name == "suggest_apollo_filters":

@@ -220,6 +220,117 @@ function CompanyModal({ company, onClose }: { company: any; onClose: () => void 
 }
 
 // ── Main Pipeline Page ──
+// ── KPI Progress Banner ──
+function formatDuration(seconds: number | null | undefined): string {
+  if (!seconds || seconds < 0) return '—'
+  if (seconds < 60) return `${seconds}s`
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  if (m < 60) return s ? `${m}m ${s}s` : `${m}m`
+  const h = Math.floor(m / 60)
+  const rm = m % 60
+  return rm ? `${h}h ${rm}m` : `${h}h`
+}
+
+function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
+  return (
+    <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+      <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3, background: color, transition: 'width 0.5s ease' }} />
+    </div>
+  )
+}
+
+function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () => void; onResume: () => void }) {
+  const kpi = run.kpi || {}
+  const progress = run.progress || {}
+  const timing = run.timing || {}
+  const isPaused = run.status === 'paused'
+
+  const targetCount = kpi.target_count || 100
+  const contactsPerCompany = kpi.contacts_per_company || 3
+  const minTargets = kpi.min_targets || Math.ceil(targetCount / contactsPerCompany)
+  const peoplePct = progress.people_pct || 0
+  const targetsPct = progress.targets_pct || 0
+
+  return (
+    <div style={{
+      padding: '12px 16px',
+      borderRadius: 8,
+      background: isPaused ? 'rgba(245,158,11,0.06)' : 'rgba(59,130,246,0.06)',
+      border: `1px solid ${isPaused ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)'}`,
+      marginBottom: 12,
+    }}>
+      {/* Top row: timing + status + pause/resume */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10, fontSize: 12 }}>
+        {isPaused && (
+          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>PAUSED</span>
+        )}
+        {!isPaused && (
+          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>RUNNING</span>
+        )}
+        <span style={{ color: 'var(--text-muted)' }}>
+          {formatDuration(timing.elapsed_seconds)} elapsed
+        </span>
+        {timing.eta_seconds && (
+          <span style={{ color: 'var(--text-muted)' }}>
+            ETA ~{formatDuration(timing.eta_seconds)}
+          </span>
+        )}
+        <span style={{ color: 'var(--text-muted)' }}>
+          Iteration {progress.iteration || 0}
+        </span>
+        <span style={{ color: 'var(--text-muted)' }}>
+          {progress.pages_fetched || 0} pages
+        </span>
+        {run.credits_used > 0 && (
+          <span style={{ color: 'var(--text-muted)' }}>
+            {run.credits_used} credits
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto' }}>
+          {isPaused ? (
+            <button onClick={onResume} style={{
+              padding: '4px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+              background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer',
+            }}>Resume</button>
+          ) : (
+            <button onClick={onPause} style={{
+              padding: '4px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+              background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer',
+            }}>Pause</button>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bars */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 80 }}>People</span>
+          <ProgressBar value={progress.people_found || 0} max={targetCount} color="#22c55e" />
+          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', minWidth: 100, textAlign: 'right' }}>
+            {progress.people_found || 0}/{targetCount} ({peoplePct}%)
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 80 }}>Companies</span>
+          <ProgressBar value={progress.targets_found || 0} max={minTargets} color="#3b82f6" />
+          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', minWidth: 100, textAlign: 'right' }}>
+            {progress.targets_found || 0}/{minTargets} ({targetsPct}%)
+          </span>
+        </div>
+      </div>
+
+      {/* KPI summary */}
+      <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+        <span>Target: {targetCount} contacts</span>
+        <span>Max {contactsPerCompany}/company</span>
+        <span>~{minTargets} target companies</span>
+      </div>
+    </div>
+  )
+}
+
 export default function PipelinePage() {
   const { runId } = useParams()
   const [run, setRun] = useState<any>(null)
@@ -480,6 +591,17 @@ export default function PipelinePage() {
           )}
         </div>
       </div>
+
+      {/* ── KPI Progress Banner — shown when run is running or paused ── */}
+      {run && (run.status === 'running' || run.status === 'paused') && run.kpi && (
+        <KPIProgressBanner run={run} onPause={async () => {
+          await fetch(`${API}/pipeline/runs/${runId}/pause`, { method: 'POST', headers: authHeaders() })
+          load()
+        }} onResume={async () => {
+          await fetch(`${API}/pipeline/runs/${runId}/resume`, { method: 'POST', headers: authHeaders() })
+          load()
+        }} />
+      )}
 
       {/* ── Collapsible panels ── */}
 

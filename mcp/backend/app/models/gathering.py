@@ -44,6 +44,21 @@ class GatheringRun(Base):
     error_message = Column(Text, nullable=True)
     raw_output_sample = Column(JSONB, nullable=True)
 
+    # KPI configuration (user-settable via MCP prompts)
+    target_count = Column(Integer, nullable=True)          # target people count (default 100)
+    min_targets = Column(Integer, nullable=True)            # target companies count (derived if not set)
+    contacts_per_company = Column(Integer, nullable=True)   # max contacts per company (default 3)
+
+    # Auto-pipeline progress (written by orchestrator each iteration)
+    total_targets_found = Column(Integer, server_default="0")
+    total_people_found = Column(Integer, server_default="0")
+    pages_fetched = Column(Integer, server_default="0")
+    current_iteration = Column(Integer, server_default="0")
+
+    # Pause control
+    paused_at = Column(DateTime(timezone=True), nullable=True)
+    resumed_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
