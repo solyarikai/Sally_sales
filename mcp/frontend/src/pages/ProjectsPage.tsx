@@ -8,50 +8,108 @@ function ProjectCard({ project }: { project: any }) {
   const [expanded, setExpanded] = useState(false)
   const [runs, setRuns] = useState<any[]>([])
   const [campaigns, setCampaigns] = useState<string[]>([])
+  const offer = project.offer_summary
 
   useEffect(() => {
     if (!expanded) return
-    // Fetch pipeline runs for this project
     fetch(`${API}/pipeline/iterations`, { headers: authHeaders() })
       .then(r => r.json())
-      .then((data: any[]) => {
-        setRuns(data.filter((r: any) => r.project_id === project.id))
-      })
-      .catch(e => console.error('Failed to load iterations:', e))
-
-    // Campaign filters = connected campaigns
+      .then((data: any[]) => setRuns(data.filter((r: any) => r.project_id === project.id)))
+      .catch(() => {})
     if (project.campaign_filters && Array.isArray(project.campaign_filters)) {
       setCampaigns(project.campaign_filters)
     }
   }, [expanded, project.id])
 
+  const pid = project.id
+
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-card)', overflow: 'hidden' }}>
       <div
         onClick={() => setExpanded(!expanded)}
-        style={{ padding: 16, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        style={{ padding: 16, cursor: 'pointer' }}
       >
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{project.name}</div>
-          {project.target_segments && (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-              <span style={{ fontWeight: 500 }}>ICP:</span> {project.target_segments}
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{project.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {project.offer_approved ? (
+              <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontWeight: 600 }}>OFFER CONFIRMED</span>
+            ) : (
+              <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontWeight: 600 }}>OFFER PENDING</span>
+            )}
+            <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{expanded ? '\u25B2' : '\u25BC'}</span>
+          </div>
+        </div>
+
+        {/* Structured offer info */}
+        <div style={{ marginTop: 8, display: 'grid', gap: 4, fontSize: 13 }}>
+          {project.website && (
+            <div style={{ color: 'var(--text-muted)' }}>
+              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Website:</span>{' '}
+              <a href={project.website} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none' }} onClick={e => e.stopPropagation()}>{project.website}</a>
             </div>
           )}
-          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+          {offer?.primary_offer && (
+            <div style={{ color: 'var(--text)' }}>
+              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Offer:</span> {offer.primary_offer}
+            </div>
+          )}
+          {offer?.target_audience && (
+            <div style={{ color: 'var(--text-muted)' }}>
+              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Target:</span> {offer.target_audience}
+            </div>
+          )}
+          {offer?.value_proposition && (
+            <div style={{ color: 'var(--text-muted)' }}>
+              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Value prop:</span> {offer.value_proposition}
+            </div>
+          )}
+          {!offer && project.target_segments && (
+            <div style={{ color: 'var(--text-muted)' }}>
+              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>ICP:</span> {project.target_segments}
+            </div>
+          )}
+        </div>
+
+        {/* Sender */}
+        {(project.sender_name || project.sender_company) && (
+          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
             {project.sender_name && <span>Sender: {project.sender_name}</span>}
             {project.sender_company && <span>Company: {project.sender_company}</span>}
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Link to="/pipeline" onClick={e => e.stopPropagation()} style={{ fontSize: 12, color: 'var(--text-link)', textDecoration: 'none', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)' }}>Pipeline →</Link>
-          <Link to="/crm" onClick={e => e.stopPropagation()} style={{ fontSize: 12, color: 'var(--text-link)', textDecoration: 'none', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)' }}>CRM →</Link>
-          <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{expanded ? '▲' : '▼'}</span>
-        </div>
+        )}
       </div>
 
       {expanded && (
         <div style={{ borderTop: '1px solid var(--border)', padding: 16, background: 'var(--bg)' }}>
+          {/* Products list */}
+          {offer?.products && offer.products.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Products ({offer.products.length})</div>
+              <div style={{ display: 'grid', gap: 4 }}>
+                {offer.products.map((p: any, i: number) => (
+                  <div key={i} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                    <span style={{ fontWeight: 500 }}>{p.name}</span>
+                    {p.description && <span style={{ color: 'var(--text-muted)' }}> — {p.description}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Key differentiators */}
+          {offer?.key_differentiators && offer.key_differentiators.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Differentiators</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                {offer.key_differentiators.map((d: string, i: number) => (
+                  <div key={i} style={{ marginBottom: 2 }}>{'\u2022'} {d}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Connected Campaigns */}
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Connected Campaigns ({campaigns.length})</div>
@@ -62,35 +120,35 @@ function ProjectCard({ project }: { project: any }) {
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No campaigns connected. Import via MCP.</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No campaigns connected.</div>
             )}
           </div>
 
-          {/* Quick Links */}
+          {/* Links — all with project filter */}
           <div style={{ marginBottom: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Link to={`/pipeline`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-link)', textDecoration: 'none' }}>
-              Pipeline runs ({runs.length}) →
+            <Link to={`/pipeline?project=${pid}`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-link)', textDecoration: 'none' }}>
+              Pipeline runs ({runs.length}) {'\u2192'}
             </Link>
-            <Link to={`/campaigns`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-link)', textDecoration: 'none' }}>
-              Campaigns →
+            <Link to={`/campaigns?project=${pid}`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-link)', textDecoration: 'none' }}>
+              Campaigns {'\u2192'}
             </Link>
-            <Link to={`/crm`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-link)', textDecoration: 'none' }}>
-              CRM contacts →
+            <Link to={`/crm?project=${pid}`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-link)', textDecoration: 'none' }}>
+              CRM contacts {'\u2192'}
             </Link>
-            <Link to={`/crm?reply_category=interested`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', textDecoration: 'none' }}>
-              Warm leads →
+            <Link to={`/crm?project=${pid}&reply_category=interested`} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', textDecoration: 'none' }}>
+              Warm leads {'\u2192'}
             </Link>
           </div>
 
           {/* Pipeline Runs */}
-          <div style={{ marginBottom: 12 }}>
+          <div>
             <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Pipeline Runs ({runs.length})</div>
             {runs.length > 0 ? (
               <div style={{ display: 'grid', gap: 4 }}>
                 {runs.map((r: any) => (
-                  <Link key={r.id} to={`/pipeline/${r.id}`} style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 12 }}>
+                  <Link key={r.id} to={`/pipeline/${r.id}?project=${pid}`} style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', fontSize: 12 }}>
                     <span style={{ color: 'var(--text)' }}>Run #{r.id} — {r.source_type || 'apollo'}</span>
-                    <span style={{ color: 'var(--text-muted)' }}>{r.new_companies || 0} companies · {r.current_phase}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{r.new_companies || 0} companies {'\u00B7'} {r.current_phase}</span>
                   </Link>
                 ))}
               </div>
@@ -98,6 +156,14 @@ function ProjectCard({ project }: { project: any }) {
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No pipeline runs yet.</div>
             )}
           </div>
+
+          {/* Source info */}
+          {offer?._source && (
+            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              Offer extracted from: {offer._source === 'gpt_knowledge' ? 'AI knowledge' : 'website scrape'}
+              {offer._analyzed_at && ` on ${new Date(offer._analyzed_at).toLocaleDateString()}`}
+            </div>
+          )}
         </div>
       )}
     </div>
