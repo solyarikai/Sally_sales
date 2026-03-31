@@ -2185,20 +2185,18 @@ def main():
     if "analyze" in steps and run_id:
         cp2 = step5_analyze(config, run_id, prompt_text)
         if cp2.get("gate_id"):
-            print(f"  Pausing at CP2. Approve then: --from-step verify --run-id {run_id}")
+            print(f"\n  ★ PAUSING AT CP2.")
+            print(f"  Step 6: Verify targets with Claude Code in chat.")
+            print(f"  Step 7: If accuracy <90% → adjust prompt → re-analyze:")
+            print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
+            print(f"  When accuracy ≥90% → approve gate and resume:")
+            print(f"    --from-step verify --run-id {run_id}")
             return
 
     if "verify" in steps and run_id:
-        # После CP2 approve — добавляем таргеты в blacklist,
-        # чтобы следующий gathering run не подобрал те же компании.
+        # Step 6-7 done in chat. Now: approve CP2 gate + blacklist targets + export.
+        approve_pending_gate(config, run_id)
         blacklist_approved_targets(config, run_id)
-        cp3 = step6_prepare_verify(run_id)
-        if cp3.get("gate_id"):
-            print(f"  Pausing at CP3. Approve then: --from-step export --run-id {run_id}")
-            return
-
-    # ── Steps 9-12: Local execution ──
-    if "export" in steps:
         targets = step9_export_targets(config, force=args.force)
     else:
         targets = load_json(config.state_dir / "targets.json") or []
