@@ -15,8 +15,8 @@ const STATUS_COLORS: Record<string,string> = {
   verifying: 'var(--info)', verified: 'var(--success)',
 }
 
-// ── Column header with hidden filter (click ▼ to show) ──
-function ColHeader({ col, sortCol, sortDir, toggleSort, filterValue, onFilter, options }: any) {
+// ── Column header with hidden filter + resize handle ──
+function ColHeader({ col, sortCol, sortDir, toggleSort, filterValue, onFilter, options, width, onResize }: any) {
   const [showFilter, setShowFilter] = useState(false)
   const hasFilter = !!filterValue
   const ref = useRef<HTMLDivElement>(null)
@@ -27,8 +27,29 @@ function ColHeader({ col, sortCol, sortDir, toggleSort, filterValue, onFilter, o
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
   }, [showFilter])
 
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startW = width || 120
+    const onMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX
+      onResize(Math.max(50, startW + delta))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [width, onResize])
+
   return (
-    <th style={{ position: 'relative', paddingBottom: 6, userSelect: 'none' }}>
+    <th style={{ position: 'relative', paddingBottom: 6, userSelect: 'none', width: width || undefined, minWidth: 50 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <span onClick={() => toggleSort(col.key)} style={{ cursor: 'pointer', fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5, color: sortCol === col.key ? 'var(--text)' : 'var(--text-muted)' }}>
           {col.label}{sortCol === col.key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
@@ -51,6 +72,13 @@ function ColHeader({ col, sortCol, sortDir, toggleSort, filterValue, onFilter, o
           {filterValue && <button onClick={() => { onFilter(''); setShowFilter(false) }} style={{ marginTop: 4, width: '100%', padding: '3px', fontSize: 11, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>Clear</button>}
         </div>
       )}
+      {/* Resize handle — subtle line on right edge */}
+      <div
+        onMouseDown={handleResizeStart}
+        style={{ position: 'absolute', top: 0, right: 0, width: 5, height: '100%', cursor: 'col-resize', zIndex: 10 }}
+        onMouseEnter={e => (e.currentTarget.style.borderRight = '2px solid var(--info)')}
+        onMouseLeave={e => (e.currentTarget.style.borderRight = 'none')}
+      />
     </th>
   )
 }
@@ -432,13 +460,28 @@ export default function PipelinePage() {
 
   // Column visibility — persisted per run in localStorage
   const colKey = `pipeline_columns_${runId || 'global'}`
+  const colWidthKey = `pipeline_colwidths_${runId || 'global'}`
   const [columnConfig, setColumnConfig] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem(colKey)
       return saved ? JSON.parse(saved) : {}
     } catch { return {} }
   })
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem(colWidthKey)
+      return saved ? JSON.parse(saved) : {}
+    } catch { return {} }
+  })
   const [showColumnConfig, setShowColumnConfig] = useState(false)
+
+  const setColWidth = useCallback((key: string, w: number) => {
+    setColumnWidths(prev => {
+      const next = { ...prev, [key]: w }
+      localStorage.setItem(colWidthKey, JSON.stringify(next))
+      return next
+    })
+  }, [colWidthKey])
 
   const toggleColumn = (key: string) => {
     setColumnConfig(prev => {
@@ -703,7 +746,7 @@ export default function PipelinePage() {
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{filtered.length} companies{selectedIteration !== 'all' ? ` (iteration #${selectedIteration})` : ''}</div>
 
       <div style={{ overflowX: 'auto', overflowY: 'visible', paddingBottom: 8 }} className="pipeline-table-scroll">
-        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 1400 }}>
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 1400, tableLayout: Object.keys(columnWidths).length > 0 ? 'fixed' : 'auto' }}>
           <thead>
             <tr style={{ textAlign: 'left' }}>
               {columns.map(col => (
@@ -716,6 +759,8 @@ export default function PipelinePage() {
                   filterValue={filters[col.key] || ''}
                   onFilter={(v: string) => setFilter(col.key, v)}
                   options={col.filterType === 'dropdown' ? uniqueVals(col.key) : undefined}
+                  width={columnWidths[col.key]}
+                  onResize={(w: number) => setColWidth(col.key, w)}
                 />
               ))}
             </tr>
