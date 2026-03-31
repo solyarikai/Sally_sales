@@ -1323,35 +1323,31 @@ def step12_upload(contacts: list[dict]):
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
-         "export", "people", "findymail", "upload"]
+STEPS = ["start", "export", "people", "findymail", "upload"]
 
 
 def main():
-    p = argparse.ArgumentParser(description="OnSocial Clay IM_FIRST_AGENCIES v4 ALL GEO Pipeline")
+    p = argparse.ArgumentParser(description="OnSocial IM_FIRST_AGENCIES v4 ALL GEO Pipeline")
     p.add_argument("--from-step", choices=STEPS, default="start",
                    help="Start from this step")
-    p.add_argument("--run-id", type=int, help="Resume existing run")
     p.add_argument("--apollo-csv", help="Apollo People CSV (skip auto scrape)")
     p.add_argument("--max-findymail", type=int, default=1500)
+    p.add_argument("--max-queries", type=int, default=500,
+                   help="Max search queries budget (for step 0)")
+    p.add_argument("--geos", nargs="*", help="Specific geos to search (default: all)")
     p.add_argument("--force", action="store_true", help="Force re-run (ignore cache)")
-    p.add_argument("--prompt-file", help="Custom analysis prompt file")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
     print(f"\n{'='*60}")
-    print(f"  OnSocial Clay Pipeline - {SEGMENT_NAME} v4 ALL GEO")
+    print(f"  OnSocial Pipeline - {SEGMENT_NAME} v4 ALL GEO")
     print(f"  {ts()}")
     print(f"{'='*60}")
     print(f"  Project: OnSocial (ID {PROJECT_ID})")
     print(f"  Segment: {SEGMENT_NAME} ({SEGMENT_CODE})")
-    print(f"  Company source: Clay (description_keywords, direct, FREE)")
+    print(f"  Company source: Google SERP + AI classification (batch-segments)")
+    print(f"  Search segments: {', '.join(SEARCH_SEGMENT_KEYS)}")
     print(f"  People source: Apollo People UI (Puppeteer, FREE)")
-    print(f"  description_keywords: {len(CLAY_FILTERS['description_keywords'])}")
-    print(f"  description_keywords_exclude: {len(CLAY_FILTERS['description_keywords_exclude'])}")
-    print(f"  Industries: {len(CLAY_FILTERS['industries'])}")
-    print(f"  Employees: {CLAY_FILTERS['minimum_member_count']}-{CLAY_FILTERS['maximum_member_count']}")
-    print(f"  Geo: ALL (no country_names)")
     print(f"  People seniorities: {', '.join(PEOPLE_SENIORITIES)}")
     print(f"  People titles: {len(PEOPLE_TITLES)}")
     print(f"  Excluded title patterns: {len(EXCLUDED_TITLES_PATTERNS)}")
@@ -1359,6 +1355,8 @@ def main():
 
     if args.dry_run:
         print(f"\n  DRY RUN - no actions taken")
+        print(f"\n  Search config segments: {', '.join(SEARCH_SEGMENT_KEYS)}")
+        print(f"\n  Clay filters (for reference / manual Clay search):")
         print(f"\n  description_keywords ({len(CLAY_FILTERS['description_keywords'])}):")
         for kw in CLAY_FILTERS["description_keywords"]:
             print(f"    - {kw}")
@@ -1366,111 +1364,22 @@ def main():
         for kw in CLAY_FILTERS["description_keywords_exclude"]:
             print(f"    - {kw}")
         print(f"\n  Industries: {CLAY_FILTERS['industries']}")
+        print(f"  Employees: {CLAY_FILTERS['minimum_member_count']}-{CLAY_FILTERS['maximum_member_count']}")
         print(f"\n  People titles ({len(PEOPLE_TITLES)}):")
         for t in PEOPLE_TITLES:
             print(f"    - {t}")
         print(f"\n  Excluded title patterns ({len(EXCLUDED_TITLES_PATTERNS)}):")
         for t in EXCLUDED_TITLES_PATTERNS:
             print(f"    - {t}")
-        print(f"\n  Clay filters JSON:")
-        print(json.dumps(CLAY_FILTERS, indent=2))
         return
 
     steps = STEPS[STEPS.index(args.from_step):]
 
-    prompt_text = None
-    if args.prompt_file:
-        prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
-
-    run_id = args.run_id or load_state().get("run_id")
-
-    # -- Step 0: Start Clay gathering --
+    # -- Step 0: Start search via batch-segments API --
     if "start" in steps:
-        run_id = step0_start()
-        # Wait for gathering to complete
-        print("\n  Waiting for Clay gathering to complete...")
-        conn_errors = 0
-        while True:
-            time.sleep(15)
-            try:
-                r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
-                              headers=BACKEND_HEADERS, timeout=30)
-                phase = r.json().get("current_phase", "")
-                if phase != "gather":
-                    print(f"  Phase: {phase}")
-                    break
-                print("  ..gathering")
-            except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
-                conn_errors += 1
-                if conn_errors >= 10:
-                    print(f"  Too many errors. Resume: --from-step blacklist --run-id {run_id}")
-                    sys.exit(1)
-                time.sleep(15)
-
-    # -- Step 2: Blacklist -> CP1 --
-    if "blacklist" in steps and run_id:
-        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-        phase = run_info.get("current_phase", "")
-        if phase == "awaiting_scope_ok":
-            gates = api("get", f"/pipeline/gathering/approval-gates?project_id={PROJECT_ID}",
-                        raise_on_error=False)
-            gate_list = gates if isinstance(gates, list) else gates.get("items", [])
-            pending = [g for g in gate_list if g.get("gathering_run_id") == run_id and g.get("status") == "pending"]
-            if pending:
-                gate = pending[0]
-                print(f"\n  * CP1 - gate #{gate['id']}, passed={gate.get('scope',{}).get('passed','?')}")
-                print(f"  PAUSING. Approve gate, then resume:")
-                print(f"    --from-step prefilter --run-id {run_id}")
-                return
-        elif phase in ("gathered", "gather"):
-            cp1 = step2_blacklist(run_id)
-            if cp1.get("gate_id"):
-                print(f"\n  PAUSING at CP1. Approve gate #{cp1['gate_id']}, then resume:")
-                print(f"    --from-step prefilter --run-id {run_id}")
-                return
-
-    # -- Step 3: Pre-filter --
-    if "prefilter" in steps and run_id:
-        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-        phase = run_info.get("current_phase", "")
-        if phase == "awaiting_scope_ok":
-            approve_pending_gate(run_id)
-            phase = "scope_approved"
-        if phase == "scope_approved":
-            step3_prefilter(run_id)
-
-    # -- Step 4: Scrape --
-    if "scrape" in steps and run_id:
-        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-        phase = run_info.get("current_phase", "")
-        if phase == "filtered":
-            step4_scrape(run_id)
-
-    # -- Step 5: Analyze -> CP2 --
-    if "analyze" in steps and run_id:
-        _, prompt = get_latest_prompt()
-        text = prompt_text or prompt or DEFAULT_ANALYSIS_PROMPT
-        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-        phase = run_info.get("current_phase", "")
-        if phase == "scraped":
-            cp2 = step5_analyze(run_id, text)
-            if cp2.get("gate_id"):
-                print(f"\n  PAUSING at CP2. Approve gate #{cp2['gate_id']}, then resume:")
-                print(f"    --from-step verify --run-id {run_id}")
-                return
-
-    # -- Step 6: Verify -> CP3 --
-    if "verify" in steps and run_id:
-        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
-        phase = run_info.get("current_phase", "")
-        if phase == "awaiting_targets_ok":
-            approve_pending_gate(run_id)
-        blacklist_approved_targets(run_id)
-        cp3 = step6_prepare_verify(run_id)
-        if cp3.get("gate_id"):
-            print(f"\n  PAUSING at CP3. Approve gate #{cp3['gate_id']}, then resume:")
-            print(f"    --from-step export --run-id {run_id}")
-            return
+        step0_start(geos=args.geos)
+        wait_for_search_jobs(timeout=3600)
+        check_search_status()
 
     # -- Step 9: Export targets --
     if "export" in steps:
