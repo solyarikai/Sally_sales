@@ -1370,7 +1370,7 @@ STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
 
 
 def main():
-    p = argparse.ArgumentParser(description="OnSocial Clay AFFILIATE_PERFORMANCE v4 ALL GEO Pipeline")
+    p = argparse.ArgumentParser(description="OnSocial Clay IM_FIRST_AGENCIES v4 ALL GEO Pipeline")
     p.add_argument("--from-step", choices=STEPS, default="start",
                    help="Start from this step")
     p.add_argument("--run-id", type=int, help="Resume existing run")
