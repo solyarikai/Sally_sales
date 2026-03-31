@@ -149,18 +149,12 @@ async def map_query_to_filters(
 
 async def _pick_industries(
     query: str, offer: str, industries: List[str],
-    openai_key: str, model: str = "gpt-4o-mini",
+    openai_key: str, model: str = "gpt-4.1-mini",
 ) -> List[str]:
-    """Separate focused call for industry selection. gpt-4o-mini tested at 100%."""
-    prompt = f"""I'm searching Apollo.io for: "{query}"
-
-Score each industry 0-100 for: "What % of companies in this Apollo industry would match my search?"
-Only return industries scoring 60+.
-
-Available Apollo industries:
+    """Industry selection. gpt-4.1-mini won the 20-approach × 5-model test."""
+    prompt = f""""{query}" — 2-3 matching industries.
 {json.dumps(industries)}
-
-Return JSON: {{"industries": [{{"name": "exact name", "score": 85, "reason": "why"}}]}}"""
+JSON: {{"industries": ["exact name"]}}"""
 
     for try_model in [model, "gpt-4o-mini"]:
         try:
@@ -179,13 +173,11 @@ Return JSON: {{"industries": [{{"name": "exact name", "score": 85, "reason": "wh
                 if content.startswith("```"):
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0]
                 result = json.loads(content)
-                scored = result.get("industries", [])
-                # Extract names from scored list, sorted by score
-                if scored and isinstance(scored[0], dict):
-                    scored.sort(key=lambda x: x.get("score", 0), reverse=True)
-                    logger.info(f"Industry scores for '{query}': {[(s.get('name'), s.get('score')) for s in scored]}")
-                    return [s["name"] for s in scored if s.get("score", 0) >= 60]
-                return scored  # fallback: plain list
+                inds = result.get("industries", [])
+                if inds and isinstance(inds[0], dict):
+                    inds = [x.get("name", "") for x in inds if x.get("name")]
+                logger.info(f"Industries for '{query}': {inds}")
+                return inds
         except Exception:
             continue
     return industries[:2]
@@ -206,13 +198,9 @@ async def _gpt_pick_filters(
     if keyword_shortlist:
         keyword_section = f"""
 KEYWORDS
-Score each keyword 0-100: "If I filter Apollo by ONLY this keyword, what % of results would match '{query}'?"
-Pick keywords scoring 50+. Return them sorted by score.
-
-Available Apollo keywords (pre-filtered by semantic relevance):
+Filtering Apollo for "{query}" — pick 5-8 keywords that give best results, least noise.
 {json.dumps(keyword_shortlist)}
-
-If fewer than 3 score 50+, suggest up to 2 new specific ones in "unverified_keywords"."""
+If fewer than 3 match, suggest up to 2 new ones in "unverified_keywords"."""
     else:
         keyword_section = """
 STEP 2 — KEYWORDS
@@ -235,7 +223,7 @@ Available ranges: {json.dumps(employee_ranges)}
 Think: what size companies would buy this product?
 
 Return ONLY valid JSON:
-{{"keywords": [{{"term": "exact keyword from list", "score": 85}}],
+{{"keywords": ["exact keyword from list"],
   "unverified_keywords": ["suggested keyword not in list"],
   "employee_ranges": ["11,50", "51,200"]}}"""
 
@@ -262,12 +250,11 @@ Return ONLY valid JSON:
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0]
                 result = json.loads(content)
                 result["model_used"] = try_model
-                # Extract scored keywords → plain list, filtered by score
+                # Normalize: if GPT returned dicts instead of strings
                 raw_kw = result.get("keywords", [])
                 if raw_kw and isinstance(raw_kw[0], dict):
-                    raw_kw.sort(key=lambda x: x.get("score", 0), reverse=True)
-                    logger.info(f"Keyword scores for '{query}': {[(k.get('term'), k.get('score')) for k in raw_kw]}")
-                    result["keywords"] = [k["term"] for k in raw_kw if k.get("score", 0) >= 50]
+                    result["keywords"] = [k.get("term", k.get("name", "")) for k in raw_kw if k.get("term") or k.get("name")]
+                logger.info(f"Keywords for '{query}': {result.get('keywords', [])}")
                 return result
         except Exception as e:
             logger.warning(f"Filter mapper {try_model} failed: {e}")
