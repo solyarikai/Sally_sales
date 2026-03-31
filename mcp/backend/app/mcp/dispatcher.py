@@ -1305,6 +1305,38 @@ Return ONLY valid JSON."""
         run = await session.get(GatheringRun, args["run_id"])
         if not run:
             raise ValueError("Run not found")
+        project = await session.get(Project, run.project_id)
+
+        # Count companies that will be re-analyzed
+        from app.models.gathering import CompanySourceLink as _CSL
+        company_count = (await session.execute(
+            select(sa_func.count(DiscoveredCompany.id))
+            .join(_CSL, _CSL.discovered_company_id == DiscoveredCompany.id)
+            .where(_CSL.gathering_run_id == run.id)
+        )).scalar() or 0
+
+        # TIER 1: Preview before executing
+        if not args.get("confirm"):
+            prompt_preview = args.get("prompt_text", "(auto-generated from feedback)")[:200]
+            return {
+                "status": "awaiting_confirmation",
+                "preview": {
+                    "action": "tam_re_analyze",
+                    "run_id": run.id,
+                    "project": project.name if project else "Unknown",
+                    "companies": company_count,
+                    "prompt_preview": prompt_preview,
+                },
+                "message": (
+                    f"I will re-analyze ALL {company_count} companies in pipeline #{run.id} ({project.name if project else 'Unknown'}).\n"
+                    f"Same companies, new classification prompt.\n"
+                    f"Prompt: {prompt_preview}...\n\n"
+                    f"Previous results will be preserved for comparison (new iteration in UI).\n\n"
+                    f"Approve?"
+                ),
+                "next_action": {"tool": "tam_re_analyze", "args": {**args, "confirm": True}},
+            }
+
         # Reset to scraped phase for re-analysis
         run.current_phase = "analyze"
         # Reject current CP2 gate
