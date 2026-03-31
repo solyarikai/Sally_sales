@@ -2287,27 +2287,56 @@ def main():
         if not mode_config:
             print("ERROR: no filters resolved")
             sys.exit(1)
-        notes = f"{args.mode} — {args.input_text or args.segment or args.examples or f'expand#{args.base_run}'}"
-        run_id = step0_start(config, mode_config["filters"], args.mode, args.input_text, notes)
-        # Wait for Clay
-        print("\n  Waiting for gathering to complete...")
-        conn_errors = 0
-        while True:
-            time.sleep(15)
-            try:
-                r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
-                              headers=BACKEND_HEADERS, timeout=30)
-                phase = r.json().get("current_phase", "")
-                if phase != "gather":
-                    print(f"  Phase: {phase}")
-                    break
-                print("  ..gathering")
-            except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
-                conn_errors += 1
-                if conn_errors >= 10:
-                    print(f"  Too many errors. Resume: --from-step blacklist --run-id {run_id}")
-                    sys.exit(1)
+
+        if args.mode == "apollo":
+            # Apollo mode: scrape companies via Puppeteer → feed domains to backend
+            domains = step0_apollo_companies(config, mode_config["filters"],
+                                             apollo_profile=args.apollo_profile)
+            if not domains:
+                print("  ERROR: No domains from Apollo search")
+                sys.exit(1)
+
+            seg_name = mode_config.get("segment", "UNKNOWN")
+            notes_prefix = f"Apollo Companies API — {seg_name} {len(domains)} domains"
+            if not _checkpoint(f"Feed {len(domains)} Apollo domains into backend pipeline?"):
+                sys.exit(0)
+
+            run_ids = create_batched_runs(config, domains, "apollo", notes_prefix)
+            save_json(config.state_dir / "apollo_run_ids.json", run_ids)
+
+            # Process all runs through backend pipeline (dedup → blacklist → scrape → classify)
+            prompt_text_resolved = prompt_text or config.prompt_text
+            for i, rid in enumerate(run_ids):
+                print(f"\n  === Run {i+1}/{len(run_ids)} (#{rid}) ===")
+                process_run_pipeline(config, rid, prompt_text=prompt_text_resolved)
+
+            print(f"\n  All {len(run_ids)} runs processed.")
+            # Use last run_id for subsequent steps
+            run_id = run_ids[-1] if run_ids else None
+
+        else:
+            # Clay/other modes: send filters to backend API
+            notes = f"{args.mode} — {args.input_text or args.segment or args.examples or f'expand#{args.base_run}'}"
+            run_id = step0_start(config, mode_config["filters"], args.mode, args.input_text, notes)
+            # Wait for Clay
+            print("\n  Waiting for gathering to complete...")
+            conn_errors = 0
+            while True:
                 time.sleep(15)
+                try:
+                    r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                                  headers=BACKEND_HEADERS, timeout=30)
+                    phase = r.json().get("current_phase", "")
+                    if phase != "gather":
+                        print(f"  Phase: {phase}")
+                        break
+                    print("  ..gathering")
+                except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
+                    conn_errors += 1
+                    if conn_errors >= 10:
+                        print(f"  Too many errors. Resume: --from-step blacklist --run-id {run_id}")
+                        sys.exit(1)
+                    time.sleep(15)
 
     if "blacklist" in steps and run_id:
         run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
