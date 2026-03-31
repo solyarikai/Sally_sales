@@ -1411,8 +1411,9 @@ def main():
     if args.prompt_file:
         prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
 
-    # Step 0: Start Clay gathering
-    run_id = load_state().get("run_id")
+    run_id = args.run_id or load_state().get("run_id")
+
+    # ── Step 0: Start Clay gathering ──
     if "start" in steps:
         run_id = step0_start()
         # Wait for gathering to complete
@@ -1431,25 +1432,88 @@ def main():
             except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
                 conn_errors += 1
                 if conn_errors >= 10:
-                    print(f"  Too many errors. Resume: --from-step backend")
+                    print(f"  Too many errors. Resume: --from-step blacklist --run-id {run_id}")
                     sys.exit(1)
                 time.sleep(15)
 
-    # Steps 2-8: Backend pipeline
-    if "backend" in steps:
-        if not run_id:
-            print("  ERROR: No run_id. Run --from-step start first.")
-            sys.exit(1)
-        step2_8_backend_pipeline(run_id, prompt_text)
+    # ── Step 2: Blacklist -> CP1 ──
+    if "blacklist" in steps and run_id:
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        if phase == "awaiting_scope_ok":
+            # Already at CP1 — show gate info and pause
+            gates = api("get", f"/pipeline/gathering/approval-gates?project_id={PROJECT_ID}",
+                        raise_on_error=False)
+            gate_list = gates if isinstance(gates, list) else gates.get("items", [])
+            pending = [g for g in gate_list if g.get("gathering_run_id") == run_id and g.get("status") == "pending"]
+            if pending:
+                gate = pending[0]
+                print(f"\n  * CP1 - gate #{gate['id']}, passed={gate.get('scope',{}).get('passed','?')}")
+                print(f"  PAUSING. Approve gate, then resume:")
+                print(f"    --from-step prefilter --run-id {run_id}")
+                return
+        elif phase in ("gathered", "gather"):
+            cp1 = step2_blacklist(run_id)
+            if cp1.get("gate_id"):
+                print(f"\n  PAUSING at CP1. Approve gate #{cp1['gate_id']}, then resume:")
+                print(f"    --from-step prefilter --run-id {run_id}")
+                return
 
-    # Step 9: Export targets
+    # ── Step 3: Pre-filter ──
+    if "prefilter" in steps and run_id:
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        # Auto-approve CP1 gate if still pending (operator resumed with --from-step prefilter)
+        if phase == "awaiting_scope_ok":
+            approve_pending_gate(run_id)
+            phase = "scope_approved"
+        if phase == "scope_approved":
+            step3_prefilter(run_id)
+
+    # ── Step 4: Scrape ──
+    if "scrape" in steps and run_id:
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        if phase == "filtered":
+            step4_scrape(run_id)
+
+    # ── Step 5: Analyze -> CP2 ──
+    if "analyze" in steps and run_id:
+        _, prompt = get_latest_prompt()
+        text = prompt_text or prompt or DEFAULT_ANALYSIS_PROMPT
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        if phase == "scraped":
+            cp2 = step5_analyze(run_id, text)
+            if cp2.get("gate_id"):
+                print(f"\n  PAUSING at CP2. Approve gate #{cp2['gate_id']}, then resume:")
+                print(f"    --from-step verify --run-id {run_id}")
+                return
+
+    # ── Step 6: Verify -> CP3 ──
+    if "verify" in steps and run_id:
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        # Auto-approve CP2 gate if still pending (operator resumed with --from-step verify)
+        if phase == "awaiting_targets_ok":
+            approve_pending_gate(run_id)
+        # Add approved targets to blacklist
+        blacklist_approved_targets(run_id)
+        # Prepare verification -> CP3
+        cp3 = step6_prepare_verify(run_id)
+        if cp3.get("gate_id"):
+            print(f"\n  PAUSING at CP3. Approve gate #{cp3['gate_id']}, then resume:")
+            print(f"    --from-step export --run-id {run_id}")
+            return
+
+    # ── Step 9: Export targets ──
     targets = []
     if "export" in steps:
         targets = step9_export_targets(force=args.force)
     else:
         targets = load_json(TARGETS_FILE) or []
 
-    # Step 10: Apollo People Search
+    # ── Step 10: Apollo People Search ──
     contacts = []
     if "people" in steps:
         if not targets:
@@ -1464,7 +1528,7 @@ def main():
     else:
         contacts = load_json(CONTACTS_FILE) or load_json(ENRICHED_FILE) or []
 
-    # Step 11: FindyMail
+    # ── Step 11: FindyMail ──
     if "findymail" in steps:
         if not contacts:
             contacts = load_json(CONTACTS_FILE) or []
@@ -1474,7 +1538,7 @@ def main():
         contacts = asyncio.run(step11_findymail(contacts, max_contacts=args.max_findymail,
                                                  force=args.force))
 
-    # Step 12: SmartLead Upload
+    # ── Step 12: SmartLead Upload ──
     if "upload" in steps:
         if not contacts:
             contacts = load_json(ENRICHED_FILE) or load_json(CONTACTS_FILE) or []
