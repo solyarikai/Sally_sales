@@ -833,7 +833,7 @@ def step10_apollo_people_search(targets: list[dict], force: bool = False) -> lis
     for batch_idx, batch_domains in enumerate(batches):
         print(f"    Batch {batch_idx + 1}/{len(batches)}: {len(batch_domains)} domains...", end=" ", flush=True)
         url = _build_apollo_people_url(batch_domains, PEOPLE_TITLES, PEOPLE_SENIORITIES)
-        output_path = f"/tmp/apollo_people_clay_affperf_v4_{batch_idx}.json"
+        output_path = f"/tmp/apollo_people_clay_imagency_v4_{batch_idx}.json"
         people = _run_apollo_scraper(url, APOLLO_PEOPLE_MAX_PAGES, output_path)
         print(f"{len(people)} people")
 
