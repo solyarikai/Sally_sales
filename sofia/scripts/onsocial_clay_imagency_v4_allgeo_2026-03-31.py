@@ -594,150 +594,18 @@ def wait_for_search_jobs(timeout: int = 3600) -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEPS 2-8: BACKEND PIPELINE
+# STEPS 2-8: HANDLED BY BACKEND SEARCH PIPELINE (automatic)
+# The search/batch-segments API handles scraping, analysis, and classification
+# automatically. No manual step2-8 calls needed.
+# After search completes, targets are in search_results table with is_target=true.
 # ══════════════════════════════════════════════════════════════════════════════
 
-def get_latest_prompt() -> tuple[int | None, str | None]:
-    result = api("get", f"/pipeline/gathering/prompts?project_id={PROJECT_ID}", raise_on_error=False)
-    prompts = result if isinstance(result, list) else result.get("items", [])
-    active = [p for p in prompts if p.get("is_active", True)]
-    if active:
-        latest = max(active, key=lambda p: p["id"])
-        print(f"  Prompt: #{latest['id']} '{latest.get('name', '?')}' "
-              f"(usage={latest.get('usage_count', 0)}, target_rate={latest.get('avg_target_rate', '?')})")
-        return latest["id"], latest.get("prompt_text", "")
-    return None, None
-
-
-def approve_pending_gate(run_id: int) -> bool:
-    try:
-        gates = api("get", f"/pipeline/gathering/approval-gates?project_id={PROJECT_ID}",
-                    raise_on_error=False)
-        items = gates if isinstance(gates, list) else gates.get("items", [])
-        for g in items:
-            if g.get("gathering_run_id") == run_id and g.get("status") == "pending":
-                api("post", f"/pipeline/gathering/approval-gates/{g['id']}/approve",
-                    json={}, raise_on_error=False)
-                print(f"  Gate #{g['id']} approved")
-                return True
-    except Exception:
-        pass
-    return False
-
-
-def blacklist_approved_targets(run_id: int):
-    sql = (f"SELECT DISTINCT dc.domain FROM discovered_companies dc "
-           f"JOIN company_source_links csl ON csl.discovered_company_id = dc.id "
-           f"WHERE csl.gathering_run_id = {run_id} AND dc.is_target = true "
-           f"AND dc.domain IS NOT NULL AND dc.domain != ''")
-    r = subprocess.run(
-        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
-         "-d", "leadgen", "-t", "-A", "-c", sql],
-        capture_output=True, text=True, timeout=15,
-    )
-    domains = [d.strip() for d in r.stdout.strip().split("\n") if d.strip()]
-    if not domains:
-        return
-    values = ", ".join(
-        f"({PROJECT_ID}, '{d}', 'target_approved_run_{run_id}', 'pipeline', now())"
-        for d in domains
-    )
-    insert_sql = (f"INSERT INTO project_blacklist (project_id, domain, reason, source, created_at) "
-                  f"VALUES {values} ON CONFLICT DO NOTHING")
-    subprocess.run(
-        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
-         "-d", "leadgen", "-c", insert_sql],
-        capture_output=True, text=True, timeout=30,
-    )
-    print(f"  Blacklist: +{len(domains)} target domains (run #{run_id})")
-
-
-def step4_scrape(run_id: int) -> dict:
-    print(f"\n  Step 4: Scrape websites (run #{run_id})")
-    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/scrape",
-                      expected_phase="scraped", run_id=run_id, timeout=3600)
-    if not result.get("_timeout"):
-        print(f"  Scraped: {result.get('scraped', '?')}, Skipped: {result.get('skipped', '?')}")
-    return result
-
-
-def step2_blacklist(run_id: int) -> dict:
-    """Run blacklist check -> creates CP1 gate. Returns gate info or {}."""
-    print(f"\n{'='*60}")
-    print(f"STEP 2: Blacklist Check (run #{run_id})")
-    print(f"{'='*60}")
-    result = api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
-    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates", raise_on_error=False)
-    gate_list = gates if isinstance(gates, list) else gates.get("items", [])
-    pending = [g for g in gate_list if g["status"] == "pending"]
-    if pending:
-        gate = pending[0]
-        scope = gate.get("scope", {})
-        save_state(run_id, "awaiting_scope_ok", gate_id=gate["id"])
-        print(f"\n  * CHECKPOINT 1 - gate #{gate['id']}")
-        print(f"  Passed: {scope.get('passed', '?')}, Rejected: {scope.get('rejected', '?')}")
-        return {"gate_id": gate["id"], "scope": scope}
-    return {}
-
-
-def approve_gate(gate_id: int, note: str = "Approved") -> dict:
-    """Approve a checkpoint gate."""
-    result = api("post", f"/pipeline/gathering/approval-gates/{gate_id}/approve",
-                 json={"decision_note": note})
-    print(f"  Gate #{gate_id} approved")
-    return result
-
-
-def step3_prefilter(run_id: int) -> dict:
-    print(f"\n  Step 3: Pre-filter (run #{run_id})")
-    result = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter")
-    print(f"  Passed: {result.get('passed', '?')}")
-    return result
-
-
-def step5_analyze(run_id: int, prompt_text: str = None) -> dict:
-    """Run GPT classification -> creates CP2 gate."""
-    print(f"\n{'='*60}")
-    print(f"STEP 5: Analyze (run #{run_id})")
-    print(f"{'='*60}")
-    text = prompt_text or DEFAULT_ANALYSIS_PROMPT
-    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
-                      expected_phase="analyzed", run_id=run_id, timeout=3600,
-                      params={"prompt_text": text, "model": "gpt-4o-mini"})
-    targets_found = result.get("targets_found", result.get("targets_count", "?"))
-    total = result.get("total_analyzed", "?")
-    target_rate = result.get("target_rate", 0)
-    print(f"  Analyzed: {total}, Targets: {targets_found} ({target_rate*100:.1f}%)")
-
-    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates", raise_on_error=False)
-    gate_list = gates if isinstance(gates, list) else gates.get("items", [])
-    pending = [g for g in gate_list if g["status"] == "pending"]
-    if pending:
-        gate = pending[0]
-        save_state(run_id, "awaiting_targets_ok", gate_id=gate["id"])
-        print(f"\n  * CHECKPOINT 2 - gate #{gate['id']}")
-        print(f"  Target rate: {target_rate*100:.1f}%")
-        print(f"  Review targets, then approve or re-analyze.")
-        return {"gate_id": gate["id"], "target_rate": target_rate, "targets_found": targets_found}
-    return {"target_rate": target_rate, "targets_found": targets_found}
-
-
-def step6_prepare_verify(run_id: int) -> dict:
-    """Prepare FindyMail verification -> creates CP3 with cost estimate."""
-    print(f"\n  Step 6: Prepare Verification (run #{run_id})")
-    result = api("post", f"/pipeline/gathering/runs/{run_id}/prepare-verification",
-                 raise_on_error=False)
-    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates", raise_on_error=False)
-    gate_list = gates if isinstance(gates, list) else gates.get("items", [])
-    pending = [g for g in gate_list if g["status"] == "pending"]
-    if pending:
-        gate = pending[0]
-        scope = gate.get("scope", {})
-        print(f"\n  * CHECKPOINT 3 - gate #{gate['id']}")
-        print(f"  Emails to verify: {scope.get('emails_to_verify', '?')}")
-        print(f"  Estimated cost: ${scope.get('estimated_cost_usd', '?')}")
-        return {"gate_id": gate["id"], "scope": scope}
-    return result if isinstance(result, dict) else {}
+def check_search_status() -> dict:
+    """Check current search results for the project."""
+    stats = api("get", f"/search/projects/{PROJECT_ID}/results/stats", raise_on_error=False)
+    if stats and not stats.get("_error"):
+        print(f"  Results stats: {json.dumps(stats, indent=2)[:500]}")
+    return stats or {}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
