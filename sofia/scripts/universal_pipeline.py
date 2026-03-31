@@ -655,7 +655,7 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 #   1. icp_text — AI (Gemini) конвертирует текст ICP в Clay фильтры
 #   2. description_keywords — ключевые слова идут напрямую в Clay UI (без AI)
 # Результат: список доменов компаний (например thegoatagency.com, modash.io).
-# Стоимость: Clay ~$0.01/компания.
+# Стоимость: Clay company search БЕСПЛАТНЫЙ (TAM export без enrichment, 0 кредитов).
 # ══════════════════════════════════════════════════════════════════════════════
 
 def step0_start(config: ProjectConfig, filters: dict, mode: str,
