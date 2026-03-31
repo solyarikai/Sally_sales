@@ -236,7 +236,7 @@ class ReplyMonitor:
         """Send Telegram notification for warm reply."""
         try:
             import os
-            bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+            bot_token = os.environ.get("TELEGRAM_NOTIFY_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
             if not bot_token:
                 return
 

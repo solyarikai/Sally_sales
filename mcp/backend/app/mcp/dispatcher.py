@@ -978,7 +978,8 @@ Return ONLY valid JSON."""
             ),
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}",
+                "pipelines": "http://46.62.210.24:3000/pipeline",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
             },
             "next_action": {
                 "tool": "list_email_accounts",
@@ -1129,7 +1130,7 @@ Return ONLY valid JSON."""
             "total_analyzed": scope.get("total_analyzed", 0),
             "skipped_no_text": scope.get("skipped_no_scraped_text", 0),
             "target_rate": scope.get("target_rate", "0%"),
-            "avg_confidence": scope.get("avg_confidence", 0),
+            # confidence excluded per requirements line 79
             "segment_distribution": scope.get("segment_distribution", {}),
             "target_list": scope.get("target_list", []),
             "borderline_rejections": scope.get("borderline_rejections", []),
@@ -1364,7 +1365,7 @@ Return ONLY valid JSON."""
             "targets_found": scope.get("targets_found", 0),
             "total_analyzed": scope.get("total_analyzed", 0),
             "target_rate": scope.get("target_rate", "0%"),
-            "avg_confidence": scope.get("avg_confidence", 0),
+            # confidence excluded per requirements line 79
             "segment_distribution": scope.get("segment_distribution", {}),
             "target_list": scope.get("target_list", []),
             "borderline_rejections": scope.get("borderline_rejections", []),
@@ -2891,9 +2892,10 @@ Return ONLY valid JSON."""
                        f"Reply analysis running in background — will classify warm/meeting/interested replies. "
                        f"Ask 'which replies are warm?' after a minute.",
             "_links": {
-                "crm": f"http://46.62.210.24:3000/crm",
-                "crm_warm": f"http://46.62.210.24:3000/crm?reply_category=interested",
-                "crm_meetings": f"http://46.62.210.24:3000/crm?reply_category=meeting",
+                "crm": f"http://46.62.210.24:3000/crm?project_id={project.id}",
+                "crm_warm": f"http://46.62.210.24:3000/crm?project_id={project.id}&reply_category=interested",
+                "crm_meetings": f"http://46.62.210.24:3000/crm?project_id={project.id}&reply_category=meeting",
+                "pipelines": "http://46.62.210.24:3000/pipeline",
             },
         }
 

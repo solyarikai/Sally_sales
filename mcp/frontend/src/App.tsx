@@ -15,6 +15,14 @@ import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
 import { TasksPage } from '@main/pages/TasksPage'
 import { ToastProvider } from '@main/components/Toast'
 
+// MCP-specific CRM defaults: hide useless columns (requirement line 57)
+// This runs once on first load — user can still toggle columns via column picker
+if (!localStorage.getItem('crm:hiddenColumns:mcp_initialized')) {
+  const mcpHidden = ['Done', 'Status', 'Client Status', 'Source', 'Suitable For', 'Location', 'Website', 'Added', 'Project']
+  localStorage.setItem('crm:hiddenColumns', JSON.stringify(mcpHidden))
+  localStorage.setItem('crm:hiddenColumns:mcp_initialized', '1')
+}
+
 // Theme
 const ThemeCtx = createContext({ dark: true, toggle: () => {} })
 export const useTheme = () => useContext(ThemeCtx)

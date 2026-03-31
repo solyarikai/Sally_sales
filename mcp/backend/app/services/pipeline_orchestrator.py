@@ -415,7 +415,7 @@ class PipelineOrchestrator:
         }
         result["message"] = (
             f"Pipeline {'complete' if result['kpi_met'] else 'paused' if self.run.status == 'paused' else 'incomplete'}: "
-            f"{self.total_targets} target companies, {self.total_people}/{target_people} contacts.\n"
+            f"{self.total_targets} target companies, {self.total_people}/{tp} contacts.\n"
             f"Pages fetched: {self.pages_fetched} ({self.total_companies} total companies).\n"
             f"Credits used: {result.get('credits_used', 0)}.\n"
         )
@@ -467,6 +467,14 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
 
             logger.info(f"Background pipeline {run_id} finished: {result.get('status')} — {result.get('total_people')} people")
 
+            # ── Auto-notify via Telegram when pipeline completes ──
+            if result.get("kpi_met") or run.status in ("completed", "insufficient"):
+                await _notify_pipeline_complete(session, run, user_id, result)
+
+            # ── Auto-generate campaign sequence when KPI met (DRAFT — user must approve) ──
+            if result.get("kpi_met"):
+                await _auto_generate_campaign(session, run, user_id, openai_key)
+
     except Exception as e:
         logger.exception(f"Background pipeline {run_id} failed: {e}")
         try:
@@ -487,3 +495,81 @@ def start_pipeline_background(run_id: int, filters: dict, user_id: int) -> async
     task = asyncio.create_task(run_pipeline_background(run_id, filters, user_id))
     _running_tasks[run_id] = task
     return task
+
+
+async def _notify_pipeline_complete(session, run, user_id: int, result: dict):
+    """Send Telegram notification when pipeline finishes."""
+    try:
+        import os, httpx
+        bot_token = os.environ.get("TELEGRAM_NOTIFY_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+        if not bot_token:
+            return
+
+        # Get user's telegram chat_id
+        from sqlalchemy import select as _sel
+        from app.models.integration import MCPIntegrationSetting
+        from app.services.encryption import decrypt_value
+        tg_result = await session.execute(
+            _sel(MCPIntegrationSetting).where(
+                MCPIntegrationSetting.user_id == user_id,
+                MCPIntegrationSetting.integration_name == "telegram",
+            )
+        )
+        tg = tg_result.scalar_one_or_none()
+        if not tg or not tg.api_key_encrypted:
+            return
+        chat_id = decrypt_value(tg.api_key_encrypted)
+
+        project = await session.get(Project, run.project_id)
+        project_name = project.name if project else "Unknown"
+        tp = run.target_people or 100
+        pf = run.total_people_found or 0
+        tf = run.total_targets_found or 0
+        kpi_met = result.get("kpi_met", False)
+
+        status_emoji = "✅" if kpi_met else "⚠️"
+        msg = (
+            f"{status_emoji} Pipeline #{run.id} ({project_name}) {'complete' if kpi_met else 'stopped'}!\n\n"
+            f"People: {pf}/{tp}\n"
+            f"Target companies: {tf}\n"
+            f"Pages: {run.pages_fetched or 0}\n"
+            f"Credits: {run.credits_used or 0}\n\n"
+            f"Pipeline: http://46.62.210.24:3000/pipeline/{run.id}\n"
+            f"CRM: http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}"
+        )
+        if kpi_met:
+            msg += "\n\nSequence generation starting — check campaign DRAFT shortly."
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={"chat_id": chat_id, "text": msg},
+            )
+        logger.info(f"Pipeline completion notification sent to chat {chat_id}")
+    except Exception as e:
+        logger.debug(f"Pipeline completion notification failed: {e}")
+
+
+async def _auto_generate_campaign(session, run, user_id: int, openai_key: str):
+    """Auto-generate SmartLead sequence when KPI met. Creates DRAFT — user must approve."""
+    try:
+        project = await session.get(Project, run.project_id)
+        if not project:
+            return
+
+        # Generate sequence
+        from app.services.campaign_intelligence import generate_sequence
+        seq_result = await generate_sequence(
+            session=session,
+            project=project,
+            openai_key=openai_key,
+            campaign_name=f"{project.name} - Pipeline #{run.id}",
+        )
+
+        if seq_result and seq_result.get("sequence_id"):
+            logger.info(f"Auto-generated sequence #{seq_result['sequence_id']} for pipeline {run.id}")
+            # Store reference on run for easy lookup
+            run.notes = (run.notes or "") + f"\nAuto-sequence: #{seq_result['sequence_id']}"
+            await session.flush()
+    except Exception as e:
+        logger.warning(f"Auto campaign generation failed for pipeline {run.id}: {e}")

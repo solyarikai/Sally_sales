@@ -464,7 +464,7 @@ export default function PipelinePage() {
     { key: 'country', label: 'Country', filterType: 'dropdown' as const },
     { key: 'city', label: 'City', filterType: 'text' as const },
     { key: 'scrape_text_preview', label: 'Scraped', filterType: 'text' as const },
-    { key: 'analysis_confidence', label: 'Conf.', filterType: 'text' as const },
+    // confidence excluded per requirements — via negativa approach, no scores
     { key: 'analysis_reasoning', label: 'Analysis', filterType: 'text' as const },
     { key: 'contacts_count', label: 'People', filterType: 'text' as const },
   ]
@@ -580,9 +580,9 @@ export default function PipelinePage() {
           <button onClick={() => setShowPromptHistory(!showPromptHistory)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPromptHistory ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>User-MCP Conversation</button>
           {filtered.length > 0 && (
             <button onClick={() => {
-              const headers = ['Domain','Name','Industry','Employees','Country','City','Segment','Confidence','Status','Reasoning'];
+              const headers = ['Domain','Name','Industry','Employees','Country','City','Segment','Status','Reasoning'];
               const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-              const rows = filtered.map((c: any) => [c.domain, c.name, c.industry, c.employee_count, c.country, c.city, c.analysis_segment, c.analysis_confidence, c.status, c.analysis_reasoning].map(esc).join(','));
+              const rows = filtered.map((c: any) => [c.domain, c.name, c.industry, c.employee_count, c.country, c.city, c.analysis_segment, c.status, c.analysis_reasoning].map(esc).join(','));
               const csv = [headers.join(','), ...rows].join('\n');
               const blob = new Blob([csv], {type: 'text/csv'});
               const url = URL.createObjectURL(blob);
@@ -744,8 +744,8 @@ export default function PipelinePage() {
                     </td>
                   )
                   if (col.key === 'analysis_confidence') return (
-                    <td key={col.key} style={{ padding: '7px 8px 7px 0', fontSize: 11, fontWeight: 600, color: c.analysis_confidence >= 0.8 ? 'var(--success)' : c.analysis_confidence >= 0.5 ? 'var(--warning)' : 'var(--text-muted)' }}>
-                      {c.analysis_confidence != null ? `${(c.analysis_confidence*100).toFixed(0)}%` : '—'}
+                    <td key={col.key} style={{ padding: '7px 8px 7px 0', fontSize: 11, color: 'var(--text-muted)' }}>
+                      —
                     </td>
                   )
                   if (col.key === 'status') return (

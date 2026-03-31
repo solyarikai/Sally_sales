@@ -44,6 +44,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://mcp:mcp_secret@mcp-postgres:5432/mcp_leadgen
       - REDIS_URL=redis://mcp-redis:6379
       - MCP_MODE=true
+      - TELEGRAM_NOTIFY_BOT_TOKEN=7786811624:AAHbIUkMOvEB5A8wqw1koyhCNOZaSBgEvUI
     env_file:
       - .env
     volumes:

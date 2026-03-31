@@ -248,7 +248,24 @@ async def get_account(
                 "input_tokens": mcp_input_tokens,
                 "output_tokens": mcp_output_tokens,
                 "total_tokens": mcp_input_tokens + mcp_output_tokens,
-                "cost_usd": 0,  # free for now
+                # MCP cost estimate: ~$1/campaign (20 campaigns/mo = $20/mo)
+                # Breakdown per campaign: ~50 tool calls × 8K tokens avg = 400K tokens
+                # At gpt-4o-mini pricing: $0.15/1M input + $0.60/1M output ≈ $0.30/campaign
+                # Apollo: ~15 credits × $0.01 = $0.15
+                # Apify: ~100 websites × $0.0001 = $0.01
+                # OpenAI (classification): ~1000 companies × $0.003 = $3.00
+                # Total per campaign: ~$3.50, 20 campaigns = $70/mo realistic
+                # $20/mo covers ~6 campaigns (budget mode)
+                "cost_usd": round((mcp_input_tokens * 0.15 + mcp_output_tokens * 0.60) / 1_000_000, 4),
+            },
+            "estimate_20_campaigns_mo": {
+                "apollo_credits": 300,
+                "apollo_usd": 3.00,
+                "openai_usd": 60.00,
+                "apify_usd": 2.00,
+                "mcp_usd": 6.00,
+                "total_usd": 71.00,
+                "note": "Estimate for 20 campaigns/mo, 1000 contacts each, at current pricing",
             },
         },
         "stats": {
