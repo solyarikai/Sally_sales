@@ -2166,9 +2166,9 @@ def main():
             return
 
     if "verify" in steps and run_id:
-        # Step 6-7 done in chat. Now: approve CP2 gate + blacklist targets + export.
+        # Step 6-7 done in chat. Now: approve CP2 gate + export targets.
+        # No blacklist_approved_targets — CRM sync handles this automatically.
         approve_pending_gate(config, run_id)
-        blacklist_approved_targets(config, run_id)
         targets = step9_export_targets(config, force=args.force)
     else:
         targets = load_json(config.state_dir / "targets.json") or []
