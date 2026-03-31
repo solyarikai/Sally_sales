@@ -158,9 +158,16 @@ class PipelineOrchestrator:
                 if optimized and optimized.get("q_organization_keyword_tags"):
                     filters = optimized
                     logger.info(f"Filters optimized: {len(optimized.get('q_organization_keyword_tags', []))} keywords")
-                result["credits_used"] += exploration.get("credits_used", 0)
+                exploration_credits = exploration.get("credits_used", 0)
+                result["credits_used"] += exploration_credits
+                # Persist exploration credits to run.credits_used (P1 fix)
+                self.run.credits_used = (self.run.credits_used or 0) + exploration_credits
+                await self.session.flush()
             except Exception as e:
                 logger.warning(f"Exploration failed, continuing with original filters: {e}")
+
+        # Flush costs from iteration 1 + exploration
+        await self._flush_costs(1)
 
         # === ITERATIONS 2+: Scale (4 pages per batch) ===
         batch_num = 2
