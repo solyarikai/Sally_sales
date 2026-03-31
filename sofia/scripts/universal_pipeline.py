@@ -638,17 +638,27 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 0 (CLAY): ПОИСК КОМПАНИЙ ЧЕРЕЗ CLAY
-# Источники A и B: отправляем фильтры в Clay через backend API.
-#   A. icp_text (--mode structured/natural) — AI (Gemini) маппит текст → Clay фильтры
-#   B. description_keywords (--mode keywords) — ключевые слова напрямую в Clay UI
-# Результат: список доменов компаний.
-# Стоимость: ~$0.01/компания.
+# ШАГ 0: ПОИСК КОМПАНИЙ (3 источника на выбор)
+#
+# Источник A — Clay ICP (--mode structured / --mode natural)
+#   AI (Gemini) маппит текст ICP → Clay фильтры. ~$0.01/компания.
+#
+# Источник B — Clay Keywords (--mode keywords)
+#   Явные description_keywords напрямую в Clay UI. ~$0.01/компания.
+#
+# Источник C — Apollo Internal API (--mode apollo)
+#   Puppeteer + internal API (q_organization_keyword_tags). БЕСПЛАТНО.
+#   Скрипт: scripts/sofia/onsocial_apollo_companies_search.js
+#
+# Clay (A, B) → step0_start() → backend API → run_id
+# Apollo (C) → step0_apollo_companies() → JS scraper → domains → create_batched_runs()
+#
+# Все три на выходе дают run_id(s) → дальше единый pipeline (шаги 1-10).
 # ══════════════════════════════════════════════════════════════════════════════
 
 def step0_start(config: ProjectConfig, filters: dict, mode: str,
                 input_text: str = None, notes: str = "") -> int:
-    """Start Clay gathering via backend API. Returns run_id.
+    """Start Clay gathering via backend API (sources A and B). Returns run_id.
 
     Filters can contain either:
       - icp_text: natural language ICP -> AI maps to Clay filters (Gemini/GPT)
