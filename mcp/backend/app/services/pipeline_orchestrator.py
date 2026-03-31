@@ -370,9 +370,9 @@ class PipelineOrchestrator:
             except Exception:
                 pass
 
-        # Search people for each target company — PARALLEL (5 concurrent)
+        # Search people for each target company — PARALLEL (20 concurrent)
         import asyncio as _aio
-        sem = _aio.Semaphore(5)
+        sem = _aio.Semaphore(20)
         found_contacts = []
 
         async def _search_one(company):
