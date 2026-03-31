@@ -4,9 +4,13 @@ TOOLS = [
     # ── Account (3) ──
     {
         "name": "login",
-        "description": """Authenticate with your API token. IMPORTANT: You CANNOT create accounts here.
-If the user doesn't have a token, tell them: "Sign up at http://46.62.210.24:3000/setup to get your API token, then paste it here."
-NEVER ask for name or email — only accept a token that starts with mcp_.""",
+        "description": """MANDATORY FIRST STEP. Call this BEFORE any other tool. ALL tools require authentication.
+
+If user hasn't provided a token yet, DO NOT proceed with ANY request. Instead say:
+"Sign up at http://46.62.210.24:3000/setup to get your API token, then paste it here."
+
+NEVER ask questions about companies, segments, or campaigns before login. NEVER skip this step.
+Only accept tokens starting with mcp_.""",
         "inputSchema": {
             "type": "object",
             "properties": {
