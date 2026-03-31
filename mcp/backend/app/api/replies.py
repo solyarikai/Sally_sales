@@ -220,11 +220,11 @@ async def smartlead_webhook(body: dict):
             if not campaign or not campaign.project_id:
                 return {"status": "ignored", "reason": "campaign not found in MCP"}
 
-            # Verify project exists (may have been deleted)
+            # Verify project is active
             from app.models.project import Project
             project = await session.get(Project, campaign.project_id)
-            if not project:
-                return {"status": "ignored", "reason": "project deleted"}
+            if not project or not project.is_active:
+                return {"status": "ignored", "reason": "project inactive or deleted"}
 
             existing = (await session.execute(
                 select(MCPReply).where(MCPReply.lead_email == email)
