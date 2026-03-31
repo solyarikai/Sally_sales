@@ -268,55 +268,108 @@ async function runEnrichmentPeopleSearch(page, tableId, filters, label = 'enrich
   await screenshot(page, `${label}_01_companies_table`);
 
   // Step 2: Click "+ Add" column button
+  // The "Add column" button is at the far right of the table header — often off-screen.
+  // Strategy: scroll it into view first, then click.
   console.log('\n[2] Looking for "Add" column button...');
 
-  // Try multiple strategies to find the Add button
-  const addBtn = await findByText(page, 'Add column', false)
-    || await findByText(page, 'Add', true)
-    || await page.evaluate(() => {
-      // Look for "+" button in the table header area
-      const btns = [...document.querySelectorAll('button, div[role="button"]')].filter(el => {
-        const t = (el.textContent || '').trim();
-        const r = el.getBoundingClientRect();
-        return el.offsetParent !== null && r.y < 100 && (t === '+' || t === 'Add' || t.includes('Add column'));
-      });
-      if (btns.length > 0) {
-        const r = btns[0].getBoundingClientRect();
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  const addBtn = await page.evaluate(() => {
+    // Find ALL elements containing "Add column" text
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const text = node.textContent?.trim();
+      if (text === 'Add column' || text === '+ Add column') {
+        const el = node.parentElement;
+        if (el && el.offsetParent !== null) {
+          // Scroll it into view first!
+          el.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+          // Wait a frame for reflow
+          return new Promise(resolve => {
+            requestAnimationFrame(() => {
+              const r = el.getBoundingClientRect();
+              resolve({ x: r.x + r.width / 2, y: r.y + r.height / 2, text });
+            });
+          });
+        }
       }
-      // Also try finding a "+" icon/text at the end of table headers
-      const headers = document.querySelector('thead, [role="row"]');
-      if (headers) {
-        const lastCell = headers.lastElementChild;
-        if (lastCell) {
-          const r = lastCell.getBoundingClientRect();
-          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }
+
+    // Fallback: scroll the table grid container to the far right to reveal the button
+    const gridContainers = [...document.querySelectorAll('*')].filter(el => {
+      const s = window.getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return (s.overflowX === 'auto' || s.overflowX === 'scroll') && r.width > 400 && r.height > 200;
+    });
+    for (const gc of gridContainers) {
+      gc.scrollLeft = gc.scrollWidth;
+    }
+    return null;
+  });
+
+  if (addBtn) {
+    // Need a small delay after scrollIntoView
+    await humanDelay(500, 800);
+    // Re-read position after scroll
+    const freshPos = await page.evaluate((text) => {
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        if (walker.currentNode.textContent?.trim() === text || walker.currentNode.textContent?.trim() === '+ Add column') {
+          const el = walker.currentNode.parentElement;
+          if (el && el.offsetParent !== null) {
+            const r = el.getBoundingClientRect();
+            if (r.x > 0 && r.x < window.innerWidth && r.y > 0 && r.y < window.innerHeight) {
+              return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+            }
+          }
         }
       }
       return null;
-    });
+    }, addBtn.text || 'Add column');
 
-  if (!addBtn) {
-    console.log('  ERROR: "Add" button not found');
-    const buttons = await page.evaluate(() =>
-      [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null)
-        .map(b => ({ text: b.textContent?.trim().substring(0, 30), y: Math.round(b.getBoundingClientRect().y) }))
-        .filter(b => b.y < 150)
-    );
-    console.log('  Top buttons:', JSON.stringify(buttons));
-    await screenshot(page, `${label}_02_no_add_button`);
-    return null;
+    const clickTarget = freshPos || addBtn;
+    console.log(`  Found "Add column" at (${Math.round(clickTarget.x)}, ${Math.round(clickTarget.y)})`);
+    await page.mouse.click(clickTarget.x, clickTarget.y);
+    await humanDelay(1500, 2500);
+    await screenshot(page, `${label}_02_add_menu`);
+  } else {
+    // After scrolling right, try again
+    await humanDelay(1000, 1500);
+    const addBtn2 = await findByText(page, 'Add column', false)
+      || await findByText(page, '+ Add column', false);
+    if (addBtn2) {
+      console.log(`  Found "Add column" after scroll at (${Math.round(addBtn2.x)}, ${Math.round(addBtn2.y)})`);
+      await page.mouse.click(addBtn2.x, addBtn2.y);
+      await humanDelay(1500, 2500);
+      await screenshot(page, `${label}_02_add_menu`);
+    } else {
+      console.log('  ERROR: "Add column" button not found');
+      const buttons = await page.evaluate(() =>
+        [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null)
+          .map(b => ({ text: b.textContent?.trim().substring(0, 30), y: Math.round(b.getBoundingClientRect().y) }))
+          .filter(b => b.y < 150)
+      );
+      console.log('  Top buttons:', JSON.stringify(buttons));
+      await screenshot(page, `${label}_02_no_add_button`);
+      return null;
+    }
   }
 
-  await page.mouse.click(addBtn.x, addBtn.y);
-  await humanDelay(1500, 2500);
-  await screenshot(page, `${label}_02_add_menu`);
+  // Step 3: Click "Add enrichment" then find "Find People"
+  console.log('\n[3] Looking for "Add enrichment"...');
 
-  // Step 3: Find and click "Find People" enrichment
-  console.log('\n[3] Looking for "Find People" enrichment...');
+  // First click "Add enrichment" to open the enrichment browser
+  const addEnrichBtn = await findByText(page, 'Add enrichment', false);
+  if (addEnrichBtn) {
+    console.log('  Clicking "Add enrichment"...');
+    await page.mouse.click(addEnrichBtn.x, addEnrichBtn.y);
+    await humanDelay(2000, 3000);
+    await screenshot(page, `${label}_03_enrichment_browser`);
+  } else {
+    console.log('  "Add enrichment" not found, trying direct search...');
+  }
 
-  // The Add menu may show a search input or a list of enrichments
-  // Try typing "Find People" in the search
+  // Now search for "Find People" in the enrichment browser
+  console.log('  Searching for "Find People"...');
   const searchInput = await page.$('input[placeholder*="Search"]')
     || await page.$('input[placeholder*="search"]')
     || await page.$('input[placeholder*="enrichment"]')
@@ -326,13 +379,15 @@ async function runEnrichmentPeopleSearch(page, tableId, filters, label = 'enrich
     await searchInput.click();
     await humanDelay(200, 400);
     await searchInput.type('Find People', { delay: 30 + Math.random() * 40 });
-    await humanDelay(1000, 1500);
+    await humanDelay(1500, 2500);
+    await screenshot(page, `${label}_03b_search_results`);
   }
 
   // Click "Find People" option
   const findPeopleOpt = await findByText(page, 'Find People', false)
     || await findByText(page, 'Find people', false)
-    || await findByText(page, 'People Search', false);
+    || await findByText(page, 'People Search', false)
+    || await findByText(page, 'Find lists of people', false);
 
   if (!findPeopleOpt) {
     console.log('  ERROR: "Find People" enrichment not found');
