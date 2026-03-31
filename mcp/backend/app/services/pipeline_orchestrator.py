@@ -377,14 +377,15 @@ class PipelineOrchestrator:
                         email=person.get("email"),
                         first_name=person.get("first_name"),
                         last_name=person.get("last_name"),
-                        title=person.get("title"),
+                        job_title=person.get("title") or person.get("job_title"),
                         linkedin_url=person.get("linkedin_url"),
                         source_data=person,
                     )
                     self.session.add(contact)
                 self.total_people += len(people)
+                await self.session.flush()
             except Exception as e:
-                logger.debug(f"People search for {company.domain} failed: {e}")
+                logger.warning(f"People search for {company.domain} failed: {e}")
 
         await self.session.flush()
 
