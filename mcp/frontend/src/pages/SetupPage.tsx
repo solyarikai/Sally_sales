@@ -26,6 +26,8 @@ export default function SetupPage() {
   const [newKey, setNewKey] = useState('')
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState('')
+  const [tokenCopied, setTokenCopied] = useState(false)
+  const [showToken, setShowToken] = useState(false)
 
   useEffect(() => {
     if (!token) { window.location.href = '/'; return }
@@ -74,7 +76,18 @@ export default function SetupPage() {
         <div>
           <div style={{ fontWeight: 600, fontSize: 16 }}>{userName || 'Loading...'}</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{userEmail}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 6, opacity: 0.6 }}>{token.slice(0, 24)}...</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+            <code style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', opacity: 0.6, wordBreak: 'break-all' }}>
+              {showToken ? token : `${token.slice(0, 24)}...`}
+            </code>
+            <button onClick={() => setShowToken(!showToken)} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px', opacity: 0.6 }}>
+              {showToken ? 'Hide' : 'Show'}
+            </button>
+            <button onClick={() => { navigator.clipboard.writeText(token); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000) }}
+              style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: tokenCopied ? '#22c55e' : 'transparent', color: tokenCopied ? 'white' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              {tokenCopied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
         </div>
         <button onClick={logout} style={{ fontSize: 13, color: '#ef4444', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>Logout</button>
       </div>
@@ -157,8 +170,13 @@ export default function SetupPage() {
         <code style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, overflowX: 'auto', whiteSpace: 'nowrap' }}>
           claude mcp add leadgen --transport sse http://46.62.210.24:8002/mcp/sse
         </code>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-          Then paste your token: <code style={{ fontSize: 11, background: 'var(--bg)', padding: '2px 6px', borderRadius: 3 }}>{token.slice(0, 24)}...</code>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          Then paste your token:
+          <code style={{ fontSize: 11, background: 'var(--bg)', padding: '2px 6px', borderRadius: 3, wordBreak: 'break-all' }}>{showToken ? token : `${token.slice(0, 24)}...`}</code>
+          <button onClick={() => { navigator.clipboard.writeText(token); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000) }}
+            style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: tokenCopied ? '#22c55e' : 'transparent', color: tokenCopied ? 'white' : '#3b82f6', cursor: 'pointer' }}>
+            {tokenCopied ? 'Copied!' : 'Copy token'}
+          </button>
         </div>
       </div>
     </div>
