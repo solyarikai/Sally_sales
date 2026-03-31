@@ -176,7 +176,12 @@ async function login(page) {
   await page.type('input[name="password"]', APOLLO_PASS, { delay: 30 });
   await sleep(500);
   await page.click('button[type="submit"]');
+  console.log(`[${ts()}] LOGIN: Submitted, waiting...`);
   await sleep(5000);
+
+  // Take debug screenshot right after submit
+  await page.screenshot({ path: '/tmp/apollo_after_submit.png', fullPage: true });
+  console.log(`[${ts()}] LOGIN: Post-submit URL: ${page.url()}`);
 
   // Verify login — wait up to 60 seconds
   for (let i = 0; i < 30; i++) {
@@ -185,8 +190,12 @@ async function login(page) {
       console.log(`[${ts()}] LOGIN: Success`);
       return;
     }
-    if (u.includes('verify-email')) {
-      throw new Error('Apollo requires email verification from this IP. Use --profile with a pre-authenticated browser profile.');
+    if (u.includes('verify-email') || u.includes('ato/verify')) {
+      await page.screenshot({ path: '/tmp/apollo_verify_email.png', fullPage: true });
+      throw new Error('Apollo requires email verification from this IP. Use --profile with a pre-authenticated browser profile. Screenshot: /tmp/apollo_verify_email.png');
+    }
+    if (i % 5 === 0 && i > 0) {
+      console.log(`[${ts()}] LOGIN: Still waiting... URL: ${u}`);
     }
     await sleep(2000);
   }
