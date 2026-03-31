@@ -1,0 +1,78 @@
+{
+  "type": "kw",
+  "prompt": "k2_via_negativa",
+  "model": "gpt-4o",
+  "avg": 0.8,
+  "details": [
+    {
+      "seg": "it_miami",
+      "kws": [
+        "it consulting firm",
+        "it consulting services",
+        "it project consulting",
+        "expert it consultants",
+        "strategic it consulting",
+        "information security consulting",
+        "cybersecurity consulting",
+        "cloud consultancy"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "tv commercial production",
+        "high-quality content production",
+        "studio production",
+        "content creation studio",
+        "performance creative production",
+        "creative production",
+        "digital content creation",
+        "social media content creation"
+      ],
+      "score": 0
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "italian luxury brands",
+        "luxury fashion milan",
+        "italian haute couture",
+        "fashion brand florence",
+        "florence-based fashion",
+        "italian craftsmanship",
+        "luxury fashion manufacturing",
+        "luxury fashion boutiques"
+      ],
+      "score": 0
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "social media influencer campaigns",
+        "social media influencer strategy",
+        "social media influencer collaborations",
+        "social media influencer outreach",
+        "influencer marketing agency",
+        "influencer partnerships",
+        "influencer talent management",
+        "influencer analytics"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [
+        "influencer marketing platforms",
+        "social media influencer campaigns",
+        "social media influencer collaborations",
+        "social media influencer outreach tools",
+        "influencer collaboration platforms",
+        "influencer marketing platform integration",
+        "influencer outreach tools",
+        "influencer collaboration tools"
+      ],
+      "score": 1
+    }
+  ]
+}

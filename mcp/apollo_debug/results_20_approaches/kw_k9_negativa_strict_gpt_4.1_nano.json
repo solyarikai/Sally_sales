@@ -1,0 +1,116 @@
+{
+  "type": "kw",
+  "prompt": "k9_negativa_strict",
+  "model": "gpt-4.1-nano",
+  "avg": 2.6,
+  "details": [
+    {
+      "seg": "it_miami",
+      "kws": [
+        "it consulting firm",
+        "it consulting services",
+        "it consulting",
+        "it consulting and staffing",
+        "technology consulting",
+        "it services & it consulting",
+        "it solutions"
+      ],
+      "score": 4
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "video production",
+        "visual production",
+        "tv commercial production",
+        "high-quality content production",
+        "studio production",
+        "content creation studio",
+        "creative studio"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "fashion brand italy",
+        "italian luxury brands",
+        "luxury fashion italy",
+        "italian fashion",
+        "made in italy fashion",
+        "italian designer",
+        "luxury fashion milan"
+      ],
+      "score": 4
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "digital influencer agency",
+        "influencer marketing agency",
+        "social media influencers",
+        "social media agency",
+        "social media influencer campaigns",
+        "social media influencer strategy",
+        "social media influencer collaborations"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [
+        "influencer platforms",
+        "social media influencers",
+        "influencer platform",
+        "influencer marketing platforms",
+        "social media influencer campaigns",
+        "social media influencer strategy",
+        "social media influencer collaborations",
+        "social media influencer outreach tools",
+        "social media influencer outreach",
+        "social media influencer management tools",
+        "influencer collaboration platforms",
+        "social media influence",
+        "digital influencer marketing",
+        "global influencer network",
+        "digital influencer campaigns",
+        "influencer marketing tools",
+        "social media insights",
+        "influencer industry",
+        "digital influencer agency",
+        "influencer marketing platform integration",
+        "influencer marketing",
+        "influencer network",
+        "influencer marketing trends",
+        "community-driven influencer campaigns",
+        "social media",
+        "social media presence",
+        "influencer marketing campaigns",
+        "influencer marketing case studies",
+        "influencer campaigns",
+        "sustainable influencer marketing",
+        "social media trends",
+        "influencer marketing industry insights",
+        "influencer outreach tools",
+        "influencer and social strategies",
+        "creator influencer management",
+        "influencer growth",
+        "influencer collaboration tools",
+        "authentic influencer marketing",
+        "social media growth",
+        "fashion influencers",
+        "social platform advertising",
+        "influencer marketing agency",
+        "high-impact influencer marketing",
+        "sustainable influencer careers",
+        "influencer monetization",
+        "social media agency",
+        "social media content",
+        "creator platforms",
+        "influencer marketing best practices",
+        "influencer roster"
+      ],
+      "score": 3
+    }
+  ]
+}

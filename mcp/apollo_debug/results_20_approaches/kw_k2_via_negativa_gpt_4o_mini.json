@@ -1,0 +1,78 @@
+{
+  "type": "kw",
+  "prompt": "k2_via_negativa",
+  "model": "gpt-4o-mini",
+  "avg": 1.4,
+  "details": [
+    {
+      "seg": "it_miami",
+      "kws": [
+        "it consulting firm",
+        "it consulting services",
+        "it project consulting",
+        "ai consulting",
+        "cybersecurity consulting",
+        "cloud consultancy",
+        "it staffing solutions",
+        "business technology advisory"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "video production",
+        "tv commercial production",
+        "high-quality content production",
+        "content creation studio",
+        "creative studio",
+        "digital content creation",
+        "social media content creation",
+        "in-house production"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "italian luxury brands",
+        "luxury fashion italy",
+        "made in italy fashion",
+        "italian haute couture",
+        "luxury fashion milan",
+        "italian craftsmanship",
+        "luxury fashion collections",
+        "florence-based fashion"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "influencer marketing agency",
+        "social media influencer campaigns",
+        "social media influencer strategy",
+        "social media influencer collaborations",
+        "influencer marketing platforms",
+        "influencer management",
+        "influencer partnerships",
+        "influencer analytics"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [
+        "influencer marketing platforms",
+        "social media influencer collaborations",
+        "social media influencer outreach tools",
+        "influencer collaboration platforms",
+        "influencer marketing tools",
+        "digital influencer marketing",
+        "influencer marketing agency",
+        "creator influencer management"
+      ],
+      "score": 1
+    }
+  ]
+}
