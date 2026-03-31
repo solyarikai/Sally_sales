@@ -2002,7 +2002,7 @@ def mode4_expand(base_run_id: int, overrides: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
-         "export", "people", "findymail", "upload"]
+         "people", "findymail", "upload"]
 
 def main():
     p = argparse.ArgumentParser(description="Universal Lead Generation Pipeline")
