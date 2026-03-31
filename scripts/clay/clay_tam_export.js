@@ -300,16 +300,22 @@ async function main() {
   const headless = args.includes('--headless');
   const saveSearchIdx = args.indexOf('--save-search');
   const saveSearchName = saveSearchIdx >= 0 ? args[saveSearchIdx + 1] : null;
+  const loadSearchIdx = args.indexOf('--load-search');
+  const loadSearchName = loadSearchIdx >= 0 ? args[loadSearchIdx + 1] : null;
   const saveFiltersIdx = args.indexOf('--save-filters');
   const saveFiltersArg = saveFiltersIdx >= 0 ? args[saveFiltersIdx + 1] : null;
   const saveFilterTypes = saveFiltersArg ? saveFiltersArg.split(',').map(f => f.trim()) : null;
+  const stateIdx = args.indexOf('--state');
+  const stateArg = stateIdx >= 0 ? args[stateIdx + 1] : null;
   const maxExport = isTest ? 5 : 5000;
   const icpText = isTest || isLoginOnly
     ? 'Companies selling gaming skins, virtual items, loot boxes for games like CS2, CSGO, Dota2, Roblox, WoW, FIFA. Gaming marketplace platforms. Skin trading sites.'
     : args.filter(a => !a.startsWith('--')).join(' ');
 
-  if (!icpText && !isLoginOnly) {
+  if (!icpText && !isLoginOnly && !loadSearchName) {
     console.log('Usage: node clay_tam_export.js "ICP description text"');
+    console.log('       node clay_tam_export.js --load-search "All_remote_friendly" --state Missouri --headless --auto');
+    console.log('       node clay_tam_export.js --use-cached --state Missouri --headless --auto');
     console.log('       node clay_tam_export.js --test');
     console.log('       node clay_tam_export.js --login-only  (refresh session only)');
     process.exit(0);
@@ -323,13 +329,29 @@ async function main() {
   console.log('\n[1] Mapping ICP to Clay filters...');
   let filters;
   const precomputedFilters = path.join(OUT_DIR, 'filters_input.json');
+  // Check for cached filters first (persistent, not deleted)
+  const cachedFiltersPath = path.join(OUT_DIR, 'cached_filters.json');
   if (fs.existsSync(precomputedFilters)) {
     filters = JSON.parse(fs.readFileSync(precomputedFilters, 'utf-8'));
-    console.log('  Loaded pre-computed filters');
-    fs.unlinkSync(precomputedFilters); // Clean up
+    console.log('  Loaded pre-computed filters from filters_input.json');
+    // Save a backup copy as cached filters (persistent)
+    fs.writeFileSync(cachedFiltersPath, JSON.stringify(filters, null, 2));
+    console.log('  Cached filters saved to cached_filters.json (reusable)');
+  } else if (args.includes('--use-cached') && fs.existsSync(cachedFiltersPath)) {
+    filters = JSON.parse(fs.readFileSync(cachedFiltersPath, 'utf-8'));
+    console.log('  Loaded cached filters from cached_filters.json');
   } else {
     filters = await mapIcpToFilters(icpText);
   }
+  // Inject --state flag into filters
+  if (stateArg) {
+    filters.states = [stateArg];
+    if (!filters.country_names || filters.country_names.length === 0) {
+      filters.country_names = ['United States']; // States require a country
+    }
+    console.log(`  --state flag: added "${stateArg}" to filters`);
+  }
+
   console.log('  Filters:', JSON.stringify(filters, null, 2));
   fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(path.join(OUT_DIR, 'filters.json'), JSON.stringify(filters, null, 2));
@@ -403,6 +425,102 @@ async function main() {
   }
   await screenshot(page, 'tam_02_find_companies');
 
+  // Step 4b: Load saved search if --load-search was provided
+  // This clicks "See past searches" and selects the named search, loading its industries.
+  let loadedSavedSearch = false;
+  if (loadSearchName) {
+    console.log(`\n[4b] Loading saved search "${loadSearchName}"...`);
+
+    // Look for "See past searches" link/button — try many text variants
+    const pastSearchBtn = await findByText(page, 'See past searches', false)
+      || await findByText(page, 'past searches', false)
+      || await findByText(page, 'Saved searches', false)
+      || await findByText(page, 'Past search', false)
+      || await findByText(page, 'saved search', false)
+      // Fallback: find any clickable element containing "past" or "saved" near the top
+      || await page.evaluate(() => {
+        const els = [...document.querySelectorAll('button, a, [role="button"], div[class*="click"], span')];
+        for (const el of els) {
+          const t = (el.textContent || '').toLowerCase().trim();
+          if ((t.includes('past search') || t.includes('saved search')) && el.offsetParent !== null) {
+            const r = el.getBoundingClientRect();
+            if (r.y < 300 && r.x < 500 && r.width > 20) {
+              return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+            }
+          }
+        }
+        return null;
+      });
+
+    if (pastSearchBtn) {
+      await page.mouse.click(pastSearchBtn.x, pastSearchBtn.y);
+      await humanDelay(2000, 3000);
+      await screenshot(page, 'tam_02b_past_searches');
+
+      // Now find and click the saved search by name
+      const savedBtn = await findByText(page, loadSearchName, false);
+      if (savedBtn) {
+        await page.mouse.click(savedBtn.x, savedBtn.y);
+        await humanDelay(4000, 6000); // Wait longer for filters to populate
+        console.log(`  Loaded saved search "${loadSearchName}"`);
+        loadedSavedSearch = true;
+        await screenshot(page, 'tam_02c_search_loaded');
+      } else {
+        console.log(`  WARNING: Saved search "${loadSearchName}" not found in list.`);
+        // Try scrolling the list and looking again
+        await page.evaluate(() => {
+          const lists = [...document.querySelectorAll('[role="listbox"], [role="menu"], ul, div')].filter(el => {
+            const r = el.getBoundingClientRect();
+            const s = window.getComputedStyle(el);
+            return (s.overflowY === 'auto' || s.overflowY === 'scroll') && r.height > 100 && r.height < 600;
+          });
+          for (const l of lists) l.scrollTop = l.scrollHeight;
+        });
+        await humanDelay(1000, 1500);
+        const savedBtn2 = await findByText(page, loadSearchName, false);
+        if (savedBtn2) {
+          await page.mouse.click(savedBtn2.x, savedBtn2.y);
+          await humanDelay(2000, 3000);
+          console.log(`  Loaded saved search "${loadSearchName}" (after scroll)`);
+          loadedSavedSearch = true;
+          await screenshot(page, 'tam_02c_search_loaded');
+        } else {
+          console.log(`  ERROR: Could not find saved search "${loadSearchName}". Will fall back to manual filters.`);
+          await screenshot(page, 'tam_02c_search_not_found');
+        }
+      }
+    } else {
+      console.log('  WARNING: "See past searches" button not found. Trying alternative...');
+      // Try clicking a clock/history icon near the search area
+      const historyIcon = await page.evaluate(() => {
+        const svgs = [...document.querySelectorAll('svg')];
+        for (const svg of svgs) {
+          const r = svg.getBoundingClientRect();
+          if (r.x < 400 && r.y < 200 && r.width > 10 && r.width < 40) {
+            const parent = svg.closest('button, [role="button"], a');
+            if (parent) {
+              const pr = parent.getBoundingClientRect();
+              return { x: pr.x + pr.width / 2, y: pr.y + pr.height / 2 };
+            }
+          }
+        }
+        return null;
+      });
+      if (historyIcon) {
+        await page.mouse.click(historyIcon.x, historyIcon.y);
+        await humanDelay(2000, 3000);
+        const savedBtn3 = await findByText(page, loadSearchName, false);
+        if (savedBtn3) {
+          await page.mouse.click(savedBtn3.x, savedBtn3.y);
+          await humanDelay(2000, 3000);
+          console.log(`  Loaded saved search "${loadSearchName}" (via icon)`);
+          loadedSavedSearch = true;
+        }
+      }
+      await screenshot(page, 'tam_02b_no_past_searches');
+    }
+  }
+
   // Step 5: Apply filters
   // IMPORTANT: Apply size filter BEFORE industries. After typing 80+ industries,
   // the sidebar scrolls and the "Company sizes" dropdown gets pushed off-screen.
@@ -411,8 +529,11 @@ async function main() {
   if (filters.sizes?.length) {
     await fillFilterField(page, '11-50 employees', filters.sizes);
   }
-  if (filters.industries?.length) {
+  if (filters.industries?.length && !loadedSavedSearch) {
+    // Skip industries if we loaded them from a saved search
     await fillFilterField(page, 'Software development', filters.industries);
+  } else if (loadedSavedSearch) {
+    console.log('    Industries: loaded from saved search, skipping manual entry');
   }
   if (filters.industries_exclude?.length) {
     await fillFilterField(page, 'Advertising services', filters.industries_exclude);
@@ -436,6 +557,39 @@ async function main() {
     await fillNumberField(page, 'Max', filters.maximum_member_count);
   }
   if (filters.country_names?.length) {
+    // SIMPLIFIED APPROACH: First scroll sidebar and try to find inputs directly.
+    // If inputs already visible (e.g. from saved search or already expanded), skip the complex expansion.
+    console.log('    Looking for country input (quick check)...');
+
+    // Scroll sidebar to bottom first
+    await page.evaluate(() => {
+      const scrollable = [...document.querySelectorAll('*')].filter(el => {
+        const s = window.getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return (s.overflowY === 'auto' || s.overflowY === 'scroll') && r.x < 400 && r.width > 200 && r.height > 200;
+      });
+      for (const el of scrollable) el.scrollTop = el.scrollHeight;
+    });
+    await humanDelay(800, 1200);
+
+    // Quick check: is country input already visible?
+    let quickCountryInput = await page.$('input[placeholder*="United States"]')
+      || await page.$('input[placeholder*="France"]')
+      || await page.$('input[placeholder*="country"]');
+
+    if (quickCountryInput) {
+      console.log('    Country input found directly (no expansion needed)');
+      for (const country of filters.country_names) {
+        await quickCountryInput.click();
+        await humanDelay(200, 400);
+        await quickCountryInput.type(country, { delay: 25 + Math.random() * 30 });
+        await humanDelay(600, 1000);
+        await page.keyboard.press('Enter');
+        await humanDelay(300, 500);
+      }
+      console.log(`    Location: ${filters.country_names.join(', ')}`);
+    } else {
+    // FALLBACK: Original complex Location expansion approach
     // The Location section in Clay's Find Companies is below the fold in the left sidebar.
     // We need to: 1. Scroll the sidebar down  2. Click Location to expand  3. Fill countries
 
@@ -723,6 +877,7 @@ async function main() {
 
     // Take a debug screenshot after location attempt
     await screenshot(page, 'tam_03a_location_debug');
+    } // end else (complex Location expansion fallback)
   }
 
   // Step 5b: Apply state/region filter (two-step: country must be selected first)
@@ -731,19 +886,28 @@ async function main() {
     console.log(`\n[5b] Applying state filter: ${filters.states.join(', ')}...`);
     await humanDelay(1000, 1500);
 
-    // After a country is selected, Clay shows a state/region input below the country input.
-    // Look for it by scanning for new inputs that appeared in the Location section.
-    let stateInput = null;
-
-    // Close country dropdown first by pressing Escape
+    // Close any open dropdown first
     await page.keyboard.press('Escape');
     await humanDelay(500, 800);
 
+    // Scroll sidebar down to make state input visible
+    await page.evaluate(() => {
+      const scrollable = [...document.querySelectorAll('*')].filter(el => {
+        const s = window.getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return (s.overflowY === 'auto' || s.overflowY === 'scroll') && r.x < 400 && r.width > 200 && r.height > 200;
+      });
+      for (const el of scrollable) el.scrollTop = el.scrollHeight;
+    });
+    await humanDelay(500, 800);
+
+    let stateInput = null;
+
     // Clay's "Cities or states to include" field has placeholder "e.g. New York"
-    // It's in the Location section, below the country input
     stateInput = await page.$('input[placeholder*="New York"]')
       || await page.$('input[placeholder*="Cities or states"]')
-      || await page.$('input[placeholder*="cities or states"]');
+      || await page.$('input[placeholder*="cities or states"]')
+      || await page.$('input[placeholder*="e.g. New York"]');
 
     // Fallback: scan Location section for the cities/states input
     if (!stateInput) {
