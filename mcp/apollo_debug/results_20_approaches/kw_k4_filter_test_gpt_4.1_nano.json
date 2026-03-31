@@ -1,0 +1,78 @@
+{
+  "type": "kw",
+  "prompt": "k4_filter_test",
+  "model": "gpt-4.1-nano",
+  "avg": 2.6,
+  "details": [
+    {
+      "seg": "it_miami",
+      "kws": [
+        "it consulting firm",
+        "it consulting services",
+        "it consulting",
+        "technology consulting",
+        "it services & it consulting",
+        "it staffing solutions",
+        "it staffing agency",
+        "latin america tech outsourcing"
+      ],
+      "score": 4
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "video production",
+        "content creation studio",
+        "creative studio",
+        "video",
+        "media & entertainment",
+        "creative agency",
+        "digital content creation",
+        "advertising agencies"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "fashion brand italy",
+        "italian luxury brands",
+        "luxury fashion italy",
+        "italian fashion",
+        "made in italy fashion",
+        "luxury fashion brands",
+        "luxury fashion milan",
+        "italian designer"
+      ],
+      "score": 4
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "social media influencer agencies",
+        "influencer marketing agency",
+        "social media influencer campaigns",
+        "influencer platforms",
+        "influencer marketing",
+        "social media influencers",
+        "influencer management",
+        "influencer outreach"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [
+        "influencer platforms",
+        "social media influencers",
+        "influencer marketing platforms",
+        "social media influencer campaigns",
+        "influencer marketing tools",
+        "social media influencer outreach",
+        "influencer collaboration platforms",
+        "social media influencer management tools"
+      ],
+      "score": 2
+    }
+  ]
+}

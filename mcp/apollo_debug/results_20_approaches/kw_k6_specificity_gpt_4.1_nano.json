@@ -1,0 +1,73 @@
+{
+  "type": "kw",
+  "prompt": "k6_specificity",
+  "model": "gpt-4.1-nano",
+  "avg": 0.2,
+  "details": [
+    {
+      "seg": "it_miami",
+      "kws": [
+        "IT consulting companies in Miami",
+        "Miami IT consulting services",
+        "Miami technology consulting firms",
+        "IT consulting firms in Miami FL",
+        "Miami-based IT consulting companies",
+        "IT consulting and staffing Miami",
+        "Miami cybersecurity consulting firms"
+      ],
+      "score": 0
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "video production companies in London",
+        "content creation studio",
+        "video production",
+        "tv commercial production",
+        "specialized tech studios",
+        "performance creative production",
+        "creative studio"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "luxury fashion heritage",
+        "luxury fashion manufacturing",
+        "luxury fashion collections",
+        "luxury fashion design",
+        "luxury fashion house",
+        "luxury fashion boutiques",
+        "luxury fashion collaborations"
+      ],
+      "score": 0
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "social media influencer campaigns",
+        "social media influencer strategy",
+        "social media influencer collaborations",
+        "social media influencer outreach",
+        "social media influencer management tools",
+        "social media influencer outreach tools",
+        "influencer marketing campaigns"
+      ],
+      "score": 0
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [
+        "influencer marketing platforms in UK",
+        "social media influencer campaigns UK",
+        "influencer platform UK",
+        "social media influencer collaborations UK",
+        "influencer marketing platforms UK",
+        "social media influencer outreach UK",
+        "influencer marketing agency UK"
+      ],
+      "score": 0
+    }
+  ]
+}

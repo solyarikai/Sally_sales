@@ -1,0 +1,51 @@
+{
+  "type": "kw",
+  "prompt": "k10_two_q",
+  "model": "gpt-4o-mini",
+  "avg": 1.2,
+  "details": [
+    {
+      "seg": "it_miami",
+      "kws": [],
+      "score": 0
+    },
+    {
+      "seg": "video_london",
+      "kws": [],
+      "score": 0
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "fashion brand italy",
+        "italian luxury brands",
+        "luxury fashion italy",
+        "italian fashion",
+        "made in italy fashion",
+        "italian designer",
+        "luxury fashion milan",
+        "fashion brand"
+      ],
+      "score": 4
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "digital influencer agency",
+        "influencer marketing agency",
+        "social media influencers",
+        "social media agency",
+        "influencer marketing",
+        "influencer collaborations",
+        "influencer management",
+        "influencer marketing tools"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [],
+      "score": 0
+    }
+  ]
+}

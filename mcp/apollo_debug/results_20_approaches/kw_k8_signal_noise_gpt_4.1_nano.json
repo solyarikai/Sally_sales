@@ -1,0 +1,71 @@
+{
+  "type": "kw",
+  "prompt": "k8_signal_noise",
+  "model": "gpt-4.1-nano",
+  "avg": 1.8,
+  "details": [
+    {
+      "seg": "it_miami",
+      "kws": [
+        "it consulting firm",
+        "it consulting services",
+        "it consulting",
+        "it project consulting",
+        "cybersecurity consulting"
+      ],
+      "score": 3
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "video production",
+        "visual production",
+        "tv commercial production",
+        "high-quality content production",
+        "studio production",
+        "content creation studio",
+        "creative studio",
+        "performance creative production"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "italian luxury brands",
+        "luxury fashion italy",
+        "made in italy fashion",
+        "italian designer",
+        "luxury fashion milan",
+        "luxury fashion brands",
+        "luxury fashion industry"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "digital influencer agency",
+        "influencer marketing agency",
+        "social media influencer campaigns",
+        "social media influencer strategy",
+        "social media influencer collaborations",
+        "social media influencer outreach",
+        "influencer marketing platforms",
+        "influencer marketing campaigns"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [
+        "influencer platforms",
+        "social media influencers",
+        "influencer marketing platforms",
+        "social media influencer campaigns",
+        "influencer marketing"
+      ],
+      "score": 2
+    }
+  ]
+}
