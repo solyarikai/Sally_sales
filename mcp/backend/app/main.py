@@ -25,6 +25,13 @@ async def lifespan(app: FastAPI):
         logger.info("Reply monitor started")
     except Exception as e:
         logger.warning(f"Reply monitor failed to start: {e}")
+    # Background offer analysis for all projects with websites but no offer
+    try:
+        from app.services.offer_scraper import start_offer_scraper
+        start_offer_scraper()
+        logger.info("Offer scraper started")
+    except Exception as e:
+        logger.warning(f"Offer scraper failed to start: {e}")
     yield
     logger.info("MCP LeadGen shutting down...")
     try:
