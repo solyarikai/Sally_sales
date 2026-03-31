@@ -8,6 +8,8 @@ from typing import Dict, Optional
 
 import httpx
 
+from app.services.cost_tracker import extract_openai_usage
+
 logger = logging.getLogger(__name__)
 
 INFER_SIZE_PROMPT = """What SIZE companies would BUY this product? Pick ONE narrow range, NOT "all sizes".
@@ -57,6 +59,7 @@ async def infer_target_size(offer_text: str, openai_key: str) -> Dict:
                 },
             )
             data = resp.json()
+            extract_openai_usage(data, "gpt-4o-mini", "infer_target_size")
             content = data["choices"][0]["message"]["content"]
             clean = content.strip()
             if clean.startswith("```"):
@@ -117,6 +120,7 @@ async def infer_people_roles(offer_text: str, openai_key: str) -> Dict:
                 },
             )
             data = resp.json()
+            extract_openai_usage(data, "gpt-4o-mini", "infer_people_roles")
             content = data["choices"][0]["message"]["content"]
             clean = content.strip()
             if clean.startswith("```"):

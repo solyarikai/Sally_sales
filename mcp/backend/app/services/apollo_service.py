@@ -15,6 +15,8 @@ import time
 from typing import Any, Dict, List, Optional
 import httpx
 
+from app.services.cost_tracker import get_tracker
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,6 +101,7 @@ class ApolloService:
         result = await self._api_call("POST", "/mixed_companies/search", payload)
         if result:
             self.credits_used += 1  # 1 credit per page
+            get_tracker().log_apollo(1, "search")
         return result
 
     async def search_organizations_all_pages(
@@ -165,7 +168,9 @@ class ApolloService:
         if not bulk_data:
             return []
         matches = bulk_data.get("matches", [])
-        self.credits_used += sum(1 for m in matches if m)
+        matched_count = sum(1 for m in matches if m)
+        self.credits_used += matched_count
+        get_tracker().log_apollo(matched_count, "bulk_match")
         results = []
         for match in matches:
             if not match:
@@ -192,6 +197,7 @@ class ApolloService:
         data = await self._api_call("POST", "/organizations/enrich", {"domain": domain})
         if data and data.get("organization"):
             self.credits_used += 1
+            get_tracker().log_apollo(1, "enrich")
             return data["organization"]
         return None
 

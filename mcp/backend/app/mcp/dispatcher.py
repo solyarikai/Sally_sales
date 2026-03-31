@@ -52,11 +52,16 @@ async def dispatch_tool(tool_name: str, args: dict, token: Optional[str], reques
             result = await _dispatch(tool_name, args, token, session)
             latency = int((_time.monotonic() - start) * 1000)
 
-            # Log usage + conversation (both request and result)
+            # Log usage + costs + conversation
             try:
                 from app.auth.middleware import verify_token
+                from app.services.cost_tracker import get_tracker
                 user = await verify_token(session, token) if token else None
+                tracker = get_tracker()
+                cost_summary = tracker.summary()
                 log_extra = {"args": _safe_truncate(args), "latency_ms": latency}
+                if cost_summary.get("total_cost_usd", 0) > 0:
+                    log_extra["costs"] = cost_summary
                 if isinstance(result, dict) and result.get("credits_spent"):
                     log_extra["credits_spent"] = result["credits_spent"]
                 uid = user.id if user else None
@@ -65,8 +70,15 @@ async def dispatch_tool(tool_name: str, args: dict, token: Optional[str], reques
                 if uid:
                     session.add(MCPUsageLog(
                         user_id=uid, action="tool_call", tool_name=tool_name,
-                        extra_data=log_extra,
+                        metadata=log_extra,
                     ))
+                    # Persist individual cost entries for detailed reporting
+                    for entry in tracker.entries:
+                        session.add(MCPUsageLog(
+                            user_id=uid, action=f"cost_{entry['service']}",
+                            tool_name=tool_name,
+                            metadata=entry,
+                        ))
                     # Log tool call (request)
                     import json as _json
                     args_preview = _json.dumps(args, default=str)[:300]

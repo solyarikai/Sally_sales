@@ -14,6 +14,8 @@ from bs4 import BeautifulSoup
 import logging
 import httpx
 
+from app.services.cost_tracker import get_tracker
+
 logger = logging.getLogger(__name__)
 
 USER_AGENTS = [
@@ -190,6 +192,8 @@ class ScraperService:
                 if not text or len(text) < 50:
                     return {"success": False, "error": "EMPTY: No text content (site may use JavaScript rendering)", "url": original, "status_code": status_code}
 
+                if proxy_url:
+                    get_tracker().log_apify(1, len(response.content))
                 return {"success": True, "text": text, "url": original, "final_url": str(response.url), "status_code": status_code}
 
         except httpx.TimeoutException:
