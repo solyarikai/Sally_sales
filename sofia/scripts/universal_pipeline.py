@@ -2073,6 +2073,20 @@ def main():
         seg = config.get_segment(args.segment)
         # Build filters from segment data — or use provided ICP
         mode_config = {"segment": seg["name"], "filters": seg.get("default_filters", {})}
+    elif args.mode == "keywords":
+        if not args.filters:
+            print("ERROR: --filters JSON required for --mode keywords")
+            print('  Must contain "description_keywords" list.')
+            print('  Example: --filters \'{"description_keywords": ["influencer marketing platform", "creator analytics"], '
+                  '"industries": ["Computer Software"], "max_results": 5000}\'')
+            sys.exit(1)
+        if "description_keywords" not in args.filters:
+            print("ERROR: --filters must contain 'description_keywords' list for --mode keywords")
+            sys.exit(1)
+        segment = args.segment or "INFLUENCER_PLATFORMS"
+        if any(kw in json.dumps(args.filters).lower() for kw in ["agency", "agencies", "im_first"]):
+            segment = "IM_FIRST_AGENCIES"
+        mode_config = {"segment": segment, "filters": args.filters}
     elif args.mode == "lookalike":
         if not args.examples:
             print("ERROR: --examples required for --mode lookalike")
