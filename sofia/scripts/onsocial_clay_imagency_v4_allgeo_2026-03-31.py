@@ -34,16 +34,16 @@ Usage (run on Hetzner via SSH):
   cd ~/magnum-opus-project/repo
 
   # Full pipeline from Clay search
-  python3 sofia/scripts/onsocial_clay_affperf_v4_allgeo_2026-03-31.py --from-step start
+  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step start
 
   # Dry run (print filters, no API calls)
-  python3 sofia/scripts/onsocial_clay_affperf_v4_allgeo_2026-03-31.py --dry-run
+  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --dry-run
 
   # Resume from people search (auto Apollo)
-  python3 sofia/scripts/onsocial_clay_affperf_v4_allgeo_2026-03-31.py --from-step people
+  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step people
 
   # Resume with manual CSV (fallback)
-  python3 sofia/scripts/onsocial_clay_affperf_v4_allgeo_2026-03-31.py --from-step people --apollo-csv export.csv
+  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step people --apollo-csv export.csv
 
 Env vars: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
 Backend must be running on localhost:8000 (Hetzner)
@@ -73,10 +73,10 @@ SCRIPT_DIR = Path(__file__).parent
 SOFIA_DIR = SCRIPT_DIR.parent
 REPO_DIR = SOFIA_DIR.parent  # magnum-opus-project/repo on Hetzner
 
-STATE_DIR = SOFIA_DIR.parent / "state" / "onsocial" / "clay_affperf_v4_allgeo"
+STATE_DIR = SOFIA_DIR.parent / "state" / "onsocial" / "clay_imagency_v4_allgeo"
 STATE_DIR.mkdir(parents=True, exist_ok=True)
 
-CSV_DIR = SOFIA_DIR / "output" / "OnSocial" / "clay_affperf_v4_allgeo"
+CSV_DIR = SOFIA_DIR / "output" / "OnSocial" / "clay_imagency_v4_allgeo"
 CSV_DIR.mkdir(parents=True, exist_ok=True)
 
 RUN_STATE = STATE_DIR / "run_state.json"
