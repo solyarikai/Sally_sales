@@ -500,11 +500,12 @@ def step0_scrape_companies(force: bool = False) -> list[dict]:
         "--resume",
     ]
 
+    # All sizes in one URL (fewer searches: 37 instead of 185)
     for size in COMPANY_SIZES:
         cmd.extend(["--sizes", size])
 
-    # ALL GEO: pass all major regions
-    for loc in ALL_GEO_LOCATIONS:
+    # Social proof regions
+    for loc in SOCIAL_PROOF_LOCATIONS:
         cmd.extend(["--location", loc])
 
     print(f"  Running: {' '.join(cmd[:6])}...")
