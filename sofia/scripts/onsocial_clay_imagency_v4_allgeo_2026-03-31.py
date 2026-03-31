@@ -1,26 +1,31 @@
 #!/usr/bin/env python3
 """
-OnSocial Pipeline (IM_FIRST_AGENCIES v4, ALL GEO, 2026-03-31)
+OnSocial Clay Pipeline (IM_FIRST_AGENCIES v4, ALL GEO, 2026-03-31)
 
-Full pipeline: Google SERP search (batch-segments API) ->
-Backend scrape/classify -> Export targets -> Apollo People UI Search ->
+Full pipeline: Clay Company Search (description_keywords, no AI mapping) ->
+Backend dedup/blacklist/scrape/classify -> Apollo People UI Search ->
 FindyMail email enrichment -> SmartLead upload.
 
-Company search: Google SERP via /api/search/projects/42/batch-segments
-  - Segments: influencer_agencies, talent_management (from search_config)
-  - Backend generates queries, searches Google, scrapes, classifies automatically
+Company search: Clay via backend API with description_keywords (direct, FREE - no credits).
 People search:  Apollo People tab via apollo_scraper.js (FREE, no credits).
 
-People filters from: sofia/projects/OnSocial/docs/apollo-filters-v4.md (Segment 3)
+Filters from: sofia/projects/OnSocial/docs/apollo-filters-v4.md (Segment 3)
+  - 30 description_keywords (v3 base + v4 new: creator studio, talent management, etc.)
+  - 47 description_keywords_exclude
+  - Employees: 10-500
+  - Industries: 1 (Marketing and Advertising only)
+  - ALL GEO (no country_names filter)
+  - Target: 1,500-3,000 companies (v4 estimate)
+
+People filters (v4):
   - Management Level: c_suite, vp, director, owner, senior, head, partner, founder
-  - Titles: 25 titles (v4: added Head of Creator Partnerships, Director of Talent, etc.)
+  - Titles: 25 titles (v4: added Head of Creator Partnerships, Director of Creator, etc.)
   - Excluded titles applied as post-filter after scrape
 
-Clay filters also stored for reference (manual Clay search if needed).
-
 Steps:
-  Step 0:     Search via batch-segments API (Google SERP + AI classification)
-  Step 9:     Export targets from DB (search_results or discovered_companies)
+  Step 0:     Clay Company Search via backend API (clay.companies.emulator)
+  Steps 2-8:  Backend pipeline (dedup -> blacklist -> scrape -> classify)
+  Step 9:     Export targets from DB
   Step 10:    Apollo People UI Search (auto via apollo_scraper.js)
   Step 11:    FindyMail email enrichment
   Step 12:    SmartLead upload
@@ -28,20 +33,17 @@ Steps:
 Usage (run on Hetzner via SSH):
   cd ~/magnum-opus-project/repo
 
-  # Full pipeline from search
-  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step start
+  # Full pipeline from Clay search
+  python3 sofia/scripts/onsocial_clay_affperf_v4_allgeo_2026-03-31.py --from-step start
 
   # Dry run (print filters, no API calls)
-  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --dry-run
-
-  # Skip search, export existing targets + people search
-  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step export
+  python3 sofia/scripts/onsocial_clay_affperf_v4_allgeo_2026-03-31.py --dry-run
 
   # Resume from people search (auto Apollo)
-  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step people
+  python3 sofia/scripts/onsocial_clay_affperf_v4_allgeo_2026-03-31.py --from-step people
 
   # Resume with manual CSV (fallback)
-  python3 sofia/scripts/onsocial_clay_imagency_v4_allgeo_2026-03-31.py --from-step people --apollo-csv export.csv
+  python3 sofia/scripts/onsocial_clay_affperf_v4_allgeo_2026-03-31.py --from-step people --apollo-csv export.csv
 
 Env vars: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
 Backend must be running on localhost:8000 (Hetzner)
@@ -71,10 +73,10 @@ SCRIPT_DIR = Path(__file__).parent
 SOFIA_DIR = SCRIPT_DIR.parent
 REPO_DIR = SOFIA_DIR.parent  # magnum-opus-project/repo on Hetzner
 
-STATE_DIR = SOFIA_DIR.parent / "state" / "onsocial" / "clay_imagency_v4_allgeo"
+STATE_DIR = SOFIA_DIR.parent / "state" / "onsocial" / "clay_affperf_v4_allgeo"
 STATE_DIR.mkdir(parents=True, exist_ok=True)
 
-CSV_DIR = SOFIA_DIR / "output" / "OnSocial" / "clay_imagency_v4_allgeo"
+CSV_DIR = SOFIA_DIR / "output" / "OnSocial" / "clay_affperf_v4_allgeo"
 CSV_DIR.mkdir(parents=True, exist_ok=True)
 
 RUN_STATE = STATE_DIR / "run_state.json"
@@ -106,8 +108,8 @@ SMARTLEAD_EMAIL_ACCOUNTS = [
 # Project
 PROJECT_ID = 42  # OnSocial
 PROJECT_CODE = "OS"
-SEGMENT_NAME = "IM_FIRST_AGENCIES"
-SEGMENT_CODE = "IMAGENCY"
+SEGMENT_NAME = "AFFILIATE_PERFORMANCE"
+SEGMENT_CODE = "AFFPERF"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -139,68 +141,74 @@ def get_social_proof(country: str) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CLAY FILTERS (from apollo-filters-v4.md, Segment 3 - description_keywords)
+# CLAY FILTERS (from apollo-filters-v4.md, Segment 2 - description_keywords)
 # Uses description_keywords for direct Clay search - NO AI/Gemini mapping.
-# Industry: Marketing and Advertising ONLY (PR firms = 0 conversions)
-# Employees: 10-500
 # ══════════════════════════════════════════════════════════════════════════════
 
 CLAY_FILTERS = {
     "description_keywords": [
-        # --- Original v3 keywords (12) ---
-        "influencer marketing agency",
-        "influencer agency",
-        "creator agency",
-        "influencer management",
-        "creator campaigns",
-        "influencer marketing",
-        "creator partnerships",
-        "TikTok agency",
-        "influencer talent",
-        "creator talent",
-        "influencer strategy",
-        "UGC agency",
-        # --- New v4 keywords (19 adjacent agencies missed by v3) ---
-        "creator studio",
-        "content studio influencer",
-        "branded content studio",
-        "creative studio influencer",
-        "talent management agency creator",
-        "digital talent agency",
-        "creator representation",
-        "influencer representation",
-        "social-first agency",
-        "creator-first agency",
-        "influencer activation agency",
-        "creator activation",
-        "micro-influencer agency",
-        "nano-influencer agency",
-        "influencer seeding agency",
-        "gifting agency",
-        "creator network agency",
-        "influencer collective",
+        # --- Original v3 keywords (13) ---
+        "affiliate marketing",
+        "affiliate network",
+        "affiliate platform",
+        "performance marketing platform",
+        "partner marketing",
+        "partnership platform",
+        "social commerce",
+        "creator commerce",
+        "influencer affiliate",
+        "referral marketing",
+        "affiliate tracking",
+        "partner ecosystem",
+        "performance partnerships",
+        # --- New v4 keywords (28 adjacent companies missed by v3) ---
+        "affiliate management platform",
+        "commission tracking",
+        "creator monetization",
+        "link in bio",
+        "creator storefront",
+        "loyalty platform",
+        "loyalty program technology",
+        "rewards platform",
+        "cashback platform",
+        "coupon platform",
+        "deal platform",
+        "offer platform",
+        "attribution platform",
+        "marketing attribution",
+        "multi-touch attribution",
+        "conversion tracking platform",
+        "partner relationship management",
+        "channel partner platform",
+        "reseller platform",
+        "marketplace monetization",
+        "creator payments platform",
+        "payout platform creators",
+        "referral program platform",
+        "ambassador platform technology",
+        "revenue sharing platform",
     ],
     "description_keywords_exclude": [
+        "affiliate agency", "affiliate management service",
         "SEO agency", "PPC agency", "web design", "software development",
         "recruitment", "HR", "staffing", "healthcare", "legal", "accounting",
         "logistics", "manufacturing", "real estate", "fintech", "insurance",
         "construction", "education", "nonprofit", "government", "defense",
         "food service", "restaurant", "hospitality", "travel agency",
-        "freelance", "solo consultant", "print", "media buying only",
-        "PR agency", "public relations", "crisis communications",
-        "web development", "app development", "branding only",
-        "market research", "consulting firm", "management consulting",
-        "antivirus", "cybersecurity", "IT infrastructure",
-        "modelling agency", "casting agency", "event management only",
-        "photography studio only", "video production only",
-        "translation agency", "localization agency",
+        "freelance", "solo consultant", "print", "media buying agency",
+        "antivirus", "cybersecurity", "network monitoring",
+        "IT infrastructure", "cloud hosting", "data center",
+        "ERP", "payroll", "HRIS", "applicant tracking",
+        "banking", "credit union", "lending platform",
+        "crypto exchange", "blockchain wallet",
     ],
     "industries": [
-        "Marketing and Advertising",
+        "Computer Software", "Internet", "Marketing and Advertising",
+        "Information Technology and Services", "E-commerce", "Online Media",
     ],
     # ALL GEO - no country_names filter
-    "minimum_member_count": 10,
-    "maximum_member_count": 500,
+    "minimum_member_count": 20,
+    "maximum_member_count": 5000,
     "max_results": 5000,
 }
 
@@ -214,30 +222,27 @@ PEOPLE_SENIORITIES = [
 ]
 
 PEOPLE_TITLES = [
-    "CEO", "Founder", "Co-Founder", "Managing Director", "Managing Partner",
-    "Head of Influencer Marketing", "Director of Influencer",
-    "Head of Influencer", "VP Strategy", "Head of Partnerships",
-    "Director of Client Services", "Head of Strategy",
-    "General Manager", "Partner", "Owner",
-    "Senior Partner", "Senior Managing Director",
+    "CTO", "VP Engineering", "VP of Engineering", "VP Product",
+    "Head of Product", "Chief Product Officer", "Head of Engineering",
+    "Director of Engineering", "Director of Product",
+    "VP Partnerships", "Head of Partnerships", "Director of Partnerships",
+    "Co-Founder", "Founder", "CEO", "COO",
+    "Senior Director of Engineering", "Senior Director of Product",
+    "Senior Director of Partnerships", "Senior VP Partnerships",
     # v4 additions
-    "Head of Creator Partnerships", "Director of Creator",
-    "Head of Talent", "Director of Talent",
-    "Head of Growth", "Director of Business Development",
-    "Head of Operations", "Director of Operations",
+    "Head of Data", "VP Data", "Chief Data Officer",
+    "Head of Platform", "VP Platform",
+    "Head of Growth", "VP Growth", "Director of Growth",
 ]
 
 EXCLUDED_TITLES_PATTERNS = [
     "intern", "junior", "assistant", "student", "freelance",
-    "campaign manager", "campaign coordinator",
-    "social media manager", "content creator", "designer",
-    "account coordinator", "media planner", "media buyer",
-    "pr manager", "communications manager",
-    "hr", "people", "recruiter", "finance", "accounting",
-    "executive assistant", "office manager", "operations coordinator",
-    "community manager", "senior community manager",
-    "influencer coordinator", "senior influencer coordinator",
-    "talent coordinator", "senior talent coordinator",
+    "marketing manager", "sales representative", "account executive",
+    "account manager", "customer success", "support", "hr", "people",
+    "recruiter", "content writer", "designer", "social media manager",
+    "affiliate manager", "partner manager",
+    "solutions architect", "technical architect", "enterprise architect",
+    "staff engineer", "principal engineer", "lead engineer", "lead developer",
 ]
 
 
@@ -266,28 +271,11 @@ working with social media creators.
 - website_content is EMPTY and no description -> "OTHER | No data available"
 - Domain is parked / for sale / dead -> "OTHER | Domain inactive"
 - 5000+ employees -> "OTHER | Enterprise, too large"
-- <10 employees -> "OTHER | Too small for agency segment"
+- <20 employees -> "OTHER | Too small for affiliate segment"
 
 If none triggered -> continue to Step 2.
 
 == STEP 2: SEGMENTS ==
-
-IM_FIRST_AGENCIES
-  Agency where influencer/creator campaigns are THE primary business,
-  not a side service. 10-500 employees.
-  Includes: influencer marketing agencies, creator agencies, UGC agencies,
-  creator/content studios, talent management firms for creators,
-  social-first/creator-first agencies, influencer activation agencies,
-  micro/nano-influencer agencies, influencer seeding/gifting agencies.
-  KEY TEST: 60%+ of their visible offering is about creator/influencer work.
-
-INFLUENCER_PLATFORMS
-  Builds SaaS / software / tools for influencer marketing: analytics,
-  creator discovery, campaign management, creator CRM, UGC content
-  platforms, creator marketplaces, creator monetization tools, social
-  commerce, live shopping platforms, social listening with creator focus.
-  KEY TEST: they have a PRODUCT (software/platform/API) that brands or
-  agencies use to find, analyze, manage, or pay creators.
 
 AFFILIATE_PERFORMANCE
   Affiliate networks, performance marketing platforms, partnership platforms,
@@ -297,31 +285,41 @@ AFFILIATE_PERFORMANCE
   KEY TEST: they OPERATE or BUILD technology for affiliate/performance
   marketing, partner ecosystems, or creator monetization - not just use it.
 
+INFLUENCER_PLATFORMS
+  Builds SaaS / software / tools for influencer marketing: analytics,
+  creator discovery, campaign management, creator CRM, UGC content
+  platforms, creator marketplaces, creator monetization tools, social
+  commerce, live shopping platforms, social listening with creator focus.
+  KEY TEST: they have a PRODUCT (software/platform/API) that brands or
+  agencies use to find, analyze, manage, or pay creators.
+
+IM_FIRST_AGENCIES
+  Agency where influencer/creator campaigns are THE primary business,
+  not a side service. 10-500 employees.
+  KEY TEST: 60%+ of their visible offering is about creator/influencer work.
+
 OTHER
   Everything that does NOT fit above. Includes: generic digital agencies,
   PR firms, SEO/PPC shops, web development, e-commerce brands (unless
   they BUILD creator tools), consulting, recruitment, fintech, etc.
 
 == STEP 3: CONFLICT RESOLUTION ==
-- Company is a "full-service digital agency" that also does influencer -> OTHER
-  (not influencer-first)
-- Company does influencer marketing AND has a SaaS product -> INFLUENCER_PLATFORMS
+- Company does BOTH affiliate AND has a SaaS creator product -> INFLUENCER_PLATFORMS
   (product companies are higher-value targets)
-- Company is a PR agency that also does influencer campaigns -> OTHER
-  (PR-first, not IM-first)
-- Company is a talent management firm but NOT for creators/influencers -> OTHER
-- Company is a modelling/casting agency -> OTHER
-- Company says "influencer" but core is event management or experiential -> OTHER
+- Company is a "full-service digital agency" that also does affiliate -> OTHER
+  (not affiliate-first)
+- Company description mentions "affiliate" but core is e-commerce brand -> OTHER
+- Company is a loyalty platform with NO creator/influencer connection -> OTHER
+- Company is an affiliate network without creator focus -> OTHER
 
 == OUTPUT FORMAT (strict) ==
 SEGMENT | confidence (0.0-1.0) | one-line reasoning
 
 Examples:
-IM_FIRST_AGENCIES | 0.92 | Influencer marketing agency specializing in TikTok campaigns for brands
-IM_FIRST_AGENCIES | 0.85 | Creator talent management firm representing 200+ influencers
+AFFILIATE_PERFORMANCE | 0.92 | Affiliate network connecting brands with influencer-publishers
+AFFILIATE_PERFORMANCE | 0.85 | Performance marketing platform with creator monetization tools
 INFLUENCER_PLATFORMS | 0.88 | SaaS platform for influencer discovery and analytics
-OTHER | 0.95 | Generic digital marketing agency, influencer is one of 8 services listed
-OTHER | 0.90 | PR agency with minor influencer division
+OTHER | 0.95 | Generic digital marketing agency, affiliate is one of 8 services listed
 """
 
 
@@ -510,112 +508,190 @@ def save_csv(path: Path, rows: list[dict], sheet_name: str = None):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 0: START SEARCH (batch-segments API for influencer_agencies)
+# STEP 0: START GATHERING (Clay with description_keywords)
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Search config segment key (matches backend search_config)
-SEARCH_SEGMENT_KEY = "influencer_agencies"
-
-# Also search talent_management segment (maps to IM_FIRST_AGENCIES)
-SEARCH_SEGMENT_KEYS = ["influencer_agencies", "talent_management"]
-
-
-def step0_start(geos: list[str] = None) -> list[int]:
-    """Start search via batch-segments API. Returns list of job_ids."""
+def step0_start() -> int:
+    """Start Clay gathering via backend API with description_keywords (no AI mapping)."""
     print(f"\n{'='*60}")
-    print(f"STEP 0: Search - {SEGMENT_NAME} v4 ALL GEO")
-    print(f"  Source: Google SERP + AI classification")
-    print(f"  Segments: {', '.join(SEARCH_SEGMENT_KEYS)}")
-    print(f"  Geos: {', '.join(geos) if geos else 'ALL (from search_config)'}")
+    print(f"STEP 0: Clay Gathering - {SEGMENT_NAME} v4 ALL GEO")
+    print(f"  Source: clay.companies.emulator (description_keywords)")
+    print(f"  Keywords: {len(CLAY_FILTERS['description_keywords'])} description_keywords")
+    print(f"  Excluded: {len(CLAY_FILTERS['description_keywords_exclude'])} keywords")
+    print(f"  Industries: {', '.join(CLAY_FILTERS['industries'])}")
+    print(f"  Employees: {CLAY_FILTERS['minimum_member_count']}-{CLAY_FILTERS['maximum_member_count']}")
+    print(f"  Geo: ALL (no country_names filter)")
+    print(f"  Max results: {CLAY_FILTERS['max_results']}")
     print(f"{'='*60}")
 
-    job_ids = []
-    for seg_key in SEARCH_SEGMENT_KEYS:
-        payload = {
-            "segments": [seg_key],
-            "search_engine": "google_serp",
-            "ai_expand_rounds": 1,
-            "max_concurrent": 2,
-        }
-        if geos:
-            payload["geos"] = geos
-
-        result = api("post", f"/search/projects/{PROJECT_ID}/batch-segments", json=payload)
-        print(f"  {seg_key}: {result.get('message', result)}")
-        job_ids.append(result)
-
-    save_state(0, "search_started")
-    return job_ids
-
-
-def step0_run_simple(max_queries: int = 500, target_goal: int = 3000) -> int:
-    """Alternative: run general project search (all segments). Returns job_id."""
-    print(f"\n{'='*60}")
-    print(f"STEP 0: Project Search - {SEGMENT_NAME} v4")
-    print(f"  Max queries: {max_queries}")
-    print(f"  Target goal: {target_goal}")
-    print(f"{'='*60}")
-
-    result = api("post", f"/search/projects/{PROJECT_ID}/run", json={
-        "max_queries": max_queries,
-        "target_goal": target_goal,
+    result = api("post", "/pipeline/gathering/start", json={
+        "project_id": PROJECT_ID,
+        "source_type": "clay.companies.emulator",
+        "filters": CLAY_FILTERS,
+        "triggered_by": "operator",
+        "input_mode": "structured",
+        "notes": f"v4 Clay description_keywords - {SEGMENT_NAME} ALL GEO - {len(CLAY_FILTERS['description_keywords'])} keywords",
     })
-    job_id = result.get("job_id")
-    print(f"  Job created: #{job_id}")
-    save_state(job_id, "search_started")
-    return job_id
+
+    run_id = result["id"]
+    print(f"\n  Run created: #{run_id}")
+    print(f"  Status: {result['status']} / {result['current_phase']}")
+    save_state(run_id, "started")
+    return run_id
 
 
-def wait_for_search_jobs(timeout: int = 3600) -> dict:
-    """Poll search jobs until all complete or timeout."""
-    print("\n  Waiting for search jobs to complete...")
-    start = time.time()
-    while time.time() - start < timeout:
-        time.sleep(30)
-        jobs = api("get", f"/search/jobs?project_id={PROJECT_ID}", raise_on_error=False)
-        if isinstance(jobs, dict) and jobs.get("_error"):
-            # Try list endpoint
-            jobs = api("get", "/search/jobs", raise_on_error=False)
-        job_list = jobs if isinstance(jobs, list) else jobs.get("items", [])
-        running = [j for j in job_list if j.get("status") in ("PENDING", "RUNNING")]
-        if not running:
-            elapsed = int(time.time() - start)
-            print(f"  All jobs complete ({elapsed}s)")
-            # Get stats
-            stats = api("get", f"/search/projects/{PROJECT_ID}/results/stats", raise_on_error=False)
-            if stats and not stats.get("_error"):
-                print(f"  Stats: {json.dumps(stats, indent=2)[:500]}")
-            return stats or {}
-        print(f"  ..{len(running)} jobs still running")
-    print(f"  Timeout after {timeout}s")
+# ══════════════════════════════════════════════════════════════════════════════
+# STEPS 2-8: BACKEND PIPELINE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_latest_prompt() -> tuple[int | None, str | None]:
+    result = api("get", f"/pipeline/gathering/prompts?project_id={PROJECT_ID}", raise_on_error=False)
+    prompts = result if isinstance(result, list) else result.get("items", [])
+    active = [p for p in prompts if p.get("is_active", True)]
+    if active:
+        latest = max(active, key=lambda p: p["id"])
+        print(f"  Prompt: #{latest['id']} '{latest.get('name', '?')}' "
+              f"(usage={latest.get('usage_count', 0)}, target_rate={latest.get('avg_target_rate', '?')})")
+        return latest["id"], latest.get("prompt_text", "")
+    return None, None
+
+
+def approve_pending_gate(run_id: int) -> bool:
+    try:
+        gates = api("get", f"/pipeline/gathering/approval-gates?project_id={PROJECT_ID}",
+                    raise_on_error=False)
+        items = gates if isinstance(gates, list) else gates.get("items", [])
+        for g in items:
+            if g.get("gathering_run_id") == run_id and g.get("status") == "pending":
+                api("post", f"/pipeline/gathering/approval-gates/{g['id']}/approve",
+                    json={}, raise_on_error=False)
+                print(f"  Gate #{g['id']} approved")
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def blacklist_approved_targets(run_id: int):
+    sql = (f"SELECT DISTINCT dc.domain FROM discovered_companies dc "
+           f"JOIN company_source_links csl ON csl.discovered_company_id = dc.id "
+           f"WHERE csl.gathering_run_id = {run_id} AND dc.is_target = true "
+           f"AND dc.domain IS NOT NULL AND dc.domain != ''")
+    r = subprocess.run(
+        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+         "-d", "leadgen", "-t", "-A", "-c", sql],
+        capture_output=True, text=True, timeout=15,
+    )
+    domains = [d.strip() for d in r.stdout.strip().split("\n") if d.strip()]
+    if not domains:
+        return
+    values = ", ".join(
+        f"({PROJECT_ID}, '{d}', 'target_approved_run_{run_id}', 'pipeline', now())"
+        for d in domains
+    )
+    insert_sql = (f"INSERT INTO project_blacklist (project_id, domain, reason, source, created_at) "
+                  f"VALUES {values} ON CONFLICT DO NOTHING")
+    subprocess.run(
+        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+         "-d", "leadgen", "-c", insert_sql],
+        capture_output=True, text=True, timeout=30,
+    )
+    print(f"  Blacklist: +{len(domains)} target domains (run #{run_id})")
+
+
+def step4_scrape(run_id: int) -> dict:
+    print(f"\n  Step 4: Scrape websites (run #{run_id})")
+    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/scrape",
+                      expected_phase="scraped", run_id=run_id, timeout=3600)
+    if not result.get("_timeout"):
+        print(f"  Scraped: {result.get('scraped', '?')}, Skipped: {result.get('skipped', '?')}")
+    return result
+
+
+def step2_blacklist(run_id: int) -> dict:
+    """Run blacklist check -> creates CP1 gate. Returns gate info or {}."""
+    print(f"\n{'='*60}")
+    print(f"STEP 2: Blacklist Check (run #{run_id})")
+    print(f"{'='*60}")
+    result = api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
+    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates", raise_on_error=False)
+    gate_list = gates if isinstance(gates, list) else gates.get("items", [])
+    pending = [g for g in gate_list if g["status"] == "pending"]
+    if pending:
+        gate = pending[0]
+        scope = gate.get("scope", {})
+        save_state(run_id, "awaiting_scope_ok", gate_id=gate["id"])
+        print(f"\n  * CHECKPOINT 1 - gate #{gate['id']}")
+        print(f"  Passed: {scope.get('passed', '?')}, Rejected: {scope.get('rejected', '?')}")
+        return {"gate_id": gate["id"], "scope": scope}
     return {}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# STEPS 2-8: HANDLED BY BACKEND SEARCH PIPELINE (automatic)
-# The search/batch-segments API handles scraping, analysis, and classification
-# automatically. No manual step2-8 calls needed.
-# After search completes, targets are in search_results table with is_target=true.
-# ══════════════════════════════════════════════════════════════════════════════
+def approve_gate(gate_id: int, note: str = "Approved") -> dict:
+    """Approve a checkpoint gate."""
+    result = api("post", f"/pipeline/gathering/approval-gates/{gate_id}/approve",
+                 json={"decision_note": note})
+    print(f"  Gate #{gate_id} approved")
+    return result
 
-def check_search_status() -> dict:
-    """Check current search results for the project."""
-    stats = api("get", f"/search/projects/{PROJECT_ID}/results/stats", raise_on_error=False)
-    if stats and not stats.get("_error"):
-        print(f"  Results stats: {json.dumps(stats, indent=2)[:500]}")
-    return stats or {}
+
+def step3_prefilter(run_id: int) -> dict:
+    print(f"\n  Step 3: Pre-filter (run #{run_id})")
+    result = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter")
+    print(f"  Passed: {result.get('passed', '?')}")
+    return result
+
+
+def step5_analyze(run_id: int, prompt_text: str = None) -> dict:
+    """Run GPT classification -> creates CP2 gate."""
+    print(f"\n{'='*60}")
+    print(f"STEP 5: Analyze (run #{run_id})")
+    print(f"{'='*60}")
+    text = prompt_text or DEFAULT_ANALYSIS_PROMPT
+    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
+                      expected_phase="analyzed", run_id=run_id, timeout=3600,
+                      params={"prompt_text": text, "model": "gpt-4o-mini"})
+    targets_found = result.get("targets_found", result.get("targets_count", "?"))
+    total = result.get("total_analyzed", "?")
+    target_rate = result.get("target_rate", 0)
+    print(f"  Analyzed: {total}, Targets: {targets_found} ({target_rate*100:.1f}%)")
+
+    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates", raise_on_error=False)
+    gate_list = gates if isinstance(gates, list) else gates.get("items", [])
+    pending = [g for g in gate_list if g["status"] == "pending"]
+    if pending:
+        gate = pending[0]
+        save_state(run_id, "awaiting_targets_ok", gate_id=gate["id"])
+        print(f"\n  * CHECKPOINT 2 - gate #{gate['id']}")
+        print(f"  Target rate: {target_rate*100:.1f}%")
+        print(f"  Review targets, then approve or re-analyze.")
+        return {"gate_id": gate["id"], "target_rate": target_rate, "targets_found": targets_found}
+    return {"target_rate": target_rate, "targets_found": targets_found}
+
+
+def step6_prepare_verify(run_id: int) -> dict:
+    """Prepare FindyMail verification -> creates CP3 with cost estimate."""
+    print(f"\n  Step 6: Prepare Verification (run #{run_id})")
+    result = api("post", f"/pipeline/gathering/runs/{run_id}/prepare-verification",
+                 raise_on_error=False)
+    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates", raise_on_error=False)
+    gate_list = gates if isinstance(gates, list) else gates.get("items", [])
+    pending = [g for g in gate_list if g["status"] == "pending"]
+    if pending:
+        gate = pending[0]
+        scope = gate.get("scope", {})
+        print(f"\n  * CHECKPOINT 3 - gate #{gate['id']}")
+        print(f"  Emails to verify: {scope.get('emails_to_verify', '?')}")
+        print(f"  Estimated cost: ${scope.get('estimated_cost_usd', '?')}")
+        return {"gate_id": gate["id"], "scope": scope}
+    return result if isinstance(result, dict) else {}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 9: EXPORT TARGETS
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step9_export_targets(force: bool = False, segment_filter: str = None) -> list[dict]:
-    """Export targets from search_results (search pipeline) or discovered_companies (legacy).
-
-    Tries search_results first (current pipeline), falls back to discovered_companies.
-    Filters by matched_segment containing 'AGENC' or 'IM_FIRST' for this segment.
-    """
+def step9_export_targets(force: bool = False) -> list[dict]:
     print(f"\n{'='*60}")
     print(f"STEP 9: Export Targets (project_id={PROJECT_ID})")
     print(f"{'='*60}")
@@ -625,13 +701,8 @@ def step9_export_targets(force: bool = False, segment_filter: str = None) -> lis
         print(f"  Loaded from cache: {len(targets)} targets")
         return targets
 
-    # Try search_results first (new pipeline)
-    seg_filter = segment_filter or "IM_FIRST_AGENCIES"
-    sql = (f"SELECT DISTINCT sr.domain, sr.company_name, sr.matched_segment, sr.confidence "
-           f"FROM search_results sr "
-           f"WHERE sr.project_id={PROJECT_ID} AND sr.is_target=true "
-           f"AND sr.domain IS NOT NULL AND sr.domain != '' "
-           f"AND (sr.matched_segment ILIKE '%AGENC%' OR sr.matched_segment ILIKE '%IM_FIRST%')")
+    sql = (f"SELECT domain, name, matched_segment, confidence "
+           f"FROM discovered_companies WHERE project_id={PROJECT_ID} AND is_target=true")
     r = subprocess.run(
         ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
          "-d", "leadgen", "-t", "-A", "-F", "|", "-c", sql],
@@ -651,38 +722,15 @@ def step9_export_targets(force: bool = False, segment_filter: str = None) -> lis
                 "confidence": parts[3].strip() if len(parts) > 3 else "",
             })
 
-    # Fallback: discovered_companies (legacy)
     if not targets:
-        print("  No targets in search_results, trying discovered_companies...")
-        sql2 = (f"SELECT domain, name, matched_segment, confidence "
-                f"FROM discovered_companies WHERE project_id={PROJECT_ID} AND is_target=true "
-                f"AND (matched_segment ILIKE '%AGENC%' OR matched_segment ILIKE '%IM_FIRST%')")
-        r2 = subprocess.run(
-            ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
-             "-d", "leadgen", "-t", "-A", "-F", "|", "-c", sql2],
-            capture_output=True, text=True, timeout=30,
-        )
-        for line in r2.stdout.strip().split("\n"):
-            if not line.strip():
-                continue
-            parts = line.split("|")
-            if len(parts) >= 3:
-                targets.append({
-                    "domain": parts[0].strip(),
-                    "company_name": parts[1].strip(),
-                    "segment": parts[2].strip(),
-                    "confidence": parts[3].strip() if len(parts) > 3 else "",
-                })
-
-    if not targets:
-        print("  No targets found. Run search first (--from-step start).")
+        print("  No targets found. Complete backend pipeline first (Steps 0-8).")
         sys.exit(1)
 
     save_json(TARGETS_FILE, targets)
 
     today = tag()
     save_csv(CSV_DIR / f"targets_{SEGMENT_CODE}_{today}.csv", targets,
-             sheet_name=f"{PROJECT_CODE} | Targets | {SEGMENT_CODE} v4 - {today}")
+             sheet_name=f"{PROJECT_CODE} | Targets | {SEGMENT_CODE} v4 Clay - {today}")
     print(f"  Exported: {len(targets)} targets")
 
     return targets
@@ -789,7 +837,7 @@ def step10_apollo_people_search(targets: list[dict], force: bool = False) -> lis
     for batch_idx, batch_domains in enumerate(batches):
         print(f"    Batch {batch_idx + 1}/{len(batches)}: {len(batch_domains)} domains...", end=" ", flush=True)
         url = _build_apollo_people_url(batch_domains, PEOPLE_TITLES, PEOPLE_SENIORITIES)
-        output_path = f"/tmp/apollo_people_clay_imagency_v4_{batch_idx}.json"
+        output_path = f"/tmp/apollo_people_clay_affperf_v4_{batch_idx}.json"
         people = _run_apollo_scraper(url, APOLLO_PEOPLE_MAX_PAGES, output_path)
         print(f"{len(people)} people")
 
@@ -1100,7 +1148,7 @@ async def step11_findymail(contacts: list[dict], max_contacts: int = 1500,
 # STEP 12: SMARTLEAD UPLOAD
 # ══════════════════════════════════════════════════════════════════════════════
 
-CAMPAIGN_NAME = "c-OnSocial_IM FIRST AGENCIES v4 Clay ALL GEO #C"
+CAMPAIGN_NAME = "c-OnSocial_AFFILIATE PERFORMANCE v4 Clay ALL GEO #C"
 TIMING = [0, 4, 4, 6, 7]  # Day offsets between emails
 
 
@@ -1162,7 +1210,7 @@ def upload_leads(campaign_id: int, contacts: list[dict]) -> int:
 
 def _load_sequences() -> list[dict] | None:
     """Load v4 sequence from markdown file."""
-    seq_file = SCRIPT_DIR.parent / "projects" / "OnSocial" / "sequences" / "v4_im_first_agencies.md"
+    seq_file = SCRIPT_DIR.parent / "projects" / "OnSocial" / "sequences" / "v4_affiliate_performance.md"
     if not seq_file.exists():
         # Fallback to influencer platforms sequence
         seq_file = SCRIPT_DIR.parent / "projects" / "OnSocial" / "sequences" / "v4_influencer_platforms.md"
@@ -1321,31 +1369,35 @@ def step12_upload(contacts: list[dict]):
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEPS = ["start", "export", "people", "findymail", "upload"]
+STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
+         "export", "people", "findymail", "upload"]
 
 
 def main():
-    p = argparse.ArgumentParser(description="OnSocial IM_FIRST_AGENCIES v4 ALL GEO Pipeline")
+    p = argparse.ArgumentParser(description="OnSocial Clay AFFILIATE_PERFORMANCE v4 ALL GEO Pipeline")
     p.add_argument("--from-step", choices=STEPS, default="start",
                    help="Start from this step")
+    p.add_argument("--run-id", type=int, help="Resume existing run")
     p.add_argument("--apollo-csv", help="Apollo People CSV (skip auto scrape)")
     p.add_argument("--max-findymail", type=int, default=1500)
-    p.add_argument("--max-queries", type=int, default=500,
-                   help="Max search queries budget (for step 0)")
-    p.add_argument("--geos", nargs="*", help="Specific geos to search (default: all)")
     p.add_argument("--force", action="store_true", help="Force re-run (ignore cache)")
+    p.add_argument("--prompt-file", help="Custom analysis prompt file")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
     print(f"\n{'='*60}")
-    print(f"  OnSocial Pipeline - {SEGMENT_NAME} v4 ALL GEO")
+    print(f"  OnSocial Clay Pipeline - {SEGMENT_NAME} v4 ALL GEO")
     print(f"  {ts()}")
     print(f"{'='*60}")
     print(f"  Project: OnSocial (ID {PROJECT_ID})")
     print(f"  Segment: {SEGMENT_NAME} ({SEGMENT_CODE})")
-    print(f"  Company source: Google SERP + AI classification (batch-segments)")
-    print(f"  Search segments: {', '.join(SEARCH_SEGMENT_KEYS)}")
+    print(f"  Company source: Clay (description_keywords, direct, FREE)")
     print(f"  People source: Apollo People UI (Puppeteer, FREE)")
+    print(f"  description_keywords: {len(CLAY_FILTERS['description_keywords'])}")
+    print(f"  description_keywords_exclude: {len(CLAY_FILTERS['description_keywords_exclude'])}")
+    print(f"  Industries: {len(CLAY_FILTERS['industries'])}")
+    print(f"  Employees: {CLAY_FILTERS['minimum_member_count']}-{CLAY_FILTERS['maximum_member_count']}")
+    print(f"  Geo: ALL (no country_names)")
     print(f"  People seniorities: {', '.join(PEOPLE_SENIORITIES)}")
     print(f"  People titles: {len(PEOPLE_TITLES)}")
     print(f"  Excluded title patterns: {len(EXCLUDED_TITLES_PATTERNS)}")
@@ -1353,8 +1405,6 @@ def main():
 
     if args.dry_run:
         print(f"\n  DRY RUN - no actions taken")
-        print(f"\n  Search config segments: {', '.join(SEARCH_SEGMENT_KEYS)}")
-        print(f"\n  Clay filters (for reference / manual Clay search):")
         print(f"\n  description_keywords ({len(CLAY_FILTERS['description_keywords'])}):")
         for kw in CLAY_FILTERS["description_keywords"]:
             print(f"    - {kw}")
@@ -1362,22 +1412,111 @@ def main():
         for kw in CLAY_FILTERS["description_keywords_exclude"]:
             print(f"    - {kw}")
         print(f"\n  Industries: {CLAY_FILTERS['industries']}")
-        print(f"  Employees: {CLAY_FILTERS['minimum_member_count']}-{CLAY_FILTERS['maximum_member_count']}")
         print(f"\n  People titles ({len(PEOPLE_TITLES)}):")
         for t in PEOPLE_TITLES:
             print(f"    - {t}")
         print(f"\n  Excluded title patterns ({len(EXCLUDED_TITLES_PATTERNS)}):")
         for t in EXCLUDED_TITLES_PATTERNS:
             print(f"    - {t}")
+        print(f"\n  Clay filters JSON:")
+        print(json.dumps(CLAY_FILTERS, indent=2))
         return
 
     steps = STEPS[STEPS.index(args.from_step):]
 
-    # -- Step 0: Start search via batch-segments API --
+    prompt_text = None
+    if args.prompt_file:
+        prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
+
+    run_id = args.run_id or load_state().get("run_id")
+
+    # -- Step 0: Start Clay gathering --
     if "start" in steps:
-        step0_start(geos=args.geos)
-        wait_for_search_jobs(timeout=3600)
-        check_search_status()
+        run_id = step0_start()
+        # Wait for gathering to complete
+        print("\n  Waiting for Clay gathering to complete...")
+        conn_errors = 0
+        while True:
+            time.sleep(15)
+            try:
+                r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                              headers=BACKEND_HEADERS, timeout=30)
+                phase = r.json().get("current_phase", "")
+                if phase != "gather":
+                    print(f"  Phase: {phase}")
+                    break
+                print("  ..gathering")
+            except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
+                conn_errors += 1
+                if conn_errors >= 10:
+                    print(f"  Too many errors. Resume: --from-step blacklist --run-id {run_id}")
+                    sys.exit(1)
+                time.sleep(15)
+
+    # -- Step 2: Blacklist -> CP1 --
+    if "blacklist" in steps and run_id:
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        if phase == "awaiting_scope_ok":
+            gates = api("get", f"/pipeline/gathering/approval-gates?project_id={PROJECT_ID}",
+                        raise_on_error=False)
+            gate_list = gates if isinstance(gates, list) else gates.get("items", [])
+            pending = [g for g in gate_list if g.get("gathering_run_id") == run_id and g.get("status") == "pending"]
+            if pending:
+                gate = pending[0]
+                print(f"\n  * CP1 - gate #{gate['id']}, passed={gate.get('scope',{}).get('passed','?')}")
+                print(f"  PAUSING. Approve gate, then resume:")
+                print(f"    --from-step prefilter --run-id {run_id}")
+                return
+        elif phase in ("gathered", "gather"):
+            cp1 = step2_blacklist(run_id)
+            if cp1.get("gate_id"):
+                print(f"\n  PAUSING at CP1. Approve gate #{cp1['gate_id']}, then resume:")
+                print(f"    --from-step prefilter --run-id {run_id}")
+                return
+
+    # -- Step 3: Pre-filter --
+    if "prefilter" in steps and run_id:
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        if phase == "awaiting_scope_ok":
+            approve_pending_gate(run_id)
+            phase = "scope_approved"
+        if phase == "scope_approved":
+            step3_prefilter(run_id)
+
+    # -- Step 4: Scrape --
+    if "scrape" in steps and run_id:
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        if phase == "filtered":
+            step4_scrape(run_id)
+
+    # -- Step 5: Analyze -> CP2 --
+    if "analyze" in steps and run_id:
+        _, prompt = get_latest_prompt()
+        text = prompt_text or prompt or DEFAULT_ANALYSIS_PROMPT
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        if phase == "scraped":
+            cp2 = step5_analyze(run_id, text)
+            if cp2.get("gate_id"):
+                print(f"\n  PAUSING at CP2. Approve gate #{cp2['gate_id']}, then resume:")
+                print(f"    --from-step verify --run-id {run_id}")
+                return
+
+    # -- Step 6: Verify -> CP3 --
+    if "verify" in steps and run_id:
+        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        phase = run_info.get("current_phase", "")
+        if phase == "awaiting_targets_ok":
+            approve_pending_gate(run_id)
+        blacklist_approved_targets(run_id)
+        cp3 = step6_prepare_verify(run_id)
+        if cp3.get("gate_id"):
+            print(f"\n  PAUSING at CP3. Approve gate #{cp3['gate_id']}, then resume:")
+            print(f"    --from-step export --run-id {run_id}")
+            return
 
     # -- Step 9: Export targets --
     if "export" in steps:
