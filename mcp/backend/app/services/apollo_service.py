@@ -107,10 +107,12 @@ class ApolloService:
             "page": page, "per_page": min(per_page, 100),
         }
         # Prefer industry_tag_ids (real Apollo IDs from enrichment — best pagination)
+        # CRITICAL: do NOT combine with keyword_tags — Apollo filters are AND across types,
+        # combining NARROWS results and breaks pagination. Use one or the other.
         if industry_tag_ids:
             payload["organization_industry_tag_ids"] = industry_tag_ids
-        # Add keyword_tags as secondary filter
-        if keyword_tags:
+            # Do NOT add keyword_tags when we have industry_tag_ids
+        elif keyword_tags:
             payload["q_organization_keyword_tags"] = keyword_tags
         # Text search by company name
         if q_organization_name:
