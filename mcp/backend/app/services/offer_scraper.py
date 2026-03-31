@@ -5,7 +5,13 @@ Architecture:
 2. BACKGROUND: this service catches anything missed (session broke, timeout, etc.)
    - Runs 5s after startup, then every 30s
    - Max 3 retries per project, then marks as failed
-   - Can also be triggered on-demand via trigger_offer_analysis(project_id)
+   - Can also be triggered on-demand via queue_offer_analysis(project_id)
+
+Reliability:
+- Query finds: NULL offer, empty offer, AND failed offers with retries < MAX
+- Retry tracking in offer_summary JSONB (_retries, _error, _last_attempt)
+- confirm_offer with feedback resets retry state
+- Survives backend restarts — no session dependency
 """
 import asyncio
 import logging
@@ -14,7 +20,8 @@ import json
 from datetime import datetime, timezone
 
 import httpx
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, and_, text, cast
+from sqlalchemy.dialects.postgresql import JSONB as JSONB_TYPE
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.db import async_session_maker
@@ -25,7 +32,7 @@ from app.services.encryption import decrypt_value
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
-_pending_ids: set[int] = set()  # Projects queued for immediate analysis
+_pending_ids: set[int] = set()
 
 
 def queue_offer_analysis(project_id: int):
@@ -33,52 +40,62 @@ def queue_offer_analysis(project_id: int):
     _pending_ids.add(project_id)
 
 
+def _needs_analysis(project: Project) -> bool:
+    """Check if a project needs offer analysis."""
+    if not project.website:
+        return False
+    os = project.offer_summary
+    # No offer at all
+    if os is None or os == {}:
+        return True
+    # Has retry tracking but not maxed out, and no real offer data
+    if isinstance(os, dict):
+        has_real_offer = "primary_offer" in os or "products" in os
+        if has_real_offer:
+            return False  # Already analyzed successfully
+        retries = os.get("_retries", 0)
+        return retries < MAX_RETRIES
+    return False
+
+
 async def scrape_pending_offers():
     """Find all projects needing offer analysis, process them."""
     async with async_session_maker() as session:
-        # Priority 1: explicitly queued projects (from create_project)
+        # Priority 1: explicitly queued projects
         queued = list(_pending_ids)
         _pending_ids.clear()
 
-        # Priority 2: projects with website + no offer + retries left
+        # Priority 2: ALL projects with websites — filter in Python for reliability
         result = await session.execute(
             select(Project).where(
                 Project.website.isnot(None),
                 Project.website != "",
                 Project.is_active == True,
-                or_(
-                    Project.offer_summary.is_(None),
-                    Project.offer_summary == {},
-                ),
+                Project.offer_approved == False,
             )
         )
-        db_projects = result.scalars().all()
+        all_candidates = result.scalars().all()
 
-        # Merge: queued first, then DB scan (dedup by id)
+        # Merge: queued first, then candidates needing analysis
         seen = set()
         projects = []
 
-        # Add queued projects
         if queued:
             queued_result = await session.execute(
                 select(Project).where(Project.id.in_(queued))
             )
             for p in queued_result.scalars().all():
-                if p.id not in seen:
+                if p.id not in seen and _needs_analysis(p):
                     projects.append(p)
                     seen.add(p.id)
 
-        # Add DB-scanned projects
-        for p in db_projects:
-            if p.id not in seen:
-                # Check retry count
-                retries = (p.offer_summary or {}).get("_retries", 0) if isinstance(p.offer_summary, dict) else 0
-                if retries < MAX_RETRIES:
-                    projects.append(p)
-                    seen.add(p.id)
+        for p in all_candidates:
+            if p.id not in seen and _needs_analysis(p):
+                projects.append(p)
+                seen.add(p.id)
 
         if not projects:
-            return  # Silent — no spam in logs
+            return
 
         logger.info(f"Offer scraper: {len(projects)} projects to analyze")
 
@@ -87,10 +104,19 @@ async def scrape_pending_offers():
                 success = await _analyze_project_offer(session, project)
                 await session.commit()
                 if success:
-                    logger.info(f"Offer scraper: ✓ {project.name} (id={project.id})")
+                    logger.info(f"Offer scraper: ✓ {project.name} ({project.website})")
+                else:
+                    logger.info(f"Offer scraper: retry {_get_retries(project)}/{MAX_RETRIES} for {project.name}")
             except Exception as e:
                 logger.error(f"Offer scraper failed for {project.id}: {e}")
                 await session.rollback()
+
+
+def _get_retries(project: Project) -> int:
+    os = project.offer_summary
+    if isinstance(os, dict):
+        return os.get("_retries", 0)
+    return 0
 
 
 async def _analyze_project_offer(session, project: Project) -> bool:
@@ -101,10 +127,7 @@ async def _analyze_project_offer(session, project: Project) -> bool:
     if not website.startswith("http"):
         website = f"https://{website}"
 
-    # Track retries
-    retries = 0
-    if isinstance(project.offer_summary, dict):
-        retries = project.offer_summary.get("_retries", 0)
+    retries = _get_retries(project)
 
     # Get user's keys
     openai_row = (await session.execute(
@@ -116,6 +139,7 @@ async def _analyze_project_offer(session, project: Project) -> bool:
     )).scalar_one_or_none()
     openai_key = decrypt_value(openai_row.api_key_encrypted) if openai_row else None
     if not openai_key:
+        # Don't count as retry — user hasn't set up OpenAI yet
         return False
 
     apify_row = (await session.execute(
@@ -184,9 +208,8 @@ async def _analyze_project_offer(session, project: Project) -> bool:
             offer = json.loads(ct)
 
             if offer.get("unknown"):
-                # Mark as failed with retry count
-                project.offer_summary = {"_retries": retries + 1, "_failed": True,
-                                         "_reason": "GPT doesn't know this company",
+                project.offer_summary = {"_retries": retries + 1, "_failed": retries + 1 >= MAX_RETRIES,
+                                         "_reason": f"GPT doesn't know {dom}",
                                          "_last_attempt": datetime.now(timezone.utc).isoformat()}
                 flag_modified(project, "offer_summary")
                 return False
@@ -202,8 +225,8 @@ async def _analyze_project_offer(session, project: Project) -> bool:
             return True
 
     except Exception as e:
-        # Track retry
-        project.offer_summary = {"_retries": retries + 1, "_error": str(e)[:200],
+        project.offer_summary = {"_retries": retries + 1, "_failed": retries + 1 >= MAX_RETRIES,
+                                 "_error": str(e)[:200],
                                  "_last_attempt": datetime.now(timezone.utc).isoformat()}
         flag_modified(project, "offer_summary")
         logger.error(f"Offer GPT failed for {dom}: {e}")
@@ -213,12 +236,12 @@ async def _analyze_project_offer(session, project: Project) -> bool:
 def start_offer_scraper():
     """Run offer scraper on startup + every 30 seconds."""
     async def _loop():
-        await asyncio.sleep(5)  # Quick startup
+        await asyncio.sleep(5)
         while True:
             try:
                 await scrape_pending_offers()
             except Exception as e:
                 logger.error(f"Offer scraper loop: {e}")
-            await asyncio.sleep(30)  # Every 30s — fast pickup
+            await asyncio.sleep(30)
 
     asyncio.get_event_loop().create_task(_loop())
