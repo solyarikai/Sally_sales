@@ -720,6 +720,155 @@ def step0_start(config: ProjectConfig, filters: dict, mode: str,
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ШАГ 0 (APOLLO): ПОИСК КОМПАНИЙ ЧЕРЕЗ APOLLO INTERNAL API
+# Вместо Clay — запускаем apollo_companies_search.js (Puppeteer + internal API).
+# Puppeteer логинится в Apollo, использует q_organization_keyword_tags для точного
+# поиска по keyword tags. Результат: JSON с компаниями → извлекаем домены →
+# скармливаем в backend как manual.companies.manual.
+# БЕСПЛАТНО — не тратит API credits.
+# ══════════════════════════════════════════════════════════════════════════════
+
+APOLLO_COMPANIES_SCRIPT = "scripts/apollo_companies_search.js"
+
+
+def step0_apollo_companies(config: ProjectConfig, filters: dict,
+                           apollo_profile: str = None) -> list[str]:
+    """Search companies via Apollo internal API. Returns list of domains.
+
+    Filters dict:
+        keyword_tags: list of Apollo keyword tags (required)
+        locations: list of country names (required)
+        sizes: list of employee ranges, e.g. ["5,50", "51,200"] (optional)
+        excluded_keywords: list of keywords to post-filter companies (optional)
+        max_pages: max pages per keyword (default 25)
+    """
+    keyword_tags = filters.get("keyword_tags", [])
+    locations = filters.get("locations", [])
+    sizes = filters.get("sizes", ["5,50", "51,200", "201,500", "501,1000", "1001,5000"])
+    excluded_keywords = filters.get("excluded_keywords", [])
+    max_pages = filters.get("max_pages", 25)
+
+    print(f"\n{'='*60}")
+    print(f"STEP 0: Apollo Companies Search (Internal API)")
+    print(f"  Project: {config.project_name} (ID {config.project_id})")
+    print(f"  Keyword tags: {len(keyword_tags)}")
+    print(f"  Locations: {len(locations)} ({', '.join(locations[:5])}{'...' if len(locations) > 5 else ''})")
+    print(f"  Sizes: {', '.join(sizes)}")
+    print(f"  Max pages/keyword: {max_pages}")
+    if excluded_keywords:
+        print(f"  Excluded keywords: {len(excluded_keywords)}")
+    print(f"{'='*60}")
+
+    # Find the script
+    repo_dir = SOFIA_DIR.parent
+    scraper_path = repo_dir / APOLLO_COMPANIES_SCRIPT
+    if not scraper_path.exists():
+        scraper_path = Path(".") / APOLLO_COMPANIES_SCRIPT
+    if not scraper_path.exists():
+        print(f"  ERROR: {APOLLO_COMPANIES_SCRIPT} not found")
+        print(f"  Tried: {repo_dir / APOLLO_COMPANIES_SCRIPT}")
+        sys.exit(1)
+
+    # Output file
+    output_file = config.state_dir / "apollo_companies_raw.json"
+
+    # Build command
+    cmd = [
+        "node", str(scraper_path),
+        "--keywords", ",".join(keyword_tags),
+        "--locations", ",".join(locations),
+        "--max-pages", str(max_pages),
+        "--output", str(output_file),
+    ]
+    for size in sizes:
+        cmd.extend(["--sizes", size])
+    if apollo_profile:
+        cmd.extend(["--profile", apollo_profile])
+
+    # Resume if partial results exist
+    if output_file.exists():
+        cmd.append("--resume")
+        existing = json.loads(output_file.read_text())
+        print(f"  Resuming: {len(existing)} companies from previous run")
+
+    print(f"  Running apollo_companies_search.js...")
+    print(f"  This may take 10-60 minutes for {len(keyword_tags)} keywords...")
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=7200,
+            cwd=str(scraper_path.parent.parent),
+        )
+        if result.returncode != 0:
+            err = result.stderr[-500:] if result.stderr else result.stdout[-500:]
+            print(f"  Scraper error (rc={result.returncode}): {err}")
+            # Try to load partial results
+            if output_file.exists():
+                print(f"  Loading partial results...")
+            else:
+                sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print(f"  Scraper timeout (2h). Loading partial results...")
+
+    if not output_file.exists():
+        print(f"  ERROR: No output file: {output_file}")
+        sys.exit(1)
+
+    companies = json.loads(output_file.read_text())
+    print(f"\n  Scraped: {len(companies)} companies (raw)")
+
+    # Post-filter: exclude companies matching excluded keywords
+    if excluded_keywords:
+        before = len(companies)
+        filtered = []
+        for c in companies:
+            desc = " ".join([
+                str(c.get("industry", "")),
+                " ".join(c.get("keywords", [])),
+                " ".join(c.get("industries", [])),
+            ]).lower()
+            excluded = False
+            for kw in excluded_keywords:
+                if kw.lower() in desc:
+                    excluded = True
+                    break
+            if not excluded:
+                filtered.append(c)
+        companies = filtered
+        removed = before - len(companies)
+        if removed:
+            print(f"  Post-filter: removed {removed} companies (excluded keywords)")
+
+    # Extract unique domains
+    domains = []
+    seen = set()
+    for c in companies:
+        d = _normalize_domain(c.get("domain", "") or "")
+        if d and d not in seen and "." in d:
+            seen.add(d)
+            domains.append(d)
+
+    print(f"  Unique domains: {len(domains)}")
+
+    # Save import CSV + sheet
+    today = tag()
+    import_rows = [{"domain": c.get("domain", ""), "name": c.get("name", ""),
+                     "country": c.get("country", ""), "employees": c.get("estimated_num_employees", ""),
+                     "industry": c.get("industry", "") or ", ".join(c.get("industries", [])),
+                     "keywords": ", ".join(c.get("keywords", []))}
+                    for c in companies if c.get("domain")]
+    if import_rows:
+        seg_code = config.segments.get(list(config.segments.keys())[0] if config.segments else "", {}).get("code", "")
+        sheet_name = f"{config.project_name[:2].upper()} | Import | {seg_code} Apollo Companies — {today}"
+        save_csv(config.csv_dir / "import.csv", import_rows, sheet_name=sheet_name)
+
+    return domains
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # ШАГИ 1-8: ОБРАБОТКА КОМПАНИЙ
 # Последовательная обработка найденных компаний:
 #   Шаг 2 (Blacklist): проверяем, не писали ли мы уже этим компаниям.
