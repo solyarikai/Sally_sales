@@ -1,291 +1,264 @@
-"""Apollo Taxonomy Service — self-growing knowledge base of Apollo's filter vocabulary.
+"""Apollo Taxonomy Service — PostgreSQL-backed with pgvector embeddings.
 
-3 maps:
-  - industries: 112+ known Apollo industry names (fixed list, grows via enrichment)
-  - keywords: Apollo keyword tags seen on real company profiles (grows via enrichment)
-  - employee_ranges: 8 fixed values
+Stores all Apollo keywords + industries in DB. Grows from every enrichment call.
+Embeddings computed via OpenAI text-embedding-3-small for semantic search.
 
-Embedding pre-filter: user query → embed → cosine similarity → top N keywords.
-Scales to any map size. GPT only sees the shortlist.
-
-Storage: JSON file cache (apollo_taxonomy_cache.json) for now.
-Migration to pgvector DB table later.
+On startup: seeds from file cache if DB is empty.
+On enrichment: upserts new terms, queues embedding computation.
+On query: cosine similarity search via pgvector for keyword shortlisting.
 """
 import json
 import logging
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import httpx
-import numpy as np
 
 logger = logging.getLogger(__name__)
-
-# In Docker: /app/apollo_filters/ (volume-mounted, persists across restarts)
-# Local dev: mcp/backend/apollo_filters/ (relative to working dir)
-_APP_ROOT = Path("/app") if Path("/app/apollo_filters").exists() else Path(__file__).parent.parent.parent
-CACHE_PATH = _APP_ROOT / "apollo_filters" / "apollo_taxonomy_cache.json"
-EMBEDDINGS_PATH = _APP_ROOT / "apollo_filters" / "apollo_embeddings.npz"
-TAXONOMY_PATH = _APP_ROOT / "apollo_filters" / "apollo_taxonomy.json"
 
 EMPLOYEE_RANGES = [
     "1,10", "11,50", "51,200", "201,500",
     "501,1000", "1001,5000", "5001,10000", "10001,",
 ]
 
+# Seed file paths (baked into Docker image)
+_APP_ROOT = Path("/app") if Path("/app/apollo_filters").exists() else Path(__file__).parent.parent.parent
+SEED_CACHE = _APP_ROOT / "apollo_filters" / "apollo_taxonomy_cache.json"
+
 
 class TaxonomyService:
-    """Self-growing Apollo filter vocabulary with embedding similarity search."""
+    """DB-backed Apollo filter vocabulary with embedding similarity search."""
 
     def __init__(self):
-        self._cache: Dict = {"industries": {}, "keywords": {}, "employee_ranges": {}}
-        self._embeddings: Dict[str, List[float]] = {}  # key -> embedding vector
-        self._loaded = False
+        self._seeded = False
 
-    def _load(self):
-        """Load taxonomy from cache file + seed file."""
-        if self._loaded:
+    async def _ensure_seeded(self, session):
+        """Seed DB from file cache if empty (runs once on first call)."""
+        if self._seeded:
+            return
+        self._seeded = True
+
+        from sqlalchemy import select, func
+        from app.models.taxonomy import ApolloTaxonomy
+
+        count = (await session.execute(select(func.count(ApolloTaxonomy.id)))).scalar() or 0
+        if count > 0:
+            logger.info(f"Taxonomy DB: {count} terms already loaded")
             return
 
-        # Load cached data (metadata only, no embeddings — those are in npz)
-        if CACHE_PATH.exists():
-            try:
-                self._cache = json.loads(CACHE_PATH.read_text())
-                logger.info(f"Loaded taxonomy cache: {len(self._cache.get('industries', {}))} industries, "
-                            f"{len(self._cache.get('keywords', {}))} keywords")
-            except Exception as e:
-                logger.warning(f"Failed to load taxonomy cache: {e}")
+        # Seed from file
+        if not SEED_CACHE.exists():
+            logger.warning("No taxonomy seed file and DB is empty")
+            return
 
-        # Load embeddings from numpy file (fast, compact)
-        if EMBEDDINGS_PATH.exists():
-            try:
-                data = np.load(EMBEDDINGS_PATH, allow_pickle=True)
-                keys = data["keys"].tolist()
-                vectors = data["vectors"]
-                for i, key in enumerate(keys):
-                    self._embeddings[key] = vectors[i].tolist()
-                logger.info(f"Loaded {len(self._embeddings)} embeddings from npz")
-            except Exception as e:
-                logger.warning(f"Failed to load embeddings: {e}")
-
-        # Migrate: if cache has inline embeddings, extract them
-        for map_type in ("keywords", "industries"):
-            for key, val in self._cache.get(map_type, {}).items():
-                if val.get("embedding"):
-                    self._embeddings[key] = val.pop("embedding")
-
-        # Seed industries from static file if not in cache
-        if not self._cache.get("industries") and TAXONOMY_PATH.exists():
-            try:
-                data = json.loads(TAXONOMY_PATH.read_text())
-                for ind in data.get("industries", []):
-                    if ind not in self._cache.get("industries", {}):
-                        self._cache.setdefault("industries", {})[ind] = {
-                            "seen_count": 0,
-                            "segments": [],
-                        }
-                logger.info(f"Seeded {len(self._cache['industries'])} industries from taxonomy file")
-            except Exception:
-                pass
-
-        # Seed employee ranges
-        for r in EMPLOYEE_RANGES:
-            self._cache.setdefault("employee_ranges", {})[r] = {}
-
-        self._loaded = True
-        # Save cleaned cache (without inline embeddings)
-        self._save()
-
-    def _save(self):
-        """Persist cache to file (metadata only, embeddings separate)."""
         try:
-            # Save metadata (small, fast)
-            CACHE_PATH.write_text(json.dumps(self._cache, indent=2, default=str))
-            # Save embeddings (numpy, compact)
-            if self._embeddings:
-                keys = list(self._embeddings.keys())
-                vectors = np.array([self._embeddings[k] for k in keys], dtype=np.float32)
-                np.savez_compressed(EMBEDDINGS_PATH, keys=np.array(keys), vectors=vectors)
+            cache = json.loads(SEED_CACHE.read_text())
+            terms_added = 0
+
+            for kw, meta in cache.get("keywords", {}).items():
+                kw = kw.strip().lower()
+                if not kw or len(kw) < 2:
+                    continue
+                session.add(ApolloTaxonomy(
+                    term=kw, term_type="keyword", source="seed",
+                    seen_count=meta.get("seen_count", 1) if isinstance(meta, dict) else 1,
+                ))
+                terms_added += 1
+
+            for ind, meta in cache.get("industries", {}).items():
+                ind = ind.strip()
+                if not ind:
+                    continue
+                session.add(ApolloTaxonomy(
+                    term=ind, term_type="industry", source="seed",
+                    seen_count=meta.get("seen_count", 1) if isinstance(meta, dict) else 1,
+                ))
+                terms_added += 1
+
+            await session.flush()
+            logger.info(f"Taxonomy DB: seeded {terms_added} terms from cache file")
         except Exception as e:
-            logger.warning(f"Failed to save taxonomy: {e}")
+            logger.error(f"Taxonomy seed failed: {e}")
 
-    # ── Public API ──
+    async def get_all_industries(self, session) -> List[str]:
+        """Return all known Apollo industry names from DB."""
+        await self._ensure_seeded(session)
+        from sqlalchemy import select
+        from app.models.taxonomy import ApolloTaxonomy
+        result = await session.execute(
+            select(ApolloTaxonomy.term).where(ApolloTaxonomy.term_type == "industry")
+            .order_by(ApolloTaxonomy.seen_count.desc())
+        )
+        return [r[0] for r in result.all()]
 
-    def get_all_industries(self) -> List[str]:
-        """Return full list of known Apollo industry names."""
-        self._load()
-        return list(self._cache.get("industries", {}).keys())
-
-    def get_all_keywords(self) -> List[str]:
-        """Return full list of known Apollo keyword tags."""
-        self._load()
-        return list(self._cache.get("keywords", {}).keys())
+    async def get_all_keywords(self, session) -> List[str]:
+        """Return all known Apollo keyword tags from DB."""
+        await self._ensure_seeded(session)
+        from sqlalchemy import select
+        from app.models.taxonomy import ApolloTaxonomy
+        result = await session.execute(
+            select(ApolloTaxonomy.term).where(ApolloTaxonomy.term_type == "keyword")
+            .order_by(ApolloTaxonomy.seen_count.desc())
+        )
+        return [r[0] for r in result.all()]
 
     def get_employee_ranges(self) -> List[str]:
-        """Return the 8 fixed employee ranges."""
         return EMPLOYEE_RANGES.copy()
 
     async def get_keyword_shortlist(
-        self, query: str, openai_key: str, top_n: int = 50
+        self, query: str, openai_key: str, session, top_n: int = 50
     ) -> List[str]:
-        """Embedding pre-filter: return top N keywords most similar to query.
+        """Semantic search: return top N keywords most similar to query using pgvector."""
+        await self._ensure_seeded(session)
+        from sqlalchemy import text
 
-        If keyword map is empty (cold start), returns empty list.
-        If keyword map has <top_n entries, returns all.
-        """
-        self._load()
-        keywords = self._cache.get("keywords", {})
+        # Check if embeddings exist
+        has_embeddings = (await session.execute(
+            text("SELECT COUNT(*) FROM apollo_taxonomy WHERE embedding IS NOT NULL AND term_type='keyword'")
+        )).scalar() or 0
 
-        if not keywords:
-            logger.info("Keyword map empty (cold start) — no shortlist available")
-            return []
-
-        if len(keywords) <= top_n:
-            return list(keywords.keys())
-
-        # Ensure all keywords have embeddings
-        needs_embedding = [k for k in keywords if k not in self._embeddings]
-        if needs_embedding:
-            await self._compute_embeddings(needs_embedding, "keywords", openai_key)
+        if has_embeddings == 0:
+            # No embeddings — return top keywords by seen_count
+            logger.info("No keyword embeddings yet — returning by frequency")
+            from sqlalchemy import select
+            from app.models.taxonomy import ApolloTaxonomy
+            result = await session.execute(
+                select(ApolloTaxonomy.term).where(ApolloTaxonomy.term_type == "keyword")
+                .order_by(ApolloTaxonomy.seen_count.desc()).limit(top_n)
+            )
+            return [r[0] for r in result.all()]
 
         # Embed the query
         query_emb = await self._embed_text(query, openai_key)
-        if query_emb is None:
-            return list(keywords.keys())[:top_n]
+        if not query_emb:
+            from sqlalchemy import select
+            from app.models.taxonomy import ApolloTaxonomy
+            result = await session.execute(
+                select(ApolloTaxonomy.term).where(ApolloTaxonomy.term_type == "keyword")
+                .order_by(ApolloTaxonomy.seen_count.desc()).limit(top_n)
+            )
+            return [r[0] for r in result.all()]
 
-        # Cosine similarity using numpy (fast)
-        scored = []
-        for kw in keywords:
-            emb = self._embeddings.get(kw)
-            if emb:
-                sim = self._cosine_sim(query_emb, emb)
-                scored.append((kw, sim))
+        # pgvector cosine similarity search
+        emb_str = "[" + ",".join(str(x) for x in query_emb) + "]"
+        result = await session.execute(text(
+            f"SELECT term, 1 - (embedding <=> :emb::vector) as similarity "
+            f"FROM apollo_taxonomy WHERE term_type='keyword' AND embedding IS NOT NULL "
+            f"ORDER BY embedding <=> :emb::vector LIMIT :n"
+        ), {"emb": emb_str, "n": top_n})
+        rows = result.all()
 
-        scored.sort(key=lambda x: -x[1])
-        result = [kw for kw, _ in scored[:top_n]]
-        logger.info(f"Keyword shortlist: {len(result)} from {len(keywords)} total "
-                    f"(top sim: {scored[0][1]:.3f}, bottom: {scored[min(top_n-1, len(scored)-1)][1]:.3f})")
-        return result
+        if rows:
+            logger.info(f"Keyword shortlist: {len(rows)} from pgvector "
+                        f"(top sim: {rows[0][1]:.3f}, bottom: {rows[-1][1]:.3f})")
+        return [r[0] for r in rows]
 
-    def add_from_enrichment(self, enriched_org: Dict, segment: str = ""):
-        """Learn from an enriched Apollo company. Grows the keyword + industry maps."""
-        self._load()
+    async def add_from_enrichment(self, enriched_org: Dict, session, segment: str = ""):
+        """Learn from an enriched Apollo company. Upserts keywords + industry."""
+        await self._ensure_seeded(session)
+        from sqlalchemy import text
 
-        # Industry
         industry = enriched_org.get("industry")
         if industry:
-            entry = self._cache.setdefault("industries", {}).setdefault(industry, {
-                "seen_count": 0, "segments": [],
-            })
-            entry["seen_count"] = entry.get("seen_count", 0) + 1
-            if segment and segment not in entry.get("segments", []):
-                entry.setdefault("segments", []).append(segment)
+            await session.execute(text(
+                "INSERT INTO apollo_taxonomy (term, term_type, source, last_segment, seen_count) "
+                "VALUES (:term, 'industry', 'enrichment', :seg, 1) "
+                "ON CONFLICT (term, term_type) DO UPDATE SET "
+                "seen_count = apollo_taxonomy.seen_count + 1, "
+                "last_segment = COALESCE(:seg, apollo_taxonomy.last_segment), "
+                "updated_at = NOW()"
+            ), {"term": industry.strip(), "seg": segment or None})
 
-        # Keywords
         kw_tags = enriched_org.get("keywords") or enriched_org.get("keyword_tags") or []
         if isinstance(kw_tags, str):
             kw_tags = [k.strip() for k in kw_tags.split(",")]
 
-        new_keywords = 0
-        new_kw_values = []
         for kw in kw_tags:
             kw = kw.strip().lower()
-            if not kw or len(kw) < 3:
+            if not kw or len(kw) < 2:
                 continue
-            entry = self._cache.setdefault("keywords", {}).setdefault(kw, {
-                "seen_count": 0, "segments": [],
-            })
-            entry["seen_count"] = entry.get("seen_count", 0) + 1
-            if segment and segment not in entry.get("segments", []):
-                entry.setdefault("segments", []).append(segment)
-            if entry["seen_count"] == 1:
-                new_keywords += 1
-                new_kw_values.append(kw)
+            await session.execute(text(
+                "INSERT INTO apollo_taxonomy (term, term_type, source, last_segment, seen_count) "
+                "VALUES (:term, 'keyword', 'enrichment', :seg, 1) "
+                "ON CONFLICT (term, term_type) DO UPDATE SET "
+                "seen_count = apollo_taxonomy.seen_count + 1, "
+                "last_segment = COALESCE(:seg, apollo_taxonomy.last_segment), "
+                "updated_at = NOW()"
+            ), {"term": kw, "seg": segment or None})
 
-        if new_keywords > 0:
-            logger.info(f"Taxonomy: +{new_keywords} new keywords from enrichment (total: {len(self._cache['keywords'])})")
-            # Mark that embeddings need recompute on next shortlist call
-            self._needs_embedding_update = True
+    async def add_bulk_from_enrichment(self, orgs: List[Dict], session, segment: str = ""):
+        """Batch learn from multiple enriched orgs."""
+        for org in orgs:
+            await self.add_from_enrichment(org, session, segment)
+        await session.flush()
 
-        self._save()
-        return new_keywords
+    async def rebuild_embeddings(self, openai_key: str, session, batch_size: int = 100):
+        """Compute embeddings for all terms that don't have one."""
+        from sqlalchemy import text
 
-    async def rebuild_embeddings_if_needed(self, openai_key: str):
-        """Compute embeddings for any keywords missing them. Call after enrichment."""
-        self._load()
-        needs = [k for k in self._cache.get("keywords", {}) if k not in self._embeddings]
-        if not needs:
+        # Get terms without embeddings
+        result = await session.execute(text(
+            "SELECT id, term FROM apollo_taxonomy WHERE embedding IS NULL ORDER BY seen_count DESC LIMIT 2500"
+        ))
+        rows = result.all()
+        if not rows:
+            logger.info("All taxonomy terms have embeddings")
             return 0
-        await self._compute_embeddings(needs, "keywords", openai_key)
-        self._save()
-        logger.info(f"Rebuilt embeddings for {len(needs)} new keywords")
-        return len(needs)
 
-    # ── Embedding helpers ──
+        logger.info(f"Computing embeddings for {len(rows)} taxonomy terms")
+        computed = 0
+
+        for i in range(0, len(rows), batch_size):
+            batch = rows[i:i + batch_size]
+            texts = [r[1] for r in batch]
+            ids = [r[0] for r in batch]
+
+            try:
+                async with httpx.AsyncClient(timeout=30) as c:
+                    resp = await c.post("https://api.openai.com/v1/embeddings",
+                        headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                        json={"model": "text-embedding-3-small", "input": texts})
+                    data = resp.json()
+
+                for j, item in enumerate(data.get("data", [])):
+                    emb = item["embedding"]
+                    emb_str = "[" + ",".join(str(x) for x in emb) + "]"
+                    await session.execute(text(
+                        "UPDATE apollo_taxonomy SET embedding = :emb::vector WHERE id = :id"
+                    ), {"emb": emb_str, "id": ids[j]})
+                    computed += 1
+
+                await session.flush()
+                logger.info(f"Embeddings: {computed}/{len(rows)} computed")
+            except Exception as e:
+                logger.error(f"Embedding batch failed: {e}")
+                break
+
+        return computed
+
+    async def stats(self, session) -> Dict:
+        """Return taxonomy stats."""
+        await self._ensure_seeded(session)
+        from sqlalchemy import text
+        kw = (await session.execute(text("SELECT COUNT(*) FROM apollo_taxonomy WHERE term_type='keyword'"))).scalar() or 0
+        ind = (await session.execute(text("SELECT COUNT(*) FROM apollo_taxonomy WHERE term_type='industry'"))).scalar() or 0
+        emb = (await session.execute(text("SELECT COUNT(*) FROM apollo_taxonomy WHERE embedding IS NOT NULL"))).scalar() or 0
+        return {"keywords": kw, "industries": ind, "embeddings": emb}
 
     async def _embed_text(self, text: str, openai_key: str) -> Optional[List[float]]:
-        """Embed a single text using OpenAI text-embedding-3-small."""
+        """Embed a single text using OpenAI."""
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(
-                    "https://api.openai.com/v1/embeddings",
+            async with httpx.AsyncClient(timeout=10) as c:
+                resp = await c.post("https://api.openai.com/v1/embeddings",
                     headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
-                    json={"model": "text-embedding-3-small", "input": text},
-                )
+                    json={"model": "text-embedding-3-small", "input": [text]})
                 data = resp.json()
                 return data["data"][0]["embedding"]
         except Exception as e:
-            logger.warning(f"Embedding failed for '{text[:50]}': {e}")
+            logger.warning(f"Embedding failed: {e}")
             return None
 
-    async def _compute_embeddings(self, values: List[str], map_type: str, openai_key: str):
-        """Batch compute embeddings for values that don't have them yet."""
-        # OpenAI supports batch embedding (up to 2048 inputs)
-        batch_size = 100
-        for i in range(0, len(values), batch_size):
-            batch = values[i:i + batch_size]
-            try:
-                async with httpx.AsyncClient(timeout=30) as client:
-                    resp = await client.post(
-                        "https://api.openai.com/v1/embeddings",
-                        headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
-                        json={"model": "text-embedding-3-small", "input": batch},
-                    )
-                    data = resp.json()
-                    for item in data.get("data", []):
-                        idx = item["index"]
-                        value = batch[idx]
-                        self._embeddings[value] = item["embedding"]
-            except Exception as e:
-                logger.warning(f"Batch embedding failed: {e}")
 
-        self._save()
-        logger.info(f"Computed embeddings for {len(values)} {map_type}")
-
-    @staticmethod
-    def _cosine_sim(a: List[float], b: List[float]) -> float:
-        """Cosine similarity between two vectors."""
-        a_arr = np.array(a)
-        b_arr = np.array(b)
-        dot = np.dot(a_arr, b_arr)
-        norm = np.linalg.norm(a_arr) * np.linalg.norm(b_arr)
-        return float(dot / norm) if norm > 0 else 0.0
-
-    # ── Stats ──
-
-    def stats(self) -> Dict:
-        self._load()
-        kw = self._cache.get("keywords", {})
-        ind = self._cache.get("industries", {})
-        kw_with_emb = sum(1 for k in kw if k in self._embeddings)
-        return {
-            "industries": len(ind),
-            "keywords": len(kw),
-            "keywords_with_embeddings": kw_with_emb,
-            "employee_ranges": len(EMPLOYEE_RANGES),
-        }
-
-
-# Singleton
+# Global instance
 taxonomy_service = TaxonomyService()

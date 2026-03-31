@@ -32,6 +32,38 @@ async def lifespan(app: FastAPI):
         logger.info("Offer scraper started")
     except Exception as e:
         logger.warning(f"Offer scraper failed to start: {e}")
+    # Seed taxonomy DB + compute embeddings (runs once on startup)
+    try:
+        import asyncio
+        async def _seed_taxonomy():
+            await asyncio.sleep(8)  # Wait for DB
+            from app.db import async_session_maker
+            from app.services.taxonomy_service import taxonomy_service
+            async with async_session_maker() as session:
+                await taxonomy_service._ensure_seeded(session)
+                stats = await taxonomy_service.stats(session)
+                logger.info(f"Taxonomy: {stats}")
+                # Compute embeddings if OpenAI key available (from any user)
+                if stats.get("embeddings", 0) < stats.get("keywords", 0):
+                    from sqlalchemy import select
+                    from app.models.integration import MCPIntegrationSetting
+                    from app.services.encryption import decrypt_value
+                    r = await session.execute(select(MCPIntegrationSetting).where(
+                        MCPIntegrationSetting.integration_name == "openai",
+                        MCPIntegrationSetting.is_connected == True,
+                    ).limit(1))
+                    oai = r.scalar_one_or_none()
+                    if oai:
+                        key = decrypt_value(oai.api_key_encrypted)
+                        computed = await taxonomy_service.rebuild_embeddings(key, session)
+                        await session.commit()
+                        logger.info(f"Taxonomy: computed {computed} embeddings")
+                    else:
+                        logger.info("Taxonomy: no OpenAI key available for embeddings")
+                await session.commit()
+        asyncio.get_event_loop().create_task(_seed_taxonomy())
+    except Exception as e:
+        logger.warning(f"Taxonomy seed failed: {e}")
     yield
     logger.info("MCP LeadGen shutting down...")
     try:
