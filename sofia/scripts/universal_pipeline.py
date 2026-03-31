@@ -829,36 +829,10 @@ def step5_reanalyze(config: ProjectConfig, run_id: int,
     return {"target_rate": target_rate, "targets_count": targets_count}
 
 
-def blacklist_approved_targets(config: ProjectConfig, run_id: int):
-    """Добавляет домены классифицированных компаний в project_blacklist.
-    Blacklist = все компании, которые уже прошли сбор и обработку (не только те, кому писали).
-    Следующий gathering run не будет тратить время на повторную обработку этих доменов."""
-    import subprocess
-    sql = (f"SELECT DISTINCT dc.domain FROM discovered_companies dc "
-           f"JOIN company_source_links csl ON csl.discovered_company_id = dc.id "
-           f"WHERE csl.gathering_run_id = {run_id} AND dc.is_target = true "
-           f"AND dc.domain IS NOT NULL AND dc.domain != ''")
-    r = subprocess.run(
-        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
-         "-d", "leadgen", "-t", "-A", "-c", sql],
-        capture_output=True, text=True, timeout=15,
-    )
-    domains = [d.strip() for d in r.stdout.strip().split("\n") if d.strip()]
-    if not domains:
-        return
-
-    values = ", ".join(
-        f"({config.project_id}, '{d}', 'target_approved_run_{run_id}', 'pipeline', now())"
-        for d in domains
-    )
-    insert_sql = (f"INSERT INTO project_blacklist (project_id, domain, reason, source, created_at) "
-                  f"VALUES {values} ON CONFLICT DO NOTHING")
-    subprocess.run(
-        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
-         "-d", "leadgen", "-c", insert_sql],
-        capture_output=True, text=True, timeout=30,
-    )
-    print(f"  Blacklist: +{len(domains)} target domains added (run #{run_id})")
+    # NOTE: blacklist_approved_targets removed.
+    # CRM sync (contacts table) already blocks companies in active campaigns.
+    # Blacklisting by domain was too aggressive — prevented finding new employees
+    # at already-targeted companies. See TAM_GATHERING_ARCHITECTURE.md.
 
 
 def step6_prepare_verify(run_id: int) -> dict:
