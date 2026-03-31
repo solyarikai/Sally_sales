@@ -114,6 +114,40 @@ SEGMENT_CODE = "INFPLAT"
 # Apollo Companies scraper
 APOLLO_COMPANY_SCRAPER = "scripts/apollo_universal_search.js"
 
+# ALL GEO: scraper requires --location, so we pass major regions to cover the world
+ALL_GEO_LOCATIONS = [
+    "United States",
+    "United Kingdom",
+    "Germany",
+    "France",
+    "Canada",
+    "Australia",
+    "Netherlands",
+    "Spain",
+    "Italy",
+    "Sweden",
+    "Brazil",
+    "India",
+    "Singapore",
+    "Japan",
+    "Israel",
+    "Poland",
+    "Mexico",
+    "United Arab Emirates",
+    "South Korea",
+    "Indonesia",
+    "Turkey",
+    "South Africa",
+    "Argentina",
+    "Colombia",
+    "Philippines",
+    "Thailand",
+    "Vietnam",
+    "Nigeria",
+    "Egypt",
+    "Kenya",
+]
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # APOLLO COMPANY SEARCH FILTERS (from apollo-filters-v4.md, Segment 1)
