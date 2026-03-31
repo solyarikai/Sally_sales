@@ -2102,11 +2102,28 @@ def main():
     # Dry run
     if args.dry_run:
         filters = mode_config["filters"] if mode_config else {}
+        has_kw = bool(filters.get("description_keywords"))
+        has_icp = bool(filters.get("icp_text"))
         print(f"\n  DRY RUN — no API calls")
         print(f"  Mode: {args.mode}")
         print(f"  Segment: {mode_config.get('segment', '?') if mode_config else '?'}")
-        print(f"  Countries: {', '.join(filters.get('country_names', ['global']))}")
-        print(f"  ICP: {filters.get('icp_text', '?')[:120]}...")
+        print(f"  Clay search: {'description_keywords (direct)' if has_kw else 'icp_text (AI-mapped)' if has_icp else '?'}")
+        if has_kw:
+            kw = filters["description_keywords"]
+            print(f"  description_keywords ({len(kw)}):")
+            for k in kw:
+                print(f"    - {k}")
+            excl = filters.get("description_keywords_exclude", [])
+            if excl:
+                print(f"  description_keywords_exclude ({len(excl)}):")
+                for k in excl:
+                    print(f"    - {k}")
+        if has_icp:
+            print(f"  ICP: {filters['icp_text'][:200]}...")
+        print(f"  Industries: {filters.get('industries', '?')}")
+        print(f"  Countries: {', '.join(filters.get('country_names', ['ALL GEO']))}")
+        print(f"  Employees: {filters.get('minimum_member_count', '?')}-{filters.get('maximum_member_count', '?')}")
+        print(f"  Max results: {filters.get('max_results', 5000)}")
         print(f"  Steps: {' → '.join(steps)}")
         return
 
