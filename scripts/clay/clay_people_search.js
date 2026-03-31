@@ -8,20 +8,21 @@
  * System-level: supports filter splitting for >5000 results.
  *
  * Two modes:
- * A) TABLE MODE (--table-id): Uses Clay's native table reference.
- *    1. Navigate to TAM companies table → Tools → Send table data → New table (Domain only)
- *    2. Find leads → People tab → select table in "Table of companies" filter
- *    3. Continue → Save to new table → export
- *    No domain typing, no batching — Clay handles the domain list internally.
+ * A) ENRICHMENT MODE (--table-id): Navigate to companies table → Add column → Find People
+ *    1. Open TAM companies table by ID
+ *    2. Click "+ Add" → search "Find People" enrichment
+ *    3. Clay opens People search with table pre-linked
+ *    4. Apply filters (countries-exclude, job titles)
+ *    5. Continue → Create table → read results
+ *    This is the CORRECT Clay workflow — table is pre-linked, no dropdown needed.
  *
  * B) LEGACY DOMAIN MODE (--domains-file or default): Types domains one by one into UI.
- *    Slow but works without a pre-existing table.
+ *    Slow fallback — only use if you don't have a companies table.
  *
  * Usage:
- *   node clay_people_search.js --table-id t_xxxxx --auto --headless   # Table mode (fast)
- *   node clay_people_search.js --table-id t_xxxxx --table-name "Arkansas domains" --auto --headless
- *   node clay_people_search.js --domains-file domains.csv --auto      # Legacy domain mode
- *   node clay_people_search.js --auto                                 # Default known domains
+ *   node clay_people_search.js --table-id t_xxxxx --auto --headless                          # Enrichment mode (fast)
+ *   node clay_people_search.js --table-id t_xxxxx --countries-exclude "United States" --auto  # Exclude US people
+ *   node clay_people_search.js --domains-file domains.csv --auto                              # Legacy domain mode
  */
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
@@ -207,6 +208,386 @@ async function fillFilterField(page, placeholder, values) {
 
 // ============================================================
 // Table mode: create domains-only table from TAM table
+// ============================================================
+
+// ============================================================
+// ENRICHMENT MODE: Add "Find People" column from companies table
+// ============================================================
+// This is the CORRECT Clay workflow:
+// 1. Navigate to companies table
+// 2. Click "+ Add" column
+// 3. Select "Find People" enrichment
+// 4. Clay opens People search with table pre-linked
+// 5. Apply filters (countries-exclude, etc.)
+// 6. Continue → Create table → read results
+
+async function navigateToTable(page, tableId) {
+  // Get table metadata to build correct URL
+  console.log('  Fetching table metadata...');
+  const tableInfo = await page.evaluate(async (tid) => {
+    try {
+      const tableRes = await fetch(`https://api.clay.com/v3/tables/${tid}`, {
+        credentials: 'include', headers: { 'Accept': 'application/json' },
+      });
+      const tableData = await tableRes.json();
+      const table = tableData?.table || tableData;
+      const meRes = await fetch('https://api.clay.com/v3/me', {
+        credentials: 'include', headers: { 'Accept': 'application/json' },
+      });
+      const me = await meRes.json();
+      return {
+        workbookId: table?.workbookId,
+        firstViewId: table?.firstViewId,
+        name: table?.name,
+        wsId: me?.sessionState?.last_workspace_visited_id,
+      };
+    } catch (e) { return { error: e.message }; }
+  }, tableId);
+
+  const wsId = tableInfo?.wsId || WORKSPACE_ID;
+  let tableUrl;
+  if (tableInfo?.workbookId && tableInfo?.firstViewId) {
+    tableUrl = `https://app.clay.com/workspaces/${wsId}/workbooks/${tableInfo.workbookId}/tables/${tableId}/views/${tableInfo.firstViewId}`;
+  } else {
+    tableUrl = `https://app.clay.com/workspaces/${wsId}/tables/${tableId}`;
+  }
+  console.log(`  Table: "${tableInfo?.name}" → ${tableUrl}`);
+  await page.goto(tableUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+  await humanDelay(3000, 5000);
+  return tableInfo;
+}
+
+async function runEnrichmentPeopleSearch(page, tableId, filters, label = 'enrichment') {
+  console.log(`\n=== ENRICHMENT MODE: Find People from companies table ===`);
+  console.log(`  Table: ${tableId}`);
+  console.log(`  Filters: ${JSON.stringify(filters)}`);
+
+  // Step 1: Navigate to the companies table
+  console.log('\n[1] Navigating to companies table...');
+  const tableInfo = await navigateToTable(page, tableId);
+  await screenshot(page, `${label}_01_companies_table`);
+
+  // Step 2: Click "+ Add" column button
+  console.log('\n[2] Looking for "Add" column button...');
+
+  // Try multiple strategies to find the Add button
+  const addBtn = await findByText(page, 'Add column', false)
+    || await findByText(page, 'Add', true)
+    || await page.evaluate(() => {
+      // Look for "+" button in the table header area
+      const btns = [...document.querySelectorAll('button, div[role="button"]')].filter(el => {
+        const t = (el.textContent || '').trim();
+        const r = el.getBoundingClientRect();
+        return el.offsetParent !== null && r.y < 100 && (t === '+' || t === 'Add' || t.includes('Add column'));
+      });
+      if (btns.length > 0) {
+        const r = btns[0].getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }
+      // Also try finding a "+" icon/text at the end of table headers
+      const headers = document.querySelector('thead, [role="row"]');
+      if (headers) {
+        const lastCell = headers.lastElementChild;
+        if (lastCell) {
+          const r = lastCell.getBoundingClientRect();
+          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        }
+      }
+      return null;
+    });
+
+  if (!addBtn) {
+    console.log('  ERROR: "Add" button not found');
+    const buttons = await page.evaluate(() =>
+      [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null)
+        .map(b => ({ text: b.textContent?.trim().substring(0, 30), y: Math.round(b.getBoundingClientRect().y) }))
+        .filter(b => b.y < 150)
+    );
+    console.log('  Top buttons:', JSON.stringify(buttons));
+    await screenshot(page, `${label}_02_no_add_button`);
+    return null;
+  }
+
+  await page.mouse.click(addBtn.x, addBtn.y);
+  await humanDelay(1500, 2500);
+  await screenshot(page, `${label}_02_add_menu`);
+
+  // Step 3: Find and click "Find People" enrichment
+  console.log('\n[3] Looking for "Find People" enrichment...');
+
+  // The Add menu may show a search input or a list of enrichments
+  // Try typing "Find People" in the search
+  const searchInput = await page.$('input[placeholder*="Search"]')
+    || await page.$('input[placeholder*="search"]')
+    || await page.$('input[placeholder*="enrichment"]')
+    || await page.$('input[type="search"]');
+
+  if (searchInput) {
+    await searchInput.click();
+    await humanDelay(200, 400);
+    await searchInput.type('Find People', { delay: 30 + Math.random() * 40 });
+    await humanDelay(1000, 1500);
+  }
+
+  // Click "Find People" option
+  const findPeopleOpt = await findByText(page, 'Find People', false)
+    || await findByText(page, 'Find people', false)
+    || await findByText(page, 'People Search', false);
+
+  if (!findPeopleOpt) {
+    console.log('  ERROR: "Find People" enrichment not found');
+    const menuItems = await page.evaluate(() =>
+      [...document.querySelectorAll('div, span, button, a')]
+        .filter(el => el.offsetParent !== null && el.textContent?.trim().length > 2 && el.textContent.trim().length < 50)
+        .map(el => el.textContent.trim())
+        .filter((v, i, arr) => arr.indexOf(v) === i)
+        .slice(0, 30)
+    );
+    console.log('  Menu items:', menuItems.join(' | '));
+    await screenshot(page, `${label}_03_no_find_people`);
+    return null;
+  }
+
+  await page.mouse.click(findPeopleOpt.x, findPeopleOpt.y);
+  await humanDelay(3000, 5000);
+  await screenshot(page, `${label}_03_find_people_opened`);
+
+  // Step 4: Configure People search filters
+  // The People search should open with the companies table already linked
+  console.log('\n[4] Configuring People search filters...');
+
+  // Verify table is pre-selected (informational)
+  const tableCheck = await page.evaluate(() => {
+    const text = document.body.textContent || '';
+    // Look for indicators that a table is linked
+    if (text.includes('Table of companies') || text.includes('company table')) {
+      return 'Table section visible';
+    }
+    return 'Table section not found';
+  });
+  console.log(`  Table check: ${tableCheck}`);
+
+  // Apply "Countries to exclude" filter
+  if (filters.countries_exclude?.length) {
+    console.log(`  Applying countries to exclude: ${filters.countries_exclude.join(', ')}...`);
+
+    // Scroll sidebar to find Location section
+    await page.evaluate(() => {
+      const scrollable = [...document.querySelectorAll('*')].filter(el => {
+        const s = window.getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return (s.overflowY === 'auto' || s.overflowY === 'scroll') && r.x < 400 && r.width > 200 && r.height > 200;
+      });
+      for (const el of scrollable) el.scrollTop = el.scrollHeight;
+    });
+    await humanDelay(800, 1200);
+
+    // Click Location section to expand
+    const locSection = await findByText(page, 'Location', true);
+    if (locSection) {
+      await page.mouse.click(locSection.x, locSection.y);
+      await humanDelay(1000, 1500);
+    }
+
+    // Find "Countries to exclude" input
+    // Placeholder might be "United States", "country", or similar
+    // The EXCLUDE input is typically the second country input, or has "exclude" in context
+    const excludeInput = await page.evaluate(() => {
+      const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
+      // Look for inputs near "exclude" text
+      for (const input of inputs) {
+        const ph = (input.placeholder || '').toLowerCase();
+        // Check if this input is in an "exclude" context
+        const parent = input.closest('div, section, label');
+        const parentText = parent?.textContent?.toLowerCase() || '';
+        if (parentText.includes('exclude') && (ph.includes('united') || ph.includes('country') || ph.includes('countr'))) {
+          const rect = input.getBoundingClientRect();
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder, type: 'exclude-context' };
+        }
+      }
+      // Fallback: find by text label "Countries to exclude"
+      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walk.nextNode()) {
+        const text = walk.currentNode.textContent?.trim().toLowerCase();
+        if (text && text.includes('exclude') && text.includes('countr')) {
+          const parent = walk.currentNode.parentElement;
+          if (parent?.offsetParent !== null) {
+            // Find the nearest input after this label
+            const container = parent.closest('div') || parent.parentElement;
+            const input = container?.querySelector('input') || container?.nextElementSibling?.querySelector('input');
+            if (input) {
+              const rect = input.getBoundingClientRect();
+              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder, type: 'label-near' };
+            }
+          }
+        }
+      }
+      return null;
+    });
+
+    if (excludeInput) {
+      console.log(`    Found exclude input (${excludeInput.type}): "${excludeInput.placeholder}"`);
+      for (const country of filters.countries_exclude) {
+        await page.mouse.click(excludeInput.x, excludeInput.y);
+        await humanDelay(200, 400);
+        await page.keyboard.type(country, { delay: 25 + Math.random() * 30 });
+        await humanDelay(600, 1000);
+        await page.keyboard.press('Enter');
+        await humanDelay(300, 500);
+      }
+      console.log(`    Countries excluded: ${filters.countries_exclude.join(', ')}`);
+    } else {
+      console.log('    WARNING: Countries exclude input not found');
+      // Debug
+      const allInputs = await page.evaluate(() =>
+        [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
+          .map(i => ({ placeholder: i.placeholder, y: Math.round(i.getBoundingClientRect().y) }))
+      );
+      console.log('    Available inputs:', JSON.stringify(allInputs));
+    }
+  }
+
+  // Apply job title filter if provided
+  if (filters.job_titles?.length) {
+    const titleInput = await page.$('input[placeholder*="CEO"]')
+      || await page.$('input[placeholder*="VP"]')
+      || await page.$('input[placeholder*="Director"]');
+    if (titleInput) {
+      for (const title of filters.job_titles) {
+        await titleInput.click();
+        await humanDelay(100, 200);
+        await titleInput.type(title, { delay: 25 });
+        await humanDelay(300, 600);
+        await page.keyboard.press('Enter');
+        await humanDelay(200, 400);
+      }
+      console.log(`    Job titles: ${filters.job_titles.join(', ')}`);
+    }
+  }
+
+  await humanDelay(2000, 3000);
+  await screenshot(page, `${label}_04_filters_applied`);
+
+  // Read result count
+  const resultText = await page.evaluate(() => {
+    const text = document.body.textContent || '';
+    const match = text.match(/([\d,]+)\s*(?:people|results|contacts|leads)/i);
+    return match ? match[0] : null;
+  });
+  console.log(`  Result count: ${resultText || 'unknown'}`);
+
+  // Step 5: Click Continue → Save to new workbook and table
+  console.log('\n[5] Clicking Continue...');
+  const continueBtnInfo = await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null);
+    const btn = buttons.find(b => b.textContent?.trim().startsWith('Continue'));
+    if (!btn) return null;
+    const rect = btn.getBoundingClientRect();
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, right: rect.x + rect.width - 8 };
+  });
+
+  if (!continueBtnInfo) {
+    console.log('  ERROR: Continue button not found!');
+    await screenshot(page, `${label}_05_no_continue`);
+    return null;
+  }
+
+  // Click the dropdown arrow on Continue button
+  async function findDropdownOption() {
+    return page.evaluate(() => {
+      const allEls = [...document.querySelectorAll('button, div[role="menuitem"], div[role="option"], li, a')];
+      for (const el of allEls) {
+        const t = el.textContent?.trim().toLowerCase() || '';
+        if ((t.includes('new workbook') || t.includes('new table')) && el.offsetParent !== null) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 50) return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: el.textContent.trim() };
+        }
+      }
+      return null;
+    });
+  }
+
+  let option = null;
+  for (let attempt = 0; attempt < 4 && !option; attempt++) {
+    if (attempt > 0) { await page.keyboard.press('Escape'); await humanDelay(500, 800); }
+    if (attempt < 2) {
+      await page.mouse.click(continueBtnInfo.right, continueBtnInfo.y);
+    } else {
+      await page.mouse.click(continueBtnInfo.x, continueBtnInfo.y);
+    }
+    await humanDelay(1200, 2000);
+    option = await findDropdownOption();
+  }
+
+  if (option) {
+    console.log(`  Found: "${option.text}" — clicking...`);
+    await page.mouse.click(option.x, option.y);
+  } else {
+    console.log('  Dropdown option not found!');
+    await screenshot(page, `${label}_05_dropdown_fail`);
+    return null;
+  }
+
+  // Wait for enrichment page
+  await humanDelay(5000, 8000);
+  await screenshot(page, `${label}_05_enrich_page`);
+
+  // Extract table ID
+  let newTableId = null;
+  for (let i = 0; i < 15; i++) {
+    const url = page.url();
+    const m = url.match(/tableId=([^&]+)/);
+    if (m) { newTableId = m[1]; break; }
+    const pm = url.match(/tables\/([^/?]+)/);
+    if (pm) { newTableId = pm[1]; break; }
+    await sleep(2000);
+  }
+  console.log(`  New table ID: ${newTableId}`);
+
+  // Skip enrichments → Create table
+  const createBtn = await findByText(page, 'Create table', false);
+  if (createBtn) {
+    console.log('  Clicking "Create table"...');
+    await page.mouse.click(createBtn.x, createBtn.y);
+    await humanDelay(10000, 15000);
+    await screenshot(page, `${label}_06_table_created`);
+  }
+
+  if (!newTableId) {
+    const newUrl = page.url();
+    const m = newUrl.match(/tableId=([^&]+)/) || newUrl.match(/tables\/([^/?]+)/);
+    if (m) newTableId = m[1];
+  }
+
+  if (!newTableId) {
+    console.log('  ERROR: No table ID found');
+    return null;
+  }
+
+  // Step 6: Wait and read results
+  console.log('\n[6] Reading results...');
+  await humanDelay(12000, 15000);
+  await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+  await humanDelay(5000, 8000);
+  await screenshot(page, `${label}_07_table_loaded`);
+
+  // Try CSV export first
+  const csvPath = await exportTableCSV(page, label);
+  if (csvPath) {
+    console.log(`  CSV exported: ${csvPath}`);
+    return { tableId: newTableId, csvPath, label };
+  }
+
+  // Fallback: read via API
+  const records = await readTableFromBrowser(page, newTableId);
+  const jsonPath = path.join(OUT_DIR, `people_${label}.json`);
+  fs.writeFileSync(jsonPath, JSON.stringify(records, null, 2));
+  console.log(`  Saved ${records.length} records to ${jsonPath}`);
+  return { tableId: newTableId, jsonPath, records, label };
+}
+
+// ============================================================
+// LEGACY: Create domains table for standalone People search (deprecated)
 // ============================================================
 
 /**
@@ -1636,40 +2017,57 @@ async function main() {
     WORKSPACE_ID = resolvedWsId;
   }
 
-  // TABLE MODE: Create domains table from TAM table, then use "Table of companies" filter
-  let companyTableName = null;
+  // ENRICHMENT MODE (primary): Navigate to companies table → Add column → Find People
   if (sourceTableId) {
-    // Try to get the full table URL from --table-url or tam_results.json
-    let tableDirectUrl = sourceTableUrl;
-    if (!tableDirectUrl) {
-      // Search all tam_results files for matching table ID
-      try {
-        const tamResults = JSON.parse(fs.readFileSync(path.join(OUT_DIR, 'tam_results.json'), 'utf-8'));
-        if (tamResults.tableUrl) {
-          // Check if this tam_results has the matching table ID
-          if (tamResults.tableId === sourceTableId) {
-            tableDirectUrl = tamResults.tableUrl;
-            console.log(`  Found exact table URL in tam_results.json`);
-          } else {
-            // Extract workspace/workbook pattern from tam_results URL to build ours
-            const urlMatch = tamResults.tableUrl.match(/workspaces\/(\d+)/);
-            if (urlMatch) {
-              console.log(`  tam_results.json has different table (${tamResults.tableId}), but extracting workspace ID: ${urlMatch[1]}`);
-            }
-          }
-        }
-      } catch {}
-    }
-    console.log(`\n[TABLE MODE] Source table: ${sourceTableId}`);
-    companyTableName = domainsTableName || `Domains ${new Date().toISOString().slice(0, 10)}`;
-    // Create domains-only table
-    companyTableName = await createDomainsTable(page, sourceTableId, companyTableName, tableDirectUrl);
-    if (!companyTableName) {
-      console.log('  ERROR: Failed to create domains table. Falling back to legacy domain mode.');
-    } else {
-      console.log(`  Domains table ready: "${companyTableName}"`);
-    }
+    console.log(`\n[ENRICHMENT MODE] Source table: ${sourceTableId}`);
+
+    // Parse countries-exclude from args
+    const countriesExcludeIdx = args.indexOf('--countries-exclude');
+    const countriesExcludeArg = countriesExcludeIdx >= 0 ? args[countriesExcludeIdx + 1] : null;
+    const countriesExclude = countriesExcludeArg ? countriesExcludeArg.split(',').map(c => c.trim()) : ['United States'];
+
+    const enrichFilters = {
+      countries_exclude: countriesExclude,
+      job_titles: customJobTitle ? [customJobTitle] : (useTitles ? ['CEO', 'Founder', 'CTO', 'CFO', 'VP', 'Director'] : []),
+    };
+
+    const result = await runEnrichmentPeopleSearch(page, sourceTableId, enrichFilters);
+
+    // Final credit check
+    console.log('\n[FINAL] Credit check...');
+    const creditsAfter = await getCredits(page);
+    const spent = (creditsBefore?.basic || 0) - (creditsAfter?.basic || 0);
+    console.log(`  Credits before: ${JSON.stringify(creditsBefore)}`);
+    console.log(`  Credits after:  ${JSON.stringify(creditsAfter)}`);
+    console.log(`  CREDITS SPENT: ${spent}`);
+    if (spent > 0) console.log('  WARNING: Credits were spent!');
+
+    // Save session
+    const endCookies = await page.cookies('https://api.clay.com');
+    const sc = endCookies.find(c => c.name === 'claysession');
+    if (sc) saveSession(sc.value);
+
+    // Save summary
+    fs.writeFileSync(path.join(OUT_DIR, 'people_search_results.json'), JSON.stringify({
+      timestamp: new Date().toISOString(),
+      mode: 'enrichment',
+      sourceTableId,
+      result: result ? { tableId: result.tableId, csvPath: result.csvPath, jsonPath: result.jsonPath, recordCount: result.records?.length } : null,
+      creditsBefore, creditsAfter, creditsSpent: spent,
+    }, null, 2));
+
+    console.log('\n========================================');
+    console.log('  People search complete (ENRICHMENT MODE)!');
+    console.log(`  Results: ${result ? '1 table created' : 'FAILED'}`);
+    console.log(`  Credits spent: ${spent}`);
+    console.log('========================================');
+
+    if (autoClose) await browser.close();
+    return;
   }
+
+  // LEGACY MODE: Standalone People search with domain typing (fallback)
+  let companyTableName = null;
 
   // Load domains — only needed for legacy mode (no --table-id)
   let allDomains = [];
