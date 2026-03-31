@@ -214,17 +214,17 @@ PEOPLE_SENIORITIES = [
 ]
 
 PEOPLE_TITLES = [
-    "CTO", "VP Engineering", "VP of Engineering", "VP Product",
-    "Head of Product", "Chief Product Officer", "Head of Engineering",
-    "Director of Engineering", "Director of Product",
-    "VP Partnerships", "Head of Partnerships", "Director of Partnerships",
-    "Co-Founder", "Founder", "CEO", "COO",
-    "Senior Director of Engineering", "Senior Director of Product",
-    "Senior Director of Partnerships", "Senior VP Partnerships",
+    "CEO", "Founder", "Co-Founder", "Managing Director", "Managing Partner",
+    "Head of Influencer Marketing", "Director of Influencer",
+    "Head of Influencer", "VP Strategy", "Head of Partnerships",
+    "Director of Client Services", "Head of Strategy",
+    "General Manager", "Partner", "Owner",
+    "Senior Partner", "Senior Managing Director",
     # v4 additions
-    "Head of Data", "VP Data", "Chief Data Officer",
-    "Head of Platform", "VP Platform",
-    "Head of Growth", "VP Growth", "Director of Growth",
+    "Head of Creator Partnerships", "Director of Creator",
+    "Head of Talent", "Director of Talent",
+    "Head of Growth", "Director of Business Development",
+    "Head of Operations", "Director of Operations",
 ]
 
 EXCLUDED_TITLES_PATTERNS = [
