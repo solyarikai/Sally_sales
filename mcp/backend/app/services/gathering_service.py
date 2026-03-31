@@ -551,7 +551,7 @@ Rules:
             if dc.employee_count:
                 company_text += f"\nEmployees: {dc.employee_count}"
             if scrape_text:
-                company_text += f"\n\nWebsite content:\n{scrape_text[:3000]}"
+                company_text += f"\n\nWebsite content:\n{scrape_text[:12000]}"
 
             async with sem.acquire():
                 try:
@@ -585,12 +585,12 @@ Rules:
                     if not data:
                         return {"domain": dc.domain, "error": "no_response"}
                     extract_openai_usage(data, "gpt-4o-mini", "analyze_company")
-                        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                        clean = content.strip()
-                        if clean.startswith("```"):
-                            clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
-                        parsed = _json.loads(clean)
-                        return {"dc_id": dc.id, "domain": dc.domain, "name": dc.name, **parsed}
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    clean = content.strip()
+                    if clean.startswith("```"):
+                        clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+                    parsed = _json.loads(clean)
+                    return {"dc_id": dc.id, "domain": dc.domain, "name": dc.name, **parsed}
                 except _json.JSONDecodeError:
                     return {"dc_id": dc.id, "domain": dc.domain, "name": dc.name,
                             "is_target": False, "confidence": 0, "segment": "PARSE_ERROR",
@@ -892,7 +892,7 @@ Rules:
                     company_context += f"\nCountry: {dc.country}"
                 if dc.employee_count:
                     company_context += f"\nEmployees: {dc.employee_count}"
-                company_context += f"\n\nWebsite content:\n{text[:3000]}"
+                company_context += f"\n\nWebsite content:\n{text[:12000]}"
 
                 async with semaphore:
                     try:
