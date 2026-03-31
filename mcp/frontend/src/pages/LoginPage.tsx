@@ -66,7 +66,7 @@ export default function LoginPage() {
             <div style={{ fontSize: 12, color: 'var(--text-muted, #666)', marginBottom: 8 }}>Save your API token — you'll need it for Claude Code:</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <code style={{ flex: 1, fontSize: 11, padding: '8px 10px', background: 'var(--bg, #f5f5f5)', borderRadius: 6, wordBreak: 'break-all', fontFamily: 'monospace' }}>{signupToken}</code>
-              <button onClick={() => { navigator.clipboard.writeText(signupToken); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000) }}
+              <button onClick={() => { const ta = document.createElement('textarea'); ta.value = signupToken; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); setTokenCopied(true); setTimeout(() => setTokenCopied(false), 2000) }}
                 style={{ fontSize: 11, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border, #e5e5e5)', background: tokenCopied ? '#22c55e' : 'var(--bg, #fff)', color: tokenCopied ? 'white' : 'var(--text, #333)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 {tokenCopied ? 'Copied!' : 'Copy'}
               </button>
