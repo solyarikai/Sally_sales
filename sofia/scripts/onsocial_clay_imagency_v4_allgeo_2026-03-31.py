@@ -612,7 +612,12 @@ def check_search_status() -> dict:
 # STEP 9: EXPORT TARGETS
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step9_export_targets(force: bool = False) -> list[dict]:
+def step9_export_targets(force: bool = False, segment_filter: str = None) -> list[dict]:
+    """Export targets from search_results (search pipeline) or discovered_companies (legacy).
+
+    Tries search_results first (current pipeline), falls back to discovered_companies.
+    Filters by matched_segment containing 'AGENC' or 'IM_FIRST' for this segment.
+    """
     print(f"\n{'='*60}")
     print(f"STEP 9: Export Targets (project_id={PROJECT_ID})")
     print(f"{'='*60}")
@@ -622,8 +627,13 @@ def step9_export_targets(force: bool = False) -> list[dict]:
         print(f"  Loaded from cache: {len(targets)} targets")
         return targets
 
-    sql = (f"SELECT domain, name, matched_segment, confidence "
-           f"FROM discovered_companies WHERE project_id={PROJECT_ID} AND is_target=true")
+    # Try search_results first (new pipeline)
+    seg_filter = segment_filter or "IM_FIRST_AGENCIES"
+    sql = (f"SELECT DISTINCT sr.domain, sr.company_name, sr.matched_segment, sr.confidence "
+           f"FROM search_results sr "
+           f"WHERE sr.project_id={PROJECT_ID} AND sr.is_target=true "
+           f"AND sr.domain IS NOT NULL AND sr.domain != '' "
+           f"AND (sr.matched_segment ILIKE '%AGENC%' OR sr.matched_segment ILIKE '%IM_FIRST%')")
     r = subprocess.run(
         ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
          "-d", "leadgen", "-t", "-A", "-F", "|", "-c", sql],
@@ -643,15 +653,38 @@ def step9_export_targets(force: bool = False) -> list[dict]:
                 "confidence": parts[3].strip() if len(parts) > 3 else "",
             })
 
+    # Fallback: discovered_companies (legacy)
     if not targets:
-        print("  No targets found. Complete backend pipeline first (Steps 0-8).")
+        print("  No targets in search_results, trying discovered_companies...")
+        sql2 = (f"SELECT domain, name, matched_segment, confidence "
+                f"FROM discovered_companies WHERE project_id={PROJECT_ID} AND is_target=true "
+                f"AND (matched_segment ILIKE '%AGENC%' OR matched_segment ILIKE '%IM_FIRST%')")
+        r2 = subprocess.run(
+            ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+             "-d", "leadgen", "-t", "-A", "-F", "|", "-c", sql2],
+            capture_output=True, text=True, timeout=30,
+        )
+        for line in r2.stdout.strip().split("\n"):
+            if not line.strip():
+                continue
+            parts = line.split("|")
+            if len(parts) >= 3:
+                targets.append({
+                    "domain": parts[0].strip(),
+                    "company_name": parts[1].strip(),
+                    "segment": parts[2].strip(),
+                    "confidence": parts[3].strip() if len(parts) > 3 else "",
+                })
+
+    if not targets:
+        print("  No targets found. Run search first (--from-step start).")
         sys.exit(1)
 
     save_json(TARGETS_FILE, targets)
 
     today = tag()
     save_csv(CSV_DIR / f"targets_{SEGMENT_CODE}_{today}.csv", targets,
-             sheet_name=f"{PROJECT_CODE} | Targets | {SEGMENT_CODE} v4 Clay - {today}")
+             sheet_name=f"{PROJECT_CODE} | Targets | {SEGMENT_CODE} v4 - {today}")
     print(f"  Exported: {len(targets)} targets")
 
     return targets
