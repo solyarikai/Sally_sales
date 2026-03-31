@@ -485,12 +485,17 @@ def step0_scrape_companies(force: bool = False) -> list[dict]:
         "node", str(scraper_path),
         "--keywords", ",".join(COMPANY_KEYWORDS),
         "--max-pages", "100",
-        "--output", output_file,
+        "--output-file", output_file,
+        "--output-dir", str(output_dir),
         "--resume",
     ]
 
     for size in COMPANY_SIZES:
         cmd.extend(["--sizes", size])
+
+    # ALL GEO: pass all major regions
+    for loc in ALL_GEO_LOCATIONS:
+        cmd.extend(["--location", loc])
 
     print(f"  Running: {' '.join(cmd[:6])}...")
     print(f"  Output: {output_dir / output_file}")
