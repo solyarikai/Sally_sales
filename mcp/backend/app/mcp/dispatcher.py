@@ -273,13 +273,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             from app.services.apollo_service import ApolloService
             svc = ApolloService(api_key=api_key)
             connected = await svc.test_connection()
-            if connected:
-                info = await svc.get_account_info()
-                plan = "Pro" if info.get("is_core") else "Free"
-                limit = info.get("free_lead_credit_limit", 0)
-                message = f"Connected ({plan} plan, {limit} free credits/mo)"
-            else:
-                message = "Connection failed"
+            message = "Connected" if connected else "Connection failed"
         elif integration_name == "apify":
             # Apify proxy — just store the key, test by making a dummy request
             connected = bool(api_key and len(api_key) > 10)
