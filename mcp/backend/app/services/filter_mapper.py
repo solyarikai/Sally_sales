@@ -50,12 +50,15 @@ async def map_query_to_filters(
         }
     """
     from app.services.taxonomy_service import taxonomy_service
+    from app.db import async_session_maker
 
-    # ── Step A: Embedding pre-filter ──
-    keyword_shortlist = await taxonomy_service.get_keyword_shortlist(query, openai_key, top_n=50)
-    all_industries = taxonomy_service.get_all_industries()
+    # ── Step A: Embedding pre-filter (uses DB session for pgvector search) ──
+    async with async_session_maker() as tax_session:
+        keyword_shortlist = await taxonomy_service.get_keyword_shortlist(query, openai_key, tax_session, top_n=50)
+        all_industries = await taxonomy_service.get_all_industries(tax_session)
+        all_keywords = await taxonomy_service.get_all_keywords(tax_session)
     employee_ranges = taxonomy_service.get_employee_ranges()
-    keyword_map_size = len(taxonomy_service.get_all_keywords())
+    keyword_map_size = len(all_keywords)
 
     logger.info(f"Filter mapper: {len(all_industries)} industries, "
                 f"{keyword_map_size} keywords in map, {len(keyword_shortlist)} in shortlist")
@@ -96,7 +99,7 @@ async def map_query_to_filters(
         logger.warning(f"Dropped invalid industries: {dropped}")
 
     # Validate keywords against known list
-    valid_keywords = set(k.lower() for k in taxonomy_service.get_all_keywords())
+    valid_keywords = set(k.lower() for k in all_keywords)
     keywords_clean = [k for k in keywords_selected if k.lower() in valid_keywords]
     keywords_unverified = [k for k in keywords_selected if k.lower() not in valid_keywords]
     keywords_unverified.extend(unverified)
