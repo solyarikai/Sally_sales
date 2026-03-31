@@ -42,7 +42,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_TARGET_COUNT = 100
 DEFAULT_CONTACTS_PER_COMPANY = 3
 PAGES_PER_BATCH = 4
-COMPANIES_PER_PAGE = 100  # Apollo supports up to 100 per page
+EXPLORATION_PER_PAGE = 25    # Iteration 1: small sample for filter improvement
+SCALE_PER_PAGE = 100         # Iteration 2+: full speed after improvement
 
 # Background task registry — tracks running orchestrator tasks by run_id
 _running_tasks: Dict[int, asyncio.Task] = {}
@@ -212,7 +213,7 @@ class PipelineOrchestrator:
         batch_filters = dict(filters)
         batch_filters["max_pages"] = pages
         batch_filters["page_offset"] = self.pages_fetched + 1
-        batch_filters["per_page"] = COMPANIES_PER_PAGE
+        batch_filters["per_page"] = EXPLORATION_PER_PAGE if batch_num == 1 else SCALE_PER_PAGE
 
         # Gather — use adapter directly to append to existing run
         try:

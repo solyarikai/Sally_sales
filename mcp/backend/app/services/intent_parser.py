@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from app.services.cost_tracker import extract_openai_usage
+
 logger = logging.getLogger(__name__)
 
 # Load Apollo taxonomy once at import time
@@ -145,6 +147,7 @@ async def _call_openai(api_key: str, prompt: str) -> Optional[Dict]:
                 if "error" in data:
                     logger.warning(f"Intent parsing with {model} failed: {data['error']}")
                     continue
+                extract_openai_usage(data, model, "parse_gathering_intent")
                 content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                 result = _parse_json(content)
                 if result:

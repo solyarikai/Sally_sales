@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from app.services.cost_tracker import extract_openai_usage
+
 logger = logging.getLogger(__name__)
 
 
@@ -163,6 +165,7 @@ Return JSON: {{"industries": ["exact name"]}}"""
                 data = resp.json()
                 if "error" in data:
                     continue
+                extract_openai_usage(data, try_model, "pick_industries")
                 content = data["choices"][0]["message"]["content"].strip()
                 if content.startswith("```"):
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0]
@@ -235,6 +238,7 @@ Return ONLY valid JSON:
                 if "error" in data:
                     logger.warning(f"Filter mapper {try_model}: {data['error']}")
                     continue
+                extract_openai_usage(data, try_model, "map_filters")
                 content = data["choices"][0]["message"]["content"].strip()
                 if content.startswith("```"):
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0]
