@@ -45,32 +45,20 @@ async def lifespan(app: FastAPI):
                 await session.commit()
                 stats = await taxonomy_service.stats(session)
                 logger.info(f"Taxonomy: {stats}")
-            # Step 2: Compute embeddings (separate session, separate try)
+            # Step 2: Compute embeddings using SYSTEM OpenAI key (not user keys)
             if stats.get("embeddings", 0) < stats.get("keywords", 0):
                 try:
-                    async with async_session_maker() as session:
-                        from sqlalchemy import select
-                        from app.models.integration import MCPIntegrationSetting
-                        from app.services.encryption import decrypt_value
-                        r = await session.execute(select(MCPIntegrationSetting).where(
-                            MCPIntegrationSetting.integration_name == "openai",
-                            MCPIntegrationSetting.is_connected == True,
-                        ))
-                        key = None
-                        for oai in r.scalars().all():
-                            try:
-                                key = decrypt_value(oai.api_key_encrypted)
-                                break  # Found a decryptable key
-                            except Exception:
-                                continue
-                        if key:
-                            computed = await taxonomy_service.rebuild_embeddings(key, session)
+                    from app.config import settings
+                    system_key = settings.OPENAI_API_KEY
+                    if system_key:
+                        async with async_session_maker() as session:
+                            computed = await taxonomy_service.rebuild_embeddings(system_key, session)
                             await session.commit()
                             logger.info(f"Taxonomy: computed {computed} embeddings")
-                        else:
-                            logger.info("Taxonomy: no OpenAI key for embeddings yet")
+                    else:
+                        logger.warning("Taxonomy: OPENAI_API_KEY not set in env — no embeddings")
                 except Exception as e:
-                    logger.warning(f"Taxonomy embeddings failed (will retry on next tool call): {e}")
+                    logger.warning(f"Taxonomy embeddings failed: {e}")
         asyncio.get_event_loop().create_task(_seed_taxonomy())
     except Exception as e:
         logger.warning(f"Taxonomy seed failed: {e}")
