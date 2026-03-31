@@ -101,6 +101,21 @@ function ProjectSelector() {
 
 import { useTheme as useThemeStore } from './hooks/useTheme'
 
+/** Watches URL ?project= param and auto-selects the project in the top-left selector */
+function ProjectFromURL() {
+  const loc = useLocation()
+  const { projects, setProject } = useProject()
+  useEffect(() => {
+    const params = new URLSearchParams(loc.search)
+    const pid = params.get('project')
+    if (pid && projects.length) {
+      const found = projects.find((p: any) => p.id === +pid)
+      if (found) setProject(found)
+    }
+  }, [loc.search, projects])
+  return null
+}
+
 export default function App() {
   const { isDark: dark, toggle: toggleTheme } = useThemeStore()
   const [project, setPS] = useState<any>(null)
@@ -123,13 +138,23 @@ export default function App() {
   useEffect(() => { loadProjects() }, [])
 
   const setProject = (p: any) => { setPS(p); p ? localStorage.setItem('mcp-project', String(p.id)) : localStorage.removeItem('mcp-project') }
-  useEffect(() => { const s = localStorage.getItem('mcp-project'); if (s && projects.length) { const f = projects.find((p: any) => p.id === +s); if (f) setPS(f) } }, [projects])
+  useEffect(() => {
+    if (!projects.length) return
+    // Priority 1: ?project=ID from URL query string
+    const url = new URL(window.location.href)
+    const qp = url.searchParams.get('project')
+    if (qp) { const f = projects.find((p: any) => p.id === +qp); if (f) { setPS(f); localStorage.setItem('mcp-project', String(f.id)); return } }
+    // Priority 2: localStorage
+    const s = localStorage.getItem('mcp-project')
+    if (s) { const f = projects.find((p: any) => p.id === +s); if (f) setPS(f) }
+  }, [projects])
 
   return (
     <ThemeCtx.Provider value={{ dark, toggle: toggleTheme }}>
       <ToastProvider>
       <ProjectCtx.Provider value={{ project, projects, setProject, reload: loadProjects }}>
         <BrowserRouter>
+          <ProjectFromURL />
           <PageTitle />
           <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: dark ? '#1e1e1e' : '#f5f5f5', color: dark ? '#d4d4d4' : '#333' }}>
             <header style={{ height: 48, borderBottom: `1px solid ${dark ? '#333' : '#e0e0e0'}`, display: 'flex', alignItems: 'center', padding: '0 16px', background: dark ? '#252526' : '#ffffff' }}>
