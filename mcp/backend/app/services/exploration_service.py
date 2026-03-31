@@ -307,18 +307,29 @@ async def _enrich_targets(api_key: str, targets: List[Dict]) -> List[Dict]:
 
 
 def _extract_common_labels(enriched: List[Dict]) -> Dict[str, List[str]]:
-    """Extract common Apollo labels from enriched targets."""
+    """Extract common Apollo labels from enriched targets.
+
+    CRITICAL: extracts industry_tag_ids (MongoDB ObjectIds) — these are the BEST
+    filter for Apollo search pagination. q_organization_keyword_tags has broken pagination.
+    """
     industries = Counter()
+    industry_tag_ids = Counter()  # THE KEY FINDING: real Apollo IDs for search
     keywords = Counter()
     sic_codes = Counter()
 
     for e in enriched:
         org = e.get("enriched", {})
 
-        # Industry
+        # Industry name
         ind = org.get("industry") or org.get("organization_industry")
         if ind:
             industries[ind] += 1
+
+        # Industry tag ID — MongoDB ObjectId from Apollo (e.g. "5567cd82736964540d0b0000")
+        # This is the CORRECT filter for organization_industry_tag_ids in search
+        tag_id = org.get("industry_tag_id")
+        if tag_id:
+            industry_tag_ids[tag_id] += 1
 
         # Keywords
         kw_tags = org.get("keywords") or org.get("keyword_tags") or []
@@ -333,11 +344,9 @@ def _extract_common_labels(enriched: List[Dict]) -> Dict[str, List[str]]:
         for code in sic:
             sic_codes[str(code)] += 1
 
-    # Return ALL labels from targets — broader = more companies in Apollo
-    # Industries: include all (these are the big multipliers)
-    # Keywords: include top 15 by frequency (covers all enriched targets)
     return {
         "industries": [k for k, v in industries.most_common(10)],
+        "industry_tag_ids": [k for k, v in industry_tag_ids.most_common(5)],  # BEST for search
         "keywords": [k for k, v in keywords.most_common(15)],
         "sic_codes": [k for k, v in sic_codes.most_common(5)],
     }
@@ -408,5 +417,11 @@ Return ONLY a JSON array of keywords to ADD (max 8):
         industry_kw = [ind for ind in common_labels.get("industries", []) if ind.lower() not in existing_kw]
         if industry_kw:
             optimized["q_organization_keyword_tags"] = list(optimized.get("q_organization_keyword_tags", [])) + industry_kw[:5]
+
+    # CRITICAL: add industry_tag_ids from enrichment — BEST pagination in Apollo search
+    tag_ids = common_labels.get("industry_tag_ids", [])
+    if tag_ids:
+        optimized["organization_industry_tag_ids"] = tag_ids
+        logger.info(f"Added {len(tag_ids)} industry_tag_ids from enrichment (best Apollo pagination)")
 
     return optimized
