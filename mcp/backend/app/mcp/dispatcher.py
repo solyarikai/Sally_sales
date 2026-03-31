@@ -229,13 +229,22 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "message": (
                 f"Welcome back, {user.name}!\n\n"
                 + keys_msg
-                + (("\n".join(f"- Project: {p.name} — {'OFFER NOT CONFIRMED' if not p.offer_approved else 'ready'} — http://46.62.210.24:3000/projects/{p.id}" for p in projects) + "\n") if projects else "No projects yet. Create one with create_project.\n")
-                + (f"{len(runs)} pipeline run{'s' if len(runs) != 1 else ''} ({sum(1 for r in runs if r.current_phase in ('awaiting_targets_ok','awaiting_scope_ok'))} awaiting approval)\n" if runs else "")
-                + (f"{len(drafts)} DRAFT campaign{'s' if len(drafts) != 1 else ''} pending review\n" if drafts else "")
-                + (f"{reply_count} replies tracked ({warm_count} warm)\n" if reply_count else "")
-                # Critical: surface unapproved offers as top-priority action
-                + ("".join(f"\n⚠️ CRITICAL: Offer not confirmed for '{p.name}'. Must call confirm_offer before gathering can start.\n" for p in projects if not p.offer_approved))
-                + "\nWhat would you like to do?"
+                + (("\n".join(
+                    f"- {p.name}: http://46.62.210.24:3000/projects/{p.id}"
+                    + (f" — OFFER CONFIRMED ✓" if p.offer_approved else f" — ⚠️ OFFER NOT CONFIRMED")
+                    for p in projects) + "\n") if projects else "No projects yet. Tell me your company website to create one.\n")
+                + (f"{len(runs)} pipeline run{'s' if len(runs) != 1 else ''}\n" if runs else "")
+                + (f"{len(drafts)} DRAFT campaign{'s' if len(drafts) != 1 else ''}\n" if drafts else "")
+                + (f"{reply_count} replies ({warm_count} warm)\n" if reply_count else "")
+                # CRITICAL: if any project has unapproved offer, this is THE next step
+                + ("".join(
+                    f"\n🚨 NEXT STEP: Offer not confirmed for '{p.name}'."
+                    + (f" Website: {p.website}." if getattr(p, 'website', None) else "")
+                    + (f"\nCurrent offer: {(p.offer_summary or {}).get('primary_offer', p.target_segments or 'NOT SET')}" if p.offer_summary or p.target_segments else "\nNo offer extracted yet.")
+                    + f"\nYou MUST either: (1) open {p.website or 'the website'} yourself, read it, and call confirm_offer(feedback='description of the offer'), OR (2) ask the user what they sell."
+                    + f"\nGathering is BLOCKED until the offer is confirmed.\n"
+                    for p in projects if not p.offer_approved))
+                + ("\nWhat would you like to do?" if all(p.offer_approved for p in projects) else "")
             ),
         }
 
@@ -464,6 +473,7 @@ Return ONLY valid JSON, no markdown."""
 
         project = Project(
             company_id=company.id, user_id=user.id, name=args["name"],
+            website=website,
             target_segments=target_segments or None,
             target_industries=args.get("target_industries"),
             sender_name=args.get("sender_name"),
