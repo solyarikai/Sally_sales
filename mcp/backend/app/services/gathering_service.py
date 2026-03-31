@@ -321,8 +321,8 @@ class GatheringService:
                     errors += 1
 
             await scraper_service.scrape_batch(
-                batch_items, timeout=10, max_concurrent=10,
-                delay=0.1, on_result=on_result,
+                batch_items, timeout=15, max_concurrent=50,
+                delay=0.02, on_result=on_result,
             )
         else:
             scraped = len(companies)
@@ -332,8 +332,8 @@ class GatheringService:
 
     # ── Phase 5: Analyze ──
 
-    ANALYSIS_BATCH_SIZE = 25
-    ANALYSIS_CONCURRENCY = 10
+    ANALYSIS_BATCH_SIZE = 50   # Process 50 companies per batch (was 25)
+    ANALYSIS_CONCURRENCY = 25  # 25 concurrent GPT-4o-mini calls (was 10, RPM limit ~1000)
 
     async def analyze(
         self, session: AsyncSession, run: GatheringRun,
@@ -730,8 +730,8 @@ Rules:
 
     # ── Company Name Normalization (targets only) ──
 
-    NORMALIZE_BATCH_SIZE = 20
-    NORMALIZE_CONCURRENCY = 10
+    NORMALIZE_BATCH_SIZE = 50   # (was 20)
+    NORMALIZE_CONCURRENCY = 25  # (was 10)
 
     NORMALIZE_SYSTEM_PROMPT = (
         "You are a data normalization expert. Normalize the company name to its clean, "
