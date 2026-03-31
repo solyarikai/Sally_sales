@@ -39,28 +39,38 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(8)  # Wait for DB
             from app.db import async_session_maker
             from app.services.taxonomy_service import taxonomy_service
+            # Step 1: Seed taxonomy (must commit before embeddings)
             async with async_session_maker() as session:
                 await taxonomy_service._ensure_seeded(session)
+                await session.commit()
                 stats = await taxonomy_service.stats(session)
                 logger.info(f"Taxonomy: {stats}")
-                # Compute embeddings if OpenAI key available (from any user)
-                if stats.get("embeddings", 0) < stats.get("keywords", 0):
-                    from sqlalchemy import select
-                    from app.models.integration import MCPIntegrationSetting
-                    from app.services.encryption import decrypt_value
-                    r = await session.execute(select(MCPIntegrationSetting).where(
-                        MCPIntegrationSetting.integration_name == "openai",
-                        MCPIntegrationSetting.is_connected == True,
-                    ).limit(1))
-                    oai = r.scalar_one_or_none()
-                    if oai:
-                        key = decrypt_value(oai.api_key_encrypted)
-                        computed = await taxonomy_service.rebuild_embeddings(key, session)
-                        await session.commit()
-                        logger.info(f"Taxonomy: computed {computed} embeddings")
-                    else:
-                        logger.info("Taxonomy: no OpenAI key available for embeddings")
-                await session.commit()
+            # Step 2: Compute embeddings (separate session, separate try)
+            if stats.get("embeddings", 0) < stats.get("keywords", 0):
+                try:
+                    async with async_session_maker() as session:
+                        from sqlalchemy import select
+                        from app.models.integration import MCPIntegrationSetting
+                        from app.services.encryption import decrypt_value
+                        r = await session.execute(select(MCPIntegrationSetting).where(
+                            MCPIntegrationSetting.integration_name == "openai",
+                            MCPIntegrationSetting.is_connected == True,
+                        ))
+                        key = None
+                        for oai in r.scalars().all():
+                            try:
+                                key = decrypt_value(oai.api_key_encrypted)
+                                break  # Found a decryptable key
+                            except Exception:
+                                continue
+                        if key:
+                            computed = await taxonomy_service.rebuild_embeddings(key, session)
+                            await session.commit()
+                            logger.info(f"Taxonomy: computed {computed} embeddings")
+                        else:
+                            logger.info("Taxonomy: no OpenAI key for embeddings yet")
+                except Exception as e:
+                    logger.warning(f"Taxonomy embeddings failed (will retry on next tool call): {e}")
         asyncio.get_event_loop().create_task(_seed_taxonomy())
     except Exception as e:
         logger.warning(f"Taxonomy seed failed: {e}")
