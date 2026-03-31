@@ -24,14 +24,16 @@ People filters (v4):
 
 Steps:
   Step 0:     Clay Company Search via backend API (clay.companies.emulator)
-  Step 2:     Blacklist check → CP1 СТОП
-  Steps 3-4:  Pre-filter + Scrape websites
-  Step 5:     Classify (GPT-4o-mini) → CP2 СТОП
+  Step 1:     Dedup — убираем компании, уже найденные в предыдущих запусках (auto)
+  Step 2:     Blacklist check — проверка по чёрному списку проекта → CP1 СТОП
+  Step 3:     Pre-filter — убираем мусор (офлайн, мёртвые сайты)
+  Step 4:     Scrape — скачиваем содержимое сайтов для анализа (FREE)
+  Step 5:     Classify (GPT-4o-mini) — AI классификация компаний → CP2 СТОП
   Step 6:     Verify targets (Claude Code в чате) — ищем false positives
   Step 7:     Adjust prompt → повторить 5-6 до accuracy ≥90%
-  Step 8:     Apollo People UI Search (apollo_scraper.js) → CP3 СТОП (approve FindyMail cost)
+  Step 8:     Apollo People Search (Puppeteer UI) → CP3 СТОП (approve FindyMail cost)
   Step 9:     FindyMail email enrichment ($0.01/email)
-  Step 10:    SmartLead upload (per-segment checkpoints)
+  Step 10:    SmartLead upload (per-segment checkpoints, NEVER auto-activate)
 
 Usage (run on Hetzner via SSH):
   cd ~/magnum-opus-project/repo
