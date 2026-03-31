@@ -200,7 +200,7 @@ CLAY_FILTERS = {
     ],
     # ALL GEO - no country_names filter
     "minimum_member_count": 10,
-    "maximum_member_count": 500,
+    "maximum_member_count": 5000,
     "max_results": 5000,
 }
 
