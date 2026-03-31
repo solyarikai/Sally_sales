@@ -7,7 +7,7 @@ TOOLS = [
         "description": """MANDATORY FIRST STEP. Call this BEFORE any other tool. ALL tools require authentication.
 
 If user hasn't provided a token yet, DO NOT proceed with ANY request. Instead say:
-"Sign up at http://46.62.210.24:3000/setup to get your API token, then paste it here."
+"Sign up at http://46.62.210.24:3000 to get your API token, then paste it here."
 
 NEVER ask questions about companies, segments, or campaigns before login. NEVER skip this step.
 Only accept tokens starting with mcp_.""",

@@ -28,10 +28,13 @@ export default function SetupPage() {
   const [result, setResult] = useState('')
 
   useEffect(() => {
-    if (!token) return
+    if (!token) { window.location.href = '/'; return }
     fetch(`${API}/auth/me`, { headers: { 'X-MCP-Token': token } })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) { setUserName(d.name); setUserEmail(d.email) } })
+      .then(d => {
+        if (d) { setUserName(d.name); setUserEmail(d.email) }
+        else { localStorage.removeItem('mcp_token'); window.location.href = '/' }
+      })
     loadIntegrations()
   }, [token])
 
