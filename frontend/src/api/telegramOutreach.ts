@@ -22,16 +22,22 @@ export interface TgAccount {
   system_lang_code?: string;
   status: string;
   spamblock_type: string;
+  spamblock_end?: string;
   daily_message_limit: number;
+  effective_daily_limit?: number;
+  warmup_day?: number | null;
+  is_young_session?: boolean;
   messages_sent_today: number;
   total_messages_sent: number;
   proxy_group_id?: number;
   proxy_group_name?: string;
   assigned_proxy_id?: number;
+  assigned_proxy_host?: string;
   tags: TgAccountTag[];
   campaigns_count: number;
   country_code?: string;
   session_created_at?: string;
+  telegram_created_at?: string;
   last_connected_at?: string;
   last_checked_at?: string;
   created_at?: string;
@@ -82,7 +88,9 @@ export interface TgCampaign {
   messages_sent_today: number;
   total_messages_sent: number;
   total_recipients: number;
+  tags: string[];
   accounts_count: number;
+  replies_count: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -312,6 +320,9 @@ export const telegramOutreachApi = {
   downloadTdata: (accountId: number) =>
     `${api.defaults.baseURL}${BASE}/accounts/${accountId}/download-tdata`,
 
+  downloadSession: (accountId: number) =>
+    `${api.defaults.baseURL}${BASE}/accounts/${accountId}/download-session`,
+
   uploadTdata: async (accountId: number, files: File[]) => {
     const formData = new FormData();
     files.forEach(f => formData.append('files', f));
@@ -380,6 +391,9 @@ export const telegramOutreachApi = {
     })).data;
   },
 
+  addRecipientsFromCrm: async (campaignId: number, contactIds: number[]) =>
+    (await api.post(`${BASE}/campaigns/${campaignId}/recipients/add-from-crm`, { contact_ids: contactIds })).data,
+
   deleteRecipient: async (campaignId: number, recipientId: number) =>
     (await api.delete(`${BASE}/campaigns/${campaignId}/recipients/${recipientId}`)).data,
 
@@ -443,6 +457,12 @@ export const telegramOutreachApi = {
   bulkUpdateCrmStatus: async (contactIds: number[], status: string) =>
     (await api.post(`${BASE}/crm/contacts/bulk-update-status`, contactIds, { params: { status } })).data,
 
+  deleteCrmContact: async (id: number) =>
+    (await api.delete(`${BASE}/crm/contacts/${id}`)).data,
+
+  bulkDeleteCrmContacts: async (ids: number[]) =>
+    (await api.post(`${BASE}/crm/contacts/bulk-delete`, { ids })).data,
+
   getCrmStats: async () =>
     (await api.get(`${BASE}/crm/stats`)).data,
 
@@ -468,6 +488,9 @@ export const telegramOutreachApi = {
 
   // Export & Clean
   exportAccountsURL: () => `${api.defaults.baseURL}${BASE}/accounts/export`,
+
+  getAccountAnalytics: async (accountId: number) =>
+    (await api.get(`${BASE}/accounts/${accountId}/analytics`)).data,
 
   bulkClean: async (accountIds: number[], params: { delete_dialogs?: boolean; delete_contacts?: boolean }) =>
     (await api.post(`${BASE}/accounts/bulk-clean`, { account_ids: accountIds }, { params })).data,
@@ -538,11 +561,29 @@ export const telegramOutreachApi = {
   getDialogMessages: async (dialogId: number, limit: number = 30) =>
     (await api.get(`${BASE}/inbox/dialogs/${dialogId}/messages`, { params: { limit } })).data,
 
-  sendDialogMessage: async (dialogId: number, text: string) =>
-    (await api.post(`${BASE}/inbox/dialogs/${dialogId}/send`, { text })).data,
+  sendDialogMessage: async (dialogId: number, text: string, opts?: { parseMode?: string; replyTo?: number }) =>
+    (await api.post(`${BASE}/inbox/dialogs/${dialogId}/send`, { text, parseMode: opts?.parseMode, replyTo: opts?.replyTo })).data,
+
+  deleteDialogMessage: async (dialogId: number, msgId: number, revoke: boolean = false) =>
+    (await api.delete(`${BASE}/inbox/dialogs/${dialogId}/messages/${msgId}`, { params: { revoke } })).data,
+
+  reactDialogMessage: async (dialogId: number, msgId: number, emoji: string) =>
+    (await api.post(`${BASE}/inbox/dialogs/${dialogId}/messages/${msgId}/react`, { emoji })).data,
+
+  forwardDialogMessages: async (dialogId: number, targetDialogId: number, msgIds: number[]) =>
+    (await api.post(`${BASE}/inbox/dialogs/${dialogId}/forward`, { target_dialog_id: targetDialogId, msg_ids: msgIds })).data,
 
   tagDialog: async (dialogId: number, tag: string) =>
     (await api.patch(`${BASE}/inbox/dialogs/${dialogId}/tag`, { tag })).data,
+
+  markDialogUnread: async (dialogId: number) =>
+    (await api.post(`${BASE}/inbox/dialogs/${dialogId}/unread`)).data,
+
+  getDialogCrm: async (dialogId: number) =>
+    (await api.get(`${BASE}/inbox/dialogs/${dialogId}/crm`)).data,
+
+  listCampaignTags: async () =>
+    (await api.get(`${BASE}/inbox/campaign-tags`)).data as string[],
 
   triggerInboxSync: async (accountId?: number) =>
     (await api.post(`${BASE}/inbox/sync`, null, { params: accountId ? { account_id: accountId } : {} })).data,
@@ -552,4 +593,23 @@ export const telegramOutreachApi = {
 
   updateCampaignTags: async (campaignId: number, tags: string[]) =>
     (await api.patch(`${BASE}/campaigns/${campaignId}/tags`, tags)).data,
+
+  createNewChat: async (accountId: number, username: string) =>
+    (await api.post(`${BASE}/inbox/new-chat`, { account_id: accountId, username })).data,
+
+  // Blacklist
+  listBlacklist: async (params: { page?: number; page_size?: number; search?: string } = {}) =>
+    (await api.get(`${BASE}/blacklist`, { params })).data,
+
+  uploadBlacklist: async (raw_text: string, reason?: string) =>
+    (await api.post(`${BASE}/blacklist/upload`, { raw_text, reason })).data,
+
+  deleteBlacklistEntry: async (id: number) =>
+    (await api.delete(`${BASE}/blacklist/${id}`)).data,
+
+  bulkDeleteBlacklist: async (ids: number[]) =>
+    (await api.post(`${BASE}/blacklist/bulk-delete`, { ids })).data,
+
+  getBlacklistCount: async () =>
+    (await api.get(`${BASE}/blacklist/count`)).data,
 };

@@ -17,6 +17,48 @@ from telethon.sessions import SQLiteSession, StringSession
 
 logger = logging.getLogger(__name__)
 
+
+def _estimate_creation_date(user_id: int) -> Optional[str]:
+    """Estimate Telegram account creation date from user ID.
+    IDs are roughly sequential — interpolate between known reference points."""
+    from datetime import datetime
+    # Known reference points: (user_id, unix_timestamp)
+    refs = [
+        (1000000, 1380326400),      # Oct 2013
+        (10000000, 1413590400),     # Oct 2014
+        (50000000, 1432512000),     # May 2015
+        (100000000, 1447286400),    # Nov 2015
+        (200000000, 1474243200),    # Sep 2016
+        (300000000, 1490918400),    # Mar 2017
+        (400000000, 1508198400),    # Oct 2017
+        (500000000, 1524268800),    # Apr 2018
+        (600000000, 1543622400),    # Dec 2018
+        (700000000, 1560988800),    # Jun 2019
+        (800000000, 1571011200),    # Oct 2019
+        (900000000, 1580515200),    # Feb 2020
+        (1000000000, 1585699200),   # Apr 2020
+        (1200000000, 1596240000),   # Aug 2020
+        (1500000000, 1612137600),   # Feb 2021
+        (2000000000, 1631664000),   # Sep 2021
+        (3000000000, 1656633600),   # Jul 2022
+        (4000000000, 1677628800),   # Mar 2023
+        (5000000000, 1696118400),   # Oct 2023
+        (6000000000, 1714521600),   # May 2024
+        (7000000000, 1735689600),   # Jan 2025
+        (8000000000, 1751328000),   # Jul 2025
+    ]
+    if user_id <= refs[0][0]:
+        return datetime.utcfromtimestamp(refs[0][1]).isoformat()
+    if user_id >= refs[-1][0]:
+        return datetime.utcfromtimestamp(refs[-1][1]).isoformat()
+    for i in range(len(refs) - 1):
+        if refs[i][0] <= user_id <= refs[i + 1][0]:
+            ratio = (user_id - refs[i][0]) / (refs[i + 1][0] - refs[i][0])
+            ts = refs[i][1] + ratio * (refs[i + 1][1] - refs[i][1])
+            return datetime.utcfromtimestamp(ts).isoformat()
+    return None
+
+
 # Session files stored inside the backend container
 SESSIONS_DIR = Path(os.environ.get("TG_SESSIONS_DIR", "/app/tg_sessions"))
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -89,6 +131,7 @@ class TelegramEngine:
 
     def __init__(self):
         self._clients: dict[int, TelegramClient] = {}      # account_id -> connected client
+        self._client_proxy: dict[int, str] = {}             # account_id -> proxy key (for cache invalidation)
         self._pending_auths: dict[int, PendingAuth] = {}    # account_id -> auth state
         self._lock = asyncio.Lock()
 
@@ -110,6 +153,32 @@ class TelegramEngine:
 
     # ── Client creation ───────────────────────────────────────────────
 
+    @staticmethod
+    def _proxy_to_tuple(proxy: Optional[dict]):
+        """Convert proxy dict to Telethon-compatible tuple. Returns None if no proxy."""
+        if not proxy:
+            return None
+        import socks
+        proto_map = {"http": socks.HTTP, "socks5": socks.SOCKS5}
+        protocol = proxy.get("protocol", "http")
+        if protocol not in proto_map:
+            logger.warning(f"Unsupported proxy protocol '{protocol}', falling back to HTTP")
+        return (
+            proto_map.get(protocol, socks.HTTP),
+            proxy["host"],
+            proxy["port"],
+            True,  # rdns
+            proxy.get("username"),
+            proxy.get("password"),
+        )
+
+    @staticmethod
+    def _proxy_key(proxy: Optional[dict]) -> str:
+        """Return a stable string key for a proxy config (for cache comparison)."""
+        if not proxy:
+            return "direct"
+        return f"{proxy.get('protocol','http')}://{proxy.get('username','')}@{proxy['host']}:{proxy['port']}"
+
     def _make_client(
         self,
         phone: str,
@@ -123,18 +192,7 @@ class TelegramEngine:
         proxy: Optional[dict] = None,
     ) -> TelegramClient:
         session = str(self.session_path(phone))
-        proxy_tuple = None
-        if proxy:
-            import socks
-            proto_map = {"http": socks.HTTP, "socks5": socks.SOCKS5}
-            proxy_tuple = (
-                proto_map.get(proxy.get("protocol", "http"), socks.HTTP),
-                proxy["host"],
-                proxy["port"],
-                True,  # rdns
-                proxy.get("username"),
-                proxy.get("password"),
-            )
+        proxy_tuple = self._proxy_to_tuple(proxy)
 
         client = TelegramClient(
             session,
@@ -167,10 +225,30 @@ class TelegramEngine:
         proxy: Optional[dict] = None,
     ) -> TelegramClient:
         """Connect (or reuse) a Telethon client for the given account."""
+        new_proxy_key = self._proxy_key(proxy)
+
         async with self._lock:
             existing = self._clients.get(account_id)
             if existing and existing.is_connected():
-                return existing
+                # Invalidate cache if proxy changed
+                old_proxy_key = self._client_proxy.get(account_id, "direct")
+                if old_proxy_key == new_proxy_key:
+                    return existing
+                logger.warning(
+                    f"[PROXY] Account {phone} (id={account_id}): proxy changed "
+                    f"{old_proxy_key} -> {new_proxy_key}, reconnecting"
+                )
+                try:
+                    await existing.disconnect()
+                except Exception:
+                    pass
+                self._clients.pop(account_id, None)
+                self._client_proxy.pop(account_id, None)
+
+        if proxy:
+            logger.info(f"[PROXY] Account {phone} (id={account_id}): connecting via {new_proxy_key}")
+        else:
+            logger.warning(f"[PROXY] Account {phone} (id={account_id}): connecting DIRECT (no proxy assigned)")
 
         client = self._make_client(
             phone, api_id, api_hash,
@@ -180,11 +258,13 @@ class TelegramEngine:
         await client.connect()
         async with self._lock:
             self._clients[account_id] = client
+            self._client_proxy[account_id] = new_proxy_key
         return client
 
     async def disconnect(self, account_id: int):
         async with self._lock:
             client = self._clients.pop(account_id, None)
+            self._client_proxy.pop(account_id, None)
         if client:
             await client.disconnect()
 
@@ -192,6 +272,7 @@ class TelegramEngine:
         async with self._lock:
             clients = list(self._clients.values())
             self._clients.clear()
+            self._client_proxy.clear()
         for c in clients:
             try:
                 await c.disconnect()
@@ -261,12 +342,15 @@ class TelegramEngine:
         self, account_id: int, phone: str,
         api_id: int, api_hash: str, **kwargs
     ) -> dict:
-        """Connect, check auth, check spamblock via @SpamBot. Returns status dict."""
+        """Connect, check auth, check spamblock via @SpamBot, detect permanent ban. Returns status dict."""
         result = {
             "connected": False,
             "authorized": False,
             "spamblock": "unknown",
             "spamblock_end": None,
+            "frozen": False,
+            "banned": False,
+            "ban_reason": None,
             "username": None,
             "first_name": None,
             "last_name": None,
@@ -289,6 +373,11 @@ class TelegramEngine:
                 result["username"] = me.username
                 result["first_name"] = me.first_name
                 result["last_name"] = me.last_name
+                result["telegram_user_id"] = me.id
+
+                # Estimate account creation date from user ID
+                # Telegram IDs are roughly sequential — known reference points
+                result["telegram_created_at"] = _estimate_creation_date(me.id)
 
                 # Download avatar
                 try:
@@ -300,37 +389,131 @@ class TelegramEngine:
                 except Exception:
                     pass  # avatar download is best-effort
 
-            # Check SpamBot
+            # ── Check for Abuse Notifications (permanent ban) ─────────
             try:
-                spambot = await client.get_entity("@SpamBot")
-                await client.send_message(spambot, "/start")
-                await asyncio.sleep(2)
-
-                messages = await client.get_messages(spambot, limit=1)
-                if messages:
-                    text = messages[0].text or ""
-                    text_lower = text.lower()
-                    if "no limits" in text_lower or "free" in text_lower or "not limited" in text_lower:
-                        result["spamblock"] = "none"
-                    elif "temporary" in text_lower or "will be removed" in text_lower:
-                        result["spamblock"] = "temporary"
-                    elif "permanent" in text_lower:
-                        result["spamblock"] = "permanent"
-                    else:
-                        result["spamblock"] = "none"
-
-                # Clean up dialog
+                abuse_entity = None
                 try:
-                    await client.delete_dialog(spambot)
+                    abuse_entity = await client.get_entity("Abuse Notifications")
                 except Exception:
                     pass
+                if abuse_entity:
+                    msgs = await client.get_messages(abuse_entity, limit=3)
+                    if msgs:
+                        result["banned"] = True
+                        result["ban_reason"] = "abuse_notifications"
+                        logger.warning(f"Account {phone} has Abuse Notifications — permanent ban detected")
             except Exception as e:
-                logger.warning(f"SpamBot check failed for {phone}: {e}")
-                result["spamblock"] = "unknown"
+                logger.debug(f"Abuse Notifications check skipped for {phone}: {e}")
+
+            # ── Self-message test (catch silent bans) ─────────────────
+            if not result["banned"]:
+                try:
+                    await client.send_message("me", ".")
+                    # Clean up test message
+                    msgs = await client.get_messages("me", limit=1)
+                    if msgs and msgs[0].text == ".":
+                        await msgs[0].delete()
+                except errors.UserDeactivatedBanError:
+                    result["banned"] = True
+                    result["ban_reason"] = "user_deactivated"
+                    logger.warning(f"Account {phone} banned — UserDeactivatedBanError on self-message")
+                except (errors.AuthKeyUnregisteredError, errors.UserDeactivatedError):
+                    result["banned"] = True
+                    result["ban_reason"] = "send_failed"
+                    logger.warning(f"Account {phone} banned — cannot send self-message")
+                except errors.FloodWaitError:
+                    pass  # flood wait is not a ban
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "deactivated" in err_str or "banned" in err_str:
+                        result["banned"] = True
+                        result["ban_reason"] = "send_failed"
+                        logger.warning(f"Account {phone} likely banned — self-message error: {e}")
+
+            # ── Check SpamBot ─────────────────────────────────────────
+            if not result["banned"]:
+                try:
+                    spambot = await client.get_entity("@SpamBot")
+                    await client.send_message(spambot, "/start")
+                    await asyncio.sleep(2)
+
+                    messages = await client.get_messages(spambot, limit=1)
+                    if messages:
+                        text = messages[0].text or ""
+                        text_lower = text.lower()
+
+                        # ── Positive (no restrictions) — EN + RU ──
+                        no_limit_kw = [
+                            "no limits", "free as a bird", "not limited",        # EN
+                            "не ограничен", "всё хорошо", "нет ограничений",     # RU
+                        ]
+                        # ── Temporary restriction — EN + RU ──
+                        temp_kw = [
+                            "temporary", "will be removed", "will be lifted",    # EN
+                            "временно", "будет снято", "будет автоматически",     # RU
+                        ]
+                        # ── Permanent restriction — EN + RU ──
+                        perm_kw = [
+                            "permanent", "forever",                              # EN
+                            "навсегда", "навечно",                               # RU
+                        ]
+                        # ── Frozen / restricted (catch-all) — EN + RU ──
+                        restricted_kw = [
+                            "limited", "restricted", "frozen",                   # EN
+                            "ограничен", "заморожен", "заблокирован",            # RU
+                        ]
+
+                        if any(kw in text_lower for kw in no_limit_kw):
+                            result["spamblock"] = "none"
+                        elif any(kw in text_lower for kw in temp_kw):
+                            result["spamblock"] = "temporary"
+                            # Try to parse end date
+                            import re
+                            date_match = re.search(
+                                r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
+                                r'|(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
+                                r'|(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})',
+                                text, re.IGNORECASE
+                            )
+                            if date_match:
+                                try:
+                                    from dateutil import parser as dateparser
+                                    result["spamblock_end"] = dateparser.parse(date_match.group(0)).isoformat()
+                                except Exception:
+                                    pass
+                        elif any(kw in text_lower for kw in perm_kw):
+                            result["spamblock"] = "permanent"
+                        elif any(kw in text_lower for kw in restricted_kw):
+                            # SpamBot says account IS limited but doesn't say temp/perm
+                            result["spamblock"] = "temporary"
+                            result["frozen"] = True
+                            logger.warning(f"Account {phone} appears frozen — SpamBot: {text[:200]}")
+                        else:
+                            # Unrecognized response — do NOT assume clean
+                            result["spamblock"] = "unknown"
+                            logger.warning(f"Unrecognized SpamBot response for {phone}: {text[:200]}")
+
+                    # Clean up dialog
+                    try:
+                        await client.delete_dialog(spambot)
+                    except Exception:
+                        pass
+                except (errors.UserRestrictedError, errors.ChatWriteForbiddenError):
+                    result["spamblock"] = "temporary"
+                    result["frozen"] = True
+                    logger.warning(f"Account {phone} frozen — cannot message SpamBot (restricted)")
+                except Exception as e:
+                    logger.warning(f"SpamBot check failed for {phone}: {e}")
+                    result["spamblock"] = "unknown"
 
         except errors.AuthKeyUnregisteredError:
             result["connected"] = True
             result["authorized"] = False
+        except errors.UserDeactivatedBanError:
+            result["connected"] = True
+            result["authorized"] = True
+            result["banned"] = True
+            result["ban_reason"] = "user_deactivated"
         except Exception as e:
             logger.error(f"Check failed for {phone}: {e}")
             result["error"] = str(e)

@@ -32,8 +32,8 @@ class TelegramDMService:
     """Manages multiple Telegram user account connections for DM inbox."""
 
     def __init__(self):
-        self.api_id = settings.TELEGRAM_CHECKER_API_ID
-        self.api_hash = settings.TELEGRAM_CHECKER_API_HASH
+        self.api_id = getattr(settings, "TELEGRAM_CHECKER_API_ID", 0)
+        self.api_hash = getattr(settings, "TELEGRAM_CHECKER_API_HASH", "")
         self._clients: dict[int, TelegramClient] = {}  # account_id -> client
         self._lock = asyncio.Lock()
 
@@ -85,9 +85,16 @@ class TelegramDMService:
             results = []
             for acc_data in accounts_data:
                 try:
+                    import random as _rnd
+                    _fp_models = ["PC 64bit", "ThinkPadT480", "XPS15-9510", "Latitude5520", "VivoBookS15"]
+                    _fp_os = ["Windows 10", "Windows 11"]
+                    _fp_app = ["5.5.3 x64", "6.5.1 x64"]
                     client = TelegramClient(
                         StringSession(acc_data["string_session"]),
                         self.api_id, self.api_hash,
+                        device_model=_rnd.choice(_fp_models),
+                        system_version=_rnd.choice(_fp_os),
+                        app_version=_rnd.choice(_fp_app),
                     )
                     await client.connect()
                     if await client.is_user_authorized():
@@ -183,8 +190,12 @@ class TelegramDMService:
 
     # ── Connection Lifecycle ────────────────────────────────────────
 
-    async def connect_account(self, account_id: int, string_session: str, proxy_config: dict = None) -> bool:
-        """Connect a Telegram account from its saved StringSession."""
+    async def connect_account(
+        self, account_id: int, string_session: str, proxy_config: dict = None,
+        device_model: str = None, system_version: str = None,
+        app_version: str = None, lang_code: str = None, system_lang_code: str = None,
+    ) -> bool:
+        """Connect a Telegram account from its saved StringSession with per-account fingerprint."""
         async with self._lock:
             if account_id in self._clients:
                 old = self._clients[account_id]
@@ -200,6 +211,11 @@ class TelegramDMService:
                     StringSession(string_session),
                     self.api_id,
                     self.api_hash,
+                    device_model=device_model or "PC 64bit",
+                    system_version=system_version or "Windows 10",
+                    app_version=app_version or "6.5.1 x64",
+                    lang_code=lang_code or "en",
+                    system_lang_code=system_lang_code or "en-US",
                     proxy=self._parse_proxy(proxy_config),
                 )
                 await client.connect()
@@ -243,6 +259,7 @@ class TelegramDMService:
 
         from app.db.database import async_session_maker
         from app.models.telegram_dm import TelegramDMAccount
+        from app.models.telegram_outreach import TgAccount
         from sqlalchemy import select
 
         try:
@@ -254,13 +271,29 @@ class TelegramDMService:
                     )
                 )
                 accounts = result.scalars().all()
-                # Copy data while session is open (avoid lazy load after close)
-                account_data = [(acc.id, acc.string_session, acc.proxy_config) for acc in accounts]
+
+                # Copy data while session is open; also load fingerprints from TgAccount
+                account_data = []
+                for acc in accounts:
+                    fp = {}
+                    if acc.phone:
+                        tg_acc = (await session.execute(
+                            select(TgAccount).where(TgAccount.phone == acc.phone).limit(1)
+                        )).scalar()
+                        if tg_acc:
+                            fp = {
+                                "device_model": tg_acc.device_model,
+                                "system_version": tg_acc.system_version,
+                                "app_version": tg_acc.app_version,
+                                "lang_code": tg_acc.lang_code,
+                                "system_lang_code": tg_acc.system_lang_code,
+                            }
+                    account_data.append((acc.id, acc.string_session, acc.proxy_config, fp))
 
             connected = 0
-            for acc_id, ss, proxy in account_data:
+            for acc_id, ss, proxy, fp in account_data:
                 try:
-                    ok = await self.connect_account(acc_id, ss, proxy)
+                    ok = await self.connect_account(acc_id, ss, proxy, **fp)
                     if ok:
                         connected += 1
                         async with async_session_maker() as session:
@@ -300,8 +333,10 @@ class TelegramDMService:
         client = self._get_client(account_id)
         dialogs = []
 
+        total_seen = 0
         try:
             async for dialog in client.iter_dialogs(limit=limit * 2):
+                total_seen += 1
                 try:
                     # Only private chats (DMs), skip groups/channels/bots
                     if not dialog.is_user:
@@ -310,6 +345,23 @@ class TelegramDMService:
                     if isinstance(entity, User) and entity.bot:
                         continue
 
+                    # Determine if last message is outbound
+                    last_outbound = None
+                    if dialog.message:
+                        try:
+                            me = await client.get_me()
+                            last_outbound = (dialog.message.sender_id == me.id) if dialog.message.sender_id else None
+                        except Exception:
+                            pass
+
+                    # Get peer photo URL (small)
+                    photo_path = None
+                    try:
+                        if hasattr(entity, "photo") and entity.photo:
+                            photo_path = f"/api/telegram-dm/accounts/{account_id}/peer-photo/{dialog.id}"
+                    except Exception:
+                        pass
+
                     dialogs.append({
                         "peer_id": dialog.id,
                         "peer_name": dialog.name or "Unknown",
@@ -317,6 +369,8 @@ class TelegramDMService:
                         "last_message": dialog.message.text if dialog.message else None,
                         "last_message_at": dialog.message.date.isoformat() if dialog.message and dialog.message.date else None,
                         "unread_count": dialog.unread_count,
+                        "last_message_outbound": last_outbound,
+                        "peer_photo": photo_path,
                     })
                     if len(dialogs) >= limit:
                         break
@@ -337,6 +391,7 @@ class TelegramDMService:
             else:
                 raise
 
+        logger.info(f"Account {account_id}: get_dialogs total_seen={total_seen}, dm_count={len(dialogs)}")
         return dialogs
 
     async def get_messages(self, account_id: int, peer_id: int, limit: int = 50) -> list[dict]:
@@ -360,12 +415,56 @@ class TelegramDMService:
             async for msg in client.iter_messages(entity, limit=limit):
                 if not msg.text:
                     continue
+                # Extract reply info
+                reply_info = None
+                if msg.reply_to and hasattr(msg.reply_to, 'reply_to_msg_id'):
+                    reply_msg_id = msg.reply_to.reply_to_msg_id
+                    # Try to find the replied message text
+                    try:
+                        replied = await client.get_messages(entity, ids=reply_msg_id)
+                        if replied:
+                            reply_info = {
+                                "msg_id": reply_msg_id,
+                                "text": (replied.text or "")[:100],
+                                "sender_name": self._get_sender_name(replied, me) if replied.sender_id else "",
+                            }
+                    except Exception:
+                        reply_info = {"msg_id": reply_msg_id, "text": "", "sender_name": ""}
+
+                # Extract reactions
+                msg_reactions = []
+                if hasattr(msg, 'reactions') and msg.reactions and hasattr(msg.reactions, 'results'):
+                    for r in msg.reactions.results:
+                        if hasattr(r, 'reaction') and hasattr(r.reaction, 'emoticon'):
+                            msg_reactions.append({"emoji": r.reaction.emoticon, "count": r.count})
+
+                # Forward info
+                fwd_info = None
+                if msg.fwd_from:
+                    fwd_name = None
+                    if msg.fwd_from.from_id:
+                        try:
+                            fwd_entity = await client.get_entity(msg.fwd_from.from_id)
+                            fwd_name = getattr(fwd_entity, 'first_name', '') or getattr(fwd_entity, 'title', '')
+                            if hasattr(fwd_entity, 'last_name') and fwd_entity.last_name:
+                                fwd_name += ' ' + fwd_entity.last_name
+                        except Exception:
+                            fwd_name = 'Unknown'
+                    elif msg.fwd_from.from_name:
+                        fwd_name = msg.fwd_from.from_name
+                    if fwd_name:
+                        fwd_info = {"from_name": fwd_name}
+
                 messages.append({
                     "id": msg.id,
                     "direction": "outbound" if msg.sender_id == me.id else "inbound",
                     "text": msg.text,
                     "sent_at": msg.date.isoformat() if msg.date else None,
                     "sender_name": self._get_sender_name(msg, me),
+                    "reply_to": reply_info,
+                    "reactions": msg_reactions,
+                    "is_read": not msg.out or (msg.out and hasattr(msg, 'views')),
+                    "fwd_from": fwd_info,
                 })
         except FloodWaitError as e:
             logger.warning(f"Account {account_id} FloodWait on messages: {e.seconds}s")
@@ -374,16 +473,48 @@ class TelegramDMService:
                 return await self.get_messages(account_id, peer_id, limit)
             raise
 
+        # Get read status: fetch only the specific dialog, not all
+        read_outbox_max_id = 0
+        try:
+            from telethon.tl.functions.messages import GetPeerDialogsRequest
+            from telethon.tl.types import InputDialogPeer
+            inp = await client.get_input_entity(peer_id)
+            result = await client(GetPeerDialogsRequest(peers=[InputDialogPeer(peer=inp)]))
+            if result.dialogs:
+                read_outbox_max_id = result.dialogs[0].read_outbox_max_id or 0
+        except Exception as e:
+            logger.debug(f"Account {account_id}: read_outbox_max_id lookup failed: {e}")
+
+        # Annotate each outbound message with read status
+        for m in messages:
+            if m["direction"] == "outbound":
+                m["is_read"] = m["id"] <= read_outbox_max_id
+            else:
+                m["is_read"] = True
+
         # Return in chronological order
         messages.reverse()
         return messages
 
-    async def send_message(self, account_id: int, peer_id: int, text: str) -> dict:
-        """Send a Telegram DM."""
+    async def send_message(self, account_id: int, peer_id: int, text: str, parse_mode: str = None, reply_to: int = None) -> dict:
+        """Send a Telegram DM with optional formatting and reply."""
         client = self._get_client(account_id)
 
         try:
-            msg = await client.send_message(peer_id, text)
+            # Resolve entity first (peer_id may not be in cache after restart)
+            try:
+                entity = await client.get_entity(peer_id)
+            except Exception:
+                # Fallback: load dialogs to populate cache, then retry
+                await client.get_dialogs(limit=50)
+                entity = await client.get_entity(peer_id)
+
+            pm = None
+            if parse_mode == 'md':
+                pm = 'md'
+            elif parse_mode == 'html':
+                pm = 'html'
+            msg = await client.send_message(entity, text, parse_mode=pm, reply_to=reply_to)
             logger.info(f"Account {account_id}: sent message to {peer_id} (msg_id={msg.id})")
             return {"success": True, "message_id": msg.id}
         except FloodWaitError as e:
@@ -391,6 +522,80 @@ class TelegramDMService:
             return {"success": False, "error": f"Rate limited. Wait {e.seconds}s."}
         except Exception as e:
             logger.error(f"Account {account_id} send failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def resolve_username(self, account_id: int, username: str) -> dict:
+        """Resolve a @username to peer_id, name, etc. via Telethon."""
+        client = self._get_client(account_id)
+        username = username.lstrip("@").strip()
+        try:
+            entity = await client.get_entity(username)
+            if not isinstance(entity, User):
+                return {"success": False, "error": "Not a user (group or channel)"}
+            name_parts = [entity.first_name or "", entity.last_name or ""]
+            return {
+                "success": True,
+                "peer_id": entity.id,
+                "peer_name": " ".join(p for p in name_parts if p) or username,
+                "peer_username": entity.username,
+            }
+        except ValueError:
+            return {"success": False, "error": f"Username @{username} not found"}
+        except FloodWaitError as e:
+            return {"success": False, "error": f"Rate limited. Wait {e.seconds}s."}
+        except Exception as e:
+            logger.error(f"Account {account_id} resolve_username({username}) failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def delete_messages(self, account_id: int, peer_id: int, msg_ids: list[int], revoke: bool = False) -> dict:
+        """Delete messages. revoke=True deletes for everyone."""
+        client = self._get_client(account_id)
+        try:
+            try:
+                entity = await client.get_input_entity(peer_id)
+            except Exception:
+                await client.get_dialogs(limit=100)
+                entity = await client.get_input_entity(peer_id)
+            result = await client.delete_messages(entity, msg_ids, revoke=revoke)
+            logger.info(f"Account {account_id}: deleted {len(msg_ids)} messages in {peer_id} (revoke={revoke})")
+            return {"success": True, "deleted": len(msg_ids)}
+        except Exception as e:
+            logger.error(f"Account {account_id} delete failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def forward_messages(self, account_id: int, from_peer_id: int, msg_ids: list[int], to_peer_id: int) -> dict:
+        """Forward messages to another chat."""
+        client = self._get_client(account_id)
+        try:
+            from_entity = await client.get_input_entity(from_peer_id)
+            to_entity = await client.get_input_entity(to_peer_id)
+            result = await client.forward_messages(to_entity, msg_ids, from_entity)
+            logger.info(f"Account {account_id}: forwarded {len(msg_ids)} msgs from {from_peer_id} to {to_peer_id}")
+            return {"success": True, "forwarded": len(msg_ids)}
+        except Exception as e:
+            logger.error(f"Account {account_id} forward failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_reaction(self, account_id: int, peer_id: int, msg_id: int, emoji: str) -> dict:
+        """Send a reaction emoji to a message."""
+        client = self._get_client(account_id)
+        try:
+            from telethon.tl.functions.messages import SendReactionRequest
+            from telethon.tl.types import ReactionEmoji
+            try:
+                entity = await client.get_input_entity(peer_id)
+            except Exception:
+                await client.get_dialogs(limit=100)
+                entity = await client.get_input_entity(peer_id)
+            await client(SendReactionRequest(
+                peer=entity,
+                msg_id=msg_id,
+                reaction=[ReactionEmoji(emoticon=emoji)] if emoji else [],
+            ))
+            logger.info(f"Account {account_id}: reacted {emoji} on msg {msg_id} in {peer_id}")
+            return {"success": True}
+        except Exception as e:
+            logger.error(f"Account {account_id} reaction failed: {e}")
             return {"success": False, "error": str(e)}
 
     # ── Real-time Event Handlers (persistent connection) ──────────

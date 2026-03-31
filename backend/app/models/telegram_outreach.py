@@ -24,6 +24,7 @@ class TgAccountStatus(str, enum.Enum):
     ACTIVE = "active"
     PAUSED = "paused"
     SPAMBLOCKED = "spamblocked"
+    BANNED = "banned"
     DEAD = "dead"
     FROZEN = "frozen"
 
@@ -164,11 +165,16 @@ class TgAccount(Base, TimestampMixin):
     # Geo + Session age
     country_code = Column(String(5), nullable=True)
     session_created_at = Column(DateTime, nullable=True)
-    telegram_user_id = Column(Integer, nullable=True)
+    telegram_user_id = Column(BigInteger, nullable=True)
 
     # Timestamps
     last_connected_at = Column(DateTime, nullable=True)
     last_checked_at = Column(DateTime, nullable=True)
+    telegram_created_at = Column(DateTime, nullable=True)
+    spamblocked_at = Column(DateTime, nullable=True)
+    spamblock_end = Column(DateTime, nullable=True)
+    ban_reason = Column(String(255), nullable=True)  # e.g. "abuse_notifications", "send_failed"
+    banned_at = Column(DateTime, nullable=True)
 
     # Relationships
     proxy_group = relationship("TgProxyGroup", back_populates="accounts")
@@ -207,6 +213,9 @@ class TgCampaign(Base, TimestampMixin):
 
     # Error tolerance
     spamblock_errors_to_skip = Column(Integer, nullable=False, default=5)
+
+    # Follow-up priority (0=all new leads, 100=all follow-ups)
+    followup_priority = Column(Integer, nullable=False, default=100)
 
     # Send options
     link_preview = Column(Boolean, nullable=False, default=False)
@@ -444,6 +453,7 @@ class TgContactStatus(str, enum.Enum):
     COLD = "cold"
     CONTACTED = "contacted"
     REPLIED = "replied"
+    INTERESTED = "interested"
     QUALIFIED = "qualified"
     MEETING_SET = "meeting_set"
     CONVERTED = "converted"
@@ -460,7 +470,7 @@ class TgContact(Base, TimestampMixin):
     last_name = Column(String(100), nullable=True)
     company_name = Column(String(255), nullable=True)
     phone = Column(String(20), nullable=True)
-    telegram_user_id = Column(Integer, nullable=True)
+    telegram_user_id = Column(BigInteger, nullable=True)
 
     status = Column(
         SQLEnum(TgContactStatus, values_callable=lambda e: [x.value for x in e]),
@@ -478,3 +488,13 @@ class TgContact(Base, TimestampMixin):
     last_contacted_at = Column(DateTime, nullable=True)
     last_reply_at = Column(DateTime, nullable=True)
     source_campaign_id = Column(Integer, ForeignKey("tg_campaigns.id", ondelete="SET NULL"), nullable=True)
+
+
+class TgBlacklist(Base, TimestampMixin):
+    """Blacklisted Telegram usernames — recipients matching these are filtered out on upload."""
+    __tablename__ = "tg_blacklist"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), nullable=False, unique=True, index=True)
+    reason = Column(String(255), nullable=True)
+    added_by = Column(String(100), nullable=True)

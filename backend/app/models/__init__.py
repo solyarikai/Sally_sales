@@ -29,36 +29,28 @@ from .task import OperatorTask
 from .chat import ProjectChatMessage
 from .project_knowledge import ProjectKnowledge
 from .learning import LearningLog, OperatorCorrection, ReferenceExample
-from .call_transcript import CallTranscript
 from .campaign_audit_log import CampaignAuditLog
-from .gtm_log import GTMStrategyLog
-from .telegram_chat import TelegramChat, TelegramChatMessage, TelegramChatInsight
-from .telegram_dm import TelegramDMAccount
-from .telegram_outreach import (
-    TgProxyGroup, TgProxy, TgAccountTag, TgAccountTagLink, TgAccount,
-    TgCampaign, TgCampaignAccount, TgRecipient,
-    TgSequence, TgSequenceStep, TgStepVariant,
-    TgOutreachMessage, TgIncomingReply, TgAutoReplyConfig,
-    TgConversation, TgInboxDialog, TgContact,
-)
-from .meeting import Meeting, MeetingStatus, MeetingOutcome
-from .outreach_stats import OutreachStats
-from .reply_analysis import ReplyAnalysis
 from .pipeline_run import (
     PipelineRun, PipelineRunStatus, PipelinePhase,
     PipelinePhaseLog, PipelinePhaseStatus,
     CostEvent,
 )
-from .gathering import (
-    GatheringRun, CompanySourceLink, CompanyScrape,
-    GatheringPrompt, AnalysisRun, AnalysisResult, ApprovalGate,
+from .lookalike import (
+    LookalikeCluster, ClusterMember, LookalikeRun,
+    LookalikeRunStatus, LookalikePhase,
 )
-from .project_report import (
-    ProjectReport, ProjectPlan, ProjectProgressItem,
-    ProjectReportSubscription, ReportRole, ProgressStatus,
+from .igaming import (
+    IGamingContact, IGamingCompany, IGamingEmployee, IGamingImport,
+    IGamingAIColumn, BusinessType, IGamingImportStatus, EmployeeSource,
 )
-from .campaign_intelligence import (
-    CampaignSnapshot, CampaignPattern, CampaignIntelligenceRun, GeneratedSequence,
+from .telegram_outreach import (
+    TgAccount, TgAccountTag, TgAccountTagLink,
+    TgProxyGroup, TgProxy,
+    TgCampaign, TgCampaignAccount,
+    TgRecipient, TgSequence, TgSequenceStep, TgStepVariant, TgOutreachMessage,
+    TgIncomingReply,
+    TgAccountStatus, TgSpamblockType, TgProxyProtocol,
+    TgCampaignStatus, TgRecipientStatus, TgMessageStatus,
 )
 
 __all__ = [
@@ -100,34 +92,24 @@ __all__ = [
     "ProjectKnowledge",
     # Learning System
     "LearningLog", "OperatorCorrection", "ReferenceExample",
-    # Call Transcripts
-    "CallTranscript",
     # Campaign Audit
     "CampaignAuditLog",
-    # GTM Strategy Logs
-    "GTMStrategyLog",
-    # Telegram Chat Monitoring
-    "TelegramChat", "TelegramChatMessage", "TelegramChatInsight",
-    # Telegram DM Inbox
-    "TelegramDMAccount",
-    # Telegram Inbox Dialogs
-    "TgInboxDialog",
-    # Meetings
-    "Meeting", "MeetingStatus", "MeetingOutcome",
-    # Outreach Stats
-    "OutreachStats",
-    # Reply Intelligence
-    "ReplyAnalysis",
     # Pipeline Runs & Cost
     "PipelineRun", "PipelineRunStatus", "PipelinePhase",
     "PipelinePhaseLog", "PipelinePhaseStatus",
     "CostEvent",
-    # Project Reports
-    "ProjectReport", "ProjectPlan", "ProjectProgressItem",
-    "ProjectReportSubscription", "ReportRole", "ProgressStatus",
-    # TAM Gathering
-    "GatheringRun", "CompanySourceLink", "CompanyScrape",
-    "GatheringPrompt", "AnalysisRun", "AnalysisResult", "ApprovalGate",
-    # Campaign Intelligence (GOD_SEQUENCE)
-    "CampaignSnapshot", "CampaignPattern", "CampaignIntelligenceRun", "GeneratedSequence",
+    # Lookalike / TAM
+    "LookalikeCluster", "ClusterMember", "LookalikeRun",
+    "LookalikeRunStatus", "LookalikePhase",
+    # iGaming
+    "IGamingContact", "IGamingCompany", "IGamingEmployee", "IGamingImport",
+    "IGamingAIColumn", "BusinessType", "IGamingImportStatus", "EmployeeSource",
+    # Telegram Outreach
+    "TgAccount", "TgAccountTag", "TgAccountTagLink",
+    "TgProxyGroup", "TgProxy",
+    "TgCampaign", "TgCampaignAccount",
+    "TgRecipient", "TgSequence", "TgSequenceStep", "TgStepVariant", "TgOutreachMessage",
+    "TgIncomingReply",
+    "TgAccountStatus", "TgSpamblockType", "TgProxyProtocol",
+    "TgCampaignStatus", "TgRecipientStatus", "TgMessageStatus",
 ]

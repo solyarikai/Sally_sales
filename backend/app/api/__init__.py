@@ -32,17 +32,8 @@ from .learning import router as learning_router
 from .query_dashboard import router as query_dashboard_router
 from .operator_tasks import router as operator_tasks_router
 from .god_panel import router as god_panel_router
-from .chat_intel import router as chat_intel_router
-from .diaspora import router as diaspora_router
-from .calendly_webhook import router as calendly_webhook_router
-from .outreach_stats import router as outreach_stats_router
-from .client_dashboard import router as client_dashboard_router
-from .fireflies import router as fireflies_router
-from .intelligence import router as intelligence_router
-from .project_reports import router as project_reports_router
-from .gathering import router as gathering_router
-from .campaign_intelligence import router as campaign_intelligence_router
-from .telegram_dm import router as telegram_dm_router
+from .lookalike import router as lookalike_router
+from .igaming import router as igaming_router
 from .telegram_outreach import router as telegram_outreach_router
 
 api_router = APIRouter(prefix="/api")
@@ -112,40 +103,13 @@ api_router.include_router(operator_tasks_router)
 # God Panel (campaign intelligence dashboard)
 api_router.include_router(god_panel_router)
 
-# Chat Intelligence (Telegram chat analysis)
-api_router.include_router(chat_intel_router)
+# Lookalike / TAM (cluster-based company discovery)
+api_router.include_router(lookalike_router)
 
-# Diaspora Contact Gathering
-api_router.include_router(diaspora_router)
+# iGaming contacts database
+api_router.include_router(igaming_router)
 
-# Calendly Webhooks
-api_router.include_router(calendly_webhook_router)
-
-# Outreach Stats (Client Report)
-api_router.include_router(outreach_stats_router)
-
-# Client Dashboard (aggregated client report)
-api_router.include_router(client_dashboard_router)
-
-# Fireflies.ai Call Transcripts
-api_router.include_router(fireflies_router)
-
-# Reply Intelligence
-api_router.include_router(intelligence_router)
-
-# Project Reports (lead daily reports + plans + progress)
-api_router.include_router(project_reports_router)
-
-# TAM Gathering Pipeline
-api_router.include_router(gathering_router)
-
-# Campaign Intelligence (GOD_SEQUENCE)
-api_router.include_router(campaign_intelligence_router)
-
-# Telegram DM Inbox
-api_router.include_router(telegram_dm_router)
-
-# Telegram Outreach (campaigns, accounts, proxies)
+# Telegram Outreach (accounts, campaigns, proxies)
 api_router.include_router(telegram_outreach_router)
 
 __all__ = ["api_router"]

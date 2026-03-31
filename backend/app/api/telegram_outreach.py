@@ -7,7 +7,7 @@ message sequences, and recipients.
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
-from sqlalchemy import select, func, desc, asc
+from sqlalchemy import select, func, desc, asc, delete as sa_delete, insert as sa_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
@@ -18,7 +18,8 @@ from app.models.telegram_outreach import (
     TgCampaign, TgCampaignAccount,
     TgRecipient, TgSequence, TgSequenceStep, TgStepVariant, TgOutreachMessage,
     TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgRecipientStatus, TgMessageStatus,
-    TgInboxDialog,
+    TgInboxDialog, TgContact, TgContactStatus,
+    TgIncomingReply, TgBlacklist,
 )
 from app.models.telegram_dm import TelegramDMAccount
 
@@ -37,9 +38,24 @@ from app.schemas.telegram_outreach import (
     TgOutreachMessageResponse, TgOutreachMessageListResponse,
     TgBulkAssignProxy, TgBulkTag, TgBulkAccountIds,
     TgTeleRaptorImportRequest, TgTeleRaptorImportResponse,
+    TgBlacklistUploadText, TgBlacklistResponse, TgBlacklistListResponse,
 )
 
 router = APIRouter(prefix="/telegram-outreach", tags=["Telegram Outreach"])
+
+
+def _warmup_info(acc) -> dict:
+    """Compute effective_daily_limit, warmup_day, and is_young_session for an account."""
+    from app.services.sending_worker import get_effective_daily_limit, WARMUP_MSGS_PER_DAY, is_young_session as _is_young
+    from datetime import datetime
+    eff = get_effective_daily_limit(acc)
+    day = None
+    if acc.session_created_at:
+        age = (datetime.utcnow() - acc.session_created_at).days
+        base = acc.daily_message_limit or 10
+        if WARMUP_MSGS_PER_DAY * (age + 1) < base:
+            day = age + 1
+    return {"effective_daily_limit": eff, "warmup_day": day, "is_young_session": _is_young(acc)}
 
 
 async def _extract_and_save_string_session(
@@ -212,6 +228,51 @@ def _detect_country(phone: str) -> Optional[str]:
             if ph.startswith(prefix):
                 return code
         return None
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PROXY HELPERS
+# ═══════════════════════════════════════════════════════════════════════
+
+
+async def _get_free_proxies(session: AsyncSession, proxy_group_id: int,
+                            exclude_account_ids: list[int] | None = None) -> list[TgProxy]:
+    """Get active proxies from a group not assigned to any active account."""
+    assigned_q = (
+        select(TgAccount.assigned_proxy_id)
+        .where(
+            TgAccount.assigned_proxy_id.isnot(None),
+            TgAccount.status.in_([
+                TgAccountStatus.ACTIVE, TgAccountStatus.PAUSED,
+                TgAccountStatus.FROZEN, TgAccountStatus.SPAMBLOCKED,
+            ]),
+        )
+    )
+    if exclude_account_ids:
+        assigned_q = assigned_q.where(~TgAccount.id.in_(exclude_account_ids))
+    assigned_result = await session.execute(assigned_q)
+    assigned_ids = {r[0] for r in assigned_result.all()}
+
+    proxy_q = (
+        select(TgProxy)
+        .where(TgProxy.proxy_group_id == proxy_group_id, TgProxy.is_active == True)
+    )
+    if assigned_ids:
+        proxy_q = proxy_q.where(~TgProxy.id.in_(assigned_ids))
+    result = await session.execute(proxy_q.order_by(TgProxy.id))
+    return list(result.scalars().all())
+
+
+async def _try_reassign_proxy(session: AsyncSession, account: TgAccount) -> TgProxy | None:
+    """Try to assign a free proxy from the account's proxy group. Returns proxy or None."""
+    if not account.proxy_group_id:
+        return None
+    free = await _get_free_proxies(session, account.proxy_group_id,
+                                   exclude_account_ids=[account.id])
+    if free:
+        account.assigned_proxy_id = free[0].id
+        return free[0]
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -411,6 +472,7 @@ async def check_proxy_group(group_id: int, auto_delete: bool = Query(False),
     alive_count = 0
     dead_count = 0
     deleted_ids = []
+    reassign_accounts = []
 
     for proxy in proxies:
         check = await _check_single_proxy(proxy)
@@ -421,6 +483,13 @@ async def check_proxy_group(group_id: int, auto_delete: bool = Query(False),
             alive_count += 1
         else:
             dead_count += 1
+            # Reassign accounts that had this dead proxy
+            affected = await session.execute(
+                select(TgAccount).where(TgAccount.assigned_proxy_id == proxy.id)
+            )
+            for acc in affected.scalars().all():
+                acc.assigned_proxy_id = None  # cleared now, reassigned below
+                reassign_accounts.append(acc)
             if auto_delete:
                 deleted_ids.append(proxy.id)
                 await session.delete(proxy)
@@ -432,12 +501,20 @@ async def check_proxy_group(group_id: int, auto_delete: bool = Query(False),
             **check,
         })
 
+    # Reassign accounts that lost their proxy to a free one from the same group
+    reassigned_count = 0
+    for acc in reassign_accounts:
+        new_proxy = await _try_reassign_proxy(session, acc)
+        if new_proxy:
+            reassigned_count += 1
+
     return {
         "total": len(proxies),
         "alive": alive_count,
         "dead": dead_count,
         "deleted": len(deleted_ids),
         "deleted_ids": deleted_ids,
+        "reassigned": reassigned_count,
         "results": results,
     }
 
@@ -532,7 +609,9 @@ async def list_accounts(
     search: Optional[str] = None,
     session: AsyncSession = Depends(get_session),
 ):
-    query = select(TgAccount).options(selectinload(TgAccount.tags), selectinload(TgAccount.proxy_group))
+    query = select(TgAccount).options(
+        selectinload(TgAccount.tags), selectinload(TgAccount.proxy_group),
+        selectinload(TgAccount.assigned_proxy))
     count_query = select(func.count(TgAccount.id))
 
     # Filters
@@ -591,6 +670,7 @@ async def list_accounts(
         camp_count_q = await session.execute(
             select(func.count(TgCampaignAccount.id)).where(TgCampaignAccount.account_id == acc.id)
         )
+        wu = _warmup_info(acc)
         items.append(TgAccountResponse(
             id=acc.id, phone=acc.phone, username=acc.username,
             first_name=acc.first_name, last_name=acc.last_name, bio=acc.bio,
@@ -599,15 +679,21 @@ async def list_accounts(
             system_lang_code=acc.system_lang_code,
             status=acc.status.value if acc.status else "active",
             spamblock_type=acc.spamblock_type.value if acc.spamblock_type else "none",
+            spamblock_end=getattr(acc, 'spamblock_end', None),
             daily_message_limit=acc.daily_message_limit,
+            effective_daily_limit=wu["effective_daily_limit"],
+            warmup_day=wu["warmup_day"],
+            is_young_session=wu["is_young_session"],
             messages_sent_today=acc.messages_sent_today,
             total_messages_sent=acc.total_messages_sent,
             proxy_group_id=acc.proxy_group_id,
             proxy_group_name=acc.proxy_group.name if acc.proxy_group else None,
             assigned_proxy_id=acc.assigned_proxy_id,
+            assigned_proxy_host=f"{acc.assigned_proxy.host}:{acc.assigned_proxy.port}" if acc.assigned_proxy else None,
             tags=[TgAccountTagResponse.model_validate(t) for t in acc.tags],
             campaigns_count=camp_count_q.scalar() or 0,
             country_code=acc.country_code,
+            telegram_created_at=getattr(acc, 'telegram_created_at', None),
             session_created_at=acc.session_created_at,
             last_connected_at=acc.last_connected_at,
             last_checked_at=acc.last_checked_at,
@@ -624,13 +710,18 @@ async def create_account(data: TgAccountCreate, session: AsyncSession = Depends(
     if existing.scalar():
         raise HTTPException(409, f"Account with phone {data.phone} already exists")
 
+    # Auto-generate unique fingerprint if not provided
+    fp = _generate_random_fingerprint()
     account = TgAccount(
         phone=data.phone, username=data.username,
         first_name=data.first_name, last_name=data.last_name, bio=data.bio,
         api_id=data.api_id, api_hash=data.api_hash,
-        device_model=data.device_model, system_version=data.system_version,
-        app_version=data.app_version, lang_code=data.lang_code,
-        system_lang_code=data.system_lang_code, two_fa_password=data.two_fa_password,
+        device_model=data.device_model or fp["device_model"],
+        system_version=data.system_version or fp["system_version"],
+        app_version=data.app_version or fp["app_version"],
+        lang_code=data.lang_code or fp["lang_code"],
+        system_lang_code=data.system_lang_code or fp["system_lang_code"],
+        two_fa_password=data.two_fa_password,
         session_file=data.session_file_name,
         country_code=_detect_country(data.phone),
         session_created_at=func.now(),
@@ -638,6 +729,7 @@ async def create_account(data: TgAccountCreate, session: AsyncSession = Depends(
     session.add(account)
     await session.flush()
 
+    wu = _warmup_info(account)
     return TgAccountResponse(
         id=account.id, phone=account.phone, username=account.username,
         first_name=account.first_name, last_name=account.last_name, bio=account.bio,
@@ -646,6 +738,8 @@ async def create_account(data: TgAccountCreate, session: AsyncSession = Depends(
         system_lang_code=account.system_lang_code,
         status="active", spamblock_type="none",
         daily_message_limit=account.daily_message_limit,
+        effective_daily_limit=wu["effective_daily_limit"],
+        warmup_day=wu["warmup_day"],
         messages_sent_today=0, total_messages_sent=0,
         tags=[], campaigns_count=0,
         created_at=account.created_at, updated_at=account.updated_at,
@@ -693,12 +787,14 @@ async def update_account(account_id: int, data: TgAccountUpdate, session: AsyncS
     await session.refresh(account)
     result = await session.execute(
         select(TgAccount).where(TgAccount.id == account_id)
-        .options(selectinload(TgAccount.tags), selectinload(TgAccount.proxy_group))
+        .options(selectinload(TgAccount.tags), selectinload(TgAccount.proxy_group),
+                 selectinload(TgAccount.assigned_proxy))
     )
     account = result.scalar_one()
     camp_count_q = await session.execute(
         select(func.count(TgCampaignAccount.id)).where(TgCampaignAccount.account_id == account.id)
     )
+    wu = _warmup_info(account)
     return TgAccountResponse(
         id=account.id, phone=account.phone, username=account.username,
         first_name=account.first_name, last_name=account.last_name, bio=account.bio,
@@ -707,11 +803,14 @@ async def update_account(account_id: int, data: TgAccountUpdate, session: AsyncS
         system_lang_code=account.system_lang_code,
         status=account.status.value, spamblock_type=account.spamblock_type.value,
         daily_message_limit=account.daily_message_limit,
+        effective_daily_limit=wu["effective_daily_limit"],
+        warmup_day=wu["warmup_day"],
         messages_sent_today=account.messages_sent_today,
         total_messages_sent=account.total_messages_sent,
         proxy_group_id=account.proxy_group_id,
         proxy_group_name=account.proxy_group.name if account.proxy_group else None,
         assigned_proxy_id=account.assigned_proxy_id,
+        assigned_proxy_host=f"{account.assigned_proxy.host}:{account.assigned_proxy.port}" if account.assigned_proxy else None,
         tags=[TgAccountTagResponse.model_validate(t) for t in account.tags],
         campaigns_count=camp_count_q.scalar() or 0,
         last_connected_at=account.last_connected_at,
@@ -741,11 +840,24 @@ async def update_account_limit(account_id: int, daily_message_limit: int = Query
 
 @router.post("/accounts/bulk-assign-proxy")
 async def bulk_assign_proxy(data: TgBulkAssignProxy, session: AsyncSession = Depends(get_session)):
+    """Assign proxy group AND auto-assign individual proxies 1:1."""
+    free_proxies = await _get_free_proxies(session, data.proxy_group_id,
+                                           exclude_account_ids=data.account_ids)
+    proxy_iter = iter(free_proxies)
+    assigned_count = 0
     for aid in data.account_ids:
         account = await session.get(TgAccount, aid)
         if account:
             account.proxy_group_id = data.proxy_group_id
-    return {"ok": True, "count": len(data.account_ids)}
+            proxy = next(proxy_iter, None)
+            if proxy:
+                account.assigned_proxy_id = proxy.id
+                assigned_count += 1
+            else:
+                account.assigned_proxy_id = None
+    return {"ok": True, "count": len(data.account_ids),
+            "proxies_assigned": assigned_count,
+            "proxies_available": len(free_proxies)}
 
 
 @router.post("/accounts/bulk-set-limit")
@@ -790,34 +902,118 @@ async def bulk_update_params(
 # ── Device presets (from TeleRaptor) ──────────────────────────────────
 
 DEVICE_PRESETS = [
-    "ThinkPadL13", "15t-ed002", "DW0010", "S533EA", "R7-3700U",
-    "Latitude5401", "A315-54K", "RZ09-0281CE53", "FHD-G15", "X512JA",
-    "OmenX-17", "7DF52EA", "81XH", "A11SCS", "Precision3561",
-    "13-aw2000", "81UR", "XPS13-9380", "RZ09-0367", "15Z980",
-    "ThinkPadT590", "Aspire314", "DW1084", "NP930X2K", "C214MA",
+    # Lenovo ThinkPad / IdeaPad / Legion
+    "ThinkPadL13", "ThinkPadT590", "ThinkPadT480", "ThinkPadX1Carbon",
+    "ThinkPadE14", "ThinkPadL14", "ThinkPadT14s", "ThinkPadX13",
+    "IdeaPad5-15", "IdeaPad3-14", "81XH", "81UR", "82FG", "82HT",
+    "LegionY540", "LegionY7000",
+    # Dell
+    "Latitude5401", "Latitude5520", "Latitude7420", "Precision3561",
+    "Precision5560", "XPS13-9380", "XPS15-9510", "XPS17-9710",
+    "Inspiron15-3511", "Inspiron14-5410", "Vostro3500", "DW0010", "DW1084",
+    # HP
+    "15t-ed002", "OmenX-17", "7DF52EA", "EliteBook840G8",
+    "EliteBook850G7", "ProBook450G8", "ProBook445G7", "Pavilion15-eg",
+    "ZBook15G7", "ZBookStudio-G8", "HP250G8", "HP255G7",
+    # ASUS
+    "S533EA", "X512JA", "VivoBookS15", "VivoBook15-X515",
+    "ZenBook14-UX425", "ZenBook13-UX325", "ROG-Strix-G15",
+    "TUF-Gaming-A15", "ExpertBook-B1", "C214MA",
+    # Acer
+    "A315-54K", "Aspire314", "Aspire5-A515", "AspireNitro5",
+    "Swift3-SF314", "Swift5-SF514", "TravelMate-P2", "ConceptD3",
+    # MSI
+    "A11SCS", "GF63Thin", "GS66Stealth", "Modern14-B11",
+    "Prestige14-A11", "Summit-E15", "Bravo15-B5",
+    # Razer
+    "RZ09-0281CE53", "RZ09-0367", "RZ09-0410", "RZ09-0370",
+    # Samsung / LG
+    "NP930X2K", "NP950XDB", "Galaxy-Book-Pro", "15Z980", "Gram17-17Z90P",
+    # Apple (Telegram Desktop on macOS)
+    "MacBookPro16,1", "MacBookPro17,1", "MacBookAir10,1",
+    "MacBookPro14,3", "Macmini9,1", "iMac21,1",
+    # Misc / FHD models
+    "FHD-G15", "13-aw2000", "R7-3700U", "SurfacePro7", "SurfaceLaptop4",
+    "SurfaceBook3", "Chromebook-Spin513",
 ]
-SYSTEM_VERSIONS = ["Windows 10", "Windows 11"]
-APP_VERSIONS = ["6.5.1 x64", "6.6.2 x64"]
-LANG_PRESETS = ["en", "pt", "es", "de", "fr", "it", "nl", "ru"]
-SYSTEM_LANG_PRESETS = ["en-US", "pt-PT", "es-ES", "de-DE", "fr-FR", "it-IT", "nl-NL", "ru-RU"]
+SYSTEM_VERSIONS = [
+    "Windows 10", "Windows 11",
+    "macOS 12.6", "macOS 13.4", "macOS 14.2",
+    "Ubuntu 22.04", "Fedora 38",
+]
+APP_VERSIONS = [
+    "4.8.1 x64", "4.9.2 x64", "4.10.3 x64", "4.11.7 x64",
+    "4.14.4 x64", "4.15.2 x64", "4.16.8 x64",
+    "5.0.1 x64", "5.1.5 x64", "5.2.3 x64", "5.3.1 x64",
+    "5.4.0 x64", "5.5.3 x64", "5.6.2 x64",
+    "6.0.0 x64", "6.1.3 x64", "6.2.4 x64",
+    "6.3.0 x64", "6.4.1 x64", "6.5.1 x64", "6.6.2 x64",
+]
+LANG_PRESETS = ["en", "pt", "es", "de", "fr", "it", "nl", "ru", "pl", "tr", "uk", "cs", "sv", "da", "fi"]
+SYSTEM_LANG_PRESETS = [
+    "en-US", "en-GB", "pt-PT", "pt-BR", "es-ES", "de-DE", "fr-FR",
+    "it-IT", "nl-NL", "ru-RU", "pl-PL", "tr-TR", "uk-UA",
+    "cs-CZ", "sv-SE", "da-DK", "fi-FI",
+]
+
+
+def _generate_random_fingerprint() -> dict:
+    """Generate a random, realistic device fingerprint for a Telegram account.
+
+    Each account gets a unique combination of device model, OS, app version,
+    and language to avoid mass-detection by Telegram anti-spam systems.
+    """
+    import random
+    return {
+        "device_model": random.choice(DEVICE_PRESETS),
+        "system_version": random.choice(SYSTEM_VERSIONS),
+        "app_version": random.choice(APP_VERSIONS),
+        "lang_code": random.choice(LANG_PRESETS),
+        "system_lang_code": random.choice(SYSTEM_LANG_PRESETS),
+    }
 
 
 @router.post("/accounts/bulk-randomize-device")
 async def bulk_randomize_device(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
-    """Randomize device_model + system_version from TeleRaptor presets for selected accounts."""
-    import random
-
+    """Randomize full device fingerprint (model, OS, app version, language) for selected accounts."""
     updated = []
     for aid in data.account_ids:
         account = await session.get(TgAccount, aid)
         if not account:
             continue
-        account.device_model = random.choice(DEVICE_PRESETS)
-        account.system_version = random.choice(SYSTEM_VERSIONS)
-        account.app_version = random.choice(APP_VERSIONS)
-        updated.append({"id": aid, "device_model": account.device_model,
-                        "system_version": account.system_version, "app_version": account.app_version})
+        fp = _generate_random_fingerprint()
+        account.device_model = fp["device_model"]
+        account.system_version = fp["system_version"]
+        account.app_version = fp["app_version"]
+        account.lang_code = fp["lang_code"]
+        account.system_lang_code = fp["system_lang_code"]
+        updated.append({"id": aid, **fp})
     return {"ok": True, "count": len(updated), "updated": updated}
+
+
+# Known default fingerprints that indicate no randomization was applied
+_DEFAULT_FINGERPRINTS = {"PC 64bit", "Samsung SM-G998B"}
+
+
+@router.post("/accounts/migrate-fingerprints")
+async def migrate_default_fingerprints(session: AsyncSession = Depends(get_session)):
+    """One-time migration: randomize fingerprints for all accounts that still have shared defaults."""
+    result = await session.execute(
+        select(TgAccount).where(
+            TgAccount.device_model.in_(list(_DEFAULT_FINGERPRINTS))
+        )
+    )
+    accounts = result.scalars().all()
+    updated = []
+    for acc in accounts:
+        fp = _generate_random_fingerprint()
+        acc.device_model = fp["device_model"]
+        acc.system_version = fp["system_version"]
+        acc.app_version = fp["app_version"]
+        acc.lang_code = fp["lang_code"]
+        acc.system_lang_code = fp["system_lang_code"]
+        updated.append(acc.id)
+    return {"ok": True, "migrated": len(updated), "account_ids": updated}
 
 
 @router.get("/accounts/device-presets")
@@ -934,6 +1130,9 @@ async def bulk_set_photo(
         photo_contents.append((p.filename or "photo.jpg", content))
 
     updated = 0
+    tg_synced = 0
+    old_deleted = 0
+    errors = []
     photos_dir = "/app/tg_photos"
     os.makedirs(photos_dir, exist_ok=True)
 
@@ -947,15 +1146,59 @@ async def bulk_set_photo(
         else:
             fname, content = random.choice(photo_contents)
 
-        # Save to disk
-        ext = os.path.splitext(fname)[1] or ".jpg"
-        photo_path = f"{photos_dir}/{account.phone}{ext}"
+        # Save to disk — always as .jpg, remove old variants
+        photo_path = f"{photos_dir}/{account.phone}.jpg"
+        for old_ext in ['.jpg', '.jpeg', '.png', '.jfif', '.webp']:
+            old_path = f"{photos_dir}/{account.phone}{old_ext}"
+            if os.path.exists(old_path):
+                os.remove(old_path)
         with open(photo_path, "wb") as f:
             f.write(content)
         account.profile_photo_path = photo_path
         updated += 1
 
-    return {"ok": True, "count": updated, "photos_uploaded": len(photo_contents)}
+        # Upload to Telegram: delete old photos, set new one
+        if account.api_id and account.api_hash and telegram_engine.session_file_exists(account.phone):
+            try:
+                from telethon.tl import functions as _fn, types as _tp
+                # Use engine with proper proxy + device fingerprint
+                proxy = None
+                if account.assigned_proxy_id:
+                    from app.models.telegram_outreach import TgProxy
+                    _p_rec = await session.get(TgProxy, account.assigned_proxy_id)
+                    if _p_rec:
+                        proxy = {"host": _p_rec.host, "port": _p_rec.port, "username": _p_rec.username,
+                                 "password": _p_rec.password, "protocol": _p_rec.protocol.value if hasattr(_p_rec.protocol, 'value') else _p_rec.protocol}
+                kwargs = _account_connect_kwargs(account, proxy)
+                _client = await telegram_engine.connect(aid, **kwargs)
+                if await _client.is_user_authorized():
+                    # Delete ALL existing profile photos
+                    try:
+                        _photos = await _client(_fn.photos.GetUserPhotosRequest(user_id='me', offset=0, max_id=0, limit=100))
+                        for _p in (_photos.photos or []):
+                            try:
+                                await _client(_fn.photos.DeletePhotosRequest(id=[
+                                    _tp.InputPhoto(id=_p.id, access_hash=_p.access_hash, file_reference=_p.file_reference)
+                                ]))
+                                old_deleted += 1
+                            except Exception as de:
+                                logger.warning(f"Failed to delete photo {_p.id} for {account.phone}: {de}")
+                    except Exception as ge:
+                        logger.warning(f"Failed to get photos for {account.phone}: {ge}")
+                    # Upload new photo
+                    _up = await _client.upload_file(photo_path)
+                    await _client(_fn.photos.UploadProfilePhotoRequest(file=_up))
+                    tg_synced += 1
+                    logger.info(f"Photo set for {account.phone}: deleted old, uploaded new")
+                await telegram_engine.disconnect(aid)
+            except Exception as e:
+                errors.append(f"{account.phone}: {str(e)[:80]}")
+                try:
+                    await telegram_engine.disconnect(aid)
+                except Exception:
+                    pass
+
+    return {"ok": True, "count": updated, "tg_synced": tg_synced, "old_deleted": old_deleted, "photos_uploaded": len(photo_contents), "errors": errors}
 
 
 async def _auto_sync_accounts(account_ids: list[int], session: AsyncSession):
@@ -1273,6 +1516,8 @@ async def import_teleraptor_accounts(data: TgTeleRaptorImportRequest,
             except (ValueError, TypeError):
                 pass
 
+        # Auto-generate unique fingerprint when TeleRaptor data lacks one
+        fp = _generate_random_fingerprint()
         account = TgAccount(
             phone=phone,
             username=raw.username,
@@ -1280,11 +1525,11 @@ async def import_teleraptor_accounts(data: TgTeleRaptorImportRequest,
             last_name=raw.last_name,
             api_id=raw.app_id,
             api_hash=raw.app_hash,
-            device_model=raw.sdk or "PC 64bit",
-            system_version=raw.device or "Windows 10",
-            app_version=raw.app_version or "6.5.1 x64",
-            lang_code=raw.lang_pack or "en",
-            system_lang_code=raw.system_lang_pack or "en-US",
+            device_model=raw.sdk or fp["device_model"],
+            system_version=raw.device or fp["system_version"],
+            app_version=raw.app_version or fp["app_version"],
+            lang_code=raw.lang_pack or fp["lang_code"],
+            system_lang_code=raw.system_lang_pack or fp["system_lang_code"],
             two_fa_password=raw.twoFA,
             session_file=raw.session_file,
             status=status,
@@ -1314,6 +1559,102 @@ async def get_account_campaigns(account_id: int, session: AsyncSession = Depends
     )
     campaigns = result.scalars().all()
     return [{"id": c.id, "name": c.name, "status": c.status.value} for c in campaigns]
+
+
+@router.get("/accounts/{account_id}/analytics")
+async def get_account_analytics(account_id: int, session: AsyncSession = Depends(get_session)):
+    """Account messaging analytics — daily sent/replies/errors for 7d and 30d."""
+    from datetime import datetime, timedelta
+    from sqlalchemy import cast, Date
+
+    now = datetime.utcnow()
+    d30 = now - timedelta(days=30)
+    d7 = now - timedelta(days=7)
+
+    # Daily breakdown for last 30 days
+    daily_q = await session.execute(
+        select(
+            cast(TgOutreachMessage.sent_at, Date).label("day"),
+            TgOutreachMessage.status,
+            func.count(TgOutreachMessage.id),
+        ).where(
+            TgOutreachMessage.account_id == account_id,
+            TgOutreachMessage.sent_at >= d30,
+        ).group_by("day", TgOutreachMessage.status).order_by("day")
+    )
+    daily_rows = daily_q.all()
+
+    # Build daily map
+    daily = {}
+    for day, status, cnt in daily_rows:
+        ds = day.isoformat()
+        if ds not in daily:
+            daily[ds] = {"date": ds, "sent": 0, "failed": 0, "spamblocked": 0}
+        st = status.value if hasattr(status, "value") else status
+        if st == "sent":
+            daily[ds]["sent"] += cnt
+        elif st in ("failed", "bounced"):
+            daily[ds]["failed"] += cnt
+        elif st == "spamblocked":
+            daily[ds]["spamblocked"] += cnt
+
+    # Daily replies breakdown
+    from app.models.telegram_outreach import TgIncomingReply
+    daily_replies_q = await session.execute(
+        select(
+            cast(TgIncomingReply.received_at, Date).label("day"),
+            func.count(TgIncomingReply.id),
+        ).where(
+            TgIncomingReply.account_id == account_id,
+            TgIncomingReply.received_at >= d30,
+        ).group_by("day").order_by("day")
+    )
+    for day, cnt in daily_replies_q.all():
+        ds = day.isoformat()
+        if ds not in daily:
+            daily[ds] = {"date": ds, "sent": 0, "failed": 0, "spamblocked": 0, "replies": 0}
+        daily[ds]["replies"] = cnt
+
+    # Ensure all daily entries have replies key
+    for d in daily.values():
+        d.setdefault("replies", 0)
+
+    # Unique replies
+    replies_30 = (await session.execute(
+        select(func.count(func.distinct(TgIncomingReply.recipient_id))).where(
+            TgIncomingReply.account_id == account_id,
+            TgIncomingReply.received_at >= d30,
+        )
+    )).scalar() or 0
+    replies_7 = (await session.execute(
+        select(func.count(func.distinct(TgIncomingReply.recipient_id))).where(
+            TgIncomingReply.account_id == account_id,
+            TgIncomingReply.received_at >= d7,
+        )
+    )).scalar() or 0
+
+    # Unique sent / errors
+    def _count(since, statuses):
+        return select(func.count(func.distinct(TgOutreachMessage.recipient_id))).where(
+            TgOutreachMessage.account_id == account_id,
+            TgOutreachMessage.sent_at >= since,
+            TgOutreachMessage.status.in_(statuses),
+        )
+
+    sent_7 = (await session.execute(_count(d7, [TgMessageStatus.SENT]))).scalar() or 0
+    sent_30 = (await session.execute(_count(d30, [TgMessageStatus.SENT]))).scalar() or 0
+    errors_7 = (await session.execute(_count(d7, [TgMessageStatus.SPAMBLOCKED]))).scalar() or 0
+    errors_30 = (await session.execute(_count(d30, [TgMessageStatus.SPAMBLOCKED]))).scalar() or 0
+
+    return {
+        "daily": sorted(daily.values(), key=lambda x: x["date"]),
+        "sent_7d": sent_7,
+        "sent_30d": sent_30,
+        "replies_7d": replies_7,
+        "replies_30d": replies_30,
+        "errors_7d": errors_7,
+        "errors_30d": errors_30,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1404,6 +1745,8 @@ async def import_account_bundle(
             except (ValueError, TypeError):
                 pass
 
+        # Auto-generate unique fingerprint when JSON data lacks one
+        fp = _generate_random_fingerprint()
         account = TgAccount(
             phone=phone,
             username=json_data.get("username"),
@@ -1411,11 +1754,11 @@ async def import_account_bundle(
             last_name=json_data.get("last_name"),
             api_id=json_data.get("app_id"),
             api_hash=json_data.get("app_hash"),
-            device_model=json_data.get("sdk") or "PC 64bit",
-            system_version=json_data.get("device") or "Windows 10",
-            app_version=json_data.get("app_version") or "6.5.1 x64",
-            lang_code=json_data.get("lang_pack") or "en",
-            system_lang_code=json_data.get("system_lang_pack") or "en-US",
+            device_model=json_data.get("sdk") or fp["device_model"],
+            system_version=json_data.get("device") or fp["system_version"],
+            app_version=json_data.get("app_version") or fp["app_version"],
+            lang_code=json_data.get("lang_pack") or fp["lang_code"],
+            system_lang_code=json_data.get("system_lang_pack") or fp["system_lang_code"],
             two_fa_password=json_data.get("twoFA"),
             session_file=phone if pair["has_session"] else None,
             status=status,
@@ -1448,6 +1791,34 @@ async def import_account_bundle(
     if added > 0:
         await session.flush()
 
+    # Download avatars for all accounts with sessions (best-effort, background)
+    avatars_fetched = 0
+    all_accounts = await session.execute(select(TgAccount).where(TgAccount.session_file.isnot(None)))
+    for acc in all_accounts.scalars().all():
+        photo_path = f"/app/tg_photos/{acc.phone}.jpg"
+        import os
+        if os.path.exists(photo_path):
+            continue
+        if not telegram_engine.session_file_exists(acc.phone):
+            continue
+        try:
+            kwargs = _account_connect_kwargs(acc)
+            client = await telegram_engine.connect(acc.id, **kwargs)
+            if await client.is_user_authorized():
+                me = await client.get_me()
+                if me:
+                    from pathlib import Path
+                    Path(photo_path).parent.mkdir(parents=True, exist_ok=True)
+                    downloaded = await client.download_profile_photo(me, file=photo_path)
+                    if downloaded:
+                        avatars_fetched += 1
+            await telegram_engine.disconnect(acc.id)
+        except Exception:
+            try:
+                await telegram_engine.disconnect(acc.id)
+            except Exception:
+                pass
+
     return {
         "added": added,
         "skipped": skipped,
@@ -1457,7 +1828,42 @@ async def import_account_bundle(
         "pairs_found": len(pairs),
         "errors": errors,
         "has_tdata": tdata_files is not None,
+        "avatars_fetched": avatars_fetched,
     }
+
+
+@router.post("/accounts/fetch-missing-avatars")
+async def fetch_missing_avatars(session: AsyncSession = Depends(get_session)):
+    """Download profile photos for all accounts that don't have one yet."""
+    import os
+    from pathlib import Path
+    fetched = 0
+    errors_list = []
+    result_accs = await session.execute(select(TgAccount).where(TgAccount.session_file.isnot(None)))
+    for acc in result_accs.scalars().all():
+        photo_path = f"/app/tg_photos/{acc.phone}.jpg"
+        if os.path.exists(photo_path):
+            continue
+        if not telegram_engine.session_file_exists(acc.phone):
+            continue
+        try:
+            kwargs = _account_connect_kwargs(acc)
+            client = await telegram_engine.connect(acc.id, **kwargs)
+            if await client.is_user_authorized():
+                me = await client.get_me()
+                if me:
+                    Path(photo_path).parent.mkdir(parents=True, exist_ok=True)
+                    downloaded = await client.download_profile_photo(me, file=photo_path)
+                    if downloaded:
+                        fetched += 1
+            await telegram_engine.disconnect(acc.id)
+        except Exception as e:
+            errors_list.append(f"{acc.phone}: {str(e)[:40]}")
+            try:
+                await telegram_engine.disconnect(acc.id)
+            except Exception:
+                pass
+    return {"ok": True, "fetched": fetched, "errors": errors_list}
 
 
 @router.post("/accounts/{account_id}/convert-to-tdata")
@@ -1466,6 +1872,19 @@ async def convert_account_to_tdata(account_id: int, session: AsyncSession = Depe
     account = await session.get(TgAccount, account_id)
     if not account:
         raise HTTPException(404, "Account not found")
+
+    # Ensure session has auth data by connecting first
+    if account.api_id and account.api_hash and telegram_engine.session_file_exists(account.phone):
+        try:
+            await telegram_engine.connect(
+                account_id, phone=account.phone, api_id=account.api_id, api_hash=account.api_hash,
+                device_model=account.device_model or "PC 64bit", system_version=account.system_version or "Windows 10",
+                app_version=account.app_version or "6.5.1 x64", lang_code=account.lang_code or "en",
+                system_lang_code=account.system_lang_code or "en-US",
+            )
+            await telegram_engine.disconnect(account_id)
+        except Exception:
+            pass
 
     try:
         tdata_path = await convert_session_to_tdata(
@@ -1500,12 +1919,55 @@ async def download_tdata(account_id: int, session: AsyncSession = Depends(get_se
         raise HTTPException(404, "No tdata available. Convert first.")
 
 
+@router.get("/accounts/{account_id}/download-session")
+async def download_session_file(account_id: int, session: AsyncSession = Depends(get_session)):
+    """Download .session file."""
+    from fastapi.responses import Response
+
+    account = await session.get(TgAccount, account_id)
+    if not account:
+        raise HTTPException(404, "Account not found")
+
+    session_path = get_session_path(account.phone)
+    if not session_path:
+        raise HTTPException(404, "No .session file available")
+
+    with open(session_path, "rb") as f:
+        content = f.read()
+    return Response(
+        content=content,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{account.phone}.session"'},
+    )
+
+
 @router.post("/accounts/{account_id}/convert-from-tdata")
 async def convert_account_from_tdata(account_id: int, session: AsyncSession = Depends(get_session)):
     """Convert account's tdata to .session format."""
     account = await session.get(TgAccount, account_id)
     if not account:
         raise HTTPException(404, "Account not found")
+
+    # Disconnect active Telethon clients to release .session SQLite lock
+    try:
+        await telegram_engine.disconnect(account_id)
+    except Exception:
+        pass
+    # Also disconnect DM accounts with same phone (just in case)
+    try:
+        dm_result = await session.execute(
+            select(TelegramDMAccount.id).where(TelegramDMAccount.phone == account.phone)
+        )
+        for (dm_id,) in dm_result.all():
+            try:
+                await telegram_dm_service.disconnect_account(dm_id)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    # Small delay for lock release
+    import asyncio as _aio
+    await _aio.sleep(0.5)
 
     try:
         session_path = await convert_tdata_to_session(
@@ -1553,6 +2015,9 @@ async def list_campaigns(session: AsyncSession = Depends(get_session)):
         acc_count_q = await session.execute(
             select(func.count(TgCampaignAccount.id)).where(TgCampaignAccount.campaign_id == c.id)
         )
+        replies_count_q = await session.execute(
+            select(func.count(TgIncomingReply.id)).where(TgIncomingReply.campaign_id == c.id)
+        )
         items.append(TgCampaignResponse(
             id=c.id, name=c.name, status=c.status.value,
             daily_message_limit=c.daily_message_limit,
@@ -1561,11 +2026,13 @@ async def list_campaigns(session: AsyncSession = Depends(get_session)):
             delay_between_sends_max=c.delay_between_sends_max,
             delay_randomness_percent=c.delay_randomness_percent,
             spamblock_errors_to_skip=c.spamblock_errors_to_skip,
+            followup_priority=c.followup_priority,
             tags=c.tags or [],
             messages_sent_today=c.messages_sent_today,
             total_messages_sent=c.total_messages_sent,
             total_recipients=c.total_recipients,
             accounts_count=acc_count_q.scalar() or 0,
+            replies_count=replies_count_q.scalar() or 0,
             created_at=c.created_at, updated_at=c.updated_at,
         ))
     return TgCampaignListResponse(items=items, total=len(items))
@@ -1580,6 +2047,7 @@ async def create_campaign(data: TgCampaignCreate, session: AsyncSession = Depend
         delay_between_sends_max=data.delay_between_sends_max,
         delay_randomness_percent=data.delay_randomness_percent,
         spamblock_errors_to_skip=data.spamblock_errors_to_skip,
+        followup_priority=data.followup_priority,
         tags=data.tags or [],
     )
     session.add(campaign)
@@ -1598,6 +2066,7 @@ async def create_campaign(data: TgCampaignCreate, session: AsyncSession = Depend
         delay_between_sends_max=campaign.delay_between_sends_max,
         delay_randomness_percent=campaign.delay_randomness_percent,
         spamblock_errors_to_skip=campaign.spamblock_errors_to_skip,
+        followup_priority=campaign.followup_priority,
         tags=campaign.tags or [],
         accounts_count=0, created_at=campaign.created_at, updated_at=campaign.updated_at,
     )
@@ -1623,6 +2092,7 @@ async def update_campaign(campaign_id: int, data: TgCampaignUpdate, session: Asy
         delay_between_sends_max=campaign.delay_between_sends_max,
         delay_randomness_percent=campaign.delay_randomness_percent,
         spamblock_errors_to_skip=campaign.spamblock_errors_to_skip,
+        followup_priority=campaign.followup_priority,
         tags=campaign.tags or [],
         messages_sent_today=campaign.messages_sent_today,
         total_messages_sent=campaign.total_messages_sent,
@@ -1711,16 +2181,17 @@ async def set_campaign_accounts(campaign_id: int, account_ids: list[int],
     if not campaign:
         raise HTTPException(404, "Campaign not found")
 
-    # Remove existing
-    existing = await session.execute(
-        select(TgCampaignAccount).where(TgCampaignAccount.campaign_id == campaign_id)
+    # Remove existing (SQL-level delete, no ORM identity-map issues)
+    await session.execute(
+        sa_delete(TgCampaignAccount).where(TgCampaignAccount.campaign_id == campaign_id)
     )
-    for link in existing.scalars().all():
-        await session.delete(link)
 
-    # Add new
-    for aid in account_ids:
-        session.add(TgCampaignAccount(campaign_id=campaign_id, account_id=aid))
+    # Add new (bulk insert)
+    if account_ids:
+        await session.execute(
+            sa_insert(TgCampaignAccount),
+            [{"campaign_id": campaign_id, "account_id": aid} for aid in account_ids],
+        )
 
     return {"ok": True, "count": len(account_ids)}
 
@@ -1761,10 +2232,19 @@ async def upload_recipients_text(campaign_id: int, data: TgRecipientUploadText,
     if not campaign:
         raise HTTPException(404, "Campaign not found")
 
+    # Load blacklist for filtering
+    bl_rows = (await session.execute(select(TgBlacklist.username))).scalars().all()
+    blacklisted = set(bl_rows)
+
     added = 0
+    blacklisted_count = 0
     for line in data.raw_text.strip().splitlines():
         username = line.strip().lstrip("@")
         if not username:
+            continue
+        # Check blacklist (case-insensitive)
+        if username.lower() in blacklisted:
+            blacklisted_count += 1
             continue
         # Skip duplicates
         existing = await session.execute(
@@ -1776,12 +2256,75 @@ async def upload_recipients_text(campaign_id: int, data: TgRecipientUploadText,
             continue
         session.add(TgRecipient(campaign_id=campaign_id, username=username))
         added += 1
+        try:
+            crm_q = await session.execute(select(TgContact).where(TgContact.username == username))
+            if not crm_q.scalar():
+                session.add(TgContact(username=username, status=TgContactStatus.COLD,
+                    source_campaign_id=campaign_id, campaigns=[{"id": campaign_id, "name": campaign.name}]))
+        except Exception:
+            pass
 
     campaign.total_recipients = (await session.execute(
         select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
     )).scalar() or 0
 
-    return {"ok": True, "added": added, "total": campaign.total_recipients}
+    return {"ok": True, "added": added, "total": campaign.total_recipients, "blacklisted": blacklisted_count}
+
+
+@router.post("/campaigns/{campaign_id}/recipients/add-from-crm")
+async def add_recipients_from_crm(campaign_id: int, data: dict,
+                                   session: AsyncSession = Depends(get_session)):
+    """Add CRM contacts as campaign recipients by their IDs."""
+    contact_ids = data.get("contact_ids", [])
+    if not contact_ids:
+        raise HTTPException(400, "No contacts selected")
+
+    campaign = await session.get(TgCampaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    # Load blacklist
+    bl_rows = (await session.execute(select(TgBlacklist.username))).scalars().all()
+    blacklisted = set(bl_rows)
+
+    # Load selected contacts
+    contacts_result = await session.execute(
+        select(TgContact).where(TgContact.id.in_(contact_ids))
+    )
+    contacts = contacts_result.scalars().all()
+
+    added = 0
+    blacklisted_count = 0
+    skipped = 0
+    for contact in contacts:
+        username = contact.username
+        if not username:
+            continue
+        if username.lower() in blacklisted:
+            blacklisted_count += 1
+            continue
+        # Skip duplicates
+        existing = await session.execute(
+            select(TgRecipient).where(
+                TgRecipient.campaign_id == campaign_id, TgRecipient.username == username
+            )
+        )
+        if existing.scalar():
+            skipped += 1
+            continue
+        session.add(TgRecipient(
+            campaign_id=campaign_id,
+            username=username,
+            first_name=contact.first_name,
+            company_name=contact.company_name,
+        ))
+        added += 1
+
+    campaign.total_recipients = (await session.execute(
+        select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
+    )).scalar() or 0
+
+    return {"ok": True, "added": added, "skipped": skipped, "total": campaign.total_recipients, "blacklisted": blacklisted_count}
 
 
 @router.post("/campaigns/{campaign_id}/recipients/upload-csv")
@@ -1824,10 +2367,19 @@ async def map_csv_columns(campaign_id: int,
     text = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
 
+    # Load blacklist for filtering
+    bl_rows = (await session.execute(select(TgBlacklist.username))).scalars().all()
+    blacklisted = set(bl_rows)
+
     added = 0
+    blacklisted_count = 0
     for row in reader:
         username = row.get(mapping.username_column, "").strip().lstrip("@")
         if not username:
+            continue
+        # Check blacklist
+        if username.lower() in blacklisted:
+            blacklisted_count += 1
             continue
         # Skip duplicates
         existing = await session.execute(
@@ -1855,7 +2407,7 @@ async def map_csv_columns(campaign_id: int,
         select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
     )).scalar() or 0
 
-    return {"ok": True, "added": added, "total": campaign.total_recipients}
+    return {"ok": True, "added": added, "total": campaign.total_recipients, "blacklisted": blacklisted_count}
 
 
 @router.delete("/campaigns/{campaign_id}/recipients/{recipient_id}")
@@ -2122,14 +2674,18 @@ async def get_account_avatar(account_id: int, session: AsyncSession = Depends(ge
     if not account:
         raise HTTPException(404, "Account not found")
 
-    # Check for downloaded avatar
-    photo_path = f"/app/tg_photos/{account.phone}.jpg"
-    if os.path.exists(photo_path):
-        return FileResponse(photo_path, media_type="image/jpeg")
+    # Check for avatar (try multiple extensions)
+    for ext in ['.jpg', '.jpeg', '.png', '.jfif', '.webp']:
+        photo_path = f"/app/tg_photos/{account.phone}{ext}"
+        if os.path.exists(photo_path):
+            mtime = str(int(os.path.getmtime(photo_path)))
+            return FileResponse(photo_path, media_type="image/jpeg",
+                                headers={"Cache-Control": "no-cache", "ETag": mtime})
 
     # Check profile_photo_path
     if account.profile_photo_path and os.path.exists(account.profile_photo_path):
-        return FileResponse(account.profile_photo_path, media_type="image/jpeg")
+        return FileResponse(account.profile_photo_path, media_type="image/jpeg",
+                            headers={"Cache-Control": "no-cache"})
 
     raise HTTPException(404, "No avatar available")
 
@@ -2207,13 +2763,39 @@ async def check_account(account_id: int, session: AsyncSession = Depends(get_ses
     kwargs = _account_connect_kwargs(account, proxy)
     result = await telegram_engine.check_account(account_id, **kwargs)
 
-    # Update DB
+    # Update DB based on check result
     if result.get("authorized"):
-        sb_map = {"none": TgSpamblockType.NONE, "temporary": TgSpamblockType.TEMPORARY,
-                  "permanent": TgSpamblockType.PERMANENT}
-        spamblock = sb_map.get(result.get("spamblock", "unknown"), account.spamblock_type)
-        account.spamblock_type = spamblock
-        account.status = TgAccountStatus.SPAMBLOCKED if spamblock != TgSpamblockType.NONE else TgAccountStatus.ACTIVE
+        from datetime import datetime
+
+        # Permanent ban detected (Abuse Notifications / self-message fail)
+        if result.get("banned"):
+            account.status = TgAccountStatus.BANNED
+            account.ban_reason = result.get("ban_reason")
+            account.banned_at = datetime.utcnow()
+        else:
+            sb = result.get("spamblock", "unknown")
+            if result.get("frozen"):
+                # Frozen account — restricted but not fully banned
+                account.status = TgAccountStatus.FROZEN
+                account.spamblock_type = TgSpamblockType.TEMPORARY
+                account.spamblocked_at = datetime.utcnow()
+            elif sb in ("temporary", "permanent"):
+                account.status = TgAccountStatus.SPAMBLOCKED
+                sb_map = {"temporary": TgSpamblockType.TEMPORARY, "permanent": TgSpamblockType.PERMANENT}
+                account.spamblock_type = sb_map.get(sb, TgSpamblockType.TEMPORARY)
+                account.spamblocked_at = datetime.utcnow()
+                if result.get("spamblock_end"):
+                    try:
+                        account.spamblock_end = datetime.fromisoformat(result["spamblock_end"])
+                    except Exception:
+                        pass
+            elif sb == "none":
+                account.status = TgAccountStatus.ACTIVE
+                account.spamblock_type = TgSpamblockType.NONE
+                account.spamblock_end = None
+                account.ban_reason = None
+                account.banned_at = None
+            # sb == "unknown" — leave current status unchanged, don't mark ACTIVE
         account.last_checked_at = func.now()
         account.last_connected_at = func.now()
         if result.get("username"):
@@ -2224,6 +2806,13 @@ async def check_account(account_id: int, session: AsyncSession = Depends(get_ses
             account.last_name = result["last_name"]
         if result.get("avatar_path"):
             account.profile_photo_path = result["avatar_path"]
+        if result.get("telegram_user_id"):
+            account.telegram_user_id = result["telegram_user_id"]
+        if result.get("telegram_created_at"):
+            try:
+                account.telegram_created_at = datetime.fromisoformat(result["telegram_created_at"])
+            except Exception:
+                pass
     elif result.get("connected") and not result.get("authorized"):
         account.status = TgAccountStatus.DEAD
         account.last_checked_at = func.now()
@@ -2250,11 +2839,27 @@ async def bulk_check_live(data: TgBulkAccountIds, session: AsyncSession = Depend
 
             # Update DB
             if check.get("authorized"):
-                sb_map = {"none": TgSpamblockType.NONE, "temporary": TgSpamblockType.TEMPORARY,
-                          "permanent": TgSpamblockType.PERMANENT}
-                spamblock = sb_map.get(check.get("spamblock", "unknown"), account.spamblock_type)
-                account.spamblock_type = spamblock
-                account.status = TgAccountStatus.SPAMBLOCKED if spamblock != TgSpamblockType.NONE else TgAccountStatus.ACTIVE
+                from datetime import datetime as _dt
+                if check.get("banned"):
+                    account.status = TgAccountStatus.BANNED
+                    account.ban_reason = check.get("ban_reason")
+                    account.banned_at = _dt.utcnow()
+                else:
+                    if check.get("frozen"):
+                        account.status = TgAccountStatus.FROZEN
+                        account.spamblock_type = TgSpamblockType.TEMPORARY
+                        account.spamblocked_at = _dt.utcnow()
+                    else:
+                        sb = check.get("spamblock", "unknown")
+                        sb_map = {"none": TgSpamblockType.NONE, "temporary": TgSpamblockType.TEMPORARY,
+                                  "permanent": TgSpamblockType.PERMANENT}
+                        if sb in sb_map:
+                            account.spamblock_type = sb_map[sb]
+                            if sb == "none":
+                                account.status = TgAccountStatus.ACTIVE
+                            else:
+                                account.status = TgAccountStatus.SPAMBLOCKED
+                        # sb == "unknown" — leave current status unchanged
                 account.last_checked_at = func.now()
                 account.last_connected_at = func.now()
                 # Fetch telegram_user_id if missing
@@ -2303,17 +2908,18 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
             if authorized:
                 account.status = TgAccountStatus.ACTIVE if account.spamblock_type == TgSpamblockType.NONE else account.status
                 account.last_connected_at = func.now()
-                # Fetch tgid + estimate age
-                if not account.telegram_user_id:
-                    try:
-                        me = await client.get_me()
-                        if me:
-                            account.telegram_user_id = me.id
-                            est = _parse_session_date(None, me.id)
-                            if est:
-                                account.session_created_at = est
-                    except Exception:
-                        pass
+                # Fetch tgid + estimate account age
+                try:
+                    me = await client.get_me()
+                    if me:
+                        account.telegram_user_id = me.id
+                        from app.services.telegram_engine import _estimate_creation_date
+                        est = _estimate_creation_date(me.id)
+                        if est:
+                            from datetime import datetime as _dt
+                            account.telegram_created_at = _dt.fromisoformat(est)
+                except Exception:
+                    pass
                 results.append({"account_id": aid, "phone": account.phone, "alive": True})
             else:
                 account.status = TgAccountStatus.DEAD
@@ -2713,6 +3319,7 @@ async def list_crm_contacts(
     status: Optional[str] = None,
     search: Optional[str] = None,
     campaign_id: Optional[int] = None,
+    exclude_campaign_id: Optional[int] = None,
     session: AsyncSession = Depends(get_session),
 ):
     query = select(TgContact)
@@ -2731,6 +3338,10 @@ async def list_crm_contacts(
             (TgContact.username.ilike(like)) | (TgContact.first_name.ilike(like)) |
             (TgContact.last_name.ilike(like)) | (TgContact.company_name.ilike(like))
         )
+    if exclude_campaign_id:
+        already_in = select(TgRecipient.username).where(TgRecipient.campaign_id == exclude_campaign_id)
+        query = query.where(~TgContact.username.in_(already_in))
+        count_query = count_query.where(~TgContact.username.in_(already_in))
 
     total = (await session.execute(count_query)).scalar() or 0
     query = query.order_by(desc(TgContact.last_contacted_at).nullslast()).offset((page - 1) * page_size).limit(page_size)
@@ -2793,6 +3404,31 @@ async def bulk_update_crm_status(
         if contact:
             contact.status = TgContactStatus(status)
     return {"ok": True, "count": len(contact_ids)}
+
+
+@router.delete("/crm/contacts/{contact_id}")
+async def delete_crm_contact(contact_id: int, session: AsyncSession = Depends(get_session)):
+    """Delete a CRM contact."""
+    contact = await session.get(TgContact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+    await session.delete(contact)
+    await session.commit()
+    return {"ok": True}
+
+
+@router.post("/crm/contacts/bulk-delete")
+async def bulk_delete_crm_contacts(body: dict, session: AsyncSession = Depends(get_session)):
+    """Delete multiple CRM contacts."""
+    ids = body.get("ids", [])
+    deleted = 0
+    for cid in ids:
+        contact = await session.get(TgContact, cid)
+        if contact:
+            await session.delete(contact)
+            deleted += 1
+    await session.commit()
+    return {"ok": True, "deleted": deleted}
 
 
 @router.get("/crm/stats")
@@ -3532,30 +4168,46 @@ async def list_inbox_dialogs(
     campaign_tag: Optional[str] = None,
     tag: Optional[str] = None,
     search: Optional[str] = None,
+    lead_status: Optional[str] = None,
+    unread_only: bool = False,
+    replied: Optional[str] = None,  # "replied" | "not_replied"
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
 ):
     """List cached dialogs. At least one filter required."""
-    if not account_id and not campaign_id and not campaign_tag and not tag:
-        raise HTTPException(400, "Select at least one filter: account, campaign, campaign tag, or tag")
+    has_any_filter = account_id or campaign_id or campaign_tag or tag or lead_status or unread_only or replied
+    if not has_any_filter:
+        raise HTTPException(400, "Select at least one filter")
 
     query = select(TgInboxDialog).order_by(TgInboxDialog.last_message_at.desc().nullslast())
     count_q = select(func.count(TgInboxDialog.id))
 
     if account_id:
-        query = query.where(TgInboxDialog.account_id == account_id)
-        count_q = count_q.where(TgInboxDialog.account_id == account_id)
+        # Dialogs are stored with DM account IDs (from inbox_sync_service).
+        # Also include TG outreach account IDs (via phone) for backwards compat.
+        all_ids = [account_id]
+        dm_acc = await session.get(TelegramDMAccount, account_id)
+        if dm_acc and dm_acc.phone:
+            tg_accs = (await session.execute(
+                select(TgAccount.id).where(TgAccount.phone == dm_acc.phone)
+            )).scalars().all()
+            all_ids.extend(tg_accs)
+        query = query.where(TgInboxDialog.account_id.in_(all_ids))
+        count_q = count_q.where(TgInboxDialog.account_id.in_(all_ids))
     if campaign_id:
         query = query.where(TgInboxDialog.campaign_id == campaign_id)
         count_q = count_q.where(TgInboxDialog.campaign_id == campaign_id)
     if campaign_tag:
-        # Join with TgCampaign to filter by tag
+        # Join with TgCampaign to filter by tag (JSONB array contains)
+        from sqlalchemy import type_coerce
+        from sqlalchemy.dialects.postgresql import JSONB as PG_JSONB
+        tag_json = type_coerce([campaign_tag], PG_JSONB)
         query = query.join(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(
-            TgCampaign.tags.op("@>")(f'["{campaign_tag}"]')
+            TgCampaign.tags.op("@>")(tag_json)
         )
         count_q = count_q.join(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(
-            TgCampaign.tags.op("@>")(f'["{campaign_tag}"]')
+            TgCampaign.tags.op("@>")(tag_json)
         )
     if tag:
         query = query.where(TgInboxDialog.inbox_tag == tag)
@@ -3568,20 +4220,60 @@ async def list_inbox_dialogs(
         count_q = count_q.where(
             (TgInboxDialog.peer_name.ilike(like)) | (TgInboxDialog.peer_username.ilike(like))
         )
+    if unread_only:
+        query = query.where(TgInboxDialog.unread_count > 0)
+        count_q = count_q.where(TgInboxDialog.unread_count > 0)
+    if replied == "replied":
+        # Peer replied — last message is inbound (not outbound)
+        query = query.where(TgInboxDialog.last_message_outbound == False)
+        count_q = count_q.where(TgInboxDialog.last_message_outbound == False)
+    elif replied == "not_replied":
+        # Peer hasn't replied — last message is outbound or null
+        query = query.where((TgInboxDialog.last_message_outbound == True) | (TgInboxDialog.last_message_outbound.is_(None)))
+        count_q = count_q.where((TgInboxDialog.last_message_outbound == True) | (TgInboxDialog.last_message_outbound.is_(None)))
+    if lead_status:
+        # Match CRM contact status OR dialog inbox_tag (set via tag buttons in chat)
+        from sqlalchemy import or_
+        contact_sub = select(TgContact.username).where(TgContact.status == lead_status).subquery()
+        status_filter = or_(
+            TgInboxDialog.peer_username.in_(select(contact_sub)),
+            TgInboxDialog.inbox_tag == lead_status,
+        )
+        query = query.where(status_filter)
+        count_q = count_q.where(status_filter)
 
     total = (await session.execute(count_q)).scalar() or 0
     query = query.offset((page - 1) * page_size).limit(page_size)
     result = await session.execute(query)
     dialogs = result.scalars().all()
 
-    # Get account info from telegram_dm_accounts for each dialog
+    # Get account info: resolve TG outreach account → phone → DM account
     account_cache = {}
+    campaign_cache = {}
     items = []
     for d in dialogs:
         if d.account_id not in account_cache:
-            acc = await session.get(TelegramDMAccount, d.account_id)
+            # Always resolve via TG outreach account (account_id is tg_accounts.id)
+            acc = None
+            tg_acc = await session.get(TgAccount, d.account_id)
+            if tg_acc and tg_acc.phone:
+                dm_r = await session.execute(
+                    select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone).limit(1)
+                )
+                acc = dm_r.scalar()
+            if not acc:
+                # Fallback: try DM account by ID
+                acc = await session.get(TelegramDMAccount, d.account_id)
             account_cache[d.account_id] = acc
         acc = account_cache[d.account_id]
+
+        # Get campaign name
+        campaign_name = None
+        if d.campaign_id:
+            if d.campaign_id not in campaign_cache:
+                camp = await session.get(TgCampaign, d.campaign_id)
+                campaign_cache[d.campaign_id] = camp.name if camp else None
+            campaign_name = campaign_cache[d.campaign_id]
 
         items.append({
             "id": d.id,
@@ -3597,6 +4289,7 @@ async def list_inbox_dialogs(
             "last_message_outbound": d.last_message_outbound,
             "unread_count": d.unread_count,
             "campaign_id": d.campaign_id,
+            "campaign_name": campaign_name,
             "tag": d.inbox_tag,
         })
 
@@ -3614,22 +4307,40 @@ async def get_dialog_messages(
     if not dialog:
         raise HTTPException(404, "Dialog not found")
 
-    account = await session.get(TelegramDMAccount, dialog.account_id)
+    # Resolve TG outreach account_id to DM account via phone
+    tg_acc = await session.get(TgAccount, dialog.account_id)
+    if not tg_acc:
+        raise HTTPException(404, "Outreach account not found")
+    dm_result = await session.execute(
+        select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone)
+    )
+    candidates = dm_result.scalars().all()
+    # Prefer connected account
+    account = None
+    for c in candidates:
+        if telegram_dm_service.is_connected(c.id) and c.string_session:
+            account = c
+            break
     if not account:
-        raise HTTPException(404, "Account not found in telegram_dm_accounts")
+        for c in candidates:
+            if c.string_session:
+                account = c
+                break
+    if not account:
+        raise HTTPException(404, "DM account not found for this phone")
     if not account.string_session:
         raise HTTPException(400, "Account has no string_session")
 
     # Check if already connected — avoid disconnect at the end if so
-    already_connected = telegram_dm_service.is_connected(dialog.account_id)
+    already_connected = telegram_dm_service.is_connected(account.id)
 
     try:
         if not already_connected:
-            ok = await telegram_dm_service.connect_account(dialog.account_id, account.string_session, account.proxy_config)
+            ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
             if not ok:
                 raise HTTPException(500, "Failed to connect account")
 
-        messages = await telegram_dm_service.get_messages(dialog.account_id, dialog.peer_id, limit=limit)
+        messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit)
 
         # Map field names to match existing frontend expectations
         formatted = []
@@ -3637,12 +4348,53 @@ async def get_dialog_messages(
             formatted.append({
                 "id": m["id"],
                 "direction": m["direction"],
-                "text": m["text"],
+                "text": m.get("text", ""),
                 "timestamp": m.get("sent_at"),
+                "reply_to": m.get("reply_to"),
+                "reactions": m.get("reactions", []),
+                "sender_name": m.get("sender_name", ""),
+                "is_read": m.get("is_read", False),
+                "fwd_from": m.get("fwd_from"),
             })
 
+        # Get peer online status + block detection
+        peer_status = {"status": "unknown", "last_seen": None, "possibly_blocked": False}
+        try:
+            from telethon.tl.types import (
+                UserStatusOnline, UserStatusOffline, UserStatusRecently,
+                UserStatusLastWeek, UserStatusLastMonth, UserStatusEmpty,
+            )
+            client = telegram_dm_service._clients.get(account.id)
+            if client and client.is_connected():
+                entity = await client.get_entity(dialog.peer_id)
+                if hasattr(entity, "status") and entity.status:
+                    s = entity.status
+                    if isinstance(s, UserStatusOnline):
+                        peer_status = {"status": "online", "last_seen": None, "possibly_blocked": False}
+                    elif isinstance(s, UserStatusOffline):
+                        peer_status = {
+                            "status": "offline",
+                            "last_seen": s.was_online.isoformat() if s.was_online else None,
+                            "possibly_blocked": False,
+                        }
+                    elif isinstance(s, UserStatusRecently):
+                        peer_status = {"status": "recently", "last_seen": None, "possibly_blocked": False}
+                    elif isinstance(s, UserStatusLastWeek):
+                        peer_status = {"status": "within_week", "last_seen": None, "possibly_blocked": False}
+                    elif isinstance(s, UserStatusLastMonth):
+                        peer_status = {"status": "within_month", "last_seen": None, "possibly_blocked": False}
+                    elif isinstance(s, UserStatusEmpty):
+                        peer_status = {"status": "long_ago", "last_seen": None, "possibly_blocked": True}
+                    else:
+                        peer_status = {"status": "unknown", "last_seen": None, "possibly_blocked": False}
+                elif hasattr(entity, "status") and entity.status is None:
+                    # Hidden status — could be privacy or block
+                    peer_status = {"status": "hidden", "last_seen": None, "possibly_blocked": True}
+        except Exception as e:
+            logger.debug(f"Failed to get peer status for dialog {dialog_id}: {e}")
+
         if not already_connected:
-            await telegram_dm_service.disconnect_account(dialog.account_id)
+            await telegram_dm_service.disconnect_account(account.id)
 
         return {
             "messages": formatted,
@@ -3651,13 +4403,14 @@ async def get_dialog_messages(
             "account_phone": account.phone,
             "campaign_id": dialog.campaign_id,
             "tag": dialog.inbox_tag,
+            "peer_status": peer_status,
         }
     except HTTPException:
         raise
     except Exception as e:
         try:
             if not already_connected:
-                await telegram_dm_service.disconnect_account(dialog.account_id)
+                await telegram_dm_service.disconnect_account(account.id)
         except:
             pass
         raise HTTPException(500, f"Failed to fetch messages: {str(e)[:100]}")
@@ -3678,25 +4431,33 @@ async def send_dialog_message(
     if not dialog:
         raise HTTPException(404, "Dialog not found")
 
-    account = await session.get(TelegramDMAccount, dialog.account_id)
+    # Resolve to DM account via phone
+    tg_acc_send = await session.get(TgAccount, dialog.account_id)
+    if not tg_acc_send:
+        raise HTTPException(400, "Outreach account not found")
+    dm_r = await session.execute(select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc_send.phone))
+    dm_candidates = dm_r.scalars().all()
+    account = next((c for c in dm_candidates if telegram_dm_service.is_connected(c.id) and c.string_session), None)
+    if not account:
+        account = next((c for c in dm_candidates if c.string_session), None)
     if not account or account.auth_status != "active":
         raise HTTPException(400, "Account not active")
     if not account.string_session:
         raise HTTPException(400, "Account has no string_session")
 
     # Check if already connected — avoid disconnect at the end if so
-    already_connected = telegram_dm_service.is_connected(dialog.account_id)
+    already_connected = telegram_dm_service.is_connected(account.id)
 
     try:
         if not already_connected:
-            ok = await telegram_dm_service.connect_account(dialog.account_id, account.string_session, account.proxy_config)
+            ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
             if not ok:
                 raise HTTPException(500, "Failed to connect account")
 
-        result = await telegram_dm_service.send_message(dialog.account_id, dialog.peer_id, text)
+        result = await telegram_dm_service.send_message(account.id, dialog.peer_id, text, reply_to=body.get("replyTo"), parse_mode=body.get("parseMode"))
 
         if not already_connected:
-            await telegram_dm_service.disconnect_account(dialog.account_id)
+            await telegram_dm_service.disconnect_account(account.id)
 
         if result.get("success"):
             # Update dialog cache
@@ -3711,7 +4472,7 @@ async def send_dialog_message(
     except Exception as e:
         try:
             if not already_connected:
-                await telegram_dm_service.disconnect_account(dialog.account_id)
+                await telegram_dm_service.disconnect_account(account.id)
         except:
             pass
         raise HTTPException(500, f"Send failed: {str(e)[:100]}")
@@ -3723,10 +4484,8 @@ async def tag_dialog(
     body: dict,
     session: AsyncSession = Depends(get_session),
 ):
-    """Tag an inbox dialog."""
+    """Tag an inbox dialog. Tags are per-dialog (per account+peer), not global."""
     tag = body.get("tag", "")
-    if tag and tag not in ("interested", "info_requested", "not_interested"):
-        raise HTTPException(400, "Invalid tag")
 
     dialog = await session.get(TgInboxDialog, dialog_id)
     if not dialog:
@@ -3735,6 +4494,198 @@ async def tag_dialog(
     dialog.inbox_tag = tag or None
     await session.commit()
     return {"ok": True}
+
+
+
+@router.delete("/inbox/dialogs/{dialog_id}/messages/{msg_id}")
+async def delete_dialog_message(
+    dialog_id: int, msg_id: int,
+    revoke: bool = Query(False),
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete a message in a dialog."""
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+    tg_acc = await session.get(TgAccount, dialog.account_id)
+    if not tg_acc:
+        raise HTTPException(400, "Account not found")
+    dm_r = await session.execute(select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone))
+    dm_candidates = dm_r.scalars().all()
+    account = next((c for c in dm_candidates if telegram_dm_service.is_connected(c.id) and c.string_session), None)
+    if not account:
+        account = next((c for c in dm_candidates if c.string_session), None)
+    if not account:
+        raise HTTPException(400, "No DM account available")
+    already = telegram_dm_service.is_connected(account.id)
+    if not already:
+        ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
+        if not ok:
+            raise HTTPException(500, "Failed to connect")
+    try:
+        result = await telegram_dm_service.delete_messages(account.id, dialog.peer_id, [msg_id], revoke=revoke)
+        if not already:
+            await telegram_dm_service.disconnect_account(account.id)
+        return result
+    except Exception as e:
+        if not already:
+            try: await telegram_dm_service.disconnect_account(account.id)
+            except: pass
+        raise HTTPException(500, f"Delete failed: {str(e)[:100]}")
+
+
+@router.post("/inbox/dialogs/{dialog_id}/messages/{msg_id}/react")
+async def react_dialog_message(
+    dialog_id: int, msg_id: int,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Send a reaction to a message."""
+    emoji = body.get("emoji", "")
+    if not emoji:
+        raise HTTPException(400, "Emoji required")
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+    tg_acc = await session.get(TgAccount, dialog.account_id)
+    if not tg_acc:
+        raise HTTPException(400, "Account not found")
+    dm_r = await session.execute(select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone))
+    dm_candidates = dm_r.scalars().all()
+    account = next((c for c in dm_candidates if telegram_dm_service.is_connected(c.id) and c.string_session), None)
+    if not account:
+        account = next((c for c in dm_candidates if c.string_session), None)
+    if not account:
+        raise HTTPException(400, "No DM account available")
+    already = telegram_dm_service.is_connected(account.id)
+    if not already:
+        ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
+        if not ok:
+            raise HTTPException(500, "Failed to connect")
+    try:
+        result = await telegram_dm_service.send_reaction(account.id, dialog.peer_id, msg_id, emoji)
+        if not already:
+            await telegram_dm_service.disconnect_account(account.id)
+        return result
+    except Exception as e:
+        if not already:
+            try: await telegram_dm_service.disconnect_account(account.id)
+            except: pass
+        raise HTTPException(500, f"React failed: {str(e)[:100]}")
+
+
+
+@router.post("/inbox/dialogs/{dialog_id}/forward")
+async def forward_dialog_messages(
+    dialog_id: int,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Forward messages to another dialog using Telethon forward_messages."""
+    target_dialog_id = body.get("target_dialog_id")
+    msg_ids = body.get("msg_ids", [])
+    if not target_dialog_id or not msg_ids:
+        raise HTTPException(400, "target_dialog_id and msg_ids required")
+
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    target = await session.get(TgInboxDialog, target_dialog_id)
+    if not dialog or not target:
+        raise HTTPException(404, "Dialog not found")
+
+    tg_acc = await session.get(TgAccount, dialog.account_id)
+    if not tg_acc:
+        raise HTTPException(400, "Account not found")
+    dm_r = await session.execute(select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone))
+    dm_candidates = dm_r.scalars().all()
+    account = next((c for c in dm_candidates if telegram_dm_service.is_connected(c.id) and c.string_session), None)
+    if not account:
+        account = next((c for c in dm_candidates if c.string_session), None)
+    if not account:
+        raise HTTPException(400, "No DM account available")
+
+    already = telegram_dm_service.is_connected(account.id)
+    if not already:
+        ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
+        if not ok:
+            raise HTTPException(500, "Failed to connect")
+    try:
+        result = await telegram_dm_service.forward_messages(account.id, dialog.peer_id, msg_ids, target.peer_id)
+        if not already:
+            await telegram_dm_service.disconnect_account(account.id)
+        return result
+    except Exception as e:
+        if not already:
+            try: await telegram_dm_service.disconnect_account(account.id)
+            except: pass
+        raise HTTPException(500, f"Forward failed: {str(e)[:100]}")
+
+
+
+@router.post("/inbox/dialogs/{dialog_id}/read")
+async def mark_dialog_read(dialog_id: int, session: AsyncSession = Depends(get_session)):
+    """Mark a dialog as read (clear unread_count)."""
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if dialog:
+        dialog.unread_count = 0
+        await session.commit()
+    return {"ok": True}
+
+
+@router.post("/inbox/dialogs/{dialog_id}/unread")
+async def mark_dialog_unread(dialog_id: int, session: AsyncSession = Depends(get_session)):
+    """Mark a dialog as unread (set unread_count = 1)."""
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if dialog:
+        dialog.unread_count = 1
+        await session.commit()
+    return {"ok": True}
+
+
+@router.get("/inbox/dialogs/{dialog_id}/crm")
+async def get_dialog_crm(dialog_id: int, session: AsyncSession = Depends(get_session)):
+    """Get CRM contact data for a dialog (by peer username)."""
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+    if not dialog.peer_username:
+        return {"contact": None}
+    result = await session.execute(
+        select(TgContact).where(TgContact.username == dialog.peer_username)
+    )
+    contact = result.scalar()
+    if not contact:
+        return {"contact": None}
+    return {"contact": {
+        "id": contact.id,
+        "username": contact.username,
+        "first_name": contact.first_name,
+        "last_name": contact.last_name,
+        "company_name": contact.company_name,
+        "phone": contact.phone,
+        "status": contact.status.value if hasattr(contact.status, "value") else contact.status,
+        "tags": contact.tags or [],
+        "notes": contact.notes,
+        "custom_data": contact.custom_data or {},
+        "campaigns": contact.campaigns or [],
+        "total_messages_sent": contact.total_messages_sent or 0,
+        "total_replies_received": contact.total_replies_received or 0,
+        "first_contacted_at": contact.first_contacted_at.isoformat() if contact.first_contacted_at else None,
+        "last_contacted_at": contact.last_contacted_at.isoformat() if contact.last_contacted_at else None,
+        "last_reply_at": contact.last_reply_at.isoformat() if contact.last_reply_at else None,
+    }}
+
+
+@router.get("/inbox/campaign-tags")
+async def list_inbox_campaign_tags(session: AsyncSession = Depends(get_session)):
+    """Get all unique tags across campaigns for Inbox tag filtering."""
+    result = await session.execute(select(TgCampaign.tags).where(TgCampaign.tags.isnot(None)))
+    all_tags = set()
+    for (tags,) in result.all():
+        if isinstance(tags, list):
+            for t in tags:
+                if t:
+                    all_tags.add(t)
+    return sorted(all_tags)
 
 
 @router.post("/inbox/sync")
@@ -3749,3 +4700,215 @@ async def trigger_inbox_sync(
     else:
         count = await inbox_sync_service.sync_all()
         return {"ok": True, "synced": count}
+
+
+@router.post("/inbox/new-chat")
+async def create_new_chat(
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Resolve @username via Telegram and create an inbox dialog.
+
+    Requires account_id (telegram_dm_accounts.id) and username.
+    Returns existing dialog if one already exists for this account+peer.
+    """
+    dm_account_id = body.get("account_id")
+    username = (body.get("username") or "").strip().lstrip("@")
+    if not dm_account_id or not username:
+        raise HTTPException(400, "account_id and username required")
+
+    # Validate DM account
+    dm_acc = await session.get(TelegramDMAccount, dm_account_id)
+    if not dm_acc or not dm_acc.string_session or dm_acc.auth_status != "active":
+        raise HTTPException(400, "Account not active or missing session")
+
+    # Resolve DM account → TG outreach account via phone
+    tg_account_id = None
+    if dm_acc.phone:
+        row = (await session.execute(
+            select(TgAccount.id).where(TgAccount.phone == dm_acc.phone).limit(1)
+        )).first()
+        if row:
+            tg_account_id = row[0]
+    if not tg_account_id:
+        raise HTTPException(400, "No outreach account found for this phone")
+
+    # Connect and resolve username
+    already_connected = telegram_dm_service.is_connected(dm_account_id)
+    try:
+        if not already_connected:
+            ok = await telegram_dm_service.connect_account(dm_account_id, dm_acc.string_session, dm_acc.proxy_config)
+            if not ok:
+                raise HTTPException(500, "Failed to connect account")
+
+        result = await telegram_dm_service.resolve_username(dm_account_id, username)
+        if not result.get("success"):
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(dm_account_id)
+            raise HTTPException(404, result.get("error", "Username not found"))
+
+        peer_id = result["peer_id"]
+        peer_name = result["peer_name"]
+        peer_username = result.get("peer_username")
+
+        # Check if dialog already exists
+        all_account_ids = [tg_account_id, dm_account_id]
+        existing = (await session.execute(
+            select(TgInboxDialog).where(
+                TgInboxDialog.account_id.in_(all_account_ids),
+                TgInboxDialog.peer_id == peer_id,
+            ).limit(1)
+        )).scalars().first()
+
+        if existing:
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(dm_account_id)
+            return {
+                "id": existing.id,
+                "account_id": existing.account_id,
+                "peer_id": existing.peer_id,
+                "peer_name": existing.peer_name,
+                "peer_username": existing.peer_username,
+                "last_message_text": existing.last_message_text,
+                "last_message_at": existing.last_message_at.isoformat() if existing.last_message_at else None,
+                "last_message_outbound": existing.last_message_outbound,
+                "unread_count": existing.unread_count,
+                "campaign_id": existing.campaign_id,
+                "tag": existing.inbox_tag,
+                "is_new": False,
+            }
+
+        # Create new dialog
+        dialog = TgInboxDialog(
+            account_id=tg_account_id,
+            peer_id=peer_id,
+            peer_name=peer_name,
+            peer_username=peer_username,
+            last_message_text=None,
+            last_message_at=datetime.utcnow(),
+            last_message_outbound=None,
+            unread_count=0,
+        )
+        session.add(dialog)
+        await session.commit()
+        await session.refresh(dialog)
+
+        if not already_connected:
+            await telegram_dm_service.disconnect_account(dm_account_id)
+
+        return {
+            "id": dialog.id,
+            "account_id": dialog.account_id,
+            "peer_id": dialog.peer_id,
+            "peer_name": dialog.peer_name,
+            "peer_username": dialog.peer_username,
+            "last_message_text": None,
+            "last_message_at": dialog.last_message_at.isoformat() if dialog.last_message_at else None,
+            "last_message_outbound": None,
+            "unread_count": 0,
+            "campaign_id": None,
+            "tag": None,
+            "is_new": True,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(dm_account_id)
+        except:
+            pass
+        raise HTTPException(500, f"New chat failed: {str(e)[:100]}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# BLACKLIST
+# ═══════════════════════════════════════════════════════════════════════
+
+import re
+
+_TG_LINK_RE = re.compile(
+    r'(?:https?://)?(?:t\.me|telegram\.me)/([a-zA-Z0-9_]+)', re.IGNORECASE
+)
+
+
+def _normalize_username(raw: str) -> str | None:
+    """Normalize various TG username formats to bare username (no @)."""
+    raw = raw.strip()
+    if not raw:
+        return None
+    # t.me/user or telegram.me/user link
+    m = _TG_LINK_RE.match(raw)
+    if m:
+        return m.group(1).lower()
+    # @username or plain username
+    return raw.lstrip("@").lower()
+
+
+@router.get("/blacklist", response_model=TgBlacklistListResponse)
+async def list_blacklist(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    search: Optional[str] = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    q = select(TgBlacklist)
+    count_q = select(func.count(TgBlacklist.id))
+    if search:
+        q = q.where(TgBlacklist.username.ilike(f"%{search}%"))
+        count_q = count_q.where(TgBlacklist.username.ilike(f"%{search}%"))
+    total = (await session.execute(count_q)).scalar() or 0
+    rows = (await session.execute(
+        q.order_by(desc(TgBlacklist.created_at))
+        .offset((page - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    return TgBlacklistListResponse(
+        items=[TgBlacklistResponse.model_validate(r) for r in rows],
+        total=total, page=page, page_size=page_size,
+    )
+
+
+@router.post("/blacklist/upload")
+async def upload_blacklist(data: TgBlacklistUploadText, session: AsyncSession = Depends(get_session)):
+    """Upload usernames to blacklist. Supports @user, t.me/user, https://t.me/user, telegram.me/user."""
+    added = 0
+    skipped = 0
+    for line in data.raw_text.strip().splitlines():
+        username = _normalize_username(line)
+        if not username:
+            continue
+        existing = await session.execute(
+            select(TgBlacklist).where(TgBlacklist.username == username)
+        )
+        if existing.scalar():
+            skipped += 1
+            continue
+        session.add(TgBlacklist(username=username, reason=data.reason))
+        added += 1
+    await session.commit()
+    return {"ok": True, "added": added, "skipped": skipped}
+
+
+@router.delete("/blacklist/{entry_id}")
+async def delete_blacklist_entry(entry_id: int, session: AsyncSession = Depends(get_session)):
+    entry = await session.get(TgBlacklist, entry_id)
+    if not entry:
+        raise HTTPException(404, "Blacklist entry not found")
+    await session.delete(entry)
+    await session.commit()
+    return {"ok": True}
+
+
+@router.post("/blacklist/bulk-delete")
+async def bulk_delete_blacklist(data: dict, session: AsyncSession = Depends(get_session)):
+    ids = data.get("ids", [])
+    if ids:
+        await session.execute(sa_delete(TgBlacklist).where(TgBlacklist.id.in_(ids)))
+        await session.commit()
+    return {"ok": True, "deleted": len(ids)}
+
+
+@router.get("/blacklist/count")
+async def blacklist_count(session: AsyncSession = Depends(get_session)):
+    total = (await session.execute(select(func.count(TgBlacklist.id)))).scalar() or 0
+    return {"total": total}

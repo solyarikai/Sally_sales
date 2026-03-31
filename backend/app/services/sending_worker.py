@@ -34,6 +34,56 @@ from app.services.telegram_engine import telegram_engine
 logger = logging.getLogger(__name__)
 
 
+# ── Session age & warm-up limits ─────────────────────────────────────
+
+WARMUP_MSGS_PER_DAY = 2   # +2 messages per warm-up day
+YOUNG_SESSION_DAYS = 7     # sessions < 7 days old get extra restrictions
+YOUNG_SESSION_MAX_MSGS = 5 # hard cap for young sessions regardless of base limit
+YOUNG_SESSION_DELAY_MULT = 1.8  # delay multiplier for young sessions
+
+
+def get_session_age_days(account) -> int | None:
+    """Return session age in days, or None if unknown."""
+    if not account.session_created_at:
+        return None
+    return (datetime.utcnow() - account.session_created_at).days
+
+
+def is_young_session(account) -> bool:
+    """True if session is less than YOUNG_SESSION_DAYS old."""
+    age = get_session_age_days(account)
+    return age is not None and age < YOUNG_SESSION_DAYS
+
+
+def get_effective_daily_limit(account) -> int:
+    """Return effective daily limit, applying warm-up ramp for young sessions.
+
+    New/reactivated accounts ramp gradually:
+      day 1 → 2 msgs, day 2 → 4, day 3 → 6, … until full daily_message_limit.
+    Sessions < 7 days: hard cap at YOUNG_SESSION_MAX_MSGS (extra safety).
+    Accounts without session_created_at are treated as mature (full limit).
+    """
+    base_limit = account.daily_message_limit or 10
+
+    if not account.session_created_at:
+        return base_limit
+
+    session_age_days = get_session_age_days(account)
+    warmup_limit = WARMUP_MSGS_PER_DAY * (session_age_days + 1)
+
+    # Young session hard cap: even if warmup_limit is higher, clamp it
+    if session_age_days < YOUNG_SESSION_DAYS:
+        warmup_limit = min(warmup_limit, YOUNG_SESSION_MAX_MSGS)
+
+    if warmup_limit >= base_limit:
+        return base_limit
+
+    logger.debug(f"Warm-up active for {account.phone}: day {session_age_days + 1}, "
+                 f"limit {warmup_limit}/{base_limit}"
+                 + (" [YOUNG]" if session_age_days < YOUNG_SESSION_DAYS else ""))
+    return warmup_limit
+
+
 # ── Spintax + Variable helpers ────────────────────────────────────────
 
 def resolve_spintax(text: str) -> str:
@@ -83,6 +133,63 @@ def is_within_send_window(campaign: TgCampaign) -> bool:
         return hour >= campaign.send_from_hour or hour < campaign.send_to_hour
 
 
+# ── Human-like delay helpers ─────────────────────────────────────────
+
+def _human_delay(base_min: float, base_max: float, campaign: TgCampaign,
+                 messages_sent_today: int = 0,
+                 session_age_days: int | None = None) -> float:
+    """Generate a human-like delay between messages.
+
+    Mixture distribution instead of flat uniform:
+      65% — normal (gaussian around midpoint of base range)
+      23% — medium "thinking / reading" pause  (1.2×–2.5× base_max)
+      12% — long "distracted / coffee" pause   (2.5×–5× base_max, ≤120 s)
+
+    Modulated by:
+      - Time of day: ~1.4× slower at edges of the send window
+      - Account fatigue: +2 % per message after the first 5 (capped at +50 %)
+      - Young session: ×1.8 for sessions < 7 days old
+    """
+    roll = random.random()
+
+    if roll < 0.65:
+        mid = (base_min + base_max) / 2
+        sigma = (base_max - base_min) / 3
+        delay = max(base_min * 0.8, random.gauss(mid, sigma))
+    elif roll < 0.88:
+        delay = random.uniform(base_max * 1.2, base_max * 2.5)
+    else:
+        delay = random.uniform(base_max * 2.5, min(base_max * 5, 120))
+
+    # Time-of-day modulation: slower at start/end of send window
+    try:
+        now = now_in_tz(campaign.timezone or "UTC")
+        hour_f = now.hour + now.minute / 60.0
+        from_h = campaign.send_from_hour
+        to_h = campaign.send_to_hour
+        window = (to_h - from_h) if to_h > from_h else (24 - from_h + to_h)
+        if window > 0:
+            progress = ((hour_f - from_h) % 24) / window  # 0..1
+            edge_mult = 1.0 + 0.4 * (2 * abs(progress - 0.5)) ** 2
+            delay *= edge_mult
+    except Exception:
+        pass
+
+    # Account fatigue: gradually increase delays after many messages
+    if messages_sent_today > 5:
+        fatigue = 1.0 + 0.02 * min(messages_sent_today - 5, 25)
+        delay *= fatigue
+
+    # Young session safety: send slower to avoid triggering anti-spam
+    if session_age_days is not None and session_age_days < YOUNG_SESSION_DAYS:
+        delay *= YOUNG_SESSION_DELAY_MULT
+
+    # Micro-jitter: avoid perfectly round seconds
+    delay += random.uniform(0.1, 0.9)
+
+    return round(delay, 2)
+
+
 # ══════════════════════════════════════════════════════════════════════
 # Sending Worker
 # ══════════════════════════════════════════════════════════════════════
@@ -102,6 +209,8 @@ class SendingWorker:
         # Emergency stop
         self._consecutive_global_spamblocks = 0
         self._EMERGENCY_THRESHOLD = 30
+        # Daily counter auto-reset (None = needs initial sync on first tick)
+        self._last_reset_date = None
 
     @property
     def is_running(self) -> bool:
@@ -151,6 +260,13 @@ class SendingWorker:
         """Process one round across all active campaigns."""
         import time
 
+        # Sync daily counters: on first tick (startup) and on calendar day change
+        today = datetime.utcnow().date()
+        if self._last_reset_date is None or today != self._last_reset_date:
+            logger.info(f"Counter sync triggered: last_reset={self._last_reset_date}, today={today}")
+            await self._sync_daily_counters()
+            self._last_reset_date = today
+
         # Periodically recheck spamblocked accounts (every 30 min)
         now_ts = time.monotonic()
         if now_ts - self._last_spamblock_recheck > self._RECHECK_INTERVAL:
@@ -176,13 +292,18 @@ class SendingWorker:
             await session.commit()
 
     async def _recheck_spamblocked_accounts(self):
-        """Recheck temporarily spamblocked accounts — try to connect and check @SpamBot."""
-        logger.info("Rechecking spamblocked accounts...")
+        """Recheck temporarily spamblocked and frozen accounts — try to connect and check @SpamBot."""
+        logger.info("Rechecking spamblocked/frozen accounts...")
         async with async_session_maker() as session:
             result = await session.execute(
                 select(TgAccount).where(
-                    TgAccount.status == TgAccountStatus.SPAMBLOCKED,
-                    TgAccount.spamblock_type == TgSpamblockType.TEMPORARY,
+                    or_(
+                        and_(
+                            TgAccount.status == TgAccountStatus.SPAMBLOCKED,
+                            TgAccount.spamblock_type == TgSpamblockType.TEMPORARY,
+                        ),
+                        TgAccount.status == TgAccountStatus.FROZEN,
+                    )
                 )
             )
             accounts = result.scalars().all()
@@ -209,8 +330,13 @@ class SendingWorker:
                         lang_code=account.lang_code or "en",
                         system_lang_code=account.system_lang_code or "en-US",
                     )
-                    sb = check.get("spamblock", "unknown")
-                    if sb == "none" and check.get("authorized"):
+                    # If ban detected during recheck, mark as BANNED
+                    if check.get("banned"):
+                        account.status = TgAccountStatus.BANNED
+                        account.ban_reason = check.get("ban_reason")
+                        account.banned_at = datetime.utcnow()
+                        logger.warning(f"Account {account.phone} permanent ban detected during recheck")
+                    elif check.get("spamblock", "unknown") == "none" and check.get("authorized"):
                         account.status = TgAccountStatus.ACTIVE
                         account.spamblock_type = TgSpamblockType.NONE
                         account.last_checked_at = datetime.utcnow()
@@ -246,16 +372,47 @@ class SendingWorker:
             logger.warning(f"{cname} No available accounts (all at limit, spamblocked, or no session)")
             return
 
-        # Collect recipients — up to len(available_accounts)
+        # Collect recipients with follow-up priority
         batch: list[tuple] = []  # [(recipient, account, proxy_dict, step, variant, rendered)]
-        used_account_ids: set[int] = set()
+        account_pending: dict[int, int] = {}  # account_id -> messages pending in this batch
+        skipped_recipient_ids: set[int] = set()
 
-        for _ in range(len(available_accounts)):
+        # Calculate slots based on followup_priority (0-100)
+        max_batch = len(available_accounts)
+        if campaign.daily_message_limit:
+            remaining = campaign.daily_message_limit - campaign.messages_sent_today
+            max_batch = min(max_batch, remaining)
+        if max_batch <= 0:
+            return
+
+        priority = getattr(campaign, 'followup_priority', 100) or 100
+        followup_slots = round(max_batch * priority / 100)
+        new_lead_slots = max_batch - followup_slots
+
+        # Fetch follow-ups and new leads separately
+        followup_recipients = await self._pick_recipients_by_type(
+            campaign.id, "followup", followup_slots, session)
+        new_recipients = await self._pick_recipients_by_type(
+            campaign.id, "new", new_lead_slots, session)
+
+        # Redistribute unused slots
+        if len(followup_recipients) < followup_slots:
+            extra = followup_slots - len(followup_recipients)
+            extra_new = await self._pick_recipients_by_type(
+                campaign.id, "new", extra, session,
+                exclude_ids={r.id for r in new_recipients})
+            new_recipients.extend(extra_new)
+        if len(new_recipients) < new_lead_slots:
+            extra = new_lead_slots - len(new_recipients)
+            extra_fu = await self._pick_recipients_by_type(
+                campaign.id, "followup", extra, session,
+                exclude_ids={r.id for r in followup_recipients})
+            followup_recipients.extend(extra_fu)
+
+        all_recipients = followup_recipients + new_recipients
+
+        for recipient in all_recipients:
             if campaign.daily_message_limit and (campaign.messages_sent_today + len(batch)) >= campaign.daily_message_limit:
-                break
-
-            recipient = await self._pick_recipient(campaign.id, session)
-            if not recipient:
                 break
 
             step, variant = await self._get_step_and_variant(campaign.id, recipient.current_step, session)
@@ -269,24 +426,54 @@ class SendingWorker:
             proxy_dict = None
             if recipient.assigned_account_id and recipient.current_step > 0:
                 account = await session.get(TgAccount, recipient.assigned_account_id)
-                if account and (account.status != TgAccountStatus.ACTIVE or account.messages_sent_today >= account.daily_message_limit):
+                if account and (
+                    account.status != TgAccountStatus.ACTIVE
+                    or account.messages_sent_today + account_pending.get(account.id, 0) >= get_effective_daily_limit(account)
+                ):
                     account = None
 
             if not account:
-                # Round-robin from available, skip already used this batch
-                for acc in available_accounts:
-                    if acc.id not in used_account_ids:
+                # Round-robin, skip accounts at limit + failed for this recipient
+                failed_for = set((recipient.custom_variables or {}).get("_failed_account_ids", []))
+                for acc in sorted(available_accounts, key=lambda a: account_pending.get(a.id, 0)):
+                    if acc.id not in failed_for and acc.messages_sent_today + account_pending.get(acc.id, 0) < get_effective_daily_limit(acc):
                         account = acc
                         break
                 if not account:
-                    break  # all accounts used this batch
+                    skipped_recipient_ids.add(recipient.id)
+                    logger.info(f"{cname} No available account for @{recipient.username} — skipping, will retry next tick")
+                    continue
 
-            # Load proxy
+            # Load proxy (auto-reassign if dead/missing)
             if account.assigned_proxy_id:
                 p = await session.get(TgProxy, account.assigned_proxy_id)
-                if p:
+                if p and p.is_active:
                     proxy_dict = {"host": p.host, "port": p.port, "username": p.username,
                                   "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
+                else:
+                    reason = "not found" if not p else "dead"
+                    logger.warning(f"{cname} Account {account.phone}: proxy {account.assigned_proxy_id} {reason}, reassigning...")
+                    account.assigned_proxy_id = None
+                    new_p = await self._try_reassign_proxy(account, session)
+                    if new_p:
+                        proxy_dict = {"host": new_p.host, "port": new_p.port, "username": new_p.username,
+                                      "password": new_p.password, "protocol": new_p.protocol.value if hasattr(new_p.protocol, 'value') else new_p.protocol}
+                        logger.info(f"{cname} Account {account.phone}: reassigned to proxy {new_p.host}:{new_p.port}")
+                    else:
+                        logger.warning(f"{cname} Account {account.phone}: no free proxy in group — skipping")
+                        continue
+            elif account.proxy_group_id:
+                # Has group but no individual proxy — auto-assign
+                new_p = await self._try_reassign_proxy(account, session)
+                if new_p:
+                    proxy_dict = {"host": new_p.host, "port": new_p.port, "username": new_p.username,
+                                  "password": new_p.password, "protocol": new_p.protocol.value if hasattr(new_p.protocol, 'value') else new_p.protocol}
+                    logger.info(f"{cname} Account {account.phone}: auto-assigned proxy {new_p.host}:{new_p.port}")
+                else:
+                    logger.warning(f"{cname} Account {account.phone}: no free proxy in group — skipping")
+                    continue
+            else:
+                logger.warning(f"{cname} Account {account.phone} has NO proxy assigned — will connect directly")
 
             # Render message
             variables = {
@@ -303,17 +490,26 @@ class SendingWorker:
 
             # Mark recipient as being processed (prevent double-pick)
             recipient.status = TgRecipientStatus.IN_SEQUENCE
-            used_account_ids.add(account.id)
+            account_pending[account.id] = account_pending.get(account.id, 0) + 1
             batch.append((recipient, account, proxy_dict, step, variant, rendered))
 
         if not batch:
             logger.debug(f"{cname} No recipients to send to")
             return
 
+        # Shuffle batch so account activation order varies each tick
+        random.shuffle(batch)
+
         logger.info(f"{cname} Sending batch of {len(batch)} messages...")
 
-        # Send all in parallel
-        async def _send_one(recipient, account, proxy_dict, step, variant, rendered):
+        # Stagger interval: accounts activate 2-5 s apart instead of all at once
+        stagger_base = random.uniform(2.0, 5.0) if len(batch) > 1 else 0
+
+        async def _send_one(recipient, account, proxy_dict, step, variant, rendered, stagger_offset=0):
+            # Stagger: offset this account's activation
+            if stagger_offset > 0:
+                await asyncio.sleep(stagger_offset)
+
             try:
                 await telegram_engine.connect(
                     account.id, phone=account.phone, api_id=account.api_id, api_hash=account.api_hash,
@@ -325,10 +521,16 @@ class SendingWorker:
                 logger.error(f"Connect failed for {account.phone}: {e}")
                 return
 
-            # Random pre-send delay (each account independently)
-            delay_min = campaign.delay_between_sends_min or 11
-            delay_max = campaign.delay_between_sends_max or 25
-            await asyncio.sleep(random.uniform(delay_min, delay_max))
+            # Human-like pre-send delay (replaces flat uniform)
+            delay = _human_delay(
+                campaign.delay_between_sends_min or 11,
+                campaign.delay_between_sends_max or 25,
+                campaign,
+                messages_sent_today=account.messages_sent_today,
+                session_age_days=get_session_age_days(account),
+            )
+            logger.debug(f"{cname} {account.phone} delay={delay}s")
+            await asyncio.sleep(delay)
 
             result = await telegram_engine.send_message(
                 account.id, recipient.username, rendered,
@@ -348,9 +550,17 @@ class SendingWorker:
                 status=msg_status, error_message=result.get("detail"), sent_at=datetime.utcnow(),
             ))
 
+            # Fetch campaign-account link for per-account spamblock counter
+            ca_link_r = await session.execute(select(TgCampaignAccount).where(
+                TgCampaignAccount.campaign_id == campaign.id,
+                TgCampaignAccount.account_id == account.id))
+            ca_link = ca_link_r.scalar()
+
             # Update counters
             if status == "sent":
                 self._consecutive_global_spamblocks = 0  # reset emergency counter
+                if ca_link:
+                    ca_link.consecutive_spamblock_errors = 0
                 account.messages_sent_today += 1
                 account.total_messages_sent += 1
                 campaign.messages_sent_today += 1
@@ -401,91 +611,212 @@ class SendingWorker:
                     recipient.status = TgRecipientStatus.COMPLETED
                     recipient.next_message_at = None
             elif status == "spamblocked":
-                account.status = TgAccountStatus.SPAMBLOCKED
-                account.spamblock_type = TgSpamblockType.TEMPORARY
-                link_r = await session.execute(select(TgCampaignAccount).where(
-                    TgCampaignAccount.campaign_id == campaign.id, TgCampaignAccount.account_id == account.id))
-                link = link_r.scalar()
-                if link: link.consecutive_spamblock_errors += 1
-                recipient.status = TgRecipientStatus.FAILED
-                recipient.next_message_at = None
+                # Increment per-account spamblock counter
+                if ca_link:
+                    ca_link.consecutive_spamblock_errors += 1
+                # Only mark SPAMBLOCKED when threshold reached
+                threshold = campaign.spamblock_errors_to_skip or 5
+                errors_count = ca_link.consecutive_spamblock_errors if ca_link else 1
+                if errors_count >= threshold:
+                    account.status = TgAccountStatus.SPAMBLOCKED
+                    account.spamblock_type = TgSpamblockType.TEMPORARY
+                    account.spamblocked_at = datetime.utcnow()
+                    logger.warning(f"{cname} {account.phone} spamblock threshold reached "
+                                   f"({errors_count}/{threshold}) — SPAMBLOCKED TEMPORARY")
+                else:
+                    logger.warning(f"{cname} {account.phone} PeerFloodError "
+                                   f"({errors_count}/{threshold}) — below threshold")
+                # Smart cascade: reassign recipient to another account
+                failed_ids = (recipient.custom_variables or {}).get("_failed_account_ids", [])
+                failed_ids.append(account.id)
+                if not recipient.custom_variables:
+                    recipient.custom_variables = {}
+                recipient.custom_variables = {**recipient.custom_variables, "_failed_account_ids": failed_ids}
+                total_accs_r = await session.execute(select(func.count(TgCampaignAccount.id)).where(
+                    TgCampaignAccount.campaign_id == campaign.id))
+                total_campaign_accounts = total_accs_r.scalar() or 0
+                if len(failed_ids) >= total_campaign_accounts:
+                    recipient.status = TgRecipientStatus.FAILED
+                    recipient.next_message_at = None
+                    logger.info(f"All accounts spamblocked for @{recipient.username} — FAILED")
+                else:
+                    recipient.status = TgRecipientStatus.PENDING
+                    recipient.assigned_account_id = None
+                    logger.info(f"Spamblock cascade @{recipient.username} via {account.phone} ({len(failed_ids)}/{total_campaign_accounts})")
                 # Emergency stop check
                 self._consecutive_global_spamblocks += 1
                 if self._consecutive_global_spamblocks >= self._EMERGENCY_THRESHOLD:
-                    logger.critical(f"EMERGENCY STOP: {self._consecutive_global_spamblocks} consecutive spamblocks! Pausing all campaigns.")
+                    logger.critical(f"EMERGENCY STOP: {self._consecutive_global_spamblocks} consecutive spamblocks!")
                     all_active = await session.execute(select(TgCampaign).where(TgCampaign.status == TgCampaignStatus.ACTIVE))
                     for c in all_active.scalars().all():
                         c.status = TgCampaignStatus.PAUSED
             elif status == "bounced":
+                if ca_link:
+                    ca_link.consecutive_spamblock_errors = 0
                 recipient.status = TgRecipientStatus.BOUNCED
                 recipient.next_message_at = None
             elif status == "flood":
+                if ca_link:
+                    ca_link.consecutive_spamblock_errors = 0
                 wait = result.get("wait_seconds", 60)
                 recipient.next_message_at = datetime.utcnow() + timedelta(seconds=wait)
                 recipient.status = TgRecipientStatus.PENDING  # retry later
             else:
+                if ca_link:
+                    ca_link.consecutive_spamblock_errors = 0
                 recipient.status = TgRecipientStatus.FAILED
                 recipient.next_message_at = None
 
-            await telegram_engine.disconnect(account.id)
+            # NOTE: do NOT disconnect here — other coroutines for the same
+            # account may still be sending.  Disconnect happens after gather.
 
-        await asyncio.gather(*[_send_one(*b) for b in batch], return_exceptions=True)
+        tasks = []
+        for i, (recipient, account, proxy_dict, step, variant, rendered) in enumerate(batch):
+            offset = i * stagger_base + random.uniform(-0.5, 0.5)
+            offset = max(0, offset)
+            tasks.append(_send_one(recipient, account, proxy_dict, step, variant, rendered, offset))
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        # ── Post-batch: disconnect accounts & sync counters from real data ──
+        batch_account_ids = {account.id for _, account, _, _, _, _ in batch}
+        for acc_id in batch_account_ids:
+            await telegram_engine.disconnect(acc_id)
+
+        # Flush so new TgOutreachMessage rows are visible to COUNT queries
+        await session.flush()
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        for acc_id in batch_account_ids:
+            count_r = await session.execute(
+                select(func.count(TgOutreachMessage.id)).where(
+                    TgOutreachMessage.account_id == acc_id,
+                    TgOutreachMessage.status == TgMessageStatus.SENT,
+                    TgOutreachMessage.sent_at >= today_start,
+                )
+            )
+            real_count = count_r.scalar() or 0
+            acc = await session.get(TgAccount, acc_id)
+            if acc and acc.messages_sent_today != real_count:
+                logger.warning(f"Counter drift for account {acc.phone}: counter={acc.messages_sent_today}, actual={real_count}")
+                acc.messages_sent_today = real_count
+
+        camp_count_r = await session.execute(
+            select(func.count(TgOutreachMessage.id)).where(
+                TgOutreachMessage.campaign_id == campaign.id,
+                TgOutreachMessage.status == TgMessageStatus.SENT,
+                TgOutreachMessage.sent_at >= today_start,
+            )
+        )
+        real_camp_count = camp_count_r.scalar() or 0
+        if campaign.messages_sent_today != real_camp_count:
+            logger.warning(f"Counter drift for campaign '{campaign.name}': counter={campaign.messages_sent_today}, actual={real_camp_count}")
+            campaign.messages_sent_today = real_camp_count
 
     async def _get_available_accounts(self, campaign: TgCampaign, session: AsyncSession) -> list[TgAccount]:
-        """Get all active accounts for campaign that are under daily limit and have sessions."""
+        """Get accounts for campaign: active + spamblocked (skip only same-day spamblock).
+        Spamblocked accounts skip the rest of the day they got spamblocked, try again next day.
+        Warm-up: young sessions get reduced limits (2/day ramp).
+        Young sessions (< 7 days): hard-capped + slower delays."""
+        today = datetime.utcnow().date()
         result = await session.execute(
             select(TgAccount)
             .join(TgCampaignAccount, TgCampaignAccount.account_id == TgAccount.id)
             .where(
                 TgCampaignAccount.campaign_id == campaign.id,
-                TgAccount.status == TgAccountStatus.ACTIVE,
-                TgAccount.messages_sent_today < TgAccount.daily_message_limit,
+                TgAccount.status.in_([TgAccountStatus.ACTIVE, TgAccountStatus.SPAMBLOCKED]),
             ).order_by(TgAccount.id)
         )
         accounts = list(result.scalars().all())
-        # Filter: must have session + under spamblock threshold
         filtered = []
+        young_count = 0
         for acc in accounts:
             if not telegram_engine.session_file_exists(acc.phone):
                 continue
-            link_r = await session.execute(select(TgCampaignAccount).where(
-                TgCampaignAccount.campaign_id == campaign.id, TgCampaignAccount.account_id == acc.id))
-            link = link_r.scalar()
-            if link and link.consecutive_spamblock_errors >= (campaign.spamblock_errors_to_skip or 5):
+            # Spamblocked today → skip rest of day
+            if acc.status == TgAccountStatus.SPAMBLOCKED:
+                if acc.spamblocked_at and acc.spamblocked_at.date() == today:
+                    continue
+            # Warm-up aware limit check (includes young session hard cap)
+            if acc.messages_sent_today >= get_effective_daily_limit(acc):
                 continue
+            if is_young_session(acc):
+                young_count += 1
             filtered.append(acc)
+        if young_count:
+            logger.info(f"Campaign {campaign.name}: {young_count}/{len(filtered)} accounts are young sessions (<{YOUNG_SESSION_DAYS}d)")
         return filtered
 
     # ── Recipient selection ───────────────────────────────────────────
 
-    async def _pick_recipient(self, campaign_id: int, session: AsyncSession) -> Optional[TgRecipient]:
-        """Pick next due recipient: PENDING (step 0) or IN_SEQUENCE with next_message_at <= now."""
+    async def _pick_recipients_by_type(
+        self, campaign_id: int, rtype: str, limit: int,
+        session: AsyncSession, exclude_ids: set[int] | None = None,
+    ) -> list[TgRecipient]:
+        """Pick recipients by type: 'followup' (IN_SEQUENCE + due) or 'new' (PENDING)."""
+        if limit <= 0:
+            return []
         now = datetime.utcnow()
-
-        # Priority 1: follow-ups that are due
-        result = await session.execute(
-            select(TgRecipient).where(
+        if rtype == "followup":
+            q = select(TgRecipient).where(
                 TgRecipient.campaign_id == campaign_id,
                 TgRecipient.status == TgRecipientStatus.IN_SEQUENCE,
                 TgRecipient.next_message_at <= now,
-            ).order_by(TgRecipient.next_message_at).limit(1)
-        )
-        recipient = result.scalar()
-        if recipient:
-            return recipient
-
-        # Priority 2: new pending recipients
-        result = await session.execute(
-            select(TgRecipient).where(
+            ).order_by(TgRecipient.next_message_at)
+        else:
+            q = select(TgRecipient).where(
                 TgRecipient.campaign_id == campaign_id,
                 TgRecipient.status == TgRecipientStatus.PENDING,
-            ).order_by(TgRecipient.id).limit(1)
-        )
-        return result.scalar()
+            ).order_by(TgRecipient.id)
+        if exclude_ids:
+            q = q.where(TgRecipient.id.notin_(exclude_ids))
+        result = await session.execute(q.limit(limit))
+        return list(result.scalars().all())
+
+    async def _pick_recipient(self, campaign_id: int, session: AsyncSession, exclude_ids: set[int] | None = None) -> Optional[TgRecipient]:
+        """Pick next due recipient (legacy, used as fallback)."""
+        fus = await self._pick_recipients_by_type(campaign_id, "followup", 1, session, exclude_ids)
+        if fus:
+            return fus[0]
+        news = await self._pick_recipients_by_type(campaign_id, "new", 1, session, exclude_ids)
+        return news[0] if news else None
 
     # ── Account selection (round-robin) ───────────────────────────────
 
     # _pick_account replaced by _get_available_accounts + batch logic in _process_campaign
+
+    # ── Proxy auto-assignment ────────────────────────────────────────
+
+    async def _try_reassign_proxy(self, account: TgAccount, session: AsyncSession) -> TgProxy | None:
+        """Try to assign a free active proxy from the account's proxy group."""
+        if not account.proxy_group_id:
+            return None
+        # Find proxy IDs already assigned to other active accounts
+        assigned_q = (
+            select(TgAccount.assigned_proxy_id)
+            .where(
+                TgAccount.assigned_proxy_id.isnot(None),
+                TgAccount.id != account.id,
+                TgAccount.status.in_([
+                    TgAccountStatus.ACTIVE, TgAccountStatus.PAUSED,
+                    TgAccountStatus.FROZEN, TgAccountStatus.SPAMBLOCKED,
+                ]),
+            )
+        )
+        assigned_result = await session.execute(assigned_q)
+        assigned_ids = {r[0] for r in assigned_result.all()}
+
+        proxy_q = (
+            select(TgProxy)
+            .where(TgProxy.proxy_group_id == account.proxy_group_id, TgProxy.is_active == True)
+        )
+        if assigned_ids:
+            proxy_q = proxy_q.where(~TgProxy.id.in_(assigned_ids))
+        result = await session.execute(proxy_q.order_by(TgProxy.id).limit(1))
+        proxy = result.scalar()
+        if proxy:
+            account.assigned_proxy_id = proxy.id
+            return proxy
+        return None
 
     # ── Sequence helpers ──────────────────────────────────────────────
 
@@ -531,23 +862,76 @@ class SendingWorker:
         )
         return step_result.scalar()
 
-    # ── Daily counter reset ───────────────────────────────────────────
+    # ── Daily counter sync ───────────────────────────────────────────
 
-    async def reset_daily_counters(self):
-        """Reset messages_sent_today on all accounts and campaigns. Call once per day."""
+    async def _sync_daily_counters(self):
+        """Sync daily counters from actual sent messages.
+
+        On mid-day restart: counts real messages sent today so counters
+        stay accurate and daily limits are respected.
+        On new calendar day (no messages today): resets everything to 0.
+        """
         async with async_session_maker() as session:
+            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+            # Count today's sent messages per account (single GROUP BY query)
+            acc_counts_r = await session.execute(
+                select(
+                    TgOutreachMessage.account_id,
+                    func.count(TgOutreachMessage.id),
+                ).where(
+                    TgOutreachMessage.status == TgMessageStatus.SENT,
+                    TgOutreachMessage.sent_at >= today_start,
+                ).group_by(TgOutreachMessage.account_id)
+            )
+            acc_counts = dict(acc_counts_r.all())
+
+            # Count today's sent messages per campaign
+            camp_counts_r = await session.execute(
+                select(
+                    TgOutreachMessage.campaign_id,
+                    func.count(TgOutreachMessage.id),
+                ).where(
+                    TgOutreachMessage.status == TgMessageStatus.SENT,
+                    TgOutreachMessage.sent_at >= today_start,
+                ).group_by(TgOutreachMessage.campaign_id)
+            )
+            camp_counts = dict(camp_counts_r.all())
+
+            total_today = sum(acc_counts.values()) if acc_counts else 0
+
+            # Reset all accounts to 0, then set real counts for those with messages
             await session.execute(
                 TgAccount.__table__.update().values(messages_sent_today=0)
             )
+            for acc_id, cnt in acc_counts.items():
+                await session.execute(
+                    TgAccount.__table__.update()
+                    .where(TgAccount.__table__.c.id == acc_id)
+                    .values(messages_sent_today=cnt)
+                )
+
+            # Reset all campaigns to 0, then set real counts
             await session.execute(
                 TgCampaign.__table__.update().values(messages_sent_today=0)
             )
-            # Reset consecutive spamblock counters
-            await session.execute(
-                TgCampaignAccount.__table__.update().values(consecutive_spamblock_errors=0)
-            )
+            for camp_id, cnt in camp_counts.items():
+                await session.execute(
+                    TgCampaign.__table__.update()
+                    .where(TgCampaign.__table__.c.id == camp_id)
+                    .values(messages_sent_today=cnt)
+                )
+
+            # Reset spamblock counters only on a true new day (no messages today)
+            if total_today == 0:
+                await session.execute(
+                    TgCampaignAccount.__table__.update().values(consecutive_spamblock_errors=0)
+                )
+                logger.info("New day: daily counters reset to 0, spamblock counters cleared")
+            else:
+                logger.info(f"Mid-day restart: synced counters from DB ({total_today} messages sent today)")
+
             await session.commit()
-        logger.info("Daily counters reset")
 
 
 # Singleton

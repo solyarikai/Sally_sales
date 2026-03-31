@@ -1,11 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
-  X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RotateCw, RefreshCw,
-  MessageCircle, Info, FileText,
+  X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
+  MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert,
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -15,7 +17,7 @@ import type {
   TgAccount, TgAccountTag, TgProxyGroup, TgProxy, TgCampaign,
 } from '../api/telegramOutreach';
 
-type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'inbox' | 'info';
+type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'blacklist' | 'inbox' | 'info';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -68,6 +70,57 @@ function Tick({ checked, indeterminate, onChange, className }: {
 
 // ── Sortable Header ──────────────────────────────────────────────────
 
+// ── Custom styled select (replaces native <select>) ─────────────────
+function StyledSelect({ value, onChange, options, placeholder, className: cls }: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+  const selected = options.find(o => o.value === value);
+  return (
+    <div ref={ref} style={{ position: 'relative' }} className={cls}>
+      <button onClick={() => setOpen(!open)} type="button"
+        className="w-full h-8 flex items-center justify-between gap-1 px-2.5 rounded-lg text-xs truncate outline-none"
+        style={{ border: `1px solid ${A.border}`, background: A.surface, color: selected ? A.text1 : A.text3, cursor: 'pointer' }}>
+        <span className="truncate">{selected ? selected.label : (placeholder || 'Select...')}</span>
+        <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: A.text3 }} />
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: '4px 0', maxHeight: 240, overflowY: 'auto' }}>
+          {placeholder && (
+            <button onClick={() => { onChange(''); setOpen(false); }}
+              className="w-full text-left px-3 py-1.5 text-xs"
+              style={{ color: A.text3, background: value === '' ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = '#F5F5F0'; }}
+              onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = ''; }}>
+              {placeholder}
+            </button>
+          )}
+          {options.map(o => (
+            <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
+              className="w-full text-left px-3 py-1.5 text-xs truncate"
+              style={{ color: value === o.value ? A.blue : A.text1, background: value === o.value ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = '#F5F5F0'; }}
+              onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = ''; }}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SortHead({ label, column, current, dir, onSort, className }: {
   label: string; column: string; current: string | null; dir: 'asc' | 'desc';
   onSort: (col: string) => void; className?: string;
@@ -89,19 +142,24 @@ function SortHead({ label, column, current, dir, onSort, className }: {
 
 // ── Status badges ─────────────────────────────────────────────────────
 
-const ACCOUNT_STATUS_COLORS: Record<string, string> = {
-  active: `bg-[${A.tealBg}] text-[${A.teal}]`,
-  paused: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
-  spamblocked: `bg-[${A.roseBg}] text-[${A.rose}]`,
-  dead: 'bg-gray-100 text-gray-500 dark:bg-gray-700/30 dark:text-gray-400',
-  frozen: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
+const ACCOUNT_STATUS_STYLES: Record<string, { bg: string; color: string }> = {
+  active: { bg: A.tealBg, color: A.teal },
+  paused: { bg: '#FFFBEB', color: '#D97706' },
+  spamblocked: { bg: A.roseBg, color: A.rose },
+  banned: { bg: '#450A0A', color: '#FCA5A5' },
+  dead: { bg: '#F3F4F6', color: '#6B7280' },
+  frozen: { bg: '#EFF6FF', color: '#2563EB' },
 };
 
 // Campaign status colors now handled inline in CampaignsTab
 
-function StatusBadge({ status, colorMap }: { status: string; colorMap: Record<string, string> }) {
+function StatusBadge({ status }: { status: string }) {
+  const s = ACCOUNT_STATUS_STYLES[status];
   return (
-    <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', colorMap[status] || 'bg-gray-100 text-gray-600')}>
+    <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{
+      background: s?.bg || '#F3F4F6',
+      color: s?.color || '#6B7280',
+    }}>
       {status}
     </span>
   );
@@ -141,6 +199,7 @@ export function TelegramOutreachPage() {
     { key: 'proxies', label: 'Proxies', icon: Shield },
     { key: 'parser', label: 'Parser', icon: Search },
     { key: 'crm', label: 'CRM', icon: Users },
+    { key: 'blacklist', label: 'Blacklist', icon: ShieldAlert },
     { key: 'inbox', label: 'Inbox', icon: MessageCircle },
     { key: 'info', label: 'Info', icon: BookOpen },
   ];
@@ -193,6 +252,7 @@ export function TelegramOutreachPage() {
         {tab === 'proxies' && <ProxiesTab t={t} toast={toast} />}
         {tab === 'parser' && <ParserTab t={t} toast={toast} />}
         {tab === 'crm' && <CrmTab t={t} toast={toast} />}
+        {tab === 'blacklist' && <BlacklistTab toast={toast} />}
         {tab === 'inbox' && <InboxTab toast={toast} />}
         {tab === 'info' && <InfoTab t={t} />}
       </div>
@@ -278,7 +338,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
         case 'phone': return acc.phone;
         case 'username': return acc.username || '';
         case 'status': return acc.status;
-        case 'age': return acc.session_created_at || '';
+        case 'age': return acc.telegram_created_at || acc.session_created_at || '';
         case 'sent': return acc.messages_sent_today;
         default: return '';
       }
@@ -365,6 +425,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
             { key: '', label: 'All' },
             { key: 'active', label: 'Active' },
             { key: 'spamblocked', label: 'Spamblocked' },
+            { key: 'banned', label: 'Banned' },
             { key: 'paused', label: 'Paused' },
             { key: 'dead', label: 'Dead' },
             { key: 'frozen', label: 'Frozen' },
@@ -387,14 +448,16 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
         </div>
       )}
 
-      {/* Bulk actions bar (inline, not fixed) */}
+      {/* Bulk actions bar — floating at bottom center */}
       {selectedIds.size > 0 && (
-        <BulkActionsBar
-          selectedIds={selectedIds}
-          t={t}
-          toast={toast}
-          onDone={() => { setSelectedIds(new Set()); loadAccounts(); }}
-        />
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-8rem)] max-w-[1200px]" style={{ filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.15))' }}>
+          <BulkActionsBar
+            selectedIds={selectedIds}
+            t={t}
+            toast={toast}
+            onDone={() => { setSelectedIds(new Set()); loadAccounts(); }}
+          />
+        </div>
       )}
 
       {/* Table */}
@@ -432,7 +495,8 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                 const initials = (acc.first_name?.[0] || '') + (acc.last_name?.[0] || '') || acc.phone.slice(-2);
                 const hue = (parseInt(acc.phone.slice(-4), 10) || 0) % 360;
                 const isSelected = selectedIds.has(acc.id);
-                const atLimit = acc.messages_sent_today >= acc.daily_message_limit;
+                const effLimit = acc.effective_daily_limit ?? acc.daily_message_limit;
+                const atLimit = acc.messages_sent_today >= effLimit;
                 return (
                   <tr key={acc.id}
                       onClick={() => setEditingAccount(acc)}
@@ -453,7 +517,22 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                     <td className="px-2 py-2.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-full flex-shrink-0 overflow-hidden text-[10px]"
-                             style={{ backgroundColor: `hsl(${hue}, 45%, 60%)` }}>
+                             style={{ backgroundColor: `hsl(${hue}, 45%, 60%)`, cursor: 'pointer' }}
+                             onMouseEnter={e => {
+                               const rect = e.currentTarget.getBoundingClientRect();
+                               const el = document.getElementById('avatar-zoom-portal');
+                               if (el) {
+                                 const img = el.querySelector('img') as HTMLImageElement;
+                                 if (img) img.src = `/api/telegram-outreach/accounts/${acc.id}/avatar`;
+                                 el.style.top = `${rect.top - 148}px`;
+                                 el.style.left = `${rect.left + rect.width / 2 - 70}px`;
+                                 el.style.display = 'block';
+                               }
+                             }}
+                             onMouseLeave={() => {
+                               const el = document.getElementById('avatar-zoom-portal');
+                               if (el) el.style.display = 'none';
+                             }}>
                           <img src={`/api/telegram-outreach/accounts/${acc.id}/avatar`} alt=""
                                className="w-full h-full object-cover"
                                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
@@ -466,8 +545,8 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                         </span>
                       </div>
                     </td>
-                    <td className="px-2 py-2.5 font-mono text-[12px] whitespace-nowrap cursor-pointer"
-                        style={{ color: A.text2 }}
+                    <td className="px-2 py-2.5 text-[12px] whitespace-nowrap cursor-pointer"
+                        style={{ color: A.text2, fontVariantNumeric: 'tabular-nums' }}
                         onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(acc.phone); toast('Copied', 'info'); }}
                         title="Click to copy">{acc.phone}</td>
                     <td className="px-1 py-2.5 text-center" title={acc.country_code || ''}>
@@ -477,24 +556,41 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                       {acc.username ? `@${acc.username}` : <span style={{ color: A.text3 }}>--</span>}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <StatusBadge status={acc.status} colorMap={ACCOUNT_STATUS_COLORS} />
-                        {acc.spamblock_type !== 'none' && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: A.roseBg, color: A.rose }}>
-                            {acc.spamblock_type}
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <StatusBadge status={acc.status} />
+                          {acc.spamblock_type !== 'none' && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ background: A.roseBg, color: A.rose }}>
+                              {acc.spamblock_type}
+                            </span>
+                          )}
+                        </div>
+                        {acc.spamblock_type === 'temporary' && acc.spamblock_end && (
+                          <span className="text-[10px]" style={{ color: A.rose }}>
+                            until {new Date(acc.spamblock_end).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </span>
                         )}
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap" style={{ color: A.text3 }}>
-                      {acc.session_created_at ? (() => {
-                        const days = Math.floor((Date.now() - new Date(acc.session_created_at).getTime()) / 86400000);
-                        return days >= 30 ? `${Math.floor(days / 30)}m ${days % 30}d` : `${days}d`;
+                      {(acc.telegram_created_at || acc.session_created_at) ? (() => {
+                        const d = new Date(acc.telegram_created_at || acc.session_created_at!);
+                        const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+                        const label = days >= 30 ? `${Math.floor(days / 30)}m ${days % 30}d` : `${days}d`;
+                        const tooltip = `Зарегистрирован не позднее ${d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+                        return (
+                          <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative' }}>
+                            {label}
+                            <span className="age-tooltip">{tooltip}</span>
+                          </span>
+                        );
                       })() : '--'}
                     </td>
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap tabular-nums">
                       <span style={{ color: atLimit ? A.rose : A.text1, fontWeight: atLimit ? 600 : 400 }}>{acc.messages_sent_today}</span>
-                      <span style={{ color: A.text3 }}>/{acc.daily_message_limit}</span>
+                      <span style={{ color: A.text3 }}>/{effLimit}</span>
+                      {acc.warmup_day != null && <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up day ${acc.warmup_day}`}>WU</span>}
+                      {acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
                     </td>
                     <td className="px-1 py-2.5" onClick={e => e.stopPropagation()}>
                       <button onClick={() => setEditingAccount(acc)}
@@ -540,6 +636,17 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                           onDeleted={() => { setEditingAccount(null); loadAccounts(); }} />
       )}
 
+      {/* Avatar zoom portal */}
+      <div id="avatar-zoom-portal" style={{
+        display: 'none', position: 'fixed', zIndex: 9999, pointerEvents: 'none',
+        width: 140, height: 140, borderRadius: '50%',
+        border: '3px solid #fff', boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+        overflow: 'hidden', background: '#e5e7eb',
+      }}>
+        <img src="" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+             onError={e => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }} />
+      </div>
+
       {/* Import TeleRaptor Modal */}
       {showImportModal && (
         <ImportTeleRaptorModal t={t} toast={toast} isDark={isDark}
@@ -573,17 +680,30 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
 
   useEffect(() => { loadCampaigns(); }, [loadCampaigns]);
 
+  const [menuOpen, setMenuOpen] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<TgCampaign | null>(null);
+  const [tagEditor, setTagEditor] = useState<{ campaign: TgCampaign; tags: string[]; search: string; allTags: string[]; dropdownOpen: boolean } | null>(null);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  const openTagEditor = useCallback(async (c: TgCampaign) => {
+    const allTags = await telegramOutreachApi.listCampaignTags().catch(() => [] as string[]);
+    setTagEditor({ campaign: c, tags: [...(c.tags || [])], search: '', allTags, dropdownOpen: false });
+    setTimeout(() => tagInputRef.current?.focus(), 50);
+  }, []);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (menuOpen === null) return;
+    const handler = () => setMenuOpen(null);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [menuOpen]);
+
   const handleCreate = async () => {
-    const name = prompt('Campaign name:', 'New Campaign');
-    if (!name) return;
-    const tagsInput = prompt('Tags (comma-separated, optional):');
-    const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(Boolean) : [];
     try {
-      const data: Record<string, any> = { name };
-      if (tags.length > 0) data.tags = tags;
-      await telegramOutreachApi.createCampaign(data);
+      const created = await telegramOutreachApi.createCampaign({ name: 'New Campaign' });
       toast('Campaign created', 'success');
-      loadCampaigns();
+      navigate(`/telegram-outreach/campaign/${created.id}`);
     } catch {
       toast('Failed to create campaign', 'error');
     }
@@ -593,6 +713,7 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
     try {
       await telegramOutreachApi.deleteCampaign(id);
       toast('Campaign deleted', 'success');
+      setDeleteConfirm(null);
       loadCampaigns();
     } catch {
       toast('Failed to delete campaign', 'error');
@@ -703,17 +824,13 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
                   <td style={{ padding: '12px 12px' }}>{statusBadge(c.status)}</td>
                   <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1 flex-wrap">
-                      {((c as any).tags || []).map((tag: string) => (
+                      {(c.tags || []).map((tag: string) => (
                         <span key={tag} className="px-2 py-0.5 rounded-full text-[11px] font-medium"
                           style={{ background: A.blueBg, color: A.blue }}>{tag}</span>
                       ))}
                       <button onClick={(e) => {
                         e.stopPropagation();
-                        const input = prompt('Tags (comma-separated):', ((c as any).tags || []).join(', '));
-                        if (input !== null) {
-                          const tags = input.split(',').map((t: string) => t.trim()).filter(Boolean);
-                          telegramOutreachApi.updateCampaignTags(c.id, tags).then(() => loadCampaigns());
-                        }
+                        openTagEditor(c);
                       }} className="w-5 h-5 rounded-full flex items-center justify-center hover:bg-[#F0F0ED]" style={{ color: A.text3 }}>
                         <Plus className="w-3 h-3" />
                       </button>
@@ -722,7 +839,7 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
                   <td style={{ padding: '12px 12px', minWidth: 100 }}>{progressBar(c)}</td>
                   <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{c.total_messages_sent}</td>
                   <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{c.messages_sent_today}</td>
-                  <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text3 }}>&mdash;</td>
+                  <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: c.replies_count > 0 ? A.text1 : A.text3, fontVariantNumeric: 'tabular-nums' }}>{c.replies_count}</td>
                   <td style={{ padding: '12px 12px', textAlign: 'right', fontSize: 12, color: A.text2, fontVariantNumeric: 'tabular-nums' }}>{c.accounts_count}</td>
                   <td style={{ padding: '12px 12px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -737,15 +854,35 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
                           ? <Pause className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
                           : <Play className="w-3.5 h-3.5" style={{ color: A.teal }} />}
                       </button>
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        title="Delete"
-                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: `1px solid ${A.border}`, background: 'transparent', cursor: 'pointer' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = A.roseBg; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" style={{ color: A.rose }} />
-                      </button>
+                      {/* 3-dot menu */}
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          onClick={() => setMenuOpen(menuOpen === c.id ? null : c.id)}
+                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: `1px solid ${A.border}`, background: 'transparent', cursor: 'pointer' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" style={{ color: A.text3 }} />
+                        </button>
+                        {menuOpen === c.id && (
+                          <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, width: 160, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: '4px 0' }}>
+                            <button onClick={() => {
+                              setMenuOpen(null);
+                              openTagEditor(c);
+                            }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', fontSize: 13, color: A.text1, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#F5F5F0'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
+                              <Tag className="w-3.5 h-3.5" /> Set Tag
+                            </button>
+                            <button onClick={() => { setMenuOpen(null); setDeleteConfirm(c); }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', fontSize: 13, color: A.rose, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = A.roseBg; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
+                              <Trash2 className="w-3.5 h-3.5" /> Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -754,6 +891,140 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
           </table>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} onClick={() => setDeleteConfirm(null)} />
+          <div style={{ position: 'relative', zIndex: 10, width: 400, borderRadius: 16, background: A.surface, padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ padding: 8, borderRadius: 9999, background: A.roseBg }}>
+                <AlertTriangle className="w-5 h-5" style={{ color: A.rose }} />
+              </div>
+              <h3 style={{ fontSize: 18, fontWeight: 600, color: A.text1 }}>Delete Campaign</h3>
+            </div>
+            <p style={{ fontSize: 14, color: A.text2, marginBottom: 24 }}>
+              Are you sure you want to delete <b>"{deleteConfirm.name}"</b>? This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setDeleteConfirm(null)}
+                style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${A.border}`, background: A.surface, fontSize: 13, fontWeight: 500, color: A.text1, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={() => handleDelete(deleteConfirm.id)}
+                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: A.rose, color: '#FFF', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Editor Modal */}
+      {tagEditor && (() => {
+        const { campaign, tags, search, allTags, dropdownOpen } = tagEditor;
+        const searchLower = search.toLowerCase().trim();
+        const suggestions = allTags.filter(t => !tags.includes(t) && t.toLowerCase().includes(searchLower));
+        const canCreate = searchLower.length > 0 && !tags.some(t => t.toLowerCase() === searchLower) && !allTags.some(t => t.toLowerCase() === searchLower);
+        const showDropdown = dropdownOpen && (suggestions.length > 0 || canCreate);
+
+        const addTag = (tag: string) => {
+          const trimmed = tag.trim();
+          if (!trimmed || tags.some(t => t.toLowerCase() === trimmed.toLowerCase())) return;
+          setTagEditor({ ...tagEditor, tags: [...tags, trimmed], search: '', dropdownOpen: false });
+          setTimeout(() => tagInputRef.current?.focus(), 20);
+        };
+        const removeTag = (tag: string) => {
+          setTagEditor({ ...tagEditor, tags: tags.filter(t => t !== tag) });
+        };
+        const handleSave = () => {
+          telegramOutreachApi.updateCampaignTags(campaign.id, tags).then(() => { loadCampaigns(); setTagEditor(null); toast('Tags updated', 'success'); });
+        };
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} onClick={() => setTagEditor(null)} />
+            <div style={{ position: 'relative', zIndex: 10, width: 400, borderRadius: 16, background: A.surface, padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <Tag className="w-5 h-5" style={{ color: A.blue }} />
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: A.text1 }}>Set Tags</h3>
+              </div>
+              <p style={{ fontSize: 13, color: A.text3, marginBottom: 12 }}>
+                Campaign: <b style={{ color: A.text1 }}>{campaign.name}</b>
+              </p>
+
+              {/* Current tags as pills */}
+              {tags.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                  {tags.map(tag => (
+                    <span key={tag} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 9999, background: A.blueBg, color: A.blue, fontSize: 12, fontWeight: 500 }}>
+                      {tag}
+                      <button onClick={() => removeTag(tag)} style={{ display: 'inline-flex', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: A.blue, opacity: 0.6 }}
+                        onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }} onMouseLeave={e => { e.currentTarget.style.opacity = '0.6'; }}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Search input with dropdown */}
+              <div style={{ position: 'relative' }}>
+                <input
+                  ref={tagInputRef}
+                  value={search}
+                  onChange={e => setTagEditor({ ...tagEditor, search: e.target.value, dropdownOpen: true })}
+                  onFocus={() => setTagEditor({ ...tagEditor, dropdownOpen: true })}
+                  placeholder={tags.length > 0 ? 'Add another tag...' : 'Search or create tags...'}
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#4F6BF0]/20"
+                  style={{ border: `1px solid ${A.border}`, color: A.text1 }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (searchLower) addTag(search);
+                    } else if (e.key === 'Backspace' && !search && tags.length > 0) {
+                      removeTag(tags[tags.length - 1]);
+                    } else if (e.key === 'Escape') {
+                      setTagEditor({ ...tagEditor, dropdownOpen: false });
+                    }
+                  }}
+                />
+                {showDropdown && (
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 4, maxHeight: 180, overflowY: 'auto', borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 60, padding: '4px 0' }}>
+                    {suggestions.map(tag => (
+                      <button key={tag} onClick={() => addTag(tag)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 12px', fontSize: 13, color: A.text1, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#F5F5F0'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
+                        <Tag className="w-3 h-3" style={{ color: A.text3 }} /> {tag}
+                      </button>
+                    ))}
+                    {canCreate && (
+                      <button onClick={() => addTag(search)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 12px', fontSize: 13, color: A.blue, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontWeight: 500 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = A.blueBg; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
+                        <Plus className="w-3 h-3" /> Create "{search.trim()}"
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                <button onClick={() => setTagEditor(null)}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${A.border}`, background: A.surface, fontSize: 13, fontWeight: 500, color: A.text1, cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button onClick={handleSave}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: A.blue, color: '#FFF', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1004,8 +1275,8 @@ function ProxiesTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'suc
                     <tr><td colSpan={6} className="text-center py-8" style={{ color: A.text3 }}>No proxies in this group</td></tr>
                   ) : proxies.map(p => (
                     <tr key={p.id} className="border-b" style={{ borderColor: A.border }}>
-                      <td className="px-3 py-2 font-mono text-xs" style={{ color: A.text1 }}>{p.host}</td>
-                      <td className="px-3 py-2 font-mono text-xs" style={{ color: A.text1 }}>{p.port}</td>
+                      <td className="px-3 py-2 text-[13px]" style={{ color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{p.host}</td>
+                      <td className="px-3 py-2 text-[13px]" style={{ color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{p.port}</td>
                       <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>{p.username || '—'}</td>
                       <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>{p.protocol}</td>
                       <td className="px-3 py-2">
@@ -1067,6 +1338,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   selectedIds: Set<number>; t: any; toast: any; onDone: () => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [activePanel, setActivePanel] = useState<string | null>(null);
   // Panel values
   const [limitValue, setLimitValue] = useState('10');
@@ -1075,9 +1347,11 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   const [langCode, setLangCode] = useState('pt');
   const [sysLangCode, setSysLangCode] = useState('pt-PT');
   const [proxyGroupId, setProxyGroupId] = useState<number | ''>('');
+  const [proxyDropdownOpen, setProxyDropdownOpen] = useState(false);
   const [proxyGroups, setProxyGroups] = useState<TgProxyGroup[]>([]);
   const [nameCategory, setNameCategory] = useState('male_en');
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
 
   const ids = Array.from(selectedIds);
 
@@ -1098,142 +1372,131 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
 
   const btnCls = 'flex items-center gap-1.5 px-2.5 py-[5px] rounded-md border text-[12px] font-medium transition-colors disabled:opacity-40';
   const btnStyle = { borderColor: A.border, color: A.text1, background: A.surface };
-  const inputCls = cn('px-2 py-1 rounded-md border text-[12px] outline-none focus:border-[#4F6BF0]/50', t.cardBorder, t.cardBg, t.text1);
+  const inputCls = 'px-2.5 py-1.5 rounded-lg text-[12px] outline-none focus:ring-2 focus:ring-[#4F6BF0]/20';
+  const inputStyle = { border: `1px solid ${A.border}`, background: A.surface, color: A.text1 };
+
+  const [showActionsPopup, setShowActionsPopup] = useState(false);
+  const menuItemCls = 'w-full text-left px-4 py-2 text-[13px] flex items-center gap-2.5 transition-colors';
 
   return (
-    <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: A.blue + '25', background: A.blueBg }}>
-      {/* Main buttons row */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-[12px] font-semibold mr-1" style={{ color: A.blue }}>{selectedIds.size} selected</span>
-        <button onClick={onDone} className="text-[11px] underline mr-1" style={{ color: A.text3 }}>Deselect</button>
-        <div className="w-px h-4" style={{ background: A.border }} />
+    <div className="rounded-xl px-5 py-3" style={{ background: A.blueBg, border: `1px solid ${A.blue}30` }}>
+      <div className="flex items-center gap-2">
+        <span className="text-[12px] font-semibold" style={{ color: A.blue }}>{selectedIds.size} selected</span>
+        <button onClick={onDone} className="text-[11px] underline" style={{ color: A.text3 }}>Deselect</button>
 
-        {/* Dropdown: Оформление аккаунта */}
-        <div className="relative">
-          <button onClick={() => setActivePanel(activePanel === 'menu_profile' ? null : 'menu_profile')}
-            className={btnCls} style={btnStyle}>
-            <Users className="w-3 h-3" /> Оформление аккаунта <ChevronDown className="w-3 h-3" />
-          </button>
-          {activePanel === 'menu_profile' && (
-            <div className="absolute top-full left-0 mt-1 w-44 rounded-lg border shadow-lg z-50 py-1"
-              style={{ background: A.surface, borderColor: A.border }}>
-              <button onClick={() => setActivePanel('names')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Names
-              </button>
-              <button onClick={() => setActivePanel('bio')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Bio
-              </button>
-              <button onClick={() => { setActivePanel(null); photoInputRef.current?.click(); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Photo
-              </button>
-              <button onClick={() => { setActivePanel(null); toast('Username — Coming soon', 'info'); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Username
-              </button>
-            </div>
-          )}
-        </div>
-        <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden"
-               onChange={async e => {
-                 const files = e.target.files;
-                 if (!files || files.length === 0) return;
-                 setLoading(true);
-                 try {
-                   const res = await telegramOutreachApi.bulkSetPhoto(ids, Array.from(files));
-                   toast(`Photos set for ${res.count} accounts (${res.photos_uploaded} photos)`, 'success');
-                   onDone();
-                 } catch { toast('Failed to set photos', 'error'); }
-                 finally { setLoading(false); }
-                 e.target.value = '';
-               }} />
+        <div className="flex-1" />
 
-        {/* Dropdown: Технические настройки */}
-        <div className="relative">
-          <button onClick={() => setActivePanel(activePanel === 'menu_tech' ? null : 'menu_tech')}
-            className={btnCls} style={btnStyle}>
-            <RotateCw className="w-3 h-3" /> Технические настройки <ChevronDown className="w-3 h-3" />
-          </button>
-          {activePanel === 'menu_tech' && (
-            <div className="absolute top-full left-0 mt-1 w-44 rounded-lg border shadow-lg z-50 py-1"
-              style={{ background: A.surface, borderColor: A.border }}>
-              <button onClick={() => { setActivePanel(null); run('Device randomized', () => telegramOutreachApi.bulkRandomizeDevice(ids)); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Device
-              </button>
-              <button onClick={() => setActivePanel('limit')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Limit
-              </button>
-              <button onClick={() => setActivePanel('lang')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Language
-              </button>
-              <button onClick={() => setActivePanel('2fa')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                2FA
-              </button>
-              <button onClick={() => setActivePanel('proxy')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Proxy
-              </button>
-              <button onClick={() => setActivePanel('privacy')} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Privacy
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Dropdown: Session Settings */}
-        <div className="relative">
-          <button onClick={() => setActivePanel(activePanel === 'menu_session' ? null : 'menu_session')}
-            className={btnCls} style={btnStyle}>
-            <RefreshCw className="w-3 h-3" /> Session Settings <ChevronDown className="w-3 h-3" />
-          </button>
-          {activePanel === 'menu_session' && (
-            <div className="absolute top-full left-0 mt-1 w-44 rounded-lg border shadow-lg z-50 py-1"
-              style={{ background: A.surface, borderColor: A.border }}>
-              <button onClick={() => { setActivePanel(null); run('Re-authorized', () => telegramOutreachApi.bulkReauthorize(ids)); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Re-Auth
-              </button>
-              <button onClick={() => { setActivePanel(null); run('Sessions revoked', () => telegramOutreachApi.bulkRevokeSessions(ids)); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Revoke Session
-              </button>
-              <button onClick={() => { setActivePanel(null); run('Cleaned', () => telegramOutreachApi.bulkClean(ids, { delete_dialogs: true, delete_contacts: true })); }} className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1 }}>
-                Clean Dialogs
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="w-px h-4" style={{ background: A.border }} />
-
-        {/* Checks — standalone */}
+        {/* Alive + Spam quick buttons */}
         <button onClick={() => run('Alive check done', () => telegramOutreachApi.bulkCheckAlive(ids))}
-                disabled={loading} className={btnCls} style={{ ...btnStyle, color: A.teal, borderColor: A.teal + '40' }}
-                title="Quick alive check. Safe to run often.">
+                disabled={loading} className={btnCls} style={{ ...btnStyle, color: A.teal, borderColor: A.teal + '40' }}>
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />} Alive?
         </button>
         <button onClick={() => run('Spamblock checked', () => telegramOutreachApi.bulkCheck(ids))}
-                disabled={loading} className={btnCls} style={{ ...btnStyle, color: '#D97706', borderColor: '#D9770640' }}
-                title="Full spamblock check. Don't run too often.">
+                disabled={loading} className={btnCls} style={{ ...btnStyle, color: '#D97706', borderColor: '#D9770640' }}>
           <Shield className="w-3 h-3" /> Spam?
         </button>
 
-        {/* Delete — far right */}
-        <div className="ml-auto">
-          <button onClick={async () => {
-                    if (!confirm(`Delete ${ids.length} accounts?`)) return;
-                    setLoading(true);
-                    try { for (const id of ids) await telegramOutreachApi.deleteAccount(id);
-                          toast(`${ids.length} deleted`, 'success'); onDone();
-                    } catch { toast('Delete failed', 'error'); } finally { setLoading(false); }
-                  }} disabled={loading}
-                  className="flex items-center gap-1.5 px-2.5 py-[5px] rounded-md text-[12px] font-medium transition-colors disabled:opacity-40"
-                  style={{ background: A.roseBg, color: A.rose }}>
-            <Trash2 className="w-3 h-3" /> Delete
-          </button>
-        </div>
+        {/* Delete */}
+        <button onClick={() => setConfirmDelete(true)} disabled={loading}
+                className="flex items-center gap-1.5 px-2.5 py-[5px] rounded-md text-[12px] font-medium"
+                style={{ background: A.roseBg, color: A.rose }}>
+          <Trash2 className="w-3 h-3" /> Delete
+        </button>
+
+        {/* Actions button → popup */}
+        <button onClick={() => setShowActionsPopup(true)}
+                className="flex items-center gap-1.5 px-4 py-[5px] rounded-md text-[12px] font-semibold text-white"
+                style={{ background: A.blue, cursor: 'pointer' }}>
+          Actions...
+        </button>
       </div>
+
+      {/* Actions popup modal — portaled to body to escape stacking context */}
+      {showActionsPopup && createPortal(
+        <ModalBackdrop onClose={() => setShowActionsPopup(false)}>
+          <div className="w-[340px] rounded-xl border shadow-xl" style={{ borderColor: A.border, background: A.surface }}>
+            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${A.border}` }}>
+              <span className="text-sm font-semibold" style={{ color: A.text1 }}>Actions for {ids.length} accounts</span>
+              <button onClick={() => setShowActionsPopup(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X className="w-4 h-4" style={{ color: A.text3 }} />
+              </button>
+            </div>
+
+            {/* Profile section */}
+            <div className="px-2 py-1.5">
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: A.text3 }}>Profile</div>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('names'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Users className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Set Names
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('bio'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Edit3 className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Set Bio
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('photo'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Upload className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Set Photo
+              </button>
+            </div>
+
+            <div style={{ height: 1, background: A.border, margin: '0 8px' }} />
+
+            {/* Technical section */}
+            <div className="px-2 py-1.5">
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: A.text3 }}>Technical</div>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('device'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Globe className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Device Settings
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('limit'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Minus className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Daily Limit
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('2fa'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Shield className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Change 2FA
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('lang'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Globe className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Language
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('proxy'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Shield className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Proxy
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('privacy'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Filter className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Privacy
+              </button>
+            </div>
+
+            <div style={{ height: 1, background: A.border, margin: '0 8px' }} />
+
+            {/* Session section */}
+            <div className="px-2 py-1.5">
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: A.text3 }}>Session</div>
+              <button onClick={() => { setShowActionsPopup(false); run('Re-authorized', () => telegramOutreachApi.bulkReauthorize(ids)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <RefreshCw className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Re-Authorize
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); run('Sessions revoked', () => telegramOutreachApi.bulkRevokeSessions(ids)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <X className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Revoke Sessions
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); run('Cleaned', () => telegramOutreachApi.bulkClean(ids, { delete_dialogs: true, delete_contacts: true })); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Trash2 className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Clean Dialogs
+              </button>
+            </div>
+          </div>
+        </ModalBackdrop>,
+        document.body
+      )}
+        {confirmDelete && createPortal(
+          <ConfirmModal message={`Delete ${ids.length} accounts?`}
+            onConfirm={async () => {
+              setConfirmDelete(false); setLoading(true);
+              try { for (const id of ids) await telegramOutreachApi.deleteAccount(id);
+                    toast(`${ids.length} deleted`, 'success'); onDone();
+              } catch { toast('Delete failed', 'error'); } finally { setLoading(false); }
+            }}
+            onCancel={() => setConfirmDelete(false)} />,
+          document.body
+        )}
 
       {/* Expandable panels */}
       {activePanel === 'names' && (
         <div className="flex items-center gap-2 pt-1">
           <span className={cn('text-xs', t.text3)}>Names:</span>
-          <select value={nameCategory} onChange={e => setNameCategory(e.target.value)} className={inputCls}>
+          <select value={nameCategory} onChange={e => setNameCategory(e.target.value)} className={inputCls} style={inputStyle}>
             <option value="male_en">Male (English)</option>
             <option value="female_en">Female (English)</option>
             <option value="male_pt">Male (Portuguese)</option>
@@ -1276,27 +1539,97 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
       {activePanel === 'lang' && (
         <div className="flex items-center gap-2 pt-1">
           <span className={cn('text-xs', t.text3)}>Lang:</span>
-          <select value={langCode} onChange={e => setLangCode(e.target.value)} className={inputCls}>
+          <select value={langCode} onChange={e => setLangCode(e.target.value)} className={inputCls} style={inputStyle}>
             {['en','pt','es','de','fr','it','nl','ru'].map(l => <option key={l}>{l}</option>)}
           </select>
-          <select value={sysLangCode} onChange={e => setSysLangCode(e.target.value)} className={inputCls}>
+          <select value={sysLangCode} onChange={e => setSysLangCode(e.target.value)} className={inputCls} style={inputStyle}>
             {['en-US','pt-PT','es-ES','de-DE','fr-FR','it-IT','nl-NL','ru-RU'].map(l => <option key={l}>{l}</option>)}
           </select>
           <button onClick={() => run('Language set', () => telegramOutreachApi.bulkUpdateParams(ids, { lang_code: langCode, system_lang_code: sysLangCode }))}
                   disabled={loading} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
         </div>
       )}
-      {activePanel === 'proxy' && (
-        <div className="flex items-center gap-2 pt-1">
-          <span className={cn('text-xs', t.text3)}>Proxy group:</span>
-          <select value={proxyGroupId} onChange={e => setProxyGroupId(e.target.value ? Number(e.target.value) : '')} className={inputCls}>
-            <option value="">-- Select --</option>
-            {proxyGroups.map(g => <option key={g.id} value={g.id}>{g.name} ({g.proxies_count})</option>)}
-          </select>
-          <button onClick={() => { if (!proxyGroupId) return; run('Proxy assigned', () => telegramOutreachApi.bulkAssignProxy(ids, proxyGroupId as number)); }}
-                  disabled={loading || !proxyGroupId} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
+      {activePanel === 'photo' && (
+        <div className="pt-2">
+          <div
+            onClick={() => photoInputRef.current?.click()}
+            onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = A.blue; }}
+            onDragLeave={e => { e.preventDefault(); e.currentTarget.style.borderColor = A.border; }}
+            onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = A.border;
+              if (e.dataTransfer.files.length) setPhotoFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }}
+            style={{ border: `2px dashed ${A.border}`, borderRadius: 10, padding: '16px 20px', textAlign: 'center', cursor: 'pointer', transition: 'border-color 0.2s' }}>
+            <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: A.text3 }} />
+            <p style={{ fontSize: 12, color: A.text1, fontWeight: 500 }}>
+              {photoFiles.length > 0 ? `${photoFiles.length} photo(s) selected` : 'Click or drag photos here'}
+            </p>
+            <p style={{ fontSize: 11, color: A.text3, marginTop: 2 }}>Photos will be distributed randomly across {ids.length} accounts</p>
+          </div>
+          <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden"
+                 onChange={e => { if (e.target.files) setPhotoFiles(prev => [...prev, ...Array.from(e.target.files!)]); e.target.value = ''; }} />
+          {photoFiles.length > 0 && (
+            <div className="flex items-center gap-2 mt-2">
+              <button onClick={async () => {
+                setLoading(true);
+                try {
+                  const res = await telegramOutreachApi.bulkSetPhoto(ids, photoFiles);
+                  toast(`Photos set for ${res.count} accounts (${res.photos_uploaded} photos)`, 'success');
+                  setPhotoFiles([]); setActivePanel(null); onDone();
+                } catch { toast('Failed to set photos', 'error'); }
+                finally { setLoading(false); }
+              }} disabled={loading} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white disabled:opacity-40" style={{ background: A.blue }}>
+                {loading ? 'Uploading...' : `Apply ${photoFiles.length} photo(s)`}
+              </button>
+              <button onClick={() => setPhotoFiles([])} style={{ fontSize: 12, color: A.text3, background: 'none', border: 'none', cursor: 'pointer' }}>Clear</button>
+            </div>
+          )}
         </div>
       )}
+      {activePanel === 'device' && (
+        <div className="flex items-center gap-2 pt-1">
+          <span style={{ fontSize: 12, color: A.text3 }}>Device:</span>
+          <button onClick={() => run('Device randomized', () => telegramOutreachApi.bulkRandomizeDevice(ids))}
+                  disabled={loading}
+                  className="px-3 py-1.5 rounded-lg text-[12px] font-medium disabled:opacity-40"
+                  style={{ background: A.blue, color: '#fff' }}>
+            {loading ? 'Working...' : 'Randomize'}
+          </button>
+          <span style={{ fontSize: 11, color: A.text3 }}>Assigns random model, version, app to {ids.length} account(s)</span>
+        </div>
+      )}
+      {activePanel === 'proxy' && (() => {
+        const selectedGroup = proxyGroups.find(g => g.id === proxyGroupId);
+        return (
+        <div className="flex items-center gap-2 pt-1">
+          <span style={{ fontSize: 12, color: A.text3 }}>Proxy group:</span>
+          <div style={{ position: 'relative' }}>
+            <button onClick={e => { e.stopPropagation(); setProxyDropdownOpen(!proxyDropdownOpen); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 8, border: `1px solid ${A.border}`, background: A.surface, fontSize: 12, color: selectedGroup ? A.text1 : A.text3, cursor: 'pointer', minWidth: 160 }}>
+              <span className="flex-1 text-left truncate">{selectedGroup ? `${selectedGroup.name} (${selectedGroup.proxies_count})` : 'Select group...'}</span>
+              <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: A.text3 }} />
+            </button>
+            {proxyDropdownOpen && (
+              <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 4, width: 220, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: '4px 0', maxHeight: 200, overflowY: 'auto' }}>
+                {proxyGroups.length === 0 ? (
+                  <div style={{ padding: '8px 12px', fontSize: 12, color: A.text3 }}>No proxy groups</div>
+                ) : proxyGroups.map(g => (
+                  <button key={g.id} onClick={() => { setProxyGroupId(g.id); setProxyDropdownOpen(false); }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '7px 12px', fontSize: 12, color: proxyGroupId === g.id ? A.blue : A.text1, background: proxyGroupId === g.id ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                    onMouseEnter={e => { if (proxyGroupId !== g.id) e.currentTarget.style.background = '#F5F5F0'; }}
+                    onMouseLeave={e => { if (proxyGroupId !== g.id) e.currentTarget.style.background = ''; }}>
+                    <span>{g.name}</span>
+                    <span style={{ color: A.text3, fontSize: 11 }}>{g.proxies_count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={() => { if (!proxyGroupId) return; run('Proxy assigned', () => telegramOutreachApi.bulkAssignProxy(ids, proxyGroupId as number)); }}
+                  disabled={loading || !proxyGroupId}
+                  className="px-3 py-1.5 text-white rounded-lg text-[12px] font-medium disabled:opacity-40"
+                  style={{ background: A.blue }}>Apply</button>
+        </div>
+        );
+      })()}
       {activePanel === 'privacy' && (
         <div className="flex items-center gap-2 pt-1 flex-wrap">
           <span className={cn('text-xs', t.text3)}>Privacy:</span>
@@ -1335,6 +1668,36 @@ function ModalBackdrop({ children, onClose }: { children: React.ReactNode; onClo
     </div>
   );
 }
+
+function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <ModalBackdrop onClose={onCancel}>
+      <div className="w-[360px] rounded-xl border shadow-xl" style={{ borderColor: A.border, background: A.surface }}>
+        <div className="px-5 py-4">
+          <h3 className="text-sm font-semibold mb-1" style={{ color: A.text1 }}>Confirm</h3>
+          <p className="text-xs" style={{ color: A.text2, lineHeight: '1.5' }}>{message}</p>
+        </div>
+        <div className="px-5 py-3 flex justify-end gap-2" style={{ borderTop: `1px solid ${A.border}` }}>
+          <button onClick={onCancel}
+            className="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            style={{ border: `1px solid ${A.border}`, color: A.text1, background: A.surface, cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = A.surface; }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm}
+            className="px-4 py-1.5 rounded-lg text-xs font-medium text-white transition-colors"
+            style={{ background: '#E11D48', border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#BE123C'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#E11D48'; }}>
+            Delete
+          </button>
+        </div>
+      </div>
+    </ModalBackdrop>
+  );
+}
+
 
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1536,8 +1899,12 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     }
   };
 
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const handleDelete = async () => {
-    if (!confirm('Delete this account?')) return;
+    setConfirmDeleteAccount(true);
+  };
+  const doDeleteAccount = async () => {
+    setConfirmDeleteAccount(false);
     try {
       await telegramOutreachApi.deleteAccount(account.id);
       toast('Account deleted', 'success');
@@ -1606,6 +1973,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                   <option value="active">Active</option>
                   <option value="paused">Paused</option>
                   <option value="spamblocked">Spamblocked</option>
+                  <option value="banned">Banned</option>
                   <option value="dead">Dead</option>
                   <option value="frozen">Frozen</option>
                 </select>
@@ -1666,7 +2034,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
           {/* ---- Section: Stats ---- */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Stats</h3>
-            <div className="rounded-lg p-3 grid grid-cols-3 gap-3 text-center"
+            <div className="rounded-lg p-3 grid grid-cols-3 gap-3 text-center mb-3"
                  style={{ background: A.bg, border: `1px solid ${A.border}` }}>
               <div>
                 <div className="text-lg font-bold" style={{ color: A.text1 }}>{account.messages_sent_today}</div>
@@ -1679,6 +2047,42 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
               <div>
                 <div className="text-lg font-bold" style={{ color: A.text1 }}>{account.campaigns_count}</div>
                 <div className="text-xs" style={{ color: A.text3 }}>Campaigns</div>
+              </div>
+            </div>
+            <AccountAnalytics accountId={account.id} />
+          </section>
+
+          {/* ---- Section: Proxy ---- */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Proxy</h3>
+            <div className="rounded-lg p-3 space-y-2"
+                 style={{ background: A.bg, border: `1px solid ${A.border}` }}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Group</span>
+                {account.proxy_group_name ? (
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                        style={{ background: A.blueBg, color: A.blue }}>
+                    {account.proxy_group_name}
+                  </span>
+                ) : (
+                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Assigned Proxy</span>
+                {account.assigned_proxy_host ? (
+                  <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full"
+                        style={{ background: '#E8F5E9', color: '#2E7D32' }}>
+                    {account.assigned_proxy_host}
+                  </span>
+                ) : account.proxy_group_name ? (
+                  <span className="text-xs px-2 py-0.5 rounded-full"
+                        style={{ background: '#FFF3E0', color: '#E65100' }}>
+                    No free proxy
+                  </span>
+                ) : (
+                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
+                )}
               </div>
             </div>
           </section>
@@ -1718,10 +2122,12 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                           } finally { setChecking(false); }
                         }}
                         disabled={checking}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
-                        style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
-                  {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                  Check Status
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                        style={{ border: `1px solid #D9770640`, color: '#D97706', cursor: checking ? 'wait' : 'pointer' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#FFFBEB'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                  {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
+                  Spam?
                 </button>
 
                 {/* Auth */}
@@ -1769,7 +2175,15 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                 <button onClick={async () => {
                           try {
                             await telegramOutreachApi.convertToTdata(account.id);
-                            toast('Converted to TDATA. Download available.', 'success');
+                            toast('Converted! Downloading...', 'success');
+                            // Auto-download the ZIP
+                            const url = telegramOutreachApi.downloadTdata(account.id);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `tdata_${account.phone}.zip`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
                           } catch (e: any) {
                             toast(e?.response?.data?.detail || 'Conversion failed', 'error');
                           }
@@ -1781,7 +2195,14 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                 <button onClick={async () => {
                           try {
                             await telegramOutreachApi.convertFromTdata(account.id);
-                            toast('Converted TDATA → Session', 'success');
+                            toast('Converted! Downloading .session...', 'success');
+                            const url = telegramOutreachApi.downloadSession(account.id);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${account.phone}.session`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
                           } catch (e: any) {
                             toast(e?.response?.data?.detail || 'Conversion failed', 'error');
                           }
@@ -1790,12 +2211,6 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                         style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
                   TDATA → Session
                 </button>
-                <a href={telegramOutreachApi.downloadTdata(account.id)}
-                   target="_blank" rel="noreferrer"
-                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
-                   style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
-                  Download TDATA
-                </a>
               </div>
 
               {/* Auth code input */}
@@ -1897,6 +2312,11 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
             </button>
           </div>
         </div>
+        {confirmDeleteAccount && (
+          <ConfirmModal message={`Delete account ${account.phone}?`}
+            onConfirm={doDeleteAccount}
+            onCancel={() => setConfirmDeleteAccount(false)} />
+        )}
       </div>
 
       {/* Keyframe for slide-in animation */}
@@ -2261,23 +2681,23 @@ function ParserTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'succ
 // Info Tab
 // ══════════════════════════════════════════════════════════════════════
 
-function InfoTab({ t }: { t: any }) {
-  const { isDark } = useTheme();
-  const sectionCls = cn('rounded-lg border p-5 space-y-3', t.cardBorder, t.cardBg);
-  const h2Cls = cn('text-[15px] font-semibold', t.text1);
-  const h3Cls = cn('text-[13px] font-semibold mt-3', t.text1);
-  const pCls = cn('text-[13px] leading-relaxed', t.text2);
-  const liCls = cn('text-[13px]', t.text2);
-  const codeCls = cn('font-mono text-[12px] px-1.5 py-0.5 rounded', isDark ? 'bg-gray-800 text-blue-400' : 'bg-gray-100 text-blue-700');
+function InfoTab({ t: _t }: { t: any }) { void _t;
+  const sectionStyle: React.CSSProperties = { borderRadius: 12, border: `1px solid ${A.border}`, padding: 20, background: A.surface };
+  const sectionCls = 'space-y-3';
+  const h2Cls = 'text-[15px] font-semibold';
+  const h3Cls = 'text-[13px] font-semibold mt-3';
+  const pCls = 'text-[13px] leading-relaxed';
+  const liCls = 'text-[13px]';
+  const codeCls = 'text-[12px] px-1.5 py-0.5 rounded';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="max-w-4xl mx-auto space-y-5" style={{ color: A.text2 }}>
       {/* ── Accounts ── */}
-      <div className={sectionCls}>
-        <h2 className={h2Cls}>Accounts</h2>
+      <div className={sectionCls} style={sectionStyle}>
+        <h2 className={h2Cls} style={{ color: A.text1 }}>Accounts</h2>
         <p className={pCls}>Управление Telegram-аккаунтами для рассылки. Каждый аккаунт = отдельная Telethon-сессия.</p>
 
-        <h3 className={h3Cls}>Кнопки</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Кнопки</h3>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}><b>Add</b> — добавить аккаунт вручную (phone + session string)</li>
           <li className={liCls}><b>Import</b> — массовый импорт из TeleRaptor JSON (session + proxy + device)</li>
@@ -2286,7 +2706,7 @@ function InfoTab({ t }: { t: any }) {
           <li className={liCls}><b>Фильтры</b> (All / Active / Spam / Dead) — быстрая фильтрация по статусу</li>
         </ul>
 
-        <h3 className={h3Cls}>Bulk Actions (при выделении аккаунтов)</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Bulk Actions (при выделении аккаунтов)</h3>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}><b>Randomize Names</b> — случайные имена по категории (мужские/женские, EN/PT/RU)</li>
           <li className={liCls}><b>Set Bio</b> — массовая установка описания профиля (напр. "BDM at Company")</li>
@@ -2306,38 +2726,39 @@ function InfoTab({ t }: { t: any }) {
           <li className={liCls}><b>Delete</b> — удаление выбранных аккаунтов из системы</li>
         </ul>
 
-        <h3 className={h3Cls}>Статусы аккаунтов</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Статусы аккаунтов</h3>
         <ul className="space-y-1 list-disc list-inside">
           <li className={liCls}><span className={codeCls}>active</span> — рабочий, участвует в рассылке</li>
           <li className={liCls}><span className={codeCls}>paused</span> — на паузе, не отправляет</li>
           <li className={liCls}><span className={codeCls}>spamblocked</span> — получил спамблок от Telegram (temporary/permanent)</li>
-          <li className={liCls}><span className={codeCls}>dead</span> — аккаунт мертв (забанен, удален)</li>
+          <li className={liCls}><span className={codeCls}>banned</span> — перманентный бан (Abuse Notifications / жалобы)</li>
+          <li className={liCls}><span className={codeCls}>dead</span> — аккаунт мертв (удален, сессия невалидна)</li>
           <li className={liCls}><span className={codeCls}>frozen</span> — заморожен (нужна верификация)</li>
         </ul>
 
-        <h3 className={h3Cls}>Таблица аккаунтов</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Таблица аккаунтов</h3>
         <p className={pCls}>Аватар, телефон (клик = копировать), гео-флаг, username, статус, возраст сессии, отправлено сегодня/лимит, имя. Клик на строку = модалка редактирования.</p>
       </div>
 
       {/* ── Campaigns ── */}
-      <div className={sectionCls}>
-        <h2 className={h2Cls}>Campaigns</h2>
+      <div className={sectionCls} style={sectionStyle}>
+        <h2 className={h2Cls} style={{ color: A.text1 }}>Campaigns</h2>
         <p className={pCls}>Создание и управление рассылочными кампаниями. Кампания = набор аккаунтов + последовательность сообщений + список получателей.</p>
 
-        <h3 className={h3Cls}>Кнопки</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Кнопки</h3>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}><b>New Campaign</b> — создать новую кампанию (имя → переход на страницу настройки)</li>
           <li className={liCls}><b>Refresh</b> — обновить список кампаний</li>
         </ul>
 
-        <h3 className={h3Cls}>Карточка кампании</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Карточка кампании</h3>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}><b>Play / Pause</b> — запуск или пауза рассылки</li>
           <li className={liCls}><b>Delete</b> — удалить кампанию</li>
           <li className={liCls}>Отображает: статус, кол-во аккаунтов, получателей, отправлено сегодня / всего</li>
         </ul>
 
-        <h3 className={h3Cls}>Внутри кампании (Campaign Detail)</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Внутри кампании (Campaign Detail)</h3>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}><b>Settings</b> — лимит/день, часы отправки, таймзона, задержки между сообщениями, порог спамблоков</li>
           <li className={liCls}><b>Sequence</b> — цепочка follow-up сообщений с задержками. Каждый шаг может иметь A/B варианты (spintax)</li>
@@ -2348,7 +2769,7 @@ function InfoTab({ t }: { t: any }) {
           <li className={liCls}><b>Preview</b> — предпросмотр рендеринга сообщения с подстановкой переменных</li>
         </ul>
 
-        <h3 className={h3Cls}>Статусы кампании</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Статусы кампании</h3>
         <ul className="space-y-1 list-disc list-inside">
           <li className={liCls}><span className={codeCls}>draft</span> — черновик, не отправляет</li>
           <li className={liCls}><span className={codeCls}>active</span> — рассылка идет (worker отправляет сообщения)</li>
@@ -2358,11 +2779,11 @@ function InfoTab({ t }: { t: any }) {
       </div>
 
       {/* ── Proxies ── */}
-      <div className={sectionCls}>
-        <h2 className={h2Cls}>Proxies</h2>
+      <div className={sectionCls} style={sectionStyle}>
+        <h2 className={h2Cls} style={{ color: A.text1 }}>Proxies</h2>
         <p className={pCls}>Управление прокси-серверами для маскировки IP аккаунтов. Прокси группируются — аккаунты привязываются к группе.</p>
 
-        <h3 className={h3Cls}>Кнопки</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Кнопки</h3>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}><b>Create Group</b> — создать группу прокси (имя, страна, описание)</li>
           <li className={liCls}><b>Add Proxy</b> — добавить прокси в группу (host:port, протокол, логин/пароль)</li>
@@ -2371,7 +2792,7 @@ function InfoTab({ t }: { t: any }) {
           <li className={liCls}><b>Delete</b> — удалить прокси или группу</li>
         </ul>
 
-        <h3 className={h3Cls}>Протоколы</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Протоколы</h3>
         <ul className="space-y-1 list-disc list-inside">
           <li className={liCls}><span className={codeCls}>socks5</span> — основной, поддерживается Telethon нативно</li>
           <li className={liCls}><span className={codeCls}>http</span> — HTTP CONNECT proxy</li>
@@ -2380,11 +2801,11 @@ function InfoTab({ t }: { t: any }) {
       </div>
 
       {/* ── Parser ── */}
-      <div className={sectionCls}>
-        <h2 className={h2Cls}>Parser</h2>
+      <div className={sectionCls} style={sectionStyle}>
+        <h2 className={h2Cls} style={{ color: A.text1 }}>Parser</h2>
         <p className={pCls}>Парсинг аудитории из Telegram-чатов и групп для формирования базы получателей.</p>
 
-        <h3 className={h3Cls}>Возможности</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Возможности</h3>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}><b>Parse Group</b> — парсинг участников из Telegram-группы/чата по ссылке</li>
           <li className={liCls}><b>Export</b> — экспорт спарсенной аудитории в CSV для импорта в кампании</li>
@@ -2393,11 +2814,11 @@ function InfoTab({ t }: { t: any }) {
       </div>
 
       {/* ── CRM ── */}
-      <div className={sectionCls}>
-        <h2 className={h2Cls}>CRM</h2>
+      <div className={sectionCls} style={sectionStyle}>
+        <h2 className={h2Cls} style={{ color: A.text1 }}>CRM</h2>
         <p className={pCls}>Единая база контактов из всех Telegram-кампаний. Контакт создается автоматически при первой отправке сообщения.</p>
 
-        <h3 className={h3Cls}>Pipeline (воронка)</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Pipeline (воронка)</h3>
         <ul className="space-y-1 list-disc list-inside">
           <li className={liCls}><span className={codeCls}>cold</span> — новый контакт, еще не написали</li>
           <li className={liCls}><span className={codeCls}>contacted</span> — сообщение отправлено</li>
@@ -2408,7 +2829,7 @@ function InfoTab({ t }: { t: any }) {
           <li className={liCls}><span className={codeCls}>not_interested</span> — не заинтересован</li>
         </ul>
 
-        <h3 className={h3Cls}>Функции</h3>
+        <h3 className={h3Cls} style={{ color: A.text1 }}>Функции</h3>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}><b>Фильтр по статусу</b> — клик на карточку статуса = фильтрация таблицы</li>
           <li className={liCls}><b>Bulk Status</b> — массовое изменение статуса выбранных контактов</li>
@@ -2419,8 +2840,8 @@ function InfoTab({ t }: { t: any }) {
       </div>
 
       {/* ── Worker ── */}
-      <div className={sectionCls}>
-        <h2 className={h2Cls}>Sending Worker</h2>
+      <div className={sectionCls} style={sectionStyle}>
+        <h2 className={h2Cls} style={{ color: A.text1 }}>Sending Worker</h2>
         <p className={pCls}>Фоновый процесс, который выполняет рассылку. Индикатор статуса в правом верхнем углу (зеленый = работает).</p>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}>Отправляет сообщения по расписанию кампании (часы, таймзона, задержки)</li>
@@ -2433,8 +2854,8 @@ function InfoTab({ t }: { t: any }) {
       </div>
 
       {/* ── Reply Detection ── */}
-      <div className={sectionCls}>
-        <h2 className={h2Cls}>Reply Detection</h2>
+      <div className={sectionCls} style={sectionStyle}>
+        <h2 className={h2Cls} style={{ color: A.text1 }}>Reply Detection</h2>
         <p className={pCls}>Мониторинг входящих ответов от получателей кампаний.</p>
         <ul className="space-y-1.5 list-disc list-inside">
           <li className={liCls}>Фоновый процесс проверяет все аккаунты на новые входящие DM</li>
@@ -2472,19 +2893,100 @@ function formatRelativeTime(dateStr: string | null | undefined): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function AccountAnalytics({ accountId }: { accountId: number }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<'7d' | '30d'>('7d');
+  useEffect(() => {
+    setLoading(true);
+    telegramOutreachApi.getAccountAnalytics(accountId)
+      .then(d => setData(d))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [accountId]);
+
+  if (loading) return <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin" style={{ color: A.text3 }} /></div>;
+  if (!data) return null;
+
+  const sent = range === '7d' ? data.sent_7d : data.sent_30d;
+  const replies = range === '7d' ? data.replies_7d : data.replies_30d;
+  const errors = range === '7d' ? data.errors_7d : data.errors_30d;
+
+  // Filter chart data by selected range
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - (range === '7d' ? 7 : 30));
+  const chartData = (data.daily || []).filter((d: any) => new Date(d.date) >= cutoff);
+
+  return (
+    <div className="rounded-lg p-3 space-y-3" style={{ border: `1px solid ${A.border}` }}>
+      {/* Toggle */}
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: A.text3 }}>Analytics</p>
+        <div className="flex rounded-md overflow-hidden border" style={{ borderColor: A.border }}>
+          {(['7d', '30d'] as const).map(r => (
+            <button key={r} onClick={() => setRange(r)}
+              className="px-3 py-1 text-[11px] font-medium transition-colors"
+              style={{
+                background: range === r ? A.blue : 'transparent',
+                color: range === r ? '#fff' : A.text3,
+                cursor: 'pointer', border: 'none',
+              }}>
+              {r === '7d' ? '7 days' : '30 days'}
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* Summary row */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <div className="text-lg font-bold" style={{ color: A.blue, fontVariantNumeric: 'tabular-nums' }}>{sent}</div>
+          <div className="text-[10px]" style={{ color: A.text3 }}>Sent</div>
+        </div>
+        <div>
+          <div className="text-lg font-bold" style={{ color: '#22C55E', fontVariantNumeric: 'tabular-nums' }}>{replies}</div>
+          <div className="text-[10px]" style={{ color: A.text3 }}>Replies</div>
+        </div>
+        <div>
+          <div className="text-lg font-bold" style={{ color: '#EF4444', fontVariantNumeric: 'tabular-nums' }}>{errors}</div>
+          <div className="text-[10px]" style={{ color: A.text3 }}>Spamblock</div>
+        </div>
+      </div>
+      {/* Chart */}
+      {chartData.length > 0 && (
+        <ResponsiveContainer width="100%" height={range === '7d' ? 100 : 140}>
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+            <XAxis dataKey="date" tick={{ fontSize: 9, fill: A.text3 }} tickFormatter={(v: string) => { const d = new Date(v); return `${d.getDate()}/${d.getMonth()+1}`; }} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 9, fill: A.text3 }} allowDecimals={false} />
+            <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: `1px solid ${A.border}` }} />
+            <Area type="monotone" dataKey="sent" stroke={A.blue} fill={A.blueBg} strokeWidth={1.5} name="Sent" />
+            <Area type="monotone" dataKey="replies" stroke="#22C55E" fill="#DCFCE7" strokeWidth={1.5} name="Replies" />
+            <Area type="monotone" dataKey="spamblocked" stroke="#EF4444" fill="#FEE2E2" strokeWidth={1.5} name="Spamblock" />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
 const TAG_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  interested:      { bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
-  info_requested:  { bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' },
-  not_interested:  { bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
+  interested:         { bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
+  info_requested:     { bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' },
+  not_interested:     { bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
+  meeting_scheduled:  { bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' },
 };
 
-function DialogAvatar({ name, peerId }: { name: string; peerId: number }) {
+function DialogAvatar({ name, peerId, accountId }: { name: string; peerId: number; accountId?: number }) {
   const initials = name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
   const hue = (peerId || 0) % 360;
+  const [imgError, setImgError] = useState(false);
+  const photoUrl = accountId && peerId ? `/api/telegram-dm/accounts/${accountId}/peer-photo/${peerId}` : null;
   return (
-    <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold"
+    <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center text-white text-xs font-semibold"
          style={{ backgroundColor: `hsl(${hue}, 45%, 55%)` }}>
-      {initials}
+      {photoUrl && !imgError ? (
+        <img src={photoUrl} alt="" className="w-full h-full object-cover"
+             onError={() => setImgError(true)} />
+      ) : initials}
     </div>
   );
 }
@@ -2506,10 +3008,61 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [applied, setApplied] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [showCrmInfo, setShowCrmInfo] = useState(false);
+  const [crmData, setCrmData] = useState<any>(null);
+  const [crmLoading, setCrmLoading] = useState(false);
+  const [peerStatus, setPeerStatus] = useState<any>(null);
+  const [filterLeadStatus, setFilterLeadStatus] = useState<string>('');
+  const [campaignTags, setCampaignTags] = useState<string[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
+  // Context menu, reply, selection
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; msg: any } | null>(null);
+  const [replyTo, setReplyTo] = useState<any>(null);
+  const [deleteModal, setDeleteModal] = useState<any>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedMsgs, setSelectedMsgs] = useState<Set<number>>(new Set());
+  const [customTemplates, setCustomTemplates] = useState<{ label: string; text: string }[]>(() => {
+    try { return JSON.parse(localStorage.getItem('inbox_custom_templates') || '[]'); } catch { return []; }
+  });
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [forwardPopup, setForwardPopup] = useState<{ msgIds: number[] } | null>(null);
+  const [forwardSearch, setForwardSearch] = useState('');
+  const [forwardDialogs, setForwardDialogs] = useState<any[]>([]);
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [newChatUsername, setNewChatUsername] = useState('');
+  const [newChatLoading, setNewChatLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const templateRef = useRef<HTMLDivElement>(null);
+
+  const saveCustomTemplate = (label: string, text: string) => {
+    const updated = [...customTemplates, { label, text }];
+    setCustomTemplates(updated);
+    localStorage.setItem('inbox_custom_templates', JSON.stringify(updated));
+  };
+  const deleteCustomTemplate = (idx: number) => {
+    const updated = customTemplates.filter((_: any, i: number) => i !== idx);
+    setCustomTemplates(updated);
+    localStorage.setItem('inbox_custom_templates', JSON.stringify(updated));
+  };
+
+  const exitSelectMode = () => { setSelectMode(false); setSelectedMsgs(new Set()); };
+  const handleBulkCopy = () => {
+    const texts = messages.filter((m: any) => selectedMsgs.has(m.id)).map((m: any) => m.text || '').join('\n\n');
+    navigator.clipboard.writeText(texts);
+    toast(`Copied ${selectedMsgs.size} messages`, 'success');
+    exitSelectMode();
+  };
+  const handleBulkDelete = async (revoke: boolean) => {
+    if (!selectedDialog) return;
+    for (const mid of selectedMsgs) {
+      try { await telegramOutreachApi.deleteDialogMessage(selectedDialog.id, mid, revoke); } catch { /* skip */ }
+    }
+    toast(`Deleted ${selectedMsgs.size} messages`, 'success');
+    exitSelectMode();
+    const data = await telegramOutreachApi.getDialogMessages(selectedDialog.id, 30);
+    setMessages(data.messages || data || []);
+  };
 
   const REPLY_TEMPLATES = [
     { label: 'Greeting', text: 'Hi! Thanks for your response. How can I help?' },
@@ -2518,6 +3071,14 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     { label: 'Follow up', text: 'Just following up on my previous message. Any thoughts?' },
     { label: 'Not interested', text: 'No problem, thanks for letting me know!' },
   ];
+
+  // Close context menu on click anywhere
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const h = () => setCtxMenu(null);
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
+  }, [ctxMenu]);
 
   // Close templates popup on outside click
   useEffect(() => {
@@ -2531,24 +3092,27 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     return () => document.removeEventListener('mousedown', handler);
   }, [showTemplates]);
 
-  // Load campaigns & accounts on mount (but NOT dialogs — wait for Apply)
+  // Load campaigns & accounts & campaign tags on mount
   useEffect(() => {
     (async () => {
       try {
-        const [cRes, aRes] = await Promise.all([
+        const [cRes, aRes, tags] = await Promise.all([
           telegramOutreachApi.listCampaigns(),
           telegramOutreachApi.listInboxAccounts(),
+          telegramOutreachApi.listCampaignTags().catch(() => []),
         ]);
         setCampaigns(cRes.items || []);
         setAccounts(aRes || []);
+        setCampaignTags(tags || []);
       } catch { /* ignore */ }
     })();
   }, []);
 
   // Apply handler — loads dialogs
   const handleApply = useCallback(async () => {
-    if (!filterAccount && !filterCampaign && !filterTag) {
-      toast('Select at least one filter (account, campaign, or tag)', 'error');
+    const hasFilter = filterAccount || filterCampaign || filterTag || filterLeadStatus;
+    if (!hasFilter) {
+      toast('Select at least one filter', 'error');
       return;
     }
     setApplied(true);
@@ -2557,7 +3121,8 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
       const params: any = { page: 1, page_size: 100 };
       if (filterAccount) params.account_id = Number(filterAccount);
       if (filterCampaign) params.campaign_id = Number(filterCampaign);
-      if (filterTag) params.tag = filterTag;
+      if (filterTag) params.campaign_tag = filterTag;
+      if (filterLeadStatus) params.lead_status = filterLeadStatus;
       const data = await telegramOutreachApi.listInboxDialogs(params);
       setDialogs(data.items || data || []);
     } catch {
@@ -2565,7 +3130,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     } finally {
       setLoading(false);
     }
-  }, [filterAccount, filterCampaign, filterTag, toast]);
+  }, [filterAccount, filterCampaign, filterTag, filterLeadStatus, toast]);
 
   // Sync handler
   const handleSync = async () => {
@@ -2583,17 +3148,59 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     }
   };
 
-  // Load messages when dialog selected
+  // New Chat handler
+  const handleNewChat = async () => {
+    const username = newChatUsername.trim().replace(/^@/, '');
+    if (!username) return;
+    if (!filterAccount) {
+      toast('Select an account first', 'error');
+      return;
+    }
+    setNewChatLoading(true);
+    try {
+      const data = await telegramOutreachApi.createNewChat(Number(filterAccount), username);
+      // Add to dialogs list if new
+      if (data.is_new) {
+        setDialogs(prev => [data, ...prev]);
+      }
+      // Select the dialog
+      setSelectedDialog(data);
+      setShowNewChat(false);
+      setNewChatUsername('');
+      if (!data.is_new) {
+        toast('Existing conversation opened', 'info');
+      }
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail || 'Failed to start chat';
+      toast(detail, 'error');
+    } finally {
+      setNewChatLoading(false);
+    }
+  };
+
+  // Load messages + peer status when dialog selected
   useEffect(() => {
-    if (!selectedDialog) { setMessages([]); return; }
+    if (!selectedDialog) { setMessages([]); setPeerStatus(null); return; }
     let cancelled = false;
     setLoadingMessages(true);
+    setPeerStatus(null);
     (async () => {
       try {
         const data = await telegramOutreachApi.getDialogMessages(selectedDialog.id, 30);
-        if (!cancelled) setMessages(data.messages || data || []);
-      } catch {
-        if (!cancelled) setMessages([]);
+        if (!cancelled) {
+          setMessages(data.messages || data || []);
+          if (data.peer_status) setPeerStatus(data.peer_status);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setMessages([]);
+          const detail = e?.response?.data?.detail || 'Failed to load messages';
+          if (detail.includes('connect')) {
+            toast('Account session expired — cannot load messages. Re-authorize the account.', 'error');
+          } else {
+            toast(detail, 'error');
+          }
+        }
       } finally {
         if (!cancelled) setLoadingMessages(false);
       }
@@ -2601,21 +3208,130 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     return () => { cancelled = true; };
   }, [selectedDialog]);
 
+  // Load CRM data when Info panel is opened
+  useEffect(() => {
+    if (!showCrmInfo || !selectedDialog) { setCrmData(null); return; }
+    let cancelled = false;
+    setCrmLoading(true);
+    (async () => {
+      try {
+        const data = await telegramOutreachApi.getDialogCrm(selectedDialog.id);
+        if (!cancelled) setCrmData(data.contact);
+      } catch { if (!cancelled) setCrmData(null); }
+      finally { if (!cancelled) setCrmLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [showCrmInfo, selectedDialog]);
+
   // Auto-scroll to bottom when messages load
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Send handler
+  // ---- Rich-text editor helpers ----
+  const editorToTelegramHtml = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return (node.textContent || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+    const ch = Array.from(el.childNodes).map(editorToTelegramHtml).join('');
+    switch (tag) {
+      case 'b': case 'strong': return `<b>${ch}</b>`;
+      case 'i': case 'em': return `<i>${ch}</i>`;
+      case 'u': return `<u>${ch}</u>`;
+      case 's': case 'strike': case 'del': return `<s>${ch}</s>`;
+      case 'code': return `<code>${ch}</code>`;
+      case 'blockquote': return `<blockquote>${ch}</blockquote>`;
+      case 'a': return `<a href="${(el.getAttribute('href') || '').replace(/"/g, '&quot;')}">${ch}</a>`;
+      case 'span': return el.classList.contains('tg-spoiler') ? `<tg-spoiler>${ch}</tg-spoiler>` : ch;
+      case 'br': return '\n';
+      case 'div': return '\n' + ch;
+      default: return ch;
+    }
+  };
+
+  const wrapSelectionWith = (tag: string, attrs?: Record<string, string>) => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    if (!editorRef.current?.contains(range.commonAncestorContainer)) return;
+    const el = document.createElement(tag);
+    if (attrs) Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+    try { range.surroundContents(el); } catch {
+      const frag = range.extractContents(); el.appendChild(frag); range.insertNode(el);
+    }
+    sel.removeAllRanges();
+    const nr = document.createRange(); nr.selectNodeContents(el); sel.addRange(nr);
+  };
+
+  const applyFormat = (fmt: string, attrs?: Record<string, string>) => {
+    editorRef.current?.focus();
+    if (['bold', 'italic', 'underline', 'strikeThrough'].includes(fmt)) {
+      document.execCommand(fmt);
+    } else if (fmt === 'createLink') {
+      const url = window.prompt('Enter URL:');
+      if (url) document.execCommand('createLink', false, url);
+    } else {
+      wrapSelectionWith(fmt, attrs);
+    }
+    setMessageText(editorRef.current?.textContent || '');
+  };
+
+  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); return; }
+    if (e.ctrlKey || e.metaKey) {
+      if (e.shiftKey) {
+        switch (e.key) {
+          case 'X': case 'x': e.preventDefault(); document.execCommand('strikeThrough'); break;
+          case '>': e.preventDefault(); wrapSelectionWith('blockquote'); break;
+          case 'M': case 'm': e.preventDefault(); wrapSelectionWith('code'); break;
+          case 'P': case 'p': e.preventDefault(); wrapSelectionWith('span', { class: 'tg-spoiler' }); break;
+        }
+      } else {
+        switch (e.key.toLowerCase()) {
+          case 'b': e.preventDefault(); document.execCommand('bold'); break;
+          case 'i': e.preventDefault(); document.execCommand('italic'); break;
+          case 'u': e.preventDefault(); document.execCommand('underline'); break;
+          case 'k': e.preventDefault(); { const url = window.prompt('Enter URL:'); if (url) document.execCommand('createLink', false, url); } break;
+        }
+      }
+    }
+  };
+
+  const handleEditorPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+  };
+
+  const setEditorContent = (text: string) => {
+    setMessageText(text);
+    if (editorRef.current) editorRef.current.textContent = text;
+  };
+
+  // Send handler (supports reply_to + formatting)
   const handleSend = async () => {
     if (!selectedDialog || !messageText.trim() || sending) return;
     setSending(true);
     try {
-      await telegramOutreachApi.sendDialogMessage(selectedDialog.id, messageText.trim());
+      const editor = editorRef.current;
+      let text = messageText.trim();
+      let parseMode: string | undefined;
+      if (editor) {
+        const html = Array.from(editor.childNodes).map(editorToTelegramHtml).join('').replace(/^\n+|\n+$/g, '');
+        if (html !== text) { text = html; parseMode = 'html'; }
+      }
+      await telegramOutreachApi.sendDialogMessage(selectedDialog.id, text, {
+        parseMode,
+        replyTo: replyTo?.id,
+      });
+      if (editor) editor.innerHTML = '';
       setMessageText('');
+      setReplyTo(null);
       const data = await telegramOutreachApi.getDialogMessages(selectedDialog.id, 30);
       setMessages(data.messages || data || []);
-      inputRef.current?.focus();
+      editorRef.current?.focus();
     } catch (e: any) {
       toast(e?.response?.data?.detail || 'Failed to send message', 'error');
     } finally {
@@ -2623,16 +3339,43 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     }
   };
 
+  // Delete handler
+  const handleDeleteMsg = async (msgId: number, revoke: boolean) => {
+    if (!selectedDialog) return;
+    setDeleteModal(null); // Close popup immediately
+    try {
+      await telegramOutreachApi.deleteDialogMessage(selectedDialog.id, msgId, revoke);
+      const data = await telegramOutreachApi.getDialogMessages(selectedDialog.id, 30);
+      setMessages(data.messages || data || []);
+      toast('Message deleted', 'success');
+    } catch (e: any) {
+      toast(e?.response?.data?.detail || 'Delete failed', 'error');
+    }
+  };
+
+  // React handler
+  const handleReact = async (msgId: number, emoji: string) => {
+    if (!selectedDialog) return;
+    try {
+      await telegramOutreachApi.reactDialogMessage(selectedDialog.id, msgId, emoji);
+      setCtxMenu(null);
+    } catch (e: any) {
+      toast(e?.response?.data?.detail || 'Reaction failed', 'error');
+    }
+  };
+
   // Tag handler
   const handleTag = async (tag: string) => {
     if (!selectedDialog) return;
+    // Toggle: if same tag, clear it
+    const newTag = selectedDialog.tag === tag ? '' : tag;
     try {
-      await telegramOutreachApi.tagDialog(selectedDialog.id, tag);
-      setSelectedDialog((prev: any) => prev ? { ...prev, tag } : prev);
+      await telegramOutreachApi.tagDialog(selectedDialog.id, newTag);
+      setSelectedDialog((prev: any) => prev ? { ...prev, tag: newTag || null } : prev);
       setDialogs(prev => prev.map(d =>
-        d.id === selectedDialog.id ? { ...d, tag } : d
+        d.id === selectedDialog.id ? { ...d, tag: newTag || null } : d
       ));
-      toast(`Tagged as ${tag.replace('_', ' ')}`, 'success');
+      toast(newTag ? `Tagged as ${newTag.replace('_', ' ')}` : 'Tag removed', 'success');
     } catch (e: any) {
       toast(e?.response?.data?.detail || 'Failed to tag', 'error');
     }
@@ -2649,7 +3392,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
       })
     : dialogs;
 
-  const selectCls = `h-8 rounded-lg border text-xs px-2 outline-none appearance-none cursor-pointer`;
+  // selectCls removed — using StyledSelect component
 
   return (
     <div className="flex rounded-xl overflow-hidden" style={{ background: A.surface, border: `1px solid ${A.border}`, height: 'calc(100vh - 220px)', minHeight: 500 }}>
@@ -2673,42 +3416,48 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
         {/* Filters */}
         <div className="px-3 pb-3 flex flex-col gap-1.5" style={{ borderBottom: `1px solid ${A.border}` }}>
           {/* Row 1: Account dropdown */}
-          <select
+          <StyledSelect
             value={filterAccount}
-            onChange={e => setFilterAccount(e.target.value)}
-            className={cn(selectCls, 'w-full truncate')}
-            style={{ borderColor: A.border, color: filterAccount ? A.text1 : A.text3, background: A.surface }}
-          >
-            <option value="">Account</option>
-            {accounts.map((a: any) => (
-              <option key={a.id} value={a.id}>{a.phone}{a.username ? ` @${a.username}` : ''}</option>
-            ))}
-          </select>
+            onChange={setFilterAccount}
+            placeholder="Account"
+            options={accounts.map((a: any) => ({ value: String(a.id), label: `${a.phone}${a.username ? ` @${a.username}` : ''}` }))}
+          />
           {/* Row 2: Campaign dropdown */}
-          <select
+          <StyledSelect
             value={filterCampaign}
-            onChange={e => setFilterCampaign(e.target.value)}
-            className={cn(selectCls, 'w-full truncate')}
-            style={{ borderColor: A.border, color: filterCampaign ? A.text1 : A.text3, background: A.surface }}
-          >
-            <option value="">Campaign</option>
-            {campaigns.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          {/* Row 3: Tag + Apply + Sync */}
+            onChange={setFilterCampaign}
+            placeholder="Campaign"
+            options={campaigns.map((c: any) => ({ value: String(c.id), label: c.name }))}
+          />
+          {/* Row 3: Lead Status + Campaign Tag */}
           <div className="flex gap-1.5">
-            <select
-              value={filterTag}
-              onChange={e => setFilterTag(e.target.value)}
-              className={cn(selectCls, 'flex-1 min-w-0 truncate')}
-              style={{ borderColor: A.border, color: filterTag ? A.text1 : A.text3, background: A.surface }}
-            >
-              <option value="">Tag</option>
-              <option value="interested">Interested</option>
-              <option value="info_requested">Info Requested</option>
-              <option value="not_interested">Not Interested</option>
-            </select>
+            <StyledSelect
+              value={filterLeadStatus}
+              onChange={setFilterLeadStatus}
+              placeholder="Lead Status"
+              className="flex-1 min-w-0"
+              options={[
+                { value: 'cold', label: 'Cold' },
+                { value: 'contacted', label: 'Contacted' },
+                { value: 'replied', label: 'Replied' },
+                { value: 'interested', label: 'Interested' },
+                { value: 'qualified', label: 'Qualified' },
+                { value: 'meeting_set', label: 'Meeting Set' },
+                { value: 'not_interested', label: 'Not Interested' },
+              ]}
+            />
+            {campaignTags.length > 0 && (
+              <StyledSelect
+                value={filterTag}
+                onChange={setFilterTag}
+                placeholder="Campaign Tag"
+                className="flex-1 min-w-0"
+                options={campaignTags.map(t => ({ value: t, label: t }))}
+              />
+            )}
+          </div>
+          {/* Row 4: Apply + Sync */}
+          <div className="flex gap-1.5">
             <button
               onClick={handleApply}
               disabled={loading}
@@ -2732,6 +3481,18 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: A.text2 }} />
                 : <RefreshCw className="w-3.5 h-3.5" style={{ color: A.text2 }} />}
             </button>
+            {filterAccount && (
+              <button
+                onClick={() => setShowNewChat(true)}
+                title="New Chat"
+                className="h-8 px-2.5 rounded-lg flex items-center gap-1 border text-xs font-medium transition-colors flex-shrink-0"
+                style={{ borderColor: A.border, background: A.surface, color: A.text1 }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = A.surface; }}
+              >
+                <Plus className="w-3.5 h-3.5" /> Chat
+              </button>
+            )}
           </div>
         </div>
 
@@ -2764,7 +3525,16 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
               return (
                 <div
                   key={dialog.id}
-                  onClick={() => setSelectedDialog(dialog)}
+                  onClick={() => {
+                    setSelectedDialog(dialog);
+                    exitSelectMode();
+                    // Clear unread dot locally + persist to DB
+                    if (dialog.unread_count > 0) {
+                      setDialogs(prev => prev.map(d => d.id === dialog.id ? { ...d, unread_count: 0 } : d));
+                      // Best-effort: update DB
+                      fetch(`/api/telegram-outreach/inbox/dialogs/${dialog.id}/read`, { method: 'POST' }).catch(() => {});
+                    }
+                  }}
                   className="px-3 py-2.5 cursor-pointer transition-colors flex gap-2.5 items-start"
                   style={{
                     background: isSelected ? A.blueBg : 'transparent',
@@ -2773,7 +3543,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#F9FAFB'; }}
                   onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <DialogAvatar name={dName} peerId={dialog.peer_id || dialog.id || 0} />
+                  <DialogAvatar name={dName} peerId={dialog.peer_id || dialog.id || 0} accountId={filterAccount ? Number(filterAccount) : undefined} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
@@ -2793,7 +3563,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                     )}
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-xs truncate flex-1" style={{ color: A.text2, lineHeight: '1.4' }}>
-                        {dialog.last_message_preview || dialog.last_message || 'No messages'}
+                        {dialog.last_message_outbound ? <><span style={{ color: A.text3 }}>You: </span></> : ''}{dialog.last_message_preview || dialog.last_message || dialog.last_message_text || 'No messages'}
                       </p>
                       {tagInfo && (
                         <span
@@ -2835,11 +3605,35 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
               <DialogAvatar
                 name={selectedDialog.peer_name || selectedDialog.name || selectedDialog.peer_username || ''}
                 peerId={selectedDialog.peer_id || selectedDialog.id || 0}
+                accountId={filterAccount ? Number(filterAccount) : undefined}
               />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
-                  {selectedDialog.peer_name || selectedDialog.name || `Dialog ${selectedDialog.id}`}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
+                    {selectedDialog.peer_name || selectedDialog.name || `Dialog ${selectedDialog.id}`}
+                  </p>
+                  {peerStatus && (
+                    <span className="text-[10px] flex items-center gap-1 flex-shrink-0" style={{
+                      color: peerStatus.status === 'online' ? '#22C55E'
+                        : peerStatus.possibly_blocked ? '#EF4444'
+                        : A.text3,
+                    }}>
+                      {peerStatus.status === 'online' ? (
+                        <><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#22C55E' }} /> online</>
+                      ) : peerStatus.possibly_blocked ? (
+                        <><ShieldAlert className="w-3 h-3" /> possibly blocked</>
+                      ) : peerStatus.status === 'recently' ? (
+                        'was recently online'
+                      ) : peerStatus.status === 'within_week' ? (
+                        'was online within a week'
+                      ) : peerStatus.status === 'within_month' ? (
+                        'was online within a month'
+                      ) : peerStatus.status === 'offline' && peerStatus.last_seen ? (
+                        `last seen ${new Date(peerStatus.last_seen).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                      ) : null}
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] truncate" style={{ color: A.text3 }}>
                   {[
                     selectedDialog.peer_username || selectedDialog.username ? `@${selectedDialog.peer_username || selectedDialog.username}` : null,
@@ -2861,6 +3655,28 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 </span>
               )}
               <button
+                onClick={async () => {
+                  try {
+                    await telegramOutreachApi.markDialogUnread(selectedDialog.id);
+                    setDialogs(prev => prev.map(d => d.id === selectedDialog.id ? { ...d, unread_count: 1 } : d));
+                    toast('Marked as unread', 'success');
+                  } catch {
+                    toast('Failed to mark as unread', 'error');
+                  }
+                }}
+                title="Mark as unread"
+                className="w-8 h-8 rounded-lg flex items-center justify-center border transition-colors"
+                style={{
+                  borderColor: A.border,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <EyeOff className="w-4 h-4" style={{ color: A.text3 }} />
+              </button>
+              <button
                 onClick={() => setShowCrmInfo(!showCrmInfo)}
                 title="Contact info"
                 className="w-8 h-8 rounded-lg flex items-center justify-center border transition-colors"
@@ -2881,7 +3697,8 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
               {/* Messages column */}
               <div className="flex-1 flex flex-col" style={{ minWidth: 0 }}>
                 {/* Messages area */}
-                <div className="flex-1 overflow-y-auto px-4 py-3" style={{ background: '#F9FAFB' }}>
+                <div className="flex-1 overflow-y-auto py-3 px-8" style={{ background: '#F9FAFB' }}>
+                <div className="mx-auto" style={{ maxWidth: 620 }}>
                   {loadingMessages ? (
                     <div className="flex items-center justify-center h-full">
                       <Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} />
@@ -2891,54 +3708,188 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                       <span className="text-xs" style={{ color: A.text3 }}>No messages yet</span>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2">
+                    <>
+                    <div className="flex flex-col gap-1.5">
                       {messages.map((msg: any, idx: number) => {
                         const isOutbound = msg.direction === 'outbound' || msg.direction === 'sent' || msg.is_outbound;
+                        const ts = msg.timestamp || msg.sent_at || msg.received_at || msg.created_at;
+                        const timeStr = ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                        // Date separator
+                        const msgDate = ts ? new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '';
+                        const prevTs = idx > 0 ? (messages[idx-1].timestamp || messages[idx-1].sent_at) : null;
+                        const prevDate = prevTs ? new Date(prevTs).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '';
+                        const showDateSep = msgDate && msgDate !== prevDate;
                         return (
-                          <div key={msg.id || idx} className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+                          <span key={msg.id || idx}>
+                          {showDateSep && (
+                            <div className="flex justify-center my-3">
+                              <span className="text-[11px] px-3 py-1 rounded-full" style={{ background: A.border, color: A.text2, fontWeight: 500 }}>{msgDate}</span>
+                            </div>
+                          )}
+                          <div id={`msg-${msg.id}`}
+                               className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} group items-center gap-1.5`}
+                               onContextMenu={e => {
+                                 e.preventDefault();
+                                 if (!selectMode) setCtxMenu({ x: e.clientX, y: e.clientY, msg });
+                               }}
+                               onDoubleClick={() => { if (!selectMode) { setSelectMode(true); setSelectedMsgs(new Set([msg.id])); } }}
+                               onClick={() => {
+                                 if (selectMode && msg.id) {
+                                   const next = new Set(selectedMsgs);
+                                   next.has(msg.id) ? next.delete(msg.id) : next.add(msg.id);
+                                   if (next.size === 0) { setSelectMode(false); setSelectedMsgs(new Set()); }
+                                   else setSelectedMsgs(next);
+                                 }
+                               }}
+                               style={selectMode && selectedMsgs.has(msg.id) ? { background: `${A.blueBg}80`, borderRadius: 8 } : undefined}>
                             <div
-                              className="max-w-[75%] px-3 py-2 text-sm"
+                              className="max-w-[70%] px-3.5 py-2 text-[13px] relative"
                               style={{
                                 background: isOutbound ? A.blueBg : '#F3F4F6',
                                 color: A.text1,
-                                borderRadius: isOutbound
-                                  ? '16px 16px 4px 16px'
-                                  : '16px 16px 16px 4px',
+                                borderRadius: isOutbound ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                                 wordBreak: 'break-word',
                               }}
                             >
-                              <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.45' }}>{msg.text || msg.rendered_text || msg.message_text || ''}</p>
-                              <p className="text-[10px] mt-1 text-right" style={{ color: A.text3 }}>
-                                {msg.sent_at || msg.received_at || msg.created_at
-                                  ? new Date(msg.sent_at || msg.received_at || msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                  : ''}
-                              </p>
+                              {/* Forwarded header */}
+                              {msg.fwd_from && msg.fwd_from.from_name && (
+                                <div className="mb-1 text-[11px] font-medium" style={{ color: A.blue }}>
+                                  Forwarded from {msg.fwd_from.from_name}
+                                </div>
+                              )}
+                              {/* Reply quote (from Telethon reply_to data) */}
+                              {msg.reply_to && msg.reply_to.msg_id && (
+                                <div className="mb-1.5 px-2 py-1 rounded-lg text-[11px] cursor-pointer"
+                                     style={{ borderLeft: `3px solid ${A.blue}`, background: isOutbound ? 'rgba(79,107,240,0.08)' : 'rgba(0,0,0,0.04)' }}
+                                     onClick={() => {
+                                       const el = document.getElementById(`msg-${msg.reply_to.msg_id}`);
+                                       if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.background = `${A.blueBg}90`; setTimeout(() => el.style.background = '', 1500); }
+                                     }}>
+                                  {msg.reply_to.sender_name && <span style={{ color: A.blue, fontWeight: 600 }}>{msg.reply_to.sender_name}</span>}
+                                  <p className="truncate" style={{ color: A.text2 }}>{msg.reply_to.text || ''}</p>
+                                </div>
+                              )}
+                              <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{msg.text || msg.rendered_text || msg.message_text || ''}</p>
+                              {/* Footer: reactions + time + read status — all inline */}
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap" style={{ justifyContent: isOutbound ? 'flex-end' : 'flex-start' }}>
+                                {msg.reactions && msg.reactions.length > 0 && msg.reactions.map((r: any, ri: number) => (
+                                  <span key={ri} className="text-[13px]" style={{ cursor: 'default', lineHeight: 1 }}>{r.emoji || r}</span>
+                                ))}
+                                <span className="text-[10px]" style={{ color: A.text3 }}>{timeStr}</span>
+                                {isOutbound && <span className="text-[10px]" style={{ color: msg.is_read ? A.blue : A.text3 }}>{msg.is_read ? '✓✓' : '✓'}</span>}
+                              </div>
                             </div>
+                            {/* Selection checkbox — right side */}
+                            {selectMode && (
+                              <div style={{ width: 22, height: 22, borderRadius: 11, border: `2px solid ${selectedMsgs.has(msg.id) ? A.blue : '#D1D5DB'}`, background: selectedMsgs.has(msg.id) ? A.blue : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer', transition: 'all 0.15s' }}>
+                                {selectedMsgs.has(msg.id) && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                              </div>
+                            )}
                           </div>
+                          </span>
                         );
                       })}
                       <div ref={messagesEndRef} />
                     </div>
+
+                    {/* Context menu */}
+                    {ctxMenu && (
+                      <div style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 100, borderRadius: 12, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: '4px 0', minWidth: 160 }}
+                           onClick={e => e.stopPropagation()}>
+                        {/* Quick reactions */}
+                        <div className="flex gap-1 px-3 py-1.5">
+                          {['👍', '❤️', '😂', '🔥', '😢', '👏'].map(em => (
+                            <button key={em} onClick={() => { handleReact(ctxMenu.msg.id, em); setCtxMenu(null); }}
+                                    className="text-base hover:scale-125 transition-transform" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>{em}</button>
+                          ))}
+                        </div>
+                        <div style={{ height: 1, background: A.border, margin: '2px 0' }} />
+                        <button onClick={() => { setReplyTo(ctxMenu.msg); setCtxMenu(null); editorRef.current?.focus(); }}
+                                className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1, border: 'none', background: 'none', cursor: 'pointer' }}>
+                          Reply
+                        </button>
+                        <button onClick={() => { setForwardPopup({ msgIds: [ctxMenu.msg.id] }); setForwardDialogs(dialogs); setCtxMenu(null); }}
+                                className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1, border: 'none', background: 'none', cursor: 'pointer' }}>
+                          Forward
+                        </button>
+                        <button onClick={() => { navigator.clipboard.writeText(ctxMenu.msg.text || ''); toast('Copied', 'success'); setCtxMenu(null); }}
+                                className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1, border: 'none', background: 'none', cursor: 'pointer' }}>
+                          Copy Text
+                        </button>
+                        <button onClick={() => { setSelectMode(true); setSelectedMsgs(new Set([ctxMenu.msg.id])); setCtxMenu(null); }}
+                                className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1, border: 'none', background: 'none', cursor: 'pointer' }}>
+                          Select
+                        </button>
+                        <div style={{ height: 1, background: A.border, margin: '2px 0' }} />
+                        <button onClick={() => { setDeleteModal(ctxMenu.msg); setCtxMenu(null); }}
+                                className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#FFF1F2]" style={{ color: A.rose, border: 'none', background: 'none', cursor: 'pointer' }}>
+                          Delete
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Delete confirmation modal */}
+                    {deleteModal && (
+                      <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} onClick={() => setDeleteModal(null)} />
+                        <div style={{ position: 'relative', zIndex: 10, width: 320, borderRadius: 16, background: A.surface, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+                          <h3 style={{ fontSize: 15, fontWeight: 600, color: A.text1, marginBottom: 12 }}>
+                            {deleteModal.bulk ? `Delete ${selectedMsgs.size} messages?` : 'Delete message?'}
+                          </h3>
+                          {!deleteModal.bulk && <p className="text-xs mb-4 truncate" style={{ color: A.text3 }}>{(deleteModal.text || '').slice(0, 80)}</p>}
+                          <div className="flex flex-col gap-2">
+                            <button onClick={() => { if (deleteModal.bulk) handleBulkDelete(true); else handleDeleteMsg(deleteModal.id, true); }}
+                                    style={{ width: '100%', padding: '8px 0', borderRadius: 8, background: A.rose, color: '#fff', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+                              Delete for everyone
+                            </button>
+                            <button onClick={() => { if (deleteModal.bulk) handleBulkDelete(false); else handleDeleteMsg(deleteModal.id, false); }}
+                                    style={{ width: '100%', padding: '8px 0', borderRadius: 8, background: '#F3F4F6', color: A.text1, fontSize: 13, fontWeight: 500, border: 'none', cursor: 'pointer' }}>
+                              Delete for me only
+                            </button>
+                            <button onClick={() => setDeleteModal(null)}
+                                    style={{ width: '100%', padding: '6px 0', background: 'none', color: A.text3, fontSize: 12, border: 'none', cursor: 'pointer' }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    </>
                   )}
                 </div>
+                </div>
 
-                {/* Tag buttons */}
-                <div className="px-4 py-2 flex gap-2" style={{ borderTop: `1px solid ${A.border}` }}>
+                {/* Selection mode bar */}
+                {selectMode && (
+                  <div className="px-4 py-2 flex items-center gap-2" style={{ borderTop: `1px solid ${A.border}`, background: A.blueBg }}>
+                    <span className="text-xs font-semibold" style={{ color: A.blue }}>{selectedMsgs.size} selected</span>
+                    <div className="flex-1" />
+                    <button onClick={() => { setForwardPopup({ msgIds: Array.from(selectedMsgs) }); setForwardDialogs(dialogs); }}
+                            className="text-[11px] px-2.5 py-1 rounded-lg font-medium" style={{ background: A.blue, color: '#fff', border: 'none', cursor: 'pointer' }}>Forward</button>
+                    <button onClick={handleBulkCopy} className="text-[11px] px-2.5 py-1 rounded-lg font-medium" style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text1, cursor: 'pointer' }}>Copy</button>
+                    <button onClick={() => setDeleteModal({ bulk: true })} disabled={selectedMsgs.size === 0} className="text-[11px] px-2.5 py-1 rounded-lg font-medium" style={{ background: A.rose, color: '#fff', border: 'none', cursor: 'pointer' }}>Delete</button>
+                    <button onClick={exitSelectMode} className="text-[11px] px-2 py-1 rounded-lg" style={{ background: 'none', border: 'none', color: A.text3, cursor: 'pointer' }}>Cancel</button>
+                  </div>
+                )}
+
+                {/* Lead status tag buttons */}
+                {!selectMode && <div className="px-4 py-2 flex gap-1.5 flex-wrap" style={{ borderTop: `1px solid ${A.border}` }}>
                   {([
                     { key: 'interested', label: 'Interested', bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
-                    { key: 'info_requested', label: 'Info Requested', bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' },
                     { key: 'not_interested', label: 'Not Interested', bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
+                    { key: 'meeting_scheduled', label: 'Meeting Scheduled', bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' },
                   ] as const).map(t => {
                     const isActive = selectedDialog.tag === t.key;
                     return (
                       <button
                         key={t.key}
                         onClick={() => handleTag(t.key)}
-                        className="text-[11px] font-medium px-3 py-1 rounded-full transition-all"
+                        className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
                         style={{
                           background: isActive ? t.bg : 'transparent',
                           color: isActive ? t.text : A.text3,
                           border: `1px solid ${isActive ? t.border : A.border}`,
+                          cursor: 'pointer',
                         }}
                         onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = t.bg; e.currentTarget.style.color = t.text; e.currentTarget.style.borderColor = t.border; } }}
                         onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = A.text3; e.currentTarget.style.borderColor = A.border; } }}
@@ -2947,10 +3898,10 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                       </button>
                     );
                   })}
-                </div>
+                </div>}
 
                 {/* Input row */}
-                <div className="relative px-4 py-3 flex gap-2 items-center" style={{ borderTop: `1px solid ${A.border}` }}>
+                <div className="relative px-4 py-3 flex gap-2 items-end" style={{ borderTop: `1px solid ${A.border}` }}>
                   {/* Templates popup */}
                   {showTemplates && (
                     <div
@@ -2973,7 +3924,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                           <button
                             key={tpl.label}
                             onClick={() => {
-                              setMessageText(tpl.text);
+                              setEditorContent(tpl.text);
                               setShowTemplates(false);
                               inputRef.current?.focus();
                             }}
@@ -2986,6 +3937,37 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                             <span className="block mt-0.5" style={{ color: A.text2, lineHeight: '1.4' }}>{tpl.text}</span>
                           </button>
                         ))}
+                        {/* Custom templates */}
+                        {customTemplates.length > 0 && (
+                          <>
+                            <div style={{ height: 1, background: A.border, margin: '4px 0' }} />
+                            <div className="px-2.5 py-1 text-[10px] font-semibold" style={{ color: A.text3 }}>SAVED</div>
+                            {customTemplates.map((tpl, idx) => (
+                              <div key={idx} className="flex items-center gap-1 px-1">
+                                <button onClick={() => { setEditorContent(tpl.text); setShowTemplates(false); }}
+                                  className="flex-1 text-left px-1.5 py-1.5 rounded-lg text-xs"
+                                  style={{ color: A.text1 }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = A.blueBg; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
+                                  <span className="font-semibold" style={{ color: A.teal }}>{tpl.label}</span>
+                                  <span className="block mt-0.5 truncate" style={{ color: A.text2 }}>{tpl.text}</span>
+                                </button>
+                                <button onClick={() => deleteCustomTemplate(idx)} className="p-1 hover:bg-red-50 rounded" style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
+                                  <X className="w-3 h-3" style={{ color: A.rose }} />
+                                </button>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {/* Add new template */}
+                        <div style={{ height: 1, background: A.border, margin: '4px 0' }} />
+                        <button onClick={() => { setShowTemplates(false); setShowSaveTemplate(true); }}
+                          className="w-full text-left px-2.5 py-1.5 text-[11px] font-medium"
+                          style={{ color: A.blue, border: 'none', background: 'none', cursor: 'pointer' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = A.blueBg; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
+                          + Create new template
+                        </button>
                       </div>
                     </div>
                   )}
@@ -3004,17 +3986,69 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   >
                     <BookOpen className="w-4 h-4" style={{ color: showTemplates ? A.blue : A.text3 }} />
                   </button>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={messageText}
-                    onChange={e => setMessageText(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                    placeholder="Type a message..."
-                    className="flex-1 h-9 px-3 rounded-lg border text-sm outline-none"
-                    style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
-                    disabled={sending}
-                  />
+                  <div className="flex-1 flex flex-col gap-1">
+                    {/* Sender account info */}
+                    {selectedDialog && (selectedDialog.account_username || selectedDialog.account_phone) && (
+                      <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: A.text3 }}>
+                        <span>via</span>
+                        <span className="font-medium" style={{ color: A.text2 }}>
+                          {selectedDialog.account_username ? `@${selectedDialog.account_username}` : selectedDialog.account_phone}
+                        </span>
+                        {selectedDialog.account_name && (
+                          <span style={{ color: A.text3 }}>({selectedDialog.account_name})</span>
+                        )}
+                      </div>
+                    )}
+                    {/* Reply preview */}
+                    {replyTo && (
+                      <div className="flex items-center gap-2 px-2 py-1 rounded-lg text-[11px]" style={{ background: A.blueBg, color: A.text2 }}>
+                        <div className="flex-1 truncate" style={{ borderLeft: `2px solid ${A.blue}`, paddingLeft: 6 }}>
+                          <span style={{ color: A.blue, fontWeight: 600 }}>Reply</span>{' '}
+                          {(replyTo.text || '').slice(0, 60)}
+                        </div>
+                        <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: A.text3, padding: 2 }}>
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex-1 flex flex-col">
+                      <div
+                        ref={editorRef}
+                        contentEditable={!sending}
+                        suppressContentEditableWarning
+                        onInput={() => setMessageText(editorRef.current?.textContent || '')}
+                        onKeyDown={handleEditorKeyDown}
+                        onPaste={handleEditorPaste}
+                        data-placeholder="Type a message... (Shift+Enter for new line)"
+                        className="inbox-editor rounded-lg border text-sm outline-none"
+                        style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
+                      />
+                      {/* Formatting toolbar */}
+                      <div className="flex items-center gap-0.5 px-1 pt-1">
+                        {([
+                          ['bold', 'B', 'Bold · Ctrl+B', 'font-bold'],
+                          ['italic', 'I', 'Italic · Ctrl+I', 'italic'],
+                          ['underline', 'U', 'Underline · Ctrl+U', 'underline'],
+                          ['strikeThrough', 'S', 'Strikethrough · Ctrl+Shift+X', 'line-through'],
+                          ['code', '</>', 'Code · Ctrl+Shift+M', ''],
+                          ['span:tg-spoiler', '◉', 'Spoiler · Ctrl+Shift+P', ''],
+                          ['blockquote', '❝', 'Quote · Ctrl+Shift+.', ''],
+                          ['createLink', '🔗', 'Link · Ctrl+K', ''],
+                        ] as [string, string, string, string][]).map(([fmt, label, title, cls]) => (
+                          <button
+                            key={fmt}
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => {
+                              if (fmt.startsWith('span:')) applyFormat('span', { class: fmt.split(':')[1] });
+                              else applyFormat(fmt);
+                            }}
+                            title={title}
+                            className={`fmt-btn ${cls}`}
+                          >{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                   <button
                     onClick={handleSend}
                     disabled={sending || !messageText.trim()}
@@ -3031,15 +4065,100 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 </div>
               </div>
 
+              {/* Forward Popup */}
+              {forwardPopup && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} onClick={() => setForwardPopup(null)} />
+                  <div style={{ position: 'relative', zIndex: 10, width: 400, maxHeight: '70vh', borderRadius: 16, background: A.surface, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '16px 20px', borderBottom: `1px solid ${A.border}` }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 600, color: A.text1, marginBottom: 10 }}>Forward {forwardPopup.msgIds.length > 1 ? `${forwardPopup.msgIds.length} messages` : 'message'}...</h3>
+                      <div style={{ position: 'relative' }}>
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: A.text3 }} />
+                        <input value={forwardSearch} onChange={e => setForwardSearch(e.target.value)}
+                               placeholder="Search contacts..." className="w-full h-8 pl-8 pr-3 rounded-lg text-xs outline-none"
+                               style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#F9FAFB' }} />
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+                      {forwardDialogs
+                        .filter(d => !forwardSearch || (d.peer_name || '').toLowerCase().includes(forwardSearch.toLowerCase()) || (d.peer_username || '').toLowerCase().includes(forwardSearch.toLowerCase()))
+                        .map(d => (
+                        <button key={d.id} onClick={async () => {
+                          try {
+                            await telegramOutreachApi.forwardDialogMessages(selectedDialog.id, d.id, forwardPopup.msgIds);
+                            toast(`Forwarded to ${d.peer_name || 'contact'}`, 'success');
+                            setForwardPopup(null); exitSelectMode();
+                          } catch (e: any) {
+                            toast(e?.response?.data?.detail || 'Forward failed', 'error');
+                          }
+                        }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors"
+                          style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#F5F5F0'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `hsl(${(d.peer_id || 0) % 360}, 45%, 55%)`, color: '#fff', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+                            {((d.peer_name || '?')[0] || '?').toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate" style={{ color: A.text1 }}>{d.peer_name || 'Unknown'}</p>
+                            {d.peer_username && <p className="text-[11px] truncate" style={{ color: A.text3 }}>@{d.peer_username}</p>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ padding: '12px 20px', borderTop: `1px solid ${A.border}`, textAlign: 'right' }}>
+                      <button onClick={() => setForwardPopup(null)} style={{ fontSize: 13, color: A.text3, background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Save Template Popup */}
+              {showSaveTemplate && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowSaveTemplate(false)} />
+                  <div style={{ position: 'relative', zIndex: 10, width: 380, borderRadius: 16, background: A.surface, padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 600, color: A.text1, marginBottom: 16 }}>Create Template</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-medium" style={{ color: A.text2 }}>Name</label>
+                        <input id="tpl-name" placeholder="e.g. Follow-up, Meeting request..."
+                          className="w-full mt-1 px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ border: `1px solid ${A.border}`, color: A.text1 }} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium" style={{ color: A.text2 }}>Message</label>
+                        <textarea id="tpl-text" rows={4} placeholder="Type your template message..."
+                          className="w-full mt-1 px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                          style={{ border: `1px solid ${A.border}`, color: A.text1 }} />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-4">
+                      <button onClick={() => setShowSaveTemplate(false)}
+                        style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${A.border}`, background: A.surface, fontSize: 13, color: A.text1, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={() => {
+                        const name = (document.getElementById('tpl-name') as HTMLInputElement)?.value?.trim();
+                        const text = (document.getElementById('tpl-text') as HTMLTextAreaElement)?.value?.trim();
+                        if (!name || !text) { toast('Fill both fields', 'error'); return; }
+                        saveCustomTemplate(name, text);
+                        setShowSaveTemplate(false);
+                        toast('Template saved', 'success');
+                      }} style={{ padding: '8px 16px', borderRadius: 8, background: A.blue, color: '#fff', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}>Save</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* CRM Info sidebar */}
               {showCrmInfo && (
-                <div className="flex flex-col overflow-y-auto" style={{ width: 280, borderLeft: `1px solid ${A.border}`, background: A.surface }}>
-                  <div className="p-4 flex flex-col gap-4">
+                <div className="flex flex-col overflow-y-auto" style={{ width: 300, borderLeft: `1px solid ${A.border}`, background: A.surface }}>
+                  <div className="p-4 flex flex-col gap-3">
                     {/* Contact header */}
                     <div className="flex flex-col items-center gap-2 pb-3" style={{ borderBottom: `1px solid ${A.border}` }}>
                       <DialogAvatar
                         name={selectedDialog.peer_name || selectedDialog.name || ''}
                         peerId={selectedDialog.peer_id || selectedDialog.id || 0}
+                        accountId={filterAccount ? Number(filterAccount) : undefined}
                       />
                       <div className="text-center">
                         <p className="text-sm font-semibold" style={{ color: A.text1 }}>
@@ -3048,70 +4167,137 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                         {(selectedDialog.peer_username || selectedDialog.username) && (
                           <p className="text-xs" style={{ color: A.text3 }}>@{selectedDialog.peer_username || selectedDialog.username}</p>
                         )}
+                        {peerStatus && (
+                          <p className="text-[10px] mt-0.5" style={{
+                            color: peerStatus.status === 'online' ? '#22C55E'
+                              : peerStatus.possibly_blocked ? '#EF4444' : A.text3,
+                          }}>
+                            {peerStatus.status === 'online' ? 'online'
+                              : peerStatus.possibly_blocked ? 'possibly blocked'
+                              : peerStatus.status === 'recently' ? 'was recently online'
+                              : peerStatus.status === 'offline' && peerStatus.last_seen
+                                ? `last seen ${new Date(peerStatus.last_seen).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                              : peerStatus.status === 'within_week' ? 'was online within a week'
+                              : peerStatus.status === 'within_month' ? 'was online within a month'
+                              : null}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    {/* Status */}
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Status</p>
-                      <p className="text-xs" style={{ color: A.text1 }}>{selectedDialog.crm_status || selectedDialog.status || 'N/A'}</p>
-                    </div>
-
-                    {/* Company */}
-                    {(selectedDialog.company_name || selectedDialog.company) && (
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Company</p>
-                        <p className="text-xs" style={{ color: A.text1 }}>{selectedDialog.company_name || selectedDialog.company}</p>
+                    {crmLoading ? (
+                      <div className="flex justify-center py-6">
+                        <Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} />
                       </div>
-                    )}
-
-                    {/* Tag */}
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Tag</p>
-                      {selectedDialog.tag && TAG_COLORS[selectedDialog.tag] ? (
-                        <span
-                          className="text-[11px] font-medium px-2 py-0.5 rounded-full inline-block"
-                          style={{
-                            background: TAG_COLORS[selectedDialog.tag].bg,
-                            color: TAG_COLORS[selectedDialog.tag].text,
-                            border: `1px solid ${TAG_COLORS[selectedDialog.tag].border}`,
-                          }}
-                        >
-                          {selectedDialog.tag.replace('_', ' ')}
-                        </span>
-                      ) : (
-                        <span className="text-xs" style={{ color: A.text3 }}>None</span>
-                      )}
-                    </div>
-
-                    {/* Campaign */}
-                    {selectedDialog.campaign_name && (
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Campaign</p>
-                        <p className="text-xs" style={{ color: A.text1 }}>{selectedDialog.campaign_name}</p>
-                      </div>
-                    )}
-
-                    {/* Message counts */}
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Messages</p>
-                      <div className="flex gap-4">
+                    ) : crmData ? (
+                      <>
+                        {/* CRM Status */}
                         <div>
-                          <span className="text-lg font-semibold" style={{ color: A.text1 }}>{selectedDialog.inbound_count ?? selectedDialog.messages_received ?? '?'}</span>
-                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>in</span>
+                          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Lead Status</p>
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{
+                            background: crmData.status === 'replied' ? '#DBEAFE' : crmData.status === 'qualified' ? '#D1FAE5' : crmData.status === 'converted' ? '#ECFDF5' : crmData.status === 'not_interested' ? '#FEE2E2' : '#F3F4F6',
+                            color: crmData.status === 'replied' ? '#1D4ED8' : crmData.status === 'qualified' ? '#065F46' : crmData.status === 'converted' ? '#047857' : crmData.status === 'not_interested' ? '#B91C1C' : A.text1,
+                          }}>
+                            {(crmData.status || 'unknown').replace('_', ' ')}
+                          </span>
                         </div>
-                        <div>
-                          <span className="text-lg font-semibold" style={{ color: A.text1 }}>{selectedDialog.outbound_count ?? selectedDialog.messages_sent ?? '?'}</span>
-                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>out</span>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* Notes */}
-                    {selectedDialog.notes && (
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: A.text3 }}>Notes</p>
-                        <p className="text-xs whitespace-pre-wrap" style={{ color: A.text2, lineHeight: '1.5' }}>{selectedDialog.notes}</p>
+                        {/* Company */}
+                        {crmData.company_name && (
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Company</p>
+                            <p className="text-xs" style={{ color: A.text1 }}>{crmData.company_name}</p>
+                          </div>
+                        )}
+
+                        {/* Campaigns */}
+                        {crmData.campaigns && crmData.campaigns.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Campaigns</p>
+                            <div className="flex flex-wrap gap-1">
+                              {crmData.campaigns.map((c: any, i: number) => (
+                                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#F3F4F6', color: A.text2 }}>
+                                  {c.name || `#${c.id}`}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Message stats */}
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Messages</p>
+                          <div className="flex gap-4">
+                            <div>
+                              <span className="text-lg font-semibold" style={{ color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{crmData.total_messages_sent}</span>
+                              <span className="text-[10px] ml-1" style={{ color: A.text3 }}>sent</span>
+                            </div>
+                            <div>
+                              <span className="text-lg font-semibold" style={{ color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{crmData.total_replies_received}</span>
+                              <span className="text-[10px] ml-1" style={{ color: A.text3 }}>replies</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Dates */}
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Timeline</p>
+                          <div className="flex flex-col gap-0.5">
+                            {crmData.first_contacted_at && (
+                              <p className="text-[11px]" style={{ color: A.text2 }}>
+                                First contacted: {new Date(crmData.first_contacted_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            )}
+                            {crmData.last_contacted_at && (
+                              <p className="text-[11px]" style={{ color: A.text2 }}>
+                                Last contacted: {new Date(crmData.last_contacted_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            )}
+                            {crmData.last_reply_at && (
+                              <p className="text-[11px]" style={{ color: A.text2 }}>
+                                Last reply: {new Date(crmData.last_reply_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Tags */}
+                        {crmData.tags && crmData.tags.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Tags</p>
+                            <div className="flex flex-wrap gap-1">
+                              {crmData.tags.map((t: string, i: number) => (
+                                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: A.blueBg, color: A.blue }}>{t}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Notes */}
+                        {crmData.notes && (
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Notes</p>
+                            <p className="text-xs whitespace-pre-wrap" style={{ color: A.text2, lineHeight: '1.5' }}>{crmData.notes}</p>
+                          </div>
+                        )}
+
+                        {/* Custom Data */}
+                        {crmData.custom_data && Object.keys(crmData.custom_data).filter(k => !k.startsWith('_')).length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Custom Fields</p>
+                            <div className="flex flex-col gap-0.5">
+                              {Object.entries(crmData.custom_data).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
+                                <p key={k} className="text-[11px]" style={{ color: A.text2 }}>
+                                  <span style={{ color: A.text3 }}>{k}:</span> {String(v)}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-xs" style={{ color: A.text3 }}>No CRM data for this contact</p>
                       </div>
                     )}
                   </div>
@@ -3121,19 +4307,290 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
           </>
         )}
       </div>
+      {/* New Chat Modal */}
+      {showNewChat && createPortal(
+        <ModalBackdrop onClose={() => { setShowNewChat(false); setNewChatUsername(''); }}>
+          <div className="w-[380px] rounded-xl border shadow-xl" style={{ borderColor: A.border, background: A.surface }}>
+            <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: A.border }}>
+              <span className="text-sm font-semibold" style={{ color: A.text1 }}>New Chat</span>
+              <button onClick={() => { setShowNewChat(false); setNewChatUsername(''); }} className="p-1 rounded hover:bg-gray-100">
+                <X className="w-4 h-4" style={{ color: A.text3 }} />
+              </button>
+            </div>
+            <div className="px-5 py-4 flex flex-col gap-3">
+              <label className="text-xs font-medium" style={{ color: A.text2 }}>Telegram username</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: A.text3 }}>@</span>
+                <input
+                  type="text"
+                  value={newChatUsername}
+                  onChange={e => setNewChatUsername(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && newChatUsername.trim()) handleNewChat(); }}
+                  placeholder="username"
+                  autoFocus
+                  className="w-full h-9 pl-7 pr-3 rounded-lg border text-sm outline-none"
+                  style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
+                />
+              </div>
+              <button
+                onClick={handleNewChat}
+                disabled={newChatLoading || !newChatUsername.trim()}
+                className="h-9 rounded-lg text-sm font-semibold text-white transition-colors flex items-center justify-center gap-2"
+                style={{ background: !newChatUsername.trim() ? '#9CA3AF' : A.blue, cursor: newChatLoading ? 'wait' : 'pointer' }}
+                onMouseEnter={e => { if (newChatUsername.trim()) e.currentTarget.style.background = A.blueHover; }}
+                onMouseLeave={e => { if (newChatUsername.trim()) e.currentTarget.style.background = A.blue; }}
+              >
+                {newChatLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Resolving...</> : 'Start Chat'}
+              </button>
+            </div>
+          </div>
+        </ModalBackdrop>,
+        document.body,
+      )}
     </div>
   );
 }
 
-const CRM_STATUS_COLORS: Record<string, string> = {
-  cold: 'bg-gray-100 text-gray-700',
-  contacted: 'bg-blue-100 text-blue-700',
-  replied: 'bg-green-100 text-green-700',
-  qualified: 'bg-purple-100 text-purple-700',
-  meeting_set: 'bg-indigo-100 text-indigo-700',
-  converted: 'bg-emerald-100 text-emerald-700',
-  not_interested: 'bg-red-100 text-red-700',
-};
+// ═══════════════════════════════════════════════════════════════════════
+// BLACKLIST TAB
+// ═══════════════════════════════════════════════════════════════════════
+
+function BlacklistTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const [entries, setEntries] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [uploadText, setUploadText] = useState('');
+  const [uploadReason, setUploadReason] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  const loadEntries = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: any = { page, page_size: 50 };
+      if (search) params.search = search;
+      const data = await telegramOutreachApi.listBlacklist(params);
+      setEntries(data.items);
+      setTotal(data.total);
+    } catch { toast('Failed to load blacklist', 'error'); }
+    finally { setLoading(false); }
+  }, [page, search, toast]);
+
+  useEffect(() => { loadEntries(); }, [loadEntries]);
+
+  const handleUpload = async () => {
+    if (!uploadText.trim()) return;
+    setUploading(true);
+    try {
+      const res = await telegramOutreachApi.uploadBlacklist(uploadText, uploadReason || undefined);
+      toast(`Added ${res.added} usernames to blacklist${res.skipped ? `, ${res.skipped} duplicates skipped` : ''}`, 'success');
+      setUploadText('');
+      setUploadReason('');
+      setShowUpload(false);
+      loadEntries();
+    } catch { toast('Upload failed', 'error'); }
+    finally { setUploading(false); }
+  };
+
+  const totalPages = Math.ceil(total / 50);
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold" style={{ color: A.text1 }}>Blacklist</h2>
+          <p className="text-xs mt-0.5" style={{ color: A.text3 }}>
+            Blacklisted usernames are automatically filtered out when uploading recipients to campaigns.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium" style={{ color: A.text3 }}>{total} entries</span>
+          <button onClick={() => setShowUpload(!showUpload)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  style={{ background: A.blue, color: '#fff' }}>
+            <Plus className="w-3.5 h-3.5" /> Add Usernames
+          </button>
+        </div>
+      </div>
+
+      {/* Upload Panel */}
+      {showUpload && (
+        <div className="rounded-lg border p-4 space-y-3" style={{ borderColor: A.border, background: A.surface }}>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: A.text1 }}>
+              Usernames (one per line)
+            </label>
+            <p className="text-[10px] mb-2" style={{ color: A.text3 }}>
+              Supports: @username, t.me/username, https://t.me/username, telegram.me/username
+            </p>
+            <textarea
+              value={uploadText}
+              onChange={e => setUploadText(e.target.value)}
+              rows={6}
+              placeholder={"@user1\nhttps://t.me/user2\ntelegram.me/user3\nuser4"}
+              className="w-full rounded-lg border px-3 py-2 text-xs font-mono"
+              style={{ borderColor: A.border, background: A.bg, color: A.text1, resize: 'vertical' }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: A.text1 }}>
+              Reason (optional)
+            </label>
+            <input
+              type="text"
+              value={uploadReason}
+              onChange={e => setUploadReason(e.target.value)}
+              placeholder="e.g. Requested removal, spam report, etc."
+              className="w-full rounded-lg border px-3 py-1.5 text-xs"
+              style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={handleUpload} disabled={uploading || !uploadText.trim()}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                    style={{ background: A.blue, color: '#fff' }}>
+              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+              {uploading ? 'Uploading...' : 'Upload'}
+            </button>
+            <button onClick={() => { setShowUpload(false); setUploadText(''); setUploadReason(''); }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+                    style={{ borderColor: A.border, color: A.text3 }}>
+              Cancel
+            </button>
+            {uploadText.trim() && (
+              <span className="text-xs" style={{ color: A.text3 }}>
+                {uploadText.trim().split('\n').filter(l => l.trim()).length} usernames
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Search + Bulk Actions */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: A.text3 }} />
+          <input type="text" placeholder="Search blacklist..." value={search}
+                 onChange={e => { setSearch(e.target.value); setPage(1); }}
+                 className="pl-8 pr-3 py-1.5 rounded-lg border text-xs w-full"
+                 style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
+        </div>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-xs" style={{ color: A.text3 }}>{selectedIds.size} selected</span>
+            <button
+              onClick={() => setDeleteConfirm('bulk')}
+              className="px-2 py-1 rounded border text-xs font-medium transition-colors"
+              style={{ borderColor: '#FECDD3', color: '#E11D48', background: '#FFF1F2', cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#FFE4E6'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#FFF1F2'; }}
+            >
+              <Trash2 className="w-3 h-3 inline-block mr-1" /> Remove
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" style={{ color: A.text3 }} /></div>
+      ) : entries.length === 0 ? (
+        <div className="text-center py-12 rounded-lg border" style={{ borderColor: A.border }}>
+          <ShieldAlert className="w-10 h-10 mx-auto mb-3" style={{ color: A.text3 }} />
+          <p className="text-sm" style={{ color: A.text3 }}>
+            No blacklisted usernames yet. Add usernames to prevent sending messages to them.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-lg border overflow-hidden" style={{ borderColor: A.border }}>
+          <table className="w-full text-sm">
+            <thead className="border-b" style={{ borderColor: A.border, background: '#F9F9F7' }}>
+              <tr>
+                <th className="w-8 px-2 py-2"><input type="checkbox" onChange={e => {
+                  setSelectedIds(e.target.checked ? new Set(entries.map((e: any) => e.id)) : new Set());
+                }} className="rounded" /></th>
+                <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: A.text3 }}>Username</th>
+                <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: A.text3 }}>Reason</th>
+                <th className="text-left px-3 py-2 text-xs font-medium" style={{ color: A.text3 }}>Added</th>
+                <th className="w-10 px-2 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry: any) => (
+                <tr key={entry.id}
+                    className={cn('border-b transition-colors',
+                      selectedIds.has(entry.id) ? '' : 'hover:bg-[#F5F5F0]')}
+                    style={{ borderColor: A.border, ...(selectedIds.has(entry.id) ? { background: A.blueBg } : {}) }}>
+                  <td className="px-2 py-2">
+                    <input type="checkbox" checked={selectedIds.has(entry.id)}
+                           onChange={() => setSelectedIds(prev => {
+                             const next = new Set(prev); next.has(entry.id) ? next.delete(entry.id) : next.add(entry.id); return next;
+                           })} className="rounded" />
+                  </td>
+                  <td className="px-3 py-2 text-xs font-mono" style={{ color: A.text1 }}>@{entry.username}</td>
+                  <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>{entry.reason || '--'}</td>
+                  <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>
+                    {entry.created_at ? new Date(entry.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : '--'}
+                  </td>
+                  <td className="px-2 py-2">
+                    <button
+                      onClick={() => {
+                        telegramOutreachApi.deleteBlacklistEntry(entry.id)
+                          .then(() => { toast('Removed from blacklist', 'success'); loadEntries(); })
+                          .catch(() => toast('Failed to remove', 'error'));
+                      }}
+                      className="p-1 rounded transition-colors"
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <X className="w-3.5 h-3.5" style={{ color: '#E11D48' }} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm" style={{ color: A.text3 }}>{total} total</span>
+          <div className="flex items-center gap-2">
+            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
+                    className={cn('px-3 py-1.5 rounded border text-sm', page <= 1 && 'opacity-50')}
+                    style={{ borderColor: A.border }}>Prev</button>
+            <span className="text-sm" style={{ color: A.text1 }}>Page {page}/{totalPages}</span>
+            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
+                    className={cn('px-3 py-1.5 rounded border text-sm', page >= totalPages && 'opacity-50')}
+                    style={{ borderColor: A.border }}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirm */}
+      {deleteConfirm === 'bulk' && (
+        <ConfirmModal message={`Remove ${selectedIds.size} entries from blacklist?`}
+          onConfirm={() => {
+            setDeleteConfirm(null);
+            telegramOutreachApi.bulkDeleteBlacklist(Array.from(selectedIds))
+              .then(() => { toast(`Removed ${selectedIds.size} entries`, 'success'); loadEntries(); setSelectedIds(new Set()); })
+              .catch(() => toast('Delete failed', 'error'));
+          }}
+          onCancel={() => setDeleteConfirm(null)} />
+      )}
+    </div>
+  );
+}
+
+// CRM_STATUS_COLORS removed — using StyledSelect for status
 
 const CRM_PIPELINE = ['cold', 'contacted', 'replied', 'qualified', 'meeting_set', 'converted', 'not_interested'];
 
@@ -3148,6 +4605,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [crmDeleteConfirm, setCrmDeleteConfirm] = useState<string | null>(null);
 
   const loadContacts = useCallback(async () => {
     setLoading(true);
@@ -3212,20 +4670,28 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
         </div>
         <span className="text-xs" style={{ color: A.text3 }}>{total} contacts</span>
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1.5 ml-auto">
             <span className="text-xs" style={{ color: A.text3 }}>{selectedIds.size} selected</span>
-            <select onChange={e => {
-                      if (!e.target.value) return;
-                      telegramOutreachApi.bulkUpdateCrmStatus(Array.from(selectedIds), e.target.value)
-                        .then(() => { toast('Updated', 'success'); loadContacts(); loadStats(); setSelectedIds(new Set()); })
-                        .catch(() => toast('Failed', 'error'));
-                      e.target.value = '';
-                    }}
-                    className="px-2 py-1 rounded border text-xs"
-                    style={{ borderColor: A.border, background: A.surface, color: A.text1 }}>
-              <option value="">Set status...</option>
-              {CRM_PIPELINE.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-            </select>
+            <StyledSelect
+              value=""
+              onChange={v => {
+                if (!v) return;
+                telegramOutreachApi.bulkUpdateCrmStatus(Array.from(selectedIds), v)
+                  .then(() => { toast('Updated', 'success'); loadContacts(); loadStats(); setSelectedIds(new Set()); })
+                  .catch(() => toast('Failed', 'error'));
+              }}
+              placeholder="Set status..."
+              options={CRM_PIPELINE.map(s => ({ value: s, label: s.replace('_', ' ') }))}
+            />
+            <button
+              onClick={() => setCrmDeleteConfirm('bulk')}
+              className="px-2 py-1 rounded border text-xs font-medium transition-colors"
+              style={{ borderColor: '#FECDD3', color: '#E11D48', background: '#FFF1F2', cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#FFE4E6'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#FFF1F2'; }}
+            >
+              <Trash2 className="w-3 h-3 inline-block mr-1" /> Delete
+            </button>
           </div>
         )}
       </div>
@@ -3268,19 +4734,18 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                              const next = new Set(prev); next.has(c.id) ? next.delete(c.id) : next.add(c.id); return next;
                            })} className="rounded" />
                   </td>
-                  <td className="px-3 py-2 font-mono text-xs" style={{ color: A.text1 }}>@{c.username}</td>
+                  <td className="px-3 py-2 text-xs" style={{ color: A.text1 }}>@{c.username}</td>
                   <td className="px-3 py-2 text-xs" style={{ color: A.text1 }}>{[c.first_name, c.last_name].filter(Boolean).join(' ') || '--'}</td>
                   <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>{c.company_name || '--'}</td>
-                  <td className="px-3 py-2">
-                    <select value={c.status} onClick={e => e.stopPropagation()}
-                            onChange={e => updateStatus(c.id, e.target.value)}
-                            className={cn('px-1.5 py-0.5 rounded-full text-[10px] font-medium border-0 cursor-pointer',
-                              CRM_STATUS_COLORS[c.status] || 'bg-gray-100')}>
-                      {CRM_PIPELINE.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                    </select>
+                  <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                    <StyledSelect
+                      value={c.status}
+                      onChange={v => updateStatus(c.id, v)}
+                      options={CRM_PIPELINE.map(s => ({ value: s, label: s.replace('_', ' ') }))}
+                    />
                   </td>
-                  <td className="px-2 py-2 text-xs font-mono" style={{ color: A.text1 }}>{c.total_messages_sent}</td>
-                  <td className="px-2 py-2 text-xs font-mono" style={{ color: c.total_replies_received > 0 ? '#16a34a' : A.text3 }}>
+                  <td className="px-2 py-2 text-xs" style={{ color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{c.total_messages_sent}</td>
+                  <td className="px-2 py-2 text-xs" style={{ color: c.total_replies_received > 0 ? '#16a34a' : A.text3, fontVariantNumeric: 'tabular-nums' }}>
                     {c.total_replies_received}
                   </td>
                   <td className="px-3 py-2 text-[10px]" style={{ color: A.text3 }}>
@@ -3324,9 +4789,21 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                   {selectedContact.company_name ? ` - ${selectedContact.company_name}` : ''}
                 </p>
               </div>
-              <button onClick={() => setSelectedContact(null)} className="p-1 hover:bg-[#F5F5F0] rounded">
-                <X className="w-5 h-5" style={{ color: A.text3 }} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCrmDeleteConfirm('single')}
+                  className="p-1.5 rounded transition-colors"
+                  style={{ cursor: 'pointer' }}
+                  title="Delete contact"
+                  onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <Trash2 className="w-4 h-4" style={{ color: '#E11D48' }} />
+                </button>
+                <button onClick={() => setSelectedContact(null)} className="p-1 hover:bg-[#F5F5F0] rounded">
+                  <X className="w-5 h-5" style={{ color: A.text3 }} />
+                </button>
+              </div>
             </div>
             <div className="px-6 py-4 space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -3388,6 +4865,26 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
             </div>
           </div>
         </ModalBackdrop>
+      )}
+      {crmDeleteConfirm === 'bulk' && (
+        <ConfirmModal message={`Delete ${selectedIds.size} contacts?`}
+          onConfirm={() => {
+            setCrmDeleteConfirm(null);
+            telegramOutreachApi.bulkDeleteCrmContacts(Array.from(selectedIds))
+              .then(() => { toast(`Deleted ${selectedIds.size} contacts`, 'success'); loadContacts(); loadStats(); setSelectedIds(new Set()); })
+              .catch(() => toast('Delete failed', 'error'));
+          }}
+          onCancel={() => setCrmDeleteConfirm(null)} />
+      )}
+      {crmDeleteConfirm === 'single' && selectedContact && (
+        <ConfirmModal message={`Delete contact @${selectedContact.username}?`}
+          onConfirm={() => {
+            setCrmDeleteConfirm(null);
+            telegramOutreachApi.deleteCrmContact(selectedContact.id)
+              .then(() => { toast('Contact deleted', 'success'); setSelectedContact(null); loadContacts(); loadStats(); })
+              .catch(() => toast('Delete failed', 'error'));
+          }}
+          onCancel={() => setCrmDeleteConfirm(null)} />
       )}
     </div>
   );
