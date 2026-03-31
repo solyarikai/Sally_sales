@@ -433,7 +433,7 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
                 return
 
             # Get services
-            from app.services.user_service_context import UserServiceContext
+            from app.services.user_context import UserServiceContext
             ctx = UserServiceContext(user_id, session)
             apollo_svc = await ctx.get_apollo_service()
             openai_key = await ctx.get_key("openai")
