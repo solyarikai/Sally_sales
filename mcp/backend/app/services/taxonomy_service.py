@@ -57,7 +57,7 @@ class TaxonomyService:
             terms_added = 0
 
             for kw, meta in cache.get("keywords", {}).items():
-                kw = kw.strip().lower()
+                kw = self._sanitize(kw).lower()
                 if not kw or len(kw) < 2:
                     continue
                 session.add(ApolloTaxonomy(
@@ -67,7 +67,7 @@ class TaxonomyService:
                 terms_added += 1
 
             for ind, meta in cache.get("industries", {}).items():
-                ind = ind.strip()
+                ind = self._sanitize(ind)
                 if not ind:
                     continue
                 session.add(ApolloTaxonomy(
@@ -154,6 +154,16 @@ class TaxonomyService:
                         f"(top sim: {rows[0][1]:.3f}, bottom: {rows[-1][1]:.3f})")
         return [r[0] for r in rows]
 
+    @staticmethod
+    def _sanitize(term: str) -> str:
+        """Clean HTML entities and garbage from Apollo tags."""
+        import html
+        term = html.unescape(term)  # &amp; → &, &#39; → ', etc.
+        term = term.replace("&amp;", "&").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">")
+        # Remove non-printable chars
+        term = "".join(c for c in term if c.isprintable())
+        return term.strip()
+
     async def add_from_enrichment(self, enriched_org: Dict, session, segment: str = ""):
         """Learn from an enriched Apollo company. Upserts keywords + industry."""
         await self._ensure_seeded(session)
@@ -161,6 +171,7 @@ class TaxonomyService:
 
         industry = enriched_org.get("industry")
         if industry:
+            industry = self._sanitize(industry)
             await session.execute(text(
                 "INSERT INTO apollo_taxonomy (term, term_type, source, last_segment, seen_count) "
                 "VALUES (:term, 'industry', 'enrichment', :seg, 1) "
@@ -175,7 +186,7 @@ class TaxonomyService:
             kw_tags = [k.strip() for k in kw_tags.split(",")]
 
         for kw in kw_tags:
-            kw = kw.strip().lower()
+            kw = self._sanitize(kw).lower()
             if not kw or len(kw) < 2:
                 continue
             await session.execute(text(
