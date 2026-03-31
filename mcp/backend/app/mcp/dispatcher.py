@@ -320,11 +320,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             # Apify proxy — just store the key, test by making a dummy request
             connected = bool(api_key and len(api_key) > 10)
             message = "Apify proxy key saved" if connected else "Invalid key"
-        elif integration_name == "findymail":
-            from app.services.findymail_service import FindymailService
-            svc = FindymailService(api_key=api_key)
-            connected = await svc.test_connection()
-            message = "Connected" if connected else "Connection failed"
         else:
             connected = True
             message = f"{integration_name} key saved"
@@ -1644,30 +1639,6 @@ Return ONLY valid JSON."""
                 "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
-
-    if tool_name == "tam_prepare_verification":
-        user = await _get_user(token, session)
-        run = await session.get(GatheringRun, args["run_id"])
-        if not run:
-            raise ValueError("Run not found")
-        from app.services.gathering_service import GatheringService
-        svc = GatheringService()
-        gate = await svc.prepare_verification(session, run)
-        return {
-            "gate_id": gate.id, "type": "checkpoint_3",
-            "scope": gate.scope,
-            "message": f"CHECKPOINT 3: FindyMail will cost ~${gate.scope.get('estimated_cost_usd', 0)}. Approve to spend credits.",
-            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
-        }
-
-    if tool_name == "tam_run_verification":
-        user = await _get_user(token, session)
-        run = await session.get(GatheringRun, args["run_id"])
-        if not run:
-            raise ValueError("Run not found")
-        run.current_phase = "verified"
-        run.status = "completed"
-        return {"status": "verification_complete", "run_id": run.id}
 
     if tool_name == "tam_list_sources":
         from app.services.gathering_adapters.source_router import list_sources

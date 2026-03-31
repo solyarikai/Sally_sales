@@ -49,11 +49,6 @@ class UserServiceContext:
         key = await self.get_key("smartlead")
         return SmartLeadService(api_key=key)
 
-    async def get_findymail_service(self):
-        from app.services.findymail_service import FindymailService
-        key = await self.get_key("findymail")
-        return FindymailService(api_key=key)
-
     async def get_scraper_service(self):
         from app.services.scraper_service import ScraperService
         apify_key = await self.get_key("apify")

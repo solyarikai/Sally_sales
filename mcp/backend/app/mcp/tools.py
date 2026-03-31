@@ -363,25 +363,6 @@ Applies to ALL companies in the specified run. Same companies, new classificatio
             "required": ["run_id"],
         },
     },
-    # FindyMail DISABLED in MVP — uncomment when ready for production
-    # {
-    #     "name": "tam_prepare_verification",
-    #     "description": "Creates Checkpoint 3 with FindyMail cost estimate before spending credits.",
-    #     "inputSchema": {
-    #         "type": "object",
-    #         "properties": {"run_id": {"type": "integer"}},
-    #         "required": ["run_id"],
-    #     },
-    # },
-    # {
-    #     "name": "tam_run_verification",
-    #     "description": "Phase 6: Run FindyMail email verification on approved targets. COSTS CREDITS.",
-    #     "inputSchema": {
-    #         "type": "object",
-    #         "properties": {"run_id": {"type": "integer"}},
-    #         "required": ["run_id"],
-    #     },
-    # },
     {
         "name": "tam_list_sources",
         "description": "List available gathering sources with their filter schemas.",

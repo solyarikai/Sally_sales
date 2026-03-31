@@ -35,9 +35,6 @@ class MCPSettings(BaseSettings):
     GETSALES_API_KEY: Optional[str] = None
     GETSALES_TEAM_ID: Optional[str] = None
 
-    # FindyMail defaults
-    FINDYMAIL_API_KEY: Optional[str] = None
-
     # Apify proxy (shared)
     APIFY_PROXY_HOST: str = "proxy.apify.com"
     APIFY_PROXY_PORT: int = 8000

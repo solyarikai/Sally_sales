@@ -10,7 +10,7 @@ class MCPIntegrationSetting(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("mcp_users.id", ondelete="CASCADE"), nullable=False)
-    integration_name = Column(String(50), nullable=False)  # smartlead, apollo, findymail, openai, gemini
+    integration_name = Column(String(50), nullable=False)  # smartlead, apollo, openai, getsales, apify
     api_key_encrypted = Column(Text, nullable=False)        # AES-256-GCM encrypted
     is_connected = Column(Boolean, server_default="false")
     connection_info = Column(Text, nullable=True)            # e.g. "47 campaigns found"

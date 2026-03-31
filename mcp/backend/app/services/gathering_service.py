@@ -1,7 +1,7 @@
 """Gathering Service — pipeline orchestrator adapted for MCP.
 
-Linear pipeline with 3 mandatory checkpoints:
-  gather → blacklist → CP1 → pre_filter → scrape → analyze → CP2 → verify → CP3 → push
+Linear pipeline with 2 mandatory checkpoints:
+  gather → blacklist → CP1 → pre_filter → scrape → analyze → CP2 → completed
 
 Phase enforcement: each method checks current_phase before proceeding.
 """
@@ -28,8 +28,7 @@ logger = logging.getLogger(__name__)
 # Phase order for enforcement
 PHASE_ORDER = [
     "gather", "blacklist", "awaiting_scope_ok", "pre_filter",
-    "scrape", "analyze", "awaiting_targets_ok", "prepare_verification",
-    "awaiting_verify_ok", "verified", "push", "completed",
+    "scrape", "analyze", "awaiting_targets_ok", "completed",
 ]
 
 
@@ -1048,60 +1047,6 @@ Rules:
 
         # Ambiguous
         return False, 0.4, "UNCLEAR", output[:200]
-
-    # ── Phase 6: Prepare Verification ──
-
-    async def prepare_verification(
-        self, session: AsyncSession, run: GatheringRun
-    ) -> ApprovalGate:
-        """Create CP3 gate with FindyMail cost estimate."""
-        self._check_phase(run, "prepare_verification")
-
-        # Count target companies that need email verification
-        result = await session.execute(
-            select(DiscoveredCompany).where(
-                DiscoveredCompany.project_id == run.project_id,
-                DiscoveredCompany.is_target == True,
-                DiscoveredCompany.is_enriched == False,
-            )
-        )
-        targets = result.scalars().all()
-        email_count = len(targets) * 3  # ~3 contacts per company estimate
-        cost_estimate = email_count * 0.01  # $0.01 per FindyMail verification
-
-        gate = ApprovalGate(
-            project_id=run.project_id,
-            gathering_run_id=run.id,
-            gate_type="checkpoint_3",
-            gate_label="FindyMail cost approval",
-            scope={
-                "run_id": run.id,
-                "target_companies": len(targets),
-                "emails_to_verify": email_count,
-                "estimated_cost_usd": round(cost_estimate, 2),
-            },
-        )
-        session.add(gate)
-        self._advance_phase(run, "awaiting_verify_ok")
-        await session.flush()
-        return gate
-
-    # ── Phase 7: Run Verification ──
-
-    async def run_verification(
-        self, session: AsyncSession, run: GatheringRun,
-        findymail_service=None, apollo_service=None,
-    ) -> Dict:
-        """Run FindyMail email verification on approved targets."""
-        self._check_phase(run, "verified")
-
-        # TODO: Wire in actual FindyMail + Apollo enrichment
-        run.status = "completed"
-        run.completed_at = datetime.utcnow()
-        if run.started_at:
-            run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
-
-        return {"status": "completed", "run_id": run.id}
 
     # ── Gate Management ──
 

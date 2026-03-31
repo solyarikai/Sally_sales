@@ -69,7 +69,7 @@ class ExtractedContact(Base):
     phone = Column(String(50), nullable=True)
 
     email_verified = Column(Boolean, nullable=True)
-    email_source = Column(String(50), nullable=True)  # apollo, findymail, etc.
+    email_source = Column(String(50), nullable=True)  # source of email verification
 
     source_data = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
