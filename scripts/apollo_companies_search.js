@@ -1,21 +1,58 @@
 /**
- * Apollo Companies Search — Direct API
+ * Apollo Companies Search — Internal API via Browser Session
  *
- * Uses Apollo's internal API directly (POST /api/v1/mixed_companies/search)
- * instead of DOM scraping. Much faster, richer data.
+ * Uses Apollo's internal API (POST /api/v1/mixed_companies/search) from within
+ * a Puppeteer browser session. Much faster and more reliable than DOM scraping.
  *
- * Discovered API format:
- *   - Endpoint: POST /api/v1/mixed_companies/search
- *   - Auth: Session cookies from browser login
- *   - Returns: accounts[] (25/page), pagination.total_entries
- *   - Supplementary: POST /api/v1/organizations/load_snippets for industry/location
+ * Key advantage over apollo_universal_search.js:
+ *   - Uses internal API instead of UI grid scraping
+ *   - q_organization_keyword_tags for precise keyword matching
+ *   - Stealth plugin + saved profile (avoids CAPTCHA + email verify)
+ *   - Structured JSON response (not fragile DOM selectors)
  *
  * Usage:
- *   node scripts/apollo_companies_search.js                     # run all keywords
- *   node scripts/apollo_companies_search.js --broad             # no keyword, just UAE + size
- *   node scripts/apollo_companies_search.js --keyword "agency"  # single keyword test
- *   node scripts/apollo_companies_search.js --max-pages 100     # more pages (default 25)
- *   node scripts/apollo_companies_search.js --resume            # resume from progress
+ *   # Search by keyword tags + locations (universal)
+ *   node scripts/apollo_companies_search.js \
+ *     --keywords "influencer marketing platform,creator analytics,UGC platform" \
+ *     --locations "United Kingdom,India,France" \
+ *     --sizes "5,50" --sizes "51,200" --sizes "201,500" --sizes "501,1000" --sizes "1001,5000" \
+ *     --max-pages 25 \
+ *     --output /tmp/companies.json
+ *
+ *   # Single keyword test
+ *   node scripts/apollo_companies_search.js \
+ *     --keywords "influencer marketing platform" \
+ *     --locations "United Kingdom" \
+ *     --max-pages 3 \
+ *     --output /tmp/test.json
+ *
+ *   # With saved profile (skip login)
+ *   node scripts/apollo_companies_search.js \
+ *     --profile /tmp/puppeteer_dev_chrome_profile-lHTfSP \
+ *     --keywords "creator economy" \
+ *     --locations "India" \
+ *     --output /tmp/test.json
+ *
+ *   # Resume interrupted search
+ *   node scripts/apollo_companies_search.js \
+ *     --keywords "..." --locations "..." \
+ *     --output /tmp/companies.json --resume
+ *
+ *   # Config file (all params in JSON)
+ *   node scripts/apollo_companies_search.js --config /tmp/search_config.json
+ *
+ * Config file format:
+ *   {
+ *     "keywords": ["influencer marketing platform", "creator analytics"],
+ *     "locations": ["United Kingdom", "India"],
+ *     "sizes": ["5,50", "51,200"],
+ *     "max_pages": 25,
+ *     "output": "/tmp/companies.json"
+ *   }
+ *
+ * Output: JSON array of company objects with fields:
+ *   id, name, domain, linkedin_url, phone, logo_url, industries,
+ *   estimated_num_employees, keywords, city, state, country
  */
 
 const puppeteer = require('puppeteer-extra');
@@ -27,58 +64,109 @@ puppeteer.use(StealthPlugin());
 
 const APOLLO_EMAIL = 'danila@getsally.io';
 const APOLLO_PASS = 'UQdzDShCjAi5Nil!!';
-const OUT_DIR = path.join(__dirname, '..', 'easystaff-global', 'data');
-const RESULTS_FILE = path.join(OUT_DIR, 'uae_companies_api_results.json');
-const PROGRESS_FILE = path.join(OUT_DIR, 'uae_companies_api_progress.json');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function ts() { return new Date().toISOString().replace('T', ' ').substring(0, 19); }
 
 // ================================================================
-//  KEYWORDS — optimized for Companies search
+//  PARSE ARGS
 // ================================================================
 
-const KEYWORDS = [
-  // Service businesses (core ICP)
-  'agency', 'studio', 'consulting', 'consultancy', 'outsourcing',
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const config = {
+    keywords: [],
+    locations: [],
+    sizes: ['5,50', '51,200', '201,500', '501,1000', '1001,5000'],
+    maxPages: 25,
+    output: null,
+    progressFile: null,
+    profile: null,
+    configFile: null,
+    resume: false,
+  };
 
-  // Digital & tech
-  'software', 'digital', 'technology', 'IT services', 'SaaS',
-  'app development', 'web development', 'cloud', 'AI',
-  'cybersecurity', 'automation', 'DevOps',
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const next = args[i + 1];
 
-  // Marketing & creative
-  'marketing', 'branding', 'advertising', 'creative',
-  'design', 'media', 'content', 'SEO', 'social media',
-  'PR', 'communications',
+    if (arg === '--keywords' && next) {
+      config.keywords.push(...next.split(',').map(k => k.trim()).filter(Boolean));
+      i++;
+    } else if (arg === '--locations' && next) {
+      config.locations.push(...next.split(',').map(k => k.trim()).filter(Boolean));
+      i++;
+    } else if (arg === '--sizes' && next) {
+      if (config.sizes[0] === '5,50' && config.sizes.length === 5) {
+        config.sizes = []; // Reset default
+      }
+      config.sizes.push(next);
+      i++;
+    } else if (arg === '--max-pages' && next) {
+      config.maxPages = parseInt(next) || 25;
+      i++;
+    } else if (arg === '--output' && next) {
+      config.output = next;
+      i++;
+    } else if (arg === '--profile' && next) {
+      config.profile = next;
+      i++;
+    } else if (arg === '--config' && next) {
+      config.configFile = next;
+      i++;
+    } else if (arg === '--resume') {
+      config.resume = true;
+    }
+  }
 
-  // Production
-  'production', 'animation', 'film', 'video', 'photography',
-  'VFX', 'broadcast',
+  // Load from config file if provided
+  if (config.configFile && fs.existsSync(config.configFile)) {
+    const fileConfig = JSON.parse(fs.readFileSync(config.configFile, 'utf8'));
+    if (fileConfig.keywords) config.keywords = fileConfig.keywords;
+    if (fileConfig.locations) config.locations = fileConfig.locations;
+    if (fileConfig.sizes) config.sizes = fileConfig.sizes;
+    if (fileConfig.max_pages) config.maxPages = fileConfig.max_pages;
+    if (fileConfig.output) config.output = fileConfig.output;
+    if (fileConfig.profile) config.profile = fileConfig.profile;
+  }
 
-  // Professional services
-  'recruitment', 'staffing', 'talent', 'HR services',
-  'accounting', 'audit', 'legal', 'translation',
-  'training', 'coaching', 'research',
+  // Validate
+  if (config.keywords.length === 0) {
+    console.error('ERROR: At least one --keywords is required');
+    console.error('  Example: --keywords "influencer marketing platform,creator analytics"');
+    process.exit(1);
+  }
+  if (config.locations.length === 0) {
+    console.error('ERROR: At least one --locations is required');
+    console.error('  Example: --locations "United Kingdom,India,France"');
+    process.exit(1);
+  }
 
-  // Tech verticals
-  'fintech', 'edtech', 'healthtech', 'proptech', 'ecommerce',
-  'logistics', 'insurtech', 'martech',
-];
+  // Default output path
+  if (!config.output) {
+    const kwSlug = config.keywords[0].replace(/[^a-z0-9]+/gi, '_').substring(0, 20).toLowerCase();
+    const locSlug = config.locations[0].replace(/[^a-z0-9]+/gi, '_').substring(0, 15).toLowerCase();
+    config.output = path.join(__dirname, '..', 'gathering-data', `apollo_${kwSlug}_${locSlug}.json`);
+  }
 
-const SIZE_RANGES = ['1,10', '11,20', '21,50', '51,100', '101,200'];
+  // Progress file next to output
+  config.progressFile = config.output.replace(/\.json$/, '_progress.json');
+
+  return config;
+}
 
 // ================================================================
 //  LOGIN
 // ================================================================
 
 async function login(page) {
-  console.log('[LOGIN] Logging into Apollo...');
+  console.log(`[${ts()}] LOGIN: Starting...`);
   await page.goto('https://app.apollo.io/#/login', { waitUntil: 'networkidle2', timeout: 30000 });
   await sleep(2000);
 
   const url = page.url();
-  if (url.includes('/people') || url.includes('/home') || url.includes('/companies')) {
-    console.log('  Already logged in');
+  if (url.includes('/people') || url.includes('/home') || url.includes('/companies') || url.includes('/sequences')) {
+    console.log(`[${ts()}] LOGIN: Already logged in`);
     return;
   }
 
@@ -90,25 +178,32 @@ async function login(page) {
   await page.click('button[type="submit"]');
   await sleep(5000);
 
+  // Verify login — wait up to 60 seconds
   for (let i = 0; i < 30; i++) {
     const u = page.url();
     if (u.includes('/people') || u.includes('/home') || u.includes('/companies') || u.includes('/sequences')) {
-      console.log('  Login successful');
+      console.log(`[${ts()}] LOGIN: Success`);
       return;
+    }
+    if (u.includes('verify-email')) {
+      throw new Error('Apollo requires email verification from this IP. Use --profile with a pre-authenticated browser profile.');
     }
     await sleep(2000);
   }
-  throw new Error('Login failed — stuck at: ' + page.url());
+
+  // Take screenshot on failure
+  const screenshotPath = '/tmp/apollo_login_fail.png';
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+  throw new Error(`Login failed (stuck at: ${page.url()}). Screenshot: ${screenshotPath}`);
 }
 
 // ================================================================
-//  DIRECT API CALLS
+//  INTERNAL API CALLS
 // ================================================================
 
 async function apiSearchCompanies(page, params) {
   return page.evaluate(async (searchParams) => {
     try {
-      // Get CSRF token
       const csrfMeta = document.querySelector('meta[name="csrf-token"]');
       const csrfToken = csrfMeta ? csrfMeta.content : '';
 
@@ -157,25 +252,24 @@ async function apiLoadSnippets(page, orgIds) {
 }
 
 // ================================================================
-//  SEARCH ONE CONFIG — paginate through all results
+//  SEARCH — paginate through all results for one keyword
 // ================================================================
 
-async function searchAllPages(page, config, maxPages) {
+async function searchKeyword(page, keyword, locations, sizes, maxPages) {
   const allAccounts = [];
   let pageNum = 1;
   let totalEntries = null;
 
   while (pageNum <= maxPages) {
-    // Generate unique session IDs per search to avoid caching
     const sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
       const r = Math.random() * 16 | 0;
       return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
     });
-    const randomSeed = Math.random().toString(36).substring(2, 15);
 
     const params = {
-      organization_locations: ['United Arab Emirates'],
-      organization_num_employees_ranges: config.sizeRanges || SIZE_RANGES,
+      q_organization_keyword_tags: [keyword],
+      organization_locations: locations,
+      organization_num_employees_ranges: sizes,
       sort_by_field: '[none]',
       sort_ascending: false,
       page: pageNum,
@@ -188,26 +282,17 @@ async function searchAllPages(page, config, maxPages) {
       include_account_engagement_stats: false,
       finder_version: 2,
       search_session_id: sessionId,
-      ui_finder_random_seed: randomSeed,
+      ui_finder_random_seed: Math.random().toString(36).substring(2, 15),
       cacheKey: Date.now(),
     };
-
-    if (config.keyword) {
-      // Try both keyword params — Apollo uses different ones
-      params.q_keywords = config.keyword;
-      params.q_organization_name = config.keyword;
-    }
 
     const result = await apiSearchCompanies(page, params);
 
     if (result.error) {
       console.log(`    p${pageNum}: ERROR ${result.error}`);
-      // Log first error's full detail for debugging
-      if (pageNum === 1) {
-        console.log(`    Debug: params = ${JSON.stringify({q_keywords: params.q_keywords, q_organization_name: params.q_organization_name, organization_locations: params.organization_locations})}`);
-      }
       if (result.status === 422 || result.status === 429) break;
       await sleep(5000);
+      pageNum++;
       continue;
     }
 
@@ -216,8 +301,6 @@ async function searchAllPages(page, config, maxPages) {
 
     if (accounts.length === 0) break;
 
-    // Extract company data — fields come directly from the accounts response
-    // (we requested specific fields in the API call)
     for (const acc of accounts) {
       allAccounts.push({
         id: acc.organization_id || acc.id || '',
@@ -235,7 +318,7 @@ async function searchAllPages(page, config, maxPages) {
       });
     }
 
-    // Also try loading snippets for extra data (industry, address)
+    // Enrich with snippets
     try {
       const orgIds = accounts.map(a => a.organization_id || a.id).filter(Boolean);
       if (orgIds.length > 0) {
@@ -253,64 +336,45 @@ async function searchAllPages(page, config, maxPages) {
           }
         }
       }
-    } catch (e) { /* snippets are bonus data, don't fail on them */ }
+    } catch (e) { /* snippets are bonus data */ }
 
     if (pageNum === 1) {
-      console.log(`    p${pageNum}: ${accounts.length} companies (total available: ${totalEntries})`);
-      // Debug: show first 3 company names to verify keyword filtering
+      console.log(`    p1: ${accounts.length} companies (total: ${totalEntries})`);
       const names = accounts.slice(0, 3).map(a => a.name || '?').join(', ');
       console.log(`    First 3: ${names}`);
     } else if (pageNum % 10 === 0) {
-      console.log(`    p${pageNum}: ${accounts.length} companies`);
+      console.log(`    p${pageNum}: +${accounts.length} companies`);
     }
 
     if (accounts.length < 25) break;
     if (pageNum >= (result.pagination?.total_pages || Infinity)) break;
 
     pageNum++;
-    // Rate limit — gentle delay
     await sleep(800 + Math.random() * 500);
   }
 
-  console.log(`    → ${allAccounts.length} companies from ${pageNum} pages (${totalEntries} available)`);
-  return { companies: allAccounts, totalEntries };
+  return { companies: allAccounts, totalEntries: totalEntries || 0, pages: pageNum };
 }
 
 // ================================================================
-//  PROGRESS
+//  DEDUP
 // ================================================================
-
-function loadProgress() {
-  try { return JSON.parse(fs.readFileSync(PROGRESS_FILE, 'utf8')); }
-  catch { return { completed: [], allCompanies: [] }; }
-}
-
-function saveProgress(progress) {
-  fs.writeFileSync(PROGRESS_FILE, JSON.stringify({
-    completed: progress.completed,
-    stats: {
-      rawCount: progress.allCompanies.length,
-      uniqueCount: dedup(progress.allCompanies).length,
-      lastUpdated: new Date().toISOString(),
-    },
-    // Save companies separately to avoid huge progress file
-  }, null, 2));
-
-  // Save all companies
-  fs.writeFileSync(RESULTS_FILE, JSON.stringify(dedup(progress.allCompanies), null, 2));
-}
 
 function dedup(companies) {
   const seen = new Map();
   for (const c of companies) {
-    const key = c.id || c.name?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
-    if (!key) continue;
+    const key = (c.domain || '').toLowerCase().replace(/^www\./, '').replace(/\/+$/, '');
+    if (!key || !key.includes('.')) {
+      // Fallback to org id
+      const idKey = c.id || c.name?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+      if (idKey && !seen.has(idKey)) seen.set(idKey, c);
+      continue;
+    }
     if (!seen.has(key)) {
       seen.set(key, c);
     } else {
-      const existing = seen.get(key);
       // Merge missing fields
-      if (!existing.domain && c.domain) existing.domain = c.domain;
+      const existing = seen.get(key);
       if (!existing.industry && c.industry) existing.industry = c.industry;
       if (!existing.estimated_num_employees && c.estimated_num_employees) existing.estimated_num_employees = c.estimated_num_employees;
       if (!existing.city && c.city) existing.city = c.city;
@@ -321,93 +385,107 @@ function dedup(companies) {
 }
 
 // ================================================================
+//  PROGRESS
+// ================================================================
+
+function loadProgress(progressFile) {
+  try { return JSON.parse(fs.readFileSync(progressFile, 'utf8')); }
+  catch { return { completed: [], companies: [] }; }
+}
+
+function saveProgress(progressFile, outputFile, progress) {
+  const unique = dedup(progress.companies);
+  fs.writeFileSync(progressFile, JSON.stringify({
+    completed: progress.completed,
+    stats: {
+      rawCount: progress.companies.length,
+      uniqueCount: unique.length,
+      lastUpdated: new Date().toISOString(),
+    },
+  }, null, 2));
+  fs.writeFileSync(outputFile, JSON.stringify(unique, null, 2));
+}
+
+// ================================================================
 //  MAIN
 // ================================================================
 
 async function main() {
-  const args = process.argv.slice(2);
-  const maxPages = args.includes('--max-pages') ? parseInt(args[args.indexOf('--max-pages') + 1]) : 25;
-  const resume = args.includes('--resume');
-  const broadMode = args.includes('--broad');
-  const singleKeyword = args.includes('--keyword') ? args[args.indexOf('--keyword') + 1] : null;
+  const config = parseArgs();
 
-  if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
+  console.log(`\n[${ts()}] === APOLLO COMPANIES SEARCH (Internal API) ===`);
+  console.log(`  Keywords: ${config.keywords.length}`);
+  console.log(`  Locations: ${config.locations.join(', ')}`);
+  console.log(`  Sizes: ${config.sizes.join(', ')}`);
+  console.log(`  Max pages/keyword: ${config.maxPages}`);
+  console.log(`  Output: ${config.output}`);
+  if (config.profile) console.log(`  Profile: ${config.profile}`);
+  console.log();
 
-  // Generate search configs
-  const configs = [];
-  if (singleKeyword) {
-    configs.push({ id: `kw_${singleKeyword}`, label: `"${singleKeyword}"`, keyword: singleKeyword });
-  } else if (broadMode) {
-    // No keyword — just UAE + size ranges, broken down by size for pagination
-    for (const size of SIZE_RANGES) {
-      configs.push({
-        id: `broad_${size}`,
-        label: `ALL UAE companies ${size} employees`,
-        keyword: null,
-        sizeRanges: [size],
-      });
-    }
-  } else {
-    // All keywords
-    for (const kw of KEYWORDS) {
-      configs.push({ id: `kw_${kw.trim()}`, label: `"${kw.trim()}"`, keyword: kw.trim() });
-    }
-    // Also run broad (no keyword) per size range
-    for (const size of SIZE_RANGES) {
-      configs.push({
-        id: `broad_${size}`,
-        label: `ALL UAE companies ${size} employees`,
-        keyword: null,
-        sizeRanges: [size],
-      });
-    }
-  }
+  // Ensure output directory exists
+  const outDir = path.dirname(config.output);
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-  console.log('\n=== APOLLO COMPANIES API SEARCH — UAE ===');
-  console.log(`Search configs: ${configs.length}`);
-  console.log(`Max pages per search: ${maxPages}`);
-  console.log(`Max companies per search: ${maxPages * 25}`);
-
-  const browser = await puppeteer.launch({
+  // Browser launch options
+  const launchOptions = {
     headless: 'new',
     executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900',
-           '--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage',
-           '--disable-gpu'],
+    args: [
+      '--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900',
+      '--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
     defaultViewport: { width: 1440, height: 900 },
-  });
+  };
 
+  // Use saved profile if provided (skips login, avoids Cloudflare/email verify)
+  if (config.profile && fs.existsSync(config.profile)) {
+    launchOptions.userDataDir = config.profile;
+    console.log(`  Using saved profile: ${config.profile}`);
+  }
+
+  const browser = await puppeteer.launch(launchOptions);
   const page = await browser.newPage();
   await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
 
   try {
     await login(page);
 
-    // Need to navigate to a page first so page.evaluate has the right cookies/context
+    // Navigate to companies page to establish session context
     await page.goto('https://app.apollo.io/#/companies', { waitUntil: 'networkidle2', timeout: 30000 });
     await sleep(3000);
 
-    const progress = resume ? loadProgress() : { completed: [], allCompanies: [] };
-    const remaining = configs.filter(c => !progress.completed.includes(c.id));
-    console.log(`Remaining: ${remaining.length} (${progress.completed.length} done)\n`);
+    // Load progress if resuming
+    const progress = config.resume ? loadProgress(config.progressFile) : { completed: [], companies: [] };
+    const remaining = config.keywords.filter(kw => !progress.completed.includes(kw));
+
+    console.log(`  Total keywords: ${config.keywords.length}, remaining: ${remaining.length}`);
+    if (progress.completed.length > 0) {
+      console.log(`  Resumed: ${progress.completed.length} keywords already done`);
+    }
+    console.log();
 
     let searchNum = 0;
-    for (const config of remaining) {
+    for (const keyword of remaining) {
       searchNum++;
-      console.log(`[${searchNum}/${remaining.length}] ${config.label}`);
+      console.log(`[${searchNum}/${remaining.length}] "${keyword}"`);
 
       try {
-        const { companies, totalEntries } = await searchAllPages(page, config, maxPages);
+        const { companies, totalEntries, pages } = await searchKeyword(
+          page, keyword, config.locations, config.sizes, config.maxPages
+        );
+
+        console.log(`    -> ${companies.length} companies from ${pages} pages (${totalEntries} available)`);
 
         if (companies.length > 0) {
-          progress.allCompanies.push(...companies);
+          progress.companies.push(...companies);
         }
-        progress.completed.push(config.id);
+        progress.completed.push(keyword);
 
-        // Save every 3 searches
+        // Save every 3 keywords
         if (searchNum % 3 === 0 || searchNum === remaining.length) {
-          saveProgress(progress);
-          const unique = dedup(progress.allCompanies);
+          saveProgress(config.progressFile, config.output, progress);
+          const unique = dedup(progress.companies);
           console.log(`\n  === Progress: ${unique.length} unique companies ===\n`);
         }
 
@@ -415,7 +493,7 @@ async function main() {
 
       } catch (err) {
         console.log(`  ERROR: ${err.message}`);
-        saveProgress(progress);
+        saveProgress(config.progressFile, config.output, progress);
         if (err.message.includes('timeout')) {
           await sleep(10000);
           try {
@@ -426,63 +504,39 @@ async function main() {
       }
     }
 
-    // Final stats
-    console.log('\n\n=== FINAL RESULTS ===');
-    const unique = dedup(progress.allCompanies);
-    console.log(`Raw scraped: ${progress.allCompanies.length}`);
-    console.log(`After dedup: ${unique.length}`);
-    console.log(`With domain: ${unique.filter(c => c.domain).length}`);
-    console.log(`With industry: ${unique.filter(c => c.industry).length}`);
-    console.log(`With city: ${unique.filter(c => c.city).length}`);
-    console.log(`With employees: ${unique.filter(c => c.estimated_num_employees).length}`);
+    // Final save + stats
+    saveProgress(config.progressFile, config.output, progress);
+    const unique = dedup(progress.companies);
 
-    // City distribution
-    const cities = {};
+    console.log(`\n[${ts()}] === FINAL RESULTS ===`);
+    console.log(`  Raw scraped: ${progress.companies.length}`);
+    console.log(`  After dedup: ${unique.length}`);
+    console.log(`  With domain: ${unique.filter(c => c.domain).length}`);
+
+    // Country distribution
+    const countries = {};
     for (const c of unique) {
-      const city = c.city || '(unknown)';
-      cities[city] = (cities[city] || 0) + 1;
+      const country = c.country || '(unknown)';
+      countries[country] = (countries[country] || 0) + 1;
     }
-    console.log('\nCity distribution:');
-    for (const [city, count] of Object.entries(cities).sort((a, b) => b[1] - a[1]).slice(0, 15)) {
-      console.log(`  ${city}: ${count}`);
-    }
-
-    // Industry distribution
-    const industries = {};
-    for (const c of unique) {
-      const ind = c.industry || '(unknown)';
-      industries[ind] = (industries[ind] || 0) + 1;
-    }
-    console.log('\nTop industries:');
-    for (const [ind, count] of Object.entries(industries).sort((a, b) => b[1] - a[1]).slice(0, 20)) {
-      console.log(`  ${ind}: ${count}`);
+    console.log('\n  Country distribution:');
+    for (const [country, count] of Object.entries(countries).sort((a, b) => b[1] - a[1]).slice(0, 20)) {
+      console.log(`    ${country}: ${count}`);
     }
 
-    // Size distribution
-    const sizes = { '1-10': 0, '11-50': 0, '51-100': 0, '101-200': 0, '200+': 0, 'unknown': 0 };
-    for (const c of unique) {
-      const emp = c.estimated_num_employees || 0;
-      if (emp === 0) sizes['unknown']++;
-      else if (emp <= 10) sizes['1-10']++;
-      else if (emp <= 50) sizes['11-50']++;
-      else if (emp <= 100) sizes['51-100']++;
-      else if (emp <= 200) sizes['101-200']++;
-      else sizes['200+']++;
-    }
-    console.log('\nSize distribution:');
-    for (const [range, count] of Object.entries(sizes)) {
-      console.log(`  ${range}: ${count}`);
-    }
-
-    saveProgress(progress);
-    console.log(`\nSaved ${unique.length} companies to ${RESULTS_FILE}`);
+    console.log(`\n  Saved: ${config.output} (${unique.length} companies)`);
 
   } catch (err) {
-    console.error('FATAL:', err.message);
-    await page.screenshot({ path: path.join(OUT_DIR, 'apollo_api_error.png'), fullPage: true });
+    console.error(`[${ts()}] FATAL: ${err.message}`);
+    const screenshotPath = config.output.replace(/\.json$/, '_error.png');
+    try { await page.screenshot({ path: screenshotPath, fullPage: true }); } catch {}
+    process.exit(1);
   } finally {
     await browser.close();
   }
 }
 
-main().catch(console.error);
+main().catch(err => {
+  console.error(`FATAL: ${err.message}`);
+  process.exit(1);
+});
