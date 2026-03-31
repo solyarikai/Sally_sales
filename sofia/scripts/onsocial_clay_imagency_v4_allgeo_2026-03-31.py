@@ -1387,7 +1387,7 @@ def step12_upload(contacts: list[dict]):
 # ══════════════════════════════════════════════════════════════════════════════
 
 STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
-         "export", "people", "findymail", "upload"]
+         "people", "findymail", "upload"]
 
 
 def main():
