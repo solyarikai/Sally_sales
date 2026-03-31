@@ -302,3 +302,15 @@ selected period, cost for
 - openai, tokens per each model used and dollars    
 
 Questions to answer first and write your plan in implementation plan in plans directory. How can the user now, what should the user right now to continue gathering of contacts after first 100 targets or to set initial like upper limit for contacts gathered like 1,000 or 5,000 from target companies, of course, and from this rule, it's three contacts per company. Also, question, when MCP tells user expected spend on Apollo? I guess it should tell all time it plans the pipeline or change filters or like design the solution yourself, but the flow must be fully transparent. Also, like when user tell, I want to gather 1,000 or continue, MCP must first align the filter and costs. Say, hey, this is my cost, estimated cost to be spent, and here is the filters I will apply. Also, this rule about three contacts per company also must be purely visible. and also must be adjustable. User might tell, I need to change the number of roles, I need to change the roles event. So make sure in your solution plan, in plans directory, and in your reality test plan, and in your agent chain plan, agent chain plan is essential also, such cases are covered like change roles, gather more companies, change KPI, change default KPI, change sequence also, like user can, hey, read my sequence approach in this file, reuse it. So this also must be used. So implement the guard, write plan in plans directory, update agent chain plan, do all as the god, don't stop until done.
+
+
+❯ see mcp dir, how mcp user is now supposed to                                          
+  1. see progress of the running pipeline? elapsed time, estimated time left: till kpi  
+  reached, progress in abs / percentage %  - in ui                                      
+  2. pause pipelein, resume pipline via prompts to mcp                                  
+                                                                                        
+  ps kpi must be transparently shown in pipeline page in terms of target companies,     
+  target people, max people per company number                                          
+                                                                                        
+  pps user must be able to chnage this kpis by prompts: gather X companies, gather Y    
+  contacts, set max people per company to Z   
