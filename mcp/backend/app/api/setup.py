@@ -63,16 +63,6 @@ async def configure_integration(
         connected = await svc.test_connection()
         message = "Connected" if connected else "Connection failed — check API key"
 
-    elif req.integration_name == "findymail":
-        from app.services.findymail_service import FindymailService
-        svc = FindymailService(api_key=req.api_key)
-        connected = await svc.test_connection()
-        if connected:
-            credits = await svc.get_credits()
-            message = f"Connected. Credits: {credits}" if credits else "Connected"
-        else:
-            message = "Connection failed — check API key"
-
     elif req.integration_name == "apify":
         # Store + set as env var so scraper picks it up immediately
         import os
