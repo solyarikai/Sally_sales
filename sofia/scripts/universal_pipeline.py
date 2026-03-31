@@ -113,6 +113,14 @@ Usage:
   python3 universal_pipeline.py --project-id 42 --mode expand --base-run 198 \
     --override '{"country_names": ["Singapore", "Thailand"]}'
 
+  # Apollo Companies internal API search (FREE, precise keyword_tags)
+  python3 universal_pipeline.py --project-id 42 --mode apollo \
+    --filters '{"keyword_tags": ["influencer marketing platform", "creator analytics"],
+                "locations": ["United Kingdom", "India", "France"],
+                "sizes": ["5,50", "51,200", "201,500", "501,1000", "1001,5000"],
+                "excluded_keywords": ["recruitment", "staffing"],
+                "max_pages": 25}'
+
   # Dry run
   python3 universal_pipeline.py --project-id 42 --mode structured --segment agencies_mena --dry-run
 
