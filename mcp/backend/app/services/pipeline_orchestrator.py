@@ -290,7 +290,9 @@ class PipelineOrchestrator:
         # Scrape new companies
         try:
             self.run.current_phase = "scrape"
-            await svc.scrape(self.session, self.run, apify_proxy=self.apify_proxy)
+            from app.services.scraper_service import ScraperService
+            scraper = ScraperService(apify_proxy_password=self.apify_proxy)
+            await svc.scrape(self.session, self.run, scraper_service=scraper)
         except Exception as e:
             logger.warning(f"Scraping failed: {e}")
 
