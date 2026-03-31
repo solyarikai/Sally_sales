@@ -139,12 +139,26 @@ class ScraperService:
         port = getattr(settings, 'APIFY_PROXY_PORT', 8000)
         return f"http://groups-RESIDENTIAL,session-{session_id}:{password}@{host}:{port}"
 
-    async def scrape_website(self, url: str, timeout: int = 15) -> Dict[str, Any]:
+    async def scrape_website(self, url: str, timeout: int = 15, max_retries: int = 2) -> Dict[str, Any]:
         original = url
         is_valid, normalized, error = self._validate_url(url)
         if not is_valid:
             return {"success": False, "error": error, "url": original, "status_code": None}
+
         result = await self._fetch_url(original, normalized, timeout)
+
+        # Retry on 429 / 5xx with exponential backoff
+        retryable = result.get("status_code") in (429, 500, 502, 503, 504)
+        for attempt in range(max_retries):
+            if result["success"] or not retryable:
+                break
+            delay = (attempt + 1) * 2  # 2s, 4s
+            logger.debug(f"Retry {attempt+1}/{max_retries} for {url} after {delay}s (status {result.get('status_code')})")
+            await asyncio.sleep(delay)
+            result = await self._fetch_url(original, normalized, timeout)
+            retryable = result.get("status_code") in (429, 500, 502, 503, 504)
+
+        # HTTP fallback
         if not result["success"] and "CONNECTION" in result.get("error", ""):
             http_url = normalized.replace("https://", "http://")
             http_result = await self._fetch_url(original, http_url, timeout)
