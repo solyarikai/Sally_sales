@@ -556,6 +556,20 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 companies_needed = int(int(target_count) / 0.3)
                 filters["max_pages"] = max(1, (companies_needed + per_page - 1) // per_page)
 
+        # ── Auto-infer company size from offer (Gap 1: smart size inference) ──
+        if "api" in source_type and not filters.get("organization_num_employees_ranges") and project.target_segments:
+            try:
+                from app.config import settings as _s
+                _oai = await UserServiceContext(user.id, session).get_key("openai") or _s.OPENAI_API_KEY
+                if _oai:
+                    from app.services.offer_analyzer import infer_target_size
+                    size_result = await infer_target_size(project.target_segments, _oai)
+                    apollo_range = size_result.get("apollo_range", "11,500")
+                    filters["organization_num_employees_ranges"] = [apollo_range]
+                    logger.info(f"Auto-inferred size from offer: {apollo_range} ({size_result.get('reasoning', '')})")
+            except Exception as e:
+                logger.warning(f"Size auto-inference failed: {e}")
+
         # ── Essential filter validation for API sources ──
         if "api" in source_type:
             missing = []
@@ -756,6 +770,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             },
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -886,6 +901,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             ),
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -949,7 +965,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 f"Re-search with these optimized filters? Call tam_gather with these filters and confirm_filters=true."
             ),
             "run_id": run.id,
-            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+            "_links": {
+                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
+            },
         }
 
     if tool_name == "tam_enrich_from_examples":
@@ -1101,6 +1120,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 f"Segments: {scope.get('segment_distribution', {})}. "
                 f"Review the updated target list."
             ),
+            "_links": {
+                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
+            },
         }
 
     if tool_name == "tam_prepare_verification":
@@ -1845,7 +1868,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 f"View contacts: http://46.62.210.24:3000/crm?pipeline={run.id}"
             ),
             "_links": {
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
             },
         }
@@ -1986,6 +2009,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
                 "targets": f"http://46.62.210.24:3000/pipeline/{run.id}/targets",
+                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -2043,6 +2067,48 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 f"KPIs updated: {tc} contacts, {cpc}/company, ~{run.min_targets} target companies.\n"
                 f"Current: {people_found} contacts found. Remaining: {remaining_people}.\n"
                 f"Estimated cost: {pages_needed} credits (${pages_needed * 0.01:.2f})."
+            ),
+            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+        }
+
+    # ── Set People Filters (role changes) ──
+    if tool_name == "set_people_filters":
+        user = await _get_user(token, session)
+        run = await session.get(GatheringRun, args["run_id"])
+        if not run:
+            raise ValueError("Run not found")
+        project = await session.get(Project, run.project_id)
+        if not project or project.user_id != user.id:
+            raise ValueError("Project not found")
+
+        pf = dict(run.people_filters or {})
+        if "person_titles" in args:
+            pf["person_titles"] = args["person_titles"]
+        if "person_seniorities" in args:
+            valid = {"owner", "founder", "c_suite", "partner", "vp", "head", "director", "manager", "senior", "entry"}
+            pf["person_seniorities"] = [s for s in args["person_seniorities"] if s in valid]
+        if "contacts_per_company" in args:
+            pf["contacts_per_company"] = args["contacts_per_company"]
+            run.contacts_per_company = args["contacts_per_company"]
+
+        run.people_filters = pf
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(run, "people_filters")
+        await session.commit()
+
+        tc = run.target_count or 100
+        cpc = run.contacts_per_company or 3
+        targets_found = run.total_targets_found or 0
+
+        return {
+            "people_filters": pf,
+            "message": (
+                f"People filters updated.\n"
+                f"  Titles: {', '.join(pf.get('person_titles', ['(default)']))}\n"
+                f"  Seniority: {', '.join(pf.get('person_seniorities', ['(default)']))}\n"
+                f"  Max per company: {cpc}\n"
+                f"Current: {targets_found} target companies x {cpc} = up to {targets_found * cpc} contacts.\n"
+                f"People search is FREE. Changes take effect on next extraction batch."
             ),
             "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
         }
@@ -2639,13 +2705,48 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             },
         )
         session.add(log)
+        # Check if user has Telegram connected for notification prompt
+        telegram_connected = False
+        try:
+            tg_setting = await session.execute(
+                select(MCPIntegrationSetting).where(
+                    MCPIntegrationSetting.user_id == user.id,
+                    MCPIntegrationSetting.integration_name == "telegram",
+                )
+            )
+            telegram_connected = tg_setting.scalar_one_or_none() is not None
+        except Exception:
+            pass
+
+        telegram_msg = ""
+        if telegram_connected:
+            telegram_msg = "\n\nTelegram notifications are ON — you'll get pinged for warm replies."
+        else:
+            telegram_msg = (
+                "\n\nWant Telegram notifications for warm replies? "
+                "Connect your Telegram account: http://46.62.210.24:3000/setup (Telegram section)."
+            )
+
+        # CRM link with project filter
+        project_id = campaign_record.project_id if campaign_record and hasattr(campaign_record, 'project_id') else None
+        crm_link = f"http://46.62.210.24:3000/crm?campaign={args['campaign_id']}"
+        if project_id:
+            crm_link += f"&project_id={project_id}"
+
         return {
             "activated": True,
             "campaign_id": args["campaign_id"],
             "status": "ACTIVE",
             "monitoring_enabled": True,
-            "message": f"Campaign {args['campaign_id']} is now ACTIVE. Reply monitoring is ON by default.\n\nI'll track replies and classify them automatically. Want me to also send Telegram notifications for warm replies?",
-            "_links": {"smartlead": f"https://app.smartlead.ai/app/email-campaigns-v2/{args['campaign_id']}/analytics"},
+            "telegram_connected": telegram_connected,
+            "message": (
+                f"Campaign {args['campaign_id']} is now ACTIVE. Reply monitoring is ON."
+                f"{telegram_msg}"
+            ),
+            "_links": {
+                "smartlead": f"https://app.smartlead.ai/app/email-campaigns-v2/{args['campaign_id']}/analytics",
+                "crm": crm_link,
+            },
         }
 
     raise ValueError(f"Unknown tool: {tool_name}")

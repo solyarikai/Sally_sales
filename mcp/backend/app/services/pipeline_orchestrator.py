@@ -138,8 +138,10 @@ class PipelineOrchestrator:
         people_per_company = self._read_kpis()[1]
         asyncio.create_task(self._extract_people_for_new_targets(people_per_company))
 
-        # === EXPLORATION: Enrich top 5 → optimize filters ===
-        if self.total_targets >= 1:
+        # === EXPLORATION: Enrich top 5 → optimize filters (1 MAX — per default_requirements.md) ===
+        # Exploration runs ONCE after iteration 1, never again. Scale phase uses optimized filters.
+        exploration_done = self.pages_fetched > 1  # Skip if resuming past exploration
+        if self.total_targets >= 1 and not exploration_done:
             logger.info(f"Pipeline orchestrator: Exploring (enriching top {min(5, self.total_targets)} targets)")
             try:
                 from app.services.exploration_service import run_exploration
