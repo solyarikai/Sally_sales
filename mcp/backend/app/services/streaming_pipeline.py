@@ -771,6 +771,7 @@ class StreamingPipeline:
             "credits_used": self.run.credits_used or 0,
             "target_rate_pct": target_rate,
             "scrape_rate_pct": scrape_rate,
+            "companies_per_page_avg": round(self.total_companies / max(total_pages, 1), 1),
             "issues": issues,
             "message": msg,
         }
