@@ -314,3 +314,34 @@ Questions to answer first and write your plan in implementation plan in plans di
                                                                                         
   pps user must be able to chnage this kpis by prompts: gather X companies, gather Y    
   contacts, set max people per company to Z   
+
+
+
+  Also, what's the expected behavior if the user provides a project website? As far as I know, as written in default requirements MD, MCP internally must scrape website provided via API residential proxy, analyze then this offer, store this offer in the database, and provide user link to like set up a project, provide user link to the project page so that user can click this link in MCP UI and see, like, info about what MCP knows about this project, about this offer. If user will provide further feedback about offer, it should be updated and also be visible there. And, yeah, so user first, like MCP after it first, before proceeding to gathering anything, it should, like, align. It must align how it understands the offer if offer is not provided explicitly, just website. The MCP must just ensure from the user's approval that, yeah, we are on the same page. You see? Or user will provide, for instance, for this specific Ezystuff.io website, Ezystuff have multiple offers. Maybe they have invoicing offer, but user wants to gather companies and write about the payroll offer. So if user sees some shit, want MCP analyze from the website, user just provide, yeah, I'm gonna... specifically sell payroll offer and MCP will update project definition, update in database, UI will be updated information on project page, and just align it again with user. Okay, now the offer is that, list them, so go on. So this, like, alignment loop must be happening until user approves explicitly the... Or user... Yeah, like, even if, even when user provided himself all the offers, you should first, you should anyway get the proof. Like, ask user to see the link in project UI, also, like, write in chat, of course. But anyway, until user provides feedback on offer that is in the system from the user feedback from the website, the system must push user, like, push user to approve. Must not proceed further until approve is made. Is it work like that now, or some improvements need to be made for this flow?
+
+
+  also make sure mcp approves before processing clearly actions related to pipeline     
+  (resume, pause, change target defeinition, change prompt - take my classifiction      
+  prompt from the file e.g.) or any speciic campaing (change sequence e.g.) mcp      
+  clearly asks user with all the context about what is epxtected to be done and do it 
+  only after clear approve                                                              
+                                                                                      
+  mcp god level architecture must handle real world cases like below:                   
+                                                                                   
+  user prompt " Find IT consulting companies in Miami and video production companies    
+  in London" what should trigger 2 pipeline to run in parallel, and for example after
+  user todl "pause the pipeline" , mcp knows that there are 2 running pipleins at the   
+  moment so must ask user to provide required info for usch agent (agnet presequetieis  
+  remember? they must be clear !!!) - in this case simply by asking "which one to     
+  pause?" then user might response "the one for it consultations", or provide id or
+  geo  whatever for mcp to identify the pipeline. then mcp (and that's exactly what i
+  was talking above) tells user "i will do <pausing or what user asked this exact     
+  ppeline: id, name, link , everythinh>, approve?" and NOT DOING IT UNTIL APPROVE FROM  
+  THE USER                                                                              
+                                                                                        
+  you see the approach?                                                                 
+                                                                                        
+  read [Image #4] AGENT CHAIN PLAN all files and generate new AGENT CHAIN               
+  DOCUMENTATION with clear explicit coverage which agents require APPROVAL, think as    
+  GOD building very predictive accurate mcp that will never do any shit until the       
+  user's approve    
