@@ -202,6 +202,38 @@ def _safe_truncate(obj, max_len=5000) -> dict:
 
 async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -> Any:
 
+    # ── Global integration gate — block ALL tools if essential keys missing ──
+    # Exempt: login, get_context, configure_integration, check_integrations, list_projects, select_project
+    EXEMPT_TOOLS = {"login", "get_context", "configure_integration", "check_integrations",
+                    "list_projects", "select_project", "estimate_cost"}
+    if tool_name not in EXEMPT_TOOLS and token:
+        try:
+            from app.auth.middleware import verify_token as _vt
+            _gate_user = await _vt(session, token)
+            if _gate_user:
+                _gate_integrations = (await session.execute(
+                    select(MCPIntegrationSetting).where(
+                        MCPIntegrationSetting.user_id == _gate_user.id,
+                        MCPIntegrationSetting.is_connected == True,
+                    )
+                )).scalars().all()
+                _configured = {i.integration_name for i in _gate_integrations}
+                _required = {"apollo", "openai", "smartlead"}
+                _missing = _required - _configured
+                if _missing:
+                    raise ValueError(
+                        f"Cannot proceed — missing API keys: {', '.join(sorted(_missing))}.\n\n"
+                        f"Set up your integrations first:\n"
+                        f"  1. Go to http://46.62.210.24:3000/setup\n"
+                        f"  2. Connect: {', '.join(sorted(_missing))}\n"
+                        f"  3. Then try again.\n\n"
+                        f"Or use configure_integration tool to add keys directly."
+                    )
+        except ValueError:
+            raise  # Re-raise our gate error
+        except Exception:
+            pass  # Don't block on auth errors — individual tools handle that
+
     # ── Login (no auth needed — this IS the auth) ──
     if tool_name == "login":
         token_val = args.get("token", "")
