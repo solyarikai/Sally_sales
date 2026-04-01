@@ -68,13 +68,6 @@ def estimate_cost(
     total_credits = search_credits + enrichment + people_credits
     total_usd = total_credits * APOLLO_COST_PER_CREDIT
 
-    # Worst-case: if pipeline exhausts and regenerates keywords
-    # Up to 5 regen cycles × 20 pages each = 100 extra search pages
-    MAX_REGEN_PAGES = 100
-    worst_search = search_credits + MAX_REGEN_PAGES
-    worst_total = worst_search + enrichment + people_credits
-    worst_usd = worst_total * APOLLO_COST_PER_CREDIT
-
     return {
         "target_contacts": target_count,
         "target_companies_needed": target_companies,

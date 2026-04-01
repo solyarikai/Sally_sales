@@ -76,26 +76,32 @@ def _build_strategy_message(filters, keywords, locations, sizes, total_available
             f"  Roles derived from your offer — these are the decision makers who buy your product."
         )
 
+    # Show ALL keywords
+    all_keywords = keywords if keywords else []
+    kw_display = ", ".join(all_keywords[:20])
+    if len(all_keywords) > 20:
+        kw_display += f" (+{len(all_keywords) - 20} more)"
+
+    pages = cost_est.get("pages_needed", 10)
     msg = (
         f"Company search strategy:\n\n"
         f"  WHY: {reasoning}\n\n"
         f"  ▶ PRIMARY: {primary_label}\n"
         f"  {primary_detail}\n\n"
         f"  ⏸ BACKLOG (after primary exhausted): {backlog_label}\n"
-        f"  {backlog_detail}\n"
-        f"  Exhaustion: 20 empty pages → regenerate keywords (up to 5 attempts)\n\n"
+        f"  Exhaustion: 20 empty pages → regenerate keywords via GPT (up to 5 attempts)\n\n"
+        f"  Keywords ({len(all_keywords)}): {kw_display}\n\n"
         f"  Location: {', '.join(locations)}\n"
         f"  Size: {', '.join(sizes)}\n"
-        f"  Available: {total_available:,} companies in Apollo"
+        f"  Available: {total_available:,} companies in Apollo\n\n"
+        f"  KPIs: {target_people} target people, max {max_ppc}/company"
         f"{people_section}\n\n"
-        f"Cost for {target_people} contacts (max {max_ppc}/company):\n"
-        f"  Company search: ~{cost_est['pages_needed']} pages = {cost_est['search_credits']} credits (${cost_est['search_credits'] * 0.01:.2f})\n"
-        f"  Classification: ~$0.07 (GPT-4o-mini, 12K chars/company)\n"
+        f"Estimated cost:\n"
+        f"  Company search: {pages} pages × $0.01 = ${pages * 0.01:.2f} ({pages} credits)\n"
+        f"  Classification: ~$0.07 (GPT-4o-mini)\n"
         f"  People search: FREE (Apollo seniority filter)\n"
-        f"  Email enrichment: ~{target_people} credits (${target_people * 0.01:.2f})\n"
-        f"  Expected total: ~${cost_est['total_cost_usd']:.2f}\n"
-        f"  Max if exhausted: ~${cost_est.get('max_if_exhausted', {}).get('total_cost_usd', 0):.2f} "
-        f"(auto-recovery with regenerated keywords, up to 5 attempts)\n\n"
+        f"  Email enrichment: ~{target_people} × $0.01 = ${target_people * 0.01:.2f}\n"
+        f"  Total: ~${cost_est['total_cost_usd']:.2f}\n\n"
         f"Proceed?"
     )
     return msg
@@ -679,10 +685,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     f"Offer confirmed for '{project.name}'.\n"
                     f"Target roles: {', '.join(roles.get('titles', ['CEO']))}\n"
                     f"Project: http://46.62.210.24:3000/projects/{project.id}\n\n"
-                    f"Next: describe your target segment — who should we reach? "
-                    f"Include location and company size if relevant."
+                    f"Have you launched campaigns for this segment before?\n"
+                    f"If yes, share the campaign name pattern so I can exclude already-contacted leads."
                 ),
-                "_instructions": "Ask user to describe their target segment. Do NOT call define_targets — use tam_gather for everything.",
+                "_instructions": "Ask ONLY about previous campaigns (blacklist). ONE question. If user says no, proceed to ask about email accounts (align_email_accounts).",
                 "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
             }
         elif feedback:
@@ -1061,8 +1067,40 @@ Return ONLY valid JSON."""
             if len(keywords) < 20:
                 keyword_warning = f"\n  ⚠️ Only {len(keywords)} keywords (recommended: 20+). Pipeline may exhaust quickly."
 
+            # ── Create pipeline in pending_approval state ──
+            import hashlib as _hl, json as _jn2
+            _fh = _hl.sha256(_jn2.dumps(filters, sort_keys=True).encode()).hexdigest()[:16]
+            preview_run = GatheringRun(
+                project_id=project.id,
+                company_id=project.company_id,
+                source_type=source_type,
+                filters=filters,
+                filter_hash=_fh,
+                status="pending_approval",
+                current_phase="pending",
+                triggered_by=f"mcp:user:{user.id}",
+                target_people=target_people,
+                max_people_per_company=max_ppc,
+            )
+            session.add(preview_run)
+            await session.flush()
+
+            # Link existing campaign (from align_email_accounts) to this run
+            _existing_camp = (await session.execute(
+                select(Campaign).where(
+                    Campaign.project_id == project.id,
+                    Campaign.status == "mcp_draft",
+                ).order_by(Campaign.id.desc()).limit(1)
+            )).scalar_one_or_none()
+            if _existing_camp:
+                preview_run.campaign_id = _existing_camp.id
+                await session.flush()
+
+            pipeline_link = f"http://46.62.210.24:3000/pipeline/{preview_run.id}"
+
             return {
                 "status": "awaiting_filter_confirmation",
+                "run_id": preview_run.id,
                 "total_available": total_available,
                 "filters_preview": {
                     "organization_industry_tag_ids": filters.get("organization_industry_tag_ids"),
@@ -1075,15 +1113,15 @@ Return ONLY valid JSON."""
                 "next_action": {
                     "tool": "tam_gather",
                     "args": {"project_id": project.id, "source_type": source_type, "filters": filters, "confirm_filters": True},
-                    "description": "User approves → call tam_gather with confirm_filters=true to start gathering",
                 },
                 "message": _build_strategy_message(
                     filters, keywords, locations, sizes, total_available,
                     target_people, max_ppc, cost_est, people_defaults,
-                ) + keyword_warning,
-                "_instructions": "Show this preview to user. Ask ONLY: 'Proceed?' Do NOT ask about KPIs, target count, or anything else. Default KPIs are already set.",
+                ) + keyword_warning + f"\n\nPipeline: {pipeline_link}",
+                "_instructions": "Show this preview to user. Ask ONLY: 'Proceed?' Do NOT add any questions about KPIs or target count.",
                 "project_id": project.id,
                 "project_name": project.name,
+                "_links": {"pipeline": pipeline_link},
             }
 
         # Get user's Apollo service for API sources
@@ -1172,33 +1210,33 @@ Return ONLY valid JSON."""
         size_summary = filters.get("organization_num_employees_ranges", [])
         strategy_summary = filters.get("filter_strategy", "keywords_only")
 
+        # ── Auto-start streaming pipeline ──
+        from app.services.pipeline_orchestrator import start_pipeline_background
+        run.target_people = run.target_people or 100
+        run.max_people_per_company = run.max_people_per_company or 3
+        run.status = "running"
+        from datetime import datetime as _dt2, timezone as _tz2
+        run.started_at = _dt2.now(_tz2.utc)
+        await session.commit()
+
+        start_pipeline_background(run.id, filters, user.id)
+
+        pipeline_link = f"http://46.62.210.24:3000/pipeline/{run.id}"
         result = {
             "run_id": run.id,
-            "status": run.status,
-            "phase": run.current_phase,
+            "status": "started",
             "new_companies": run.new_companies_count,
-            "existing_in_project": run.duplicate_count,
-            "source_type": source_type,
             "credits_spent": credits_spent,
-            "credits_remaining": credits_remaining,
             "message": (
-                f"**{run.new_companies_count} companies gathered** for '{project.name}'.\n\n"
-                f"Filters applied:\n"
-                f"  Strategy: {strategy_summary}\n"
-                f"  Keywords: {len(kw_summary)} ({', '.join(kw_summary[:5])}{'...' if len(kw_summary) > 5 else ''})\n"
-                f"  Industry IDs: {len(ind_summary)}\n"
-                f"  Location: {', '.join(loc_summary) if loc_summary else 'any'}\n"
-                f"  Size: {', '.join(size_summary)}\n"
-                f"  Credits used: {credits_spent}"
-                + (f" (remaining: {credits_remaining})" if credits_remaining is not None else "")
-                + f"\n\n**Pipeline:** http://46.62.210.24:3000/pipeline/{run.id}\n"
-                f"Default KPIs: 100 target people, max 3/company.\n\n"
-                f"Have you launched campaigns for this segment before? "
-                f"If yes, tell me the campaign name pattern so I can exclude already-contacted leads."
+                f"**{run.new_companies_count} companies gathered.** Pipeline started!\n\n"
+                f"Pipeline: {pipeline_link}\n"
+                f"KPIs: {run.target_people} target people, max {run.max_people_per_company}/company.\n"
+                f"Credits used so far: {credits_spent}.\n\n"
+                f"Pipeline is scraping → classifying → extracting people in parallel.\n"
+                f"SmartLead campaign will be created automatically when KPI is hit."
             ),
-            "_instructions": "Ask ONLY about blacklist (previous campaigns). ONE question. Do NOT ask about email accounts yet — that's the next step.",
             "_links": {
-                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "pipeline": pipeline_link,
                 "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
@@ -1949,9 +1987,27 @@ Return ONLY valid JSON."""
 
     if tool_name == "align_email_accounts":
         user = await _get_user(token, session)
-        run = await session.get(GatheringRun, args["run_id"])
-        if not run:
-            raise ValueError("Run not found")
+
+        # Accept project_id OR run_id (run may not exist yet in new flow)
+        project_id = args.get("project_id")
+        run_id = args.get("run_id")
+        run = None
+        project = None
+
+        if run_id:
+            run = await session.get(GatheringRun, run_id)
+            if run:
+                project = await session.get(Project, run.project_id)
+        if not project and project_id:
+            project = await session.get(Project, project_id)
+        if not project:
+            # Fallback: active project
+            if user.active_project_id:
+                project = await session.get(Project, user.active_project_id)
+        if not project:
+            raise ValueError("project_id or run_id required")
+        if project.user_id != user.id:
+            raise ValueError("Project not found")
 
         ctx = UserServiceContext(user.id, session)
         svc = await ctx.get_smartlead_service()
@@ -1971,8 +2027,6 @@ Return ONLY valid JSON."""
         if account_ids:
             matched = [a for a in accounts_list if a["id"] in account_ids]
         elif account_filter:
-            # Split filter into terms — ALL terms must match (AND logic)
-            # "pavel mifort" → account must match BOTH "pavel" AND "mifort" in name+email combined
             terms = [t.strip().lower() for t in account_filter.lower().split() if t.strip()]
             def _matches(a):
                 combined = (a["email"] + " " + a["name"]).lower()
@@ -1988,22 +2042,21 @@ Return ONLY valid JSON."""
                 "message": f"No accounts match '{account_filter}'. Available: {', '.join(a['email'] for a in accounts_list[:10])}",
             }
 
-        # Preview step — show matched accounts, ask for confirmation
+        # Preview step
         if not args.get("confirm"):
             return {
-                "matched": matched,
+                "matched": matched[:20],  # Show first 20 in preview
                 "count": len(matched),
-                "message": f"Found {len(matched)} matching accounts. Confirm to create draft campaign with these accounts.",
-                "_action_required": "Call align_email_accounts with confirm=true to proceed.",
+                "message": f"Found {len(matched)} matching accounts. Confirm to create draft campaign.",
+                "_instructions": "Show account count and ask: 'Confirm these {N} accounts?' ONE question.",
             }
 
-        # Confirm step — create mcp_draft campaign + link to run
-        project = await session.get(Project, run.project_id)
-        campaign_name = args.get("campaign_name") or f"{project.name if project else 'Pipeline'} — Run #{run.id}"
+        # Confirm step — create mcp_draft campaign linked to PROJECT (run linked later)
+        campaign_name = args.get("campaign_name") or f"{project.name} Campaign"
 
         campaign = Campaign(
-            project_id=run.project_id,
-            company_id=run.company_id,
+            project_id=project.id,
+            company_id=project.company_id,
             name=campaign_name,
             platform="smartlead",
             status="mcp_draft",
@@ -2013,14 +2066,20 @@ Return ONLY valid JSON."""
         session.add(campaign)
         await session.flush()
 
-        run.campaign_id = campaign.id
+        # Link to run if it exists
+        if run:
+            run.campaign_id = campaign.id
+
         return {
             "campaign_id": campaign.id,
+            "project_id": project.id,
             "status": "mcp_draft",
-            "email_accounts": matched,
-            "count": len(matched),
-            "message": f"Draft campaign '{campaign_name}' created with {len(matched)} email accounts. Pipeline will auto-push to SmartLead when KPI is hit.",
-            "_links": {"campaigns": f"http://46.62.210.24:3000/campaigns/{campaign.id}"},
+            "email_accounts_count": len(matched),
+            "message": (
+                f"Campaign '{campaign_name}' created with {len(matched)} email accounts.\n"
+                f"Next: describe your target segment (e.g. 'fashion brands in Italy up to 200 employees')."
+            ),
+            "_instructions": "Ask user to describe their target segment for tam_gather. ONE question.",
         }
 
     if tool_name == "check_destination":

@@ -142,7 +142,7 @@ class GatheringService:
                 run.error_message = str(e)
                 run.error_count = 1
 
-        self._advance_phase(run, "blacklist")
+        self._advance_phase(run, "gather")  # Blacklist handled in chat flow, not pipeline phase
         return run
 
     def _get_adapter(self, source_type: str, apollo_service=None):

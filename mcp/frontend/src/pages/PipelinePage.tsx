@@ -637,7 +637,7 @@ export default function PipelinePage() {
       </div>
 
       {/* ── KPI Progress Banner — shown when run is running or paused ── */}
-      {run && (run.status === 'running' || run.status === 'paused') && run.kpi && (
+      {run && (run.status === 'running' || run.status === 'paused' || run.status === 'pending_approval') && run.kpi && (
         <KPIProgressBanner run={run} onPause={async () => {
           await fetch(`${API}/pipeline/runs/${runId}/pause`, { method: 'POST', headers: authHeaders() })
           load()
@@ -723,7 +723,7 @@ export default function PipelinePage() {
                   {ind}
                 </span>
               ))}
-              {run.filters.filter_strategy !== 'industry_first' && run.filters.q_organization_keyword_tags?.slice(0, 8).map((kw: string) => (
+              {run.filters.filter_strategy !== 'industry_first' && run.filters.q_organization_keyword_tags?.map((kw: string) => (
                 <span key={kw} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', fontSize: 11, color: '#3b82f6' }}>
                   {kw}
                 </span>
@@ -746,8 +746,8 @@ export default function PipelinePage() {
             <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ fontSize: 12 }}>⏸</span> Backlog (after active exhausted)
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {run.filters.filter_strategy === 'industry_first' && run.filters.q_organization_keyword_tags?.slice(0, 6).map((kw: string) => (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 140, overflowY: 'auto' }}>
+              {run.filters.filter_strategy === 'industry_first' && run.filters.q_organization_keyword_tags?.map((kw: string) => (
                 <span key={kw} style={{ padding: '2px 8px', borderRadius: 4, border: '1px dashed var(--border)', fontSize: 11, color: 'var(--text-muted)' }}>
                   {kw}
                 </span>
@@ -981,14 +981,19 @@ export default function PipelinePage() {
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>No companies match filters.</div>
       )}
 
-      {/* Load More */}
+      {/* Infinite scroll sentinel */}
       {!loading && companies.length < totalCompanies && (
-        <div style={{ textAlign: 'center', padding: '16px 0' }}>
-          <button onClick={() => setCompanyPage(p => p + 1)}
-            style={{ padding: '8px 24px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
-            Load more ({companies.length} of {totalCompanies})
-          </button>
-        </div>
+        <div ref={(el) => {
+          if (!el) return
+          const obs = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) setCompanyPage(p => p + 1)
+          }, { rootMargin: '200px' })
+          obs.observe(el)
+          return () => obs.disconnect()
+        }} style={{ height: 1 }} />
+      )}
+      {loading && companies.length > 0 && (
+        <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--text-muted)', fontSize: 12 }}>Loading more...</div>
       )}
 
       {/* Modal */}
