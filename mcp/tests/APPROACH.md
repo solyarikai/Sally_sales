@@ -479,10 +479,40 @@ Focusing on: wiring the proven approach into the production pipeline code.
 - [x] Cost tracking in DB
 - [x] KPI progress in UI
 
-### BLOCKED (needs Apollo credits):
-- [ ] Test remaining 3 segments fresh (Video UK, IT US, OnSocial UK)
-- [ ] Verify IT Miami with broader keywords
-- [ ] Test auto-loop (KPI not met → fetch more pages)
+---
+
+## 2026-04-01 10:30 — E2E v4 SIMPLIFIED PIPELINE (ALL 6 SEGMENTS, FRESH CREDITS)
+
+| Segment | Strategy | Companies | Targets | Rate | People | Time | Credits | KPI |
+|---|---|---|---|---|---|---|---|---|
+| TFP Fashion | industry_first | 299 | 51 | 38% | 88 | 168s | 4 | NO (88/100) |
+| ES IT Miami | keywords_first | 71 | 9 | 24% | 21 | 67s | 4 | NO |
+| **ES Video London** | industry_first | 330 | 113 | **50%** | **273** | 215s | 4 | **YES** |
+| ES IT US | keywords_first | 27 | 3 | 16% | 7 | 65s | 4 | NO |
+| **ES Video UK** | industry_first | 313 | 65 | 31% | **165** | 176s | 4 | **YES** |
+| OnSocial UK | keywords_first | 62 | 4 | 11% | 9 | 54s | 4 | NO |
+
+### Findings:
+1. Video segments HIT KPI (273 and 165 people) — industry_first with media production works
+2. Fashion missed by 12 (88/100) — needs auto-loop for 1 more batch
+3. Keywords segments weak: IT Miami 24%, IT US 16%, OnSocial 11%
+4. Only 4 pages gathered (cost estimator set max_pages=4, need to increase or auto-loop)
+5. People enrichment credits NOT shown in preview (only search credits shown)
+6. Simplified pipeline works — no exploration overhead
+
+### Cost estimate issue:
+Preview shows "4 credits ($0.04)" but real cost includes:
+- Search: 4 credits (pages)
+- People enrichment: ~100 credits for 100 people via bulk_match
+- GPT classification: ~$0.07
+- TOTAL should show: ~$1.10 not $0.04
+
+### AUTO-LOOP needed:
+If KPI not met after first batch → orchestrator should automatically:
+1. Fetch 10 more pages
+2. Scrape + classify new companies
+3. Extract people for new targets
+4. Check KPI again → loop until met or max iterations
 
 ---
 
