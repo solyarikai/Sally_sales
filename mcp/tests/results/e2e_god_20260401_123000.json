@@ -1,0 +1,45 @@
+{
+  "pid": 415,
+  "rid": 432,
+  "test_time": "2026-04-01T12:30:00Z",
+  "cost_estimate": {
+    "total_credits": 102,
+    "total_cost_usd": 1.02,
+    "max_if_exhausted": {
+      "total_credits": 202,
+      "total_cost_usd": 2.02
+    },
+    "search_credits": 2,
+    "people_credits": 100
+  },
+  "result": {
+    "status": "completed",
+    "kpi_met": true,
+    "total_companies": 322,
+    "total_scraped": 143,
+    "total_classified": 141,
+    "total_targets": 106,
+    "total_people": 129,
+    "pages_fetched": 50,
+    "credits_used": 161,
+    "elapsed_seconds": 42,
+    "target_rate_pct": 75,
+    "scrape_rate_pct": 44
+  },
+  "keywords": ["apparel & fashion", "luxury goods & jewelry", "textiles", "fashion brand italy", "italian luxury brands"],
+  "strategy": "industry_first",
+  "available_in_apollo": 8131,
+  "bugs_found": [
+    "SmartLead pagination: only 100/2376 accounts returned — FIXED",
+    "Apify proxy: env empty, DB key ignored — FIXED",
+    "Progress persistence: workers never flushed to DB — FIXED",
+    "Cost estimate gap: 102 estimated vs 161 actual",
+    "Deploy killed running background pipeline"
+  ],
+  "bugs_fixed": [
+    "SmartLead get_email_accounts() now paginates (offset/limit=100)",
+    "Pipeline reads apify_proxy from user DB integration first",
+    "People worker calls _persist_progress() after each company",
+    "Project import shadowing in dispatcher — removed local re-import"
+  ]
+}
