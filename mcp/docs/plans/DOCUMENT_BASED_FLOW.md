@@ -352,6 +352,77 @@ Referenced from this document (DOCUMENT_BASED_FLOW.md).
 
 ---
 
+---
+
+## Definition of Done — CLEAR EXIT CRITERIA
+
+### This task is DONE when ALL of these files exist and meet quality:
+
+#### Files that must exist after completion:
+
+| File | What it contains |
+|------|-----------------|
+| `mcp/backend/app/services/document_extractor.py` | Document extraction service (best model chosen) |
+| `mcp/backend/app/services/apollo_service.py` | Updated with people enrichment retry logic |
+| `mcp/backend/app/services/streaming_pipeline.py` | Updated with multi-segment classification |
+| `mcp/tests/results/doc_extract_MODEL_TIMESTAMP.json` | 7 files — one per model comparison |
+| `mcp/tests/results/model_comparison_summary.json` | Winner model + scores table |
+| `mcp/tests/results/apollo_funding_TIMESTAMP.json` | Funding filter test results |
+| `mcp/tests/results/e2e_fintech_TIMESTAMP.json` | Full E2E pipeline result |
+| `mcp/tests/results/document_based_flow_results.md` | Final report: all discoveries, issues, solutions |
+| `mcp/tests/results/verification_companies_TIMESTAMP.json` | Opus review of all 100+ companies |
+| `mcp/tests/results/verification_people_TIMESTAMP.json` | Opus review of all 100+ people |
+| `mcp/tests/results/verification_sequences_TIMESTAMP.json` | Opus review of sequence vs document |
+| `mcp/tests/results/iteration_log.md` | All iterations with timestamps, scores, changes |
+
+#### Quality Targets (iterate until met):
+
+| Metric | Target | Minimum Acceptable | How Measured |
+|--------|--------|-------------------|-------------|
+| Companies accuracy | 95% real fintech targets | 90% (after 10 iterations) | Opus reviews all 100+ companies against document ICP |
+| People accuracy | 95% correct roles at target companies | 90% (after 10 iterations) | Opus reviews all 100+ people against document personas |
+| Sequence accuracy | 100% match to document's Sequence A | 95% (minor formatting) | Word-by-word comparison of 4 emails |
+| Segment classification | 95% correct segment labels | 90% | Opus checks each company's label vs its actual business |
+| Campaign settings | 100% match | 100% (no compromise) | Checklist: tracking, reply-stop, accounts, plain text |
+| People per target company | avg 2.5+ (out of 3 max) | avg 2.0 | Retry logic fills 3 slots per company |
+| Pipeline completes | No crash, no stuck | Always | Status = completed or insufficient, never running/failed |
+| No duplicate pipelines | Exactly 1 GatheringRun | Always | DB check after every run |
+| KPI hit | 100+ verified contacts | 80+ (if Apollo exhausted) | Pipeline result total_people |
+
+#### Iteration Protocol:
+```
+Target: 95% accuracy across all metrics.
+Max iterations: 10.
+
+After each iteration:
+  1. Run full pipeline
+  2. Opus verifies ALL companies (batches of 25, parallel agents)
+  3. Opus verifies ALL people (batches of 25, parallel agents)
+  4. Opus verifies sequences
+  5. Calculate scores
+  6. Log to iteration_log.md: timestamp, scores, what changed
+  7. If <95%: identify worst category, fix prompt/logic, iterate
+  8. If still <90% after 10 iterations: accept 90%, document why
+
+Score formula:
+  overall = (companies_pct * 0.3) + (people_pct * 0.3) + 
+            (sequence_pct * 0.2) + (segments_pct * 0.1) + 
+            (settings_pct * 0.1)
+```
+
+#### What "iterate" means:
+```
+Iteration 1: Run with initial prompts/models → score
+Iteration 2: Improve worst metric (e.g. fix classification prompt) → re-run → score
+Iteration 3: Fix next worst → re-run → score
+...continue until target met or 10 iterations exhausted
+
+Each iteration changes EXACTLY ONE thing (scientific method).
+Log what changed and the impact on ALL metrics.
+```
+
+---
+
 ## Reference Data
 
 - **Website**: getsally.io
