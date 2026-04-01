@@ -405,6 +405,29 @@ async def _log_conversation_message(body: bytes, token: str, session_id: str):
 app.mount("/mcp", MCPApp())
 
 
-@app.get("/")
+# ── ASGI wrapper: capture token from SSE URL BEFORE Starlette strips query string ──
+_original_app = app
+
+
+async def _token_capture_wrapper(scope, receive, send):
+    """Raw ASGI middleware — captures ?token= from /mcp/sse before anything else processes it."""
+    if scope.get("type") == "http":
+        qs = scope.get("query_string", b"").decode()
+        path = scope.get("path", "")
+        if qs and "token=" in qs and "/mcp" in path:
+            for part in qs.split("&"):
+                if part.startswith("token="):
+                    token = part.split("=", 1)[1]
+                    if token:
+                        from app.mcp.server import _session_tokens
+                        _session_tokens["_latest"] = token
+                        logger.info(f"Token captured from URL: {token[:12]}...")
+                    break
+    await _original_app(scope, receive, send)
+
+app = _token_capture_wrapper  # type: ignore
+
+
+@_original_app.get("/")
 async def root():
     return {"service": "mcp-leadgen", "version": "1.0.0", "docs": "/docs"}
