@@ -509,7 +509,14 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     pr = f"Analyze this company website.\nWebsite: {website}\nContent: {wt[:3000]}\n\n"
                 else:
                     pr = f"What does the company at {dom} do? Use your knowledge.\n\n"
-                pr += 'Return JSON: {"company_name":"...","products":[{"name":"...","description":"..."}],"primary_offer":"main product in 1 sentence","value_proposition":"problem solved","target_audience":"who buys","key_differentiators":["..."]}\nIf unknown: {"unknown":true}\nOnly JSON.'
+                pr += ('Return JSON: {"company_name":"...","products":[{"name":"...","description":"..."}],'
+                       '"primary_offer":"main product in 1 sentence","value_proposition":"problem solved",'
+                       '"target_audience":"who buys","key_differentiators":["..."],'
+                       '"target_roles":{"titles":["CEO","CMO","VP of X","Head of Y"],'
+                       '"seniorities":["c_suite","vp","head","director"],'
+                       '"reasoning":"who at target company would BUY this"}}\n'
+                       'ALWAYS include CEO + relevant C-level + 2-3 specific buyer roles.\n'
+                       'If unknown: {"unknown":true}\nOnly JSON.')
                 try:
                     async with _hx.AsyncClient(timeout=25) as c:
                         rr = await c.post("https://api.openai.com/v1/chat/completions",
@@ -557,6 +564,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         # ── Build response with offer for user alignment ──
         offer_display = ""
         if offer_summary:
+            target_roles = offer_summary.get("target_roles", {})
+            role_titles = target_roles.get("titles", [])
+            role_reasoning = target_roles.get("reasoning", "")
+
             offer_display = (
                 f"\n\n**Offer extracted from {website}:**\n"
                 f"  Product: {offer_summary.get('primary_offer', 'N/A')}\n"
@@ -565,10 +576,14 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             )
             if offer_summary.get("products"):
                 offer_display += "  All products: " + ", ".join(p.get("name", "") for p in offer_summary["products"]) + "\n"
+            if role_titles:
+                offer_display += f"\n**Target decision makers:** {', '.join(role_titles)}\n"
+                if role_reasoning:
+                    offer_display += f"  Reasoning: {role_reasoning}\n"
             offer_display += (
-                f"\n**Is this the right offer for this campaign?** "
-                f"If you sell multiple products (e.g. payroll vs invoicing), tell me which one. "
-                f"Once confirmed, I'll proceed with gathering."
+                f"\n**Is this correct?** Review: offer, target audience, AND target roles. "
+                f"If anything is wrong (e.g. wrong product, wrong roles), tell me. "
+                f"Once confirmed, these roles will be used to find the right people at target companies."
             )
         else:
             offer_display = (
@@ -2326,21 +2341,35 @@ Return ONLY valid JSON."""
         if not apollo_svc.is_configured():
             raise ValueError("Apollo not connected")
 
-        # Infer people roles from offer
+        # Read target roles from project offer_summary (aligned with user during offer confirmation)
+        # Falls back to GPT inference if not present (legacy projects)
         person_titles = None
         person_seniorities = ["c_suite", "vp", "director"]
-        openai_key = await ctx.get_key("openai")
-        if not openai_key:
-            from app.config import settings as _cfg
-            openai_key = _cfg.OPENAI_API_KEY
-        if project.target_segments and openai_key:
-            try:
-                from app.services.offer_analyzer import infer_people_roles
-                roles = await infer_people_roles(project.target_segments, openai_key)
-                person_titles = roles.get("person_titles")
-                person_seniorities = roles.get("person_seniorities", person_seniorities)
-            except Exception:
-                pass
+
+        # Priority 1: from run's people_filters (user explicitly set via set_people_filters)
+        if run.people_filters and run.people_filters.get("person_titles"):
+            person_titles = run.people_filters["person_titles"]
+            person_seniorities = run.people_filters.get("person_seniorities", person_seniorities)
+        # Priority 2: from project offer_summary.target_roles (aligned during offer confirmation)
+        elif project.offer_summary and isinstance(project.offer_summary, dict):
+            target_roles = project.offer_summary.get("target_roles", {})
+            if target_roles.get("titles"):
+                person_titles = target_roles["titles"]
+                person_seniorities = target_roles.get("seniorities", person_seniorities)
+        # Priority 3: GPT inference (legacy fallback)
+        if not person_titles:
+            openai_key = await ctx.get_key("openai")
+            if not openai_key:
+                from app.config import settings as _cfg
+                openai_key = _cfg.OPENAI_API_KEY
+            if project.target_segments and openai_key:
+                try:
+                    from app.services.offer_analyzer import infer_people_roles
+                    roles = await infer_people_roles(project.target_segments, openai_key)
+                    person_titles = roles.get("person_titles")
+                    person_seniorities = roles.get("person_seniorities", person_seniorities)
+                except Exception:
+                    pass
 
         # Get target companies without contacts
         from app.models.gathering import CompanySourceLink
@@ -2382,8 +2411,10 @@ Return ONLY valid JSON."""
                         email=person.get("email"),
                         first_name=person.get("first_name"),
                         last_name=person.get("last_name"),
-                        job_title=person.get("title"),
+                        job_title=person.get("title") or person.get("job_title"),
                         linkedin_url=person.get("linkedin_url"),
+                        email_verified=person.get("is_verified", False),
+                        email_source="apollo" if person.get("is_verified") else None,
                         source_data=person,
                     )
                     session.add(contact)
