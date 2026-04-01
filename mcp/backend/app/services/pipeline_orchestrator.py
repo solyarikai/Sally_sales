@@ -526,14 +526,16 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
             )
             result = await pipeline.run_until_kpi(filters)
 
-            # Mark complete (unless paused — then status stays "paused")
+            # Refresh run from DB (workers wrote progress via their own sessions)
+            await session.refresh(run)
+
+            # Mark complete
             if run.status != "paused":
                 run.status = "completed" if result.get("kpi_met") else "insufficient"
                 run.completed_at = datetime.now(timezone.utc)
                 elapsed = (run.completed_at - run.started_at).total_seconds() if run.started_at else None
                 if elapsed:
                     run.duration_seconds = int(elapsed)
-                # Store pipeline result message for UI display
                 run.notes = (run.notes or "") + f"\n{result.get('message', '')}"
                 if result.get("issues"):
                     run.error_message = "\n".join(result["issues"])
