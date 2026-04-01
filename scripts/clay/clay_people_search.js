@@ -383,26 +383,58 @@ async function runEnrichmentPeopleSearch(page, tableId, filters, label = 'enrich
     await screenshot(page, `${label}_03b_search_results`);
   }
 
-  // Click "Find People" option
-  const findPeopleOpt = await findByText(page, 'Find People', false)
-    || await findByText(page, 'Find people', false)
-    || await findByText(page, 'People Search', false)
-    || await findByText(page, 'Find lists of people', false);
+  // Click "Find people" SOURCE option (not Claygent AI, not enrichment)
+  // Search results show: 1) "Create a column with AI..." (Claygent), 2) "Find People at Company" (enrichment),
+  // 3) "Find people" (Source • Companies, People, Jobs) — we want #3, the real People Search with filters.
+  const findPeopleOpt = await page.evaluate(() => {
+    // Find all clickable items in the search results panel
+    const items = [...document.querySelectorAll('div, li, a, button')].filter(el => {
+      if (!el.offsetParent) return false;
+      const rect = el.getBoundingClientRect();
+      // Must be in the right-side Tools panel area (x > 900)
+      return rect.x > 900 && rect.width > 200 && rect.height > 30 && rect.height < 120;
+    });
+
+    for (const item of items) {
+      const text = item.textContent?.trim() || '';
+      // Match "Find people" with "Source" in the description — this is the real People Search
+      if (text.includes('Find people') && text.includes('Source')) {
+        const rect = item.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: text.substring(0, 80), type: 'source' };
+      }
+    }
+
+    // Fallback: look for "Find People at Company" enrichment
+    for (const item of items) {
+      const text = item.textContent?.trim() || '';
+      if (text.includes('Find People at Company')) {
+        const rect = item.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: text.substring(0, 80), type: 'enrichment' };
+      }
+    }
+
+    return null;
+  });
 
   if (!findPeopleOpt) {
-    console.log('  ERROR: "Find People" enrichment not found');
+    console.log('  ERROR: "Find People" source option not found');
     const menuItems = await page.evaluate(() =>
       [...document.querySelectorAll('div, span, button, a')]
-        .filter(el => el.offsetParent !== null && el.textContent?.trim().length > 2 && el.textContent.trim().length < 50)
+        .filter(el => {
+          if (!el.offsetParent) return false;
+          const r = el.getBoundingClientRect();
+          return r.x > 900 && r.width > 100 && el.textContent?.trim().length > 2 && el.textContent.trim().length < 80;
+        })
         .map(el => el.textContent.trim())
         .filter((v, i, arr) => arr.indexOf(v) === i)
-        .slice(0, 30)
+        .slice(0, 20)
     );
-    console.log('  Menu items:', menuItems.join(' | '));
+    console.log('  Panel items:', menuItems.join(' | '));
     await screenshot(page, `${label}_03_no_find_people`);
     return null;
   }
 
+  console.log(`  Found: "${findPeopleOpt.text}" (${findPeopleOpt.type})`);
   await page.mouse.click(findPeopleOpt.x, findPeopleOpt.y);
   await humanDelay(3000, 5000);
   await screenshot(page, `${label}_03_find_people_opened`);
@@ -426,79 +458,213 @@ async function runEnrichmentPeopleSearch(page, tableId, filters, label = 'enrich
   if (filters.countries_exclude?.length) {
     console.log(`  Applying countries to exclude: ${filters.countries_exclude.join(', ')}...`);
 
-    // Scroll sidebar to find Location section
-    await page.evaluate(() => {
+    // The left sidebar has collapsible accordion sections. We need to:
+    // 1. Find and click "Location" section header to expand it
+    // 2. Inside expanded Location, find the "Countries to exclude" input
+
+    // First, find the sidebar scrollable container
+    const sidebarInfo = await page.evaluate(() => {
+      // The filter sidebar is the left panel (x < 400, has overflow-y)
       const scrollable = [...document.querySelectorAll('*')].filter(el => {
         const s = window.getComputedStyle(el);
         const r = el.getBoundingClientRect();
-        return (s.overflowY === 'auto' || s.overflowY === 'scroll') && r.x < 400 && r.width > 200 && r.height > 200;
+        return (s.overflowY === 'auto' || s.overflowY === 'scroll') && r.x < 50 && r.width > 200 && r.width < 500 && r.height > 200;
       });
-      for (const el of scrollable) el.scrollTop = el.scrollHeight;
-    });
-    await humanDelay(800, 1200);
-
-    // Click Location section to expand
-    const locSection = await findByText(page, 'Location', true);
-    if (locSection) {
-      await page.mouse.click(locSection.x, locSection.y);
-      await humanDelay(1000, 1500);
-    }
-
-    // Find "Countries to exclude" input
-    // Placeholder might be "United States", "country", or similar
-    // The EXCLUDE input is typically the second country input, or has "exclude" in context
-    const excludeInput = await page.evaluate(() => {
-      const inputs = [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null);
-      // Look for inputs near "exclude" text
-      for (const input of inputs) {
-        const ph = (input.placeholder || '').toLowerCase();
-        // Check if this input is in an "exclude" context
-        const parent = input.closest('div, section, label');
-        const parentText = parent?.textContent?.toLowerCase() || '';
-        if (parentText.includes('exclude') && (ph.includes('united') || ph.includes('country') || ph.includes('countr'))) {
-          const rect = input.getBoundingClientRect();
-          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder, type: 'exclude-context' };
-        }
+      if (scrollable.length > 0) {
+        const sb = scrollable[0];
+        return { found: true, scrollTop: sb.scrollTop, scrollHeight: sb.scrollHeight, clientHeight: sb.clientHeight };
       }
-      // Fallback: find by text label "Countries to exclude"
+      return { found: false };
+    });
+    console.log(`    Sidebar: ${JSON.stringify(sidebarInfo)}`);
+
+    // Scroll sidebar to make "Location" visible and click it
+    const locationClicked = await page.evaluate(() => {
+      // Find sidebar scrollable
+      const scrollable = [...document.querySelectorAll('*')].filter(el => {
+        const s = window.getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return (s.overflowY === 'auto' || s.overflowY === 'scroll') && r.x < 50 && r.width > 200 && r.width < 500 && r.height > 200;
+      })[0];
+
+      // Find "Location" text node in the sidebar
       const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       while (walk.nextNode()) {
-        const text = walk.currentNode.textContent?.trim().toLowerCase();
-        if (text && text.includes('exclude') && text.includes('countr')) {
-          const parent = walk.currentNode.parentElement;
-          if (parent?.offsetParent !== null) {
-            // Find the nearest input after this label
-            const container = parent.closest('div') || parent.parentElement;
-            const input = container?.querySelector('input') || container?.nextElementSibling?.querySelector('input');
-            if (input) {
-              const rect = input.getBoundingClientRect();
-              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder, type: 'label-near' };
-            }
+        const node = walk.currentNode;
+        if (node.textContent?.trim() === 'Location') {
+          const el = node.parentElement;
+          if (!el || !el.offsetParent) continue;
+          const rect = el.getBoundingClientRect();
+          // Must be in the left sidebar area
+          if (rect.x < 400 && rect.width > 50) {
+            // Scroll it into view
+            el.scrollIntoView({ behavior: 'instant', block: 'center' });
+            return { found: true, tag: el.tagName, x: rect.x, y: rect.y };
+          }
+        }
+      }
+      return { found: false };
+    });
+    console.log(`    Location section: ${JSON.stringify(locationClicked)}`);
+
+    await humanDelay(500, 800);
+
+    // Now click the Location section header to expand it
+    const locPos = await page.evaluate(() => {
+      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walk.nextNode()) {
+        if (walk.currentNode.textContent?.trim() === 'Location') {
+          const el = walk.currentNode.parentElement;
+          if (!el || !el.offsetParent) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.x < 400 && rect.width > 50 && rect.y > 0 && rect.y < window.innerHeight) {
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
           }
         }
       }
       return null;
     });
 
-    if (excludeInput) {
-      console.log(`    Found exclude input (${excludeInput.type}): "${excludeInput.placeholder}"`);
+    if (locPos) {
+      console.log(`    Clicking Location at (${Math.round(locPos.x)}, ${Math.round(locPos.y)})...`);
+      await page.mouse.click(locPos.x, locPos.y);
+      await humanDelay(1500, 2500);
+      await screenshot(page, `${label}_04a_location_expanded`);
+    } else {
+      console.log('    WARNING: Location section not found on screen');
+    }
+
+    // After expanding Location, look for "Countries to exclude" or similar
+    // Debug: list all visible text in the sidebar area
+    const sidebarText = await page.evaluate(() => {
+      const items = [];
+      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walk.nextNode()) {
+        const node = walk.currentNode;
+        const el = node.parentElement;
+        if (!el || !el.offsetParent) continue;
+        const rect = el.getBoundingClientRect();
+        // Left sidebar only (x < 400)
+        if (rect.x < 400 && rect.y > 0 && rect.y < window.innerHeight && node.textContent.trim().length > 1) {
+          items.push({ text: node.textContent.trim().substring(0, 60), y: Math.round(rect.y) });
+        }
+      }
+      // Deduplicate and sort by y
+      return items.filter((v, i, arr) => arr.findIndex(a => a.text === v.text) === i).sort((a, b) => a.y - b.y);
+    });
+    console.log(`    Sidebar text after Location expand:`);
+    for (const item of sidebarText.slice(0, 30)) {
+      console.log(`      [y=${item.y}] ${item.text}`);
+    }
+
+    // Now find the "Countries to exclude" input
+    // Strategy: find text containing "exclude" near the Location section, then find the nearest input/combobox
+    const excludeResult = await page.evaluate(() => {
+      // Look for any element with "exclude" in its text within the sidebar
+      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      const excludeLabels = [];
+      while (walk.nextNode()) {
+        const text = walk.currentNode.textContent?.trim().toLowerCase() || '';
+        if (text.includes('exclude') && text.includes('countr')) {
+          const el = walk.currentNode.parentElement;
+          if (el?.offsetParent) {
+            const rect = el.getBoundingClientRect();
+            if (rect.x < 400 && rect.y > 0 && rect.y < window.innerHeight) {
+              excludeLabels.push({ text: walk.currentNode.textContent.trim(), y: rect.y, el });
+            }
+          }
+        }
+      }
+
+      if (excludeLabels.length === 0) return { found: false, reason: 'no exclude label found' };
+
+      // For each exclude label, find the nearest input below it
+      for (const label of excludeLabels) {
+        const container = label.el.closest('div[class]') || label.el.parentElement?.parentElement;
+        if (!container) continue;
+
+        // Look for input, combobox, or clickable area near the label
+        const inputs = container.querySelectorAll('input, [role="combobox"], [contenteditable]');
+        for (const input of inputs) {
+          if (input.offsetParent) {
+            const rect = input.getBoundingClientRect();
+            return { found: true, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: input.placeholder || '', type: 'direct-child' };
+          }
+        }
+
+        // Wider search: look for inputs below the label text
+        const allInputs = [...document.querySelectorAll('input')].filter(i => {
+          if (!i.offsetParent) return false;
+          const rect = i.getBoundingClientRect();
+          return rect.x < 400 && rect.y > label.y && rect.y < label.y + 100;
+        });
+        if (allInputs.length > 0) {
+          const rect = allInputs[0].getBoundingClientRect();
+          return { found: true, x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, placeholder: allInputs[0].placeholder || '', type: 'below-label' };
+        }
+      }
+
+      return { found: false, reason: 'found exclude label but no input nearby', labels: excludeLabels.map(l => l.text) };
+    });
+
+    console.log(`    Exclude input search: ${JSON.stringify(excludeResult)}`);
+
+    if (excludeResult.found) {
+      console.log(`    Found exclude input (${excludeResult.type}): "${excludeResult.placeholder}"`);
       for (const country of filters.countries_exclude) {
-        await page.mouse.click(excludeInput.x, excludeInput.y);
+        await page.mouse.click(excludeResult.x, excludeResult.y);
         await humanDelay(200, 400);
         await page.keyboard.type(country, { delay: 25 + Math.random() * 30 });
-        await humanDelay(600, 1000);
-        await page.keyboard.press('Enter');
-        await humanDelay(300, 500);
+        await humanDelay(1200, 1800); // Wait longer for autocomplete dropdown to fully load
+
+        // IMPORTANT: Don't just press Enter — that selects "United States Minor Outlying Islands"
+        // Instead, find and click the EXACT match in the dropdown
+        const exactMatch = await page.evaluate((targetCountry) => {
+          const options = [...document.querySelectorAll('[role="option"], [role="menuitem"], li, div')].filter(el => {
+            if (!el.offsetParent) return false;
+            const text = el.textContent?.trim();
+            // Exact match — the text should be exactly the country name (not a longer variant)
+            return text === targetCountry;
+          });
+          if (options.length > 0) {
+            const rect = options[0].getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, text: options[0].textContent.trim() };
+          }
+          return null;
+        }, country);
+
+        if (exactMatch) {
+          console.log(`      Clicking exact match: "${exactMatch.text}"`);
+          await page.mouse.click(exactMatch.x, exactMatch.y);
+        } else {
+          // Fallback: use arrow keys to navigate past "Minor Outlying Islands" to the real match
+          console.log(`      No exact match found, using keyboard navigation...`);
+          await page.keyboard.press('ArrowDown');
+          await humanDelay(200, 400);
+          await page.keyboard.press('Enter');
+        }
+        await humanDelay(500, 800);
       }
       console.log(`    Countries excluded: ${filters.countries_exclude.join(', ')}`);
     } else {
-      console.log('    WARNING: Countries exclude input not found');
-      // Debug
-      const allInputs = await page.evaluate(() =>
-        [...document.querySelectorAll('input')].filter(i => i.offsetParent !== null)
-          .map(i => ({ placeholder: i.placeholder, y: Math.round(i.getBoundingClientRect().y) }))
-      );
-      console.log('    Available inputs:', JSON.stringify(allInputs));
+      console.log(`    WARNING: Countries exclude input not found — ${excludeResult.reason}`);
+      // Fallback: try using Sculptor AI chat to apply the filter
+      console.log('    Trying Sculptor chat fallback...');
+      const sculptorInput = await page.$('input[placeholder*="What are you looking for"]')
+        || await page.$('textarea[placeholder*="What are you looking for"]')
+        || await page.$('input[placeholder*="looking for"]');
+      if (sculptorInput) {
+        await sculptorInput.click();
+        await humanDelay(200, 400);
+        await sculptorInput.type(`Exclude people from ${filters.countries_exclude.join(', ')}`, { delay: 30 });
+        await humanDelay(500, 800);
+        await page.keyboard.press('Enter');
+        await humanDelay(3000, 5000);
+        console.log('    Sculptor command sent');
+        await screenshot(page, `${label}_04b_sculptor_exclude`);
+      } else {
+        console.log('    Sculptor input not found either');
+      }
     }
   }
 
