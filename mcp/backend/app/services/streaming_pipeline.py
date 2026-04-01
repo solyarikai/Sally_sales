@@ -523,8 +523,6 @@ class StreamingPipeline:
                     return
                 try:
                     company_text = f"Company: {dc.name or dc.domain}\nDomain: {dc.domain}"
-                    if dc.industry:
-                        company_text += f"\nIndustry: {dc.industry}"
                     company_text += f"\n\nWebsite:\n{dc.scraped_text[:3000]}"
 
                     async with httpx.AsyncClient(timeout=30) as client:
