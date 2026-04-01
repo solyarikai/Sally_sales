@@ -758,6 +758,7 @@ export default function PipelinePage() {
             </div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
               Switches when active filters yield 0 new targets for a full batch
+              <span title="Apollo filters within different types (industry + keywords) are applied as AND — combining them NARROWS results instead of broadening. That's why we use one approach at a time. When the active approach returns a full batch (10 pages) with zero new target companies, the pipeline automatically switches to the backlog filters to find more targets from a different angle." style={{ cursor: 'help', textDecoration: 'underline dotted', marginLeft: 4 }}>(why?)</span>
             </div>
           </div>
         </div>
@@ -765,24 +766,67 @@ export default function PipelinePage() {
 
       {showPeopleFilters && (
         <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>People Filters (Apollo People Search)</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
-              <span style={{ color: 'var(--text-muted)' }}>titles:</span>{' '}
-              {run?.people_filters?.person_titles?.join(', ') || 'CEO, CTO, Founder, CFO, VP Engineering, Head of HR'}
+          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>People Search Strategy</div>
+
+          {/* Apollo seniority filters */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--info)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              Apollo seniority filter
+              <span title="Apollo /mixed_people/api_search with person_seniorities filter. Returns C-level, VPs, directors, and heads — the decision makers. This search is FREE (no credits). Only the final top contacts are enriched with emails (1 credit each)." style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted' }}>(?)</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {['owner', 'founder', 'c_suite', 'vp', 'head', 'director'].map(s => (
+                <span key={s} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', fontSize: 11, color: '#3b82f6' }}>
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Target roles from offer */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: '#f59e0b', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              Target roles (from offer analysis)
+              <span title="These roles were identified during website analysis and aligned with you. People matching these roles are PRIORITIZED in the search results. Apollo returns all C-level/VP/director people, then we rank them by how well their title matches these target roles. The best matches get their emails enriched first." style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted' }}>(?)</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {(run?.people_filters?.person_titles || run?.offer_summary?.target_roles?.titles || ['CEO', 'CMO', 'VP Sales', 'Head of Digital']).map((t: string) => (
+                <span key={t} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', fontSize: 11, color: '#f59e0b' }}>
+                  ★ {t}
+                </span>
+              ))}
+            </div>
+            {run?.offer_summary?.target_roles?.reasoning && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
+                {run.offer_summary.target_roles.reasoning}
+              </div>
+            )}
+          </div>
+
+          {/* Max per company + enrichment rule */}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Max per company:</span>{' '}
+              <strong>{run?.kpi?.max_people_per_company || 3}</strong>
+              <span title="Only the top N contacts per company (ranked by seniority + role match) will have their emails enriched. Email enrichment costs 1 Apollo credit per person. Increasing this number increases credit spend." style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted', marginLeft: 4 }}>(?)</span>
             </span>
-            <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
-              <span style={{ color: 'var(--text-muted)' }}>seniority:</span>{' '}
-              {run?.people_filters?.person_seniorities?.join(', ') || 'c_suite, vp, director'}
-            </span>
-            <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
-              <span style={{ color: 'var(--text-muted)' }}>max per company:</span>{' '}
-              {run?.kpi?.max_people_per_company || run?.kpi?.contacts_per_company || run?.people_filters?.max_people_per_company || 3}
+            <span style={{ fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Email enrichment:</span>{' '}
+              <span style={{ color: '#22c55e' }}>verified only</span>
+              <span title="Only contacts with Apollo email_status='verified' are included. Apollo verifies email deliverability before returning it. This ensures high-quality outreach-ready emails." style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted', marginLeft: 4 }}>(?)</span>
             </span>
           </div>
+
+          {/* How it works explanation */}
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
+            <strong>How it works:</strong> Apollo searches for people with senior roles at each target company (FREE).
+            Results are ranked by: 1) seniority level (CEO → VP → Director) and 2) match to target roles above.
+            Only the top {run?.kpi?.max_people_per_company || 3} per company get email enrichment (1 credit each, verified emails only).
+          </div>
+
           {totalContacts > 0 && (
             <div style={{ marginTop: 8 }}>
-              <Link to={`/crm?pipeline=${runId}`} style={{ fontSize: 12, color: 'var(--text-link)', textDecoration: 'none' }}>
+              <Link to={`/crm?pipeline=${runId}`} style={{ fontSize: 12, color: 'var(--text-link)', textDecoration: 'none', fontWeight: 500 }}>
                 View {totalContacts} people in CRM →
               </Link>
             </div>
