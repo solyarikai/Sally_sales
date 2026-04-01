@@ -320,8 +320,36 @@ Video production keywords are specific enough. GPT classification handles the re
 - Classification: ~10s (50 concurrent GPT-4o-mini)
 - People extraction: ~30-60s (sequential Apollo calls per company) ← BOTTLENECK #2
 
-### NEXT:
-1. Fix industry_tag_ids passthrough — Fashion should get 90% not 43%
-2. Fix IT Miami — better keywords or different approach
-3. Speed up people extraction — more parallelism
-4. Auto-pipeline needs to loop until KPI met (currently stops after 1 iteration)
+---
+
+## 2026-04-01 02:45 — A11 PROMPT FIXED + RETESTED ✅
+
+### Problem: A11 classified EVERYTHING as keywords_first
+Root cause: prompt too vague, GPT defaulted to "keywords are better" for all.
+Fix: explicit examples + word-matching heuristic + "WHEN IN DOUBT: SPECIFIC"
+
+### Retest results (fixed prompt):
+| Query | Strategy | Specific |
+|---|---|---|
+| Fashion Italy | **industry_first** ✅ | apparel & fashion |
+| IT Miami | keywords_first ✅ | — |
+| Video London | **industry_first** ✅ | media production |
+| IT US | keywords_first ✅ | — |
+| Video UK | **industry_first** ✅ | media production |
+| OnSocial UK | keywords_first ✅ | — |
+
+Now Fashion uses industry (→ 90% rate), Video uses media production (→ 40% rate).
+IT and influencer correctly use keywords (industry is too broad for these).
+
+### EXPECTED IMPROVEMENT (re-E2E):
+| Segment | Old Rate | Expected New | Why |
+|---|---|---|---|
+| Fashion Italy | 43% (keywords) | **90%** (industry) | industry_tag_ids = apparel & fashion |
+| Video London | 65% (keywords) | **40-65%** (media production industry) | may be similar or better |
+| Video UK | 70% (keywords) | **40-70%** (media production industry) | depends on what industry returns |
+
+### REMAINING:
+- [ ] Re-run full E2E with fixed A11
+- [ ] Fix IT Miami 3% rate (need better keywords)
+- [ ] Speed up people extraction
+- [ ] Auto-loop until KPI met
