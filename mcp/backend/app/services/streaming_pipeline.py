@@ -74,17 +74,18 @@ class StreamingPipeline:
         self._person_titles = None
 
     async def _init_services(self):
-        """Initialize shared services once."""
+        """Initialize shared services once. Own session — no shared state."""
         from app.services.scraper_service import ScraperService
+        from app.db import async_session_maker
         self._scraper = ScraperService(apify_proxy_password=self.apify_proxy)
 
-        project = await self.session.get(Project, self.run.project_id)
-        self._offer_text = project.target_segments if project else ""
-
-        if project and project.offer_summary and isinstance(project.offer_summary, dict):
-            target_roles = project.offer_summary.get("target_roles", {})
-            if target_roles.get("titles"):
-                self._person_titles = target_roles["titles"]
+        async with async_session_maker() as ws:
+            project = await ws.get(Project, self.run.project_id)
+            self._offer_text = project.target_segments if project else ""
+            if project and project.offer_summary and isinstance(project.offer_summary, dict):
+                target_roles = project.offer_summary.get("target_roles", {})
+                if target_roles.get("titles"):
+                    self._person_titles = target_roles["titles"]
 
     async def run_until_kpi(self, filters: Dict) -> Dict:
         """Main entry — SINGLE STREAMING MODE for everything.
@@ -373,22 +374,24 @@ class StreamingPipeline:
             all_tried: ALL keywords tried across ALL strategies and regenerations (lowercase)
         """
         try:
-            project = await self.session.get(Project, self.run.project_id)
-            if not project:
-                return None
+            from app.db import async_session_maker
+            async with async_session_maker() as ws:
+                project = await ws.get(Project, self.run.project_id)
+                if not project:
+                    return None
+                query = project.target_segments or ", ".join(list(all_tried)[:5])
+                offer = project.sender_company or ""
+
+                from app.services.user_context import UserServiceContext
+                user_id_str = self.run.triggered_by.split(":")[-1] if self.run.triggered_by else "0"
+                try:
+                    user_id_int = int(user_id_str)
+                except ValueError:
+                    user_id_int = 0
+                ctx = UserServiceContext(user_id_int, ws)
+                openai_key = await ctx.get_key("openai")
 
             old_keywords = list(all_tried)
-            query = project.target_segments or ", ".join(list(all_tried)[:5])
-            offer = project.sender_company or ""
-
-            from app.services.user_context import UserServiceContext
-            user_id_str = self.run.triggered_by.split(":")[-1] if self.run.triggered_by else "0"
-            try:
-                user_id_int = int(user_id_str)
-            except ValueError:
-                user_id_int = 0
-            ctx = UserServiceContext(user_id_int, self.session)
-            openai_key = await ctx.get_key("openai")
             if not openai_key:
                 return None
 

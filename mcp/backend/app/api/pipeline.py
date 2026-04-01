@@ -217,16 +217,46 @@ async def get_run_status(
     )
     total_companies = dc_count.scalar() or 0
 
-    # Count scrapes — scoped to this run
-    scrape_result = await session.execute(
-        select(CompanyScrape.scrape_status)
-        .join(DiscoveredCompany, DiscoveredCompany.id == CompanyScrape.discovered_company_id)
+    # Count scrapes — from DiscoveredCompany.status field (streaming pipeline)
+    scrape_stats = await session.execute(
+        select(DiscoveredCompany.status, sa_func.count(DiscoveredCompany.id))
         .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
         .where(CompanySourceLink.gathering_run_id == run_id)
+        .group_by(DiscoveredCompany.status)
     )
-    scrapes = scrape_result.all()
-    scraped_ok = sum(1 for s in scrapes if s[0] == "success")
-    scraped_err = sum(1 for s in scrapes if s[0] != "success")
+    status_counts = {row[0] or "gathered": row[1] for row in scrape_stats.all()}
+    scraped_ok = status_counts.get("scraped", 0) + status_counts.get("target", 0) + status_counts.get("rejected", 0)
+    scraped_err = status_counts.get("scrape_failed", 0)
+    classified_count = status_counts.get("target", 0) + status_counts.get("rejected", 0) + status_counts.get("classify_failed", 0)
+    targets_classified = status_counts.get("target", 0)
+    rejected_classified = status_counts.get("rejected", 0)
+
+    # Count targets with 0 contacts
+    targets_no_contacts = 0
+    if targets_classified > 0:
+        _tnc = await session.execute(
+            select(sa_func.count(DiscoveredCompany.id))
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .outerjoin(ExtractedContact, ExtractedContact.discovered_company_id == DiscoveredCompany.id)
+            .where(
+                CompanySourceLink.gathering_run_id == run_id,
+                DiscoveredCompany.is_target == True,
+                ExtractedContact.id == None,
+            )
+        )
+        targets_no_contacts = _tnc.scalar() or 0
+
+    # Fallback: old CompanyScrape table
+    if scraped_ok == 0 and scraped_err == 0:
+        scrape_result = await session.execute(
+            select(CompanyScrape.scrape_status)
+            .join(DiscoveredCompany, DiscoveredCompany.id == CompanyScrape.discovered_company_id)
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .where(CompanySourceLink.gathering_run_id == run_id)
+        )
+        scrapes = scrape_result.all()
+        scraped_ok = sum(1 for s in scrapes if s[0] == "success")
+        scraped_err = sum(1 for s in scrapes if s[0] != "success")
 
     # Find campaign linked to this run (direct FK first, then via sequence)
     campaign_info = None
@@ -305,7 +335,12 @@ async def get_run_status(
         "total_companies": total_companies,
         "scraped_ok": scraped_ok,
         "scraped_errors": scraped_err,
-        "target_rate": run.target_rate,
+        "classified_count": classified_count if 'classified_count' in dir() else None,
+        "targets_classified": targets_classified if 'targets_classified' in dir() else None,
+        "rejected_classified": rejected_classified if 'rejected_classified' in dir() else None,
+        "targets_no_contacts": targets_no_contacts if 'targets_no_contacts' in dir() else None,
+        "scrape_rate_pct": round(scraped_ok / total_companies * 100) if total_companies > 0 else 0,
+        "target_rate_pct": round(targets_classified / scraped_ok * 100) if scraped_ok > 0 and 'targets_classified' in dir() else (run.target_rate or 0),
         "credits_used": run.credits_used,
         "people_filters": run.people_filters,
         "created_at": str(run.created_at) if run.created_at else None,
