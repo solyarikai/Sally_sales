@@ -1929,8 +1929,13 @@ Return ONLY valid JSON."""
         if account_ids:
             matched = [a for a in accounts_list if a["id"] in account_ids]
         elif account_filter:
-            q = account_filter.lower()
-            matched = [a for a in accounts_list if q in a["email"].lower() or q in a["name"].lower()]
+            # Split filter into terms — ALL terms must match (AND logic)
+            # "pavel mifort" → account must match BOTH "pavel" AND "mifort" in name+email combined
+            terms = [t.strip().lower() for t in account_filter.lower().split() if t.strip()]
+            def _matches(a):
+                combined = (a["email"] + " " + a["name"]).lower()
+                return all(t in combined for t in terms)
+            matched = [a for a in accounts_list if _matches(a)]
         else:
             matched = accounts_list
 
