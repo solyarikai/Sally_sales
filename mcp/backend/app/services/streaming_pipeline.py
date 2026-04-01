@@ -310,6 +310,14 @@ class StreamingPipeline:
         if not adapter:
             return
 
+        # Pre-load all existing domains for this project (avoids N SELECT queries per page)
+        existing_result = await self.session.execute(
+            select(DiscoveredCompany.domain).where(
+                DiscoveredCompany.project_id == self.run.project_id
+            )
+        )
+        self._domains_seen.update(r[0] for r in existing_result.all())
+
         max_pages = filters.get("max_pages", 10)
         # Start from where tam_gather left off (avoid re-fetching same pages)
         tam_pages = self.run.pages_fetched or 0
@@ -329,23 +337,14 @@ class StreamingPipeline:
                 results = await adapter.gather(batch_filters)
                 self.pages_fetched += 1
 
+                # Batch: create companies, flush once per page, then create links
+                page_batch = []
                 for company_data in (results or []):
                     if self._kpi_met:
                         break
                     domain = company_data.get("domain", "").lower().strip()
                     if not domain or domain in self._domains_seen:
                         continue
-
-                    db_exists = (await self.session.execute(
-                        select(DiscoveredCompany.id).where(
-                            DiscoveredCompany.project_id == self.run.project_id,
-                            DiscoveredCompany.domain == domain,
-                        )
-                    )).scalar_one_or_none()
-                    if db_exists:
-                        self._domains_seen.add(domain)
-                        continue
-
                     self._domains_seen.add(domain)
 
                     dc = DiscoveredCompany(
@@ -360,16 +359,18 @@ class StreamingPipeline:
                         source_data=company_data,
                     )
                     self.session.add(dc)
-                    await self.session.flush()
+                    page_batch.append(dc)
 
-                    link = CompanySourceLink(
-                        discovered_company_id=dc.id,
-                        gathering_run_id=self.run.id,
-                    )
-                    self.session.add(link)
-                    self.total_companies += 1
-
-                    await self.scrape_queue.put(dc)
+                if page_batch:
+                    await self.session.flush()  # Single flush — all get IDs
+                    for dc in page_batch:
+                        link = CompanySourceLink(
+                            discovered_company_id=dc.id,
+                            gathering_run_id=self.run.id,
+                        )
+                        self.session.add(link)
+                        self.total_companies += 1
+                        await self.scrape_queue.put(dc)
 
                 logger.info(f"Apollo page {page}: {self.total_companies} companies, "
                            f"{self.total_targets} targets, {self.total_people} people")
