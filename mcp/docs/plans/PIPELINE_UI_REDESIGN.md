@@ -101,36 +101,32 @@
 
 ---
 
-## Updated Implementation Priority
+## Status (verified with real browser screenshots Apr 2, 2026)
 
-### DONE ✅
-1. Column dropdown (CRM-style)
-2. Remove Industry/Keywords
-3. Remove stepper + live timer
-4. Consolidate toolbar
-5. Filters modal
-6. table-layout:fixed
-7. Remove User-MCP Conversation
-8. Campaign block simplified
+### DONE ✅ (verified in browser)
+1. Column dropdown (CRM-style checkboxes) ✅
+2. Remove Industry/Keywords columns ✅
+3. Remove stepper + live timer ✅
+4. Consolidate toolbar to icons ✅
+5. Filters modal (Company/People tabs) ✅
+6. table-layout:fixed ✅
+7. Prompts page — logs classification prompt from streaming pipeline ✅
+8. Segment labels — targets ONE label, rejected get real segment ✅
+9. MCP chat simple terms ✅
+13. Minimalist philosophy ✅
+14. Pipeline runs list — ONE segment badge ✅
+15. Company count stable (totalCompanies) ✅
+16. People — one link, no duplicate button ✅
+17. Iteration 1-based ✅
+18. KPI banner collapsible ✅
+19. Filter icon ≡ (not ⚙) ✅
+20. Strategy reasoning in filters modal ✅
+21. People filters fallback from offer_summary ✅
+22. Credits not duplicated ✅
+23. People count priority fixed (live DB first) ✅
 
-### TODO — P0
-15. Fix company count (show total, not filtered.length)
-16. Remove duplicate "people" (one link, not button + text)
-17. Fix iteration 0 → 1
-18. Make KPI banner collapsible
-21. People filters tab — show defaults from offer
-23. Fix people count mismatch (114 vs 86)
-
-### TODO — P1
-7. Fix prompts page
-8. Fix segment granularity
-19. Fix filter icon
-20. Add strategy reasoning to filters modal
-22. Remove duplicate credits
-
-### TODO — P2
-10. Add "has people" filter
-11. CRM pipeline link
-12. Scraped column data
-14. Pipeline runs list cleanup
-24. Consistent table components
+### REMAINING GAPS
+10. CRM page doesn't handle ?pipeline= param
+11. No "has people" filter toggle in pipeline table
+12. Scraped column empty for streaming pipeline runs
+24. Table components not shared with CRM (different implementations)
