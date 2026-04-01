@@ -7,7 +7,7 @@ const SERVICE_LABELS: Record<string, { label: string; hint: string }> = {
   smartlead: { label: 'SmartLead', hint: 'Email outreach platform' },
   apollo: { label: 'Apollo', hint: 'Company & people search' },
   openai: { label: 'OpenAI', hint: 'AI for sequence generation' },
-  apify: { label: 'Apify Proxy', hint: 'Residential proxy for website scraping (29% more companies scraped)' },
+  apify: { label: 'Apify Proxy', hint: 'Residential proxy for website scraping (30% more companies scraped)' },
   getsales: { label: 'GetSales', hint: 'LinkedIn outreach platform' },
 }
 
