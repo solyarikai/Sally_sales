@@ -219,6 +219,66 @@ People Stats:
 
 ---
 
+---
+
+## Apollo API Fields — Tested Results
+
+### Endpoint: POST /api/v1/mixed_companies/search
+
+### Company Search Fields (what we send):
+
+| Field | What it does | Target rate | Volume | Used? |
+|-------|-------------|-------------|--------|-------|
+| `organization_industry_tag_ids` | Filter by Apollo's industry taxonomy IDs (e.g. "5567cd82..." = apparel & fashion) | **90%** | 100/page, best pagination | **YES — primary strategy** |
+| `q_organization_keyword_tags` | Filter by keyword tags on company profile (e.g. "fashion brand italy") | **10-40%** | Inconsistent pagination | **YES — backup strategy** |
+| `organization_keywords` | USELESS — Apollo ignores this field entirely | 0% | 0 | **NO — tested, broken** |
+| `q_organization_name` | Text search by company name | N/A | OK pagination | **NO — too specific** |
+| `organization_locations` | Filter by geography (e.g. ["Italy"]) | N/A | Narrows | **YES — always applied** |
+| `organization_num_employees_ranges` | Filter by company size (e.g. ["1,200"]) | N/A | Narrows | **YES — always applied** |
+| `organization_latest_funding_stage_cd` | Filter by funding stage | N/A | Narrows | **Optional** |
+
+### CRITICAL RULE: Never combine `organization_industry_tag_ids` + `q_organization_keyword_tags`
+Apollo treats all filter types as AND (intersection). Combining industry + keywords gives near-zero results.
+Always use ONE OR THE OTHER per API call.
+
+### Test Results (TFP Fashion Italy, 5 pages each):
+
+| Approach | Field Used | Companies | Target Rate | Credits |
+|----------|-----------|-----------|-------------|---------|
+| A1: Industry IDs | `organization_industry_tag_ids` | 201 | **90%** | 5 |
+| A2: Single keyword | `q_organization_keyword_tags: ["fashion design"]` | 261 | 10% | 5 |
+| A3: Multi keyword | `q_organization_keyword_tags: ["fashion", "luxury"]` | 72 | 26% | 5 |
+| A6: Parallel keywords | Multiple calls with different keywords | 336 | 15% | 12 |
+| A8: Broad keywords | `q_organization_keyword_tags: ["apparel & fashion", ...]` | 22 | 10% | 5 |
+
+**Winner: industry_tag_ids (A1)** — 9x better target rate than keywords.
+
+### How Industry Tag IDs Work:
+1. Apollo has ~112 industry categories, each with a hex ID
+2. We maintain `apollo_industry_map` DB table (79 entries) mapping names → IDs  
+3. A11 classifier (GPT) decides if user's query maps to a SPECIFIC industry or is too BROAD
+4. Specific → use industry_tag_ids (90% target rate)
+5. Broad → use keyword_tags (10-40% target rate, but more flexible)
+
+### How Keyword Tags Work:
+1. Filter mapper generates 20-30 keywords from user's query via GPT
+2. Keywords matched against Apollo's taxonomy DB (2,356 known tags)
+3. Unverified keywords added if < 20 verified ones found
+4. Keywords search company PROFILES — what companies tag themselves as
+5. Less precise than industry IDs but covers niche segments industry doesn't
+
+### People Search Fields:
+
+| Field | What it does | Used? |
+|-------|-------------|-------|
+| `person_seniorities` | Filter by seniority level (owner, c_suite, vp, director) | **YES — always** |
+| `person_titles` | Filter by exact title — USELESS, returns 0-1 per company | **NO — tested, broken** |
+| `q_organization_domains` | Search people at specific company domain | **YES — per target** |
+
+**People search is FREE** (no credits). Only `bulk_match` for email enrichment costs 1 credit/person.
+
+---
+
 ## What Must NEVER Happen
 - Pipeline NEVER changes user's location filter without approval
 - Pipeline NEVER changes user's company size filter without approval
