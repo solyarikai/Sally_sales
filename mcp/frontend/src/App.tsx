@@ -144,16 +144,30 @@ export default function App() {
   }
   useEffect(() => { loadProjects() }, [])
 
-  const setProject = (p: any) => { setPS(p); p ? localStorage.setItem('mcp-project', String(p.id)) : localStorage.removeItem('mcp-project') }
+  // Sync MCP project to Zustand appStore (for @main components)
+  const syncAppStore = (p: any, pList: any[]) => {
+    import('./store/appStore').then(mod => {
+      mod.useAppStore.getState().setCurrentProject(p)
+      mod.useAppStore.getState().setProjects(pList)
+    })
+  }
+
+  const setProject = (p: any) => {
+    setPS(p)
+    p ? localStorage.setItem('mcp-project', String(p.id)) : localStorage.removeItem('mcp-project')
+    syncAppStore(p, projects)
+  }
   useEffect(() => {
     if (!projects.length) return
     // Priority 1: ?project=ID from URL query string
     const url = new URL(window.location.href)
     const qp = url.searchParams.get('project')
-    if (qp) { const f = projects.find((p: any) => p.id === +qp); if (f) { setPS(f); localStorage.setItem('mcp-project', String(f.id)); return } }
+    if (qp) { const f = projects.find((p: any) => p.id === +qp); if (f) { setPS(f); localStorage.setItem('mcp-project', String(f.id)); syncAppStore(f, projects); return } }
     // Priority 2: localStorage
     const s = localStorage.getItem('mcp-project')
-    if (s) { const f = projects.find((p: any) => p.id === +s); if (f) setPS(f) }
+    if (s) { const f = projects.find((p: any) => p.id === +s); if (f) { setPS(f); syncAppStore(f, projects) } }
+    // Priority 3: first project (auto-select for single-project users)
+    if (!s && !qp && projects.length === 1) { setPS(projects[0]); syncAppStore(projects[0], projects) }
   }, [projects])
 
   return (
