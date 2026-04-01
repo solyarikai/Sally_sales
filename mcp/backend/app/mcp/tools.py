@@ -5,13 +5,14 @@ TOOLS = [
     # STRICT FLOW — ONE action per message. Wait for user approval between each.
     #
     # Step 1: get_context (auto on connect)
-    # Step 2: create_project (website → offer extraction) → show offer → WAIT
-    # Step 3: confirm_offer (user approves offer) → WAIT
-    # Step 4: tam_gather WITHOUT confirm_filters → show filter preview + default KPIs → WAIT
-    # Step 5: tam_gather WITH confirm_filters=true (user approved) → WAIT
-    # Step 6: align_email_accounts (show matching accounts) → WAIT
-    # Step 7: align_email_accounts WITH confirm=true → WAIT
-    # Step 8: run_auto_pipeline (default KPIs: 100 people, 3/company) → runs in background
+    # Step 2: create_project (website → offer extraction) → show offer + roles → WAIT
+    # Step 3: confirm_offer (user approves offer + roles) → WAIT
+    # Step 4: tam_gather WITHOUT confirm_filters → show filter preview + cost → WAIT
+    # Step 5: tam_gather WITH confirm_filters=true → companies gathered → WAIT
+    # Step 6: BLACKLIST — "Have you launched campaigns before?" → if yes, load contacts for exclusion
+    # Step 7: align_email_accounts (show matching accounts) → WAIT
+    # Step 8: align_email_accounts WITH confirm=true → WAIT
+    # Step 9: run_auto_pipeline (default KPIs: 100 people, 3/company) → runs in background
     #
     # NEVER skip steps. NEVER combine steps. NEVER ask KPI questions — use defaults.
     # Default KPIs: target_people=100, max_people_per_company=3

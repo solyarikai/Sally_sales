@@ -1193,14 +1193,14 @@ Return ONLY valid JSON."""
                 + (f" (remaining: {credits_remaining})" if credits_remaining is not None else "")
                 + f"\n\n**Pipeline:** http://46.62.210.24:3000/pipeline/{run.id}\n"
                 f"Default KPIs: 100 target people, max 3/company.\n\n"
-                f"Next: select email accounts for the campaign.\n"
-                f"Which accounts to use? (e.g. 'all accounts with elnar in name')"
+                f"Have you launched campaigns for this segment before? "
+                f"If yes, tell me the campaign name pattern so I can exclude already-contacted leads."
             ),
+            "_instructions": "Ask ONLY about blacklist (previous campaigns). ONE question. Do NOT ask about email accounts yet — that's the next step.",
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
                 "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
             },
-            "next_question": "Which email accounts should we use for the campaign?",
         }
         return result
 
