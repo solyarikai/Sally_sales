@@ -59,39 +59,42 @@ Tests:
   3. "all with petr" → verify finds different accounts from cache
 ```
 
-**3. Pipeline V2 remaining fixes (from PIPELINE_V2_COMPLETE_REWRITE.md)**
+**3. Pipeline V2 fixes — VERIFY each against current code + pipeline_spec.md, fix only what's broken**
 ```
-Must be fixed before testing — these cause pipeline failures:
+These were identified as bugs earlier. Some may already be fixed.
+Before testing: check each one against actual code. Fix only what fails.
 
-FIX 2: Single Pipeline Run (NOT two) — STILL BROKEN
-  Problem: tam_gather preview creates run #441, confirm creates run #442
-  Solution: confirm must find existing pending_approval run, UPDATE it
-  File: mcp/backend/app/mcp/dispatcher.py — tam_gather confirm section
-  Status: TODO
+VERIFY FIX 2: Single Pipeline Run
+  Was: preview creates run #441, confirm creates #442 (duplicate)
+  Check: run tam_gather preview + confirm, count GatheringRuns in DB
+  If still 2 runs → fix. If 1 run → mark verified.
 
-FIX 3: Probe = 1 page only — PARTIALLY DONE  
-  Problem: start_gathering fetches 10 pages even though probe already got page 1
-  Solution: probe saves 100 companies. Confirm starts from page 2.
-  File: mcp/backend/app/mcp/dispatcher.py
-  Status: Code exists but not verified working
+VERIFY FIX 3: Probe = 1 page, reused on confirm
+  Was: probe fetches 100 companies but confirm re-fetches from page 1
+  Check: run tam_gather preview, check probe companies in DB. 
+  Then confirm, check page_offset starts at 2.
+  If probe wasted → fix. If reused → mark verified.
 
-FIX 4: Tool Schema Fixes — PARTIALLY DONE
-  4.1 create_project name optional — TODO (schema still requires it)
-  4.2 confirm_offer accept string project_id — TODO (Claude sends "424" not 424)
-  4.3 align_email_accounts run_id optional — DONE (accepts project_id)
-  4.4 list_email_accounts don't dump all — TODO (still returns 247K chars)
+VERIFY FIX 4: Tool Schema Fixes
+  4.1 create_project: does it work without "name"? Test it.
+  4.2 confirm_offer: does it accept string "424"? Test it.
+  4.3 align_email_accounts: does it accept project_id without run_id? Test it.
+  4.4 list_email_accounts: does it dump 247K chars or return count+link? Test it.
+  Fix only what fails.
 
-FIX 5: Email Accounts UX — TODO
-  - list_email_accounts: return count + link, not all 2411 accounts
-  - Pre-cache accounts on SmartLead key connect (see requirement #2 above)
-  - Create "account lists" in UI (e.g. "Rinat accounts" saved as reusable list)
-  - Campaign page shows associated account list with link
-  - Reuse account list entity across campaigns page + campaign details
+VERIFY FIX 5: Email Accounts UX
+  - Does list_email_accounts return count + link (not all accounts)?
+  - Is pre-cache implemented?
+  - If not → implement as part of requirement #2 above.
 
-FIX 7: Total Company Count at Top — TODO
-  - Pipeline page shows "50 companies" (page size) not total
-  - Must show "306 companies" at top always
-  File: mcp/frontend/src/pages/PipelinePage.tsx
+VERIFY FIX 7: Total Company Count
+  - Open pipeline page, check if it shows total or page size.
+  - If page size only → fix.
+
+Each verification logged in document_based_flow_results.md with:
+  - What was checked
+  - Current state (fixed / still broken)
+  - What was done (if anything)
 ```
 
 **4. Document extraction service (document_extractor.py)**
