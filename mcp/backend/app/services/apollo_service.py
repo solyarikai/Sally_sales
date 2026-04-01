@@ -276,6 +276,9 @@ class ApolloService:
         for match in matches:
             if not match:
                 continue
+            # ONLY return verified emails — spec: "Only verified emails kept"
+            if match.get("email_status") != "verified":
+                continue
             phone = None
             if match.get("phone_numbers"):
                 phone = match["phone_numbers"][0].get("sanitized_number")
@@ -285,7 +288,7 @@ class ApolloService:
                 "last_name": match.get("last_name"),
                 "title": match.get("title"),
                 "linkedin_url": match.get("linkedin_url"),
-                "is_verified": match.get("email_status") == "verified",
+                "is_verified": True,
                 "phone": phone,
             })
         return results

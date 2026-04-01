@@ -390,6 +390,19 @@ Step 5: Bulk email enrichment — POST /people/bulk_match
 **People search (`/mixed_people/api_search`) is FREE** (0 credits).
 **Email enrichment (`/people/bulk_match`) costs 1 credit/person** — bulk endpoint, one call per company.
 
+### Email Verification Logic
+```
+Step 2 filter: has_email=true (from FREE search)
+  Apollo docs: "has_email indicates whether Apollo has a VERIFIED email"
+  BUT: bulk_match may return email_status != "verified" (guessed/unavailable)
+
+Step 5 filter: email_status == "verified" (from bulk_match response)
+  ONLY verified emails are saved to DB and count toward KPI.
+  Unverified/guessed emails are DROPPED — never sent to SmartLead.
+
+KPI counts ONLY verified email contacts.
+```
+
 ### What "20 concurrent people" means:
 ```
 20 target companies processed IN PARALLEL, each running the 5-step flow above.
