@@ -616,7 +616,12 @@ async def _notify_pipeline_complete(session, run, user_id: int, result: dict):
 
 
 async def _auto_generate_campaign(session, run, user_id: int, openai_key: str):
-    """Auto-generate SmartLead sequence when KPI met. Creates DRAFT — user must approve."""
+    """Auto-generate SmartLead sequence when KPI met.
+
+    If email accounts are pre-selected on the campaign (via align_email_accounts),
+    auto-approves the sequence and pushes to SmartLead as DRAFT. No blocker.
+    Otherwise just generates a draft sequence for manual push.
+    """
     try:
         project = await session.get(Project, run.project_id)
         if not project:
@@ -631,9 +636,164 @@ async def _auto_generate_campaign(session, run, user_id: int, openai_key: str):
             campaign_name=f"{project.name} - Pipeline #{run.id}",
         )
 
-        if seq and hasattr(seq, 'id'):
-            logger.info(f"Auto-generated sequence #{seq.id} for pipeline {run.id}")
-            run.notes = (run.notes or "") + f"\nAuto-sequence: #{seq.id}"
-            await session.flush()
+        if not seq or not hasattr(seq, 'id'):
+            return
+
+        logger.info(f"Auto-generated sequence #{seq.id} for pipeline {run.id}")
+        run.notes = (run.notes or "") + f"\nAuto-sequence: #{seq.id}"
+        await session.flush()
+
+        # Check if campaign has pre-selected accounts → auto-push
+        if not run.campaign_id:
+            logger.info(f"No campaign linked to run {run.id} — sequence stays as draft")
+            return
+
+        from app.models.campaign import Campaign
+        campaign = await session.get(Campaign, run.campaign_id)
+        if not campaign or not campaign.email_account_ids:
+            logger.info(f"Campaign {run.campaign_id} has no pre-selected accounts — sequence stays as draft")
+            return
+
+        # Auto-approve sequence
+        from datetime import datetime
+        seq.status = "approved"
+        seq.reviewed_by = f"auto:pipeline:{run.id}"
+        seq.reviewed_at = datetime.utcnow()
+        await session.flush()
+
+        # Auto-push to SmartLead
+        await _auto_push_to_smartlead(session, run, campaign, seq, user_id)
+
     except Exception as e:
         logger.warning(f"Auto campaign generation failed for pipeline {run.id}: {e}")
+
+
+async def _auto_push_to_smartlead(session, run, campaign, seq, user_id: int):
+    """Push campaign to SmartLead using pre-selected accounts. Campaign becomes DRAFT in SmartLead."""
+    try:
+        from app.services.user_context import UserServiceContext
+        ctx = UserServiceContext(user_id, session)
+        svc = await ctx.get_smartlead_service()
+        if not svc.is_configured():
+            logger.warning(f"SmartLead not configured for user {user_id} — cannot auto-push")
+            return
+
+        # 1. Create SmartLead campaign
+        campaign_data = await svc.create_campaign(seq.campaign_name or campaign.name)
+        if not campaign_data:
+            logger.warning(f"Failed to create SmartLead campaign for run {run.id}")
+            return
+        sl_campaign_id = campaign_data.get("id")
+
+        # 2. Set sequences
+        await svc.set_campaign_sequences(sl_campaign_id, seq.sequence_steps)
+
+        # 3. Set settings (production defaults)
+        await svc.set_campaign_settings(sl_campaign_id)
+
+        # 4. Set schedule (timezone from contacts geography)
+        target_country = ""
+        from sqlalchemy import select, func as sa_func
+        from app.models.pipeline import DiscoveredCompany
+        from app.models.gathering import CompanySourceLink
+        geo_result = await session.execute(
+            select(DiscoveredCompany.country, sa_func.count(DiscoveredCompany.id))
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .where(DiscoveredCompany.is_target == True, DiscoveredCompany.country.isnot(None))
+            .group_by(DiscoveredCompany.country)
+            .order_by(sa_func.count(DiscoveredCompany.id).desc())
+            .limit(1)
+        )
+        top_country = geo_result.first()
+        if top_country:
+            target_country = top_country[0]
+
+        from app.services.smartlead_service import get_timezone_for_country
+        tz = get_timezone_for_country(target_country or "United States")
+        await svc.set_campaign_schedule(sl_campaign_id, tz)
+
+        # 5. Assign pre-selected email accounts
+        account_ids = [a["id"] for a in campaign.email_account_ids if isinstance(a, dict) and "id" in a]
+        if account_ids:
+            await svc.set_campaign_email_accounts(sl_campaign_id, account_ids)
+
+        # 6. Upload target contacts
+        from app.models.pipeline import ExtractedContact
+        contacts_result = await session.execute(
+            select(ExtractedContact, DiscoveredCompany)
+            .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
+            .where(
+                ExtractedContact.project_id == seq.project_id,
+                DiscoveredCompany.is_target == True,
+                ExtractedContact.email.isnot(None),
+            )
+        )
+        contacts = contacts_result.all()
+        leads_uploaded = 0
+        if contacts:
+            lead_list = []
+            for contact, company in contacts:
+                lead_list.append({
+                    "email": contact.email,
+                    "first_name": contact.first_name or "",
+                    "last_name": contact.last_name or "",
+                    "company_name": company.name if company else "",
+                    "custom_fields": {
+                        "segment": company.analysis_segment if company else "",
+                        "domain": company.domain if company else "",
+                        "pipeline_run": str(run.id),
+                    },
+                })
+            if lead_list:
+                await svc.add_leads_to_campaign(sl_campaign_id, lead_list)
+                leads_uploaded = len(lead_list)
+
+        # 7. Update DB records
+        from datetime import datetime
+        campaign.external_id = str(sl_campaign_id)
+        campaign.status = "draft"  # SmartLead DRAFT (was mcp_draft)
+        campaign.leads_count = leads_uploaded
+        campaign.sequence_id = seq.id
+        seq.pushed_campaign_id = campaign.id
+        seq.pushed_at = datetime.utcnow()
+        seq.status = "pushed"
+        await session.flush()
+
+        smartlead_url = f"https://app.smartlead.ai/app/email-campaigns-v2/{sl_campaign_id}/analytics"
+        logger.info(f"Auto-pushed campaign to SmartLead: {smartlead_url} — {leads_uploaded} leads, {len(account_ids)} accounts")
+        run.notes = (run.notes or "") + f"\nAuto-pushed to SmartLead: {smartlead_url}"
+
+        # 8. Notify via Telegram
+        try:
+            import os, httpx as _httpx
+            bot_token = os.environ.get("TELEGRAM_NOTIFY_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+            if bot_token:
+                from app.models.integration import MCPIntegrationSetting
+                tg_result = await session.execute(
+                    select(MCPIntegrationSetting).where(
+                        MCPIntegrationSetting.user_id == user_id,
+                        MCPIntegrationSetting.integration_name == "telegram",
+                        MCPIntegrationSetting.is_connected == True,
+                    )
+                )
+                tg = tg_result.scalar_one_or_none()
+                if tg:
+                    from app.auth.encryption import decrypt_value
+                    chat_id = decrypt_value(tg.api_key_encrypted)
+                    msg = (
+                        f"Campaign auto-created as SmartLead DRAFT\n\n"
+                        f"{campaign.name}\n"
+                        f"{leads_uploaded} leads · {len(account_ids)} accounts\n\n"
+                        f"SmartLead: {smartlead_url}\n"
+                        f"MCP: http://46.62.210.24:3000/campaigns/{campaign.id}"
+                    )
+                    async with _httpx.AsyncClient(timeout=10) as client:
+                        await client.post(
+                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                            json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
+                        )
+        except Exception as tg_err:
+            logger.debug(f"Telegram notification failed: {tg_err}")
+
+    except Exception as e:
+        logger.warning(f"Auto-push to SmartLead failed for run {run.id}: {e}")
