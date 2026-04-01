@@ -2679,9 +2679,18 @@ Return ONLY valid JSON."""
             "kpi": {"target_people": tp, "max_people_per_company": mpc, "target_companies": tc},
             "message": (
                 f"Pipeline running in background. Target: {tp} contacts "
-                f"(max {mpc}/company, ~{tc} target companies).\n"
-                f"Use pipeline_status to track. Use control_pipeline to pause/resume."
+                f"(max {mpc}/company, ~{tc} target companies).\n\n"
+                f"I will poll pipeline_status every 30 seconds and notify you when:\n"
+                f"  - KPI is hit\n"
+                f"  - SmartLead campaign is created\n"
+                f"  - Test email is sent to your inbox\n"
+                f"  - Pipeline completes or encounters issues\n\n"
+                f"You can also use control_pipeline to pause/resume."
             ),
+            "poll_until_complete": True,
+            "poll_interval_seconds": 30,
+            "poll_tool": "pipeline_status",
+            "poll_args": {"run_id": run.id},
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
                 "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
@@ -2737,7 +2746,23 @@ Return ONLY valid JSON."""
         from app.services.pipeline_orchestrator import is_pipeline_running
         is_bg_running = is_pipeline_running(run.id)
 
-        return {
+        # Check for campaign created (auto-push result)
+        campaign_info = None
+        if run.campaign_id:
+            camp = await session.get(Campaign, run.campaign_id)
+            if camp:
+                campaign_info = {
+                    "id": camp.id,
+                    "name": camp.name,
+                    "status": camp.status,
+                    "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{camp.external_id}/analytics" if camp.external_id else None,
+                    "leads_count": camp.leads_count or 0,
+                    "accounts": len(camp.email_account_ids or []),
+                }
+
+        is_done = run.status in ("completed", "insufficient", "failed")
+
+        result = {
             "run_id": run.id,
             "status": run.status if not (run.status == "running" and not is_bg_running) else run.status,
             "phase": run.current_phase,
@@ -2771,12 +2796,35 @@ Return ONLY valid JSON."""
             },
             "paused_at": str(run.paused_at) if run.paused_at else None,
             "pending_gates": [{"gate_id": g.id, "type": g.gate_type, "scope": g.scope} for g in pending],
+            "campaign": campaign_info,
+            "is_complete": is_done,
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "targets": f"http://46.62.210.24:3000/pipeline/{run.id}/targets",
                 "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
+
+        # Add completion message for the agent to relay to user
+        if is_done and campaign_info:
+            sl_url = campaign_info.get("smartlead_url", "")
+            result["completion_message"] = (
+                f"Pipeline #{run.id} complete! {people_found} contacts gathered in {elapsed_human}.\n\n"
+                + (f"SmartLead campaign '{campaign_info['name']}' created as DRAFT with "
+                   f"{campaign_info['leads_count']} leads and {campaign_info['accounts']} email accounts.\n"
+                   f"SmartLead: {sl_url}\n"
+                   f"A test email was sent to your inbox — check it before activating.\n\n"
+                   f"Say 'activate' when ready to start sending."
+                   if sl_url else
+                   f"Campaign '{campaign_info['name']}' ready (status: {campaign_info['status']}).\n")
+            )
+        elif is_done:
+            result["completion_message"] = (
+                f"Pipeline #{run.id} finished with status '{run.status}'. "
+                f"{people_found}/{target_count} contacts gathered in {elapsed_human}."
+                + (f"\nIssues: {run.error_message}" if run.error_message else "")
+            )
+
+        return result
 
     # ── Set Pipeline KPI ──
     if tool_name == "set_pipeline_kpi":

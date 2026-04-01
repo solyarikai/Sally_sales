@@ -643,12 +643,17 @@ Only call when user explicitly says "activate", "start", "launch", or "go live".
     },
     {
         "name": "pipeline_status",
-        "description": """Pipeline status — phase, progress, KPIs, timing, targets found, next action.
+        "description": """Pipeline status — phase, progress, KPIs, timing, targets found, campaign info.
 
 WHEN USER SAYS: "pipeline status", "how is gathering going", "what's the progress" → call THIS.
 DO NOT call get_context for pipeline questions — use pipeline_status with the run_id.
 
-Returns: KPI targets (target_people, max_people_per_company, target_companies), progress (people/targets found, percentages), timing (elapsed, ETA), cost (credits used/remaining).""",
+POLLING: After run_auto_pipeline starts, POLL this tool every 30 seconds until is_complete=true.
+When is_complete=true, relay the completion_message to the user — it contains campaign info,
+SmartLead link, test email status. The user should know immediately when the pipeline finishes.
+
+Returns: status, KPIs, progress (people/targets + percentages), timing (elapsed, ETA),
+cost (credits used/remaining), campaign info (when created), completion_message (when done).""",
         "inputSchema": {
             "type": "object",
             "properties": {"run_id": {"type": "integer"}},
