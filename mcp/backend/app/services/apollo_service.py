@@ -53,14 +53,15 @@ class ApolloService:
             await asyncio.sleep(self.RATE_LIMIT_INTERVAL - elapsed)
         self._last_call_time = time.monotonic()
 
-    async def _api_call(self, method: str, endpoint: str, json_data: dict = None) -> Optional[dict]:
+    async def _api_call(self, method: str, endpoint: str, json_data: dict = None, skip_rate_limit: bool = False) -> Optional[dict]:
         MAX_RETRIES = 3
         backoff_waits = [30, 60, 120]
         from app.services.adaptive_semaphore import APOLLO_SEM
         sem = APOLLO_SEM()
 
         for attempt in range(MAX_RETRIES + 1):
-            await self._rate_limit()
+            if not skip_rate_limit:
+                await self._rate_limit()
             try:
                 async with sem.acquire():
                     async with httpx.AsyncClient(timeout=30) as client:
@@ -212,7 +213,7 @@ class ApolloService:
             "q_organization_domains": domain, "page": 1, "per_page": 25,
             "person_seniorities": default_seniorities,
         }
-        search_data = await self._api_call("POST", "/mixed_people/api_search", search_payload)
+        search_data = await self._api_call("POST", "/mixed_people/api_search", search_payload, skip_rate_limit=True)  # FREE endpoint, no rate limit needed
 
         all_people = search_data.get("people", []) if search_data else []
 
