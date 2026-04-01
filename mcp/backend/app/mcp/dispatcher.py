@@ -221,16 +221,15 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 _required = {"apollo", "openai", "smartlead", "apify"}
                 _missing = _required - _configured
                 if _missing:
-                    raise ValueError(
-                        f"Cannot proceed — missing API keys: {', '.join(sorted(_missing))}.\n\n"
-                        f"Set up your integrations first:\n"
-                        f"  1. Go to http://46.62.210.24:3000/setup\n"
-                        f"  2. Connect: {', '.join(sorted(_missing))}\n"
-                        f"  3. Then try again.\n\n"
-                        f"Or use configure_integration tool to add keys directly."
-                    )
-        except ValueError:
-            raise  # Re-raise our gate error
+                    return {
+                        "error": "missing_integrations",
+                        "missing": sorted(_missing),
+                        "message": (
+                            f"STOP — missing API keys: {', '.join(sorted(_missing))}.\n\n"
+                            f"Set up at http://46.62.210.24:3000/setup first.\n"
+                            f"No tools work until all keys are connected."
+                        ),
+                    }
         except Exception:
             pass  # Don't block on auth errors — individual tools handle that
 
