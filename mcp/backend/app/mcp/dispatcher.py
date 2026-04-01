@@ -374,7 +374,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     + (f"\nCurrent offer: {(p.offer_summary or {}).get('primary_offer', p.target_segments or 'NOT SET')}" if p.offer_summary or p.target_segments else "\nNo offer extracted yet.")
                     + f"\nShow the user the offer, website, and project page link. Ask: is this correct? If user provides feedback, call confirm_offer(feedback=...). If user says yes, call confirm_offer(approved=true).\n"
                     for p in projects if not p.offer_approved))
-                + ("\nWhat would you like to do?" if all(p.offer_approved for p in projects) else "")
+                + ("\nReady for next step. Ask the user what they'd like to do — ONE question only, no lists." if all(p.offer_approved for p in projects) else "")
             ),
         }
 
@@ -1080,6 +1080,7 @@ Return ONLY valid JSON."""
                     filters, keywords, locations, sizes, total_available,
                     target_people, max_ppc, cost_est, people_defaults,
                 ) + keyword_warning,
+                "_instructions": "Show this preview to user. Ask ONLY: 'Proceed?' Do NOT ask about KPIs, target count, or anything else. Default KPIs are already set.",
                 "project_id": project.id,
                 "project_name": project.name,
             }
