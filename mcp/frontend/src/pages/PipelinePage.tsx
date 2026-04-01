@@ -359,8 +359,11 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
           {run.targets_classified > 0 && (
             <span>Target rate: {run.targets_classified}/{run.scraped_ok || run.classified_count || '?'} ({run.target_rate_pct || 0}%)</span>
           )}
+          {(run.targets_classified || 0) > 0 && run.targets_no_contacts != null && (
+            <span>With contacts: {(run.targets_classified || 0) - (run.targets_no_contacts || 0)}</span>
+          )}
           {run.targets_no_contacts > 0 && (
-            <span>Targets without contacts: {run.targets_no_contacts}</span>
+            <span>Without contacts: {run.targets_no_contacts}</span>
           )}
         </div>
       )}
