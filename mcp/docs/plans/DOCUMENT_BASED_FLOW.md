@@ -150,7 +150,6 @@ All test results saved to: `mcp/tests/results/`
 doc_extract_{MODEL}_{YYYYMMDD_HHMMSS}.json     — model comparison
 apollo_funding_{YYYYMMDD_HHMMSS}.json           — funding filter tests
 pipeline_payments_{YYYYMMDD_HHMMSS}.json        — payments segment test
-pipeline_all_segments_{YYYYMMDD_HHMMSS}.json    — all segments probe
 e2e_fintech_{YYYYMMDD_HHMMSS}.json             — full E2E result
 issues_{YYYYMMDD_HHMMSS}.md                     — issues found with solutions
 ```
@@ -172,11 +171,10 @@ issues_{YYYYMMDD_HHMMSS}.md                     — issues found with solutions
 2. **Model comparison test** — run all 7 models, pick winner
 3. **Apollo funding filter test** — does it work for fintech?
 4. **Payments segment pipeline test** — full run, measure accuracy
-5. **All segments probe** — verify each has enough companies
-6. **Segment clarification agent** — "one campaign or separate?"
-7. **Combined classification prompt** — 6 segments as categories
-8. **Full E2E test** — document → one campaign with 6 segments
-9. **Extend create_project** — accept document_text param
+5. **Segment clarification agent** — "one campaign or separate?"
+6. **Combined classification prompt** — 6 segments as categories
+7. **Full E2E test** — document → one campaign with 6 segments
+8. **Extend create_project** — accept document_text param
 
 ## Reference Data
 
