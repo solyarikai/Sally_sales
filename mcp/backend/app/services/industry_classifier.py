@@ -14,18 +14,29 @@ from app.services.cost_tracker import extract_openai_usage
 
 logger = logging.getLogger(__name__)
 
-CLASSIFY_PROMPT = """Given this user search query and the matched Apollo industries, classify each industry as SPECIFIC or BROAD for this query.
+CLASSIFY_PROMPT = """Given this user search query and the matched Apollo industries, classify each industry as SPECIFIC or BROAD.
 
-SPECIFIC = the industry directly describes what the user wants. Using it as a filter will return mostly relevant companies.
-BROAD = the industry is a superset. It includes many company types the user does NOT want.
+SPECIFIC = the industry DIRECTLY matches the user's query. Most companies in this industry ARE what the user wants.
+Examples of SPECIFIC:
+- "fashion brands" → "apparel & fashion" = SPECIFIC (most companies ARE fashion brands)
+- "video production" → "media production" = SPECIFIC (most companies ARE media producers)
+- "pharmaceutical companies" → "pharmaceuticals" = SPECIFIC
+
+BROAD = the industry is a SUPERSET containing many irrelevant company types.
+Examples of BROAD:
+- "IT consulting" → "information technology & services" = BROAD (includes SaaS, hardware, magazines)
+- "influencer agencies" → "marketing & advertising" = BROAD (includes PR, ad agencies, publishers)
+- "video production" → "entertainment" = BROAD (includes karaoke bars, theatres, sports clubs)
+
+IMPORTANT: If the industry name contains the SAME WORDS as the user's query, it is almost certainly SPECIFIC.
+"apparel & fashion" contains "fashion" → SPECIFIC for "fashion brands"
+"media production" contains "production" → SPECIFIC for "video production"
+
+WHEN IN DOUBT: classify as SPECIFIC. Industry search gives 90% target rate vs 30-40% for keywords.
+Only classify as BROAD when the industry clearly includes MANY irrelevant company types.
 
 User query: "{query}"
-User's offer context: "{offer}"
-
 Matched industries: {industries}
-
-For each industry, answer: SPECIFIC or BROAD, with 1-line reason.
-Then give your RECOMMENDATION: should we search by industry_tag_ids (if any are SPECIFIC) or by keywords?
 
 Return JSON:
 {{
