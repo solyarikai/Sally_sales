@@ -705,6 +705,10 @@ export default function PipelinePage() {
                 ? 'Specific industry match → high target rate. Keywords as fallback.'
                 : 'Industry too broad → using specific keywords. Industry as fallback for scale.'}
             </span>
+            <span title={run.filters.filter_strategy === 'industry_first'
+              ? "Why industry first?\n\nAn AI classifier analyzed your query against Apollo's industry categories and found a SPECIFIC match. Tested: industry-based search gives 45-90% target rate (most companies ARE your targets). Keywords give only 10-40% for this segment.\n\nApollo's organization_industry_tag_ids filter provides the best pagination (up to 100 companies per page) and highest precision.\n\nWhen industry pages are exhausted (0 new targets in a full batch), the system automatically switches to keyword-based search for broader coverage."
+              : "Why keywords first?\n\nAn AI classifier analyzed your query against Apollo's industry categories and found them TOO BROAD. For example, 'IT consulting' maps to 'information technology & services' which includes SaaS companies, hardware vendors, magazines, and recruiters — mostly NOT your targets.\n\nSpecific keywords (e.g. 'IT consulting', 'managed IT services') give better targeting for niche segments, even though pagination is less consistent.\n\nWhen keyword pages are exhausted, the system falls back to industry filters for maximum TAM coverage."
+            } style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted', marginLeft: 4 }}>(why?)</span>
           </div>
 
           {/* Primary filters */}
@@ -772,7 +776,7 @@ export default function PipelinePage() {
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--info)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
               Apollo seniority filter
-              <span title="Apollo /mixed_people/api_search with person_seniorities filter. Returns C-level, VPs, directors, and heads — the decision makers. This search is FREE (no credits). Only the final top contacts are enriched with emails (1 credit each)." style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted' }}>(?)</span>
+              <span title={"Why seniority filter instead of specific job titles?\n\nTested on real data: searching by specific titles (e.g. 'CMO', 'Head of E-commerce') returns 0-1 people per company — Apollo's title database doesn't match GPT-predicted titles. Searching by seniority levels returns 4-25 people per company, including the same decision makers.\n\nAlso tested: combining seniority + titles in one search. Apollo treats them as AND (intersection), which REDUCES results to 0-3. That's why we search by seniority ONLY, then prioritize by role match client-side.\n\nThis search is FREE (no Apollo credits). Only the final top contacts get email enrichment (1 credit each)."} style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted' }}>(?)</span>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {['owner', 'founder', 'c_suite', 'vp', 'head', 'director'].map(s => (
