@@ -95,36 +95,36 @@ KPI CHECK after each company's people saved:
 
 All within the SAME user-approved filters (location, size NEVER changed).
 
-### Level 1: Primary Strategy Exhausted
+### Level 1: Primary Strategy (up to 25 pages)
 ```
-Industry-first: pages 1-10 fetched, all done.
-If more pages exist in Apollo → fetch pages 11-20 (parallel batch of 10).
-Continue until 2 consecutive EMPTY pages (0 new companies after dedup).
+A11 classifier chose industry-first or keywords-first.
+NEVER combine industry + keywords in same API call (Apollo ANDs them → zero results).
+
+Industry-first: use industry_tag_ids ONLY → fetch up to 25 pages
+  - 25 pages × 100/page = up to 2,500 companies
+  - 2 consecutive EMPTY pages (0 new after dedup) = this strategy exhausted
+  - Move to Level 2
+
+Keywords-first: use keywords ONLY → same logic, up to 25 pages
 ```
 
-### Level 2: Switch to Backlog Strategy
+### Level 2: Backlog Strategy (up to 25 pages)
 ```
-Drop industry_tag_ids → use keywords only.
-Apollo treats industry + keywords as AND (narrows results).
-Keywords ALONE → different companies that industry filter excluded.
-Fetch pages 1-20 with keywords.
-```
-
-### Level 3: Combine Industry + Keywords (OR logic via separate searches)
-```
-MISSING TODAY — must implement.
-Two parallel searches:
-  Search A: industry_tag_ids only → pages N+
-  Search B: keywords only → pages N+
-Merge results, dedup. More unique companies than either alone.
+Switch to the OTHER approach (sequential, not parallel — saves credits):
+  - Was industry → now keywords ONLY (drops industry_tag_ids)
+  - Was keywords → now industry ONLY (drops keyword_tags)
+  
+Different API call = different companies. No AND logic.
+Up to 25 more pages. Total so far: max 50 pages.
 ```
 
-### Level 4: Regenerate Keywords (up to 5 times)
+### Level 3: Regenerate Keywords (up to 5 cycles × 20 pages)
 ```
 GPT generates 20 NEW keywords (excluding all previously tried).
-Search with new keywords → fetch 20 pages.
+Search with new keywords ONLY → fetch up to 20 pages per cycle.
 If 0 new companies after 20 pages → regenerate again.
-Max 5 regeneration cycles per strategy.
+Max 5 regeneration cycles.
+Total max: 50 + 100 = 150 pages absolute maximum.
 ```
 
 ### Level 5: Exhausted — Report to User
