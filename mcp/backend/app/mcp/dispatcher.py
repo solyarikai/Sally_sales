@@ -204,7 +204,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
     # ── Global integration gate — block ALL tools if essential keys missing ──
     # Exempt: login, get_context, configure_integration, check_integrations, list_projects, select_project
-    EXEMPT_TOOLS = {"login", "get_context", "configure_integration", "check_integrations",
+    EXEMPT_TOOLS = {"get_context", "configure_integration", "check_integrations",
                     "list_projects", "select_project", "estimate_cost"}
     if tool_name not in EXEMPT_TOOLS and token:
         try:
@@ -234,46 +234,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         except Exception:
             pass  # Don't block on auth errors — individual tools handle that
 
-    # ── Login (no auth needed — this IS the auth) ──
-    if tool_name == "login":
-        token_val = args.get("token", "")
-        if not token_val.startswith("mcp_"):
-            raise ValueError("Token must start with mcp_. Sign up at http://46.62.210.24:3000/setup to get one.")
-        user = await _get_user(token_val, session)
-        from app.mcp.server import _session_tokens, _session_user_tokens, mcp_server
-        _session_tokens["_latest"] = token_val
-        # Store per MCP session for concurrent user isolation
-        try:
-            ctx = mcp_server.request_context
-            _session_user_tokens[id(ctx.session)] = token_val
-        except (LookupError, AttributeError):
-            pass
-        # Check integrations status at login — guide user to set up missing keys
-        integrations = (await session.execute(
-            select(MCPIntegrationSetting).where(MCPIntegrationSetting.user_id == user.id)
-        )).scalars().all()
-        configured = {i.integration_name for i in integrations}
-        required = {"apollo", "openai", "smartlead", "apify"}
-        missing = required - configured
-
-        if missing:
-            setup_msg = (
-                f"Logged in as {user.name}.\n\n"
-                f"Before we can launch campaigns, set up these integrations: **{', '.join(sorted(missing))}**.\n"
-                f"Go to http://46.62.210.24:3000/setup to add your API keys.\n\n"
-                f"Already configured: {', '.join(sorted(configured)) or 'none'}."
-            )
-        else:
-            setup_msg = f"Logged in as {user.name}. All integrations configured — ready to go!"
-
-        return {
-            "user_id": user.id, "name": user.name, "email": user.email,
-            "integrations_configured": sorted(configured),
-            "integrations_missing": sorted(missing),
-            "all_keys_set": len(missing) == 0,
-            "message": setup_msg,
-            "_links": {"setup": "http://46.62.210.24:3000/setup"},
-        }
+    # ── Login tool removed — auth is automatic via SSE URL token ──
 
     if tool_name == "get_context":
         user = await _get_user(token, session)

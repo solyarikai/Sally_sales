@@ -1,28 +1,12 @@
 """MCP Tool definitions — 26 tools for the LeadGen pipeline."""
 
 TOOLS = [
-    # ── Account (3) ──
-    {
-        "name": "login",
-        "description": """MANDATORY FIRST STEP. Call this BEFORE any other tool. ALL tools require authentication.
-
-If user hasn't provided a token yet, DO NOT proceed with ANY request. Instead say:
-"Sign up at http://46.62.210.24:3000 to get your API token, then paste it here."
-
-NEVER ask questions about companies, segments, or campaigns before login. NEVER skip this step.
-Only accept tokens starting with mcp_.""",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "token": {"type": "string", "description": "API token starting with mcp_"},
-            },
-            "required": ["token"],
-        },
-    },
+    # ── Account ──
     {
         "name": "get_context",
         "description": """Get the user's current state — projects, pipelines, campaigns, pending actions.
-Call this ONLY after login or when user asks "what was I working on?" / "status" / "resume".
+Authentication is automatic via the SSE URL token — no login needed.
+Call this first to see what the user is working on.
 DO NOT call this when the user asks to DO something (gather, explore, generate, activate).
 For those actions, call the specific tool directly (tam_gather, tam_explore, smartlead_generate_sequence, activate_campaign).""",
         "inputSchema": {"type": "object", "properties": {}},
