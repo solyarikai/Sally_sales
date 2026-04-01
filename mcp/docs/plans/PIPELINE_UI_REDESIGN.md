@@ -125,8 +125,10 @@
 22. Credits not duplicated ✅
 23. People count priority fixed (live DB first) ✅
 
-### REMAINING GAPS
-10. CRM page doesn't handle ?pipeline= param
-11. No "has people" filter toggle in pipeline table
-12. Scraped column empty for streaming pipeline runs
-24. Table components not shared with CRM (different implementations)
+### DONE (Apr 2, round 2)
+11. "Has people" filter — People column dropdown with "has_people" option ✅
+12. Scraped column — falls back to DiscoveredCompany.scraped_text when CompanyScrape empty ✅
+
+### REMAINING GAPS (deferred)
+10. CRM page doesn't handle ?pipeline= param (requires main app ContactsPage.tsx edit)
+24. Table components not shared with CRM (AG Grid vs HTML — major refactor)
