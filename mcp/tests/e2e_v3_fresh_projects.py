@@ -14,7 +14,7 @@ API = "http://localhost:8000"
 
 
 async def call_tool(name, args):
-    async with httpx.AsyncClient(timeout=180) as c:
+    async with httpx.AsyncClient(timeout=600) as c:  # 10 min for extract_people with 200+ targets
         resp = await c.post(f"{API}/api/tools/call",
             headers={"Content-Type": "application/json", "X-MCP-Token": TOKEN},
             json={"name": name, "arguments": args})
@@ -113,12 +113,11 @@ async def main():
     print(f"E2E v3 — FRESH PROJECTS, 10 PAGES — {TIMESTAMP}")
 
     segments = [
-        ("TFP_Fashion", "https://thefashionpeople.com", "Fashion brands in Italy", "Italy"),
-        ("ES_IT_Miami", "https://easystaff.io", "IT consulting companies in Miami", "Miami, Florida, United States"),
-        ("ES_Video_London", "https://easystaff.io", "Video production companies in London", "London, England, United Kingdom"),
-        ("ES_IT_US", "https://easystaff.io", "IT consulting companies in United States", "United States"),
-        ("ES_Video_UK", "https://easystaff.io", "Video production companies in United Kingdom", "United Kingdom"),
-        ("OnSocial_UK", "https://onsocial.ai", "Social media influencer agencies in United Kingdom", "United Kingdom"),
+        # TFP already done (150 people, KPI met). Retry Video London + remaining 3.
+        ("ES_Video_London_v2", "https://easystaff.io", "Video production companies in London", "London, England, United Kingdom"),
+        ("ES_IT_US_v2", "https://easystaff.io", "IT consulting companies in United States", "United States"),
+        ("ES_Video_UK_v2", "https://easystaff.io", "Video production companies in United Kingdom", "United Kingdom"),
+        ("OnSocial_UK_v2", "https://onsocial.ai", "Social media influencer agencies in United Kingdom", "United Kingdom"),
     ]
 
     results = {}
