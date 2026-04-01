@@ -15,6 +15,9 @@ COPY frontend/src ./main-app-src
 # Fix the @main alias to point to copied main app source
 RUN sed -i "s|path.resolve(__dirname, '../../frontend/src')|path.resolve(__dirname, 'main-app-src')|g" vite.config.ts
 
+# Override main app's api/client.ts with MCP's version (so all @main components use MCP auth)
+RUN cp src/api/client.ts main-app-src/api/client.ts
+
 RUN npm run build
 
 FROM nginx:alpine
