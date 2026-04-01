@@ -1951,7 +1951,6 @@ Return ONLY valid JSON."""
             }
 
         # Confirm step — create mcp_draft campaign + link to run
-        from app.models.project import Project
         project = await session.get(Project, run.project_id)
         campaign_name = args.get("campaign_name") or f"{project.name if project else 'Pipeline'} — Run #{run.id}"
 
