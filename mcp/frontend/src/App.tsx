@@ -101,6 +101,7 @@ function ProjectSelector() {
 }
 
 import { useTheme as useThemeStore } from './hooks/useTheme'
+import { useAppStore } from './store/appStore'
 
 /** Watches URL ?project= param and auto-selects the project in the top-left selector */
 /** Redirects /projects/:id → /projects?project=:id so project gets auto-selected */
@@ -144,12 +145,10 @@ export default function App() {
   }
   useEffect(() => { loadProjects() }, [])
 
-  // Sync MCP project to Zustand appStore (for @main components)
+  // Sync MCP project to Zustand appStore (for @main components like OperatorActionsPage)
   const syncAppStore = (p: any, pList: any[]) => {
-    import('./store/appStore').then(mod => {
-      mod.useAppStore.getState().setCurrentProject(p)
-      mod.useAppStore.getState().setProjects(pList)
-    })
+    useAppStore.getState().setCurrentProject(p)
+    useAppStore.getState().setProjects(pList)
   }
 
   const setProject = (p: any) => {
