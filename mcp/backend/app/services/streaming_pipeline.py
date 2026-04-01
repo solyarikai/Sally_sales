@@ -112,7 +112,7 @@ class StreamingPipeline:
             asyncio.create_task(self._people_worker()),
         ]
 
-        # Feed existing companies (from tam_gather) into the queue — they flow immediately
+        # Feed existing companies (probe 100) → scrape starts INSTANTLY
         existing = await self._load_existing_companies()
         if existing:
             logger.info(f"Feeding {len(existing)} existing companies to streaming queue")
@@ -121,10 +121,15 @@ class StreamingPipeline:
                 self._domains_seen.add(dc.domain)
                 await self.scrape_queue.put(dc)
 
-        # Feed more Apollo pages if needed — same queue, same workers
-        # Workers are ALREADY processing existing companies in parallel
+        # Apollo pages run IN PARALLEL with scraping (not blocking)
+        # Workers are ALREADY processing probe companies while Apollo fetches pages 2-10+
+        apollo_task = None
         if not self._kpi_met:
-            await self._feed_apollo_pages(filters)
+            apollo_task = asyncio.create_task(self._feed_apollo_pages(filters))
+
+        # Wait for Apollo to finish (workers keep running throughout)
+        if apollo_task:
+            await apollo_task
 
         # Signal workers to drain and stop
         await self.scrape_queue.put(None)
@@ -289,23 +294,21 @@ class StreamingPipeline:
                 return False
 
             batch_size = min(10, max_pages - pages_this_level)
-            page_results = await self._fetch_pages_parallel(
+            # Fetches pages AND feeds companies to scrape queue AS each page arrives
+            page_counts = await self._fetch_pages_parallel(
                 adapter, filters, per_page, page, batch_size
             )
 
-            for page_num, results in page_results:
+            # Process results (companies already in scrape queue from fetch_and_feed)
+            for page_num, new_count in page_counts:
                 if self._kpi_met or self._stop:
                     return False
-                if results is None:
+                self.pages_fetched += 1
+                pages_this_level += 1
+                if new_count <= 0:  # 0 = empty, -1 = error
                     consecutive_empty += 1
                 else:
-                    self.pages_fetched += 1
-                    pages_this_level += 1
-                    new_count = await self._ingest_page_results(results)
-                    if new_count == 0:
-                        consecutive_empty += 1
-                    else:
-                        consecutive_empty = 0
+                    consecutive_empty = 0
 
                 if consecutive_empty >= self.EXHAUSTION_THRESHOLD:
                     logger.info(f"[{label}] exhausted after {pages_this_level} pages "
@@ -313,6 +316,8 @@ class StreamingPipeline:
                     await self._persist_progress()
                     return True
 
+            logger.info(f"[{label}] batch pages {page}-{page+batch_size-1}: "
+                       f"{self.total_companies} companies, {self.total_people} people")
             await self._persist_progress()
             page += batch_size
 
@@ -335,23 +340,30 @@ class StreamingPipeline:
 
     async def _fetch_pages_parallel(self, adapter, filters: Dict, per_page: int,
                                      start_page: int, count: int) -> list:
-        """Fetch up to `count` Apollo pages in parallel. Returns [(page_num, results_or_None)]."""
-        async def fetch_one(page_num):
+        """Fetch `count` pages in parallel. Feed companies to scrape_queue AS EACH PAGE ARRIVES."""
+        results_list = []
+
+        async def fetch_and_feed(page_num):
+            """Fetch one page and immediately feed results to scrape queue."""
             try:
                 f = dict(filters)
                 f["page"] = page_num
                 f["max_pages"] = 1
                 f["per_page"] = per_page
                 results = await adapter.gather(f)
-                return (page_num, results)
+                # Feed to scrape queue IMMEDIATELY — don't wait for other pages
+                if results:
+                    new_count = await self._ingest_page_results(results)
+                    results_list.append((page_num, new_count))
+                else:
+                    results_list.append((page_num, 0))
             except Exception as e:
                 logger.warning(f"Apollo page {page_num} failed: {e}")
-                return (page_num, None)
+                results_list.append((page_num, -1))  # -1 = error
 
-        tasks = [fetch_one(start_page + i) for i in range(count)]
-        results = await asyncio.gather(*tasks)
-        # Return sorted by page number to maintain order for sequential ingestion
-        return sorted(results, key=lambda x: x[0])
+        tasks = [fetch_and_feed(start_page + i) for i in range(count)]
+        await asyncio.gather(*tasks)  # Pages feed to queue AS they arrive
+        return results_list  # [(page_num, new_count_or_error)]
 
     async def _regenerate_keywords(self, current_filters: Dict, all_tried: Set[str]) -> Optional[list]:
         """Generate fresh keywords when current ones are exhausted.
