@@ -862,7 +862,13 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False, contacts_count=0)
         # Scrape info (from JOIN)
         "scrape_status": scrape.scrape_status if scrape else None,
         "scrape_text_size": scrape.text_size_bytes if scrape else None,
-        "scrape_text_preview": (scrape.clean_text[:150] + "...") if scrape and scrape.clean_text and len(scrape.clean_text) > 150 else (scrape.clean_text if scrape else None),
+        "scrape_text_preview": (
+            (scrape.clean_text[:150] + "...") if scrape and scrape.clean_text and len(scrape.clean_text) > 150
+            else (scrape.clean_text if scrape and scrape.clean_text else None)
+        ) or (
+            (c.scraped_text[:150] + "...") if c.scraped_text and len(c.scraped_text) > 150
+            else c.scraped_text
+        ),
         # Analysis
         "analysis_reasoning": reasoning,
         # Pipeline state
