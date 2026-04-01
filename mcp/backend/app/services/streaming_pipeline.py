@@ -154,11 +154,16 @@ class StreamingPipeline:
                     DiscoveredCompany.scraped_text.is_(None),
                 )
             )
-            companies = list(result.scalars().all())
+            companies = result.scalars().all()
             if companies:
-                for dc in companies:
-                    ws.expunge(dc)  # Detach from session
-                return companies
+                from types import SimpleNamespace
+                return [SimpleNamespace(
+                    id=dc.id, domain=dc.domain, name=dc.name, industry=dc.industry,
+                    employee_count=dc.employee_count, country=dc.country, city=dc.city,
+                    project_id=dc.project_id, company_id=dc.company_id,
+                    scraped_text=dc.scraped_text, status=dc.status, is_target=dc.is_target,
+                    analysis_segment=dc.analysis_segment, analysis_reasoning=dc.analysis_reasoning,
+                ) for dc in companies]
 
             result = await ws.execute(
                 select(DiscoveredCompany)
@@ -169,10 +174,15 @@ class StreamingPipeline:
                     DiscoveredCompany.is_target.is_(None),
                 )
             )
-            companies = list(result.scalars().all())
-            for dc in companies:
-                ws.expunge(dc)
-            return companies
+            companies = result.scalars().all()
+            from types import SimpleNamespace
+            return [SimpleNamespace(
+                id=dc.id, domain=dc.domain, name=dc.name, industry=dc.industry,
+                employee_count=dc.employee_count, country=dc.country, city=dc.city,
+                project_id=dc.project_id, company_id=dc.company_id,
+                scraped_text=dc.scraped_text, status=dc.status, is_target=dc.is_target,
+                analysis_segment=dc.analysis_segment, analysis_reasoning=dc.analysis_reasoning,
+            ) for dc in companies]
 
     # ── Apollo page fetching + streaming workers ──
 
@@ -429,20 +439,15 @@ class StreamingPipeline:
             ))
             rows = r.fetchall()
             for row in rows:
-                # Create detached DC object (not in any session)
-                dc = DiscoveredCompany.__new__(DiscoveredCompany)
-                dc.id = row[0]
-                dc.domain = row[1]
-                dc.name = row[2]
-                dc.industry = row[3]
-                dc.employee_count = row[4]
-                dc.country = row[5]
-                dc.city = row[6]
-                dc.project_id = self.run.project_id
-                dc.company_id = self.run.company_id
-                dc.scraped_text = None
-                dc.status = None
-                dc.is_target = None
+                # Use simple namespace — NOT a SQLAlchemy model (avoids session tracking)
+                from types import SimpleNamespace
+                dc = SimpleNamespace(
+                    id=row[0], domain=row[1], name=row[2], industry=row[3],
+                    employee_count=row[4], country=row[5], city=row[6],
+                    project_id=self.run.project_id, company_id=self.run.company_id,
+                    scraped_text=None, status=None, is_target=None,
+                    analysis_segment=None, analysis_reasoning=None,
+                )
                 created_dcs.append(dc)
                 ws.add(CompanySourceLink(discovered_company_id=dc.id, gathering_run_id=self.run.id))
             await ws.commit()
