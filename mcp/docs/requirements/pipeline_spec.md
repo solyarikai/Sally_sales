@@ -112,37 +112,86 @@ KPI CHECK after each company's people saved:
 
 All within the SAME user-approved filters (location, size NEVER changed).
 
-### Level 1: Primary Strategy (up to 25 pages)
+### Exhaustion Detection
 ```
-A11 classifier chose industry-first or keywords-first.
-NEVER combine industry + keywords in same API call (Apollo ANDs them → zero results).
-
-Industry-first: use industry_tag_ids ONLY → fetch up to 25 pages
-  - 25 pages × 100/page = up to 2,500 companies
-  - 2 consecutive EMPTY pages (0 new after dedup) = this strategy exhausted
-  - Move to Level 2
-
-Keywords-first: use keywords ONLY → same logic, up to 25 pages
+10 consecutive pages with 0 NEW companies (after dedup) = strategy exhausted.
+NOT 2 pages — Apollo pagination is inconsistent, sometimes returns 0 on one page
+then results on the next. 10 is safe to confirm true exhaustion.
 ```
 
-### Level 2: Backlog Strategy (up to 25 pages)
+### Strategy: Industry-First (A11 chose industry)
+
 ```
-Switch to the OTHER approach (sequential, not parallel — saves credits):
-  - Was industry → now keywords ONLY (drops industry_tag_ids)
-  - Was keywords → now industry ONLY (drops keyword_tags)
-  
-Different API call = different companies. No AND logic.
-Up to 25 more pages. Total so far: max 50 pages.
+Level 1: Industry IDs ONLY → up to 25 pages
+  - 10 consecutive empty pages = exhausted → Level 2
+
+Level 2: Keywords ONLY (generated 20+) → up to 25 pages  
+  - Different API field = completely different companies
+  - 10 consecutive empty pages = exhausted → Level 3
+
+Level 3: Regenerate keywords → up to 5 cycles × 20 pages each
+  - GPT generates 20 NEW keywords (excluding all tried)
+  - Each cycle: 20 pages max. 10 empty = regenerate again.
+  - Max 5 cycles → Level 4
+
+Level 4: Insufficient — report to user, push what was gathered to SmartLead
 ```
 
-### Level 3: Regenerate Keywords (up to 5 cycles × 20 pages)
+### Strategy: Keywords-First (A11 chose keywords)
+
 ```
-GPT generates 20 NEW keywords (excluding all previously tried).
-Search with new keywords ONLY → fetch up to 20 pages per cycle.
-If 0 new companies after 20 pages → regenerate again.
-Max 5 regeneration cycles.
-Total max: 50 + 100 = 150 pages absolute maximum.
+Level 1: Keywords ONLY (generated 20+) → up to 25 pages
+  - 10 consecutive empty pages = exhausted → Level 2
+
+Level 2: Regenerate keywords → up to 5 cycles × 20 pages each
+  - GPT generates 20 NEW keywords (excluding all tried)
+  - Each cycle: 20 pages max. 10 empty = regenerate again.
+  - Max 5 cycles → Level 3
+
+Level 3: Industry IDs ONLY (fallback) → up to 25 pages
+  - Switch to industry_tag_ids as last resort (broader, lower precision)
+  - 10 consecutive empty pages = Level 4
+
+Level 4: Insufficient — report to user, push what was gathered to SmartLead
 ```
+
+**Key difference**: when keywords-first, regenerate keywords BEFORE switching to industry.
+Keywords regeneration is cheaper and more targeted than broad industry search.
+Industry is the LAST resort for keywords-first strategy.
+
+### Max Pages Per Pipeline Run
+```
+Level 1: 25 pages
+Level 2: 25 pages (or 100 for regen if keywords-first)
+Level 3: 100 pages (regen) or 25 (industry fallback)
+Total absolute maximum: ~150 pages = ~150 credits ($1.50 search)
+```
+
+---
+
+## Industry Map — Building the Full 112
+
+### Current State
+- Apollo has 112 industry categories
+- Our `apollo_industry_map` DB has only 79 mapped (tag_id → industry_name)
+- 33 industries MISSING — limits industry-first strategy for some segments
+
+### How to Build Full Map
+```
+For each of the 112 known industry NAMES (from Apollo taxonomy):
+  1. Find a well-known company in that industry (e.g. "mining" → "bhp.com")
+  2. Call Apollo /organizations/enrich with that domain
+  3. Response includes organization_industry_tag_ids → the hex ID
+  4. Save: industry_name → tag_id in apollo_industry_map
+
+One-time operation: 112 enrichment calls = 112 credits.
+After that, full map available for ALL future searches.
+```
+
+### Why This Matters
+Without full map, A11 classifier might choose industry-first but we don't have
+the tag_id → falls back to keywords → lower target rate (10-40% vs 90%).
+With full map: every industry query can use the 90% target rate approach.
 
 ### Level 5: Exhausted — Report to User
 ```
@@ -183,12 +232,18 @@ Time 40s:  Phase 2 starts (if KPI not met) — fetches more Apollo pages
 EVERYTHING OVERLAPS. No phase waits for another.
 ```
 
-### Concurrency limits:
-- Apollo page fetch: 10 parallel (rate limited)
-- Website scraping: 100 concurrent (Apify proxy)
-- GPT classification: 100 concurrent (gpt-4o-mini)
-- People search: 20 concurrent (Apollo rate limit)
-- DB writes: each worker uses OWN session (no conflicts)
+### Concurrency Limits (max concurrent requests):
+
+| Service | Max Concurrent | Why this limit |
+|---------|---------------|----------------|
+| Apollo page fetch | 10 parallel | Rate limited, 1 credit/page |
+| Apify website scraping | **100 concurrent** | Residential proxy, no rate limit |
+| OpenAI classification | **100 concurrent** | gpt-4o-mini, high rate limit |
+| Apollo people search | 20 concurrent | Seniority search is FREE but rate limited |
+| Apollo bulk_match (email) | 20 concurrent | 1 credit/person, rate limited |
+| DB writes | unlimited | Each worker uses OWN session (no conflicts) |
+
+All limits enforced via `asyncio.Semaphore(N)` per worker.
 
 ---
 
