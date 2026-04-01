@@ -264,3 +264,64 @@ which includes: karaoke bars, theatres, rugby clubs, book festivals, gaming venu
 5. GPT classification → filter noise
 6. People extraction → FREE
 7. User sees strategy transparently in preview
+
+---
+
+## 2026-04-01 02:00 — REMAINING: Wire into pipeline + end-to-end test
+
+### What's already built:
+- [x] A11 industry specificity classifier
+- [x] Industry map in DB (78 industries, auto-extends)
+- [x] filter_mapper looks up tag_ids + returns strategy
+- [x] Dispatcher shows strategy in preview
+- [x] Apollo service accepts industry_tag_ids
+- [x] Parallel page fetching (batches of 10)
+- [x] Adaptive concurrency (100 concurrent, per-user)
+- [x] Cost estimator (correct per_page=100)
+- [x] All verified with Opus + scraped text
+
+### What's still needed for full pipeline:
+- [ ] Orchestrator uses filter_strategy from the run's filters
+- [ ] When industry pages exhausted → auto-switch to keywords
+- [x] Full end-to-end test: tam_gather → scrape → classify → extract people → KPI check
+- [x] Time each phase
+- [ ] Verify final target list quality
+
+---
+
+## 2026-04-01 02:30 — E2E PIPELINE RESULTS (ALL 6 SEGMENTS)
+
+| Segment | Strategy Used | Companies | Targets | Rate | People | Time | Credits | KPI |
+|---|---|---|---|---|---|---|---|---|
+| Fashion Italy | keywords_first | 87 | 23 | 43% | 69 | 88s | 4 | NO |
+| IT Miami | keywords_first | 71 | 1 | **3%** | 3 | 49s | 4 | NO |
+| Video London | keywords_first | 127 | 57 | **65%** | 171 | 116s | 4 | **YES** |
+| IT US | keywords_first | 107 | 46 | 56% | 138 | 102s | 4 | **YES** |
+| Video UK | keywords_first | 31 | 16 | 70% | 48 | 51s | 4 | NO |
+| OnSocial UK | keywords_first | 91 | 32 | 53% | 96 | 85s | 4 | NO |
+
+### BUG: ALL used keywords_first — industry_tag_ids not reaching Apollo
+The filter_mapper returns industry_tag_ids, A11 classifies correctly, but the pipeline
+STILL uses keywords for all segments. The industry_tag_ids are getting lost somewhere
+between tam_gather and the Apollo adapter.
+
+### ISSUE: IT Miami = 3% target rate
+Catastrophically bad. Need better keywords for IT consulting in Miami.
+Current: ["IT consulting", "managed IT services", "IT outsourcing"]
+These might be too specific for Miami market.
+
+### POSITIVE: Video segments work well (65-70%)
+Video production keywords are specific enough. GPT classification handles the rest.
+
+### TIMING BREAKDOWN (average):
+- Filter preview: ~3s (filter_mapper + A11 + Apollo probe)
+- Gathering: ~2s (Apollo search, parallel pages)
+- Scraping: ~20s (50 concurrent, Apify proxy) ← BOTTLENECK
+- Classification: ~10s (50 concurrent GPT-4o-mini)
+- People extraction: ~30-60s (sequential Apollo calls per company) ← BOTTLENECK #2
+
+### NEXT:
+1. Fix industry_tag_ids passthrough — Fashion should get 90% not 43%
+2. Fix IT Miami — better keywords or different approach
+3. Speed up people extraction — more parallelism
+4. Auto-pipeline needs to loop until KPI met (currently stops after 1 iteration)
