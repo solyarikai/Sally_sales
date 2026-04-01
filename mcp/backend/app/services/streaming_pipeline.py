@@ -94,8 +94,12 @@ class StreamingPipeline:
 
         Each company flows immediately — no waiting for batches.
         """
-        self.run.started_at = datetime.now(timezone.utc)
-        await self.session.flush()
+        # Use own session for all run updates — never share with workers
+        from app.db import async_session_maker as _asm
+        from sqlalchemy import update as _upd
+        async with _asm() as _ws:
+            await _ws.execute(_upd(GatheringRun).where(GatheringRun.id == self.run.id).values(started_at=datetime.now(timezone.utc)))
+            await _ws.commit()
         await self._init_services()
 
         logger.info(f"Streaming pipeline started: target={self.target_count} people, "
@@ -135,34 +139,40 @@ class StreamingPipeline:
         return self._build_result(elapsed)
 
     async def _load_existing_companies(self) -> List[DiscoveredCompany]:
-        """Load companies for this run that haven't been fully processed yet."""
-        result = await self.session.execute(
-            select(DiscoveredCompany)
-            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
-            .where(
-                CompanySourceLink.gathering_run_id == self.run.id,
-                or_(
-                    DiscoveredCompany.status.in_(["new", "gathered"]),
-                    DiscoveredCompany.status.is_(None),
-                ),
-                DiscoveredCompany.scraped_text.is_(None),
+        """Load companies for this run. Uses own session, returns DETACHED objects."""
+        from app.db import async_session_maker
+        async with async_session_maker() as ws:
+            result = await ws.execute(
+                select(DiscoveredCompany)
+                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                .where(
+                    CompanySourceLink.gathering_run_id == self.run.id,
+                    or_(
+                        DiscoveredCompany.status.in_(["new", "gathered"]),
+                        DiscoveredCompany.status.is_(None),
+                    ),
+                    DiscoveredCompany.scraped_text.is_(None),
+                )
             )
-        )
-        companies = list(result.scalars().all())
-        if companies:
-            return companies
+            companies = list(result.scalars().all())
+            if companies:
+                for dc in companies:
+                    ws.expunge(dc)  # Detach from session
+                return companies
 
-        # Fallback: already scraped but not classified — feed to classify queue
-        result = await self.session.execute(
-            select(DiscoveredCompany)
-            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
-            .where(
-                CompanySourceLink.gathering_run_id == self.run.id,
-                DiscoveredCompany.scraped_text.isnot(None),
-                DiscoveredCompany.is_target.is_(None),
+            result = await ws.execute(
+                select(DiscoveredCompany)
+                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                .where(
+                    CompanySourceLink.gathering_run_id == self.run.id,
+                    DiscoveredCompany.scraped_text.isnot(None),
+                    DiscoveredCompany.is_target.is_(None),
+                )
             )
-        )
-        return list(result.scalars().all())
+            companies = list(result.scalars().all())
+            for dc in companies:
+                ws.expunge(dc)
+            return companies
 
     # ── Apollo page fetching + streaming workers ──
 
@@ -374,8 +384,9 @@ class StreamingPipeline:
         return strategies
 
     async def _ingest_page_results(self, results) -> int:
-        """Ingest Apollo page results: dedup, create companies, queue for scraping. Returns new count."""
-        page_batch = []
+        """Ingest Apollo page results. Own session — no conflicts with workers."""
+        from app.db import async_session_maker
+        page_companies = []
         for company_data in (results or []):
             if self._kpi_met:
                 break
@@ -383,33 +394,64 @@ class StreamingPipeline:
             if not domain or domain in self._domains_seen:
                 continue
             self._domains_seen.add(domain)
+            page_companies.append(company_data)
 
-            dc = DiscoveredCompany(
-                project_id=self.run.project_id,
-                company_id=self.run.company_id,
-                domain=domain,
-                name=company_data.get("name"),
-                industry=company_data.get("industry"),
-                employee_count=company_data.get("employee_count"),
-                country=company_data.get("country"),
-                city=company_data.get("city"),
-                source_data=company_data,
-            )
-            self.session.add(dc)
-            page_batch.append(dc)
+        if not page_companies:
+            return 0
 
-        if page_batch:
-            await self.session.flush()
-            for dc in page_batch:
-                link = CompanySourceLink(
-                    discovered_company_id=dc.id,
-                    gathering_run_id=self.run.id,
+        # Create companies in own session
+        created_dcs = []
+        async with async_session_maker() as ws:
+            for company_data in page_companies:
+                domain = company_data.get("domain", "").lower().strip()
+                dc = DiscoveredCompany(
+                    project_id=self.run.project_id,
+                    company_id=self.run.company_id,
+                    domain=domain,
+                    name=company_data.get("name"),
+                    industry=company_data.get("industry"),
+                    employee_count=company_data.get("employee_count"),
+                    country=company_data.get("country"),
+                    city=company_data.get("city"),
+                    source_data=company_data,
                 )
-                self.session.add(link)
-                self.total_companies += 1
-                await self.scrape_queue.put(dc)
+                ws.add(dc)
+            await ws.flush()
+            for dc in ws.new:
+                pass  # flush assigned IDs
+            # Re-query to get IDs
+            from sqlalchemy import text as sa_text
+            r = await ws.execute(sa_text(
+                f"SELECT id, domain, name, industry, employee_count, country, city "
+                f"FROM discovered_companies WHERE project_id={self.run.project_id} "
+                f"AND domain IN ({','.join(repr(c.get('domain','').lower().strip()) for c in page_companies)}) "
+                f"ORDER BY id DESC LIMIT {len(page_companies)}"
+            ))
+            rows = r.fetchall()
+            for row in rows:
+                # Create detached DC object (not in any session)
+                dc = DiscoveredCompany.__new__(DiscoveredCompany)
+                dc.id = row[0]
+                dc.domain = row[1]
+                dc.name = row[2]
+                dc.industry = row[3]
+                dc.employee_count = row[4]
+                dc.country = row[5]
+                dc.city = row[6]
+                dc.project_id = self.run.project_id
+                dc.company_id = self.run.company_id
+                dc.scraped_text = None
+                dc.status = None
+                dc.is_target = None
+                created_dcs.append(dc)
+                ws.add(CompanySourceLink(discovered_company_id=dc.id, gathering_run_id=self.run.id))
+            await ws.commit()
 
-        return len(page_batch)
+        for dc in created_dcs:
+            self.total_companies += 1
+            await self.scrape_queue.put(dc)
+
+        return len(created_dcs)
 
     async def _scraper_worker(self):
         """Streaming scrape worker — 100 concurrent. Own session for DB writes."""
