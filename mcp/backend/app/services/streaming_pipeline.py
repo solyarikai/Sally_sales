@@ -412,7 +412,8 @@ class StreamingPipeline:
         return len(page_batch)
 
     async def _scraper_worker(self):
-        """Streaming scrape worker — reads from queue, 100 concurrent."""
+        """Streaming scrape worker — 100 concurrent. Own session for DB writes."""
+        from app.db import async_session_maker
         sem = asyncio.Semaphore(100)
 
         async def scrape_one(dc):
@@ -420,12 +421,30 @@ class StreamingPipeline:
                 try:
                     result = await self._scraper.scrape_website(f"https://{dc.domain}")
                     if result.get("success"):
-                        dc.scraped_text = result["text"][:50000]
-                        dc.scraped_at = datetime.now(timezone.utc)
+                        text = result["text"][:50000]
+                        # Write to DB with own session (no conflicts)
+                        async with async_session_maker() as ws:
+                            await ws.execute(
+                                select(DiscoveredCompany).where(DiscoveredCompany.id == dc.id)
+                            )  # load into session
+                            from sqlalchemy import update
+                            await ws.execute(
+                                update(DiscoveredCompany).where(DiscoveredCompany.id == dc.id).values(
+                                    scraped_text=text,
+                                    scraped_at=datetime.now(timezone.utc),
+                                    status="scraped",
+                                )
+                            )
+                            await ws.commit()
+                        dc.scraped_text = text  # keep in memory for classifier
                         dc.status = "scraped"
                         self.total_scraped += 1
                         await self.classify_queue.put(dc)
                     else:
+                        async with async_session_maker() as ws:
+                            from sqlalchemy import update
+                            await ws.execute(update(DiscoveredCompany).where(DiscoveredCompany.id == dc.id).values(status="scrape_failed"))
+                            await ws.commit()
                         dc.status = "scrape_failed"
                 except Exception as e:
                     dc.status = "scrape_failed"
@@ -445,7 +464,8 @@ class StreamingPipeline:
         await self.classify_queue.put(None)
 
     async def _classifier_worker(self):
-        """Streaming classify worker — reads from queue, 100 concurrent."""
+        """Streaming classify worker — 100 concurrent. Own session for DB writes."""
+        from app.db import async_session_maker
         import httpx
         import json
         sem = asyncio.Semaphore(100)
@@ -485,12 +505,27 @@ class StreamingPipeline:
                             clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
                         parsed = json.loads(clean)
 
-                        dc.is_target = parsed.get("is_target", False)
-                        dc.analysis_segment = parsed.get("segment", "")
-                        dc.analysis_reasoning = parsed.get("reasoning", "")
-                        dc.status = "target" if dc.is_target else "rejected"
+                        is_target = parsed.get("is_target", False)
+                        segment = parsed.get("segment", "")
+                        reasoning = parsed.get("reasoning", "")
+                        status = "target" if is_target else "rejected"
+
+                        # Write to DB with own session
+                        async with async_session_maker() as ws:
+                            from sqlalchemy import update
+                            await ws.execute(
+                                update(DiscoveredCompany).where(DiscoveredCompany.id == dc.id).values(
+                                    is_target=is_target, analysis_segment=segment,
+                                    analysis_reasoning=reasoning, status=status,
+                                )
+                            )
+                            await ws.commit()
+
+                        dc.is_target = is_target
+                        dc.analysis_segment = segment
+                        dc.status = status
                         self.total_classified += 1
-                        if dc.is_target:
+                        if is_target:
                             self.total_targets += 1
                             await self.people_queue.put(dc)
                 except Exception as e:
@@ -511,11 +546,11 @@ class StreamingPipeline:
         await self.people_queue.put(None)
 
     async def _people_worker(self):
-        """Streaming people extraction worker — reads from queue, 20 concurrent."""
+        """Streaming people extraction — 20 concurrent. Own session for DB writes."""
+        from app.db import async_session_maker
         if not self.apollo:
             return
         sem = asyncio.Semaphore(20)
-        contacts_batch = []
 
         async def extract_one(dc):
             if self._kpi_met:
@@ -526,26 +561,31 @@ class StreamingPipeline:
                         dc.domain, limit=self.max_per_company,
                         titles=self._person_titles,
                     )
-                    for person in people:
-                        contacts_batch.append(ExtractedContact(
-                            project_id=self.run.project_id,
-                            discovered_company_id=dc.id,
-                            email=person.get("email"),
-                            first_name=person.get("first_name"),
-                            last_name=person.get("last_name"),
-                            job_title=person.get("title") or person.get("job_title"),
-                            linkedin_url=person.get("linkedin_url"),
-                            email_verified=person.get("is_verified", False),
-                            email_source="apollo" if person.get("is_verified") else None,
-                            source_data=person,
-                        ))
-                        self.total_people += 1
-                        if self.total_people >= self.target_count:
-                            self._kpi_met = True
-                            logger.info(f"KPI MET: {self.total_people} people >= {self.target_count}")
-                            break
+                    if not people:
+                        return
+                    # Write contacts to DB with own session
+                    async with async_session_maker() as ws:
+                        for person in people:
+                            ws.add(ExtractedContact(
+                                project_id=self.run.project_id,
+                                discovered_company_id=dc.id,
+                                email=person.get("email"),
+                                first_name=person.get("first_name"),
+                                last_name=person.get("last_name"),
+                                job_title=person.get("title") or person.get("job_title"),
+                                linkedin_url=person.get("linkedin_url"),
+                                email_verified=person.get("is_verified", False),
+                                email_source="apollo" if person.get("is_verified") else None,
+                                source_data=person,
+                            ))
+                            self.total_people += 1
+                            if self.total_people >= self.target_count:
+                                self._kpi_met = True
+                                logger.info(f"KPI MET: {self.total_people} people >= {self.target_count}")
+                                break
+                        await ws.commit()
+                    # Update progress with own session
                     self.run.credits_used = (self.run.credits_used or 0) + len(people)
-                    # Persist progress after each company's people (so frontend sees live updates)
                     await self._persist_progress()
                 except Exception as e:
                     logger.debug(f"People search {dc.domain}: {e}")
@@ -560,23 +600,26 @@ class StreamingPipeline:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Batch add contacts (avoids session.add inside flush)
-        for contact in contacts_batch:
-            self.session.add(contact)
-        self.run.total_people_found = self.total_people
-        self.run.total_targets_found = self.total_targets
-        await self.session.flush()
-
     # ── Helpers ──
 
     async def _persist_progress(self):
-        """Write counters to DB for frontend polling."""
-        self.run.new_companies_count = self.total_companies
-        # pages_fetched = tam_gather pages + Phase 2 pages
-        self.run.pages_fetched = self._tam_pages + self.pages_fetched
-        self.run.total_targets_found = self.total_targets
-        self.run.total_people_found = self.total_people
-        await self.session.flush()
+        """Write counters to DB for frontend polling. Uses own session."""
+        try:
+            from app.db import async_session_maker
+            from sqlalchemy import update
+            async with async_session_maker() as ws:
+                await ws.execute(
+                    update(GatheringRun).where(GatheringRun.id == self.run.id).values(
+                        new_companies_count=self.total_companies,
+                        pages_fetched=self._tam_pages + self.pages_fetched,
+                        total_targets_found=self.total_targets,
+                        total_people_found=self.total_people,
+                        credits_used=self.run.credits_used or 0,
+                    )
+                )
+                await ws.commit()
+        except Exception as e:
+            logger.debug(f"Progress persist failed: {e}")
 
     def _build_result(self, elapsed: float) -> Dict:
         total_pages = self._tam_pages + self.pages_fetched
