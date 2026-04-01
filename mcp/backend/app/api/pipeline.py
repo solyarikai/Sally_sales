@@ -1513,8 +1513,13 @@ async def cleanup_test_data(
 
 
 # ── Learning / Corrections (for @main OperatorActionsPage) ──
+# NOTE: These use a SEPARATE router without /pipeline prefix because
+# @main components call /api/projects/{id}/learning/... not /api/pipeline/projects/...
 
-@router.get("/projects/{project_id}/learning/corrections")
+from fastapi import APIRouter as _LearningRouter
+learning_router = _LearningRouter(prefix="/projects", tags=["learning"])
+
+@learning_router.get("/{project_id}/learning/corrections")
 async def get_corrections(
     project_id: int,
     page: int = Query(1, ge=1),
@@ -1576,7 +1581,7 @@ async def get_corrections(
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
-@router.get("/projects/{project_id}/learning/overview")
+@learning_router.get("/{project_id}/learning/overview")
 async def get_learning_overview(
     project_id: int,
     user: MCPUser = Depends(get_optional_user),
@@ -1614,7 +1619,7 @@ async def get_learning_overview(
     }
 
 
-@router.get("/projects/{project_id}/learning/examples")
+@learning_router.get("/{project_id}/learning/examples")
 async def get_learning_examples(
     project_id: int,
     page: int = Query(1, ge=1),

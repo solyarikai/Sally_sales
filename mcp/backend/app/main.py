@@ -137,6 +137,10 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(setup_router, prefix="/api")
 app.include_router(pipeline_router, prefix="/api")
 
+# Learning routes (separate prefix — @main calls /api/projects/{id}/learning/...)
+from app.api.pipeline import learning_router
+app.include_router(learning_router, prefix="/api")
+
 
 # ── Direct tool call REST endpoint (for Telegram bot, no SSE needed) ──
 
