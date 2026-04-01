@@ -554,8 +554,29 @@ class StreamingPipeline:
         import httpx
         import json
         sem = asyncio.Semaphore(100)
-        # ONE shared client — avoids creating 100 simultaneous TCP connections
         client = httpx.AsyncClient(timeout=30)
+
+        # Log the classification prompt ONCE so Prompts page can display it
+        try:
+            system_prompt = (
+                f"Classify if this company is a target customer.\n"
+                f"Offer: {self._offer_text}\n"
+                f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
+            )
+            user_id_str = self.run.triggered_by.split(":")[-1] if self.run.triggered_by else "0"
+            try:
+                uid = int(user_id_str)
+            except ValueError:
+                uid = 1
+            async with async_session_maker() as log_s:
+                from sqlalchemy import text as sa_text
+                await log_s.execute(
+                    sa_text("INSERT INTO mcp_usage_logs (user_id, tool_name, action, metadata, created_at) VALUES (:uid, :tool, :action, :data::jsonb, now())"),
+                    {"uid": uid, "tool": "analysis_prompt", "action": "classify", "data": json.dumps({"run_id": self.run.id, "prompt_text": system_prompt, "model": "gpt-4o-mini"})},
+                )
+                await log_s.commit()
+        except Exception as e:
+            logger.debug(f"Prompt logging failed: {e}")
 
         async def classify_one(dc):
             async with sem:
