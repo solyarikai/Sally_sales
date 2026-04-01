@@ -803,11 +803,18 @@ Return ONLY valid JSON."""
                     try:
                         from app.services.filter_mapper import map_query_to_filters
                         mapped = await map_query_to_filters(query, offer_text, openai_key)
-                        if mapped and mapped.get("q_organization_keyword_tags"):
-                            filters.setdefault("q_organization_keyword_tags", mapped["q_organization_keyword_tags"])
+                        if mapped and (mapped.get("q_organization_keyword_tags") or mapped.get("organization_industry_tag_ids")):
+                            filters.setdefault("q_organization_keyword_tags", mapped.get("q_organization_keyword_tags"))
                             filters.setdefault("organization_locations", mapped.get("organization_locations"))
                             filters.setdefault("organization_num_employees_ranges", mapped.get("organization_num_employees_ranges"))
-                            logger.info(f"Filter mapper: {len(mapped.get('q_organization_keyword_tags', []))} keywords from taxonomy")
+                            # CRITICAL: copy industry_tag_ids + strategy from filter_mapper
+                            if mapped.get("organization_industry_tag_ids"):
+                                filters["organization_industry_tag_ids"] = mapped["organization_industry_tag_ids"]
+                            filters["filter_strategy"] = mapped.get("filter_strategy", "keywords_only")
+                            filters["industries"] = mapped.get("industries", [])
+                            logger.info(f"Filter mapper: {len(mapped.get('organization_industry_tag_ids', []))} industry_tag_ids, "
+                                        f"{len(mapped.get('q_organization_keyword_tags', []))} keywords, "
+                                        f"strategy={mapped.get('filter_strategy')}")
                     except Exception as e:
                         logger.warning(f"Filter mapper failed, falling back to filter_intelligence: {e}")
                         # Fallback to old filter_intelligence
