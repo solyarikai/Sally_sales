@@ -1,15 +1,28 @@
 """MCP Tool definitions — 26 tools for the LeadGen pipeline."""
 
 TOOLS = [
+    # ═══════════════════════════════════════════════════════════════════════
+    # STRICT FLOW — ONE action per message. Wait for user approval between each.
+    #
+    # Step 1: get_context (auto on connect)
+    # Step 2: create_project (website → offer extraction) → show offer → WAIT
+    # Step 3: confirm_offer (user approves offer) → WAIT
+    # Step 4: tam_gather WITHOUT confirm_filters → show filter preview + default KPIs → WAIT
+    # Step 5: tam_gather WITH confirm_filters=true (user approved) → WAIT
+    # Step 6: align_email_accounts (show matching accounts) → WAIT
+    # Step 7: align_email_accounts WITH confirm=true → WAIT
+    # Step 8: run_auto_pipeline (default KPIs: 100 people, 3/company) → runs in background
+    #
+    # NEVER skip steps. NEVER combine steps. NEVER ask KPI questions — use defaults.
+    # Default KPIs: target_people=100, max_people_per_company=3
+    # ═══════════════════════════════════════════════════════════════════════
+
     # ── Account ──
     {
         "name": "get_context",
-        "description": """Get the user's current state — projects, pipelines, campaigns, pending actions.
-FIRST CALL: pass the token from the SSE URL in your .mcp.json config.
-The token is in the URL after ?token= or /sse/ — extract it and pass as the token parameter.
-After first call, authentication is stored for the session.
-DO NOT call this when the user asks to DO something (gather, explore, generate, activate).
-For those actions, call the specific tool directly.""",
+        "description": """Get the user's current state. Auth via token from SSE URL.
+FIRST CALL: extract token from your .mcp.json URL (after ?token= or /sse/) and pass as token parameter.
+After first call, auth is stored for the session.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -710,28 +723,19 @@ People search is FREE (Apollo mixed_people endpoint).""",
 
     {
         "name": "run_auto_pipeline",
-        "description": """Run the FULL automated pipeline that gathers until target contacts found.
+        "description": """Run the full pipeline: scrape → classify → extract people → auto-push to SmartLead.
 
-Does everything automatically:
-1. Apollo search page 1 → scrape → classify → extract people for targets
-2. Exploration: enrich top 5 targets → optimize filters
-3. Loop: 4 pages at a time → scrape → classify → extract people
-4. Stops when target_count contacts gathered (default 100)
-5. Each batch = new iteration (visible in UI)
-6. When KPI hit: auto-generates sequence + pushes to SmartLead as DRAFT (if accounts pre-selected)
+Uses DEFAULT KPIs — do NOT ask user about these:
+  target_people=100, max_people_per_company=3
 
-People extraction runs IN PARALLEL — as soon as a target is found, contacts are gathered.
-Pipeline runs in BACKGROUND — returns immediately. Use pipeline_status to track progress.
+TWO-STEP:
+  1. Call WITHOUT confirm → shows pipeline preview (KPIs, filters, accounts). STOP. Wait for approval.
+  2. Call WITH confirm=true → pipeline runs in background.
 
-KPIs are configurable: target_people, max_people_per_company, target_companies.
+Pipeline runs in BACKGROUND. Use pipeline_status to check progress.
+On KPI hit: auto-generates sequence + pushes to SmartLead as DRAFT.
 
-PREREQUISITE: Call align_email_accounts BEFORE this tool to pre-select email accounts for the campaign.
-Without pre-selected accounts, the pipeline still runs but auto-push to SmartLead will NOT happen —
-user will need to manually generate sequence and push after pipeline completes.
-
-TWO-STEP: Call WITHOUT confirm → shows preview of KPIs + cost + account status. Call WITH confirm=true → starts pipeline.
-Call AFTER user confirms filters (tam_gather with confirm_filters returned the preview).
-Requires: project with offer context, Apollo + OpenAI keys configured.""",
+PREREQUISITE: align_email_accounts must be called first (hard gate).""",
         "inputSchema": {
             "type": "object",
             "properties": {
