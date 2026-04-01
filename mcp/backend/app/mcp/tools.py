@@ -78,12 +78,13 @@ AFTER creating project, ask: "Have you launched campaigns for this project befor
     },
     {
         "name": "confirm_offer",
-        "description": """Confirm or adjust the project's offer before gathering can start.
+        "description": """Confirm or adjust the project's offer. MANDATORY before gathering.
 
-MANDATORY before tam_gather. After create_project extracts the offer from the website, the user MUST confirm it.
-- If user says "yes", "correct", "looks good" → call with approved=true
-- If user says "no, I sell payroll not invoicing" → call with feedback="we sell payroll, not invoicing"
-- After feedback, show the updated offer and ask again until user confirms""",
+After create_project, show the extracted offer to user and ask ONLY: "Does this look correct?"
+- If yes → call with approved=true. Then STOP and WAIT for user's next instruction.
+- If no → call with feedback. Then STOP and show updated offer.
+
+ONE action per message. After confirming, do NOT start gathering or ask other questions. Wait for user.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -132,21 +133,17 @@ Only call explicitly when user provides 2+ DIFFERENT segments in one message (e.
     # ── Pipeline ──
     {
         "name": "tam_gather",
-        "description": """Gather companies from Apollo/CSV/Sheet. THIS is the tool for "find companies", "gather", "search", "launch pipeline".
+        "description": """Gather companies from Apollo. System auto-generates keywords + industry filters from your query.
 
-WHEN USER SAYS: "find IT consulting in Miami", "gather companies", "start pipeline", "search for" → call THIS tool.
-DO NOT call parse_gathering_intent or suggest_apollo_filters — tam_gather handles everything.
+FLOW — ONE step per message, wait for user approval between each:
+  1. Call with query + filters (location, size) WITHOUT confirm_filters → returns FILTER PREVIEW with keywords, strategy, cost estimate
+  2. Show preview to user. STOP. Wait for "proceed" / "adjust X".
+  3. Only after user approves → call WITH confirm_filters=true
 
-TWO-STEP for Apollo:
-  Step 1: Call WITHOUT confirm_filters → returns FILTER PREVIEW (keywords, total available, cost estimate). Show to user, ask "Proceed?"
-  Step 2: Call WITH confirm_filters=true → actually searches Apollo and spends credits.
-NEVER skip the preview step. NEVER call twice without user confirmation between calls.
+Pass query= with natural language (e.g. "fashion brands in Italy"). Server generates 20+ keywords + industry tags automatically.
+Pass filters= with organization_locations and organization_num_employees_ranges.
 
-Pass query= with the user's natural language (e.g. "IT consulting in Miami"). System auto-generates Apollo filters from taxonomy maps.
-Pass filters= with at least organization_num_employees_ranges (e.g. ["11,50","51,200"]).
-
-BEFORE starting the auto pipeline, ask: "Which email accounts to use for the campaign?" (call align_email_accounts).
-Pipeline WILL NOT START without pre-selected accounts — this is a hard gate.""",
+NEVER skip preview. NEVER combine with other actions. ONE message = ONE step.""",
         "inputSchema": {
             "type": "object",
             "properties": {
