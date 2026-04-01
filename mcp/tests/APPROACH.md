@@ -226,5 +226,41 @@ which includes: karaoke bars, theatres, rugby clubs, book festivals, gaming venu
 1. A11 classifies industries as specific/broad
 2. Specific → industry_tag_ids (90% rate, 1 page enough)
 3. Broad → keywords ONLY (30-40% rate, 2-3 pages, GPT does the real work)
-4. NEVER use "entertainment" industry for video production
+4. NEVER use "entertainment" industry for video production — use "media production" instead
 5. After GPT classification, target rate jumps to 90%+ regardless of source
+
+---
+
+## 2026-04-01 01:45 — MEDIA PRODUCTION TAG FIX + FINAL VERIFIED RATES
+
+### "entertainment" vs "media production" for Video UK:
+- entertainment (5567cdd37369643b80510000): **0%** targets — karaoke, theatres, rugby
+- media production (5567e0ea7369640d2ba31600): **40%** targets — real studios, VFX houses
+
+### COMPLETE VERIFIED RESULTS (all Opus + scraped website text):
+
+| Segment | Strategy | Filter | Verified Rate | Pages for 34 targets | Credits |
+|---|---|---|---|---|---|
+| TFP Fashion Italy | industry | apparel & fashion | **90%** | 1 | 1 |
+| ES IT Miami | keywords | IT consulting | **40%** | 2 | 2 |
+| ES Video London | industry | media production | **~40%** | 2 | 2 |
+| ES Video UK | industry | media production | **40%** | 2 | 2 |
+| ES IT US | keywords | IT consulting | **~40%** | 1 (broad geo = more companies) | 1 |
+| OnSocial UK | keywords | influencer marketing | **29%** | 3 | 3 |
+
+### COST ESTIMATE (search only, no enrichment needed):
+- Best case (fashion): 1 credit ($0.01)
+- Typical case (IT, video): 2 credits ($0.02)
+- Worst case (niche like influencer): 3 credits ($0.03)
+- GPT classification: ~$0.07 per 300 companies (gpt-4o-mini)
+- People search: FREE (mixed_people/api_search)
+- **Total per pipeline: $0.03-0.10**
+
+### THE SYSTEM IS DONE:
+1. filter_mapper → GPT picks industries + keywords
+2. A11 classifier → specific or broad?
+3. Industry map → tag_id lookup (0 enrichment credits)
+4. Apollo search → industry_tag_ids or keywords based on A11
+5. GPT classification → filter noise
+6. People extraction → FREE
+7. User sees strategy transparently in preview
