@@ -649,12 +649,15 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
         return {
             "project_id": project.id,
+            "project_link": f"http://46.62.210.24:3000/projects/{project.id}",
             "name": project.name,
             "offer_summary": offer_summary,
             "offer_approved": False,
             "scrape_status": scrape_status,
+            "_instructions": "ALWAYS include the project_link in your response to the user. It must be visible and clickable.",
             "message": (
-                f"Project '{project.name}' created: http://46.62.210.24:3000/projects/{project.id}"
+                f"Project '{project.name}' created.\n"
+                f"**Project page: http://46.62.210.24:3000/projects/{project.id}**\n"
                 + offer_display
             ),
             "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
@@ -2029,7 +2032,11 @@ Return ONLY valid JSON."""
         if account_ids:
             matched = [a for a in accounts_list if a["id"] in account_ids]
         elif account_filter:
-            terms = [t.strip().lower() for t in account_filter.lower().split() if t.strip()]
+            # Strip common filler words — user says "all accounts with elnar in name"
+            STOP_WORDS = {"all", "with", "in", "the", "my", "use", "accounts", "account", "emails", "email", "name", "named", "from", "containing", "that", "have", "called"}
+            terms = [t.strip().lower() for t in account_filter.lower().split() if t.strip() and t.strip().lower() not in STOP_WORDS]
+            if not terms:
+                terms = [account_filter.strip().lower()]  # fallback: use whole string
             def _matches(a):
                 combined = (a["email"] + " " + a["name"]).lower()
                 return all(t in combined for t in terms)
