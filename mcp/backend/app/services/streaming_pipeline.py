@@ -545,6 +545,8 @@ class StreamingPipeline:
                             logger.info(f"KPI MET: {self.total_people} people >= {self.target_count}")
                             break
                     self.run.credits_used = (self.run.credits_used or 0) + len(people)
+                    # Persist progress after each company's people (so frontend sees live updates)
+                    await self._persist_progress()
                 except Exception as e:
                     logger.debug(f"People search {dc.domain}: {e}")
 
