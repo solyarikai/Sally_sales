@@ -253,9 +253,29 @@ class MCPApp:
 
         if scope["type"] in ("http", "websocket"):
             if "/sse" in path:
-                # SSE connection — intercept server→client messages for logging
+                # Extract token from URL: /mcp/sse?token=mcp_xxx (like SmartLead)
+                qs = scope.get("query_string", b"").decode()
+                url_token = ""
+                for part in qs.split("&"):
+                    if part.startswith("token="):
+                        url_token = part.split("=", 1)[1]
+                        break
+                if url_token:
+                    from app.mcp.server import _session_tokens, _session_user_tokens
+                    _session_tokens["_latest"] = url_token
+                    logger.info(f"Token from SSE URL: {url_token[:12]}...")
+
+                # SSE connection
                 async with sse_transport.connect_sse(scope, receive, send) as streams:
                     read_stream, write_stream = streams
+                    # Auto-login from URL token (set per-session)
+                    if url_token:
+                        try:
+                            from app.mcp.server import mcp_server as _ms
+                            ctx = _ms.request_context
+                            _session_user_tokens[id(ctx.session)] = url_token
+                        except Exception:
+                            pass
                     await mcp_server.run(
                         read_stream, write_stream, mcp_server.create_initialization_options()
                     )
