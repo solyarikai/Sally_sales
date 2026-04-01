@@ -218,7 +218,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     )
                 )).scalars().all()
                 _configured = {i.integration_name for i in _gate_integrations}
-                _required = {"apollo", "openai", "smartlead"}
+                _required = {"apollo", "openai", "smartlead", "apify"}
                 _missing = _required - _configured
                 if _missing:
                     raise ValueError(
