@@ -160,6 +160,12 @@ export function ReplyQueue({ isDark, campaignNames, initialSearch, replyId, mode
   const [categoryFilter, setCategoryFilterState] = useState(
     (initialSearch || replyId) ? '__all__' : (urlCategory && VALID_CATEGORIES.has(urlCategory) ? urlCategory : 'meeting_request')
   );
+  // When a deep link arrives while the component is already mounted (e.g. user
+  // clicks a Telegram notification while the Replies UI is open), reset the
+  // category to '__all__' so isDeepLinkById becomes true and the reply loads.
+  useEffect(() => {
+    if (replyId) setCategoryFilterState('__all__');
+  }, [replyId]);
   // Sync category to URL when it changes
   const setCategoryFilter = useCallback((key: string) => {
     setCategoryFilterState(key);
