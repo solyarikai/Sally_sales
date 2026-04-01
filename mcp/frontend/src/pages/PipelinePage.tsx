@@ -379,8 +379,6 @@ export default function PipelinePage() {
     return p.get('iteration') || 'all'
   })
   const [iterDropOpen, setIterDropOpen] = useState(false)
-  const [stageDropOpen, setStageDropOpen] = useState(false)
-  const [showPromptHistory, setShowPromptHistory] = useState(false)
   const [showFiltersModal, setShowFiltersModal] = useState(false)
   const [filtersTab, setFiltersTab] = useState<'company'|'people'>('company')
   const [showCampaign, setShowCampaign] = useState(false)
@@ -395,7 +393,6 @@ export default function PipelinePage() {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [run?.started_at, run?.status])
-  const [usageLogs, setUsageLogs] = useState<any[]>([])
   const [selectedCompany, setSelectedCompany] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [companyPage, setCompanyPage] = useState(1)
@@ -438,13 +435,6 @@ export default function PipelinePage() {
   useEffect(() => { load() }, [runId, selectedIteration, companyPage])
   useEffect(() => { const t = setInterval(load, 15000); return () => clearInterval(t) }, [runId, selectedIteration])
 
-  // Load usage logs when panel opens
-  useEffect(() => {
-    if (showPromptHistory && runId) {
-      fetch(`${API}/pipeline/usage-logs?run_id=${runId}`, {headers: authHeaders()}).then(r => r.ok ? r.json() : []).then(setUsageLogs)
-    }
-  }, [showPromptHistory, runId])
-
   // Unique filter options
   const uniqueVals = useCallback((key: string) => {
     const vals = new Set(companies.map((c: any) => c[key]).filter(Boolean))
@@ -475,8 +465,7 @@ export default function PipelinePage() {
     return result
   }, [companies, filters, sortCol, sortDir, selectedIteration])
 
-  const currentStageIdx = run ? STAGES.indexOf(run.current_phase === 'verified' ? 'completed' : run.current_phase) : -1
-  const isGathering = run?.status === 'running' && run?.current_phase === 'gather'
+  const isGathering = run?.status === 'running'
 
   // Column visibility — persisted per run in localStorage
   const colKey = `pipeline_columns_${runId || 'global'}`
@@ -751,159 +740,6 @@ export default function PipelinePage() {
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Old company filters panel — removed, now in Filters modal */}
-      {false && run?.filters && (
-        <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Search Strategy — Run #{run.id}</div>
-
-          {/* Strategy badge */}
-          <div style={{ marginBottom: 10 }}>
-            <span style={{
-              padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-              background: run.filters.filter_strategy === 'industry_first' ? 'rgba(34,197,94,0.12)' : 'rgba(59,130,246,0.12)',
-              color: run.filters.filter_strategy === 'industry_first' ? '#22c55e' : '#3b82f6',
-            }}>
-              {run.filters.filter_strategy === 'industry_first' ? 'INDUSTRY FIRST' : 'KEYWORDS FIRST'}
-            </span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
-              {run.filters.filter_strategy === 'industry_first'
-                ? 'Specific industry match → high target rate. Keywords as fallback.'
-                : 'Industry too broad → using specific keywords. Industry as fallback for scale.'}
-            </span>
-            <span title={run.filters.filter_strategy === 'industry_first'
-              ? "Why industry first?\n\nAn AI classifier analyzed your query against Apollo's industry categories and found a SPECIFIC match. Tested: industry-based search gives 45-90% target rate (most companies ARE your targets). Keywords give only 10-40% for this segment.\n\nApollo's organization_industry_tag_ids filter provides the best pagination (up to 100 companies per page) and highest precision.\n\nWhen industry pages are exhausted (0 new targets in a full batch), the system automatically switches to keyword-based search for broader coverage."
-              : "Why keywords first?\n\nAn AI classifier analyzed your query against Apollo's industry categories and found them TOO BROAD. For example, 'IT consulting' maps to 'information technology & services' which includes SaaS companies, hardware vendors, magazines, and recruiters — mostly NOT your targets.\n\nSpecific keywords (e.g. 'IT consulting', 'managed IT services') give better targeting for niche segments, even though pagination is less consistent.\n\nWhen keyword pages are exhausted, the system falls back to industry filters for maximum TAM coverage."
-            } style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted', marginLeft: 4 }}>(why?)</span>
-          </div>
-
-          {/* Primary filters */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--success)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 12 }}>▶</span> Active filters
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {run.filters.filter_strategy === 'industry_first' && run.filters.industries?.map((ind: string) => (
-                <span key={ind} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', fontSize: 11, color: '#22c55e' }}>
-                  {ind}
-                </span>
-              ))}
-              {run.filters.filter_strategy !== 'industry_first' && run.filters.q_organization_keyword_tags?.map((kw: string) => (
-                <span key={kw} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', fontSize: 11, color: '#3b82f6' }}>
-                  {kw}
-                </span>
-              ))}
-              {run.filters.organization_locations?.map((loc: string) => (
-                <span key={loc} style={{ padding: '2px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>geo:</span> {loc}
-                </span>
-              ))}
-              {run.filters.organization_num_employees_ranges?.map((r: string) => (
-                <span key={r} style={{ padding: '2px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>size:</span> {r}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Backlog filters */}
-          <div style={{ opacity: 0.6 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 12 }}>⏸</span> Backlog (after active exhausted)
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 140, overflowY: 'auto' }}>
-              {run.filters.filter_strategy === 'industry_first' && run.filters.q_organization_keyword_tags?.map((kw: string) => (
-                <span key={kw} style={{ padding: '2px 8px', borderRadius: 4, border: '1px dashed var(--border)', fontSize: 11, color: 'var(--text-muted)' }}>
-                  {kw}
-                </span>
-              ))}
-              {run.filters.filter_strategy !== 'industry_first' && run.filters.industries?.map((ind: string) => (
-                <span key={ind} style={{ padding: '2px 8px', borderRadius: 4, border: '1px dashed var(--border)', fontSize: 11, color: 'var(--text-muted)' }}>
-                  {ind}
-                </span>
-              ))}
-              {!run.filters.industries?.length && run.filters.filter_strategy !== 'industry_first' && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>no industry fallback available</span>
-              )}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
-              Switches when active filters yield 0 new targets for a full batch
-              <span title="Apollo filters within different types (industry + keywords) are applied as AND — combining them NARROWS results instead of broadening. That's why we use one approach at a time. When the active approach returns a full batch (10 pages) with zero new target companies, the pipeline automatically switches to the backlog filters to find more targets from a different angle." style={{ cursor: 'help', textDecoration: 'underline dotted', marginLeft: 4 }}>(why?)</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Old people filters panel — removed, now in Filters modal */}
-      {false && (
-        <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>People Search Strategy</div>
-
-          {/* Apollo seniority filters */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--info)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-              Apollo seniority filter
-              <span title={"Why seniority filter instead of specific job titles?\n\nTested on real data: searching by specific titles (e.g. 'CMO', 'Head of E-commerce') returns 0-1 people per company — Apollo's title database doesn't match GPT-predicted titles. Searching by seniority levels returns 4-25 people per company, including the same decision makers.\n\nAlso tested: combining seniority + titles in one search. Apollo treats them as AND (intersection), which REDUCES results to 0-3. That's why we search by seniority ONLY, then prioritize by role match client-side.\n\nThis search is FREE (no Apollo credits). Only the final top contacts get email enrichment (1 credit each)."} style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted' }}>(?)</span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {['owner', 'founder', 'c_suite', 'vp', 'head', 'director'].map(s => (
-                <span key={s} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', fontSize: 11, color: '#3b82f6' }}>
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Target roles from offer */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: '#f59e0b', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-              Target roles (from offer analysis)
-              <span title="These roles were identified during website analysis and aligned with you. People matching these roles are PRIORITIZED in the search results. Apollo returns all C-level/VP/director people, then we rank them by how well their title matches these target roles. The best matches get their emails enriched first." style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted' }}>(?)</span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {(run?.people_filters?.person_titles || run?.offer_summary?.target_roles?.titles || ['CEO', 'CMO', 'VP Sales', 'Head of Digital']).map((t: string) => (
-                <span key={t} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', fontSize: 11, color: '#f59e0b' }}>
-                  ★ {t}
-                </span>
-              ))}
-            </div>
-            {run?.offer_summary?.target_roles?.reasoning && (
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
-                {run.offer_summary.target_roles.reasoning}
-              </div>
-            )}
-          </div>
-
-          {/* Max per company + enrichment rule */}
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 11 }}>
-              <span style={{ color: 'var(--text-muted)' }}>Max per company:</span>{' '}
-              <strong>{run?.kpi?.max_people_per_company || 3}</strong>
-              <span title="Only the top N contacts per company (ranked by seniority + role match) will have their emails enriched. Email enrichment costs 1 Apollo credit per person. Increasing this number increases credit spend." style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted', marginLeft: 4 }}>(?)</span>
-            </span>
-            <span style={{ fontSize: 11 }}>
-              <span style={{ color: 'var(--text-muted)' }}>Email enrichment:</span>{' '}
-              <span style={{ color: '#22c55e' }}>verified only</span>
-              <span title="Only contacts with Apollo email_status='verified' are included. Apollo verifies email deliverability before returning it. This ensures high-quality outreach-ready emails." style={{ cursor: 'help', fontSize: 10, color: 'var(--text-muted)', textDecoration: 'underline dotted', marginLeft: 4 }}>(?)</span>
-            </span>
-          </div>
-
-          {/* How it works explanation */}
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
-            <strong>How it works:</strong> Apollo searches for people with senior roles at each target company (FREE).
-            Results are ranked by: 1) seniority level (CEO → VP → Director) and 2) match to target roles above.
-            Only the top {run?.kpi?.max_people_per_company || 3} per company get email enrichment (1 credit each, verified emails only).
-          </div>
-
-          {totalContacts > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <Link to={`/crm?pipeline=${runId}`} style={{ fontSize: 12, color: 'var(--text-link)', textDecoration: 'none', fontWeight: 500 }}>
-                View {totalContacts} people in CRM →
-              </Link>
-            </div>
-          )}
         </div>
       )}
 
