@@ -678,10 +678,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 "target_roles": roles.get("titles", []),
                 "message": (
                     f"Offer confirmed for '{project.name}'.\n"
-                    f"Target roles: {', '.join(roles.get('titles', ['CEO']))}\n\n"
-                    f"Ready to search for companies. Tell me your target segment "
-                    f"(e.g. 'fashion brands in Italy up to 200 employees')."
+                    f"Target roles: {', '.join(roles.get('titles', ['CEO']))}\n"
+                    f"Project: http://46.62.210.24:3000/projects/{project.id}\n\n"
+                    f"Next: describe your target segment — who should we reach? "
+                    f"Include location and company size if relevant."
                 ),
+                "_instructions": "Ask user to describe their target segment. Do NOT call define_targets — use tam_gather for everything.",
                 "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
             }
         elif feedback:
