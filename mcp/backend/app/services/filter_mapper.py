@@ -125,13 +125,36 @@ async def map_query_to_filters(
         if industries_clean:
             keyword_tags.insert(0, industries_clean[0])
 
+    # ── Step E: Look up industry_tag_ids from apollo_industry_map (best pagination) ──
+    industry_tag_ids = []
+    try:
+        from sqlalchemy import text as sa_text
+        async with async_session_maker() as map_session:
+            for ind_name in industries_clean:
+                row = await map_session.execute(
+                    sa_text("SELECT tag_id FROM apollo_industry_map WHERE LOWER(industry_name) = LOWER(:name)"),
+                    {"name": ind_name},
+                )
+                tag = row.scalar_one_or_none()
+                if tag:
+                    industry_tag_ids.append(tag)
+                    logger.info(f"Industry map hit: '{ind_name}' → {tag}")
+                else:
+                    logger.info(f"Industry map miss: '{ind_name}' — will use keyword_tags fallback")
+    except Exception as e:
+        logger.warning(f"Industry map lookup failed: {e}")
+
+    # Build result with BOTH industry_tag_ids (primary) and keyword_tags (fallback)
     result = {
-        "q_organization_keyword_tags": keyword_tags,
+        "q_organization_keyword_tags": keyword_tags,  # Fallback: used when industry_tag_ids exhausted
+        "organization_industry_tag_ids": industry_tag_ids if industry_tag_ids else None,  # Primary: 90% target rate
         "industries": industries_clean,
         "organization_locations": locations,
         "organization_num_employees_ranges": ranges_clean,
+        "filter_strategy": "industry_first" if industry_tag_ids else "keywords_only",
         "mapping_details": {
             "industries_selected": industries_clean,
+            "industry_tag_ids": industry_tag_ids,
             "keywords_selected": keywords_clean,
             "unverified_keywords": keywords_unverified,
             "employee_ranges": ranges_clean,
@@ -139,11 +162,13 @@ async def map_query_to_filters(
             "keyword_map_size": keyword_map_size,
             "shortlist_size": len(keyword_shortlist),
             "model_used": gpt_result.get("model_used", model),
+            "strategy": f"{'industry_first → keywords_fallback' if industry_tag_ids else 'keywords_only (no industry match)'}",
         },
     }
 
-    logger.info(f"Filters assembled: {len(keyword_tags)} keyword_tags, "
-                f"{len(locations)} locations, {len(ranges_clean)} size ranges")
+    logger.info(f"Filters assembled: {len(industry_tag_ids)} industry_tag_ids, "
+                f"{len(keyword_tags)} keyword_tags, {len(locations)} locations, "
+                f"strategy={result['filter_strategy']}")
     return result
 
 
