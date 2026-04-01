@@ -291,10 +291,19 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
     }}>
       {/* Top row: timing + status + pause/resume */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10, fontSize: 12 }}>
+        {run.status === 'completed' && (
+          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>COMPLETED</span>
+        )}
+        {run.status === 'insufficient' && (
+          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>INSUFFICIENT</span>
+        )}
+        {run.status === 'pending_approval' && (
+          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>PENDING APPROVAL</span>
+        )}
         {isPaused && (
           <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>PAUSED</span>
         )}
-        {!isPaused && (
+        {run.status === 'running' && !isPaused && (
           <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>RUNNING</span>
         )}
         <span style={{ color: 'var(--text-muted)' }}>
@@ -637,7 +646,7 @@ export default function PipelinePage() {
       </div>
 
       {/* ── KPI Progress Banner — shown when run is running or paused ── */}
-      {run && (run.status === 'running' || run.status === 'paused' || run.status === 'pending_approval') && run.kpi && (
+      {run && (run.status === 'running' || run.status === 'paused' || run.status === 'pending_approval' || run.status === 'completed' || run.status === 'insufficient') && run.kpi && (
         <KPIProgressBanner run={run} onPause={async () => {
           await fetch(`${API}/pipeline/runs/${runId}/pause`, { method: 'POST', headers: authHeaders() })
           load()

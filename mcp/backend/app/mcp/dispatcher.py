@@ -1157,6 +1157,17 @@ Return ONLY valid JSON."""
             apollo_service=apollo_svc,
         )
 
+        # Link existing campaign from align_email_accounts (created before tam_gather)
+        _existing_camp = (await session.execute(
+            select(Campaign).where(
+                Campaign.project_id == project.id,
+                Campaign.status == "mcp_draft",
+            ).order_by(Campaign.id.desc()).limit(1)
+        )).scalar_one_or_none()
+        if _existing_camp:
+            run.campaign_id = _existing_camp.id
+            await session.flush()
+
         # Save probe companies (page 1 was already fetched during preview — don't waste it)
         if probe_companies:
             from app.models.gathering import CompanySourceLink as _CSL

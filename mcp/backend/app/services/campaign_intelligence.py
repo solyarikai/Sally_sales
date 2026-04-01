@@ -294,7 +294,7 @@ A/B TESTING:
                         if resp.status_code == 200:
                             data = resp.json()
                             content = data["choices"][0]["message"]["content"]
-                            result = self._parse_sequence_json(content)
+                            result = self._parse_json_steps(content)
                             if result:
                                 result = self._ensure_ab_variants(result)
                                 logger.info(f"Sequence generated with {model}")
