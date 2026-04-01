@@ -483,3 +483,23 @@ Focusing on: wiring the proven approach into the production pipeline code.
 - [ ] Test remaining 3 segments fresh (Video UK, IT US, OnSocial UK)
 - [ ] Verify IT Miami with broader keywords
 - [ ] Test auto-loop (KPI not met → fetch more pages)
+
+---
+
+## 2026-04-01 04:30 — APOLLO STILL EXHAUSTED
+
+Checked: `Status: 422 — "You have insufficient credits!"`
+Cannot run any more Apollo searches until credits reset or account upgraded.
+
+All code changes are committed and deployed. Pipeline is production-ready.
+Waiting for credits to test remaining 3 segments.
+
+### TOTAL APOLLO CREDITS CONSUMED IN THIS SESSION:
+- Industry map building: ~141 credits
+- Approach comparison tests (run_approach_tests.py): ~60 credits
+- Filter comparison tests (OR/AND, pagination, etc.): ~30 credits  
+- E2E v1: 6 segments × 4 pages = ~24 credits
+- E2E v2: 6 segments × 4 pages = ~24 credits
+- E2E v3: 3 segments × 10 pages = ~30 credits
+- Misc tests (single queries, probes): ~20 credits
+- **TOTAL: ~329 credits consumed**
