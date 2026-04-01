@@ -5,8 +5,7 @@ import { authHeaders } from '../App'
 const API = '/api'
 const PAGE_SIZE = 50
 
-const STAGES = ['gather','blacklist','awaiting_scope_ok','scrape','analyze','awaiting_targets_ok','completed']
-const STAGE_LABELS: Record<string,string> = { gather:'Collect',blacklist:'Check',awaiting_scope_ok:'Approve',scrape:'Scrape',analyze:'Analyze',awaiting_targets_ok:'Review',pre_filter:'Filter',prepare_verification:'Verify',awaiting_verify_ok:'Approve',completed:'Done',verified:'Done' }
+// Stepper removed — pipeline is fully parallel per company now
 
 const STATUS_COLORS: Record<string,string> = {
   gathered: 'var(--text-muted)', blacklisted: 'var(--danger)', filtered: 'var(--text-muted)',
@@ -382,9 +381,20 @@ export default function PipelinePage() {
   const [iterDropOpen, setIterDropOpen] = useState(false)
   const [stageDropOpen, setStageDropOpen] = useState(false)
   const [showPromptHistory, setShowPromptHistory] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
-  const [showPeopleFilters, setShowPeopleFilters] = useState(false)
+  const [showFiltersModal, setShowFiltersModal] = useState(false)
+  const [filtersTab, setFiltersTab] = useState<'company'|'people'>('company')
   const [showCampaign, setShowCampaign] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+
+  // Live timer — ticks every second while pipeline is running
+  useEffect(() => {
+    if (!run?.started_at || !['running', 'paused'].includes(run?.status)) return
+    const started = new Date(run.started_at).getTime()
+    const tick = () => setElapsed(Math.floor((Date.now() - started) / 1000))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [run?.started_at, run?.status])
   const [usageLogs, setUsageLogs] = useState<any[]>([])
   const [selectedCompany, setSelectedCompany] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -501,7 +511,7 @@ export default function PipelinePage() {
     })
   }
 
-  // Essential columns (always available, shown by default)
+  // Essential columns (always visible)
   const essentialColumns = [
     { key: 'domain', label: 'Domain', filterType: 'text' as const, essential: true },
     { key: 'name', label: 'Name', filterType: 'text' as const, essential: true },
@@ -509,17 +519,14 @@ export default function PipelinePage() {
     { key: 'analysis_segment', label: 'Segment', filterType: 'dropdown' as const, essential: true },
   ]
 
-  // Optional built-in columns (hideable)
+  // Optional built-in columns (hideable via CRM-style dropdown)
   const optionalColumns = [
-    { key: 'industry', label: 'Industry', filterType: 'dropdown' as const },
-    { key: 'keywords', label: 'Keywords', filterType: 'text' as const },
     { key: 'employee_count', label: 'Size', filterType: 'text' as const },
     { key: 'country', label: 'Country', filterType: 'dropdown' as const },
     { key: 'city', label: 'City', filterType: 'text' as const },
-    { key: 'scrape_text_preview', label: 'Scraped', filterType: 'text' as const },
-    // confidence excluded per requirements — via negativa approach, no scores
     { key: 'analysis_reasoning', label: 'Analysis', filterType: 'text' as const },
     { key: 'contacts_count', label: 'People', filterType: 'text' as const },
+    { key: 'scrape_text_preview', label: 'Scraped', filterType: 'text' as const },
   ]
 
   // Custom columns from current iteration's processing steps
@@ -552,95 +559,91 @@ export default function PipelinePage() {
 
   return (
     <div style={{ padding: '16px 20px', maxWidth: 1400, margin: '0 auto' }}>
-      {/* ── Top bar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+      {/* ── Stats line (replaces stepper) ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10, fontSize: 12, color: 'var(--text-muted)' }}>
         {/* Iteration selector */}
         <div style={{ position: 'relative' }}>
-          <button onClick={() => setIterDropOpen(!iterDropOpen)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 6, fontSize: 13, fontWeight: 500, background: 'var(--active-bg)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>
-            {selectedIteration === 'all' ? 'All iterations' : `Iteration #${selectedIteration}`} <span style={{ fontSize: 10, opacity: 0.5 }}>▼</span>
+          <button onClick={() => setIterDropOpen(!iterDropOpen)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'var(--active-bg)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>
+            {selectedIteration === 'all' ? 'All iterations' : `#${selectedIteration}`} <span style={{ fontSize: 9, opacity: 0.5 }}>▼</span>
           </button>
           {iterDropOpen && (
             <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 4, minWidth: 300, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
-              <div onClick={() => { setSelectedIteration('all'); setIterDropOpen(false); const u = new URL(window.location.href); u.searchParams.delete('iteration'); window.history.replaceState({}, '', u.toString()) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === 'all' ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === 'all' ? 'var(--active-bg)' : 'transparent' }}>All iterations</div>
+              <div onClick={() => { setSelectedIteration('all'); setIterDropOpen(false) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === 'all' ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === 'all' ? 'var(--active-bg)' : 'transparent' }}>All iterations</div>
               {iterations.map((it: any) => (
-                <div key={it.id} onClick={() => { setSelectedIteration(String(it.id)); setIterDropOpen(false); const u = new URL(window.location.href); u.searchParams.set('iteration', String(it.id)); window.history.replaceState({}, '', u.toString()) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === String(it.id) ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === String(it.id) ? 'var(--active-bg)' : 'transparent' }}>
-                  #{it.id} — {it.new_companies || 0} companies{it.target_count ? ` (${it.target_count} targets)` : ''} — {it.created_at ? new Date(it.created_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : ''}
+                <div key={it.id} onClick={() => { setSelectedIteration(String(it.id)); setIterDropOpen(false) }} style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: selectedIteration === String(it.id) ? 'var(--text)' : 'var(--text-muted)', background: selectedIteration === String(it.id) ? 'var(--active-bg)' : 'transparent' }}>
+                  #{it.id} — {it.new_companies || 0} companies{it.target_count ? ` (${it.target_count} targets)` : ''}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Visual stepper — no clicking, just shows progress */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-          {STAGES.filter(s => !s.startsWith('awaiting')).map((s, i, arr) => {
-            const stageIdx = STAGES.indexOf(s)
-            const done = stageIdx < currentStageIdx
-            const current = stageIdx === currentStageIdx || (s === 'analyze' && run?.current_phase?.startsWith('awaiting_targets'))
-            const checkpoint = run?.current_phase?.startsWith('awaiting') && current
-            const color = done ? '#22c55e' : current ? (checkpoint ? '#f59e0b' : '#3b82f6') : 'var(--border)'
-            const label = STAGE_LABELS[s] || s
-            const shortLabel = label.replace('Pre-', '').replace('Prepare ', '').substring(0, 8)
-            return (
-              <div key={s} style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {done && <span style={{ fontSize: 7, color: 'white' }}>✓</span>}
-                  </div>
-                  <span style={{ fontSize: 9, color: current ? 'var(--text)' : 'var(--text-muted)', fontWeight: current ? 600 : 400 }}>{shortLabel}</span>
-                </div>
-                {i < arr.length - 1 && <div style={{ width: 12, height: 1, background: done ? '#22c55e' : 'var(--border)', marginBottom: 12 }} />}
+        {/* Live stats */}
+        {run && (
+          <>
+            <span>{filtered.length} companies</span>
+            {run.targets_found > 0 && <span style={{ color: '#22c55e', fontWeight: 600 }}>{run.targets_found} targets</span>}
+            {totalContacts > 0 && <span>{totalContacts} people</span>}
+            {run.credits_used > 0 && <span style={{ color: '#f59e0b' }}>{run.credits_used} credits</span>}
+            {/* Live timer */}
+            {elapsed > 0 && (
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+                {run.status === 'running' && <span style={{ marginLeft: 4, color: '#3b82f6' }}>●</span>}
+              </span>
+            )}
+            {run.status === 'completed' && run.duration_seconds && (
+              <span>{Math.floor(run.duration_seconds / 60)}:{String(run.duration_seconds % 60).padStart(2, '0')}</span>
+            )}
+          </>
+        )}
+
+        {/* Right side — icon buttons */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* View in CRM */}
+          {totalContacts > 0 && runId && (
+            <Link to={`/crm?pipeline=${runId}`} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: '#22c55e', color: 'white', textDecoration: 'none', fontWeight: 500 }}>
+              {totalContacts} people →
+            </Link>
+          )}
+          {/* Campaign */}
+          {run?.campaign?.id && (
+            <button onClick={() => setShowCampaign(!showCampaign)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: showCampaign ? 'rgba(99,102,241,0.15)' : 'transparent', color: '#6366f1', fontWeight: 500, border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer' }}>
+              Campaign
+            </button>
+          )}
+          {/* Prompts */}
+          {runId && <Link to={`/pipeline/${runId}/prompts`} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, color: 'var(--text-muted)', textDecoration: 'none', border: '1px solid var(--border)' }} title="Prompts">📝</Link>}
+          {/* Filters modal */}
+          <button onClick={() => setShowFiltersModal(true)} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} title="Filters">⚙</button>
+          {/* Columns dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowColumnConfig(!showColumnConfig)} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, border: '1px solid var(--border)', background: showColumnConfig ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} title="Columns">⊞</button>
+            {showColumnConfig && (
+              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 8, minWidth: 180, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
+                {[...optionalColumns, ...customColumns].map(c => (
+                  <label key={c.key} onClick={() => toggleColumn(c.key)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--active-bg)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    <span style={{ width: 16, height: 16, borderRadius: 4, border: '2px solid ' + (columnConfig[c.key] !== false ? '#3b82f6' : 'var(--border)'), background: columnConfig[c.key] !== false ? '#3b82f6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 10, flexShrink: 0 }}>
+                      {columnConfig[c.key] !== false && '✓'}
+                    </span>
+                    <span style={{ color: columnConfig[c.key] !== false ? 'var(--text)' : 'var(--text-muted)' }}>{c.label}</span>
+                  </label>
+                ))}
               </div>
-            )
-          })}
-        </div>
-
-        {/* Prompts link */}
-        {runId && <Link to={`/pipeline/${runId}/prompts`} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)', textDecoration: 'none' }}>Prompts</Link>}
-
-        {/* Credits badge */}
-        {run?.credits_used > 0 && (
-          <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
-            {run.credits_used} Apollo credits
-          </span>
-        )}
-
-        {/* Target rate badge with absolute numbers */}
-        {run?.target_rate > 0 && (
-          <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
-            {run.targets_found || Math.round(run.target_rate * (run.new_companies || 0))}/{run.new_companies || '?'} targets ({(run.target_rate * 100).toFixed(0)}%)
-          </span>
-        )}
-
-        {/* View in CRM — appears when contacts found */}
-        {totalContacts > 0 && runId && (
-          <Link to={`/crm?pipeline=${runId}`} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: 'var(--success)', color: 'white', textDecoration: 'none', fontWeight: 500 }}>
-            View {totalContacts} people in CRM
-          </Link>
-        )}
-
-        {/* Campaign toggle — shows expandable block below */}
-        {run?.campaign?.id && (
-          <button onClick={() => setShowCampaign(!showCampaign)} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: showCampaign ? 'rgba(99,102,241,0.15)' : 'transparent', color: '#6366f1', fontWeight: 500, border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer' }}>
-            Campaign {run.campaign.status === 'mcp_draft' ? '(draft)' : ''}
-          </button>
-        )}
-
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowColumnConfig(!showColumnConfig)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showColumnConfig ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Columns</button>
-          <button onClick={() => setShowFilters(!showFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Company Filters</button>
-          <button onClick={() => setShowPeopleFilters(!showPeopleFilters)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPeopleFilters ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>People Filters</button>
-          <button onClick={() => setShowPromptHistory(!showPromptHistory)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: showPromptHistory ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>User-MCP Conversation</button>
+            )}
+          </div>
+          {/* Export */}
           {filtered.length > 0 && (
             <button onClick={() => {
-              const headers = ['Domain','Name','Industry','Employees','Country','City','Segment','Status','Reasoning'];
+              const hdrs = ['Domain','Name','Employees','Country','City','Segment','Status','Reasoning'];
               const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-              const rows = filtered.map((c: any) => [c.domain, c.name, c.industry, c.employee_count, c.country, c.city, c.analysis_segment, c.status, c.analysis_reasoning].map(esc).join(','));
-              const csv = [headers.join(','), ...rows].join('\n');
+              const rows = filtered.map((c: any) => [c.domain, c.name, c.employee_count, c.country, c.city, c.analysis_segment, c.status, c.analysis_reasoning].map(esc).join(','));
+              const csv = [hdrs.join(','), ...rows].join('\n');
               const blob = new Blob([csv], {type: 'text/csv'});
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a'); a.href = url; a.download = `pipeline_${runId}_companies.csv`; a.click(); URL.revokeObjectURL(url);
-            }} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>Export CSV</button>
+            }} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} title="Export CSV">↓</button>
           )}
         </div>
       </div>
@@ -656,48 +659,103 @@ export default function PipelinePage() {
         }} />
       )}
 
-      {/* ── Collapsible panels ── */}
-
-      {/* Column Configuration */}
-      {showColumnConfig && (
-        <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Column Visibility</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {essentialColumns.map(c => (
-              <span key={c.key} style={{ padding: '3px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.12)', color: '#22c55e', fontSize: 11 }}>
-                {c.label} (always)
-              </span>
-            ))}
-            {optionalColumns.map(c => (
-              <button key={c.key} onClick={() => toggleColumn(c.key)} style={{
-                padding: '3px 8px', borderRadius: 4, fontSize: 11, border: '1px solid var(--border)',
-                background: columnConfig[c.key] !== false ? 'rgba(59,130,246,0.12)' : 'transparent',
-                color: columnConfig[c.key] !== false ? '#3b82f6' : 'var(--text-muted)',
-                cursor: 'pointer', opacity: columnConfig[c.key] !== false ? 1 : 0.5,
-              }}>
-                {columnConfig[c.key] !== false ? '✓ ' : ''}{c.label}
-              </button>
-            ))}
-            {customColumns.length > 0 && (
-              <>
-                <span style={{ padding: '3px 0', color: 'var(--text-muted)', fontSize: 10, fontWeight: 600 }}>|</span>
-                {customColumns.map(c => (
-                  <button key={c.key} onClick={() => toggleColumn(c.key)} style={{
-                    padding: '3px 8px', borderRadius: 4, fontSize: 11, border: '1px solid rgba(168,85,247,0.3)',
-                    background: columnConfig[c.key] !== false ? 'rgba(168,85,247,0.12)' : 'transparent',
-                    color: columnConfig[c.key] !== false ? '#a855f7' : 'var(--text-muted)',
-                    cursor: 'pointer', opacity: columnConfig[c.key] !== false ? 1 : 0.5,
-                  }}>
-                    {columnConfig[c.key] !== false ? '✓ ' : ''}{c.label}
-                  </button>
-                ))}
-              </>
-            )}
+      {/* ── Filters Modal ── */}
+      {showFiltersModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setShowFiltersModal(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', width: '90%', maxWidth: 600, maxHeight: '80vh', overflow: 'auto', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: 0 }}>
+            {/* Modal header with tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+              <button onClick={() => setFiltersTab('company')} style={{ flex: 1, padding: '12px', fontSize: 13, fontWeight: 500, border: 'none', cursor: 'pointer', background: filtersTab === 'company' ? 'var(--bg-card)' : 'transparent', color: filtersTab === 'company' ? 'var(--text)' : 'var(--text-muted)', borderBottom: filtersTab === 'company' ? '2px solid #3b82f6' : '2px solid transparent' }}>Company Filters</button>
+              <button onClick={() => setFiltersTab('people')} style={{ flex: 1, padding: '12px', fontSize: 13, fontWeight: 500, border: 'none', cursor: 'pointer', background: filtersTab === 'people' ? 'var(--bg-card)' : 'transparent', color: filtersTab === 'people' ? 'var(--text)' : 'var(--text-muted)', borderBottom: filtersTab === 'people' ? '2px solid #3b82f6' : '2px solid transparent' }}>People Filters</button>
+              <button onClick={() => setShowFiltersModal(false)} style={{ padding: '12px 16px', background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+            </div>
+            <div style={{ padding: 20, fontSize: 12 }}>
+              {filtersTab === 'company' && run?.filters && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>STRATEGY</div>
+                    <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: run.filters.filter_strategy === 'industry_first' ? 'rgba(34,197,94,0.12)' : 'rgba(59,130,246,0.12)', color: run.filters.filter_strategy === 'industry_first' ? '#22c55e' : '#3b82f6' }}>
+                      {run.filters.filter_strategy === 'industry_first' ? 'Industry First' : 'Keywords First'}
+                    </span>
+                  </div>
+                  {run.filters.q_organization_keyword_tags?.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>KEYWORDS ({run.filters.q_organization_keyword_tags.length})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {run.filters.q_organization_keyword_tags.map((kw: string) => (
+                          <span key={kw} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', fontSize: 11, color: '#3b82f6' }}>{kw}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {run.filters.industries?.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>INDUSTRIES</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {run.filters.industries.map((ind: string) => (
+                          <span key={ind} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', fontSize: 11, color: '#22c55e' }}>{ind}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 16 }}>
+                    {run.filters.organization_locations?.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>LOCATION</div>
+                        {run.filters.organization_locations.join(', ')}
+                      </div>
+                    )}
+                    {run.filters.organization_num_employees_ranges?.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>SIZE</div>
+                        {run.filters.organization_num_employees_ranges.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {filtersTab === 'people' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {run?.people_filters ? (
+                    <>
+                      {run.people_filters.person_titles?.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>TARGET ROLES</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {run.people_filters.person_titles.map((t: string) => (
+                              <span key={t} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(168,85,247,0.1)', fontSize: 11, color: '#a855f7' }}>{t}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {run.people_filters.person_seniorities?.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>SENIORITY</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {run.people_filters.person_seniorities.map((s: string) => (
+                              <span key={s} style={{ padding: '2px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>{s}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>MAX PER COMPANY</div>
+                        {run.people_filters.max_people_per_company || run.max_people_per_company || 3}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ color: 'var(--text-muted)', padding: 20, textAlign: 'center' }}>People filters not set. Will use defaults from offer analysis.</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {showFilters && run?.filters && (
+      {/* Old company filters panel — removed, now in Filters modal */}
+      {false && run?.filters && (
         <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Search Strategy — Run #{run.id}</div>
 
@@ -778,7 +836,8 @@ export default function PipelinePage() {
         </div>
       )}
 
-      {showPeopleFilters && (
+      {/* Old people filters panel — removed, now in Filters modal */}
+      {false && (
         <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>People Search Strategy</div>
 
@@ -868,26 +927,11 @@ export default function PipelinePage() {
         </div>
       )}
 
-      {showPromptHistory && (
-        <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12, maxHeight: 200, overflow: 'auto' }}>
-          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>User-MCP Conversation</div>
-          {usageLogs.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No logs yet.</div> : (
-            usageLogs.map((log: any) => (
-              <div key={log.id} style={{ padding: '3px 0', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-                <span style={{ color: 'var(--text-muted)', minWidth: 60, fontSize: 11 }}>{log.created_at ? new Date(log.created_at).toLocaleTimeString() : ''}</span>
-                <span style={{ color: 'var(--info)', minWidth: 140 }}>{log.tool_name}</span>
-                <span style={{ color: 'var(--text-secondary)' }}>{log.action}</span>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      {/* User-MCP Conversation removed — logs are in Logs page */}
 
       {/* ── Table ── */}
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{filtered.length} companies{selectedIteration !== 'all' ? ` (iteration #${selectedIteration})` : ''}</div>
-
       <div style={{ overflowX: 'auto', overflowY: 'visible', paddingBottom: 8 }} className="pipeline-table-scroll">
-        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 1400, tableLayout: Object.keys(columnWidths).length > 0 ? 'fixed' : 'auto' }}>
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 900, tableLayout: 'fixed' }}>
           <thead>
             <tr style={{ textAlign: 'left' }}>
               {columns.map(col => (
