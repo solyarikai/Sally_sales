@@ -16,7 +16,7 @@ class ApolloOrgApiAdapter(BaseGatheringAdapter):
         return True, ""
 
     def estimate_cost(self, filters: Dict[str, Any]) -> Dict[str, Any]:
-        max_pages = filters.get("max_pages", 4)
+        max_pages = filters.get("max_pages", 10)
         per_page = filters.get("per_page", 25)
         return {"credits": max_pages, "cost_usd": 0, "max_results": max_pages * per_page}
 
@@ -29,7 +29,7 @@ class ApolloOrgApiAdapter(BaseGatheringAdapter):
         num_employees = filters.get("organization_num_employees_ranges")
         funding_stages = filters.get("organization_latest_funding_stage_cd")
         industry_tag_ids = filters.get("organization_industry_tag_ids")  # From enrichment — BEST pagination
-        max_pages = filters.get("max_pages", 4)
+        max_pages = filters.get("max_pages", 10)
         per_page = filters.get("per_page", 100)
 
         orgs = await self._apollo.search_organizations_all_pages(

@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 # Defaults (used when run.target_count / run.contacts_per_company are NULL)
 DEFAULT_TARGET_COUNT = 100
 DEFAULT_CONTACTS_PER_COMPANY = 3
-PAGES_PER_BATCH = 5          # 5 pages × ~60 unique = ~300 companies per batch
+PAGES_PER_BATCH = 10         # 10 pages per iteration (proven: 235-850 companies)
 PER_PAGE = 100               # Apollo only works with 100 (25 returns 0)
 EFFECTIVE_PER_PAGE = 60      # Apollo returns ~60 unique per page in practice
 
