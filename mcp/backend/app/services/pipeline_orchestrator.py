@@ -125,60 +125,12 @@ class PipelineOrchestrator:
             self.run.started_at = datetime.now(timezone.utc)
             await self.session.flush()
 
-        # === ITERATION 1: Exploration (1 page) ===
-        logger.info("Pipeline orchestrator: Iteration 1 — exploration (1 page)")
-        iter1 = await self._gather_batch(filters, pages=1, iteration_label="Exploration (1 page)")
-        result["iterations"].append(iter1)
-        result["credits_used"] += iter1.get("credits", 0)
-        await self._persist_progress(1)
+        # === SIMPLIFIED PIPELINE: No exploration phase ===
+        # Filters come from: industry map (A11 classifier) + filter_mapper keywords
+        # Quality improvement comes from: user feedback → tam_re_analyze (not auto-exploration)
+        # All iterations are equal: 10 pages each, scrape → classify → extract people
 
-        if self._stop or await self._check_pause_and_reload_kpis():
-            return self._finalize(result)
-
-        # Start people extraction for any targets found
-        people_per_company = self._read_kpis()[1]
-        asyncio.create_task(self._extract_people_for_new_targets(people_per_company))
-
-        # === EXPLORATION: Enrich top 5 → optimize filters (1 MAX — per default_requirements.md) ===
-        # Exploration runs ONCE after iteration 1, never again. Scale phase uses optimized filters.
-        # SKIP if: resuming past exploration, OR filters came from define_targets (examples already enriched)
-        exploration_done = self.pages_fetched > 1  # Skip if resuming past exploration
-        skip_from_examples = filters.get("skip_exploration", False)  # Skip if enriched from examples
-        if skip_from_examples:
-            logger.info("Pipeline orchestrator: SKIP exploration (filters from enriched examples)")
-        if self.total_targets >= 1 and not exploration_done and not skip_from_examples:
-            logger.info(f"Pipeline orchestrator: Exploring (enriching top {min(5, self.total_targets)} targets)")
-            try:
-                from app.services.exploration_service import run_exploration
-                # Get project's segment description for exploration context
-                _project = await self.session.get(Project, self.run.project_id)
-                _segment = _project.target_segments if _project else ""
-                _keywords = filters.get("q_organization_keyword_tags", [])
-                exploration = await run_exploration(
-                    query=_segment or (_keywords[0] if _keywords else ""),
-                    initial_filters=filters,
-                    offer_text=_segment or "",
-                    apollo_key=self.apollo.api_key if self.apollo else "",
-                    openai_key=self.openai_key,
-                    apify_proxy_password=self.apify_proxy,
-                )
-                optimized = exploration.get("optimized_filters")
-                if optimized and optimized.get("q_organization_keyword_tags"):
-                    filters = optimized
-                    logger.info(f"Filters optimized: {len(optimized.get('q_organization_keyword_tags', []))} keywords")
-                exploration_credits = exploration.get("credits_used", 0)
-                result["credits_used"] += exploration_credits
-                # Persist exploration credits to run.credits_used (P1 fix)
-                self.run.credits_used = (self.run.credits_used or 0) + exploration_credits
-                await self.session.flush()
-            except Exception as e:
-                logger.warning(f"Exploration failed, continuing with original filters: {e}")
-
-        # Flush costs from iteration 1 + exploration
-        await self._flush_costs(1)
-
-        # === ITERATIONS 2+: Scale with exhaustion-based strategy switching ===
-        batch_num = 2
+        batch_num = 1
         consecutive_zero_target_batches = 0
         strategy_switched = False
         current_strategy = filters.get("filter_strategy", "keywords_only")
