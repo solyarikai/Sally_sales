@@ -511,8 +511,13 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
                 from app.config import settings as _cfg
                 openai_key = _cfg.OPENAI_API_KEY
 
-            import os
-            apify_proxy = os.environ.get("APIFY_PROXY_PASSWORD")
+            # Apify proxy: user's DB integration → env fallback
+            apify_proxy = await ctx.get_key("apify")
+            if not apify_proxy:
+                import os
+                apify_proxy = os.environ.get("APIFY_PROXY_PASSWORD")
+            if apify_proxy:
+                apify_proxy = apify_proxy.strip()  # Remove leading/trailing whitespace
 
             # Use streaming pipeline — companies flow through phases immediately
             from app.services.streaming_pipeline import StreamingPipeline
