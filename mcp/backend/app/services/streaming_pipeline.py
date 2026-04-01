@@ -302,8 +302,10 @@ class StreamingPipeline:
 
     # ── Streaming processing (Phase 2: Apollo page discovery) ──
 
+    MAX_PHASE2_PAGES = 20  # Safety cap — max pages per strategy in Phase 2
+
     async def _feed_apollo_pages(self, filters: Dict):
-        """Fetch Apollo pages and feed companies to scrape queue."""
+        """Fetch Apollo pages until KPI met or exhausted. Switches strategy on exhaustion."""
         from app.services.gathering_service import GatheringService
         svc = GatheringService()
         adapter = svc._get_adapter(self.run.source_type, apollo_service=self.apollo)
@@ -318,67 +320,123 @@ class StreamingPipeline:
         )
         self._domains_seen.update(r[0] for r in existing_result.all())
 
-        max_pages = filters.get("max_pages", 10)
-        # Start from where tam_gather left off (avoid re-fetching same pages)
-        tam_pages = self.run.pages_fetched or 0
-        page_offset = tam_pages + 1
+        # Build primary + backlog filter sets for exhaustion-based switching
+        strategies = self._build_strategies(filters)
         per_page = filters.get("per_page", 100)
 
-        for page in range(page_offset, page_offset + max_pages):
+        for strategy_name, strategy_filters in strategies:
             if self._kpi_met or self._stop:
                 break
 
-            batch_filters = dict(filters)
-            batch_filters["page"] = page
-            batch_filters["max_pages"] = 1
-            batch_filters["per_page"] = per_page
+            # Start from where tam_gather left off for primary, page 1 for backlog
+            if strategy_name == "primary":
+                tam_pages = self.run.pages_fetched or 0
+                page_start = tam_pages + 1
+            else:
+                page_start = 1
 
-            try:
-                results = await adapter.gather(batch_filters)
-                self.pages_fetched += 1
+            consecutive_empty = 0
+            pages_this_strategy = 0
 
-                # Batch: create companies, flush once per page, then create links
-                page_batch = []
-                for company_data in (results or []):
-                    if self._kpi_met:
+            logger.info(f"Phase 2 [{strategy_name}]: starting from page {page_start}")
+
+            page = page_start
+            while pages_this_strategy < self.MAX_PHASE2_PAGES:
+                if self._kpi_met or self._stop:
+                    break
+
+                batch_filters = dict(strategy_filters)
+                batch_filters["page"] = page
+                batch_filters["max_pages"] = 1
+                batch_filters["per_page"] = per_page
+
+                try:
+                    results = await adapter.gather(batch_filters)
+                    self.pages_fetched += 1
+                    pages_this_strategy += 1
+
+                    new_count = await self._ingest_page_results(results)
+
+                    if new_count == 0:
+                        consecutive_empty += 1
+                        if consecutive_empty >= 2:
+                            logger.info(f"Phase 2 [{strategy_name}]: exhausted "
+                                       f"({consecutive_empty} empty pages). Switching.")
+                            break
+                    else:
+                        consecutive_empty = 0
+
+                    logger.info(f"Phase 2 [{strategy_name}] page {page}: "
+                               f"+{new_count} new, {self.total_companies} total, "
+                               f"{self.total_people} people")
+
+                except Exception as e:
+                    logger.warning(f"Apollo page {page} failed: {e}")
+                    consecutive_empty += 1
+                    if consecutive_empty >= 2:
                         break
-                    domain = company_data.get("domain", "").lower().strip()
-                    if not domain or domain in self._domains_seen:
-                        continue
-                    self._domains_seen.add(domain)
 
-                    dc = DiscoveredCompany(
-                        project_id=self.run.project_id,
-                        company_id=self.run.company_id,
-                        domain=domain,
-                        name=company_data.get("name"),
-                        industry=company_data.get("industry"),
-                        employee_count=company_data.get("employee_count"),
-                        country=company_data.get("country"),
-                        city=company_data.get("city"),
-                        source_data=company_data,
-                    )
-                    self.session.add(dc)
-                    page_batch.append(dc)
+                await self._persist_progress()
+                page += 1
 
-                if page_batch:
-                    await self.session.flush()  # Single flush — all get IDs
-                    for dc in page_batch:
-                        link = CompanySourceLink(
-                            discovered_company_id=dc.id,
-                            gathering_run_id=self.run.id,
-                        )
-                        self.session.add(link)
-                        self.total_companies += 1
-                        await self.scrape_queue.put(dc)
+    def _build_strategies(self, filters: Dict) -> list:
+        """Build primary + backlog filter strategies for exhaustion-based switching."""
+        strategies = [("primary", dict(filters))]
 
-                logger.info(f"Apollo page {page}: {self.total_companies} companies, "
-                           f"{self.total_targets} targets, {self.total_people} people")
+        strategy = filters.get("filter_strategy", "keywords_only")
+        has_industry = bool(filters.get("organization_industry_tag_ids"))
+        has_keywords = bool(filters.get("q_organization_keyword_tags"))
 
-            except Exception as e:
-                logger.warning(f"Apollo page {page} failed: {e}")
+        if strategy == "industry_first" and has_keywords:
+            # Backlog: keywords only (drop industry tags)
+            backlog = dict(filters)
+            backlog.pop("organization_industry_tag_ids", None)
+            strategies.append(("backlog_keywords", backlog))
+        elif strategy == "keywords_first" and has_industry:
+            # Backlog: industry only (drop keywords)
+            backlog = dict(filters)
+            backlog.pop("q_organization_keyword_tags", None)
+            strategies.append(("backlog_industry", backlog))
 
-            await self._persist_progress()
+        return strategies
+
+    async def _ingest_page_results(self, results) -> int:
+        """Ingest Apollo page results: dedup, create companies, queue for scraping. Returns new count."""
+        page_batch = []
+        for company_data in (results or []):
+            if self._kpi_met:
+                break
+            domain = company_data.get("domain", "").lower().strip()
+            if not domain or domain in self._domains_seen:
+                continue
+            self._domains_seen.add(domain)
+
+            dc = DiscoveredCompany(
+                project_id=self.run.project_id,
+                company_id=self.run.company_id,
+                domain=domain,
+                name=company_data.get("name"),
+                industry=company_data.get("industry"),
+                employee_count=company_data.get("employee_count"),
+                country=company_data.get("country"),
+                city=company_data.get("city"),
+                source_data=company_data,
+            )
+            self.session.add(dc)
+            page_batch.append(dc)
+
+        if page_batch:
+            await self.session.flush()
+            for dc in page_batch:
+                link = CompanySourceLink(
+                    discovered_company_id=dc.id,
+                    gathering_run_id=self.run.id,
+                )
+                self.session.add(link)
+                self.total_companies += 1
+                await self.scrape_queue.put(dc)
+
+        return len(page_batch)
 
     async def _scraper_worker(self):
         """Streaming scrape worker — reads from queue, 100 concurrent."""
