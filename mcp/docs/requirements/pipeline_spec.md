@@ -418,6 +418,57 @@ than on /mixed_people/api_search. 20 concurrent avoids 429 errors.
 
 ---
 
+---
+
+## All OpenAI API Calls — Models & Purposes
+
+### Pipeline Calls (during execution)
+
+| # | Where | Model | Purpose | Tokens | Cost/call |
+|---|-------|-------|---------|--------|-----------|
+| 1 | streaming_pipeline.py (classifier) | **gpt-4o-mini** | Classify company as target/rejected from scraped website | ~800 in, ~50 out | ~$0.0003 |
+| 2 | streaming_pipeline.py (regen keywords) | **gpt-4.1-mini** | Generate 20 fresh keywords when strategy exhausted | ~500 in, ~300 out | ~$0.0004 |
+
+### Pre-Pipeline Calls (during setup)
+
+| # | Where | Model | Purpose | Tokens | Cost/call |
+|---|-------|-------|---------|--------|-----------|
+| 3 | dispatcher.py (create_project) | **gpt-4.1-mini** | Extract offer/value prop/target roles from website | ~2000 in, ~500 out | ~$0.001 |
+| 4 | dispatcher.py (confirm_offer feedback) | **gpt-4.1-mini** | Re-analyze offer based on user feedback | ~1500 in, ~500 out | ~$0.001 |
+| 5 | filter_mapper.py (pick_industries) | **gpt-4.1-mini** (fallback: gpt-4o-mini) | Select 2-3 matching Apollo industries from 112 | ~300 in, ~100 out | ~$0.0002 |
+| 6 | filter_mapper.py (map_filters) | **gpt-4.1-mini** (fallback: gpt-4o-mini) | Pick 20-30 keywords + employee size ranges | ~800 in, ~400 out | ~$0.0005 |
+| 7 | industry_classifier.py (A11) | **gpt-4.1-mini** | Decide industry-first vs keywords-first strategy | ~300 in, ~50 out | ~$0.0002 |
+| 8 | people_mapper.py (infer_people_filters) | **gpt-4o-mini** | Infer target roles/seniorities from offer | ~300 in, ~100 out | ~$0.0002 |
+
+### Embedding Calls
+
+| # | Where | Model | Purpose |
+|---|-------|-------|---------|
+| 9 | taxonomy_service.py | **text-embedding-3-small** | Embed query for pgvector keyword similarity search |
+
+### Sequence Generation (post-pipeline)
+
+| # | Where | Model | Purpose |
+|---|-------|-------|---------|
+| 10 | campaign_intelligence.py | **gpt-4o** (fallback: gpt-4o-mini) | Generate email sequence (3-5 steps) personalized by geo/segment |
+
+### Prompt Tuning (manual)
+
+| # | Where | Model | Purpose |
+|---|-------|-------|---------|
+| 11 | prompt_tuner.py | **gpt-4.1-mini** | Auto-tune classification prompt from mismatches |
+
+### Total OpenAI Cost Per Pipeline Run (typical 300 companies)
+```
+Classification: 300 × $0.0003 = ~$0.09
+Keyword regen: 0-5 × $0.0004 = ~$0.002
+Filter mapping: 1 × $0.0007 = ~$0.001
+Sequence gen: 1 × $0.01 = ~$0.01
+Total: ~$0.10 per pipeline run
+```
+
+---
+
 ## What Must NEVER Happen
 - Pipeline NEVER changes user's location filter without approval
 - Pipeline NEVER changes user's company size filter without approval
