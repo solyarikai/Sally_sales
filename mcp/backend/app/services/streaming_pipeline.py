@@ -84,8 +84,12 @@ class StreamingPipeline:
             asyncio.create_task(self._people_worker()),
         ]
 
-        # Feed Apollo pages
-        await self._feed_apollo_pages(filters)
+        # First: process companies already gathered by tam_gather (if any)
+        await self._process_existing_companies()
+
+        # Then: fetch more Apollo pages if KPI not met
+        if not self._kpi_met:
+            await self._feed_apollo_pages(filters)
 
         # Signal workers to stop (send poison pills)
         await self.scrape_queue.put(None)
@@ -97,6 +101,43 @@ class StreamingPipeline:
 
         elapsed = time.time() - self._started_at
         return self._build_result(elapsed)
+
+    async def _process_existing_companies(self):
+        """Feed companies already gathered by tam_gather to the scrape queue."""
+        existing = await self.session.execute(
+            select(DiscoveredCompany)
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+            .where(
+                CompanySourceLink.gathering_run_id == self.run.id,
+                DiscoveredCompany.status.in_(["new", "gathered"]),  # Not yet scraped
+            )
+        )
+        companies = existing.scalars().all()
+        if companies:
+            logger.info(f"Processing {len(companies)} existing companies from tam_gather")
+            self.total_companies = len(companies)
+            for dc in companies:
+                self._domains_seen.add(dc.domain)
+                await self.scrape_queue.put(dc)
+        else:
+            # Also check for already scraped but not classified
+            scraped = await self.session.execute(
+                select(DiscoveredCompany)
+                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                .where(
+                    CompanySourceLink.gathering_run_id == self.run.id,
+                    DiscoveredCompany.scraped_text.isnot(None),
+                    DiscoveredCompany.is_target.is_(None),  # Not classified yet
+                )
+            )
+            scraped_companies = scraped.scalars().all()
+            if scraped_companies:
+                logger.info(f"Processing {len(scraped_companies)} already-scraped companies")
+                self.total_companies = len(scraped_companies)
+                self.total_scraped = len(scraped_companies)
+                for dc in scraped_companies:
+                    self._domains_seen.add(dc.domain)
+                    await self.classify_queue.put(dc)
 
     async def _feed_apollo_pages(self, filters: Dict):
         """Fetch Apollo pages and feed companies to scrape queue."""
