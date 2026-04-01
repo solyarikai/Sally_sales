@@ -452,3 +452,34 @@ The system should use this EXACT pipeline:
 5. People extraction: 20 concurrent Apollo calls
 6. Auto-loop if <100 people: fetch 5 more pages, reclassify new companies
 7. Total: ~150s, ~$0.15, 100+ people guaranteed for most segments
+
+---
+
+## 2026-04-01 04:00 — APOLLO CREDITS EXHAUSTED, WIRING PIPELINE
+
+Apollo returning 422 for all requests. Cannot run more tests.
+Focusing on: wiring the proven approach into the production pipeline code.
+
+### What needs to change in production code:
+1. **Orchestrator**: use filter_strategy from run.filters — if industry_first, use tag_ids for search
+2. **Orchestrator**: auto-fallback when industry pages return <20 companies → switch to keywords
+3. **Orchestrator**: default 10 pages (was 5), bump to 15-20 for keywords_first segments
+4. **tam_gather**: ensure max_pages=10 default (was 4)
+5. **Cost estimator**: use correct per_page=100 and effective rate per strategy
+6. **Pipeline UI**: show filter_strategy, industry/keywords applied, fallback plan
+
+### What's DONE and working:
+- [x] A11 classifier (tested, correct for all 6 segments)
+- [x] Industry map (78 entries, auto-extends)
+- [x] filter_mapper with tag_id lookup
+- [x] Apollo service with industry_tag_ids
+- [x] Parallel page fetching
+- [x] Adaptive concurrency
+- [x] Retry with backoff on 429
+- [x] Cost tracking in DB
+- [x] KPI progress in UI
+
+### BLOCKED (needs Apollo credits):
+- [ ] Test remaining 3 segments fresh (Video UK, IT US, OnSocial UK)
+- [ ] Verify IT Miami with broader keywords
+- [ ] Test auto-loop (KPI not met → fetch more pages)

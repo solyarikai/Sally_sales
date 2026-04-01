@@ -873,12 +873,12 @@ Return ONLY valid JSON."""
                 }
 
             filters.setdefault("per_page", 100)
-            filters.setdefault("max_pages", 4)
+            filters.setdefault("max_pages", 10)
 
         import hashlib, json as _json
         filter_hash = hashlib.sha256(_json.dumps(filters, sort_keys=True).encode()).hexdigest()[:16]
 
-        max_pages = filters.get("max_pages", 4)
+        max_pages = filters.get("max_pages", 10)
         per_page = filters.get("per_page", 100)
         est_credits = max_pages if "api" in source_type else 0
         est_companies = max_pages * per_page
@@ -3166,7 +3166,7 @@ Return ONLY valid JSON."""
     if tool_name == "estimate_cost":
         source = args.get("source_type", "apollo.companies.api")
         filters = args.get("filters") or {}
-        max_pages = filters.get("max_pages", 4)
+        max_pages = filters.get("max_pages", 10)
         per_page = filters.get("per_page", 100)
         if "api" in source:
             return {"estimated_credits": max_pages, "estimated_cost_usd": 0,
