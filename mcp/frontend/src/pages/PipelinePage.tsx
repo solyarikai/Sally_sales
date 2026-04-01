@@ -689,13 +689,76 @@ export default function PipelinePage() {
 
       {showFilters && run?.filters && (
         <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 12, fontSize: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Apollo Filters — Run #{run.id}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {Object.entries(run.filters || {}).map(([k, v]: [string, any]) => v ? (
-              <span key={k} style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
-                <span style={{ color: 'var(--text-muted)' }}>{k.replace(/organization_|q_organization_/g, '')}:</span> {Array.isArray(v) ? v.join(', ') : String(v)}
-              </span>
-            ) : null)}
+          <div style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Search Strategy — Run #{run.id}</div>
+
+          {/* Strategy badge */}
+          <div style={{ marginBottom: 10 }}>
+            <span style={{
+              padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+              background: run.filters.filter_strategy === 'industry_first' ? 'rgba(34,197,94,0.12)' : 'rgba(59,130,246,0.12)',
+              color: run.filters.filter_strategy === 'industry_first' ? '#22c55e' : '#3b82f6',
+            }}>
+              {run.filters.filter_strategy === 'industry_first' ? 'INDUSTRY FIRST' : 'KEYWORDS FIRST'}
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
+              {run.filters.filter_strategy === 'industry_first'
+                ? 'Specific industry match → high target rate. Keywords as fallback.'
+                : 'Industry too broad → using specific keywords. Industry as fallback for scale.'}
+            </span>
+          </div>
+
+          {/* Primary filters */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--success)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 12 }}>▶</span> Active filters
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {run.filters.filter_strategy === 'industry_first' && run.filters.industries?.map((ind: string) => (
+                <span key={ind} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', fontSize: 11, color: '#22c55e' }}>
+                  {ind}
+                </span>
+              ))}
+              {run.filters.filter_strategy !== 'industry_first' && run.filters.q_organization_keyword_tags?.slice(0, 8).map((kw: string) => (
+                <span key={kw} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', fontSize: 11, color: '#3b82f6' }}>
+                  {kw}
+                </span>
+              ))}
+              {run.filters.organization_locations?.map((loc: string) => (
+                <span key={loc} style={{ padding: '2px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>geo:</span> {loc}
+                </span>
+              ))}
+              {run.filters.organization_num_employees_ranges?.map((r: string) => (
+                <span key={r} style={{ padding: '2px 8px', borderRadius: 4, background: 'var(--active-bg)', fontSize: 11 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>size:</span> {r}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Backlog filters */}
+          <div style={{ opacity: 0.6 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 12 }}>⏸</span> Backlog (after active exhausted)
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {run.filters.filter_strategy === 'industry_first' && run.filters.q_organization_keyword_tags?.slice(0, 6).map((kw: string) => (
+                <span key={kw} style={{ padding: '2px 8px', borderRadius: 4, border: '1px dashed var(--border)', fontSize: 11, color: 'var(--text-muted)' }}>
+                  {kw}
+                </span>
+              ))}
+              {run.filters.filter_strategy !== 'industry_first' && run.filters.industries?.map((ind: string) => (
+                <span key={ind} style={{ padding: '2px 8px', borderRadius: 4, border: '1px dashed var(--border)', fontSize: 11, color: 'var(--text-muted)' }}>
+                  {ind}
+                </span>
+              ))}
+              {!run.filters.industries?.length && run.filters.filter_strategy !== 'industry_first' && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>no industry fallback available</span>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontStyle: 'italic' }}>
+              Switches when active filters yield 0 new targets for a full batch
+            </div>
           </div>
         </div>
       )}
