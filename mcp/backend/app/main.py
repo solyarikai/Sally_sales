@@ -249,7 +249,8 @@ class MCPApp:
 
     async def __call__(self, scope, receive, send):
         path = scope.get("path", "")
-        logger.info(f"MCPApp: path={path}, type={scope.get('type')}")
+        raw_qs = scope.get("query_string", b"")
+        logger.info(f"MCPApp: path={path}, type={scope.get('type')}, qs_len={len(raw_qs)}, raw_path={scope.get('raw_path', b'')[:100]}")
 
         if scope["type"] in ("http", "websocket"):
             if "/sse" in path:
