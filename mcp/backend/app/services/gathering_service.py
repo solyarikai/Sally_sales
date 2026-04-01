@@ -390,7 +390,7 @@ class GatheringService:
             parts = raw_icp.split("Company website", 1)
             icp_text = parts[0].strip() or segment_query or "General B2B companies"
         else:
-            icp_text = raw_icp[:500]
+            icp_text = raw_icp[:2000]  # Allow long segment descriptions with exclusion rules
 
         # Always include segment query if available (even if offer text is the primary ICP)
         if segment_query and segment_query not in icp_text:
