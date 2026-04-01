@@ -132,10 +132,13 @@ from app.api.auth import router as auth_router
 from app.api.setup import router as setup_router
 from app.api.pipeline import router as pipeline_router
 
+from app.api.contacts_compat import router as contacts_compat_router
+
 app.include_router(health_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(setup_router, prefix="/api")
 app.include_router(pipeline_router, prefix="/api")
+app.include_router(contacts_compat_router, prefix="/api")
 
 # Learning routes (separate prefix — @main calls /api/projects/{id}/learning/...)
 from app.api.pipeline import learning_router
