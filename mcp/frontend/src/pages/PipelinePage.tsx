@@ -366,9 +366,7 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
           {run.targets_no_contacts > 0 && (
             <span>No contacts: {run.targets_no_contacts} targets</span>
           )}
-          {run.credits_used > 0 && (
-            <span>Credits: {run.credits_used}</span>
-          )}
+          {/* Credits shown in stats line only — no duplicate here */}
           {(progress.pages_fetched || 0) > 0 && (
             <span>Pages: {progress.pages_fetched}</span>
           )}
