@@ -342,11 +342,16 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 ),
             }
 
+        active_project = next((p for p in projects if p.id == user.active_project_id), None) if user.active_project_id else None
         context = {
             "user": {"name": user.name, "email": user.email},
-            "active_project_id": user.active_project_id,
+            "active_project": {
+                "name": active_project.name if active_project else None,
+                "link": f"http://46.62.210.24:3000/projects/{active_project.id}" if active_project else None,
+                "offer_approved": active_project.offer_approved if active_project else None,
+            } if active_project else None,
             "integrations": {"configured": sorted(configured_keys), "missing": sorted(missing_keys)},
-            "projects": [{"id": p.id, "name": p.name, "icp": (p.target_segments or "")[:100], "offer_approved": p.offer_approved, "link": f"http://46.62.210.24:3000/projects/{p.id}"} for p in projects],
+            "projects": [{"name": p.name, "link": f"http://46.62.210.24:3000/projects/{p.id}", "offer_approved": p.offer_approved} for p in projects],
             "pipeline_runs": [{"id": r.id, "phase": r.current_phase, "status": r.status, "companies": r.new_companies_count, "people": r.total_people_found, "project_id": r.project_id, "campaign_id": r.campaign_id, "kpi": {"target_people": r.target_people, "max_per_company": r.max_people_per_company}} for r in runs],
             "draft_campaigns": [{"id": c.id, "name": c.name, "status": c.status, "accounts": len(c.email_account_ids or []), "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None} for c in drafts],
             "replies": {"total": reply_count, "warm": warm_count},
