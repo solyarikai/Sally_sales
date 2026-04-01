@@ -44,24 +44,25 @@ def _build_strategy_message(filters, keywords, locations, sizes, total_available
         # Industry is specific — primary filter, keywords are backlog
         primary_label = "INDUSTRY (specific match — high target rate)"
         primary_detail = f"  Industries: {', '.join(industries)}"
-        backlog_label = "KEYWORDS (after industry pages exhausted)"
-        backlog_detail = f"  Seed keywords: {', '.join(keywords)}"
+        backlog_label = f"KEYWORDS (after industry pages exhausted) — {len(keywords)} keywords"
+        backlog_detail = f"  Keywords: {', '.join(keywords)}"
         reasoning = (
             f"Apollo industry \"{industries[0]}\" directly matches your query — "
             f"most companies in this category ARE your targets (45-90% target rate). "
-            f"When industry pages stop returning new targets (10 pages with 0 new targets), "
-            f"the pipeline automatically switches to keyword-based search for broader coverage."
+            f"When industry pages stop returning new targets (20 pages with 0 new companies), "
+            f"the pipeline regenerates fresh keywords via GPT and retries (up to 5 attempts)."
         )
     else:
         # Keywords are primary — industry is too broad
-        primary_label = "KEYWORDS (industry too broad for your niche)"
-        primary_detail = f"  Seed keywords: {', '.join(keywords[:5])}" + (f" (+{len(keywords)-5} more)" if len(keywords) > 5 else "")
+        primary_label = f"KEYWORDS ({len(keywords)} keywords — industry too broad for your niche)"
+        primary_detail = f"  Keywords: {', '.join(keywords)}"
         backlog_label = "INDUSTRY (broader, lower precision — for scale)"
         backlog_detail = f"  Industries: {', '.join(industries)}" if industries else "  (no matching industry)"
         reasoning = (
             f"Apollo industries ({', '.join(industries[:2])}) are too broad for \"{keywords[0] if keywords else '?'}\" — "
             f"they include many irrelevant company types. Specific keywords give better targeting (30-50% rate). "
-            f"When keywords are exhausted, industry filters kick in for maximum TAM coverage."
+            f"When 20 pages yield 0 new companies, GPT regenerates fresh keywords (up to 5 attempts). "
+            f"Then industry filters kick in for maximum TAM coverage."
         )
 
     # People filters explanation
@@ -82,7 +83,7 @@ def _build_strategy_message(filters, keywords, locations, sizes, total_available
         f"  {primary_detail}\n\n"
         f"  ⏸ BACKLOG (after primary exhausted): {backlog_label}\n"
         f"  {backlog_detail}\n"
-        f"  Switches when 10 pages yield 0 new targets\n\n"
+        f"  Exhaustion: 20 empty pages → regenerate keywords (up to 5 attempts)\n\n"
         f"  Location: {', '.join(locations)}\n"
         f"  Size: {', '.join(sizes)}\n"
         f"  Available: {total_available:,} companies in Apollo"

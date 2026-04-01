@@ -327,26 +327,22 @@ class StreamingPipeline:
         strategies = self._build_strategies(filters)
         per_page = filters.get("per_page", 100)
 
-        keyword_regenerations = 0
-        total_pages_all = 0
+        productive_pages = 0  # Pages that found new companies (global safety cap)
 
         for strategy_name, strategy_filters in strategies:
             if self._kpi_met or self._stop:
                 break
 
-            # Start from where tam_gather left off for primary, page 1 for backlog
-            if strategy_name == "primary":
-                page_start = self._tam_pages + 1
-            else:
-                page_start = 1
-
+            # Each strategy gets its own regeneration budget
+            keyword_regenerations = 0
             consecutive_empty = 0
-            pages_this_strategy = 0
 
-            logger.info(f"Phase 2 [{strategy_name}]: starting from page {page_start}")
+            # Start from where tam_gather left off for primary, page 1 for backlog
+            page = (self._tam_pages + 1) if strategy_name == "primary" else 1
 
-            page = page_start
-            while total_pages_all < self.MAX_PHASE2_PAGES:
+            logger.info(f"Phase 2 [{strategy_name}]: starting from page {page}")
+
+            while productive_pages < self.MAX_PHASE2_PAGES:
                 if self._kpi_met or self._stop:
                     break
 
@@ -358,35 +354,33 @@ class StreamingPipeline:
                 try:
                     results = await adapter.gather(batch_filters)
                     self.pages_fetched += 1
-                    pages_this_strategy += 1
-                    total_pages_all += 1
 
                     new_count = await self._ingest_page_results(results)
 
                     if new_count == 0:
                         consecutive_empty += 1
                         if consecutive_empty >= self.EXHAUSTION_THRESHOLD:
-                            # Try regenerating keywords before giving up
                             keyword_regenerations += 1
                             if keyword_regenerations >= self.MAX_KEYWORD_REGENERATIONS:
-                                logger.info(f"Phase 2 [{strategy_name}]: {keyword_regenerations} keyword "
-                                           f"regenerations exhausted. Stopping pipeline.")
-                                self._stop = True
+                                logger.info(f"Phase 2 [{strategy_name}]: {keyword_regenerations} regenerations "
+                                           f"exhausted ({keyword_regenerations * self.EXHAUSTION_THRESHOLD} empty pages). "
+                                           f"Switching strategy.")
                                 break
 
                             logger.info(f"Phase 2 [{strategy_name}]: {consecutive_empty} empty pages. "
-                                       f"Regenerating keywords (attempt {keyword_regenerations}/{self.MAX_KEYWORD_REGENERATIONS})")
+                                       f"Regenerating keywords ({keyword_regenerations}/{self.MAX_KEYWORD_REGENERATIONS})")
                             new_keywords = await self._regenerate_keywords(strategy_filters)
                             if new_keywords:
                                 strategy_filters["q_organization_keyword_tags"] = new_keywords
                                 consecutive_empty = 0
-                                page = 1  # restart with new keywords
+                                page = 1
                                 continue
                             else:
-                                logger.info(f"Phase 2: keyword regeneration returned nothing. Switching strategy.")
+                                logger.info(f"Phase 2 [{strategy_name}]: regeneration returned nothing. Switching.")
                                 break
                     else:
                         consecutive_empty = 0
+                        productive_pages += 1  # Only productive pages count toward global cap
 
                     logger.info(f"Phase 2 [{strategy_name}] page {page}: "
                                f"+{new_count} new, {self.total_companies} total, "
