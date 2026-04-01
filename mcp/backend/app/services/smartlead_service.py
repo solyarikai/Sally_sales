@@ -166,9 +166,18 @@ class SmartLeadService:
         })
 
     async def get_email_accounts(self) -> List[Dict[str, Any]]:
-        """Get all email accounts."""
-        data = await self._api_call("GET", "/email-accounts")
-        return data if isinstance(data, list) else []
+        """Get all email accounts (paginated — SmartLead returns max 100 per call)."""
+        all_accounts = []
+        offset = 0
+        while True:
+            data = await self._api_call("GET", "/email-accounts", params={"offset": offset, "limit": 100})
+            if not isinstance(data, list) or not data:
+                break
+            all_accounts.extend(data)
+            if len(data) < 100:
+                break
+            offset += 100
+        return all_accounts
 
     async def get_campaign_email_accounts(self, campaign_id: int) -> List[Dict[str, Any]]:
         """Get email accounts assigned to a specific campaign."""
