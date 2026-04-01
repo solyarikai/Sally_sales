@@ -171,43 +171,40 @@ Total absolute maximum: ~150 pages = ~150 credits ($1.50 search)
 
 ## Industry Map — Building the Full 112
 
-### Current State
-- Apollo has 112 industry categories
-- Our `apollo_industry_map` DB has **79 mapped** (tag_id → industry_name)
-- **33 industries MISSING** — limits industry-first strategy for some segments
-
-### How to Build Full Map (33 credits, not 112)
+### Current State — MAP IS COMPLETE
 ```
-We already have 79. Only need enrichment for the 33 MISSING industries.
+Apollo has 112 industry NAMES in their taxonomy.
+But many names share the same underlying tag_id:
+  - "banking" + "financial services" + "capital markets" → same tag_id
+  - "entertainment" + "music" + "computer games" → same tag_id
+  - "cosmetics" + "health, wellness & fitness" → same tag_id
 
-For each of the 33 missing industry NAMES:
-  1. Find a well-known company in that industry
-     - "mining" → bhp.com
-     - "gambling & casinos" → mgmresorts.com  
-     - "dairy" → danone.com
-  2. Call Apollo /organizations/enrich with that domain (1 credit)
-  3. Response includes organization_industry_tag_ids → the hex ID
-  4. Save: industry_name → tag_id in apollo_industry_map
-
-One-time operation: 33 enrichment calls = 33 credits ($0.33).
-After that: full 112-industry map. Every segment can use 90% target rate.
+Our map has 79 unique tag_ids — this IS the full set.
+Verified by enriching companies from "missing" industries: 
+all resolved to tags already in our map.
 ```
 
-### Auto-Extension (already implemented)
+### How the 79 Were Built
 ```
-The map grows automatically during normal pipeline usage:
-  - Every enrich_by_domain call returns industry tag IDs
-  - _extend_industry_map() checks if new tag IDs found
-  - Saves new mappings to DB automatically
-  
-So even without the one-time backfill, the map grows over time.
-The 33-credit backfill just completes it immediately.
+Method: /organizations/bulk_enrich endpoint
+  - Called during pipeline runs when companies are enriched
+  - Each enriched company returns industry_tag_id (singular field)
+  - _extend_industry_map() auto-saves new tag_id → industry_name mappings
+  - Accumulated 79 unique tags over multiple pipeline runs
+
+The map continues to auto-extend during normal usage.
+No manual backfill needed — 79 tags covers all 112 industry names.
 ```
 
-### Why This Matters
-Without full map: A11 classifier picks industry-first but tag_id missing
-→ falls back to keywords → 10-40% target rate instead of 90%.
-With full map: EVERY industry query uses the 90% approach.
+### How Industry Lookup Works
+```
+1. User query: "fashion brands in Italy"
+2. A11 classifier: maps to "apparel & fashion"
+3. DB lookup: SELECT tag_id FROM apollo_industry_map WHERE industry_name = 'apparel & fashion'
+4. Found: tag_id = '5567cd82736964540d0b0000'
+5. Apollo search: organization_industry_tag_ids = ['5567cd82736964540d0b0000']
+6. Result: 90% target rate
+```
 
 ### Level 5: Exhausted — Report to User
 ```
