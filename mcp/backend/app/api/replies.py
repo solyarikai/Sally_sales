@@ -170,6 +170,80 @@ async def get_reply(
     }
 
 
+@router.get("/{reply_id}/conversation")
+async def get_conversation(
+    reply_id: int,
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Conversation history for a reply — all messages for the same lead email."""
+    from fastapi import HTTPException
+    reply = await session.get(MCPReply, reply_id)
+    if not reply:
+        raise HTTPException(404)
+    if user:
+        pids = await _get_user_project_ids(user, session)
+        if reply.project_id not in pids:
+            raise HTTPException(404)
+
+    # Get all replies for this lead (conversation thread)
+    all_replies = await session.execute(
+        select(MCPReply)
+        .where(MCPReply.lead_email == reply.lead_email, MCPReply.project_id == reply.project_id)
+        .order_by(MCPReply.received_at)
+    )
+    thread = all_replies.scalars().all()
+
+    messages = []
+    for r in thread:
+        # Inbound message (lead's reply)
+        if r.reply_text:
+            messages.append({
+                "direction": "inbound",
+                "body": r.reply_text,
+                "subject": r.email_subject,
+                "timestamp": str(r.received_at) if r.received_at else None,
+                "channel": r.channel or "email",
+            })
+        # Outbound message (our draft/sent)
+        if r.draft_reply and r.approval_status == "approved":
+            messages.append({
+                "direction": "outbound",
+                "body": r.draft_reply,
+                "subject": r.draft_subject,
+                "timestamp": str(r.approved_at) if hasattr(r, 'approved_at') and r.approved_at else str(r.received_at) if r.received_at else None,
+                "channel": r.channel or "email",
+            })
+
+    return {"messages": messages, "lead_email": reply.lead_email, "total": len(messages)}
+
+
+@router.post("/contact-info-batch")
+async def contact_info_batch(
+    body: dict = {},
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Batch contact info lookup — returns company/title for lead emails."""
+    emails = body.get("emails", [])
+    if not emails:
+        return {"contacts": {}}
+
+    from app.models.pipeline import ExtractedContact
+    result = await session.execute(
+        select(ExtractedContact).where(ExtractedContact.email.in_(emails[:100]))
+    )
+    contacts = {}
+    for c in result.scalars().all():
+        contacts[c.email] = {
+            "company_name": c.source_data.get("company_name") if c.source_data else None,
+            "job_title": c.job_title,
+            "first_name": c.first_name,
+            "last_name": c.last_name,
+        }
+    return {"contacts": contacts}
+
+
 @router.post("/sync")
 async def trigger_sync(
     user: MCPUser = Depends(get_optional_user),
