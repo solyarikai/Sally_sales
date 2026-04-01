@@ -3,18 +3,17 @@
 TOOLS = [
     # ═══════════════════════════════════════════════════════════════════════
     # STRICT FLOW — ONE action per message. Wait for user approval between each.
+    # ALL config done BEFORE any Apollo credits are spent.
     #
-    # Step 1: get_context (auto on connect)
-    # Step 2: create_project (website → offer extraction) → show offer + roles → WAIT
-    # Step 3: confirm_offer (user approves offer + roles) → WAIT
-    # Step 4: tam_gather WITHOUT confirm_filters → show filter preview + cost → WAIT
-    # Step 5: tam_gather WITH confirm_filters=true → companies gathered → WAIT
-    # Step 6: BLACKLIST — "Have you launched campaigns before?" → if yes, load contacts for exclusion
-    # Step 7: align_email_accounts (show matching accounts) → WAIT
-    # Step 8: align_email_accounts WITH confirm=true → WAIT
-    # Step 9: run_auto_pipeline (default KPIs: 100 people, 3/company) → runs in background
+    # Step 1: create_project (website → offer + roles + project link) → WAIT
+    # Step 2: confirm_offer → ask "Previous campaigns for blacklist?" → WAIT
+    # Step 3: align_email_accounts → "Which email accounts?" → WAIT
+    # Step 4: tam_gather PREVIEW → creates pipeline (pending_approval) + probe Apollo
+    #         Shows: strategy, ALL keywords, KPIs, cost, pipeline link → WAIT
+    # Step 5: User approves → tam_gather CONFIRM → gathers + starts pipeline automatically
+    #         Pipeline runs fully autonomously → SmartLead push on KPI hit
     #
-    # NEVER skip steps. NEVER combine steps. NEVER ask KPI questions — use defaults.
+    # NEVER skip steps. NEVER combine steps. NEVER ask KPI questions.
     # Default KPIs: target_people=100, max_people_per_company=3
     # ═══════════════════════════════════════════════════════════════════════
 
@@ -147,17 +146,21 @@ Only call explicitly when user provides 2+ DIFFERENT segments in one message (e.
     # ── Pipeline ──
     {
         "name": "tam_gather",
-        "description": """Gather companies from Apollo. System auto-generates keywords + industry filters from your query.
+        "description": """Search Apollo for companies. Auto-generates 20+ keywords + industry filters.
 
-FLOW — ONE step per message, wait for user approval between each:
-  1. Call with query + filters (location, size) WITHOUT confirm_filters → returns FILTER PREVIEW with keywords, strategy, cost estimate
-  2. Show preview to user. STOP. Wait for "proceed" / "adjust X".
-  3. Only after user approves → call WITH confirm_filters=true
+PREVIEW (no confirm_filters): Creates pipeline in pending_approval, probes Apollo, shows:
+  - Strategy reasoning (industry-first vs keywords-first and WHY)
+  - All generated keywords (20+)
+  - KPIs (100 people, 3/company — defaults, do NOT ask user)
+  - Cost estimate
+  - Pipeline link
+  Show this to user. Ask ONLY: "Proceed?"
 
-Pass query= with natural language (e.g. "fashion brands in Italy"). Server generates 20+ keywords + industry tags automatically.
-Pass filters= with organization_locations and organization_num_employees_ranges.
+CONFIRM (confirm_filters=true): Gathers companies + starts streaming pipeline AUTOMATICALLY.
+  Pipeline runs in background until KPI met → auto-pushes to SmartLead.
 
-NEVER skip preview. NEVER combine with other actions. ONE message = ONE step.""",
+NEVER ask about target count, KPIs, or pages. Defaults are set. ONE question: "Proceed?"
+Pass query= with natural language. Pass filters= with locations + sizes.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -171,7 +174,7 @@ NEVER skip preview. NEVER combine with other actions. ONE message = ONE step."""
                              "manual.companies.manual"],
                     "description": "Source to gather from. Apollo API costs credits. CSV/Sheet/Drive/Manual are free.",
                 },
-                "target_count": {"type": "integer", "description": "How many TARGET companies the user wants. System auto-calculates pages needed."},
+                # target_count removed — default 100 people, 3/company. NEVER ask user.
                 "filters": {
                     "type": "object",
                     "description": "Source-specific filters. For Apollo: keywords, locations, etc. For CSV: file_path. For Sheet: sheet_url. For Drive: drive_url or folder_path.",
@@ -447,19 +450,17 @@ Call this BEFORE align_email_accounts to show available accounts.""",
     },
     {
         "name": "align_email_accounts",
-        "description": """Select email accounts for the pipeline campaign BEFORE starting the auto-pipeline.
+        "description": """Select email accounts for the campaign. Called BEFORE tam_gather (no run exists yet).
 
-Loads accounts from SmartLead, filters by user query (e.g. 'all with elnar in name'),
-creates an MCP draft campaign with pre-selected accounts linked to the gathering run.
-
-This MUST be called BEFORE run_auto_pipeline so that when KPI is hit, the campaign
-auto-pushes to SmartLead without blocking on account selection.
+Loads ALL accounts from SmartLead, filters by user query (e.g. 'all with elnar in name').
+Creates draft campaign linked to the project. Run will be linked later when tam_gather creates it.
 
 TWO-STEP: Call without confirm → preview matched accounts. Call with confirm=true → creates campaign.""",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "run_id": {"type": "integer", "description": "Gathering run to link campaign to"},
+                "project_id": {"type": "integer", "description": "Project to link campaign to"},
+                "run_id": {"type": "integer", "description": "Gathering run (optional — may not exist yet)"},
                 "account_filter": {"type": "string", "description": "Filter: 'all with elnar', 'petr accounts', email/name substring"},
                 "account_ids": {"type": "array", "items": {"type": "integer"}, "description": "Explicit account IDs (overrides filter)"},
                 "campaign_name": {"type": "string", "description": "Campaign name override"},
