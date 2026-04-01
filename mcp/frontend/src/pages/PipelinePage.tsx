@@ -282,18 +282,16 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
   const peoplePct = progress.people_pct || 0
   const targetsPct = progress.targets_pct || 0
 
-  // Collapsed view — single line
+  // Collapsed view — no duplication with stats line, just time + status
   if (collapsed) {
     return (
       <div onClick={() => setCollapsed(false)} style={{
-        padding: '8px 16px', borderRadius: 8, cursor: 'pointer', marginBottom: 12, fontSize: 12,
-        background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)',
-        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '6px 16px', borderRadius: 8, cursor: 'pointer', marginBottom: 8, fontSize: 12,
+        background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.1)',
+        display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: run.status === 'completed' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: run.status === 'completed' ? '#22c55e' : '#ef4444' }}>{run.status === 'completed' ? 'DONE' : 'INSUFFICIENT'}</span>
-        <span style={{ color: 'var(--text-muted)' }}>{progress.people_found || 0}/{targetCount} people</span>
-        <span style={{ color: 'var(--text-muted)' }}>{progress.targets_found || 0} targets</span>
-        {progress.scraped > 0 && <span style={{ color: 'var(--text-muted)' }}>{progress.scraped} scraped</span>}
+        <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: run.status === 'completed' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: run.status === 'completed' ? '#22c55e' : '#ef4444' }}>{run.status === 'completed' ? 'DONE' : 'STOPPED'}</span>
+        <span style={{ color: 'var(--text-muted)' }}>{formatDuration(timing.elapsed_seconds)}</span>
         <span style={{ color: 'var(--text-muted)', marginLeft: 'auto', fontSize: 10 }}>▼</span>
       </div>
     )
@@ -317,8 +315,6 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
         {timing.eta_seconds && <span style={{ color: 'var(--text-muted)' }}>ETA ~{formatDuration(timing.eta_seconds)}</span>}
         <span style={{ color: 'var(--text-muted)' }}>Iteration {(progress.iteration || 0) + 1}</span>
         <span style={{ color: 'var(--text-muted)' }}>{progress.pages_fetched || 0} pages</span>
-        {progress.scraped > 0 && <span style={{ color: 'var(--text-muted)' }}>{progress.scraped} scraped</span>}
-        {progress.classified > 0 && <span style={{ color: 'var(--text-muted)' }}>{progress.classified} classified</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           {isFinished && <button onClick={() => setCollapsed(true)} style={{ padding: '4px 8px', borderRadius: 4, fontSize: 11, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>▲</button>}
           {isPaused ? (
@@ -349,26 +345,22 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
 
       {/* KPI summary */}
       <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-        <span>Target: {targetCount} contacts</span>
+        <span title="KPI = pipeline end condition. Pipeline stops when this many contacts are gathered.">KPI: {targetCount} contacts</span>
         <span>Max {contactsPerCompany}/company</span>
         <span>~{minTargets} target companies</span>
       </div>
 
-      {/* Detailed stats — scrape, classification, people */}
+      {/* Detailed stats — scrape, classification rates */}
       {(run.scraped_ok > 0 || run.total_companies > 0) && (
         <div style={{ display: 'flex', gap: 24, marginTop: 10, fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 8, flexWrap: 'wrap' }}>
           {run.total_companies > 0 && (
             <span>Scraped: {run.scraped_ok || 0}/{run.total_companies} ({run.scrape_rate_pct || 0}%)</span>
           )}
           {run.targets_classified > 0 && (
-            <span>Targets: {run.targets_classified}/{run.scraped_ok || run.classified_count || '?'} ({run.target_rate_pct || 0}%)</span>
+            <span>Target rate: {run.targets_classified}/{run.scraped_ok || run.classified_count || '?'} ({run.target_rate_pct || 0}%)</span>
           )}
           {run.targets_no_contacts > 0 && (
-            <span>No contacts: {run.targets_no_contacts} targets</span>
-          )}
-          {/* Credits shown in stats line only — no duplicate here */}
-          {(progress.pages_fetched || 0) > 0 && (
-            <span>Pages: {progress.pages_fetched}</span>
+            <span>Targets without contacts: {run.targets_no_contacts}</span>
           )}
         </div>
       )}
@@ -670,20 +662,14 @@ export default function PipelinePage() {
             <div style={{ padding: 20, fontSize: 12 }}>
               {filtersTab === 'company' && run?.filters && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Strategy badge */}
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>STRATEGY</div>
                     <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: run.filters.filter_strategy === 'industry_first' ? 'rgba(34,197,94,0.12)' : 'rgba(59,130,246,0.12)', color: run.filters.filter_strategy === 'industry_first' ? '#22c55e' : '#3b82f6' }}>
                       {run.filters.filter_strategy === 'industry_first' ? 'Industry First' : 'Keywords First'}
                     </span>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
-                      {run.filters.filter_strategy === 'industry_first'
-                        ? 'An AI classifier analyzed your query against Apollo\'s 112 industry categories and found a SPECIFIC match. Industry-based search gives 45-90% target rate — most companies in this category ARE your targets. Apollo\'s industry_tag_ids provide the best pagination (100 companies/page).'
-                        : 'An AI classifier found Apollo\'s industry categories TOO BROAD for your niche. For example, "IT consulting" maps to "Information Technology" which includes SaaS, hardware, magazines — mostly NOT your targets. Specific keywords give 30-50% target rate for niche segments.'}
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, padding: '6px 8px', background: 'var(--bg)', borderRadius: 4, lineHeight: 1.6 }}>
-                      <strong>Exhaustion logic:</strong> When 20 consecutive pages return 0 new companies, GPT generates 20-30 fresh keywords (synonyms, adjacent niches) and restarts the search. After 5 regeneration attempts with no results, switches to the backlog strategy. Apollo filters (industry + keywords) are applied as AND — that's why we use one at a time, not both.
-                    </div>
                   </div>
+                  {/* Filters first (like People tab) */}
                   {run.filters.q_organization_keyword_tags?.length > 0 && (
                     <div>
                       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>KEYWORDS ({run.filters.q_organization_keyword_tags.length})</div>
@@ -717,6 +703,15 @@ export default function PipelinePage() {
                         {run.filters.organization_num_employees_ranges.join(', ')}
                       </div>
                     )}
+                  </div>
+                  {/* Explanation at bottom (like People tab) */}
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '8px', background: 'var(--bg)', borderRadius: 4, lineHeight: 1.6 }}>
+                    <strong>Why {run.filters.filter_strategy === 'industry_first' ? 'Industry First' : 'Keywords First'}?</strong>{' '}
+                    {run.filters.filter_strategy === 'industry_first'
+                      ? `An AI classifier analyzed "${run.filters.q_organization_keyword_tags?.[0] || 'your query'}" against Apollo's 112 industry categories and found a SPECIFIC match. Industry-based search gives 45-90% target rate. Apollo's industry_tag_ids provide the best pagination (100 companies/page).`
+                      : `An AI classifier analyzed "${run.filters.q_organization_keyword_tags?.[0] || 'your query'}" and found Apollo's industries TOO BROAD. Specific keywords give 30-50% target rate for niche segments.`}
+                    <br /><br />
+                    <strong>Exhaustion logic:</strong> When 20 consecutive pages return 0 new companies, GPT generates 20-30 fresh keywords (synonyms, adjacent niches) and restarts. After 5 attempts with no results, switches to backlog strategy. Apollo applies industry + keywords as AND — that's why we use one at a time.
                   </div>
                 </div>
               )}
