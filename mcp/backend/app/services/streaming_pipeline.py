@@ -38,7 +38,7 @@ class StreamingPipeline:
 
     def __init__(self, session: AsyncSession, run: GatheringRun,
                  openai_key: str, apollo_service=None, apify_proxy: Optional[str] = None):
-        self.session = session
+        # NOTE: session stored for backward compat but NEVER used — all ops use own sessions
         self.run = run
         self.openai_key = openai_key
         self.apollo = apollo_service
@@ -124,16 +124,15 @@ class StreamingPipeline:
 
         # Apollo pages run IN PARALLEL with scraping (not blocking)
         # Workers are ALREADY processing probe companies while Apollo fetches pages 2-10+
-        apollo_task = None
-        if not self._kpi_met:
-            apollo_task = asyncio.create_task(self._feed_apollo_pages(filters))
+        try:
+            if not self._kpi_met:
+                await self._feed_apollo_pages(filters)
+        except Exception as e:
+            logger.error(f"Apollo page fetching failed: {e}")
+        finally:
+            # ALWAYS send poison pill — workers must stop even if Apollo crashes
+            await self.scrape_queue.put(None)
 
-        # Wait for Apollo to finish (workers keep running throughout)
-        if apollo_task:
-            await apollo_task
-
-        # Signal workers to drain and stop
-        await self.scrape_queue.put(None)
         await asyncio.gather(*workers, return_exceptions=True)
 
         # Final progress persist
@@ -364,7 +363,8 @@ class StreamingPipeline:
 
         tasks = [fetch_and_feed(start_page + i) for i in range(count)]
         await asyncio.gather(*tasks)  # Pages feed to queue AS they arrive
-        return results_list  # [(page_num, new_count_or_error)]
+        # Sort by page number — exhaustion counts CONSECUTIVE pages in order
+        return sorted(results_list, key=lambda x: x[0])
 
     async def _regenerate_keywords(self, current_filters: Dict, all_tried: Set[str]) -> Optional[list]:
         """Generate fresh keywords when current ones are exhausted.
