@@ -745,20 +745,14 @@ export default function PipelinePage() {
 
       {/* Campaign expandable block */}
       {showCampaign && run?.campaign && (
-        <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid rgba(99,102,241,0.3)', marginBottom: 12, fontSize: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>{run.campaign.name}</span>
-              <span style={{ marginLeft: 8, padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', background: run.campaign.status === 'mcp_draft' ? 'rgba(129,140,248,0.15)' : run.campaign.status === 'active' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)', color: run.campaign.status === 'mcp_draft' ? '#818cf8' : run.campaign.status === 'active' ? '#22c55e' : '#f59e0b' }}>{run.campaign.status}</span>
-              {run.campaign.email_accounts?.length > 0 && (
-                <span style={{ marginLeft: 8, color: 'var(--text-muted)' }}>{run.campaign.email_accounts.length} accounts: {run.campaign.email_accounts.map((a: any) => a.email).join(', ')}</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {run.campaign.smartlead_url && <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(99,102,241,0.12)', color: '#818cf8', textDecoration: 'none', fontSize: 11, border: '1px solid rgba(99,102,241,0.25)' }}>SmartLead ↗</a>}
-              <Link to={`/campaigns/${run.campaign.id}`} style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 11, border: '1px solid var(--border)' }}>Campaign</Link>
-              <Link to={`/campaigns/${run.campaign.id}#accounts`} style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 11, border: '1px solid var(--border)' }}>Accounts ({run.campaign.email_accounts?.length || 0})</Link>
-            </div>
+        <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid rgba(99,102,241,0.3)', marginBottom: 12, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>{run.campaign.name}</span>
+            <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', background: run.campaign.status === 'mcp_draft' ? 'rgba(129,140,248,0.15)' : run.campaign.status === 'active' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)', color: run.campaign.status === 'mcp_draft' ? '#818cf8' : run.campaign.status === 'active' ? '#22c55e' : '#f59e0b' }}>{run.campaign.status}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {run.campaign.smartlead_url && <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(99,102,241,0.12)', color: '#818cf8', textDecoration: 'none', fontSize: 11, border: '1px solid rgba(99,102,241,0.25)' }}>SmartLead ↗</a>}
+            <Link to={`/campaigns/${run.campaign.id}`} style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 11, border: '1px solid var(--border)' }}>Campaign Details</Link>
           </div>
         </div>
       )}
