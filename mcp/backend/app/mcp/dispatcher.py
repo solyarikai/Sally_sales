@@ -1117,7 +1117,9 @@ Return ONLY valid JSON."""
                 "message": _build_strategy_message(
                     filters, keywords, locations, sizes, total_available,
                     target_people, max_ppc, cost_est, people_defaults,
-                ) + keyword_warning + f"\n\nPipeline: {pipeline_link}",
+                ) + keyword_warning
+                + (f"\n\nEmail accounts: {len(_existing_camp.email_account_ids)} selected" if _existing_camp and _existing_camp.email_account_ids else "")
+                + f"\nPipeline: {pipeline_link}",
                 "_instructions": "Show this preview to user. Ask ONLY: 'Proceed?' Do NOT add any questions about KPIs or target count.",
                 "project_id": project.id,
                 "project_name": project.name,
