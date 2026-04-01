@@ -446,6 +446,7 @@ export default function PipelinePage() {
 
   // Unique filter options
   const uniqueVals = useCallback((key: string) => {
+    if (key === 'contacts_count') return ['has_people']  // Special filter for People column
     const vals = new Set(companies.map((c: any) => c[key]).filter(Boolean))
     return Array.from(vals).sort() as string[]
   }, [companies])
@@ -460,6 +461,11 @@ export default function PipelinePage() {
     // Column filters
     Object.entries(filters).forEach(([col, val]) => {
       if (!val) return
+      // Special: People column "has_people" filter
+      if (col === 'contacts_count' && val === 'has_people') {
+        result = result.filter((c: any) => (c.contacts_count || 0) > 0)
+        return
+      }
       result = result.filter((c: any) => {
         const cv = String(c[col] || '').toLowerCase()
         return cv.includes(val.toLowerCase())
@@ -523,7 +529,7 @@ export default function PipelinePage() {
     { key: 'country', label: 'Country', filterType: 'dropdown' as const },
     { key: 'city', label: 'City', filterType: 'text' as const },
     { key: 'analysis_reasoning', label: 'Analysis', filterType: 'text' as const },
-    { key: 'contacts_count', label: 'People', filterType: 'text' as const },
+    { key: 'contacts_count', label: 'People', filterType: 'dropdown' as const },
     { key: 'scrape_text_preview', label: 'Scraped', filterType: 'text' as const },
   ]
 
