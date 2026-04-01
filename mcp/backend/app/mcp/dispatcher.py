@@ -251,11 +251,11 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             ).order_by(GatheringRun.created_at.desc()).limit(10)
         )).scalars().all() if projects else []
 
-        # Draft campaigns
+        # Draft campaigns (including mcp_draft = accounts selected, not yet in SmartLead)
         drafts = (await session.execute(
             select(Campaign).where(
                 Campaign.project_id.in_([p.id for p in projects]),
-                Campaign.status.in_(["draft", "DRAFT", "DRAFTED"]),
+                Campaign.status.in_(["draft", "DRAFT", "DRAFTED", "mcp_draft"]),
             )
         )).scalars().all() if projects else []
 
@@ -306,8 +306,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "active_project_id": user.active_project_id,
             "integrations": {"configured": sorted(configured_keys), "missing": sorted(missing_keys)},
             "projects": [{"id": p.id, "name": p.name, "icp": (p.target_segments or "")[:100], "offer_approved": p.offer_approved, "link": f"http://46.62.210.24:3000/projects/{p.id}"} for p in projects],
-            "pipeline_runs": [{"id": r.id, "phase": r.current_phase, "status": r.status, "companies": r.new_companies_count, "people": r.total_people_found, "project_id": r.project_id} for r in runs],
-            "draft_campaigns": [{"id": c.id, "name": c.name, "status": c.status, "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None} for c in drafts],
+            "pipeline_runs": [{"id": r.id, "phase": r.current_phase, "status": r.status, "companies": r.new_companies_count, "people": r.total_people_found, "project_id": r.project_id, "campaign_id": r.campaign_id, "kpi": {"target_people": r.target_people, "max_per_company": r.max_people_per_company}} for r in runs],
+            "draft_campaigns": [{"id": c.id, "name": c.name, "status": c.status, "accounts": len(c.email_account_ids or []), "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None} for c in drafts],
             "replies": {"total": reply_count, "warm": warm_count},
             "recent_activity": [{"method": c.method, "summary": c.content_summary, "at": str(c.created_at)} for c in recent_convos],
             "message": (
@@ -344,8 +344,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             }
         if drafts:
             context["action_required_campaigns"] = [{
-                "id": c.id, "name": c.name, "status": "DRAFT",
-                "message": "Check test email and activate when ready.",
+                "id": c.id, "name": c.name, "status": c.status,
+                "accounts": len(c.email_account_ids or []),
+                "message": "Accounts pre-selected, pipeline will auto-push when KPI hit." if c.status == "mcp_draft"
+                    else "SmartLead DRAFT — check test email and activate when ready.",
             } for c in drafts]
 
         return context
@@ -2566,12 +2568,14 @@ Return ONLY valid JSON."""
                     "campaign_status": campaign_status,
                 },
                 "message": (
-                    f"I will run auto pipeline on #{run.id} ({project.name}):\n"
-                    f"  Target: {tp} contacts, max {mpc}/company, ~{tc} target companies\n"
-                    f"  Filters: {run.filters.get('q_organization_keyword_tags', [])}\n"
-                    f"  Estimated cost: ~{tc} credits\n"
-                    f"  Campaign: {campaign_status}\n\n"
-                    f"Approve?"
+                    f"Pre-pipeline checklist for #{run.id} ({project.name}):\n\n"
+                    f"  1. Offer: ✅ confirmed\n"
+                    f"  2. Filters: ✅ {run.filters.get('q_organization_keyword_tags', [])}\n"
+                    f"  3. Accounts: ✅ {campaign_status}\n"
+                    f"  4. KPI: {tp} contacts, max {mpc}/company → ~{tc} target companies\n"
+                    f"  5. Estimated cost: ~{tc} Apollo credits\n\n"
+                    f"Review the KPI above. Change with set_pipeline_kpi if needed.\n"
+                    f"Approve to start?"
                 ),
                 "next_action": {"tool": "run_auto_pipeline", "args": {**args, "confirm": True}},
             }
