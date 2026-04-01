@@ -80,12 +80,6 @@ def estimate_cost(
         "people_credits": people_credits,
         "people_cost_usd": round(people_credits * APOLLO_COST_PER_CREDIT, 4),
         "people_note": "Search FREE, email enrichment 1 credit/person via /people/bulk_match",
-        "max_if_exhausted": {
-            "extra_search_pages": MAX_REGEN_PAGES,
-            "total_credits": worst_total,
-            "total_cost_usd": round(worst_usd, 4),
-            "note": "Only if initial filters exhausted. Pipeline auto-recovers with regenerated keywords.",
-        },
         "target_rate_used": target_rate,
         "contacts_per_company": contacts_per_company,
         "note": "Estimated. Actual target rate varies by segment.",
