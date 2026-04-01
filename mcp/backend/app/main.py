@@ -249,21 +249,12 @@ class MCPApp:
 
     async def __call__(self, scope, receive, send):
         path = scope.get("path", "")
-        raw_qs = scope.get("query_string", b"")
-        logger.info(f"MCPApp: path={path}, type={scope.get('type')}, qs_len={len(raw_qs)}, raw_path={scope.get('raw_path', b'')[:100]}")
+        logger.info(f"MCPApp: path={path}, type={scope.get('type')}")
 
         if scope["type"] in ("http", "websocket"):
-            # Log ALL headers for /sse to find where the token might be
-            if "/sse" in path:
-                hdrs = {k.decode(): v.decode() for k, v in scope.get("headers", [])}
-                auth_header = hdrs.get("authorization", "")
-                logger.info(f"SSE headers: auth='{auth_header[:30]}', "
-                           f"all_keys={list(hdrs.keys())}")
-
             if "/sse" in path:
                 # Extract token from URL: /mcp/sse?token=mcp_xxx (like SmartLead)
                 qs = scope.get("query_string", b"").decode()
-                logger.info(f"SSE query_string: '{qs[:80]}' (len={len(qs)})")
                 url_token = ""
                 for part in qs.split("&"):
                     if part.startswith("token="):
@@ -274,7 +265,7 @@ class MCPApp:
                     _session_tokens["_latest"] = url_token
                     logger.info(f"Token from SSE URL: {url_token[:12]}...")
                 else:
-                    logger.warning(f"SSE connection WITHOUT token. QS='{qs[:100]}'")
+                    logger.debug(f"SSE connection without token in query string")
 
                 # SSE connection
                 async with sse_transport.connect_sse(scope, receive, send) as streams:
