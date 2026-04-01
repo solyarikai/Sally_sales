@@ -129,20 +129,7 @@ Using best model from Phase 1:
   5. Log results
 ```
 
-### Phase 4: Verify All 6 Segments Achievable
-```
-Quick test for each remaining segment:
-  1. Lending/BNPL — Apollo probe: how many companies?
-  2. BaaS/Embedded Finance — probe
-  3. RegTech — probe
-  4. WealthTech — probe
-  5. Crypto/DeFi — probe
-  
-Each must show >500 companies available (enough for 100 people).
-If any segment has <500, note it.
-```
-
-### Phase 5: Full E2E — One Campaign, 6 Segments
+### Phase 4: Full E2E — One Campaign, 6 Segments
 ```
 1. Extract from document (best model)
 2. Agent asks: "6 segments found. One campaign or separate?"
