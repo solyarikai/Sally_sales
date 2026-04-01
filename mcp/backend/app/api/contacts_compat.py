@@ -9,7 +9,7 @@ from sqlalchemy import select, func as sa_func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_session
-from app.auth.middleware import get_optional_user
+from app.auth.dependencies import get_optional_user
 from app.models.mcp import MCPUser
 from app.models.pipeline import DiscoveredCompany, ExtractedContact
 from app.models.gathering import CompanySourceLink
