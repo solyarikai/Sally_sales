@@ -1,0 +1,229 @@
+# Pipeline Specification — How It Must Work
+
+## Overview
+
+One pipeline run. One approval from user. Everything else is automatic.
+Pipeline NEVER changes user's filters (location, size) without approval.
+
+---
+
+## Pre-Pipeline (User Approval Flow)
+
+```
+1. Probe Apollo: 1 page (per_page=100) = 1 credit
+   Shows user:
+   - Total companies in Apollo matching these filters (e.g. 8,127)
+   - Total pages available (e.g. 82 pages)
+   - Strategy: industry-first or keywords-first (and WHY)
+   - ALL generated keywords (20+)
+   - KPIs: 100 people, max 3/company
+   - Estimated cost: 10 pages search + ~100 enrichment = ~$1.10
+   - Pipeline link (pending_approval state)
+
+2. User approves → pipeline starts automatically
+```
+
+---
+
+## Pipeline Execution — Business Logic
+
+### Step 1: Gather Companies (Apollo Search)
+```
+Fetch 10 pages in PARALLEL (10 concurrent requests)
+  - per_page=100 → up to 1,000 companies
+  - Dedup against project (skip already-known domains)
+  - Save to DB immediately
+  - Feed each company to scrape queue AS SOON AS fetched (don't wait for all 10 pages)
+```
+
+**Stats tracked:**
+- Pages fetched: 10
+- Apollo total_entries: 8,127 (how many Apollo says exist)
+- Companies obtained: 306 (unique after dedup)
+- Companies per page avg: 30.6
+
+### Step 2: Scrape Websites (100 concurrent)
+```
+Each company from scrape_queue → Apify residential proxy → get website text
+  - Timeout: 15s per site
+  - Retry: 3 attempts with backoff
+  - Success: save scraped_text (up to 50K chars) → feed to classify queue
+  - Fail: mark scrape_failed, skip to next
+  - NO WAITING: each scraped site goes to classifier IMMEDIATELY
+```
+
+**Stats tracked:**
+- Scraped: 216/306 (70%)
+- Failed: 90 (site down, blocked, timeout)
+
+### Step 3: Classify Targets (100 concurrent)
+```
+Each scraped company → GPT-4o-mini:
+  - Input: company name + domain + first 3000 chars of website text
+  - Context: user's offer description
+  - Output: is_target (true/false) + segment + reasoning
+  - Target → feed to people queue IMMEDIATELY
+  - Not target → mark rejected, skip
+```
+
+**Stats tracked:**
+- Classified: 216
+- Targets: 173 (80% target rate)
+- Rejected: 43
+
+### Step 4: Extract People (20 concurrent)
+```
+Each target company → Apollo people search:
+  - Seniority filter: owner, founder, c_suite, vp, head, director (FREE)
+  - Returns 4-25 candidates per company
+  - Rank by: seniority match + role match to target_roles
+  - Top 3 → bulk_match for email enrichment (1 credit each)
+  - Only verified emails kept
+  
+KPI CHECK after each company's people saved:
+  - If total_people >= 100 → KPI MET → stop pipeline → push to SmartLead
+```
+
+**Stats tracked:**
+- People found: 86 (from 173 targets)
+- Credits: 86 enrichment + 10 search = 96 total
+- Companies with 0 contacts: 87 (Apollo has no verified emails for them)
+
+---
+
+## When KPI Not Met — Exhaustion Cascade
+
+All within the SAME user-approved filters (location, size NEVER changed).
+
+### Level 1: Primary Strategy Exhausted
+```
+Industry-first: pages 1-10 fetched, all done.
+If more pages exist in Apollo → fetch pages 11-20 (parallel batch of 10).
+Continue until 2 consecutive EMPTY pages (0 new companies after dedup).
+```
+
+### Level 2: Switch to Backlog Strategy
+```
+Drop industry_tag_ids → use keywords only.
+Apollo treats industry + keywords as AND (narrows results).
+Keywords ALONE → different companies that industry filter excluded.
+Fetch pages 1-20 with keywords.
+```
+
+### Level 3: Combine Industry + Keywords (OR logic via separate searches)
+```
+MISSING TODAY — must implement.
+Two parallel searches:
+  Search A: industry_tag_ids only → pages N+
+  Search B: keywords only → pages N+
+Merge results, dedup. More unique companies than either alone.
+```
+
+### Level 4: Regenerate Keywords (up to 5 times)
+```
+GPT generates 20 NEW keywords (excluding all previously tried).
+Search with new keywords → fetch 20 pages.
+If 0 new companies after 20 pages → regenerate again.
+Max 5 regeneration cycles per strategy.
+```
+
+### Level 5: Exhausted — Report to User
+```
+Pipeline marks "insufficient" with clear stats:
+  - "86/100 people found. Apollo exhausted for these filters."
+  - "173 target companies found but only 86 have verified email contacts."
+  - "Suggestion: broaden to [Europe] or increase size to [1-500]"
+  - Send what was gathered to SmartLead anyway.
+  
+User can then:
+  - Accept 86 people
+  - Adjust filters and re-run
+  - Increase max_people_per_company from 3 to 5
+```
+
+---
+
+## Parallelization — How Speed Works
+
+```
+Time 0s:   Apollo fetches 10 pages IN PARALLEL (10 concurrent)
+Time 1s:   Page 1 returns 100 companies → immediately sent to scrape queue
+           Pages 2-10 still loading
+Time 1.5s: Scraper starts on first 100 companies (100 concurrent HTTP)
+Time 2s:   Pages 2-10 return → 200 more companies sent to scrape queue
+Time 3s:   First 20 websites scraped → sent to classifier
+           Scraper working on remaining 280
+Time 4s:   First 10 companies classified → 7 are targets → sent to people queue
+           Classifier working on remaining scraped sites
+Time 5s:   People search starts for first 7 targets (20 concurrent)
+           Scraper/classifier still processing in parallel
+Time 10s:  ~100 scraped, ~50 classified, ~15 targets, ~10 people found
+Time 20s:  ~200 scraped, ~150 classified, ~100 targets, ~40 people found
+Time 35s:  ~216 scraped, ~173 targets, ~86 people found
+Time 40s:  Phase 2 starts (if KPI not met) — fetches more Apollo pages
+           New companies flow through same scrape→classify→people pipeline
+
+EVERYTHING OVERLAPS. No phase waits for another.
+```
+
+### Concurrency limits:
+- Apollo page fetch: 10 parallel (rate limited)
+- Website scraping: 100 concurrent (Apify proxy)
+- GPT classification: 100 concurrent (gpt-4o-mini)
+- People search: 20 concurrent (Apollo rate limit)
+- DB writes: each worker uses OWN session (no conflicts)
+
+---
+
+## SmartLead Auto-Push
+
+When pipeline completes (KPI met OR insufficient with contacts):
+1. Generate email sequence via GPT
+2. Create SmartLead campaign (DRAFT)
+3. Upload all contacts with verified emails
+4. Connect pre-selected email accounts
+5. Set timezone from target geography
+6. Notify user via Telegram + MCP
+
+---
+
+## Stats Shown in Pipeline UI
+
+```
+Header:
+  RUNNING / COMPLETED / INSUFFICIENT badge
+  People: 86/100 (86%) [progress bar]
+  Companies: 173/34 target companies [progress bar]
+  Time: 35s elapsed
+  Credits: 96 used
+
+Apollo Stats (new — must add):
+  Total in Apollo: 8,127 companies matching filters
+  Pages available: 82
+  Pages fetched: 10
+  Companies obtained: 306 (unique)
+
+Scrape Stats:
+  Scraped: 216/306 (70%)
+  Failed: 90
+
+Classification Stats:
+  Targets: 173/216 (80% target rate)
+  Rejected: 43
+
+People Stats:
+  With contacts: 86/173 targets (50%)
+  Total people: 86
+  Credits used: 96
+```
+
+---
+
+## What Must NEVER Happen
+- Pipeline NEVER changes user's location filter without approval
+- Pipeline NEVER changes user's company size filter without approval
+- Pipeline NEVER asks questions during execution
+- Pipeline NEVER blocks waiting for user input after approval
+- Pipeline NEVER uses shared DB session across workers
+- Pipeline NEVER skips website scraping (every company must be scraped before classification)
+- Classification NEVER uses Apollo industry label (it's always wrong)
