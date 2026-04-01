@@ -311,7 +311,9 @@ class StreamingPipeline:
             return
 
         max_pages = filters.get("max_pages", 10)
-        page_offset = filters.get("page_offset", 1)
+        # Start from where tam_gather left off (avoid re-fetching same pages)
+        tam_pages = self.run.pages_fetched or 0
+        page_offset = tam_pages + 1
         per_page = filters.get("per_page", 100)
 
         for page in range(page_offset, page_offset + max_pages):
