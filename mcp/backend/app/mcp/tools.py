@@ -155,7 +155,8 @@ NEVER skip the preview step. NEVER call twice without user confirmation between 
 Pass query= with the user's natural language (e.g. "IT consulting in Miami"). System auto-generates Apollo filters from taxonomy maps.
 Pass filters= with at least organization_num_employees_ranges (e.g. ["11,50","51,200"]).
 
-AFTER gathering starts, ask: "Which email accounts to use for the campaign?" (call list_email_accounts).""",
+BEFORE starting the auto pipeline, ask: "Which email accounts to use for the campaign?" (call align_email_accounts).
+Pipeline WILL NOT START without pre-selected accounts — this is a hard gate.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -445,16 +446,12 @@ If both are configured, returns a question asking the user to choose.""",
     {
         "name": "smartlead_push_campaign",
         "description": """Push an approved sequence to SmartLead as a DRAFT campaign with FULL configuration.
-IMPORTANT: You MUST call list_email_accounts first and ask the user which accounts to use before calling this tool.
 
-BEFORE calling this, you MUST:
-1. Ask the user: "Which email accounts should I use for this campaign?"
-2. Call list_email_accounts to show available accounts
-3. Wait for user to select accounts — NEVER proceed without their choice
-4. Pass the selected account IDs in email_account_ids parameter
+NOTE: For auto-pipeline flows, use align_email_accounts BEFORE run_auto_pipeline instead —
+accounts are pre-selected on the campaign and auto-push happens when KPI is hit.
+This tool is for MANUAL push when not using auto-pipeline.
 
-Without email accounts: campaign is created but test email CANNOT be sent.
-The user might say: "Use Eleonora's accounts from my petr campaigns" or provide a specific email.
+Requires email_account_ids — call list_email_accounts first to show available accounts.
 
 Campaign settings (production-grade):
 - Plain text, no tracking, stop on reply, 40% follow-up, Mon-Fri 9-18 target timezone
