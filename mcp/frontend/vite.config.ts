@@ -13,6 +13,8 @@ export default defineConfig({
       // API client (MCP auth instead of X-Company-ID)
       { find: /\.\.\/api\/client/, replacement: path.join(mcpSrc, 'api/client') },
       { find: /\.\.\/\.\.\/api\/client/, replacement: path.join(mcpSrc, 'api/client') },
+      // Catch ./client imports from INSIDE main app's api/ directory (e.g. replies.ts → ./client)
+      { find: new RegExp(mainApp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/api/client'), replacement: path.join(mcpSrc, 'api/client') },
       { find: /^\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
       { find: /^\.\.\/\.\.\/api$/, replacement: path.join(mcpSrc, 'api/index') },
       // Store (MCP Zustand store)
