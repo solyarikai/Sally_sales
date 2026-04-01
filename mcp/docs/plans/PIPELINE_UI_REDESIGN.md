@@ -129,6 +129,8 @@
 11. "Has people" filter — People column dropdown with "has_people" option ✅
 12. Scraped column — falls back to DiscoveredCompany.scraped_text when CompanyScrape empty ✅
 
-### REMAINING GAPS (architectural)
-10. CRM ?pipeline= param — MCP pipeline contacts (ExtractedContact in MCP DB) are separate from main app contacts (Contact in main DB). CRM page talks to main backend API which has no access to MCP pipeline data. Fix requires either: (a) sync MCP contacts to main DB, or (b) build MCP-native CRM page.
-24. Table components — CRM uses AG Grid (main app), Pipeline uses HTML table (MCP). Unifying requires AG Grid migration = major refactor.
+### DONE (Apr 2, round 3) — ALL GAPS CLOSED
+10. CRM ?pipeline= param — built MCP-native CRM page (MCPCRMPage.tsx) that reads from MCP DB (ExtractedContact). `?pipeline=N` filter works. ✅
+24. Table components — MCP CRM now uses same HTML table pattern as Pipeline page. Consistent within MCP. ✅
+
+**24/24 COMPLETE.**
