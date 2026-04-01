@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
+import { authHeaders } from '../App'
 
 const API = '/api'
-function headers() { return { 'X-MCP-Token': localStorage.getItem('mcp_token') || '', 'Content-Type': 'application/json' } }
 
 export default function AccountPage() {
   const [account, setAccount] = useState<any>(null)
@@ -17,8 +17,8 @@ export default function AccountPage() {
     if (dateTo) params.set('to', dateTo)
     const qs = params.toString() ? `?${params}` : ''
     Promise.all([
-      fetch(`${API}/account${qs}`, { headers: headers() }).then(r => r.json()),
-      fetch(`${API}/account/usage${qs}`, { headers: headers() }).then(r => r.json()),
+      fetch(`${API}/account${qs}`, { headers: authHeaders() }).then(r => r.json()),
+      fetch(`${API}/account/usage${qs}`, { headers: authHeaders() }).then(r => r.json()),
     ]).then(([acc, use]) => {
       setAccount(acc)
       setUsage(use)
@@ -27,12 +27,7 @@ export default function AccountPage() {
 
   useEffect(() => { loadData() }, [dateFrom, dateTo])
 
-  const logout = () => {
-    localStorage.removeItem('mcp_token')
-    window.location.href = '/setup'
-  }
-
-  if (loading) return <div className="max-w-3xl mx-auto p-8 text-sm text-gray-500">Loading...</div>
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
   if (!account?.authenticated) {
     window.location.href = '/setup'
     return null
@@ -43,171 +38,163 @@ export default function AccountPage() {
   const byTool = usage?.by_tool || {}
   const recent = usage?.recent || []
   const runs = account.pipeline_runs || []
-
   const apollo = costs.apollo || {}
   const openai = costs.openai || {}
   const apify = costs.apify || {}
   const mcp = costs.mcp || {}
   const openaiModels = openai.by_model || {}
 
+  const cardStyle: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 8, padding: 16 }
+  const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginBottom: 12 }
+  const bigNum: React.CSSProperties = { fontSize: 24, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }
+
   return (
-    <div className="max-w-3xl mx-auto p-8 space-y-8 overflow-y-auto" style={{ height: '100%' }}>
-      {/* User card */}
-      <div className="flex items-center justify-between">
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 28 }}>
+      {/* User */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <div className="text-lg font-semibold">{account.user?.name}</div>
-          <div className="text-sm text-gray-500">{account.user?.email}</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>{account.user?.name}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{account.user?.email}</div>
         </div>
-        <button onClick={logout} className="text-sm text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-400/60 px-4 py-1.5 rounded">
+        <button onClick={() => { localStorage.removeItem('mcp_token'); window.location.href = '/' }}
+          style={{ fontSize: 13, color: '#ef4444', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>
           Logout
         </button>
       </div>
 
-      {/* Date Range Filter */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500">From</label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="border rounded px-2 py-1 text-sm" />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500">To</label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="border rounded px-2 py-1 text-sm" />
-        </div>
+      {/* Date filter */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13 }}>
+        <label style={{ color: 'var(--text-muted)', fontSize: 12 }}>From</label>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12 }} />
+        <label style={{ color: 'var(--text-muted)', fontSize: 12 }}>To</label>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12 }} />
         {(dateFrom || dateTo) && (
           <button onClick={() => { setDateFrom(''); setDateTo('') }}
-            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Clear</button>
+            style={{ fontSize: 11, color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}>Clear</button>
         )}
-        <span className="text-xs text-gray-600">{dateFrom || dateTo ? `Showing: ${dateFrom || 'start'} → ${dateTo || 'now'}` : 'All time'}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{dateFrom || dateTo ? `${dateFrom || 'start'} → ${dateTo || 'now'}` : 'All time'}</span>
       </div>
 
-      {/* Total Cost */}
-      <div className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/30">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-400">Total Spend</span>
-          <span className="text-2xl font-bold text-white">${(costs.total_usd || 0).toFixed(2)}</span>
-        </div>
+      {/* Total spend */}
+      <div style={{ ...cardStyle, background: 'var(--bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>Total Spend</span>
+        <span style={{ ...bigNum }}>${(costs.total_usd || 0).toFixed(2)}</span>
       </div>
 
-      {/* Cost Breakdown by Service */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-          Costs {dateFrom || dateTo ? `(${dateFrom || 'start'} → ${dateTo || 'now'})` : '(All Time)'}
-        </h2>
-        <div className="grid grid-cols-4 gap-4">
+      {/* Cost breakdown */}
+      <div>
+        <div style={labelStyle}>Costs {dateFrom || dateTo ? `(${dateFrom || 'start'} → ${dateTo || 'now'})` : '(All Time)'}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           {/* Apollo */}
-          <div className="border rounded-lg p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-              <span className="text-sm font-medium">Apollo</span>
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f1' }} />
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Apollo</span>
             </div>
-            <div className="text-2xl font-bold tabular-nums">${(apollo.cost_usd || 0).toFixed(2)}</div>
-            <div className="text-xs text-gray-500 space-y-0.5">
-              <div>{apollo.credits || 0} credits total</div>
-              <div>Gathering: {apollo.gathering_credits || 0}</div>
-              <div>Enrichment: {apollo.enrichment_credits || 0}</div>
+            <div style={bigNum}>${(apollo.cost_usd || 0).toFixed(2)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
+              {apollo.credits || 0} credits<br />
+              Search: {apollo.gathering_credits || 0}<br />
+              Enrich: {apollo.enrichment_credits || 0}
             </div>
           </div>
 
           {/* OpenAI */}
-          <div className="border rounded-lg p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              <span className="text-sm font-medium">OpenAI</span>
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
+              <span style={{ fontSize: 13, fontWeight: 600 }}>OpenAI</span>
             </div>
-            <div className="text-2xl font-bold tabular-nums">${(openai.total_cost_usd || 0).toFixed(4)}</div>
-            <div className="text-xs text-gray-500 space-y-0.5">
-              <div>{(openai.total_tokens || 0).toLocaleString()} tokens</div>
+            <div style={bigNum}>${(openai.total_cost_usd || 0).toFixed(4)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
+              {(openai.total_tokens || 0).toLocaleString()} tokens
               {Object.entries(openaiModels).map(([model, d]: any) => (
-                <div key={model} className="flex justify-between">
-                  <span className="text-gray-400">{model}</span>
-                  <span>{d.input_tokens?.toLocaleString()}+{d.output_tokens?.toLocaleString()} · ${d.cost_usd?.toFixed(4)}</span>
+                <div key={model} style={{ display: 'flex', justifyContent: 'space-between', gap: 4, marginTop: 2 }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{model}</span>
+                  <span style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>${d.cost_usd?.toFixed(4)}</span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Apify */}
-          <div className="border rounded-lg p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span className="text-sm font-medium">Apify</span>
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Apify</span>
             </div>
-            <div className="text-2xl font-bold tabular-nums">${(apify.cost_usd || 0).toFixed(2)}</div>
-            <div className="text-xs text-gray-500 space-y-0.5">
-              <div>{apify.websites_scraped || 0} websites scraped</div>
-              <div>{apify.gb_used || 0} GB proxy used</div>
+            <div style={bigNum}>${(apify.cost_usd || 0).toFixed(2)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
+              {apify.websites_scraped || 0} websites<br />
+              {apify.gb_used || 0} GB proxy
             </div>
           </div>
 
           {/* MCP */}
-          <div className="border rounded-lg p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-              <span className="text-sm font-medium">MCP</span>
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f43f5e' }} />
+              <span style={{ fontSize: 13, fontWeight: 600 }}>MCP</span>
             </div>
-            <div className="text-2xl font-bold tabular-nums">{((mcp.total_tokens || 0) / 1000).toFixed(1)}K</div>
-            <div className="text-xs text-gray-500 space-y-0.5">
-              <div>{(mcp.input_tokens || 0).toLocaleString()} input tokens</div>
-              <div>{(mcp.output_tokens || 0).toLocaleString()} output tokens</div>
-              <div>{mcp.tool_calls || 0} tool calls</div>
+            <div style={bigNum}>{((mcp.total_tokens || 0) / 1000).toFixed(1)}K</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
+              {(mcp.input_tokens || 0).toLocaleString()} in<br />
+              {(mcp.output_tokens || 0).toLocaleString()} out<br />
+              {mcp.tool_calls || 0} calls
             </div>
           </div>
         </div>
       </div>
 
-      {/* Platform Stats */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Your Stats</h2>
-        <div className="grid grid-cols-4 gap-4">
-          <StatBox label="Contacts" value={stats.total_contacts} />
-          <StatBox label="Companies" value={stats.total_companies} />
-          <StatBox label="Campaigns" value={stats.total_campaigns} />
-          <StatBox label="Tool Calls" value={stats.total_tool_calls} />
+      {/* Stats */}
+      <div>
+        <div style={labelStyle}>Your Stats</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          {[
+            { label: 'Contacts', value: stats.total_contacts },
+            { label: 'Companies', value: stats.total_companies },
+            { label: 'Campaigns', value: stats.total_campaigns },
+            { label: 'Tool Calls', value: stats.total_tool_calls },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle, textAlign: 'center' as const }}>
+              <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{(s.value || 0).toLocaleString()}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{s.label}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Pipeline Runs with Credits */}
+      {/* Pipeline Runs */}
       {runs.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Pipeline Runs</h2>
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+        <div>
+          <div style={labelStyle}>Pipeline Runs</div>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="text-xs uppercase text-gray-500 border-b">
-                  <th className="px-4 py-2 text-left">Run</th>
-                  <th className="px-4 py-2 text-left">Source</th>
-                  <th className="px-4 py-2 text-right">Companies</th>
-                  <th className="px-4 py-2 text-right">Targets</th>
-                  <th className="px-4 py-2 text-right">Credits</th>
-                  <th className="px-4 py-2 text-left">Phase</th>
-                  <th className="px-4 py-2 text-left">Date</th>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {['Run', 'Source', 'Companies', 'Targets', 'Credits', 'Phase', 'Date'].map(h => (
+                    <th key={h} style={{ padding: '8px 12px', textAlign: h === 'Companies' || h === 'Targets' || h === 'Credits' ? 'right' : 'left', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', fontWeight: 500 }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody>
                 {runs.map((r: any) => (
-                  <tr key={r.id}>
-                    <td className="px-4 py-2">
-                      <a href={`/pipeline/${r.id}`} className="text-blue-400 hover:underline">#{r.id}</a>
+                  <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '8px 12px' }}><a href={`/pipeline/${r.id}`} style={{ color: 'var(--text-link)' }}>#{r.id}</a></td>
+                    <td style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>{r.source_type?.replace('companies.', '').replace('.manual', '').replace('apollo.', '')}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right' }}>{r.companies}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                      {r.targets > 0 ? <><span style={{ color: '#22c55e', fontWeight: 600 }}>{r.targets}</span><span style={{ color: 'var(--text-muted)', marginLeft: 4, fontSize: 11 }}>{r.target_rate}</span></> : ''}
                     </td>
-                    <td className="px-4 py-2 text-gray-400">{r.source_type?.replace('companies.', '').replace('.manual', '')}</td>
-                    <td className="px-4 py-2 text-right">{r.companies}</td>
-                    <td className="px-4 py-2 text-right">
-                      {r.targets > 0 && <span className="text-green-400">{r.targets}</span>}
-                      {r.targets > 0 && <span className="text-gray-500 ml-1">({r.target_rate})</span>}
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
+                      {r.credits_used > 0 ? <span style={{ color: '#f59e0b' }}>{r.credits_used}</span> : <span style={{ color: 'var(--text-muted)' }}>0</span>}
                     </td>
-                    <td className="px-4 py-2 text-right font-mono">
-                      {r.credits_used > 0 ? (
-                        <span className="text-yellow-400">{r.credits_used}</span>
-                      ) : (
-                        <span className="text-gray-600">0</span>
-                      )}
+                    <td style={{ padding: '8px 12px' }}>
+                      <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, background: 'var(--bg)', color: 'var(--text-muted)' }}>{r.phase}</span>
                     </td>
-                    <td className="px-4 py-2">
-                      <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700">{r.phase}</span>
-                    </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">
+                    <td style={{ padding: '8px 12px', color: 'var(--text-muted)', fontSize: 11 }}>
                       {r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}
                     </td>
                   </tr>
@@ -219,19 +206,19 @@ export default function AccountPage() {
       )}
 
       {/* Integrations */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Connected Services</h2>
-        <div className="border rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+      <div>
+        <div style={labelStyle}>Connected Services</div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
           {(account.integrations || []).length === 0 ? (
-            <div className="px-4 py-3 text-sm text-gray-500">No integrations yet. <a href="/setup" className="text-blue-400 hover:underline">Set up API keys</a></div>
+            <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text-muted)' }}>No integrations. <a href="/setup" style={{ color: 'var(--text-link)' }}>Set up API keys</a></div>
           ) : (
-            (account.integrations || []).map((i: any) => (
-              <div key={i.name} className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className={`w-2 h-2 rounded-full ${i.connected ? 'bg-green-400' : 'bg-gray-600'}`} />
-                  <span className="text-sm font-medium capitalize">{i.name}</span>
+            (account.integrations || []).map((i: any, idx: number) => (
+              <div key={i.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderTop: idx > 0 ? '1px solid var(--border)' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: i.connected ? '#22c55e' : 'var(--border)' }} />
+                  <span style={{ fontSize: 13, fontWeight: 500, textTransform: 'capitalize' }}>{i.name}</span>
                 </div>
-                <span className="text-xs text-gray-500">{i.info || (i.connected ? 'Connected' : 'Not connected')}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{i.info || (i.connected ? 'Connected' : 'Not connected')}</span>
               </div>
             ))
           )}
@@ -240,58 +227,18 @@ export default function AccountPage() {
 
       {/* Usage by Tool */}
       {Object.keys(byTool).length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Usage by Tool</h2>
-          <div className="border rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
-            {Object.entries(byTool).sort((a: any, b: any) => b[1] - a[1]).map(([tool, count]: any) => (
-              <div key={tool} className="flex items-center justify-between px-4 py-2.5">
-                <span className="text-sm font-mono">{tool}</span>
-                <span className="text-sm font-medium tabular-nums">{count}</span>
+        <div>
+          <div style={labelStyle}>Usage by Tool</div>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            {Object.entries(byTool).sort((a: any, b: any) => b[1] - a[1]).map(([tool, count]: any, idx: number) => (
+              <div key={tool} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderTop: idx > 0 ? '1px solid var(--border)' : 'none' }}>
+                <span style={{ fontSize: 12, fontFamily: 'monospace' }}>{tool}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
               </div>
             ))}
           </div>
         </div>
       )}
-
-      {/* Recent Activity */}
-      {recent.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Recent Activity</h2>
-          <div className="border rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
-            {recent.map((r: any, i: number) => (
-              <div key={i} className="flex items-center justify-between px-4 py-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono text-gray-400">{r.tool}</span>
-                  <span className="text-xs text-gray-500">{r.action}</span>
-                </div>
-                <span className="text-xs text-gray-600">{r.at ? new Date(r.at).toLocaleString() : ''}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CreditCard({ label, value, detail, color }: { label: string; value: number; detail: string; color: string }) {
-  return (
-    <div className="border rounded-lg p-4 space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-        <span className="text-sm font-medium">{label}</span>
-      </div>
-      <div className="text-2xl font-bold tabular-nums">{value.toLocaleString()}</div>
-      <div className="text-xs text-gray-500">{detail}</div>
-    </div>
-  )
-}
-
-function StatBox({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="border rounded-lg p-3 text-center">
-      <div className="text-xl font-bold tabular-nums">{(value || 0).toLocaleString()}</div>
-      <div className="text-xs text-gray-500 mt-1">{label}</div>
     </div>
   )
 }
