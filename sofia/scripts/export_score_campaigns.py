@@ -76,10 +76,13 @@ def score_geo(location):
     return 1
 
 
-def score_engagement(status):
-    if status in ("OPENED", "EMAIL_OPENED"):
+def score_engagement(open_count):
+    """Score based on actual open_count from SmartLead."""
+    if open_count >= 3:
+        return 5
+    elif open_count >= 1:
         return 3
-    return 1  # SENT
+    return 1  # no opens tracked
 
 
 def tier(score_total):
