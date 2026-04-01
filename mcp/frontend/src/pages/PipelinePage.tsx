@@ -363,6 +363,27 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
         <span>Max {contactsPerCompany}/company</span>
         <span>~{minTargets} target companies</span>
       </div>
+
+      {/* Detailed stats — scrape, classification, people */}
+      {(run.scraped_ok > 0 || run.total_companies > 0) && (
+        <div style={{ display: 'flex', gap: 24, marginTop: 10, fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 8, flexWrap: 'wrap' }}>
+          {run.total_companies > 0 && (
+            <span>Scraped: {run.scraped_ok || 0}/{run.total_companies} ({run.scrape_rate_pct || 0}%)</span>
+          )}
+          {run.targets_classified > 0 && (
+            <span>Targets: {run.targets_classified}/{run.scraped_ok || run.classified_count || '?'} ({run.target_rate_pct || 0}%)</span>
+          )}
+          {run.targets_no_contacts > 0 && (
+            <span>No contacts: {run.targets_no_contacts} targets</span>
+          )}
+          {run.credits_used > 0 && (
+            <span>Credits: {run.credits_used}</span>
+          )}
+          {(progress.pages_fetched || 0) > 0 && (
+            <span>Pages: {progress.pages_fetched}</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

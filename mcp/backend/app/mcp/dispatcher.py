@@ -1084,6 +1084,7 @@ Return ONLY valid JSON."""
                 triggered_by=f"mcp:user:{user.id}",
                 target_people=target_people,
                 max_people_per_company=max_ppc,
+                raw_results_count=total_available,  # Apollo total_entries from probe
             )
             session.add(preview_run)
             await session.flush()
