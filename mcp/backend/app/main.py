@@ -255,6 +255,7 @@ class MCPApp:
             if "/sse" in path:
                 # Extract token from URL: /mcp/sse?token=mcp_xxx (like SmartLead)
                 qs = scope.get("query_string", b"").decode()
+                logger.info(f"SSE query_string: '{qs[:80]}' (len={len(qs)})")
                 url_token = ""
                 for part in qs.split("&"):
                     if part.startswith("token="):
@@ -264,6 +265,8 @@ class MCPApp:
                     from app.mcp.server import _session_tokens, _session_user_tokens
                     _session_tokens["_latest"] = url_token
                     logger.info(f"Token from SSE URL: {url_token[:12]}...")
+                else:
+                    logger.warning(f"SSE connection WITHOUT token. QS='{qs[:100]}'")
 
                 # SSE connection
                 async with sse_transport.connect_sse(scope, receive, send) as streams:
