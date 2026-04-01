@@ -89,7 +89,7 @@ The **document extraction agent** — reads full strategy doc, outputs structure
 | Keywords: 10+ fintech-relevant | 1 |
 | Locations: 5+ countries | 1 |
 | Employee range correct | 1 |
-| Sequence A: all 4 emails with subjects + bodies | 4 |
+| Sequence A: all 4 emails matching document's exact subjects + bodies | 4 |
 | Campaign settings correct | 1 |
 | **Total** | **13** |
 
@@ -99,6 +99,60 @@ The **document extraction agent** — reads full strategy doc, outputs structure
 3. Score against ground truth
 4. Log: model, tokens, cost, time, score per field
 5. Save to `mcp/tests/results/doc_extract_{MODEL}_{TIMESTAMP}.json`
+
+## Verification — Opus Reviews ALL Results
+
+**CRITICAL: Every test result is verified by Claude Opus (this agent).**
+
+After each pipeline run, Opus reviews ALL gathered data by comparing against the original document:
+
+### Companies verification (all 100+)
+```
+Split into batches of 25. Launch parallel agents.
+Each agent checks: is this company a real B2B fintech?
+  - Payments/Lending/BaaS/RegTech/WealthTech/Crypto?
+  - 20-500 employees? Series A-D?
+  - Correct segment label assigned?
+Score: % of companies that are REAL targets per document ICP.
+```
+
+### People verification (all 100+)
+```
+Split into batches of 25. Launch parallel agents.
+Each agent checks: is this person a real decision-maker?
+  - VP Sales / CRO / Head of Growth / CMO / CEO?
+  - At a real fintech company?
+  - Verified email?
+Score: % of people matching document's persona criteria.
+```
+
+### Sequence verification
+```
+Compare extracted sequence against document word-by-word:
+  - Subject lines match?
+  - Email bodies match (allow minor formatting differences)?
+  - Day spacing correct (1, 3, 7, 14)?
+  - Personalization variables preserved ({{company}}, {{firstName}})?
+Score: exact match % per email.
+```
+
+### Campaign settings verification
+```
+  - No tracking? ✓/✗
+  - Stop on reply? ✓/✗
+  - Plain text? ✓/✗
+  - Daily limit 35/mailbox? ✓/✗
+  - Rinat accounts connected? ✓/✗
+```
+
+### Final Score Per Test Run
+```
+Companies accuracy: X% (N/100 real targets)
+People accuracy: X% (N/100 correct roles at target companies)
+Sequence accuracy: X% (N/4 emails matching document)
+Settings accuracy: X/5 correct settings
+Total: weighted average
+```
 
 ## Testing Strategy — Step by Step
 
