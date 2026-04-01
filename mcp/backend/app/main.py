@@ -410,19 +410,39 @@ _original_app = app
 
 
 async def _token_capture_wrapper(scope, receive, send):
-    """Raw ASGI middleware — captures ?token= from /mcp/sse before anything else processes it."""
+    """Raw ASGI middleware — captures token from SSE URL before anything else processes it.
+
+    Supports both formats:
+      /mcp/sse?token=mcp_xxx  (query string — works with curl, mcp-remote)
+      /mcp/sse/mcp_xxx        (path — works with Claude Code which strips query params)
+    """
     if scope.get("type") == "http":
-        qs = scope.get("query_string", b"").decode()
         path = scope.get("path", "")
-        if qs and "token=" in qs and "/mcp" in path:
+        token = ""
+
+        # Method 1: token in query string (?token=mcp_xxx)
+        qs = scope.get("query_string", b"").decode()
+        if qs and "token=" in qs:
             for part in qs.split("&"):
                 if part.startswith("token="):
                     token = part.split("=", 1)[1]
-                    if token:
-                        from app.mcp.server import _session_tokens
-                        _session_tokens["_latest"] = token
-                        logger.info(f"Token captured from URL: {token[:12]}...")
                     break
+
+        # Method 2: token in path (/mcp/sse/mcp_xxx)
+        if not token and "/sse/" in path:
+            token_part = path.split("/sse/", 1)[1].split("?")[0].split("/")[0]
+            if token_part.startswith("mcp_"):
+                token = token_part
+                # Rewrite path to /mcp/sse so MCP SDK handles it correctly
+                clean_path = path.split("/sse/")[0] + "/sse"
+                scope["path"] = clean_path
+                scope["raw_path"] = clean_path.encode()
+
+        if token:
+            from app.mcp.server import _session_tokens
+            _session_tokens["_latest"] = token
+            logger.info(f"Token captured: {token[:12]}... (from {'path' if '/sse/' in path else 'qs'})")
+
     await _original_app(scope, receive, send)
 
 app = _token_capture_wrapper  # type: ignore
