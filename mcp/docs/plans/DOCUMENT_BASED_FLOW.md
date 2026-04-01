@@ -82,10 +82,11 @@ VERIFY FIX 4: Tool Schema Fixes
   4.4 list_email_accounts: does it dump 247K chars or return count+link? Test it.
   Fix only what fails.
 
-VERIFY FIX 5: Email Accounts UX
+VERIFY + IMPLEMENT FIX 5: Email Accounts UX (full spec below)
   - Does list_email_accounts return count + link (not all accounts)?
   - Is pre-cache implemented?
-  - If not → implement as part of requirement #2 above.
+  - Is account lists UI built?
+  - See "Email Accounts Subpage UX" section below for full design.
 
 VERIFY FIX 7: Total Company Count
   - Open pipeline page, check if it shows total or page size.
@@ -389,6 +390,132 @@ After each test run, verify these pipeline_spec.md rules:
   ✓ Classification never uses Apollo industry label
 ```
 
+---
+
+## Email Accounts Subpage UX — Full Design
+
+### The Problem
+- SmartLead has 2400+ email accounts
+- `list_email_accounts` dumps all 247K chars into MCP → crashes
+- User says "all with rinat" but has to wait 30s for API pagination
+- No way to save/reuse account selections across campaigns
+
+### The Solution: Account Lists
+
+**New entity: `EmailAccountList`** — a saved, named selection of accounts.
+
+```
+Table: email_account_lists
+  id: int (PK)
+  user_id: int (FK → mcp_users)
+  name: str (e.g. "Rinat TFP accounts", "Petr Crona accounts")
+  filter_pattern: str (e.g. "rinat", "petr crona")
+  account_ids: JSONB (list of SmartLead account IDs)
+  account_count: int
+  created_at: datetime
+  updated_at: datetime
+```
+
+### Where Account Lists Appear in UI
+
+#### 1. Campaigns Page → "Email Accounts" tab/button
+```
+URL: /campaigns/accounts
+
+Shows:
+  - Total accounts: 2,411 (from cache)
+  - Search bar: type to filter by name/email
+  - Saved Lists section:
+    [Rinat TFP] 14 accounts | [Petr Crona] 26 accounts | [+ New List]
+  
+  Click a list → expands to show all accounts:
+    ✉ rinat@thefashionpeopletech.com (Rinat Gabdolla)
+    ✉ rinat@thefashionpeoplesolutions.com (Rinat Gabdolla)
+    ... 14 accounts
+
+  Click [+ New List] → name it, type filter pattern, save
+```
+
+#### 2. Campaign Details Page → Accounts section
+```
+URL: /campaigns/568
+
+Shows:
+  Campaign: The Fashion People — Rinat Campaign
+  Status: MCP_DRAFT
+  
+  Email Accounts: [Rinat TFP] (14 accounts) [View] [Change]
+  
+  Click [View] → links to /campaigns/accounts?list=rinat-tfp
+  Click [Change] → dropdown of saved lists or create new
+```
+
+#### 3. MCP Tool: align_email_accounts
+```
+When user says "all with rinat in name":
+  1. Search local cache (instant) → find 14 accounts
+  2. Auto-create EmailAccountList: name="rinat", filter="rinat", 14 accounts
+  3. Return: "14 accounts matched. View: http://host/campaigns/accounts?list=rinat"
+  4. Link is clickable in MCP chat
+
+When user says "use list rinat-tfp":
+  1. Look up saved list by name
+  2. Return accounts from list (instant)
+```
+
+### Pre-Cache Flow (on SmartLead key connect)
+
+```
+1. User connects SmartLead API key on Setup page
+2. Backend immediately starts background task:
+   - Paginate ALL accounts (offset=0, limit=100, repeat until done)
+   - Save to: smartlead_accounts_cache table (user_id, account_id, from_email, from_name)
+   - Log: "Cached 2,411 accounts in 12s"
+3. Future lookups query local cache, not SmartLead API
+4. Cache refreshed: daily background job OR on-demand via "Refresh" button
+```
+
+### Database Schema
+
+```sql
+-- Cache of all SmartLead accounts (populated on key connect)
+CREATE TABLE smartlead_accounts_cache (
+  id SERIAL PRIMARY KEY,
+  user_id INT REFERENCES mcp_users(id),
+  account_id INT NOT NULL,           -- SmartLead account ID
+  from_email VARCHAR(255) NOT NULL,
+  from_name VARCHAR(255),
+  cached_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, account_id)
+);
+
+-- Saved account selections (reusable across campaigns)
+CREATE TABLE email_account_lists (
+  id SERIAL PRIMARY KEY,
+  user_id INT REFERENCES mcp_users(id),
+  name VARCHAR(255) NOT NULL,
+  filter_pattern VARCHAR(255),
+  account_ids JSONB NOT NULL,       -- [{id: 123, email: "...", name: "..."}]
+  account_count INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### MCP Flow After Implementation
+
+```
+User: "all emails with rinat in name"
+
+1. Query smartlead_accounts_cache WHERE from_email ILIKE '%rinat%' OR from_name ILIKE '%rinat%'
+2. Found 14 accounts (instant, no API call)
+3. Create email_account_lists entry: name="rinat", 14 accounts
+4. Return: "14 accounts. View: http://host/campaigns/accounts?list=1"
+5. User: "yes" → link list to campaign
+```
+
+---
+
 ## Results File
 
 All discoveries, issues, and final results written to:
@@ -446,8 +573,15 @@ Referenced from this document (DOCUMENT_BASED_FLOW.md).
 
 #### Iteration Protocol:
 ```
-Target: 95% accuracy across all metrics.
-Max iterations: 10.
+NEVER STOP below 90%. There is NO maximum iteration count.
+
+Phase A: aim for 95% (up to 10 iterations)
+  If 95% reached → DONE ✓
+  If not reached after 10 iterations → lower target to 90%, continue
+
+Phase B: aim for 90% (UNLIMITED iterations until hit)
+  Keep iterating until 90% reached. No cap. No stopping.
+  90% is the absolute minimum. Below 90% = task NOT done.
 
 After each iteration:
   1. Run full pipeline
@@ -456,8 +590,7 @@ After each iteration:
   4. Opus verifies sequences
   5. Calculate scores
   6. Log to iteration_log.md: timestamp, scores, what changed
-  7. If <95%: identify worst category, fix prompt/logic, iterate
-  8. If still <90% after 10 iterations: accept 90%, document why
+  7. If <target%: identify worst category, fix prompt/logic, iterate
 
 Score formula:
   overall = (companies_pct * 0.3) + (people_pct * 0.3) + 
