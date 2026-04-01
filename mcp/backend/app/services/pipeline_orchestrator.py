@@ -493,7 +493,7 @@ class PipelineOrchestrator:
 
 
 async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
-    """Background task — creates own DB session, runs orchestrator."""
+    """Background task — creates own DB session, runs STREAMING pipeline."""
     from app.db import async_session_maker
     try:
         async with async_session_maker() as session:
@@ -514,17 +514,12 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
             import os
             apify_proxy = os.environ.get("APIFY_PROXY_PASSWORD")
 
-            # Check if resuming
-            if run.pages_fetched and run.pages_fetched > 0:
-                orchestrator = PipelineOrchestrator.resume(
-                    session, run, openai_key, apollo_svc, apify_proxy
-                )
-            else:
-                orchestrator = PipelineOrchestrator(
-                    session, run, openai_key, apollo_svc, apify_proxy
-                )
-
-            result = await orchestrator.run_until_kpi(filters)
+            # Use streaming pipeline — companies flow through phases immediately
+            from app.services.streaming_pipeline import StreamingPipeline
+            pipeline = StreamingPipeline(
+                session, run, openai_key, apollo_svc, apify_proxy
+            )
+            result = await pipeline.run_until_kpi(filters)
 
             # Mark complete (unless paused — then status stays "paused")
             if run.status != "paused":
