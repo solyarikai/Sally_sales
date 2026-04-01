@@ -729,13 +729,18 @@ Does everything automatically:
 3. Loop: 4 pages at a time → scrape → classify → extract people
 4. Stops when target_count contacts gathered (default 100)
 5. Each batch = new iteration (visible in UI)
+6. When KPI hit: auto-generates sequence + pushes to SmartLead as DRAFT (if accounts pre-selected)
 
 People extraction runs IN PARALLEL — as soon as a target is found, contacts are gathered.
 Pipeline runs in BACKGROUND — returns immediately. Use pipeline_status to track progress.
 
 KPIs are configurable: target_people, max_people_per_company, target_companies.
 
-TWO-STEP: Call WITHOUT confirm → shows preview of KPIs + cost. Call WITH confirm=true → starts pipeline.
+PREREQUISITE: Call align_email_accounts BEFORE this tool to pre-select email accounts for the campaign.
+Without pre-selected accounts, the pipeline still runs but auto-push to SmartLead will NOT happen —
+user will need to manually generate sequence and push after pipeline completes.
+
+TWO-STEP: Call WITHOUT confirm → shows preview of KPIs + cost + account status. Call WITH confirm=true → starts pipeline.
 Call AFTER user confirms filters (tam_gather with confirm_filters returned the preview).
 Requires: project with offer context, Apollo + OpenAI keys configured.""",
         "inputSchema": {
