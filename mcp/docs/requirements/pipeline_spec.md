@@ -11,6 +11,10 @@ Pipeline NEVER changes user's filters (location, size) without approval.
 
 ```
 1. Probe Apollo: 1 page (per_page=100) = 1 credit
+   - Gets total_entries (e.g. 8,127) and total_pages (e.g. 82)
+   - Gets 100 companies from page 1 — SAVED to DB immediately
+   - These 100 companies are REUSED when pipeline starts (not thrown away)
+   
    Shows user:
    - Total companies in Apollo matching these filters (e.g. 8,127)
    - Total pages available (e.g. 82 pages)
@@ -18,7 +22,7 @@ Pipeline NEVER changes user's filters (location, size) without approval.
    - ALL generated keywords (20+)
    - KPIs: 100 people, max 3/company
    - Estimated cost: 10 pages search + ~100 enrichment = ~$1.10
-   - Pipeline link (pending_approval state)
+   - Pipeline link (pending_approval state, already shows 100 probe companies)
 
 2. User approves → pipeline starts automatically
 ```
@@ -27,13 +31,26 @@ Pipeline NEVER changes user's filters (location, size) without approval.
 
 ## Pipeline Execution — Business Logic
 
-### Step 1: Gather Companies (Apollo Search)
+**ONE PIPELINE. Probe data reused. Everything overlaps.**
+
+### Step 1: Pipeline starts — probe companies + Apollo pages IN PARALLEL
 ```
-Fetch 10 pages in PARALLEL (10 concurrent requests)
-  - per_page=100 → up to 1,000 companies
-  - Dedup against project (skip already-known domains)
-  - Save to DB immediately
-  - Feed each company to scrape queue AS SOON AS fetched (don't wait for all 10 pages)
+Immediately on user approval:
+  - 100 probe companies (already in DB) → fed to scrape queue INSTANTLY
+  - Scraping starts on probe companies while Apollo fetches pages 2-10
+  - Apollo fetches pages 2-10 in parallel (10 concurrent)
+  - Each page's companies → fed to scrape queue AS THEY ARRIVE
+  - Scraping, classification, people extraction all running simultaneously
+
+Timeline:
+  0s: 100 probe companies start scraping (100 concurrent)
+  1s: Apollo pages 2-10 requested in parallel
+  2s: First 20 probe sites scraped → classification starts
+  3s: Pages 2-5 return → 400 more companies fed to scrape queue
+  4s: First 10 classifications done → 7 targets → people search starts
+  5s: Pages 6-10 return → scraper has 300+ in queue
+  
+NOTHING WAITS. Probe data gives 2-3 second head start on scraping.
 ```
 
 **Stats tracked:**
