@@ -44,7 +44,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     # Token from arguments (explicit) or from session-local store (set by login tool)
     token = arguments.pop("_token", None)
     if not token:
-        # Use MCP SDK's request_context to identify current session
         try:
             ctx = mcp_server.request_context
             session_key = id(ctx.session)
@@ -52,11 +51,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         except (LookupError, AttributeError):
             pass
     if not token:
-        # Fallback: HTTP header token stored per session_id
+        # Fallback: token captured from SSE URL (path or query string)
+        token = _session_tokens.get("_latest", "")
+    if not token:
         for sid, t in _session_tokens.items():
             if t:
                 token = t
                 break
+    logger.info(f"call_tool({name}): token={'YES:'+token[:12] if token else 'NONE'}, "
+                f"_session_tokens={list(_session_tokens.keys())}, "
+                f"_session_user_tokens={len(_session_user_tokens)}")
     try:
         # Reset cost tracker per tool call
         from app.services.cost_tracker import reset_tracker, get_tracker
