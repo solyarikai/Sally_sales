@@ -9,12 +9,14 @@
 
 ## What changed from v3
 
-| Parameter | v3 | v4 |
-|-----------|----|----|
-| Location | 10-12 priority countries | **ALL GEO** (no location filter) |
-| Management Level | varied per segment | **Unified: c_suite, vp, director, owner, senior, head, partner, founder** |
-| Excluded Titles | basic list | **Expanded** — covers senior ICs that slip through with "senior" management level |
-| Company Keywords | original set | **Reworked** — adjacent keywords to catch companies v3 missed |
+
+| Parameter        | v3                       | v4                                                                                |
+| ---------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| Location         | 10-12 priority countries | **ALL GEO** (no location filter)                                                  |
+| Management Level | varied per segment       | **Unified: c_suite, vp, director, owner, head, partner, founder**                 |
+| Excluded Titles  | basic list               | **Expanded** — covers senior ICs that slip through with "senior" management level |
+| Company Keywords | original set             | **Reworked** — adjacent keywords to catch companies v3 missed                     |
+
 
 ---
 
@@ -25,12 +27,14 @@ SaaS companies building influencer/creator products, social listening tools, cre
 ### Company filters
 
 **Industry**
+
 ```
 Computer Software, Internet, Marketing & Advertising,
 Information Technology, Online Media
 ```
 
 **Company Keywords — ANY of**
+
 ```
 influencer marketing platform, creator analytics, creator marketplace,
 influencer platform, social media analytics, UGC platform,
@@ -53,6 +57,7 @@ review management platform, word of mouth platform
 > New keywords (not in v3): social intelligence, earned media, digital PR platform, media monitoring, creator CRM, talent marketplace technology, social ROI, reputation management, sentiment analysis, brand intelligence, content analytics, social proof, review management, word of mouth. These target adjacent companies that need creator/audience data but don't describe themselves as "influencer marketing."
 
 **Excluded Company Keywords**
+
 ```
 recruitment, staffing, accounting, legal, healthcare,
 logistics, manufacturing, real estate, fintech, insurance,
@@ -72,6 +77,7 @@ ERP, payroll, HRIS, applicant tracking
 ### People filters
 
 **Job Titles**
+
 ```
 CTO, VP Engineering, VP of Engineering, Head of Engineering,
 Head of Product, Chief Product Officer, VP Product,
@@ -83,33 +89,15 @@ Head of Data, VP Data, Chief Data Officer,
 Head of Platform, VP Platform
 ```
 
-**Management Level:** c_suite, vp, director, owner, senior, head, partner, founder
+**Management Level:** c_suite, vp, director, owner, head, partner, founder
 
 **Excluded Titles**
+
 ```
 Intern, Junior, Assistant, Student, Freelance,
 Marketing Manager, Sales Representative, Account Executive,
 Customer Success, Support, HR, People, Recruiter,
 Content Writer, Designer, Social Media Manager,
-Senior Software Engineer, Senior Developer, Senior Backend Engineer,
-Senior Frontend Engineer, Senior Full Stack Engineer,
-Senior Data Engineer, Senior Data Scientist, Senior Data Analyst,
-Senior QA Engineer, Senior Test Engineer, Senior DevOps Engineer,
-Senior SRE, Senior Infrastructure Engineer,
-Senior Designer, Senior UX Designer, Senior UI Designer,
-Senior Product Designer, Senior Graphic Designer,
-Senior Account Executive, Senior Account Manager,
-Senior Sales Representative, Senior BDR, Senior SDR,
-Senior Customer Success Manager, Senior Support Engineer,
-Senior Recruiter, Senior HR Manager, Senior HR Business Partner,
-Senior Marketing Manager, Senior Content Manager,
-Senior Copywriter, Senior Content Strategist,
-Senior Project Manager, Senior Scrum Master,
-Senior Business Analyst, Senior Financial Analyst,
-Senior Accountant, Senior Controller,
-Senior Legal Counsel, Senior Paralegal,
-Senior Operations Manager, Senior Office Manager,
-Senior Administrative Assistant, Senior Coordinator,
 Solutions Architect, Technical Architect, Enterprise Architect,
 Staff Engineer, Principal Engineer, Lead Engineer, Lead Developer
 ```
@@ -125,12 +113,14 @@ Affiliate networks, performance marketing platforms, partnership platforms — p
 ### Company filters
 
 **Industry**
+
 ```
 Computer Software, Internet, Marketing & Advertising,
 Information Technology, E-commerce, Online Media
 ```
 
 **Company Keywords — ANY of**
+
 ```
 affiliate marketing, affiliate network, affiliate platform,
 performance marketing platform, partner marketing,
@@ -154,6 +144,7 @@ revenue sharing platform
 > New keywords (not in v3): loyalty/rewards/cashback/coupon/deal platforms (converging with affiliate), attribution/conversion tracking (performance measurement), partner relationship management, channel partner, marketplace monetization, creator payments, ambassador platform tech, revenue sharing. These capture the affiliate-adjacent ecosystem.
 
 **Excluded Company Keywords**
+
 ```
 affiliate agency, affiliate management service,
 SEO agency, PPC agency, web design, software development,
@@ -176,6 +167,7 @@ crypto exchange, blockchain wallet
 ### People filters
 
 **Job Titles**
+
 ```
 CTO, VP Engineering, VP of Engineering, VP Product,
 Head of Product, Chief Product Officer, Head of Engineering,
@@ -189,36 +181,16 @@ Head of Platform, VP Platform,
 Head of Growth, VP Growth, Director of Growth
 ```
 
-**Management Level:** c_suite, vp, director, owner, senior, head, partner, founder
+**Management Level:** c_suite, vp, director, owner, head, partner, founder
 
 **Excluded Titles**
+
 ```
 Intern, Junior, Assistant, Student, Freelance,
 Marketing Manager, Sales Representative, Account Executive,
 Account Manager, Customer Success, Support, HR, People,
 Recruiter, Content Writer, Designer, Social Media Manager,
-Affiliate Manager, Partner Manager,
-Senior Software Engineer, Senior Developer, Senior Backend Engineer,
-Senior Frontend Engineer, Senior Full Stack Engineer,
-Senior Data Engineer, Senior Data Scientist, Senior Data Analyst,
-Senior QA Engineer, Senior Test Engineer, Senior DevOps Engineer,
-Senior SRE, Senior Infrastructure Engineer,
-Senior Designer, Senior UX Designer, Senior UI Designer,
-Senior Product Designer, Senior Graphic Designer,
-Senior Account Executive, Senior Account Manager,
-Senior Sales Representative, Senior BDR, Senior SDR,
-Senior Customer Success Manager, Senior Support Engineer,
-Senior Recruiter, Senior HR Manager, Senior HR Business Partner,
-Senior Marketing Manager, Senior Content Manager,
-Senior Copywriter, Senior Content Strategist,
-Senior Project Manager, Senior Scrum Master,
-Senior Business Analyst, Senior Financial Analyst,
-Senior Accountant, Senior Controller,
-Senior Legal Counsel, Senior Paralegal,
-Senior Operations Manager, Senior Office Manager,
-Senior Administrative Assistant, Senior Coordinator,
-Senior Affiliate Manager, Senior Partner Manager,
-Solutions Architect, Technical Architect, Enterprise Architect,
+Affiliate Manager, Partner Manager, Solutions Architect, Technical Architect, Enterprise Architect,
 Staff Engineer, Principal Engineer, Lead Engineer, Lead Developer
 ```
 
@@ -233,6 +205,7 @@ Agencies where influencer marketing is the core business — plus adjacent creat
 ### Company filters
 
 **Industry**
+
 ```
 Marketing & Advertising
 ```
@@ -240,6 +213,7 @@ Marketing & Advertising
 > Still intentionally narrow — only Marketing & Advertising. PR firms = 0 conversions (unchanged from v3).
 
 **Company Keywords — ANY of**
+
 ```
 influencer marketing agency, influencer agency,
 creator agency, influencer management, creator campaigns,
@@ -260,6 +234,7 @@ creator network agency, influencer collective
 > New keywords (not in v3): creator/content/branded content studio, talent management/representation, social-first/creator-first agency, influencer activation, micro/nano-influencer agency, seeding/gifting agency, creator network/collective. These catch agencies that don't use the exact phrase "influencer marketing agency" but do IM as core business.
 
 **Excluded Company Keywords**
+
 ```
 SEO agency, PPC agency, web design, software development,
 recruitment, HR, staffing, healthcare, legal, accounting,
@@ -285,6 +260,7 @@ translation agency, localization agency
 ### People filters
 
 **Job Titles**
+
 ```
 CEO, Founder, Co-Founder, Managing Director, Managing Partner,
 Head of Influencer Marketing, Director of Influencer,
@@ -298,9 +274,10 @@ Head of Growth, Director of Business Development,
 Head of Operations, Director of Operations
 ```
 
-**Management Level:** c_suite, vp, director, owner, senior, head, partner, founder
+**Management Level:** c_suite, vp, director, owner, head, partner, founder
 
 **Excluded Titles**
+
 ```
 Intern, Junior, Assistant, Student, Freelance,
 Campaign Manager, Campaign Coordinator,
@@ -309,15 +286,6 @@ Account Coordinator, Media Planner, Media Buyer,
 PR Manager, Communications Manager,
 HR, People, Recruiter, Finance, Accounting,
 Executive Assistant, Office Manager, Operations Coordinator,
-Senior Campaign Manager, Senior Campaign Coordinator,
-Senior Social Media Manager, Senior Content Creator,
-Senior Designer, Senior Account Coordinator,
-Senior Media Planner, Senior Media Buyer,
-Senior PR Manager, Senior Communications Manager,
-Senior Account Executive, Senior Account Manager,
-Senior Copywriter, Senior Content Strategist,
-Senior Project Manager, Senior Producer,
-Senior Analyst, Senior Strategist,
 Community Manager, Senior Community Manager,
 Influencer Coordinator, Senior Influencer Coordinator,
 Talent Coordinator, Senior Talent Coordinator
@@ -335,12 +303,14 @@ Same as v3 — apply competitor blacklist, negative responder blacklist, and act
 
 ## Volume estimates (v4 vs v3)
 
-| Segment | v3 est. contacts | v4 est. contacts | Delta |
-|---------|-----------------|-----------------|-------|
-| INFLUENCER_PLATFORMS | 1,500-2,500 | 3,000-5,000 | +2x (all geo + adjacent keywords) |
-| AFFILIATE_PERFORMANCE | 400-800 | 800-1,500 | +2x (all geo + loyalty/attribution keywords) |
-| IM_FIRST_AGENCIES | 800-1,500 | 1,500-3,000 | +2x (all geo + studio/talent keywords) |
-| **Total** | **2,700-4,800** | **5,300-9,500** | **~2x expansion** |
+
+| Segment               | v3 est. contacts | v4 est. contacts | Delta                                        |
+| --------------------- | ---------------- | ---------------- | -------------------------------------------- |
+| INFLUENCER_PLATFORMS  | 1,500-2,500      | 3,000-5,000      | +2x (all geo + adjacent keywords)            |
+| AFFILIATE_PERFORMANCE | 400-800          | 800-1,500        | +2x (all geo + loyalty/attribution keywords) |
+| IM_FIRST_AGENCIES     | 800-1,500        | 1,500-3,000      | +2x (all geo + studio/talent keywords)       |
+| **Total**             | **2,700-4,800**  | **5,300-9,500**  | **~2x expansion**                            |
+
 
 > Estimates assume ~40-50% of new contacts are net-new (not already in v3 exports). Real unique contacts: ~2,500-4,500 incremental.
 
@@ -349,6 +319,7 @@ Same as v3 — apply competitor blacklist, negative responder blacklist, and act
 ## Important: deduplication
 
 Since v3 filters were already exhausted, v4 results WILL overlap with v3 exports. Before uploading to SmartLead:
+
 1. Export v4 results
 2. Deduplicate against existing blacklist + leads + exclusion list
 3. Only process net-new contacts
@@ -358,10 +329,12 @@ Since v3 filters were already exhausted, v4 results WILL overlap with v3 exports
 ## Filter validation checklist (same as v3)
 
 Before launching any segment, verify with a 25-company sample:
-- [ ] Run `search_people` with `per_page=1` to get actual `total_count`
-- [ ] Scrape 25 websites from the Apollo export
-- [ ] Manually check: does this company actually match the segment?
-- [ ] If <70% match — tighten keywords or add exclusions
-- [ ] If >90% match — proceed
-- [ ] Cross-check against Sally's successful leads — would they have been caught?
-- [ ] Cross-check against Sally's failures — would they have been excluded?
+
+- Run `search_people` with `per_page=1` to get actual `total_count`
+- Scrape 25 websites from the Apollo export
+- Manually check: does this company actually match the segment?
+- If <70% match — tighten keywords or add exclusions
+- If >90% match — proceed
+- Cross-check against Sally's successful leads — would they have been caught?
+- Cross-check against Sally's failures — would they have been excluded?
+
