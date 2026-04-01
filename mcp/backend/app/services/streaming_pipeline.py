@@ -88,7 +88,13 @@ class StreamingPipeline:
                 self._person_titles = target_roles["titles"]
 
     async def run_until_kpi(self, filters: Dict) -> Dict:
-        """Main entry — process existing companies first, then stream from Apollo if needed."""
+        """Main entry — SINGLE STREAMING MODE for everything.
+
+        All companies (existing + new Apollo) flow through the same queue workers:
+          scrape_queue → scraper (100) → classify_queue → classifier (100) → people_queue → people (20)
+
+        Each company flows immediately — no waiting for batches.
+        """
         self.run.started_at = datetime.now(timezone.utc)
         await self.session.flush()
         await self._init_services()
@@ -96,47 +102,37 @@ class StreamingPipeline:
         logger.info(f"Streaming pipeline started: target={self.target_count} people, "
                      f"max {self.max_per_company}/company")
 
-        # ── Phase 1: Process existing companies (batch mode) ──
-        # These were gathered by tam_gather. Process them fully before deciding if we need Apollo.
+        # Start streaming workers — they run the ENTIRE time
+        workers = [
+            asyncio.create_task(self._scraper_worker()),
+            asyncio.create_task(self._classifier_worker()),
+            asyncio.create_task(self._people_worker()),
+        ]
+
+        # Feed existing companies (from tam_gather) into the queue — they flow immediately
         existing = await self._load_existing_companies()
         if existing:
-            logger.info(f"Phase 1: Processing {len(existing)} existing companies in batch")
+            logger.info(f"Feeding {len(existing)} existing companies to streaming queue")
             self.total_companies = len(existing)
             for dc in existing:
                 self._domains_seen.add(dc.domain)
+                await self.scrape_queue.put(dc)
 
-            # Scrape → Classify → People (each phase waits for completion)
-            await self._batch_scrape(existing)
-            scraped = [dc for dc in existing if dc.scraped_text]
-            await self._batch_classify(scraped)
-            targets = [dc for dc in existing if dc.is_target]
-            await self._batch_people(targets)
-
-            await self._persist_progress()
-            logger.info(f"Phase 1 done: {self.total_scraped} scraped, "
-                        f"{self.total_targets} targets, {self.total_people} people "
-                        f"in {time.time() - self._started_at:.0f}s")
-
-        # ── Phase 2: Stream from Apollo if KPI not met ──
+        # Feed more Apollo pages if needed — same queue, same workers
+        # Workers are ALREADY processing existing companies in parallel
         if not self._kpi_met:
-            logger.info(f"Phase 2: KPI not met ({self.total_people}/{self.target_count}). "
-                        f"Starting Apollo streaming.")
-
-            workers = [
-                asyncio.create_task(self._scraper_worker()),
-                asyncio.create_task(self._classifier_worker()),
-                asyncio.create_task(self._people_worker()),
-            ]
-
             await self._feed_apollo_pages(filters)
 
-            # Signal workers to stop
-            await self.scrape_queue.put(None)
-            await asyncio.gather(*workers, return_exceptions=True)
-        else:
-            logger.info(f"KPI met from existing companies — skipping Apollo pages")
+        # Signal workers to drain and stop
+        await self.scrape_queue.put(None)
+        await asyncio.gather(*workers, return_exceptions=True)
+
+        # Final progress persist
+        await self._persist_progress()
 
         elapsed = time.time() - self._started_at
+        logger.info(f"Pipeline done: {self.total_scraped} scraped, {self.total_targets} targets, "
+                    f"{self.total_people} people in {elapsed:.0f}s")
         return self._build_result(elapsed)
 
     # ── Batch processing (Phase 1: existing companies) ──
@@ -377,8 +373,12 @@ class StreamingPipeline:
                             if new_keywords:
                                 all_tried_keywords.update(k.lower() for k in new_keywords)
                                 strategy_filters["q_organization_keyword_tags"] = new_keywords
+                                # Drop industry tags — after regen, search by keywords only
+                                # Apollo applies industry + keywords as AND which narrows results
+                                strategy_filters.pop("organization_industry_tag_ids", None)
                                 consecutive_empty = 0
                                 page = 1
+                                await self._persist_progress()
                                 continue
                             else:
                                 logger.info(f"Phase 2 [{strategy_name}]: regeneration returned nothing. Switching.")
