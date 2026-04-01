@@ -612,7 +612,7 @@ export default function PipelinePage() {
           {/* Prompts */}
           {runId && <Link to={`/pipeline/${runId}/prompts`} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, color: 'var(--text-muted)', textDecoration: 'none', border: '1px solid var(--border)' }} title="Prompts">📝</Link>}
           {/* Filters modal */}
-          <button onClick={() => setShowFiltersModal(true)} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} title="Filters">≡</button>
+          <button onClick={() => setShowFiltersModal(true)} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 13, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} title="Filters">🔍</button>
           {/* Columns dropdown */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowColumnConfig(!showColumnConfig)} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, border: '1px solid var(--border)', background: showColumnConfig ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} title="Columns">⊞</button>
