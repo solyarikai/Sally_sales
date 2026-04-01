@@ -102,12 +102,16 @@ async def extract_from_document(text: str, website: str, openai_key: str, model:
 
 ### Models to Test
 
-| Model | Cost/1K tokens | Notes |
-|-------|---------------|-------|
-| gpt-4o | $0.005 in / $0.015 out | Best quality, expensive |
-| gpt-4o-mini | $0.00015 in / $0.0006 out | Good quality, cheap |
-| gpt-4.1-mini | $0.0004 in / $0.0016 out | Newer |
-| gpt-4.1-nano | $0.0001 in / $0.0004 out | Cheapest |
+| Model | Family | Notes |
+|-------|--------|-------|
+| gpt-4o-mini | GPT-4o | Baseline, proven |
+| gpt-4.1-mini | GPT-4.1 | Current pipeline default |
+| gpt-4.1-nano | GPT-4.1 | Cheapest GPT-4 |
+| gpt-5-nano | GPT-5.0 | First-gen GPT-5 cheap |
+| gpt-5-mini | GPT-5.0 | First-gen GPT-5 mid |
+| gpt-5.4-nano | GPT-5.4 | Latest GPT-5 cheap |
+| gpt-5.4-mini | GPT-5.4 | Latest GPT-5 mid |
+| gpt-5.4 | GPT-5.4 | Latest GPT-5 full |
 
 ### Scoring (ground truth from manual review)
 
