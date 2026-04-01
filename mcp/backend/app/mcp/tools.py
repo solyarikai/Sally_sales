@@ -5,11 +5,17 @@ TOOLS = [
     {
         "name": "get_context",
         "description": """Get the user's current state — projects, pipelines, campaigns, pending actions.
-Authentication is automatic via the SSE URL token — no login needed.
-Call this first to see what the user is working on.
+FIRST CALL: pass the token from the SSE URL in your .mcp.json config.
+The token is in the URL after ?token= or /sse/ — extract it and pass as the token parameter.
+After first call, authentication is stored for the session.
 DO NOT call this when the user asks to DO something (gather, explore, generate, activate).
-For those actions, call the specific tool directly (tam_gather, tam_explore, smartlead_generate_sequence, activate_campaign).""",
-        "inputSchema": {"type": "object", "properties": {}},
+For those actions, call the specific tool directly.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "token": {"type": "string", "description": "API token from SSE URL (mcp_...). Extract from your .mcp.json config URL. Only needed on first call."},
+            },
+        },
     },
     {
         "name": "configure_integration",
