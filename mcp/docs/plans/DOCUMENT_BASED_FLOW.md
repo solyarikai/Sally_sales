@@ -2,54 +2,77 @@
 
 ## What This Is
 
-User provides a strategy document (like `outreach-plan-fintech.md`) instead of answering questions one by one. The system extracts everything needed to create a project + launch pipeline automatically.
+User provides a strategy document filename in MCP chat (e.g. "launch outreach-plan-fintech.md"). Claude Code reads the file from disk, extracts everything needed, creates project + launches pipeline. No upload API needed — Claude Code has filesystem access.
 
-## What the Document Contains (outreach-plan-fintech.md example)
-
-| Data | Extracted For | Example from Doc |
-|------|--------------|------------------|
-| Company/Website | Project creation | Sally / getsally.io (user provides) |
-| Offer | Offer analysis | "done-for-you lead gen, 10-50 qualified meetings/month" |
-| ICP segments | Apollo filters | Fintech, 20-500 employees, Series A-D, US/UK/EU/UAE/Singapore |
-| Sub-verticals | Multiple pipeline runs | Payments, Lending, BaaS, RegTech, WealthTech, Crypto |
-| Target roles | People search | VP Sales, Head of Growth, CRO, CEO, CMO |
-| Funding stage | Apollo filters | Series A through Series D |
-| Geography | Apollo filters | US, UK, EU, UAE, Singapore |
-| Employee range | Apollo filters | 20-500 |
-| Email sequences | SmartLead campaign | 3 sequences with 3-4 emails each, personalization vars |
-| Personalization tiers | Sequence selection | Tier 1 (high-touch), Tier 2 (mid), Tier 3 (volume) |
-| KPI targets | Pipeline KPIs | 10-50 meetings/month, 2000-3000 contacts |
-| Campaign settings | SmartLead config | 30-40 emails/mailbox/day, warmup, deliverability |
-
-## The Flow
+## How It Works
 
 ```
-1. User provides document (file upload or paste)
-2. GPT extracts structured data:
-   - offer, value_prop, target_audience
-   - target_roles (with seniorities)
-   - segments (each becomes a pipeline run)
-   - sequences (email templates)
-   - apollo_filters per segment
-   - campaign_settings
-3. System creates project with extracted data
-4. Show user: "I extracted 6 segments, 3 sequences, these roles. Correct?"
-5. User approves
-6. For EACH segment: run the standard pipeline
-   - Same flow: blacklist → accounts → tam_gather → pipeline → SmartLead
-   - But automated: all segments queued sequentially
-7. Each segment gets its own SmartLead campaign with matching sequence
+User: "outreach-plan-fintech.md"
 
+Claude Code:
+  1. Reads file from disk (has filesystem access)
+  2. Sends content to create_project(website: "getsally.io", document_text: <content>)
+  3. GPT extracts: offer, roles, filters, sequence, campaign settings
+  4. GPT identifies what CANNOT be automated (skips it, tells user why)
+  5. Shows user extracted data → "Correct?"
+  6. Standard flow: blacklist → accounts → pipeline → SmartLead
 ```
 
-## Architecture Extension
+No new upload_document tool needed. `create_project` extended to accept `document_text`.
 
-### New: Document Extraction Service
+## What GPT Extracts (outreach-plan-fintech.md)
+
+### TAKES (can automate):
+
+| Data | Value | Used For |
+|------|-------|----------|
+| Offer | "Sally's done-for-you lead gen — qualified appointments through omnichannel outreach" | Offer analysis, classification prompt |
+| Value prop | "10-50 qualified meetings/month within 6-8 weeks" | Sequence personalization |
+| ICP | B2B fintech, 20-500 employees, Series A-D | ONE Apollo search (one segment) |
+| Geography | US, UK, EU, UAE, Singapore | Apollo location filter |
+| Employee range | 20-500 | Apollo size filter |
+| Target roles (primary) | VP Sales, Head of Sales, CRO | People search seniority + title match |
+| Target roles (secondary) | Head of Growth, VP Marketing, CMO | People search fallback |
+| Target roles (tertiary) | CEO, Co-founder | People search for small companies |
+| Sequence A "Pipeline Pain" | 4 emails (day 1, 3, 7, 14) | SmartLead campaign sequence |
+| Campaign settings | No tracking, stop on reply, 35/mailbox/day | SmartLead campaign config |
+
+### SKIPS (cannot automate — tells user why):
+
+| Data | Why Skipped |
+|------|------------|
+| Sequence B "Fresh Funding" | Requires funding signal detection — Apollo search doesn't filter by "raised in last 90 days" |
+| Sequence C "Competitor Conquest" | Requires competitor-user detection — no way to know if company uses Belkins/CIENCE |
+| Conference attendee lists (Money20/20) | Requires manual scraping or purchased lists |
+| LinkedIn manual touchpoints (Tier 1) | Requires human research, 15 min per prospect |
+| Tier 1 high-touch personalization | Requires manual prospect research |
+| WhatsApp/Telegram channels | Not supported in pipeline |
+| Tech stack signals (Salesforce/HubSpot) | Apollo doesn't reliably filter by CRM |
+| Hiring signals | Apollo doesn't filter by "currently hiring for X role" |
+
+### ONE Pipeline Run (not 6)
+
+The document describes ONE ICP (B2B fintech) with sub-verticals as keyword hints, NOT separate campaigns. Sub-verticals (Payments, Lending, BaaS, RegTech, WealthTech, Crypto) are used as **keywords for Apollo search** — all results go into ONE campaign with Sequence A.
+
+```
+ONE project: Sally / getsally.io
+ONE pipeline: fintech companies, 20-500, Series A-D, US/UK/EU/UAE/Singapore
+ONE sequence: "Pipeline Pain" (4 emails)
+ONE SmartLead campaign with Rinat accounts
+```
+
+## Extraction Service
+
 **File**: `mcp/backend/app/services/document_extractor.py`
 
 ```python
 async def extract_from_document(text: str, website: str, openai_key: str, model: str) -> dict:
     """Extract project data from a strategy document.
+    
+    Smart enough to:
+    - Take what can be automated
+    - Skip what requires external signals/manual work
+    - Explain what was skipped and why
     
     Returns:
         {
@@ -62,184 +85,114 @@ async def extract_from_document(text: str, website: str, openai_key: str, model:
                 "tertiary": ["CEO", "Co-founder"],
                 "seniorities": ["c_suite", "vp", "head", "director", "founder"]
             },
-            "segments": [
-                {
-                    "name": "Payments/PSPs",
-                    "keywords": ["payments", "payment processing", "PSP", "cross-border payments"],
-                    "locations": ["United States", "United Kingdom", "European Union", "UAE", "Singapore"],
-                    "employee_range": "20,500",
-                    "funding_stages": ["series_a", "series_b", "series_c", "series_d"],
-                    "rationale": "Cross-border payment demand surging"
-                },
-                {
-                    "name": "Lending/BNPL", ...
-                },
-                ...6 segments total
-            ],
-            "sequences": [
-                {
-                    "name": "Fintech Pipeline Pain",
-                    "trigger": "General — has sales team",
-                    "steps": [
-                        {"day": 1, "subject": "pipeline at {{company}}", "body": "..."},
-                        {"day": 3, "subject": "Re: pipeline at {{company}}", "body": "..."},
-                        {"day": 7, "subject": "quick question, {{firstName}}", "body": "..."},
-                        {"day": 14, "subject": "closing the loop", "body": "..."}
-                    ]
-                },
-                {
-                    "name": "Fresh Funding",
-                    "trigger": "Raised funding in last 90 days",
-                    "steps": [...]
-                },
-                {
-                    "name": "Competitor Conquest",
-                    "trigger": "Uses competing agency",
-                    "steps": [...]
-                }
-            ],
+            "apollo_filters": {
+                "keywords": ["fintech", "payments", "lending", "banking-as-a-service", 
+                             "regtech", "insurtech", "wealthtech", "embedded finance",
+                             "payment processing", "digital banking"],
+                "locations": ["United States", "United Kingdom", "Germany", "France",
+                              "United Arab Emirates", "Singapore"],
+                "employee_range": "20,500",
+                "industries": ["financial services", "banking", "insurance"]
+            },
+            "sequence": {
+                "name": "Fintech Pipeline Pain",
+                "steps": [
+                    {"day": 1, "subject": "pipeline at {{company}}", "body": "Hi {{firstName}}..."},
+                    {"day": 3, "subject": "Re: pipeline at {{company}}", "body": "..."},
+                    {"day": 7, "subject": "quick question, {{firstName}}", "body": "..."},
+                    {"day": 14, "subject": "closing the loop", "body": "..."}
+                ]
+            },
             "campaign_settings": {
                 "daily_limit_per_mailbox": 35,
-                "warmup_days": 21,
                 "tracking": false,
                 "stop_on_reply": true,
-                "timezone": "America/New_York"
+                "plain_text": true
             },
-            "what_cannot_be_automated": [
-                "Conference attendee lists (Money20/20, Finovate)",
-                "Competitor-user detection (Belkins, CIENCE)",
-                "LinkedIn manual touchpoints for Tier 1",
-                "WhatsApp/Telegram channels"
+            "skipped": [
+                {"item": "Sequence B: Fresh Funding", "reason": "Requires funding recency signal — Apollo can't filter 'raised in last 90 days'"},
+                {"item": "Sequence C: Competitor Conquest", "reason": "Requires competitor-user detection — not available via API"},
+                {"item": "Conference attendee lists", "reason": "Requires manual scraping or purchased data"},
+                {"item": "LinkedIn Tier 1 personalization", "reason": "Requires 15 min manual research per prospect"},
+                {"item": "Hiring signals", "reason": "Apollo doesn't reliably filter by current job postings"},
+                {"item": "Tech stack signals", "reason": "Apollo doesn't filter by CRM/tool usage"}
             ]
         }
     """
 ```
 
-### New MCP Tool: `upload_document`
-**File**: `mcp/backend/app/mcp/tools.py` + `dispatcher.py`
-
-```python
-{
-    "name": "upload_document",
-    "description": "Upload a strategy document to extract segments, roles, sequences.",
-    "inputSchema": {
-        "properties": {
-            "project_id": {"type": "integer"},
-            "document_text": {"type": "string", "description": "Full document text"},
-            "document_url": {"type": "string", "description": "URL to fetch document from"},
-        }
-    }
-}
-```
-
-### Project Page Extension
-- Show document extraction log at top of project page
-- Show all extracted segments as pipeline runs
-- Show extracted sequences
-- Version history: each document upload creates a new extraction entry
-
-### Multi-Segment Pipeline Queue
-When document has 6 segments, the system:
-1. Creates 6 GatheringRuns (all pending_approval)
-2. Shows all to user for approval
-3. On approval: runs them SEQUENTIALLY (saves Apollo credits, avoids rate limits)
-4. Each run uses its own keywords/filters derived from segment
-5. Each completed run pushes to SmartLead with matching sequence
-
----
-
 ## GPT Model Testing Plan
-
-### What to Test
-Extract structured data from `outreach-plan-fintech.md` using different models. Score by:
-1. **Segments extracted correctly** (6 expected)
-2. **Roles extracted correctly** (3 tiers expected)
-3. **Sequences extracted correctly** (3 sequences, 10 emails total)
-4. **Apollo filters mapped correctly** (locations, size, keywords)
-5. **What-cannot-be-automated identified** (conference lists, competitor detection)
 
 ### Models to Test
 
-| Model | Cost/1K tokens | Expected Quality |
-|-------|---------------|-----------------|
+| Model | Cost/1K tokens | Notes |
+|-------|---------------|-------|
 | gpt-4o | $0.005 in / $0.015 out | Best quality, expensive |
 | gpt-4o-mini | $0.00015 in / $0.0006 out | Good quality, cheap |
-| gpt-4.1-mini | $0.0004 in / $0.0016 out | Newer, potentially better |
-| gpt-4.1-nano | $0.0001 in / $0.0004 out | Cheapest, quality unknown |
+| gpt-4.1-mini | $0.0004 in / $0.0016 out | Newer |
+| gpt-4.1-nano | $0.0001 in / $0.0004 out | Cheapest |
 
-### Test Methodology
-1. Send the FULL document to each model with the extraction prompt
-2. Parse the JSON response
-3. Score each field against ground truth (manually verified)
-4. Log: model, tokens used, cost, time, accuracy per field
-5. Save results to `mcp/tests/results/document_extraction_MODEL_TIMESTAMP.json`
+### Scoring (ground truth from manual review)
 
-### Scoring Criteria
+| Field | Perfect Score |
+|-------|--------------|
+| Offer extracted correctly | 1 point |
+| Target audience correct | 1 point |
+| Roles: all 3 tiers with correct titles | 3 points |
+| Apollo filters: keywords (10+) | 1 point |
+| Apollo filters: locations (6) | 1 point |
+| Apollo filters: employee range correct | 1 point |
+| Sequence A: all 4 emails with subjects + bodies | 4 points |
+| Skipped items: correctly identified 5+ items with valid reasons | 2 points |
+| Campaign settings: no tracking, stop on reply, daily limit | 1 point |
+| **Total** | **15 points** |
+
+### Test Method
+1. Send full document + extraction prompt to each model
+2. Parse JSON response
+3. Score against ground truth
+4. Log: model, tokens, cost, time, score per field
+5. Save to `mcp/tests/results/doc_extract_{MODEL}_{TIMESTAMP}.json`
+
+## E2E Test Plan
+
 ```
-Perfect: all 6 segments, all roles, all 3 sequences with all emails, correct filters
-Good: 5-6 segments, most roles, 2-3 sequences, mostly correct filters
-Acceptable: 4+ segments, primary roles, at least 1 sequence
-Bad: <4 segments or missing roles or no sequences
+1. User: "outreach-plan-fintech.md"
+2. Claude reads file, calls create_project(website: "getsally.io", document_text: ...)
+3. System shows: extracted offer, roles, filters, sequence, skipped items
+4. User: "correct"
+5. System: "Previous campaigns?" → User: "no"
+6. System: "Email accounts?" → User: "all with rinat in name"
+7. System: tam_gather preview → 1 segment, fintech keywords, cost estimate
+8. User: "proceed"
+9. Pipeline runs → scrape → classify → people → SmartLead
+10. SmartLead campaign created with:
+    - Sequence A (4 emails)
+    - Rinat email accounts
+    - No tracking, stop on reply
+    - 100 verified contacts (default KPI)
+
+Verify:
+  - Companies are REAL fintech companies (payments, lending, etc.)
+  - People are VP Sales / CRO / Head of Growth (correct roles)
+  - Sequence matches doc's "Pipeline Pain" emails
+  - Campaign has Rinat accounts
+  - Skipped items reported to user
 ```
-
----
-
-## Test Execution Plan
-
-### Test 1: Model Comparison (extraction quality)
-```
-For each model:
-  1. Send document + extraction prompt
-  2. Parse response
-  3. Score against ground truth
-  4. Log results with timestamp
-```
-
-### Test 2: Full E2E Flow
-```
-1. Create project: getsally.io
-2. Upload document: outreach-plan-fintech.md
-3. System extracts 6 segments
-4. User approves
-5. For segment "Payments/PSPs":
-   a. Blacklist: "no"
-   b. Accounts: "all with rinat in name"
-   c. tam_gather preview → filters, cost
-   d. Approve → pipeline runs
-   e. SmartLead campaign created with Sequence A
-6. Verify:
-   - Companies are real fintech/payments companies
-   - People are VP Sales / CRO / Head of Growth
-   - Sequence matches "Fintech Pipeline Pain"
-   - Campaign has Rinat email accounts
-   - Campaign settings match doc (no tracking, stop on reply)
-```
-
-### Test 3: Document Variations
-- Test with shorter documents (just ICP + no sequences)
-- Test with multiple documents (iterative enrichment)
-- Test with conflicting info (document says "50-200" but user said "up to 500")
-
----
 
 ## Implementation Order
 
-1. **document_extractor.py** — GPT extraction service
-2. **Model comparison tests** — find best model
-3. **upload_document tool** — MCP tool + dispatcher
-4. **Multi-segment pipeline queue** — sequential runs from extracted segments
-5. **Project page: document log** — show extraction history
-6. **E2E test: fintech outreach** — full flow with Rinat accounts
-7. **Sequence-to-SmartLead mapping** — extracted sequences pushed to campaigns
+1. **document_extractor.py** — extraction service with smart skip logic
+2. **Model comparison tests** — find best model for extraction
+3. **Extend create_project** — accept `document_text` param
+4. **Project page** — show extraction log + skipped items
+5. **E2E test** — full flow with fintech doc + Rinat accounts
+6. **Sequence push** — extracted sequence → SmartLead campaign
 
----
-
-## Reference Data for Testing
+## Reference Data
 
 - **Website**: getsally.io
 - **Document**: `mcp/outreach-plan-fintech.md`
-- **Email accounts**: all with "rinat" in name (from campaign 3070916)
-- **Expected segments**: 6 (Payments, Lending, BaaS, RegTech, WealthTech, Crypto)
-- **Expected sequences**: 3 (Pipeline Pain, Fresh Funding, Competitor Conquest)
-- **Expected roles**: VP Sales, CRO, Head of Growth, CMO, CEO
-- **KPI**: 100 people per segment, 3/company, default pipeline
+- **Email accounts**: all with "rinat" in name (campaign 3070916 reference)
+- **Expected**: 1 segment, 1 sequence (A), roles VP Sales/CRO/CEO
+- **KPI**: 100 people, 3/company, default pipeline
