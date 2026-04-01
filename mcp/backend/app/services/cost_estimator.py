@@ -62,10 +62,9 @@ def estimate_cost(
     pages = max(1, (companies_from_apollo + effective - 1) // effective)
     search_credits = pages
 
-    enrichment = ENRICHMENT_CREDITS if include_enrichment else 0
-    # People search via /mixed_people/api_search is FREE (no credits)
-    # Only people/bulk_match costs credits (1 per net-new email) — used for email verification, not extraction
-    people_credits = 0  # FREE via mixed_people/api_search
+    enrichment = 0  # No exploration phase anymore
+    # People: search is FREE, but email enrichment via /people/bulk_match costs 1 credit per person
+    people_credits = target_count  # 1 credit per contact for verified email
     total_credits = search_credits + enrichment + people_credits
     total_usd = total_credits * APOLLO_COST_PER_CREDIT
 
@@ -78,9 +77,9 @@ def estimate_cost(
         "enrichment_credits": enrichment,
         "total_credits": total_credits,
         "total_cost_usd": round(total_usd, 4),
-        "people_credits": 0,
-        "people_cost_usd": 0,
-        "people_note": "FREE via /mixed_people/api_search (no credits)",
+        "people_credits": people_credits,
+        "people_cost_usd": round(people_credits * APOLLO_COST_PER_CREDIT, 4),
+        "people_note": "Search FREE, email enrichment 1 credit/person via /people/bulk_match",
         "target_rate_used": target_rate,
         "contacts_per_company": contacts_per_company,
         "note": "Estimated. Actual target rate varies by segment.",
