@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useProject } from '../App'
+import { OperatorActionsPage } from '@main/pages/OperatorActionsPage'
 
 const API = '/api'
 function headers() {
@@ -28,6 +29,33 @@ interface RunEntry {
 }
 
 export default function LearningPage() {
+  const [tab, setTab] = useState<'actions' | 'analytics'>('actions')
+  const { project } = useProject()
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', padding: '0 24px', background: 'var(--bg)' }}>
+        {([['actions', 'Actions'], ['analytics', 'Analytics']] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)} style={{
+            padding: '10px 16px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+            background: 'transparent', border: 'none',
+            color: tab === k ? 'var(--text)' : 'var(--text-muted)',
+            borderBottom: tab === k ? '2px solid #3b82f6' : '2px solid transparent',
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {tab === 'actions' && <OperatorActionsPage />}
+        {tab === 'analytics' && <AnalyticsTab />}
+      </div>
+    </div>
+  )
+}
+
+function AnalyticsTab() {
   const { project } = useProject()
   const [usage, setUsage] = useState<{ by_tool: Record<string, number>; recent: UsageEntry[] } | null>(null)
   const [runs, setRuns] = useState<RunEntry[]>([])

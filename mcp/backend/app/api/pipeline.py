@@ -1510,3 +1510,117 @@ async def cleanup_test_data(
     await session.commit()
 
     return {"disabled": count, "message": f"Disabled {count} projects (soft-delete — data preserved, recoverable)"}
+
+
+# ── Learning / Corrections (for @main OperatorActionsPage) ──
+
+@router.get("/projects/{project_id}/learning/corrections")
+async def get_corrections(
+    project_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(30, ge=1, le=100),
+    action_type: Optional[str] = None,
+    category: Optional[str] = None,
+    channel: Optional[str] = None,
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Operator corrections — what AI drafted vs what was sent. Built from mcp_replies."""
+    from app.models.reply import MCPReply
+
+    query = select(MCPReply).where(MCPReply.project_id == project_id)
+
+    if action_type:
+        if action_type == "send":
+            query = query.where(MCPReply.approval_status == "approved")
+        elif action_type == "dismiss":
+            query = query.where(MCPReply.approval_status == "dismissed")
+    if category:
+        query = query.where(MCPReply.category == category)
+    if channel:
+        query = query.where(MCPReply.channel == channel)
+
+    # Count
+    count_q = select(sa_func.count()).select_from(query.subquery())
+    total = (await session.execute(count_q)).scalar() or 0
+
+    # Paginate
+    query = query.order_by(MCPReply.received_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    result = await session.execute(query)
+    replies = result.scalars().all()
+
+    items = []
+    for r in replies:
+        action = "send" if r.approval_status == "approved" else "dismiss" if r.approval_status == "dismissed" else "pending"
+        items.append({
+            "id": r.id,
+            "action_type": action,
+            "was_edited": False,
+            "reply_category": r.category,
+            "channel": r.channel or "email",
+            "lead_company": r.lead_company,
+            "lead_email": r.lead_email,
+            "campaign_name": r.campaign_name,
+            "ai_draft_preview": (r.draft_reply or "")[:200],
+            "ai_draft_full": r.draft_reply,
+            "sent_preview": (r.draft_reply or "")[:200],
+            "sent_full": r.draft_reply,
+            "ai_draft_subject": r.draft_subject,
+            "sent_subject": r.draft_subject,
+            "inbox_link": None,
+            "actor": "operator",
+            "related_log_id": None,
+            "created_at": str(r.received_at) if r.received_at else None,
+        })
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/projects/{project_id}/learning/overview")
+async def get_learning_overview(
+    project_id: int,
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Learning overview — stats for the project."""
+    from app.models.reply import MCPReply
+
+    total = (await session.execute(
+        select(sa_func.count(MCPReply.id)).where(MCPReply.project_id == project_id)
+    )).scalar() or 0
+
+    approved = (await session.execute(
+        select(sa_func.count(MCPReply.id)).where(MCPReply.project_id == project_id, MCPReply.approval_status == "approved")
+    )).scalar() or 0
+
+    dismissed = (await session.execute(
+        select(sa_func.count(MCPReply.id)).where(MCPReply.project_id == project_id, MCPReply.approval_status == "dismissed")
+    )).scalar() or 0
+
+    with_draft = (await session.execute(
+        select(sa_func.count(MCPReply.id)).where(MCPReply.project_id == project_id, MCPReply.draft_reply.isnot(None))
+    )).scalar() or 0
+
+    return {
+        "total_replies": total,
+        "approved": approved,
+        "dismissed": dismissed,
+        "pending": total - approved - dismissed,
+        "with_drafts": with_draft,
+        "approve_rate": f"{approved/total*100:.0f}%" if total > 0 else "N/A",
+        "golden_examples": 0,
+        "reference_examples": 0,
+        "learning_cycles": 0,
+    }
+
+
+@router.get("/projects/{project_id}/learning/examples")
+async def get_learning_examples(
+    project_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Reference examples for this project — stub for now."""
+    return {"items": [], "total": 0, "page": page, "page_size": page_size}
