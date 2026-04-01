@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Export leads from SmartLead campaigns, score them, and produce analysis.
+Uses paginated API to get full custom_fields (title, segment, etc.).
 """
 import os
 import csv
-import io
 import json
 import re
 import time
@@ -23,10 +23,7 @@ CAMPAIGNS = [
     (3064966, "INDIA_GENERAL"),
 ]
 
-# SmartLead uses sequence-level statuses, not email-level
-# INPROGRESS = emails being sent, no reply yet
-# COMPLETED = all steps sent, no reply
-# We want leads who received emails but didn't reply
+# SmartLead sequence-level statuses: INPROGRESS/COMPLETED = sent, no reply
 KEEP_STATUSES = {"INPROGRESS", "COMPLETED"}
 
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/tmp/smartlead_export")
@@ -77,12 +74,11 @@ def score_geo(location):
 
 
 def score_engagement(open_count):
-    """Score based on actual open_count from SmartLead."""
     if open_count >= 3:
         return 5
     elif open_count >= 1:
         return 3
-    return 1  # no opens tracked
+    return 1
 
 
 def tier(score_total):
@@ -95,53 +91,46 @@ def tier(score_total):
 
 # --- LinkedIn extraction ---
 
-def extract_linkedin(lead):
-    """Try multiple fields to find LinkedIn URL."""
-    for field in ['linkedin_profile', 'linkedin_url', 'linkedin']:
-        val = lead.get(field, '')
-        if val and 'linkedin' in str(val).lower():
-            return str(val).strip()
+def extract_linkedin(lead_data):
+    """Extract LinkedIn URL from lead fields or custom_fields."""
+    val = lead_data.get('linkedin_profile', '')
+    if val and 'linkedin' in str(val).lower():
+        return str(val).strip()
 
-    # Check custom_fields
-    custom = lead.get('custom_fields', {})
-    if isinstance(custom, str):
+    cf = lead_data.get('custom_fields', {})
+    if isinstance(cf, str):
         try:
-            custom = json.loads(custom)
+            cf = json.loads(cf)
         except (json.JSONDecodeError, TypeError):
-            custom = {}
-
-    if isinstance(custom, dict):
-        for k, v in custom.items():
+            cf = {}
+    if isinstance(cf, dict):
+        for k, v in cf.items():
             if 'linkedin' in k.lower() and v and 'linkedin' in str(v).lower():
                 return str(v).strip()
-    elif isinstance(custom, list):
-        for item in custom:
-            if isinstance(item, dict):
-                for k, v in item.items():
-                    if 'linkedin' in k.lower() and v and 'linkedin' in str(v).lower():
-                        return str(v).strip()
-
     return None
 
 
-# --- Export ---
+def extract_title(lead_data):
+    """Extract job title from custom_fields or direct fields."""
+    cf = lead_data.get('custom_fields', {})
+    if isinstance(cf, str):
+        try:
+            cf = json.loads(cf)
+        except (json.JSONDecodeError, TypeError):
+            cf = {}
+    if isinstance(cf, dict):
+        # Try title, job_title from custom_fields
+        for key in ('title', 'job_title', 'position'):
+            val = cf.get(key, '')
+            if val and str(val).strip():
+                return str(val).strip()
+    return ''
 
-def export_csv(client, campaign_id):
-    """Try CSV export endpoint first, fallback to paginated."""
-    url = f"{BASE}/campaigns/{campaign_id}/leads-export"
-    try:
-        resp = client.get(url, params={"api_key": API_KEY}, timeout=60)
-        if resp.status_code == 200 and resp.text.strip():
-            reader = csv.DictReader(io.StringIO(resp.text))
-            leads = list(reader)
-            if leads:
-                print(f"  CSV export: {len(leads)} leads", file=sys.stderr)
-                return leads
-    except Exception as e:
-        print(f"  CSV export failed: {e}", file=sys.stderr)
 
-    # Fallback: paginated API
-    print(f"  Falling back to paginated API...", file=sys.stderr)
+# --- Export via paginated API ---
+
+def fetch_leads_paginated(client, campaign_id):
+    """Fetch all leads via paginated API (has custom_fields)."""
     all_leads = []
     offset = 0
     while True:
@@ -152,31 +141,42 @@ def export_csv(client, campaign_id):
             timeout=60,
         )
         if resp.status_code != 200:
-            print(f"  Paginated API error {resp.status_code}: {resp.text[:200]}", file=sys.stderr)
+            print(f"  API error {resp.status_code}: {resp.text[:200]}", file=sys.stderr)
             break
         data = resp.json()
-        if isinstance(data, list):
+        if isinstance(data, dict):
+            batch = data.get('data', [])
+            total = int(data.get('total_leads', 0))
+        elif isinstance(data, list):
             batch = data
-        elif isinstance(data, dict) and 'data' in data:
-            batch = data['data']
+            total = len(data)
         else:
-            batch = []
+            break
         if not batch:
             break
         all_leads.extend(batch)
         offset += len(batch)
+        print(f"  Fetched {offset}/{total}...", file=sys.stderr)
         if len(batch) < 100:
             break
-    print(f"  Paginated: {len(all_leads)} leads", file=sys.stderr)
     return all_leads
 
 
-def normalize_lead(lead):
-    """Normalize field names from various API response formats."""
-    normalized = {}
-    for k, v in lead.items():
-        normalized[k.lower().strip()] = v
-    return normalized
+def get_open_counts(client, campaign_id):
+    """Get open counts from CSV export (has open_count field)."""
+    try:
+        import csv, io
+        resp = client.get(
+            f"{BASE}/campaigns/{campaign_id}/leads-export",
+            params={"api_key": API_KEY},
+            timeout=60,
+        )
+        if resp.status_code == 200:
+            reader = csv.DictReader(io.StringIO(resp.text))
+            return {row['email']: int(row.get('open_count', 0) or 0) for row in reader}
+    except Exception as e:
+        print(f"  Open counts fetch failed: {e}", file=sys.stderr)
+    return {}
 
 
 def main():
@@ -188,16 +188,25 @@ def main():
 
     for cid, cname in CAMPAIGNS:
         print(f"\n=== Campaign: {cname} (ID: {cid}) ===", file=sys.stderr)
+
+        # Fetch open counts from CSV export
         time.sleep(0.4)
-        raw_leads = export_csv(client, cid)
+        open_counts = get_open_counts(client, cid)
+
+        # Fetch full lead data via paginated API
+        raw_leads = fetch_leads_paginated(client, cid)
+        print(f"  Total leads: {len(raw_leads)}", file=sys.stderr)
 
         # Normalize and filter
         filtered = []
-        for lead in raw_leads:
-            lead = normalize_lead(lead)
-            status = (lead.get('lead_status') or lead.get('status') or lead.get('email_status') or '').upper().strip()
+        for entry in raw_leads:
+            status = (entry.get('status', '') or '').upper().strip()
             if status not in KEEP_STATUSES:
                 continue
+
+            # Lead data is nested under 'lead' key in paginated API
+            lead = entry.get('lead', entry)
+
             linkedin = extract_linkedin(lead)
             if not linkedin:
                 continue
@@ -205,14 +214,17 @@ def main():
             email = lead.get('email', '')
             first_name = lead.get('first_name', '')
             last_name = lead.get('last_name', '')
-            full_name = lead.get('full_name', '') or f"{first_name} {last_name}".strip()
-            title = lead.get('title', '') or lead.get('job_title', '') or lead.get('position', '') or ''
-            company = lead.get('company_name', '') or lead.get('company', '') or ''
-            location = lead.get('location', '') or lead.get('country', '') or lead.get('geo', '') or ''
+            full_name = f"{first_name} {last_name}".strip()
+            title = extract_title(lead)
+            company = lead.get('company_name', '') or ''
+            location = lead.get('location', '') or ''
+
+            # Get open count for this email
+            oc = open_counts.get(email, 0)
 
             st = score_title(title)
             sg = score_geo(location)
-            se = score_engagement(status)
+            se = score_engagement(oc)
             total = st + sg + se
 
             filtered.append({
@@ -227,6 +239,7 @@ def main():
                 'location': location,
                 'linkedin_url': linkedin,
                 'email_status': status,
+                'open_count': oc,
                 'score_title': st,
                 'score_geo': sg,
                 'score_engagement': se,
@@ -250,7 +263,7 @@ def main():
     fieldnames = [
         'campaign_id', 'campaign_name', 'email', 'first_name', 'last_name',
         'full_name', 'title', 'company_name', 'location', 'linkedin_url',
-        'email_status', 'score_title', 'score_geo', 'score_engagement',
+        'email_status', 'open_count', 'score_title', 'score_geo', 'score_engagement',
         'score_total', 'priority_tier',
     ]
     with open(csv_path, 'w', newline='') as f:
@@ -261,13 +274,13 @@ def main():
 
     # --- Analysis ---
     analysis = []
-    analysis.append("# Segment Analysis — SmartLead Campaign Export\n")
+    analysis.append("# Segment Analysis - SmartLead Campaign Export\n")
     analysis.append(f"**Date:** 2026-04-01\n")
     analysis.append(f"**Total leads with LinkedIn (filtered):** {len(all_scored)}\n\n")
 
     tier_total = Counter(l['priority_tier'] for l in all_scored)
     analysis.append(f"## Overall Tier Distribution\n")
-    analysis.append(f"- **A (≥15):** {tier_total.get('A', 0)}")
+    analysis.append(f"- **A (>=15):** {tier_total.get('A', 0)}")
     analysis.append(f"- **B (8-14):** {tier_total.get('B', 0)}")
     analysis.append(f"- **C (<8):** {tier_total.get('C', 0)}\n")
 
@@ -290,9 +303,13 @@ def main():
 
         # Top titles
         title_counts = Counter(l['title'] for l in leads if l['title'])
-        analysis.append(f"### Top 5 Titles")
-        for t, c in title_counts.most_common(5):
-            analysis.append(f"- {t}: {c}")
+        if title_counts:
+            analysis.append(f"### Top 5 Titles")
+            for t, c in title_counts.most_common(5):
+                analysis.append(f"- {t}: {c}")
+        else:
+            analysis.append(f"### Titles")
+            analysis.append(f"- *No title data available (not imported to SmartLead)*")
 
         # Top locations
         loc_counts = Counter(l['location'] for l in leads if l['location'])
@@ -300,16 +317,20 @@ def main():
         for loc, c in loc_counts.most_common(5):
             analysis.append(f"- {loc}: {c}")
 
-        # Company size (if available)
+        # Top companies
         companies = Counter(l['company_name'] for l in leads if l['company_name'])
         analysis.append(f"\n### Top 5 Companies")
         for co, c in companies.most_common(5):
             analysis.append(f"- {co}: {c}")
 
+        # Engagement
+        opens = sum(1 for l in leads if l['open_count'] > 0)
+        analysis.append(f"\n### Engagement")
+        analysis.append(f"- Leads with opens: {opens}/{len(leads)} ({opens/len(leads)*100:.0f}%)")
+
     # Merge recommendation
     analysis.append(f"\n---\n## Recommendations: Merge or Separate Sequences?\n")
 
-    # Check geo concentration per campaign
     for cname, stats in campaign_stats.items():
         leads = stats['leads']
         if not leads:
@@ -322,27 +343,65 @@ def main():
         else:
             top_loc, pct = "unknown", 0
 
-        analysis.append(f"\n### {cname}")
-        if 'IMAGENCY' in cname:
-            analysis.append(f"- **KEEP SEPARATE** — IMAGENCY segment (agency pain points differ from platform pain)")
-            analysis.append(f"- Hook: agency margins, white-label influencer management, client retention")
-        elif 'INDIA' in cname and 'MENA' not in cname:
-            analysis.append(f"- Top geo: {top_loc} ({pct:.0f}%)")
-            if pct >= 70:
-                analysis.append(f"- **KEEP SEPARATE** — ≥70% single geo concentration")
-            else:
-                analysis.append(f"- Can merge with other INDIA campaigns")
-            analysis.append(f"- Hook: Indian market growth, regional influencer discovery, cost efficiency")
-        else:
-            analysis.append(f"- Top geo: {top_loc} ({pct:.0f}%)")
-            analysis.append(f"- **KEEP SEPARATE** — MENA/APAC mix requires region-aware messaging")
-            analysis.append(f"- Hook: cross-border influencer campaigns, multi-market management")
+        # Check India concentration
+        india_count = sum(c for loc, c in loc_counts.items() if 'india' in loc.lower())
+        india_pct = india_count / total_with_loc * 100 if total_with_loc else 0
 
-    analysis.append(f"\n### Summary")
-    analysis.append(f"1. **IMAGENCY_INDIA** — always separate (different ICP: agencies vs platforms)")
-    analysis.append(f"2. **INFPLAT_INDIA + INDIA_GENERAL** — can merge IF >70% geo overlap AND similar title distribution")
-    analysis.append(f"3. **INFPLAT_MENA_APAC** — separate (different geo, different compliance/market dynamics)")
-    analysis.append(f"4. Recommended: **3-4 separate sequences** minimum")
+        analysis.append(f"\n### {cname}")
+        analysis.append(f"- Leads: {len(leads)}")
+        analysis.append(f"- Top geo: {top_loc} ({pct:.0f}%)")
+        if india_pct > 0:
+            analysis.append(f"- India concentration: {india_pct:.0f}%")
+
+        if 'IMAGENCY' in cname:
+            analysis.append(f"- **KEEP SEPARATE** - IMAGENCY segment (agency pain points differ from platform pain)")
+            analysis.append(f"- Hook: agency margins, white-label influencer management, client retention")
+            analysis.append(f"- Pain: managing multiple brand campaigns, ROI reporting, influencer vetting at scale")
+        elif 'MENA_APAC' in cname:
+            analysis.append(f"- **KEEP SEPARATE** - MENA/APAC is multi-market, needs region-aware messaging")
+            analysis.append(f"- Hook: cross-border influencer campaigns, multi-market compliance")
+            analysis.append(f"- Pain: fragmented influencer ecosystem across regions, local platform gaps")
+        elif 'GENERAL' in cname:
+            if india_pct >= 70:
+                analysis.append(f"- **CAN MERGE with INFPLAT_INDIA** - >=70% India concentration")
+            else:
+                analysis.append(f"- **KEEP SEPARATE** - mixed geo, different messaging needed")
+            analysis.append(f"- Hook: general influencer marketing growth, platform consolidation")
+            analysis.append(f"- Pain: scattered tools, lack of analytics, manual workflows")
+        else:
+            if india_pct >= 70:
+                analysis.append(f"- India >=70% - consider merging with INDIA_GENERAL if title distribution matches")
+            else:
+                analysis.append(f"- **KEEP SEPARATE** - geo mix requires tailored messaging")
+            analysis.append(f"- Hook: Indian creator economy boom, influencer discovery, regional languages")
+            analysis.append(f"- Pain: no unified platform for Indian influencer market, manual outreach")
+
+    # Check if INFPLAT_INDIA and INDIA_GENERAL can merge
+    india_leads = campaign_stats.get('INFPLAT_INDIA', {}).get('leads', [])
+    general_leads = campaign_stats.get('INDIA_GENERAL', {}).get('leads', [])
+
+    if india_leads and general_leads:
+        india_titles = Counter(l['title'] for l in india_leads if l['title'])
+        general_titles = Counter(l['title'] for l in general_leads if l['title'])
+
+        analysis.append(f"\n### INFPLAT_INDIA + INDIA_GENERAL Merge Analysis")
+        india_locs = Counter(l['location'] for l in india_leads if l['location'])
+        general_locs = Counter(l['location'] for l in general_leads if l['location'])
+        india_geo_overlap = set(india_locs.keys()) & set(general_locs.keys())
+        analysis.append(f"- Geo overlap: {len(india_geo_overlap)} shared locations")
+        if india_titles and general_titles:
+            title_overlap = set(india_titles.keys()) & set(general_titles.keys())
+            analysis.append(f"- Title overlap: {len(title_overlap)} shared titles")
+        analysis.append(f"- Recommendation: Merge ONLY if both are platform-focused ICP")
+
+    analysis.append(f"\n### Final Recommendation")
+    analysis.append(f"1. **IMAGENCY_INDIA** - always separate (different ICP: agencies vs platforms)")
+    analysis.append(f"2. **INFPLAT_INDIA + INDIA_GENERAL** - can merge if ICP aligns (both platform users)")
+    analysis.append(f"3. **INFPLAT_MENA_APAC** - separate (different geo, different compliance/market)")
+    analysis.append(f"4. Recommended: **3 separate sequences** minimum:")
+    analysis.append(f"   - Sequence A: IMAGENCY_INDIA (agency-focused messaging)")
+    analysis.append(f"   - Sequence B: INFPLAT_INDIA + INDIA_GENERAL (India platform users)")
+    analysis.append(f"   - Sequence C: INFPLAT_MENA_APAC (multi-market platform users)")
 
     md_path = os.path.join(OUTPUT_DIR, "SEGMENT_ANALYSIS.md")
     with open(md_path, 'w') as f:
