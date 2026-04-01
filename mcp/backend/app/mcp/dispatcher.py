@@ -907,7 +907,7 @@ Return ONLY valid JSON."""
             if target_count and not filters.get("max_pages"):
                 per_page = filters.get("per_page", 100)
                 companies_needed = int(int(target_count) / 0.3)
-                filters["max_pages"] = max(1, (companies_needed + per_page - 1) // per_page)
+                filters["max_pages"] = max(10, (companies_needed + per_page - 1) // per_page)  # min 10 pages
 
         # ── Auto-infer company size from offer (Gap 1: smart size inference) ──
         if "api" in source_type and not filters.get("organization_num_employees_ranges") and project.target_segments:
@@ -1035,6 +1035,11 @@ Return ONLY valid JSON."""
             source_type, filters, triggered_by=f"mcp:user:{user.id}",
             apollo_service=apollo_svc,
         )
+
+        # Track pages consumed by tam_gather — streaming pipeline uses this as offset
+        if "api" in source_type:
+            run.pages_fetched = max_pages
+            await session.flush()
 
         # Bug 6: Credit tracking — calculate actual credits used
         credits_spent = run.credits_used or (max_pages if "api" in source_type else 0)
