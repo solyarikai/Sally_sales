@@ -1010,6 +1010,11 @@ Return ONLY valid JSON."""
             locations = filters.get("organization_locations", ["(any)"])
             sizes = filters.get("organization_num_employees_ranges", ["(any)"])
 
+            # Warn if too few keywords
+            keyword_warning = ""
+            if len(keywords) < 20:
+                keyword_warning = f"\n  ⚠️ Only {len(keywords)} keywords (recommended: 20+). Pipeline may exhaust quickly."
+
             return {
                 "status": "awaiting_filter_confirmation",
                 "total_available": total_available,
@@ -1029,7 +1034,7 @@ Return ONLY valid JSON."""
                 "message": _build_strategy_message(
                     filters, keywords, locations, sizes, total_available,
                     target_people, max_ppc, cost_est, people_defaults,
-                ),
+                ) + keyword_warning,
                 "project_id": project.id,
                 "project_name": project.name,
             }

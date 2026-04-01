@@ -328,6 +328,7 @@ class StreamingPipeline:
         per_page = filters.get("per_page", 100)
 
         productive_pages = 0  # Pages that found new companies (global safety cap)
+        all_tried_keywords = set()  # Track ALL keywords across all strategies/regenerations
 
         for strategy_name, strategy_filters in strategies:
             if self._kpi_met or self._stop:
@@ -336,6 +337,9 @@ class StreamingPipeline:
             # Each strategy gets its own regeneration budget
             keyword_regenerations = 0
             consecutive_empty = 0
+
+            # Track initial keywords
+            all_tried_keywords.update(k.lower() for k in strategy_filters.get("q_organization_keyword_tags", []))
 
             # Start from where tam_gather left off for primary, page 1 for backlog
             page = (self._tam_pages + 1) if strategy_name == "primary" else 1
@@ -369,8 +373,9 @@ class StreamingPipeline:
 
                             logger.info(f"Phase 2 [{strategy_name}]: {consecutive_empty} empty pages. "
                                        f"Regenerating keywords ({keyword_regenerations}/{self.MAX_KEYWORD_REGENERATIONS})")
-                            new_keywords = await self._regenerate_keywords(strategy_filters)
+                            new_keywords = await self._regenerate_keywords(strategy_filters, all_tried_keywords)
                             if new_keywords:
+                                all_tried_keywords.update(k.lower() for k in new_keywords)
                                 strategy_filters["q_organization_keyword_tags"] = new_keywords
                                 consecutive_empty = 0
                                 page = 1
@@ -395,19 +400,29 @@ class StreamingPipeline:
                 await self._persist_progress()
                 page += 1
 
-    async def _regenerate_keywords(self, current_filters: Dict) -> Optional[list]:
-        """Generate fresh keywords when current ones are exhausted. Uses GPT to create new variations."""
+    async def _regenerate_keywords(self, current_filters: Dict, all_tried: Set[str]) -> Optional[list]:
+        """Generate fresh keywords when current ones are exhausted.
+
+        Args:
+            current_filters: Current strategy filters
+            all_tried: ALL keywords tried across ALL strategies and regenerations (lowercase)
+        """
         try:
             project = await self.session.get(Project, self.run.project_id)
             if not project:
                 return None
 
-            old_keywords = current_filters.get("q_organization_keyword_tags", [])
-            query = project.target_segments or ", ".join(old_keywords[:5])
+            old_keywords = list(all_tried)
+            query = project.target_segments or ", ".join(list(all_tried)[:5])
             offer = project.sender_company or ""
 
             from app.services.user_context import UserServiceContext
-            ctx = UserServiceContext(self.run.triggered_by.split(":")[-1] if self.run.triggered_by else "0", self.session)
+            user_id_str = self.run.triggered_by.split(":")[-1] if self.run.triggered_by else "0"
+            try:
+                user_id_int = int(user_id_str)
+            except ValueError:
+                user_id_int = 0
+            ctx = UserServiceContext(user_id_int, self.session)
             openai_key = await ctx.get_key("openai")
             if not openai_key:
                 return None
@@ -416,11 +431,12 @@ class StreamingPipeline:
             prompt = (
                 f"I'm searching Apollo.io for: {query}\n"
                 f"Our product: {offer}\n\n"
-                f"These keywords are EXHAUSTED (Apollo returned no more new companies):\n"
-                f"{json.dumps(old_keywords)}\n\n"
-                f"Generate 20-30 NEW keyword variations that target the same segment but use different terms.\n"
-                f"Include: synonyms, adjacent niches, specific product names, alternate phrasings.\n"
-                f"Do NOT repeat any of the exhausted keywords.\n\n"
+                f"ALL these keywords have been tried and exhausted ({len(old_keywords)} total):\n"
+                f"{json.dumps(old_keywords[:50])}\n\n"
+                f"Generate 20-30 COMPLETELY NEW keyword variations.\n"
+                f"Think creatively: synonyms, adjacent niches, specific product/service names,\n"
+                f"alternate phrasings, industry jargon, related technologies.\n"
+                f"Do NOT repeat ANY of the exhausted keywords above.\n\n"
                 f"Return ONLY a JSON array of strings: [\"keyword1\", \"keyword2\", ...]"
             )
             async with httpx.AsyncClient(timeout=20) as client:
@@ -435,10 +451,9 @@ class StreamingPipeline:
                 if content.startswith("```"):
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0]
                 new_keywords = json.loads(content)
-                # Filter out old keywords
-                old_set = set(k.lower() for k in old_keywords)
-                fresh = [k for k in new_keywords if k.lower() not in old_set]
-                logger.info(f"Regenerated {len(fresh)} fresh keywords (was {len(old_keywords)} exhausted)")
+                # Filter out ALL previously tried keywords
+                fresh = [k for k in new_keywords if k.lower() not in all_tried]
+                logger.info(f"Regenerated {len(fresh)} fresh keywords ({len(all_tried)} previously tried)")
                 return fresh if fresh else None
         except Exception as e:
             logger.warning(f"Keyword regeneration failed: {e}")
