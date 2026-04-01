@@ -675,10 +675,13 @@ export default function PipelinePage() {
                     <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: run.filters.filter_strategy === 'industry_first' ? 'rgba(34,197,94,0.12)' : 'rgba(59,130,246,0.12)', color: run.filters.filter_strategy === 'industry_first' ? '#22c55e' : '#3b82f6' }}>
                       {run.filters.filter_strategy === 'industry_first' ? 'Industry First' : 'Keywords First'}
                     </span>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
                       {run.filters.filter_strategy === 'industry_first'
-                        ? 'Apollo industry codes match your segment precisely — using them as primary filter for high accuracy. When exhausted, falls back to keyword search.'
-                        : 'Your segment is too niche for Apollo industry codes — using specific keywords for better targeting. When keywords are exhausted, regenerates new ones (up to 5 times).'}
+                        ? 'An AI classifier analyzed your query against Apollo\'s 112 industry categories and found a SPECIFIC match. Industry-based search gives 45-90% target rate — most companies in this category ARE your targets. Apollo\'s industry_tag_ids provide the best pagination (100 companies/page).'
+                        : 'An AI classifier found Apollo\'s industry categories TOO BROAD for your niche. For example, "IT consulting" maps to "Information Technology" which includes SaaS, hardware, magazines — mostly NOT your targets. Specific keywords give 30-50% target rate for niche segments.'}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, padding: '6px 8px', background: 'var(--bg)', borderRadius: 4, lineHeight: 1.6 }}>
+                      <strong>Exhaustion logic:</strong> When 20 consecutive pages return 0 new companies, GPT generates 20-30 fresh keywords (synonyms, adjacent niches) and restarts the search. After 5 regeneration attempts with no results, switches to the backlog strategy. Apollo filters (industry + keywords) are applied as AND — that's why we use one at a time, not both.
                     </div>
                   </div>
                   {run.filters.q_organization_keyword_tags?.length > 0 && (
@@ -744,6 +747,14 @@ export default function PipelinePage() {
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>MAX PER COMPANY</div>
                         {run.people_filters.max_people_per_company || run.max_people_per_company || 3}
+                      </div>
+                      {/* Explanation */}
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '8px', background: 'var(--bg)', borderRadius: 4, lineHeight: 1.6, marginTop: 4 }}>
+                        <strong>How it works:</strong> Apollo searches for people with senior roles at each target company (FREE — no credits). Results ranked by: 1) seniority (CEO → VP → Director) and 2) match to target roles above. Only the top {run.people_filters.max_people_per_company || 3} per company get email enrichment (1 Apollo credit each, verified emails only).
+                        <br /><br />
+                        <strong>Why seniority filter, not job titles?</strong> Tested on real data: searching by specific titles (e.g. "CMO", "Head of E-commerce") returns 0-1 people per company — Apollo's title database doesn't match well. Searching by seniority levels returns 4-25 people per company, including the same decision makers. We search by seniority, then prioritize by role match client-side.
+                        <br /><br />
+                        <strong>Roles source:</strong> These roles were identified during website/offer analysis and aligned with you. People matching these roles are PRIORITIZED — they get enriched first.
                       </div>
                     </>
                   ) : (
