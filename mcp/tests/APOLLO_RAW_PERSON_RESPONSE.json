@@ -1,0 +1,60 @@
+{
+  "_description": "Raw Apollo /mixed_people/api_search response for Versace — person_seniorities filter",
+  "_endpoint": "/mixed_people/api_search",
+  "_cost": "FREE",
+  "_note": "Partial profile only — last_name obfuscated, no email, no LinkedIn full URL. Need /people/bulk_match (1 credit) for full data.",
+  "sample_person": {
+    "id": "54ec1f9b7468694311d4a954",
+    "first_name": "Fabrizio",
+    "last_name_obfuscated": "Co***o",
+    "title": "Vice President Human Resources",
+    "last_refreshed_at": "2026-03-09T09:51:10.000+00:00",
+    "has_email": true,
+    "has_city": true,
+    "has_state": true,
+    "has_country": true,
+    "has_direct_phone": "Yes",
+    "organization": {
+      "name": "Versace",
+      "has_industry": true,
+      "has_phone": true,
+      "has_city": true,
+      "has_state": true,
+      "has_country": true,
+      "has_zip_code": true,
+      "has_revenue": true,
+      "has_employee_count": true
+    }
+  },
+  "_after_bulk_match": {
+    "_description": "After /people/bulk_match (1 credit per person), you get full data:",
+    "email": "john.smith@versace.com",
+    "first_name": "John",
+    "last_name": "Smith",
+    "title": "VP of Sales",
+    "email_status": "verified",
+    "linkedin_url": "https://linkedin.com/in/johnsmith",
+    "phone_numbers": [{"sanitized_number": "+1234567890"}],
+    "seniority": "vp",
+    "personal_emails": ["john@gmail.com"],
+    "organization_id": "5f484a39a88e5200010fc736",
+    "organization_name": "Versace"
+  },
+  "test_results_summary": {
+    "versace.com": {"seniorities": 20, "titles": 7, "combined": 3, "no_filter": 20},
+    "etro.com": {"seniorities": 1, "titles": 0, "combined": 0, "no_filter": 16},
+    "dondup.com": {"seniorities": 5, "titles": 1, "combined": 0, "no_filter": 20},
+    "gcds.com": {"seniorities": 4, "titles": 1, "combined": 0, "no_filter": 20},
+    "casadei.com": {"seniorities": 4, "titles": 0, "combined": 0, "no_filter": 20}
+  },
+  "optimal_approach": {
+    "step1": "Search with person_seniorities=['owner','founder','c_suite','vp','head','director'] (FREE)",
+    "step2": "Also search with no filter, per_page=20 (FREE) — gets everyone",
+    "step3": "Merge + dedup by person_id",
+    "step4": "Filter: has_email=true only",
+    "step5": "Prioritize by title match to project.target_roles",
+    "step6": "Take top 3 per company",
+    "step7": "bulk_match ONLY the 3 selected (3 credits per company)",
+    "total_cost_per_company": "3 credits (was 6+ before optimization)"
+  }
+}
