@@ -422,26 +422,39 @@ class PipelineOrchestrator:
         await self.session.flush()
 
     async def _flush_costs(self, iteration: int):
-        """Persist accumulated costs from this iteration to DB for the user."""
-        from app.services.cost_tracker import get_tracker, reset_tracker
+        """Persist accumulated costs from this iteration to DB.
+
+        Uses the GLOBAL cost tracker which services write to.
+        Problem: global tracker is shared across concurrent requests.
+        Solution: grab entries atomically, clear, persist.
+        """
+        from app.services.cost_tracker import get_tracker, reset_tracker, CostTracker
         from app.models.usage import MCPUsageLog
+
+        # Atomically grab and clear entries
         tracker = get_tracker()
-        if not tracker.entries:
+        entries = list(tracker.entries)  # Copy
+        tracker.entries.clear()  # Clear immediately to prevent double-flush
+
+        if not entries:
             return
-        # Get user_id from project
+
         project = await self.session.get(Project, self.run.project_id)
         if not project:
             return
         uid = project.user_id
-        for entry in tracker.entries:
+
+        saved = 0
+        for entry in entries:
             self.session.add(MCPUsageLog(
                 user_id=uid,
                 action=f"cost_{entry['service']}",
-                tool_name=f"pipeline_iter_{iteration}",
+                tool_name=f"pipeline_run_{self.run.id}_iter_{iteration}",
                 extra_data=entry,
             ))
+            saved += 1
         await self.session.flush()
-        reset_tracker()  # Clear for next iteration
+        logger.info(f"Flushed {saved} cost entries for run {self.run.id} iteration {iteration}")
 
     async def _count_people(self) -> int:
         """Count total extracted contacts for this run's target companies."""
