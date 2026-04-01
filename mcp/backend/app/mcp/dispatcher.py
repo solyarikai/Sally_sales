@@ -93,7 +93,9 @@ def _build_strategy_message(filters, keywords, locations, sizes, total_available
         f"  Classification: ~$0.07 (GPT-4o-mini, 12K chars/company)\n"
         f"  People search: FREE (Apollo seniority filter)\n"
         f"  Email enrichment: ~{target_people} credits (${target_people * 0.01:.2f})\n"
-        f"  Total: ~${cost_est['total_cost_usd']:.2f}\n\n"
+        f"  Expected total: ~${cost_est['total_cost_usd']:.2f}\n"
+        f"  Max if exhausted: ~${cost_est.get('max_if_exhausted', {}).get('total_cost_usd', 0):.2f} "
+        f"(auto-recovery with regenerated keywords, up to 5 attempts)\n\n"
         f"Proceed? You can change target count, roles, filters, or max people/company."
     )
     return msg
@@ -966,10 +968,10 @@ Return ONLY valid JSON."""
         est_credits = max_pages if "api" in source_type else 0
         est_companies = max_pages * per_page
 
-        # Bug 2: Filter confirmation — probe Apollo for total_available, show cost breakdown
+        # Filter confirmation — probe Apollo with per_page=100 (same 1 credit, get 100 companies FREE)
         if "api" in source_type and not args.get("confirm_filters"):
-            # Probe Apollo with per_page=1 to get total_available (1 credit)
             total_available = 0
+            probe_companies = []
             try:
                 ctx_probe = UserServiceContext(user.id, session)
                 apollo_probe = await ctx_probe.get_apollo_service()
@@ -978,9 +980,18 @@ Return ONLY valid JSON."""
                         keyword_tags=filters.get("q_organization_keyword_tags", []),
                         locations=filters.get("organization_locations"),
                         num_employees_ranges=filters.get("organization_num_employees_ranges"),
-                        page=1, per_page=1,
+                        industry_tag_ids=filters.get("organization_industry_tag_ids"),
+                        page=1, per_page=100,
                     )
                     total_available = probe_result.get("pagination", {}).get("total_entries", 0) if probe_result else 0
+                    # Save probe companies — page 1 is already fetched, reuse on confirm
+                    probe_companies = probe_result.get("organizations", []) if probe_result else []
+                    if probe_companies:
+                        # Store in session so confirm step can skip page 1
+                        # We'll create the run + companies on confirm, not here (user hasn't approved yet)
+                        filters["_probe_companies"] = probe_companies
+                        filters["_probe_page_done"] = 1
+                        logger.info(f"Probe: {len(probe_companies)} companies from page 1 (total: {total_available})")
             except Exception as e:
                 logger.warning(f"Apollo probe failed: {e}")
 
@@ -1047,6 +1058,17 @@ Return ONLY valid JSON."""
             if not apollo_svc.is_configured():
                 raise ValueError("Apollo not connected. Use configure_integration to add your Apollo API key first.")
 
+        # Extract probe companies before passing filters to gathering (remove internal keys)
+        probe_companies = filters.pop("_probe_companies", None)
+        probe_page_done = filters.pop("_probe_page_done", 0)
+
+        # If probe already got page 1, tell gathering to start from page 2
+        if probe_page_done and probe_companies:
+            filters["page_offset"] = probe_page_done + 1
+            # Reduce max_pages by 1 since page 1 is already done
+            if filters.get("max_pages", 10) > 1:
+                filters["max_pages"] = filters.get("max_pages", 10) - 1
+
         # Call the real gathering service
         from app.services.gathering_service import GatheringService
         svc = GatheringService()
@@ -1056,9 +1078,46 @@ Return ONLY valid JSON."""
             apollo_service=apollo_svc,
         )
 
-        # Track pages consumed by tam_gather — streaming pipeline uses this as offset
+        # Save probe companies (page 1 was already fetched during preview — don't waste it)
+        if probe_companies:
+            from app.models.gathering import CompanySourceLink as _CSL
+            probe_saved = 0
+            for company_data in probe_companies:
+                domain = (company_data.get("domain") or "").lower().strip()
+                if not domain:
+                    continue
+                # Dedup against project
+                exists = (await session.execute(
+                    select(DiscoveredCompany.id).where(
+                        DiscoveredCompany.project_id == run.project_id,
+                        DiscoveredCompany.domain == domain,
+                    )
+                )).scalar_one_or_none()
+                if exists:
+                    run.duplicate_count = (run.duplicate_count or 0) + 1
+                    continue
+                dc = DiscoveredCompany(
+                    project_id=run.project_id,
+                    company_id=run.company_id,
+                    domain=domain,
+                    name=company_data.get("name"),
+                    industry=company_data.get("industry"),
+                    employee_count=company_data.get("employee_count"),
+                    country=company_data.get("country"),
+                    city=company_data.get("city"),
+                    source_data=company_data,
+                )
+                session.add(dc)
+                await session.flush()
+                session.add(_CSL(discovered_company_id=dc.id, gathering_run_id=run.id))
+                probe_saved += 1
+            run.new_companies_count = (run.new_companies_count or 0) + probe_saved
+            await session.flush()
+            logger.info(f"Saved {probe_saved} probe companies from preview (page 1 reused)")
+
+        # Track total pages consumed by tam_gather (probe page + remaining pages)
         if "api" in source_type:
-            run.pages_fetched = max_pages
+            run.pages_fetched = max_pages  # Total pages including probe
             await session.flush()
 
         # Bug 6: Credit tracking — calculate actual credits used

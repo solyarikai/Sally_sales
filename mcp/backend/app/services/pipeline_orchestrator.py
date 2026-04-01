@@ -528,6 +528,10 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
                 elapsed = (run.completed_at - run.started_at).total_seconds() if run.started_at else None
                 if elapsed:
                     run.duration_seconds = int(elapsed)
+                # Store pipeline result message for UI display
+                run.notes = (run.notes or "") + f"\n{result.get('message', '')}"
+                if result.get("issues"):
+                    run.error_message = "\n".join(result["issues"])
             await session.commit()
 
             logger.info(f"Background pipeline {run_id} finished: {result.get('status')} — {result.get('total_people')} people")
@@ -536,8 +540,10 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
             if result.get("kpi_met") or run.status in ("completed", "insufficient"):
                 await _notify_pipeline_complete(session, run, user_id, result)
 
-            # ── Auto-generate campaign sequence when KPI met (DRAFT — user must approve) ──
-            if result.get("kpi_met"):
+            # ── Auto-push to SmartLead: when KPI met OR insufficient but has contacts ──
+            # User said: "stop the pipeline and send to SmartLead what was gathered"
+            has_contacts = (result.get("total_people", 0) > 0)
+            if result.get("kpi_met") or has_contacts:
                 await _auto_generate_campaign(session, run, user_id, openai_key)
 
     except Exception as e:

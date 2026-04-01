@@ -1,18 +1,17 @@
-"""Streaming Pipeline — companies flow through phases immediately, not in batches.
+"""Streaming Pipeline — SINGLE MODE, every company flows through immediately.
 
 Architecture:
-  Phase 1: Process existing companies (batch, fully concurrent within phase)
-  Phase 2: If KPI not met → Apollo pages → Queue A → Scraper → Queue B → Classifier → Queue C → People → DB
+  scrape_queue → Scraper (100 concurrent) → classify_queue → Classifier (100 concurrent) → people_queue → People (20 concurrent)
 
-Existing companies (from tam_gather) are processed in batch to avoid wasting Apollo credits.
-New Apollo pages use streaming queues so companies flow through as soon as discovered.
-KPI checked after each person saved — pipeline stops immediately when target met.
+  1. Workers start FIRST (scraper, classifier, people)
+  2. Existing companies (from tam_gather probe+confirm) fed to scrape_queue — flow immediately
+  3. If KPI not met: Apollo pages fetched in PARALLEL batches of 10 → results fed to same scrape_queue
+  4. Exhaustion: 20 empty pages → regenerate keywords via GPT (up to 5 times per strategy)
+  5. KPI checked after each person — pipeline stops immediately when target met
+  6. On completion or exhaustion: auto-push gathered contacts to SmartLead
 
-Concurrency per phase:
-  Scraper: 100 concurrent (Apify proxy, adaptive semaphore, retry 3x)
-  Classifier: 100 concurrent (GPT-4o-mini, adaptive semaphore, retry 3x)
-  People search: 20 concurrent (FREE seniority search)
-  People enrichment: batched bulk_match (paid, 1 credit/person)
+No batch phases. No serial waiting. Each company flows through scrape→classify→people
+as soon as it's discovered — whether from tam_gather or fresh Apollo pages.
 """
 import asyncio
 import logging
@@ -135,11 +134,8 @@ class StreamingPipeline:
                     f"{self.total_people} people in {elapsed:.0f}s")
         return self._build_result(elapsed)
 
-    # ── Batch processing (Phase 1: existing companies) ──
-
     async def _load_existing_companies(self) -> List[DiscoveredCompany]:
-        """Load companies for this run that haven't been processed yet."""
-        # First: unscraped companies
+        """Load companies for this run that haven't been fully processed yet."""
         result = await self.session.execute(
             select(DiscoveredCompany)
             .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
@@ -156,7 +152,7 @@ class StreamingPipeline:
         if companies:
             return companies
 
-        # Fallback: already scraped but not classified
+        # Fallback: already scraped but not classified — feed to classify queue
         result = await self.session.execute(
             select(DiscoveredCompany)
             .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
@@ -168,136 +164,7 @@ class StreamingPipeline:
         )
         return list(result.scalars().all())
 
-    async def _batch_scrape(self, companies: List[DiscoveredCompany]):
-        """Scrape all companies concurrently (100 parallel)."""
-        sem = asyncio.Semaphore(100)
-
-        async def scrape_one(dc):
-            async with sem:
-                try:
-                    result = await self._scraper.scrape_website(f"https://{dc.domain}")
-                    if result.get("success"):
-                        dc.scraped_text = result["text"][:50000]
-                        dc.scraped_at = datetime.now(timezone.utc)
-                        dc.status = "scraped"
-                        self.total_scraped += 1
-                    else:
-                        dc.status = "scrape_failed"
-                except Exception as e:
-                    dc.status = "scrape_failed"
-                    logger.debug(f"Scrape {dc.domain}: {e}")
-
-        await asyncio.gather(*[scrape_one(dc) for dc in companies], return_exceptions=True)
-        await self.session.flush()
-        logger.info(f"Batch scrape: {self.total_scraped}/{len(companies)} succeeded")
-
-    async def _batch_classify(self, companies: List[DiscoveredCompany]):
-        """Classify all scraped companies concurrently (100 parallel)."""
-        import httpx
-        import json
-        sem = asyncio.Semaphore(100)
-
-        async def classify_one(dc):
-            async with sem:
-                if not dc.scraped_text:
-                    return
-                try:
-                    company_text = f"Company: {dc.name or dc.domain}\nDomain: {dc.domain}"
-                    if dc.industry:
-                        company_text += f"\nIndustry: {dc.industry}"
-                    company_text += f"\n\nWebsite:\n{dc.scraped_text[:3000]}"
-
-                    async with httpx.AsyncClient(timeout=30) as client:
-                        resp = await client.post(
-                            "https://api.openai.com/v1/chat/completions",
-                            headers={"Authorization": f"Bearer {self.openai_key}",
-                                     "Content-Type": "application/json"},
-                            json={
-                                "model": "gpt-4o-mini",
-                                "messages": [
-                                    {"role": "system", "content": (
-                                        f"Classify if this company is a target customer.\n"
-                                        f"Offer: {self._offer_text}\n"
-                                        f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
-                                    )},
-                                    {"role": "user", "content": company_text},
-                                ],
-                                "max_tokens": 150, "temperature": 0.1,
-                            },
-                        )
-                        data = resp.json()
-                        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                        clean = content.strip()
-                        if clean.startswith("```"):
-                            clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
-                        parsed = json.loads(clean)
-
-                        dc.is_target = parsed.get("is_target", False)
-                        dc.analysis_segment = parsed.get("segment", "")
-                        dc.analysis_reasoning = parsed.get("reasoning", "")
-                        dc.status = "target" if dc.is_target else "rejected"
-                        self.total_classified += 1
-                        if dc.is_target:
-                            self.total_targets += 1
-                except Exception as e:
-                    dc.status = "classify_failed"
-                    logger.debug(f"Classify {dc.domain}: {e}")
-
-        await asyncio.gather(*[classify_one(dc) for dc in companies], return_exceptions=True)
-        await self.session.flush()
-        logger.info(f"Batch classify: {self.total_classified} done, {self.total_targets} targets")
-
-    async def _batch_people(self, targets: List[DiscoveredCompany]):
-        """Extract people for target companies concurrently (20 parallel)."""
-        if not self.apollo or not targets:
-            return
-        sem = asyncio.Semaphore(20)
-        contacts_to_add = []
-
-        async def extract_one(dc):
-            nonlocal contacts_to_add
-            if self._kpi_met:
-                return
-            async with sem:
-                try:
-                    people = await self.apollo.enrich_by_domain(
-                        dc.domain, limit=self.max_per_company,
-                        titles=self._person_titles,
-                    )
-                    for person in people:
-                        contacts_to_add.append(ExtractedContact(
-                            project_id=self.run.project_id,
-                            discovered_company_id=dc.id,
-                            email=person.get("email"),
-                            first_name=person.get("first_name"),
-                            last_name=person.get("last_name"),
-                            job_title=person.get("title") or person.get("job_title"),
-                            linkedin_url=person.get("linkedin_url"),
-                            email_verified=person.get("is_verified", False),
-                            email_source="apollo" if person.get("is_verified") else None,
-                            source_data=person,
-                        ))
-                        self.total_people += 1
-                        if self.total_people >= self.target_count:
-                            self._kpi_met = True
-                            logger.info(f"KPI MET: {self.total_people} people >= {self.target_count}")
-                            break
-
-                    self.run.credits_used = (self.run.credits_used or 0) + len(people)
-                except Exception as e:
-                    logger.debug(f"People search {dc.domain}: {e}")
-
-        await asyncio.gather(*[extract_one(dc) for dc in targets], return_exceptions=True)
-
-        # Add all contacts to session at once (avoids session.add inside flush)
-        for contact in contacts_to_add:
-            self.session.add(contact)
-        self.run.total_people_found = self.total_people
-        self.run.total_targets_found = self.total_targets
-        await self.session.flush()
-        logger.info(f"Batch people: {self.total_people} contacts from {len(targets)} targets")
-
-    # ── Streaming processing (Phase 2: Apollo page discovery) ──
+    # ── Apollo page fetching + streaming workers ──
 
     MAX_PHASE2_PAGES = 200  # Safety cap — max pages total across all strategies
     EXHAUSTION_THRESHOLD = 20  # Pages with 0 new targets before switching/regenerating
@@ -346,59 +213,85 @@ class StreamingPipeline:
                 if self._kpi_met or self._stop:
                     break
 
-                batch_filters = dict(strategy_filters)
-                batch_filters["page"] = page
-                batch_filters["max_pages"] = 1
-                batch_filters["per_page"] = per_page
+                # Fetch up to 10 pages in PARALLEL for speed
+                batch_size = min(10, self.MAX_PHASE2_PAGES - productive_pages)
+                page_results = await self._fetch_pages_parallel(
+                    adapter, strategy_filters, per_page, page, batch_size
+                )
 
-                try:
-                    results = await adapter.gather(batch_filters)
-                    self.pages_fetched += 1
+                batch_new_total = 0
+                should_regen = False
+                should_break = False
 
-                    new_count = await self._ingest_page_results(results)
-
-                    if new_count == 0:
+                for page_num, results in page_results:
+                    if self._kpi_met or self._stop:
+                        break
+                    if results is None:
                         consecutive_empty += 1
-                        if consecutive_empty >= self.EXHAUSTION_THRESHOLD:
-                            keyword_regenerations += 1
-                            if keyword_regenerations >= self.MAX_KEYWORD_REGENERATIONS:
-                                logger.info(f"Phase 2 [{strategy_name}]: {keyword_regenerations} regenerations "
-                                           f"exhausted ({keyword_regenerations * self.EXHAUSTION_THRESHOLD} empty pages). "
-                                           f"Switching strategy.")
-                                break
-
-                            logger.info(f"Phase 2 [{strategy_name}]: {consecutive_empty} empty pages. "
-                                       f"Regenerating keywords ({keyword_regenerations}/{self.MAX_KEYWORD_REGENERATIONS})")
-                            new_keywords = await self._regenerate_keywords(strategy_filters, all_tried_keywords)
-                            if new_keywords:
-                                all_tried_keywords.update(k.lower() for k in new_keywords)
-                                strategy_filters["q_organization_keyword_tags"] = new_keywords
-                                # Drop industry tags — after regen, search by keywords only
-                                # Apollo applies industry + keywords as AND which narrows results
-                                strategy_filters.pop("organization_industry_tag_ids", None)
-                                consecutive_empty = 0
-                                page = 1
-                                await self._persist_progress()
-                                continue
-                            else:
-                                logger.info(f"Phase 2 [{strategy_name}]: regeneration returned nothing. Switching.")
-                                break
                     else:
-                        consecutive_empty = 0
-                        productive_pages += 1  # Only productive pages count toward global cap
+                        self.pages_fetched += 1
+                        new_count = await self._ingest_page_results(results)
+                        batch_new_total += new_count
 
-                    logger.info(f"Phase 2 [{strategy_name}] page {page}: "
-                               f"+{new_count} new, {self.total_companies} total, "
-                               f"{self.total_people} people")
+                        if new_count == 0:
+                            consecutive_empty += 1
+                        else:
+                            consecutive_empty = 0
+                            productive_pages += 1
 
-                except Exception as e:
-                    logger.warning(f"Apollo page {page} failed: {e}")
-                    consecutive_empty += 1
                     if consecutive_empty >= self.EXHAUSTION_THRESHOLD:
+                        should_regen = True
+                        break
+
+                logger.info(f"Phase 2 [{strategy_name}] pages {page}-{page + batch_size - 1}: "
+                           f"+{batch_new_total} new, {self.total_companies} total, "
+                           f"{self.total_people} people")
+
+                # Handle exhaustion → regenerate keywords
+                if should_regen:
+                    keyword_regenerations += 1
+                    if keyword_regenerations >= self.MAX_KEYWORD_REGENERATIONS:
+                        logger.info(f"Phase 2 [{strategy_name}]: {keyword_regenerations} regenerations "
+                                   f"exhausted. Switching strategy.")
+                        break
+
+                    logger.info(f"Phase 2 [{strategy_name}]: {consecutive_empty} empty pages. "
+                               f"Regenerating keywords ({keyword_regenerations}/{self.MAX_KEYWORD_REGENERATIONS})")
+                    new_keywords = await self._regenerate_keywords(strategy_filters, all_tried_keywords)
+                    if new_keywords:
+                        all_tried_keywords.update(k.lower() for k in new_keywords)
+                        strategy_filters["q_organization_keyword_tags"] = new_keywords
+                        strategy_filters.pop("organization_industry_tag_ids", None)
+                        consecutive_empty = 0
+                        page = 1  # Restart with new keywords
+                        await self._persist_progress()
+                        continue
+                    else:
+                        logger.info(f"Phase 2 [{strategy_name}]: regeneration returned nothing. Switching.")
                         break
 
                 await self._persist_progress()
-                page += 1
+                page += batch_size
+
+    async def _fetch_pages_parallel(self, adapter, filters: Dict, per_page: int,
+                                     start_page: int, count: int) -> list:
+        """Fetch up to `count` Apollo pages in parallel. Returns [(page_num, results_or_None)]."""
+        async def fetch_one(page_num):
+            try:
+                f = dict(filters)
+                f["page"] = page_num
+                f["max_pages"] = 1
+                f["per_page"] = per_page
+                results = await adapter.gather(f)
+                return (page_num, results)
+            except Exception as e:
+                logger.warning(f"Apollo page {page_num} failed: {e}")
+                return (page_num, None)
+
+        tasks = [fetch_one(start_page + i) for i in range(count)]
+        results = await asyncio.gather(*tasks)
+        # Return sorted by page number to maintain order for sequential ingestion
+        return sorted(results, key=lambda x: x[0])
 
     async def _regenerate_keywords(self, current_filters: Dict, all_tried: Set[str]) -> Optional[list]:
         """Generate fresh keywords when current ones are exhausted.

@@ -68,6 +68,13 @@ def estimate_cost(
     total_credits = search_credits + enrichment + people_credits
     total_usd = total_credits * APOLLO_COST_PER_CREDIT
 
+    # Worst-case: if pipeline exhausts and regenerates keywords
+    # Up to 5 regen cycles × 20 pages each = 100 extra search pages
+    MAX_REGEN_PAGES = 100
+    worst_search = search_credits + MAX_REGEN_PAGES
+    worst_total = worst_search + enrichment + people_credits
+    worst_usd = worst_total * APOLLO_COST_PER_CREDIT
+
     return {
         "target_contacts": target_count,
         "target_companies_needed": target_companies,
@@ -80,6 +87,12 @@ def estimate_cost(
         "people_credits": people_credits,
         "people_cost_usd": round(people_credits * APOLLO_COST_PER_CREDIT, 4),
         "people_note": "Search FREE, email enrichment 1 credit/person via /people/bulk_match",
+        "max_if_exhausted": {
+            "extra_search_pages": MAX_REGEN_PAGES,
+            "total_credits": worst_total,
+            "total_cost_usd": round(worst_usd, 4),
+            "note": "Only if initial filters exhausted. Pipeline auto-recovers with regenerated keywords.",
+        },
         "target_rate_used": target_rate,
         "contacts_per_company": contacts_per_company,
         "note": "Estimated. Actual target rate varies by segment.",
