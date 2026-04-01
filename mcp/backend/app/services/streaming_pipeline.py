@@ -104,12 +104,17 @@ class StreamingPipeline:
 
     async def _process_existing_companies(self):
         """Feed companies already gathered by tam_gather to the scrape queue."""
+        from sqlalchemy import or_
         existing = await self.session.execute(
             select(DiscoveredCompany)
             .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
             .where(
                 CompanySourceLink.gathering_run_id == self.run.id,
-                DiscoveredCompany.status.in_(["new", "gathered"]),  # Not yet scraped
+                or_(
+                    DiscoveredCompany.status.in_(["new", "gathered"]),
+                    DiscoveredCompany.status.is_(None),  # tam_gather companies have NULL status
+                ),
+                DiscoveredCompany.scraped_text.is_(None),  # Not yet scraped
             )
         )
         companies = existing.scalars().all()

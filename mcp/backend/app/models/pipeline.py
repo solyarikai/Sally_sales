@@ -24,6 +24,11 @@ class DiscoveredCompany(Base):
     linkedin_url = Column(String(500), nullable=True)
     website_url = Column(String(500), nullable=True)
 
+    # Streaming pipeline state
+    status = Column(String(30), nullable=True)  # new, scraped, scrape_failed, target, rejected, classify_failed
+    scraped_text = Column(Text, nullable=True)
+    scraped_at = Column(DateTime(timezone=True), nullable=True)
+
     # Pipeline state
     is_blacklisted = Column(Boolean, server_default="false")
     blacklist_reason = Column(String(255), nullable=True)
