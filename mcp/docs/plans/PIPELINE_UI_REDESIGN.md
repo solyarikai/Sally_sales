@@ -133,4 +133,30 @@
 10. CRM ?pipeline= param — built MCP-native CRM page (MCPCRMPage.tsx) that reads from MCP DB (ExtractedContact). `?pipeline=N` filter works. ✅
 24. Table components — MCP CRM now uses same HTML table pattern as Pipeline page. Consistent within MCP. ✅
 
-**24/24 COMPLETE.**
+---
+
+## Feedback Round 3 (Apr 2, 2026 — Images #47-#48)
+
+### 25. Collapsed KPI Banner — Remove Duplication
+**Problem**: Collapsed shows "DONE 114/100 people 175 targets 216 scraped" — duplicates stats line above
+**Fix**: Collapsed shows ONLY elapsed time (finished) or elapsed + ETA + brief progress (running). No counts — those are in stats line.
+
+### 26. SmartLead/Campaign Link Missing from Stats Line
+**Problem**: No way to get to campaign/SmartLead from the pipeline page at a glance
+**Fix**: Add campaign name as clickable item in stats line or below it
+
+### 27. "Target: 100 contacts" Unclear
+**Problem**: "Target: 100 contacts" in KPI banner is confusing — call it KPI
+**Fix**: Label as "KPI: 100 contacts" with tooltip explaining "KPI = pipeline end condition"
+
+### 28. Expanded Banner Bottom Stats — Duplication
+**Problem**: "Scraped: 216/312 (69%) Targets: 175/216 (81%) No contacts: 118 targets Pages: 50" duplicates info from top row and stats line
+**Fix**: Remove "Pages: 50" (already in top row). Keep only unique info: scrape rate, target rate, targets without contacts. Show "targets with contacts" count too.
+
+### 29. Company Filters Modal — Reorder Like People Tab
+**Problem**: Company tab shows strategy first, then keywords, then explanation at bottom. People tab shows filters first, then explanation — better pattern.
+**Fix**: Company tab: STRATEGY badge → Keywords/Industries/Location/Size → Explanation block at bottom. Same pattern as People tab.
+
+### 30. Strategy Explanation — Include User Query
+**Problem**: "An AI classifier analyzed your query" — but doesn't show WHAT the query was
+**Fix**: Include the actual user query: "An AI classifier analyzed your query 'fashion brands in Italy' against Apollo's..."
