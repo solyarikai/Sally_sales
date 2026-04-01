@@ -9,6 +9,7 @@ import ProjectsPage from './pages/ProjectsPage'
 import LearningPage from './pages/LearningPage'
 import ConversationsPage from './pages/ConversationsPage'
 import CampaignsPage from './pages/CampaignsPage'
+import CampaignDetailPage from './pages/CampaignDetailPage'
 
 // REUSED from main app via @main alias — fix once, fixed everywhere
 import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
@@ -192,6 +193,7 @@ export default function App() {
                 <Route path="/pipeline" element={<PipelineRunsPage />} />
                 <Route path="/pipeline/:runId" element={<PipelinePage />} />
                 <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
+                <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
                 <Route path="/campaigns" element={<CampaignsPage />} />
                 <Route path="/crm" element={<CRMPage />} />
                 <Route path="/tasks" element={<TasksPage />} />

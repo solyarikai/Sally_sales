@@ -23,6 +23,7 @@ export default function CampaignsPage() {
 
   const statusColor = (s: string) => {
     if (s === 'active' || s === 'ACTIVE') return '#22c55e'
+    if (s === 'mcp_draft') return '#818cf8'
     if (s === 'draft' || s === 'DRAFT' || s === 'DRAFTED') return '#f59e0b'
     if (s === 'paused' || s === 'PAUSED') return '#6b7280'
     return 'var(--text-muted)'
@@ -45,11 +46,12 @@ export default function CampaignsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(c.status), flexShrink: 0 }} />
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name}</div>
+                    <Link to={`/campaigns/${c.id}`} onClick={e => e.stopPropagation()} style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}>{c.name}</Link>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                       {c.project_name && <span>{c.project_name} · </span>}
                       <span style={{ textTransform: 'uppercase', fontWeight: 500, color: statusColor(c.status) }}>{c.status}</span>
                       {c.leads_count > 0 && <span> · {c.leads_count} leads</span>}
+                      {c.email_accounts?.length > 0 && <span> · {c.email_accounts.length} accounts</span>}
                       {c.timezone && <span> · {c.timezone}</span>}
                       {c.created_by === 'mcp' && (
                         <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontSize: 10, fontWeight: 600 }}>MCP</span>

@@ -375,6 +375,7 @@ export default function PipelinePage() {
   const [showPromptHistory, setShowPromptHistory] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [showPeopleFilters, setShowPeopleFilters] = useState(false)
+  const [showCampaign, setShowCampaign] = useState(false)
   const [usageLogs, setUsageLogs] = useState<any[]>([])
   const [selectedCompany, setSelectedCompany] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -609,11 +610,11 @@ export default function PipelinePage() {
           </Link>
         )}
 
-        {/* Campaign link — points to Campaigns page, not direct SmartLead */}
+        {/* Campaign toggle — shows expandable block below */}
         {run?.campaign?.id && (
-          <Link to={`/campaigns`} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: 'rgba(99,102,241,0.15)', color: '#6366f1', textDecoration: 'none', fontWeight: 500, border: '1px solid rgba(99,102,241,0.3)' }}>
-            View Campaign
-          </Link>
+          <button onClick={() => setShowCampaign(!showCampaign)} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 13, background: showCampaign ? 'rgba(99,102,241,0.15)' : 'transparent', color: '#6366f1', fontWeight: 500, border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer' }}>
+            Campaign {run.campaign.status === 'mcp_draft' ? '(draft)' : ''}
+          </button>
         )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
@@ -835,6 +836,25 @@ export default function PipelinePage() {
               </Link>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Campaign expandable block */}
+      {showCampaign && run?.campaign && (
+        <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid rgba(99,102,241,0.3)', marginBottom: 12, fontSize: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>{run.campaign.name}</span>
+              <span style={{ marginLeft: 8, padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', background: run.campaign.status === 'mcp_draft' ? 'rgba(129,140,248,0.15)' : run.campaign.status === 'active' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)', color: run.campaign.status === 'mcp_draft' ? '#818cf8' : run.campaign.status === 'active' ? '#22c55e' : '#f59e0b' }}>{run.campaign.status}</span>
+              {run.campaign.email_accounts?.length > 0 && (
+                <span style={{ marginLeft: 8, color: 'var(--text-muted)' }}>{run.campaign.email_accounts.length} accounts: {run.campaign.email_accounts.map((a: any) => a.email).join(', ')}</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {run.campaign.smartlead_url && <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(99,102,241,0.12)', color: '#818cf8', textDecoration: 'none', fontSize: 11, border: '1px solid rgba(99,102,241,0.25)' }}>SmartLead ↗</a>}
+              <Link to={`/campaigns/${run.campaign.id}`} style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 11, border: '1px solid var(--border)' }}>Campaign Details</Link>
+            </div>
+          </div>
         </div>
       )}
 
