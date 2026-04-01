@@ -664,15 +664,18 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         feedback = args.get("feedback", "")
 
         if approved and not feedback:
-            # User confirms — offer is good
+            # User confirms — offer + target roles approved
             project.offer_approved = True
+            roles = (project.offer_summary or {}).get("target_roles", {})
             return {
                 "project_id": project.id,
                 "offer_approved": True,
+                "target_roles": roles.get("titles", []),
                 "message": (
-                    f"Offer confirmed for '{project.name}'! Now ready to gather.\n\n"
-                    f"Have you launched campaigns for this project before? "
-                    f"If yes, tell me the campaign name pattern (e.g. 'campaigns with petr in name') so I can load contacts for blacklist."
+                    f"Offer confirmed for '{project.name}'.\n"
+                    f"Target roles: {', '.join(roles.get('titles', ['CEO']))}\n\n"
+                    f"Ready to search for companies. Tell me your target segment "
+                    f"(e.g. 'fashion brands in Italy up to 200 employees')."
                 ),
                 "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
             }
@@ -1155,6 +1158,13 @@ Return ONLY valid JSON."""
             except Exception:
                 pass
 
+        # Build filter summary for the message
+        kw_summary = filters.get("q_organization_keyword_tags", [])
+        ind_summary = filters.get("organization_industry_tag_ids", [])
+        loc_summary = filters.get("organization_locations", [])
+        size_summary = filters.get("organization_num_employees_ranges", [])
+        strategy_summary = filters.get("filter_strategy", "keywords_only")
+
         result = {
             "run_id": run.id,
             "status": run.status,
@@ -1164,26 +1174,24 @@ Return ONLY valid JSON."""
             "source_type": source_type,
             "credits_spent": credits_spent,
             "credits_remaining": credits_remaining,
-            "estimated_next_step_cost": 0 if "manual" in source_type else 5,
             "message": (
-                f"Gathered {run.new_companies_count} companies from {source_type.split('.')[0].upper()} "
-                f"for project '{project.name}'. "
-                + (f"{run.new_companies_count} new, {run.duplicate_count} duplicate."
-                   if run.duplicate_count > 0
-                   else f"All {run.new_companies_count} are new.")
-                + (f"\n\nCredits used: {credits_spent}."
-                   + (f" Remaining: {credits_remaining}." if credits_remaining is not None else "")
-                   + f"\nNext step: blacklist check (free) → scrape (free) → analyze (free) → enrich top 5 (5 credits)."
-                   if credits_spent > 0 else "")
+                f"**{run.new_companies_count} companies gathered** for '{project.name}'.\n\n"
+                f"Filters applied:\n"
+                f"  Strategy: {strategy_summary}\n"
+                f"  Keywords: {len(kw_summary)} ({', '.join(kw_summary[:5])}{'...' if len(kw_summary) > 5 else ''})\n"
+                f"  Industry IDs: {len(ind_summary)}\n"
+                f"  Location: {', '.join(loc_summary) if loc_summary else 'any'}\n"
+                f"  Size: {', '.join(size_summary)}\n"
+                f"  Credits used: {credits_spent}"
+                + (f" (remaining: {credits_remaining})" if credits_remaining is not None else "")
+                + f"\n\n**Pipeline:** http://46.62.210.24:3000/pipeline/{run.id}\n"
+                f"Default KPIs: 100 target people, max 3/company.\n\n"
+                f"Next: select email accounts for the campaign.\n"
+                f"Which accounts to use? (e.g. 'all accounts with elnar in name')"
             ),
             "_links": {
                 "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "pipelines": "http://46.62.210.24:3000/pipeline",
                 "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
-            },
-            "next_action": {
-                "tool": "list_email_accounts",
-                "description": "Ask user: 'Which email accounts to use for the campaign?' Show accounts list.",
             },
             "next_question": "Which email accounts should we use for the campaign?",
         }
