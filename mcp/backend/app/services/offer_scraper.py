@@ -193,7 +193,15 @@ async def _analyze_project_offer(session, project: Project) -> bool:
 
     prompt += ('Return JSON: {"company_name":"...","products":[{"name":"...","description":"..."}],'
                '"primary_offer":"main product in 1 sentence","value_proposition":"problem solved",'
-               '"target_audience":"who buys","key_differentiators":["..."]}\n'
+               '"target_audience":"who buys","key_differentiators":["..."],'
+               '"target_roles":{"titles":["CEO","CMO","VP of X","Head of Y","Director of Z"],'
+               '"seniorities":["c_suite","vp","head","director"],'
+               '"reasoning":"1 sentence: who at the target company would BUY this product"}}\n\n'
+               'RULES for target_roles:\n'
+               '- ALWAYS include CEO and relevant C-level (CTO, CMO, CFO depending on product)\n'
+               '- Add 2-3 specific roles that would champion this purchase\n'
+               '- These are DECISION MAKERS with budget authority, not end users\n'
+               '- Seniorities: owner, founder, c_suite, partner, vp, head, director, manager\n\n'
                'If unknown: {"unknown":true}\nOnly JSON.')
 
     try:
