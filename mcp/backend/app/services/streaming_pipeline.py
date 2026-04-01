@@ -67,6 +67,7 @@ class StreamingPipeline:
         self._stop = False
         self._domains_seen: Set[str] = set()
         self._started_at = time.time()
+        self._tam_pages = run.pages_fetched or 0  # Pages already consumed by tam_gather
 
         # Shared services (initialized once, reused across phases)
         self._scraper = None
@@ -330,8 +331,7 @@ class StreamingPipeline:
 
             # Start from where tam_gather left off for primary, page 1 for backlog
             if strategy_name == "primary":
-                tam_pages = self.run.pages_fetched or 0
-                page_start = tam_pages + 1
+                page_start = self._tam_pages + 1
             else:
                 page_start = 1
 
@@ -597,12 +597,28 @@ class StreamingPipeline:
     async def _persist_progress(self):
         """Write counters to DB for frontend polling."""
         self.run.new_companies_count = self.total_companies
-        self.run.pages_fetched = self.pages_fetched
+        # pages_fetched = tam_gather pages + Phase 2 pages
+        self.run.pages_fetched = self._tam_pages + self.pages_fetched
         self.run.total_targets_found = self.total_targets
         self.run.total_people_found = self.total_people
         await self.session.flush()
 
     def _build_result(self, elapsed: float) -> Dict:
+        total_pages = self._tam_pages + self.pages_fetched
+        target_rate = round(self.total_targets / max(self.total_classified, 1) * 100)
+        scrape_rate = round(self.total_scraped / max(self.total_companies, 1) * 100)
+
+        if self._kpi_met:
+            msg = (f"Pipeline complete: {self.total_targets} targets, "
+                   f"{self.total_people}/{self.target_count} people "
+                   f"in {elapsed:.0f}s ({total_pages} pages, {self.run.credits_used or 0} credits)")
+        else:
+            msg = (f"Pipeline insufficient: {self.total_people}/{self.target_count} people "
+                   f"({self.total_targets} targets from {self.total_companies} companies, "
+                   f"{target_rate}% target rate, {scrape_rate}% scrape rate). "
+                   f"Apollo exhausted for current filters after {total_pages} pages. "
+                   f"Suggest: broaden location or add more keywords.")
+
         return {
             "status": "completed" if self._kpi_met else "insufficient",
             "kpi_met": self._kpi_met,
@@ -611,12 +627,10 @@ class StreamingPipeline:
             "total_classified": self.total_classified,
             "total_targets": self.total_targets,
             "total_people": self.total_people,
-            "pages_fetched": self.pages_fetched,
+            "pages_fetched": total_pages,
             "elapsed_seconds": round(elapsed, 1),
             "credits_used": self.run.credits_used or 0,
-            "message": (
-                f"Pipeline {'complete' if self._kpi_met else 'incomplete'}: "
-                f"{self.total_targets} targets, {self.total_people}/{self.target_count} people "
-                f"in {elapsed:.0f}s ({self.pages_fetched} pages, {self.run.credits_used or 0} credits)"
-            ),
+            "target_rate_pct": target_rate,
+            "scrape_rate_pct": scrape_rate,
+            "message": msg,
         }
