@@ -205,65 +205,57 @@ class ApolloService:
 
         default_seniorities = seniorities or ["owner", "founder", "c_suite", "vp", "head", "director"]
 
-        # Step 1: Two parallel FREE searches
-        search_a_payload = {
-            "q_organization_domains": domain, "page": 1, "per_page": 20,
+        # Step 1: Single FREE search by seniority (returns 3-25 C-level/director/VP people)
+        # Tested: seniority search gives best results. Title search adds ~0-1 extra.
+        # Combined seniority+titles = AND (kills results). Don't combine.
+        search_payload = {
+            "q_organization_domains": domain, "page": 1, "per_page": 25,
             "person_seniorities": default_seniorities,
         }
-        search_b_payload = {
-            "q_organization_domains": domain, "page": 1, "per_page": 20,
-        }
+        search_data = await self._api_call("POST", "/mixed_people/api_search", search_payload)
 
-        result_a, result_b = await asyncio.gather(
-            self._api_call("POST", "/mixed_people/api_search", search_a_payload),
-            self._api_call("POST", "/mixed_people/api_search", search_b_payload),
-        )
+        all_people = search_data.get("people", []) if search_data else []
 
-        # Step 2: Merge + dedup
-        seen_ids = set()
-        all_people = []
-        for data in [result_a, result_b]:
-            if data:
-                for p in data.get("people", []):
-                    pid = p.get("id")
-                    if pid and pid not in seen_ids:
-                        seen_ids.add(pid)
-                        all_people.append(p)
-
-        # Step 3: Filter has_email=true
+        # Step 2: Filter has_email=true only
         with_email = [p for p in all_people if p.get("has_email")]
-        without_email = [p for p in all_people if not p.get("has_email")]
 
         logger.info(f"People search {domain}: {len(all_people)} total, {len(with_email)} with email")
 
         if not with_email:
             return []
 
-        # Step 4: Prioritize by title match
-        if titles:
-            title_lower = [t.lower() for t in titles]
-            preferred = []
-            others = []
-            for p in with_email:
-                ptitle = (p.get("title") or "").lower()
-                if any(t in ptitle for t in title_lower):
-                    preferred.append(p)
-                else:
-                    others.append(p)
-            prioritized = preferred + others
-        else:
-            prioritized = with_email
+        # Step 3: Prioritize — seniority order (owner > c_suite > vp > head > director)
+        # Then by title match to offer-specific roles
+        SENIORITY_RANK = {"owner": 0, "founder": 1, "c_suite": 2, "partner": 3, "vp": 4, "head": 5, "director": 6, "manager": 7}
 
-        # Step 5: Take top `limit`
+        def rank_person(p):
+            ptitle = (p.get("title") or "").lower()
+            # Seniority rank from title keywords
+            sen_rank = 99
+            for sen, rank in SENIORITY_RANK.items():
+                if sen in ptitle or (sen == "c_suite" and any(x in ptitle for x in ["chief", "ceo", "cfo", "cmo", "cto", "coo"])):
+                    sen_rank = min(sen_rank, rank)
+            # Boost if title matches offer-specific roles
+            title_boost = 0
+            if titles:
+                for t in titles:
+                    if t.lower() in ptitle:
+                        title_boost = -10  # Strong boost
+                        break
+            return sen_rank + title_boost
+
+        prioritized = sorted(with_email, key=rank_person)
+
+        # Step 4: Take top `limit`
         selected = prioritized[:limit]
 
-        # Step 6: bulk_match ONLY the selected (limit credits)
+        # Step 5: bulk_match ONLY the selected (limit credits — typically 3)
         people_ids = [p["id"] for p in selected if p.get("id")]
         if not people_ids:
             return []
 
         enriched = await self.enrich_people_emails(people_ids)
-        logger.info(f"People enrichment {domain}: {len(enriched)} with emails (from {len(with_email)} candidates, {limit} selected)")
+        logger.info(f"People enrichment {domain}: {len(enriched)} emails (from {len(with_email)} candidates, {limit} enriched)")
         return enriched
 
     async def enrich_people_emails(self, people_ids: List[str]) -> List[Dict[str, Any]]:
