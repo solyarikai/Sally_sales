@@ -42,10 +42,27 @@ Example (fintech doc target roles: VP Sales, CRO, Head of Growth, CMO, CEO):
   Total: 3 verified contacts from this company ✓
 ```
 
-**2. Document extraction service (document_extractor.py)**
+**2. SmartLead accounts pre-cache on key connect**
+```
+When user connects SmartLead API key (Setup page or configure_integration):
+  → Immediately paginate ALL accounts (2400+)
+  → Cache in DB table: smartlead_accounts_cache (user_id, account_id, from_email, from_name)
+  → Future lookups are instant (no 30s API pagination)
+
+When user says "all with rinat in name":
+  → Query local cache, not SmartLead API
+  → Instant response
+
+Tests:
+  1. Connect SmartLead key → verify cache populated (count matches API)
+  2. "all with rinat" → verify finds correct accounts from cache
+  3. "all with petr" → verify finds different accounts from cache
+```
+
+**3. Document extraction service (document_extractor.py)**
 Must be implemented before model comparison test can run.
 
-**3. Combined 6-segment classification prompt**
+**4. Combined 6-segment classification prompt**
 Must handle multi-segment classification before E2E test.
 
 ---
