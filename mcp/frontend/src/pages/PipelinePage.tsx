@@ -582,8 +582,10 @@ export default function PipelinePage() {
           <>
             <span>{totalCompanies || run.new_companies || 0} companies</span>
             {(run.progress?.targets_found || run.targets_found || 0) > 0 && <span style={{ color: '#22c55e', fontWeight: 600 }}>{run.progress?.targets_found || run.targets_found} targets</span>}
-            {totalContacts > 0 && runId && <Link to={`/crm?pipeline=${runId}`} style={{ color: '#22c55e', fontWeight: 500, textDecoration: 'none' }}>{totalContacts} people</Link>}
+            {totalContacts > 0 && runId && <Link to={`/crm?pipeline=${runId}`} style={{ color: '#22c55e', fontWeight: 500, textDecoration: 'underline' }}>{totalContacts} people</Link>}
             {(run.credits_used || 0) > 0 && <span style={{ color: '#f59e0b' }}>{run.credits_used} credits</span>}
+            {run?.campaign?.id && <Link to={`/campaigns/${run.campaign.id}`} style={{ color: '#6366f1', fontWeight: 500, textDecoration: 'underline' }}>Campaign</Link>}
+            {run?.campaign?.smartlead_url && <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ color: '#818cf8', textDecoration: 'underline' }}>SmartLead</a>}
             {elapsed > 0 && (
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                 {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
