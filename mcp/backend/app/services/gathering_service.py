@@ -497,7 +497,7 @@ Respond ONLY with valid JSON:
 
 Rules:
 - is_target: true ONLY if NO exclusion triggered AND clear evidence from website
-- segment: use "{target_segment_label}" for matching companies. Use sub-segments if appropriate (e.g. {target_segment_label}_AGENCY). Use NOT_A_MATCH for excluded companies. Use INSUFFICIENT_DATA if website text is unreadable.
+- segment: If the company IS a target → use "{target_segment_label}" (ONE label for ALL targets, no variations, no sub-segments). If the company is NOT a target → use the company's ACTUAL business segment in CAPS_SNAKE_CASE (e.g. "OPTICAL_RETAIL", "FOOD_BEVERAGE", "LOGISTICS") — classify what the company actually IS. Use INSUFFICIENT_DATA only if website text is truly unreadable.
 - Be strict. When in doubt, exclude."""
 
         if not openai_key:

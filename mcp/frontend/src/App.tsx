@@ -272,9 +272,9 @@ function PipelineRunsPage() {
               <td style={{ padding: '8px 8px 8px 0' }}><Link to={`/pipeline/${r.id}`} style={{ color: 'var(--text-link)' }}>#{r.id}</Link></td>
               <td style={{ padding: '8px 8px 8px 0', fontSize: 12, color: 'var(--text-secondary)' }}>{r.project_name || '—'}</td>
               <td style={{ padding: '8px 8px 8px 0', fontSize: 11 }}>
-                {(r.segments || []).length > 0 ? r.segments.map((s: string) => (
-                  <span key={s} style={{ padding: '1px 5px', borderRadius: 3, background: 'rgba(99,102,241,0.12)', color: '#818cf8', marginRight: 3, display: 'inline-block', marginBottom: 2 }}>{s}</span>
-                )) : '—'}
+                {r.segment ? (
+                  <span style={{ padding: '1px 5px', borderRadius: 3, background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>{r.segment}</span>
+                ) : '—'}
               </td>
               <td style={{ padding: '8px 8px 8px 0', fontSize: 12 }}>{SOURCE_LABELS[r.source_type] || r.source_type}</td>
               <td style={{ padding: '8px 8px 8px 0' }}>
