@@ -228,25 +228,30 @@ async def get_run_status(
     scraped_ok = sum(1 for s in scrapes if s[0] == "success")
     scraped_err = sum(1 for s in scrapes if s[0] != "success")
 
-    # Find SmartLead campaign created from this pipeline
+    # Find campaign linked to this run (direct FK first, then via sequence)
     campaign_info = None
-    seq_result = await session.execute(
-        select(GeneratedSequence).where(
-            GeneratedSequence.project_id == run.project_id,
-            GeneratedSequence.pushed_campaign_id.isnot(None),
-        ).order_by(GeneratedSequence.pushed_at.desc()).limit(1)
-    )
-    seq = seq_result.scalar_one_or_none()
-    if seq and seq.pushed_campaign_id:
-        campaign = await session.get(Campaign, seq.pushed_campaign_id)
-        if campaign and campaign.external_id:
-            campaign_info = {
-                "id": campaign.id,
-                "name": campaign.name,
-                "smartlead_id": campaign.external_id,
-                "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign.external_id}/analytics",
-                "status": campaign.status,
-            }
+    campaign = None
+    if run.campaign_id:
+        campaign = await session.get(Campaign, run.campaign_id)
+    if not campaign:
+        seq_result = await session.execute(
+            select(GeneratedSequence).where(
+                GeneratedSequence.project_id == run.project_id,
+                GeneratedSequence.pushed_campaign_id.isnot(None),
+            ).order_by(GeneratedSequence.pushed_at.desc()).limit(1)
+        )
+        seq = seq_result.scalar_one_or_none()
+        if seq and seq.pushed_campaign_id:
+            campaign = await session.get(Campaign, seq.pushed_campaign_id)
+    if campaign:
+        campaign_info = {
+            "id": campaign.id,
+            "name": campaign.name,
+            "smartlead_id": campaign.external_id,
+            "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign.external_id}/analytics" if campaign.external_id else None,
+            "status": campaign.status,
+            "email_accounts": getattr(campaign, 'email_account_ids', None) or [],
+        }
 
     # Count extracted contacts for this run's targets
     from app.models.pipeline import ExtractedContact
@@ -1247,10 +1252,68 @@ async def list_campaigns_full(
             "sequence_id": seq.id if seq else None,
             "pipeline_run_id": run_id,
             "timezone": "America/New_York",
+            "email_accounts": getattr(c, 'email_account_ids', None) or [],
             "created_at": str(c.created_at) if hasattr(c, 'created_at') and c.created_at else None,
         })
 
     return out
+
+
+@router.get("/campaigns/{campaign_id}")
+async def get_campaign_detail(
+    campaign_id: int,
+    user: MCPUser = Depends(get_optional_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Campaign detail — sequence + email accounts."""
+    campaign = await session.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # Sequence
+    seq_result = await session.execute(
+        select(GeneratedSequence).where(
+            GeneratedSequence.pushed_campaign_id == campaign.id
+        ).order_by(GeneratedSequence.created_at.desc()).limit(1)
+    )
+    seq = seq_result.scalar_one_or_none()
+    # Fallback: check sequence_id FK
+    if not seq and campaign.sequence_id:
+        seq = await session.get(GeneratedSequence, campaign.sequence_id)
+
+    # Pipeline run
+    run_result = await session.execute(
+        select(GatheringRun.id).where(GatheringRun.campaign_id == campaign.id).limit(1)
+    )
+    run_row = run_result.first()
+    run_id = run_row[0] if run_row else None
+
+    # Project name
+    project_name = ""
+    if campaign.project_id:
+        p = await session.get(Project, campaign.project_id)
+        if p:
+            project_name = p.name
+
+    return {
+        "id": campaign.id,
+        "name": campaign.name,
+        "project_id": campaign.project_id,
+        "project_name": project_name,
+        "platform": campaign.platform or "smartlead",
+        "status": campaign.status,
+        "external_id": campaign.external_id,
+        "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{campaign.external_id}/analytics" if campaign.external_id else None,
+        "leads_count": campaign.leads_count or 0,
+        "created_by": getattr(campaign, 'created_by', None) or "user",
+        "monitoring_enabled": getattr(campaign, 'monitoring_enabled', False) or False,
+        "sequence_steps": seq.sequence_steps if seq else [],
+        "sequence_id": seq.id if seq else None,
+        "pipeline_run_id": run_id,
+        "email_accounts": getattr(campaign, 'email_account_ids', None) or [],
+        "timezone": "America/New_York",
+        "created_at": str(campaign.created_at) if campaign.created_at else None,
+    }
 
 
 @router.post("/campaigns/{campaign_id}/activate")

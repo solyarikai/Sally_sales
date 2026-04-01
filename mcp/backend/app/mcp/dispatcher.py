@@ -1821,6 +1821,78 @@ Return ONLY valid JSON."""
             "message": "Select email account IDs to use for the new campaign. Accounts already used in your campaigns are shown.",
         }
 
+    if tool_name == "align_email_accounts":
+        user = await _get_user(token, session)
+        run = await session.get(GatheringRun, args["run_id"])
+        if not run:
+            raise ValueError("Run not found")
+
+        ctx = UserServiceContext(user.id, session)
+        svc = await ctx.get_smartlead_service()
+        if not svc.is_configured():
+            raise ValueError("SmartLead not connected")
+
+        # Load all accounts from SmartLead
+        all_accounts = await svc.get_email_accounts() or []
+        accounts_list = [
+            {"id": a.get("id"), "email": a.get("from_email") or a.get("email", ""), "name": a.get("from_name", "")}
+            for a in all_accounts
+        ]
+
+        # Filter by user query or explicit IDs
+        account_ids = args.get("account_ids")
+        account_filter = args.get("account_filter", "")
+        if account_ids:
+            matched = [a for a in accounts_list if a["id"] in account_ids]
+        elif account_filter:
+            q = account_filter.lower()
+            matched = [a for a in accounts_list if q in a["email"].lower() or q in a["name"].lower()]
+        else:
+            matched = accounts_list
+
+        if not matched:
+            return {
+                "matched": [],
+                "total_available": len(accounts_list),
+                "message": f"No accounts match '{account_filter}'. Available: {', '.join(a['email'] for a in accounts_list[:10])}",
+            }
+
+        # Preview step — show matched accounts, ask for confirmation
+        if not args.get("confirm"):
+            return {
+                "matched": matched,
+                "count": len(matched),
+                "message": f"Found {len(matched)} matching accounts. Confirm to create draft campaign with these accounts.",
+                "_action_required": "Call align_email_accounts with confirm=true to proceed.",
+            }
+
+        # Confirm step — create mcp_draft campaign + link to run
+        from app.models.project import Project
+        project = await session.get(Project, run.project_id)
+        campaign_name = args.get("campaign_name") or f"{project.name if project else 'Pipeline'} — Run #{run.id}"
+
+        campaign = Campaign(
+            project_id=run.project_id,
+            company_id=run.company_id,
+            name=campaign_name,
+            platform="smartlead",
+            status="mcp_draft",
+            created_by="mcp",
+            email_account_ids=matched,
+        )
+        session.add(campaign)
+        await session.flush()
+
+        run.campaign_id = campaign.id
+        return {
+            "campaign_id": campaign.id,
+            "status": "mcp_draft",
+            "email_accounts": matched,
+            "count": len(matched),
+            "message": f"Draft campaign '{campaign_name}' created with {len(matched)} email accounts. Pipeline will auto-push to SmartLead when KPI is hit.",
+            "_links": {"campaigns": f"http://46.62.210.24:3000/campaigns/{campaign.id}"},
+        }
+
     if tool_name == "check_destination":
         # M1: When both SmartLead and GetSales keys present, ask which platform
         user = await _get_user(token, session)

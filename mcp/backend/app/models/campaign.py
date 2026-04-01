@@ -25,6 +25,7 @@ class Campaign(Base):
     sequence_id = Column(Integer, ForeignKey("generated_sequences.id", ondelete="SET NULL"), nullable=True)
 
     leads_count = Column(Integer, server_default="0")
+    email_account_ids = Column(JSONB, nullable=True)  # [{id, email, name}, ...] — SmartLead accounts
     config = Column(JSONB, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

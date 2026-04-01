@@ -55,6 +55,9 @@ class GatheringRun(Base):
     pages_fetched = Column(Integer, server_default="0")
     current_iteration = Column(Integer, server_default="0")
 
+    # Campaign link — draft campaign created before pipeline starts
+    campaign_id = Column(Integer, ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True)
+
     # Pause control
     paused_at = Column(DateTime(timezone=True), nullable=True)
     resumed_at = Column(DateTime(timezone=True), nullable=True)

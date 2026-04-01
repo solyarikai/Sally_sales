@@ -476,12 +476,35 @@ Campaign is ALWAYS DRAFT — never activated without explicit user approval.""",
         "name": "list_email_accounts",
         "description": """List SmartLead email accounts available for campaigns. Shows accounts used in the user's existing campaigns (from blacklist import) so they can reuse the same sending accounts.
 
-Call this BEFORE smartlead_push_campaign to let the user choose which accounts to use.""",
+Call this BEFORE align_email_accounts to show available accounts.""",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "campaign_id": {"type": "integer", "description": "Optional: show accounts from a specific campaign"},
             },
+        },
+    },
+    {
+        "name": "align_email_accounts",
+        "description": """Select email accounts for the pipeline campaign BEFORE starting the auto-pipeline.
+
+Loads accounts from SmartLead, filters by user query (e.g. 'all with elnar in name'),
+creates an MCP draft campaign with pre-selected accounts linked to the gathering run.
+
+This MUST be called BEFORE run_auto_pipeline so that when KPI is hit, the campaign
+auto-pushes to SmartLead without blocking on account selection.
+
+TWO-STEP: Call without confirm → preview matched accounts. Call with confirm=true → creates campaign.""",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "run_id": {"type": "integer", "description": "Gathering run to link campaign to"},
+                "account_filter": {"type": "string", "description": "Filter: 'all with elnar', 'petr accounts', email/name substring"},
+                "account_ids": {"type": "array", "items": {"type": "integer"}, "description": "Explicit account IDs (overrides filter)"},
+                "campaign_name": {"type": "string", "description": "Campaign name override"},
+                "confirm": {"type": "boolean", "description": "Set true after user approves account selection"},
+            },
+            "required": ["run_id"],
         },
     },
     {
