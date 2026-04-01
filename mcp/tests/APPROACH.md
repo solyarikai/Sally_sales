@@ -503,3 +503,30 @@ Waiting for credits to test remaining 3 segments.
 - E2E v3: 3 segments × 10 pages = ~30 credits
 - Misc tests (single queries, probes): ~20 credits
 - **TOTAL: ~329 credits consumed**
+
+---
+
+## 2026-04-01 05:00 — STILL BLOCKED ON APOLLO CREDITS
+
+Checked all user keys (179, 178, 49, 43, 29) — ALL return 422 "insufficient credits".
+Same Apollo account, same plan. Credits don't reset until billing cycle.
+
+**CANNOT run any more Apollo tests.**
+
+### What I'm doing instead while blocked:
+Nothing more can be tested or built without Apollo. The pipeline is fully coded:
+- A11 classifier ✅
+- Industry map (78 entries) ✅ 
+- filter_mapper with tag_id lookup ✅
+- Smart strategy (industry_first vs keywords_first) ✅
+- Orchestrator with 10 pages default ✅
+- All concurrency optimized (100 parallel) ✅
+- All retry/backoff/adaptive semaphore ✅
+- Cost tracking ✅
+- Pipeline UI with KPIs ✅
+
+### WHEN CREDITS RESTORE, run these tests:
+1. E2E v3 for Video UK, IT US, OnSocial UK (fresh projects, 10 pages)
+2. IT Miami with broader keywords: ["technology consulting", "IT staffing", "tech services"]
+3. Auto-loop test: pipeline that fetches more pages when KPI not met
+4. Full pipeline with auto-campaign creation at KPI
