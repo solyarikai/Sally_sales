@@ -2495,7 +2495,7 @@ function EnrichContactsModal({
 
               {result.errors.length > 0 && (
                 <div className="mt-2 text-xs text-red-600 space-y-1">
-                  {result.errors.map((e, i) => <div key={i}>{e}</div>)}
+                  {result.errors.map((e: string, i: number) => <div key={i}>{e}</div>)}
                 </div>
               )}
             </div>
