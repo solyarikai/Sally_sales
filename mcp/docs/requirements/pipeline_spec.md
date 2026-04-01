@@ -173,25 +173,41 @@ Total absolute maximum: ~150 pages = ~150 credits ($1.50 search)
 
 ### Current State
 - Apollo has 112 industry categories
-- Our `apollo_industry_map` DB has only 79 mapped (tag_id → industry_name)
-- 33 industries MISSING — limits industry-first strategy for some segments
+- Our `apollo_industry_map` DB has **79 mapped** (tag_id → industry_name)
+- **33 industries MISSING** — limits industry-first strategy for some segments
 
-### How to Build Full Map
+### How to Build Full Map (33 credits, not 112)
 ```
-For each of the 112 known industry NAMES (from Apollo taxonomy):
-  1. Find a well-known company in that industry (e.g. "mining" → "bhp.com")
-  2. Call Apollo /organizations/enrich with that domain
+We already have 79. Only need enrichment for the 33 MISSING industries.
+
+For each of the 33 missing industry NAMES:
+  1. Find a well-known company in that industry
+     - "mining" → bhp.com
+     - "gambling & casinos" → mgmresorts.com  
+     - "dairy" → danone.com
+  2. Call Apollo /organizations/enrich with that domain (1 credit)
   3. Response includes organization_industry_tag_ids → the hex ID
   4. Save: industry_name → tag_id in apollo_industry_map
 
-One-time operation: 112 enrichment calls = 112 credits.
-After that, full map available for ALL future searches.
+One-time operation: 33 enrichment calls = 33 credits ($0.33).
+After that: full 112-industry map. Every segment can use 90% target rate.
+```
+
+### Auto-Extension (already implemented)
+```
+The map grows automatically during normal pipeline usage:
+  - Every enrich_by_domain call returns industry tag IDs
+  - _extend_industry_map() checks if new tag IDs found
+  - Saves new mappings to DB automatically
+  
+So even without the one-time backfill, the map grows over time.
+The 33-credit backfill just completes it immediately.
 ```
 
 ### Why This Matters
-Without full map, A11 classifier might choose industry-first but we don't have
-the tag_id → falls back to keywords → lower target rate (10-40% vs 90%).
-With full map: every industry query can use the 90% target rate approach.
+Without full map: A11 classifier picks industry-first but tag_id missing
+→ falls back to keywords → 10-40% target rate instead of 90%.
+With full map: EVERY industry query uses the 90% approach.
 
 ### Level 5: Exhausted — Report to User
 ```
@@ -339,6 +355,33 @@ Always use ONE OR THE OTHER per API call.
 4. Keywords search company PROFILES — what companies tag themselves as
 5. Less precise than industry IDs but covers niche segments industry doesn't
 
+### People Extraction — Detailed Flow Per Target Company
+
+```
+For each target company (e.g. agnona.com):
+
+Step 1: FREE search — POST /mixed_people/api_search
+  Payload: {q_organization_domains: "agnona.com", person_seniorities: ["owner","founder","c_suite","vp","head","director"], per_page: 25}
+  Returns: 3-25 people with partial profiles (name, title, seniority)
+  Cost: FREE (0 credits)
+
+Step 2: Filter has_email=true only
+  Apollo marks which people have email in their database
+  Typically 30-60% of results have email
+
+Step 3: Rank by seniority + role match
+  Priority: owner > founder > c_suite > vp > head > director
+  Boost: if title matches target_roles from offer analysis (e.g. "Head of E-commerce")
+
+Step 4: Take top 3 (max_people_per_company default)
+
+Step 5: Bulk email enrichment — POST /people/bulk_match
+  Payload: {details: [{id: "person_id_1"}, {id: "person_id_2"}, {id: "person_id_3"}]}
+  Returns: verified emails for each person
+  Cost: 1 credit per person = 3 credits per company
+  THIS is a BULK endpoint — sends all 3 IDs in ONE API call, not 3 separate calls
+```
+
 ### People Search Fields:
 
 | Field | What it does | Used? |
@@ -347,7 +390,21 @@ Always use ONE OR THE OTHER per API call.
 | `person_titles` | Filter by exact title — USELESS, returns 0-1 per company | **NO — tested, broken** |
 | `q_organization_domains` | Search people at specific company domain | **YES — per target** |
 
-**People search is FREE** (no credits). Only `bulk_match` for email enrichment costs 1 credit/person.
+**People search (`/mixed_people/api_search`) is FREE** (0 credits).
+**Email enrichment (`/people/bulk_match`) costs 1 credit/person** — bulk endpoint, one call per company.
+
+### What "20 concurrent people" means:
+```
+20 target companies processed IN PARALLEL, each running the 5-step flow above.
+  - Step 1 (FREE search): 20 parallel HTTP calls to /mixed_people/api_search
+  - Step 5 (bulk_match): 20 parallel HTTP calls to /people/bulk_match
+  
+NOT 20 individual person lookups. Each of the 20 parallel calls handles
+one COMPANY (up to 3 people per company in a single bulk_match call).
+
+Why 20 and not 100: Apollo rate limits on /people/bulk_match are stricter
+than on /mixed_people/api_search. 20 concurrent avoids 429 errors.
+```
 
 ---
 
