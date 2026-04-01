@@ -1696,8 +1696,9 @@ async def process_reply_webhook(
         event_type = payload.get("event_type", "EMAIL_REPLY")
         should_notify = event_type == "EMAIL_REPLY"
 
-        if should_notify and payload.get("_source") == "api_polling":
-            # Only notify for recent polled replies (< 2 hours old)
+        if should_notify:
+            # Only notify for recent replies (< 2 hours old) — applies to all sources,
+            # including webhooks that SmartLead may deliver days late
             time_replied = payload.get("time_replied")
             if time_replied:
                 try:
@@ -1708,7 +1709,8 @@ async def process_reply_webhook(
                     age = datetime.utcnow() - replied_dt
                     if age > timedelta(hours=2):
                         should_notify = False
-                        logger.info(f"[PROCESSOR] Skipping Telegram for old polled reply ({age.days}d old): {lead_email}")
+                        source = payload.get("_source", "webhook")
+                        logger.info(f"[PROCESSOR] Skipping Telegram for old reply ({age.days}d old, source={source}): {lead_email}")
                 except Exception:
                     pass  # If we can't parse the time, notify anyway
 
