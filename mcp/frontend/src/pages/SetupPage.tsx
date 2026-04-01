@@ -229,16 +229,22 @@ export default function SetupPage() {
       {/* MCP Connection Info */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Connect via Claude Code</div>
-        <code style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, overflowX: 'auto', whiteSpace: 'nowrap' }}>
-          {`claude mcp add leadgen --transport sse http://46.62.210.24:8002/mcp/sse/${token}`}
+        <code style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+{`{
+  "mcpServers": {
+    "leadgen": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://46.62.210.24:8002/mcp/sse?token=${showToken ? token : token.slice(0, 16) + '...'}"]
+    }
+  }
+}`}
         </code>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          SSE URL (for .mcp.json):
-          <code style={{ fontSize: 11, background: 'var(--bg)', padding: '2px 6px', borderRadius: 3, wordBreak: 'break-all' }}>{showToken ? `http://46.62.210.24:8002/mcp/sse/${token}` : `http://46.62.210.24:8002/mcp/sse/${token.slice(0, 16)}...`}</code>
-          <button onClick={() => { navigator.clipboard.writeText(`http://46.62.210.24:8002/mcp/sse/${token}`); copyToken() }}
-            style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: tokenCopied ? '#22c55e' : 'transparent', color: tokenCopied ? 'white' : '#3b82f6', cursor: 'pointer' }}>
-            {tokenCopied ? 'Copied!' : 'Copy URL'}
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => { navigator.clipboard.writeText(JSON.stringify({mcpServers:{leadgen:{command:"npx",args:["-y","mcp-remote",`http://46.62.210.24:8002/mcp/sse?token=${token}`]}}}, null, 2)); copyToken() }}
+            style={{ fontSize: 11, padding: '4px 12px', borderRadius: 4, border: '1px solid var(--border)', background: tokenCopied ? '#22c55e' : 'transparent', color: tokenCopied ? 'white' : '#3b82f6', cursor: 'pointer', fontWeight: 500 }}>
+            {tokenCopied ? 'Copied!' : 'Copy .mcp.json'}
           </button>
+          <span>Paste into your project's <code style={{ fontSize: 11 }}>.mcp.json</code> file. Requires Node.js.</span>
         </div>
       </div>
     </div>
