@@ -2536,15 +2536,17 @@ Return ONLY valid JSON."""
         mpc = args.get("max_people_per_company", 3)
         tc = args.get("target_companies") or _ceil(tp / mpc)
 
-        # Check campaign + accounts status for auto-push
-        campaign_status = "no accounts — manual push required after KPI"
+        # HARD GATE: pipeline cannot start without pre-selected email accounts
+        from app.models.campaign import Campaign as _Camp
+        _camp = None
         if run.campaign_id:
-            from app.models.campaign import Campaign as _Camp
             _camp = await session.get(_Camp, run.campaign_id)
-            if _camp and _camp.email_account_ids:
-                campaign_status = f"auto-push enabled ({len(_camp.email_account_ids)} accounts pre-selected)"
-            elif _camp:
-                campaign_status = "campaign exists but no accounts — call align_email_accounts first"
+        if not _camp or not _camp.email_account_ids:
+            raise ValueError(
+                "Email accounts must be selected before starting the pipeline. "
+                "Call align_email_accounts first to select which SmartLead accounts to use for the campaign."
+            )
+        campaign_status = f"{len(_camp.email_account_ids)} accounts pre-selected — auto-push on KPI hit"
 
         # TIER 1: Preview before executing
         if not args.get("confirm"):
