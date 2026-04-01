@@ -351,6 +351,8 @@ class StreamingPipeline:
                 f["max_pages"] = 1
                 f["per_page"] = per_page
                 results = await adapter.gather(f)
+                # Track Apollo page credit (1 credit per page)
+                self.run.credits_used = (self.run.credits_used or 0) + 1
                 # Feed to scrape queue IMMEDIATELY — don't wait for other pages
                 if results:
                     new_count = await self._ingest_page_results(results)
@@ -547,11 +549,13 @@ class StreamingPipeline:
         await self.classify_queue.put(None)
 
     async def _classifier_worker(self):
-        """Streaming classify worker — 100 concurrent. Own session for DB writes."""
+        """Streaming classify worker — 100 concurrent. One shared httpx client."""
         from app.db import async_session_maker
         import httpx
         import json
         sem = asyncio.Semaphore(100)
+        # ONE shared client — avoids creating 100 simultaneous TCP connections
+        client = httpx.AsyncClient(timeout=30)
 
         async def classify_one(dc):
             async with sem:
@@ -561,8 +565,7 @@ class StreamingPipeline:
                     company_text = f"Company: {dc.name or dc.domain}\nDomain: {dc.domain}"
                     company_text += f"\n\nWebsite:\n{dc.scraped_text[:3000]}"
 
-                    async with httpx.AsyncClient(timeout=30) as client:
-                        resp = await client.post(
+                    resp = await client.post(
                             "https://api.openai.com/v1/chat/completions",
                             headers={"Authorization": f"Bearer {self.openai_key}",
                                      "Content-Type": "application/json"},
@@ -624,6 +627,7 @@ class StreamingPipeline:
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        await client.aclose()  # Clean up shared httpx client
         await self.people_queue.put(None)
 
     async def _people_worker(self):
