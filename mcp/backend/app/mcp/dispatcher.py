@@ -96,7 +96,7 @@ def _build_strategy_message(filters, keywords, locations, sizes, total_available
         f"  Expected total: ~${cost_est['total_cost_usd']:.2f}\n"
         f"  Max if exhausted: ~${cost_est.get('max_if_exhausted', {}).get('total_cost_usd', 0):.2f} "
         f"(auto-recovery with regenerated keywords, up to 5 attempts)\n\n"
-        f"Proceed? You can change target count, roles, filters, or max people/company."
+        f"Proceed?"
     )
     return msg
 
