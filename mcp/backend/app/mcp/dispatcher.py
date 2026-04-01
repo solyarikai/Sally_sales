@@ -33,6 +33,59 @@ def _format_duration(seconds: int) -> str:
     return f"{hours}h {mins}m" if mins else f"{hours}h"
 
 
+def _build_strategy_message(filters, keywords, locations, sizes, total_available,
+                            target_people, max_ppc, cost_est, people_defaults):
+    """Build transparent strategy message showing primary + backlog filters."""
+    strategy = filters.get("filter_strategy", "keywords_only")
+    industries = filters.get("industries", [])
+    tag_ids = filters.get("organization_industry_tag_ids")
+
+    if strategy == "industry_first" and tag_ids:
+        # Industry is specific — primary filter, keywords are backlog
+        primary_label = "INDUSTRY (specific match — high target rate)"
+        primary_detail = f"  Industries: {', '.join(industries)}"
+        backlog_label = "KEYWORDS (after industry pages exhausted)"
+        backlog_detail = f"  Seed keywords: {', '.join(keywords)}"
+        reasoning = (
+            f"Apollo industry \"{industries[0]}\" directly matches your query — "
+            f"most companies in this category ARE your targets (45-90% target rate). "
+            f"When industry pages stop returning new targets (10 pages with 0 new targets), "
+            f"the pipeline automatically switches to keyword-based search for broader coverage."
+        )
+    else:
+        # Keywords are primary — industry is too broad
+        primary_label = "KEYWORDS (industry too broad for your niche)"
+        primary_detail = f"  Seed keywords: {', '.join(keywords[:5])}" + (f" (+{len(keywords)-5} more)" if len(keywords) > 5 else "")
+        backlog_label = "INDUSTRY (broader, lower precision — for scale)"
+        backlog_detail = f"  Industries: {', '.join(industries)}" if industries else "  (no matching industry)"
+        reasoning = (
+            f"Apollo industries ({', '.join(industries[:2])}) are too broad for \"{keywords[0] if keywords else '?'}\" — "
+            f"they include many irrelevant company types. Specific keywords give better targeting (30-50% rate). "
+            f"When keywords are exhausted, industry filters kick in for maximum TAM coverage."
+        )
+
+    msg = (
+        f"Apollo search strategy:\n\n"
+        f"  REASONING: {reasoning}\n\n"
+        f"  ▶ PRIMARY: {primary_label}\n"
+        f"  {primary_detail}\n\n"
+        f"  ⏸ BACKLOG (after primary exhausted): {backlog_label}\n"
+        f"  {backlog_detail}\n\n"
+        f"  Exhaustion rule: switch when 10 consecutive pages yield 0 new target companies\n\n"
+        f"  Location: {', '.join(locations)}\n"
+        f"  Size: {', '.join(sizes)}\n"
+        f"  Total available: {total_available:,} companies\n\n"
+        f"For {target_people} contacts (max {max_ppc}/company):\n"
+        f"  Search: ~{cost_est['pages_needed']} pages = {cost_est['search_credits']} credits (${cost_est['search_credits'] * 0.01:.2f})\n"
+        f"  Classification: ~$0.07 (GPT-4o-mini)\n"
+        f"  People search: FREE\n"
+        f"  Total: ~${cost_est['total_cost_usd']:.2f}"
+        f"{people_defaults}\n\n"
+        f"Proceed? You can also change target count, roles, or filters."
+    )
+    return msg
+
+
 async def _get_user(token: Optional[str], session) -> MCPUser:
     if not token:
         raise ValueError("Authentication required. Pass your API token.")
@@ -943,24 +996,9 @@ Return ONLY valid JSON."""
                     "args": {"project_id": project.id, "source_type": source_type, "filters": filters, "confirm_filters": True},
                     "description": "User approves → call tam_gather with confirm_filters=true to start gathering",
                 },
-                "message": (
-                    f"Apollo search preview:\n\n"
-                    + (f"  Strategy: INDUSTRY FIRST (90%+ target rate) → keywords fallback\n"
-                       f"  Industry: {', '.join(filters.get('industries', []))}\n"
-                       if filters.get("organization_industry_tag_ids")
-                       else f"  Strategy: KEYWORDS (no exact industry match in map)\n")
-                    + f"  Keywords (fallback): {', '.join(keywords)}\n"
-                    f"  Location: {', '.join(locations)}\n"
-                    f"  Size: {', '.join(sizes)}\n"
-                    f"  Total available: {total_available:,} companies\n\n"
-                    f"For {target_people} contacts (max {max_ppc} per company):\n"
-                    f"  Search: {cost_est['pages_needed']} pages = {cost_est['search_credits']} credits (${cost_est['search_credits'] * 0.01:.2f})\n"
-                    f"  Exploration: {cost_est['enrichment_credits']} credits (${cost_est['enrichment_credits'] * 0.01:.2f})\n"
-                    f"  People emails: {cost_est.get('people_credits',target_people)} credits (${cost_est.get('people_cost_usd', target_people*0.01):.2f}) — 1 credit per email\n"
-                    f"  Total: {cost_est['total_credits']} credits (${cost_est['total_cost_usd']:.2f})\n"
-                    f"  Estimated target rate: {int(cost_est['target_rate_used']*100)}%"
-                    f"{people_defaults}\n\n"
-                    f"Proceed? You can also change target count, roles, or filters."
+                "message": _build_strategy_message(
+                    filters, keywords, locations, sizes, total_available,
+                    target_people, max_ppc, cost_est, people_defaults,
                 ),
                 "project_id": project.id,
                 "project_name": project.name,

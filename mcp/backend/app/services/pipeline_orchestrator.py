@@ -177,8 +177,12 @@ class PipelineOrchestrator:
         # Flush costs from iteration 1 + exploration
         await self._flush_costs(1)
 
-        # === ITERATIONS 2+: Scale (4 pages per batch) ===
+        # === ITERATIONS 2+: Scale with exhaustion-based strategy switching ===
         batch_num = 2
+        consecutive_zero_target_batches = 0
+        strategy_switched = False
+        current_strategy = filters.get("filter_strategy", "keywords_only")
+
         while not self._stop:
             # Re-read KPIs (user may have changed them via set_pipeline_kpi)
             target_people, people_per_company = self._read_kpis()
@@ -192,11 +196,36 @@ class PipelineOrchestrator:
             if await self._check_pause_and_reload_kpis():
                 return self._finalize(result)
 
-            pages = 1 if batch_num == 1 else PAGES_PER_BATCH  # Iteration 1: 1 page exploration, then scale
-            logger.info(f"Pipeline orchestrator: Iteration {batch_num} — {pages} pages (people: {self.total_people}/{target_people})")
+            # === EXHAUSTION CHECK: switch strategy when primary yields 0 new targets ===
+            if consecutive_zero_target_batches >= 1 and not strategy_switched:
+                if current_strategy == "industry_first" and filters.get("q_organization_keyword_tags"):
+                    # Switch from industry to keywords
+                    logger.info(f"EXHAUSTION: industry yielded 0 new targets for {consecutive_zero_target_batches} batch(es). Switching to keywords.")
+                    filters.pop("organization_industry_tag_ids", None)
+                    current_strategy = "keywords_first"
+                    strategy_switched = True
+                    self.pages_fetched = 0  # Reset page counter for new strategy
+                    consecutive_zero_target_batches = 0
+                elif current_strategy == "keywords_first" and filters.get("organization_industry_tag_ids"):
+                    # Switch from keywords to industry
+                    logger.info(f"EXHAUSTION: keywords yielded 0 new targets. Switching to industry.")
+                    filters.pop("q_organization_keyword_tags", None)
+                    current_strategy = "industry_first"
+                    strategy_switched = True
+                    self.pages_fetched = 0
+                    consecutive_zero_target_batches = 0
+                else:
+                    logger.info(f"EXHAUSTION: no fallback strategy available. Stopping.")
+                    break
+
+            pages = PAGES_PER_BATCH
+            strategy_label = f"[{current_strategy}{'→SWITCHED' if strategy_switched else ''}]"
+            logger.info(f"Pipeline orchestrator: Iteration {batch_num} {strategy_label} — {pages} pages (people: {self.total_people}/{target_people})")
+
+            targets_before = self.total_targets
             iter_n = await self._gather_batch(
                 filters, pages=pages,
-                iteration_label=f"{'Exploration' if batch_num == 1 else 'Scale'} batch {batch_num} ({pages} pages)"
+                iteration_label=f"Scale {strategy_label} batch {batch_num} ({pages} pages)"
             )
             result["iterations"].append(iter_n)
             result["credits_used"] += iter_n.get("credits", 0)
@@ -206,6 +235,14 @@ class PipelineOrchestrator:
 
             # Update people count
             self.total_people = await self._count_people()
+
+            # Track if this batch found new targets (for exhaustion detection)
+            new_targets_this_batch = self.total_targets - targets_before
+            if new_targets_this_batch == 0:
+                consecutive_zero_target_batches += 1
+                logger.info(f"Batch {batch_num}: 0 new targets (consecutive: {consecutive_zero_target_batches})")
+            else:
+                consecutive_zero_target_batches = 0
 
             # Persist progress + flush costs for this iteration
             await self._persist_progress(batch_num)
