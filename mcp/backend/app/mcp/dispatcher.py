@@ -64,24 +64,36 @@ def _build_strategy_message(filters, keywords, locations, sizes, total_available
             f"When keywords are exhausted, industry filters kick in for maximum TAM coverage."
         )
 
+    # People filters explanation
+    people_section = ""
+    if people_defaults:
+        people_section = (
+            f"\n\nPeople search strategy:\n"
+            f"{people_defaults}\n"
+            f"  How it works: Apollo searches for senior roles at each target company (FREE).\n"
+            f"  Results ranked by seniority + role match. Top {max_ppc} get email enrichment (1 credit each).\n"
+            f"  Roles derived from your offer — these are the decision makers who buy your product."
+        )
+
     msg = (
-        f"Apollo search strategy:\n\n"
-        f"  REASONING: {reasoning}\n\n"
+        f"Company search strategy:\n\n"
+        f"  WHY: {reasoning}\n\n"
         f"  ▶ PRIMARY: {primary_label}\n"
         f"  {primary_detail}\n\n"
         f"  ⏸ BACKLOG (after primary exhausted): {backlog_label}\n"
-        f"  {backlog_detail}\n\n"
-        f"  Exhaustion rule: switch when 10 consecutive pages yield 0 new target companies\n\n"
+        f"  {backlog_detail}\n"
+        f"  Switches when 10 pages yield 0 new targets\n\n"
         f"  Location: {', '.join(locations)}\n"
         f"  Size: {', '.join(sizes)}\n"
-        f"  Total available: {total_available:,} companies\n\n"
-        f"For {target_people} contacts (max {max_ppc}/company):\n"
-        f"  Search: ~{cost_est['pages_needed']} pages = {cost_est['search_credits']} credits (${cost_est['search_credits'] * 0.01:.2f})\n"
-        f"  Classification: ~$0.07 (GPT-4o-mini)\n"
-        f"  People search: FREE\n"
-        f"  Total: ~${cost_est['total_cost_usd']:.2f}"
-        f"{people_defaults}\n\n"
-        f"Proceed? You can also change target count, roles, or filters."
+        f"  Available: {total_available:,} companies in Apollo"
+        f"{people_section}\n\n"
+        f"Cost for {target_people} contacts (max {max_ppc}/company):\n"
+        f"  Company search: ~{cost_est['pages_needed']} pages = {cost_est['search_credits']} credits (${cost_est['search_credits'] * 0.01:.2f})\n"
+        f"  Classification: ~$0.07 (GPT-4o-mini, 12K chars/company)\n"
+        f"  People search: FREE (Apollo seniority filter)\n"
+        f"  Email enrichment: ~{target_people} credits (${target_people * 0.01:.2f})\n"
+        f"  Total: ~${cost_est['total_cost_usd']:.2f}\n\n"
+        f"Proceed? You can change target count, roles, filters, or max people/company."
     )
     return msg
 
