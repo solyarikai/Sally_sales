@@ -106,7 +106,59 @@ ALL segments get industry_tag_ids from the map (0 enrichment credits):
 
 Industry_first from DB map = same quality as old A1, but **0 enrichment overhead**.
 
-TODO:
-- [ ] Run full pipeline (scrape + classify + extract people) for TFP
-- [ ] Measure total time, credits, real target rate
-- [ ] Run same for other 5 segments
+## 2026-04-01 01:00 — ALL 6 SEGMENTS GATHERED + CRITICAL FINDING
+
+### Volume results (5 pages each, industry vs keywords):
+| Segment | Ind.Unique | Kw.Unique | Ind.Total | Kw.Total |
+|---|---|---|---|---|
+| TFP Fashion Italy | 201 | 92 | 2,304 | 706 |
+| ES IT Miami | 274 | 262 | 1,184 | 877 |
+| ES Video London | 278 | 262 | 3,621 | 3,495 |
+| ES IT US | 300 | 300 | 94,733 | 70,977 |
+| ES Video UK | 198 | 335 | 8,789 | 3,455 |
+| OnSocial UK | 185 | 209 | 55,084 | 6,515 |
+
+### CRITICAL QUALITY FINDING:
+Industry tag_ids work great for SPECIFIC industries (apparel & fashion = 90% targets).
+But BROAD industries (marketing & advertising, IT & services) return GARBAGE:
+- "marketing & advertising" → Dezeen (magazine), HR magazine, BAFTA (association), CIM
+- "IT & services" → Inc. Magazine, Entrepreneur Media, recruiting firms
+- Only "apparel & fashion" gives clean results
+
+### ROOT CAUSE:
+Apollo's industry categories are LinkedIn-standard — very broad. "Marketing & advertising" includes:
+magazines, PR firms, ad agencies, digital agencies, event companies, recruitment, AND video production.
+It's useless for finding specifically "video production" or "influencer agencies".
+
+### SOLUTION: HYBRID APPROACH
+- **Niche industries** (apparel & fashion, semiconductors, pharmaceuticals): use industry_tag_ids → 90%+ rate
+- **Broad industries** (IT, marketing, media): use SPECIFIC keywords → lower rate but relevant companies
+- **Decision agent** needed: given query, decide if industry is specific enough or too broad
+
+---
+
+## 2026-04-01 01:05 — DESIGNING THE SMART APPROACH
+
+### The A11 Agent: Industry Specificity Classifier
+
+Input: user query + matched industries from filter_mapper
+Output: "specific" or "broad" → determines search strategy
+
+Rules:
+- If industry matches EXACTLY what user asked for → "specific" → use industry_tag_ids
+  - "fashion brands" → "apparel & fashion" = EXACT → use tag_ids
+  - "pharmaceuticals" → "pharmaceuticals" = EXACT → use tag_ids
+- If industry is a SUPERSET of what user wants → "broad" → use keywords
+  - "video production" → "marketing & advertising" = TOO BROAD → use keywords
+  - "IT consulting" → "information technology & services" = TOO BROAD → use keywords
+  - "influencer agencies" → "marketing & advertising" = TOO BROAD → use keywords
+
+Implementation: GPT-4o-mini one-shot: "Is industry X a SPECIFIC match for query Y, or too broad?"
+
+### Full Pipeline Strategy:
+1. filter_mapper generates industries + keywords + tag_ids
+2. A11 classifies: specific or broad?
+3. If specific → search with industry_tag_ids (fast, 90% rate)
+4. If broad → search with specific keywords (slower pagination but relevant)
+5. When primary exhausted → switch to fallback
+6. User sees: "Searching by [industry/keywords]. Fallback: [other] when exhausted."
