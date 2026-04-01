@@ -234,9 +234,22 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         except Exception:
             pass  # Don't block on auth errors — individual tools handle that
 
-    # ── Login tool removed — auth is automatic via SSE URL token ──
+    # ── Auth is automatic via SSE URL token ──
 
     if tool_name == "get_context":
+        if not token or not token.startswith("mcp_"):
+            return {
+                "error": "not_authenticated",
+                "message": (
+                    "Authentication required. Your .mcp.json should use npx mcp-remote with your token:\n\n"
+                    "```json\n"
+                    '{\n  "mcpServers": {\n    "leadgen": {\n'
+                    '      "command": "npx",\n'
+                    '      "args": ["-y", "mcp-remote", "http://46.62.210.24:8002/mcp/sse?token=YOUR_TOKEN"]\n'
+                    "    }\n  }\n}\n```\n\n"
+                    "Get your token at http://46.62.210.24:3000/setup"
+                ),
+            }
         user = await _get_user(token, session)
         from sqlalchemy import func
 
