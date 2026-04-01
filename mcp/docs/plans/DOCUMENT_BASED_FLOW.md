@@ -237,12 +237,16 @@ issues_{YYYYMMDD_HHMMSS}.md                     — issues found with solutions
 ### What This Means
 ```
 1. Hardcode user approvals (blacklist: "no", accounts: "rinat", approve: true)
-2. Call the SAME tool endpoints MCP would call:
+2. Call the SAME tool endpoints MCP would call, in EXACT order:
    a. create_project(website: "getsally.io", document_text: <content>)
    b. confirm_offer(project_id: X, approved: true)
    c. align_email_accounts(project_id: X, account_filter: "rinat", confirm: true)
-   d. tam_gather(project_id: X, ..., confirm_filters: true)
-      → This triggers the REAL pipeline automatically
+   d. tam_gather(project_id: X, ...) — NO confirm_filters
+      → PREVIEW: creates pipeline in pending_approval, probes Apollo, returns filters
+      → Verify: exactly 1 pipeline created, status=pending_approval
+   e. tam_gather(project_id: X, ..., confirm_filters: true)
+      → CONFIRM: gathers companies + starts pipeline automatically
+      → Verify: same pipeline updated (not a second one created!)
 3. Pipeline runs per pipeline_spec.md:
    - Probe 100 companies → scrape starts INSTANTLY
    - Apollo pages 2-10 in parallel while scraping
@@ -264,6 +268,25 @@ Per pipeline_spec.md requirements:
   - Strategy cascade works (industry → keywords → regen)
   - 10 consecutive empty = exhausted
   - SmartLead campaign auto-created with contacts + accounts + sequence
+```
+
+### ESSENTIAL: Check DB + Logs After EVERY Test
+```
+After each test run, query DB and verify:
+  1. Exactly 1 GatheringRun exists for this project (NO duplicates!)
+  2. Run status progressed: pending_approval → running → completed/insufficient
+  3. All companies have scraped_text (none skipped scraping)
+  4. All classified companies have scraped_text (classified from website, not Apollo)
+  5. All extracted contacts have email_verified=true
+  6. Campaign linked to run (campaign_id not NULL)
+  7. SmartLead campaign created (external_id not NULL)
+  8. Credits tracked correctly (pages + people enrichment)
+  
+Check server logs:
+  9. No "session conflict" or "InterfaceError" errors
+  10. No "another operation in progress" errors
+  11. Pipeline completed without crash (no "failed" status)
+  12. Workers received poison pills (clean shutdown)
 ```
 
 ### Compliance Check Against pipeline_spec.md
