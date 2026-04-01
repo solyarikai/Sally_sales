@@ -273,12 +273,31 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
   const progress = run.progress || {}
   const timing = run.timing || {}
   const isPaused = run.status === 'paused'
+  const isFinished = run.status === 'completed' || run.status === 'insufficient'
+  const [collapsed, setCollapsed] = useState(isFinished)
 
   const targetCount = kpi.target_people || kpi.target_count || 100
   const contactsPerCompany = kpi.max_people_per_company || kpi.contacts_per_company || 3
   const minTargets = kpi.target_companies || kpi.min_targets || Math.ceil(targetCount / contactsPerCompany)
   const peoplePct = progress.people_pct || 0
   const targetsPct = progress.targets_pct || 0
+
+  // Collapsed view — single line
+  if (collapsed) {
+    return (
+      <div onClick={() => setCollapsed(false)} style={{
+        padding: '8px 16px', borderRadius: 8, cursor: 'pointer', marginBottom: 12, fontSize: 12,
+        background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)',
+        display: 'flex', alignItems: 'center', gap: 12,
+      }}>
+        <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: run.status === 'completed' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: run.status === 'completed' ? '#22c55e' : '#ef4444' }}>{run.status === 'completed' ? 'DONE' : 'INSUFFICIENT'}</span>
+        <span style={{ color: 'var(--text-muted)' }}>{progress.people_found || 0}/{targetCount} people</span>
+        <span style={{ color: 'var(--text-muted)' }}>{progress.targets_found || 0} targets</span>
+        {progress.scraped > 0 && <span style={{ color: 'var(--text-muted)' }}>{progress.scraped} scraped</span>}
+        <span style={{ color: 'var(--text-muted)', marginLeft: 'auto', fontSize: 10 }}>▼</span>
+      </div>
+    )
+  }
 
   return (
     <div style={{
@@ -288,54 +307,25 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
       border: `1px solid ${isPaused ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)'}`,
       marginBottom: 12,
     }}>
-      {/* Top row: timing + status + pause/resume */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10, fontSize: 12 }}>
-        {run.status === 'completed' && (
-          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>COMPLETED</span>
-        )}
-        {run.status === 'insufficient' && (
-          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>INSUFFICIENT</span>
-        )}
-        {run.status === 'pending_approval' && (
-          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>PENDING APPROVAL</span>
-        )}
-        {isPaused && (
-          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>PAUSED</span>
-        )}
-        {run.status === 'running' && !isPaused && (
-          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>RUNNING</span>
-        )}
-        <span style={{ color: 'var(--text-muted)' }}>
-          {formatDuration(timing.elapsed_seconds)} elapsed
-        </span>
-        {timing.eta_seconds && (
-          <span style={{ color: 'var(--text-muted)' }}>
-            ETA ~{formatDuration(timing.eta_seconds)}
-          </span>
-        )}
-        <span style={{ color: 'var(--text-muted)' }}>
-          Iteration {progress.iteration || 0}
-        </span>
-        <span style={{ color: 'var(--text-muted)' }}>
-          {progress.pages_fetched || 0} pages
-        </span>
-        {run.credits_used > 0 && (
-          <span style={{ color: 'var(--text-muted)' }}>
-            {run.credits_used} credits
-          </span>
-        )}
-        <div style={{ marginLeft: 'auto' }}>
+      {/* Top row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, fontSize: 12 }}>
+        {run.status === 'completed' && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>COMPLETED</span>}
+        {run.status === 'insufficient' && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>INSUFFICIENT</span>}
+        {isPaused && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>PAUSED</span>}
+        {run.status === 'running' && !isPaused && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>RUNNING</span>}
+        <span style={{ color: 'var(--text-muted)' }}>{formatDuration(timing.elapsed_seconds)} elapsed</span>
+        {timing.eta_seconds && <span style={{ color: 'var(--text-muted)' }}>ETA ~{formatDuration(timing.eta_seconds)}</span>}
+        <span style={{ color: 'var(--text-muted)' }}>Iteration {(progress.iteration || 0) + 1}</span>
+        <span style={{ color: 'var(--text-muted)' }}>{progress.pages_fetched || 0} pages</span>
+        {progress.scraped > 0 && <span style={{ color: 'var(--text-muted)' }}>{progress.scraped} scraped</span>}
+        {progress.classified > 0 && <span style={{ color: 'var(--text-muted)' }}>{progress.classified} classified</span>}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          {isFinished && <button onClick={() => setCollapsed(true)} style={{ padding: '4px 8px', borderRadius: 4, fontSize: 11, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>▲</button>}
           {isPaused ? (
-            <button onClick={onResume} style={{
-              padding: '4px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-              background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer',
-            }}>Resume</button>
-          ) : (
-            <button onClick={onPause} style={{
-              padding: '4px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-              background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer',
-            }}>Pause</button>
-          )}
+            <button onClick={onResume} style={{ padding: '4px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer' }}>Resume</button>
+          ) : run.status === 'running' ? (
+            <button onClick={onPause} style={{ padding: '4px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>Pause</button>
+          ) : null}
         </div>
       </div>
 
@@ -591,18 +581,17 @@ export default function PipelinePage() {
         {/* Live stats */}
         {run && (
           <>
-            <span>{filtered.length} companies</span>
+            <span>{totalCompanies} companies</span>
             {run.targets_found > 0 && <span style={{ color: '#22c55e', fontWeight: 600 }}>{run.targets_found} targets</span>}
-            {totalContacts > 0 && <span>{totalContacts} people</span>}
+            {totalContacts > 0 && runId && <Link to={`/crm?pipeline=${runId}`} style={{ color: '#22c55e', fontWeight: 500, textDecoration: 'none' }}>{totalContacts} people</Link>}
             {run.credits_used > 0 && <span style={{ color: '#f59e0b' }}>{run.credits_used} credits</span>}
-            {/* Live timer */}
             {elapsed > 0 && (
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                 {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
                 {run.status === 'running' && <span style={{ marginLeft: 4, color: '#3b82f6' }}>●</span>}
               </span>
             )}
-            {run.status === 'completed' && run.duration_seconds && (
+            {run.status === 'completed' && run.duration_seconds && !elapsed && (
               <span>{Math.floor(run.duration_seconds / 60)}:{String(run.duration_seconds % 60).padStart(2, '0')}</span>
             )}
           </>
@@ -610,12 +599,6 @@ export default function PipelinePage() {
 
         {/* Right side — icon buttons */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* View in CRM */}
-          {totalContacts > 0 && runId && (
-            <Link to={`/crm?pipeline=${runId}`} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: '#22c55e', color: 'white', textDecoration: 'none', fontWeight: 500 }}>
-              {totalContacts} people →
-            </Link>
-          )}
           {/* Campaign */}
           {run?.campaign?.id && (
             <button onClick={() => setShowCampaign(!showCampaign)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: showCampaign ? 'rgba(99,102,241,0.15)' : 'transparent', color: '#6366f1', fontWeight: 500, border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer' }}>
@@ -625,7 +608,7 @@ export default function PipelinePage() {
           {/* Prompts */}
           {runId && <Link to={`/pipeline/${runId}/prompts`} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, color: 'var(--text-muted)', textDecoration: 'none', border: '1px solid var(--border)' }} title="Prompts">📝</Link>}
           {/* Filters modal */}
-          <button onClick={() => setShowFiltersModal(true)} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} title="Filters">⚙</button>
+          <button onClick={() => setShowFiltersModal(true)} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} title="Filters">≡</button>
           {/* Columns dropdown */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => setShowColumnConfig(!showColumnConfig)} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, border: '1px solid var(--border)', background: showColumnConfig ? 'var(--active-bg)' : 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }} title="Columns">⊞</button>
@@ -688,6 +671,11 @@ export default function PipelinePage() {
                     <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: run.filters.filter_strategy === 'industry_first' ? 'rgba(34,197,94,0.12)' : 'rgba(59,130,246,0.12)', color: run.filters.filter_strategy === 'industry_first' ? '#22c55e' : '#3b82f6' }}>
                       {run.filters.filter_strategy === 'industry_first' ? 'Industry First' : 'Keywords First'}
                     </span>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+                      {run.filters.filter_strategy === 'industry_first'
+                        ? 'Apollo industry codes match your segment precisely — using them as primary filter for high accuracy. When exhausted, falls back to keyword search.'
+                        : 'Your segment is too niche for Apollo industry codes — using specific keywords for better targeting. When keywords are exhausted, regenerates new ones (up to 5 times).'}
+                    </div>
                   </div>
                   {run.filters.q_organization_keyword_tags?.length > 0 && (
                     <div>

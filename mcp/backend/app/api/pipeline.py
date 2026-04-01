@@ -306,8 +306,8 @@ async def get_run_status(
     tp = run.target_people or 100
     mpc = run.max_people_per_company or 3
     tc = run.target_companies or ceil(tp / mpc)
-    people_found = run.total_people_found or live_people_count
-    targets_found = run.total_targets_found or live_targets_count
+    people_found = live_people_count or run.total_people_found or 0
+    targets_found = live_targets_count or run.total_targets_found or 0
 
     # Timing
     from datetime import datetime, timezone as tz
@@ -344,7 +344,11 @@ async def get_run_status(
         "credits_used": run.credits_used,
         "apollo_total": run.raw_results_count,  # Total companies in Apollo for these filters
         "apollo_pages_available": (run.raw_results_count // 100 + 1) if run.raw_results_count else None,
-        "people_filters": run.people_filters,
+        "people_filters": run.people_filters or (lambda: {
+            "person_titles": ((project.offer_summary or {}).get("target_roles", {}).get("titles", []) if project else []),
+            "person_seniorities": ((project.offer_summary or {}).get("target_roles", {}).get("seniorities", None) if project else None) or ["c_suite", "vp", "director"],
+            "max_people_per_company": run.max_people_per_company or 3,
+        })(),
         "created_at": str(run.created_at) if run.created_at else None,
         "campaign": campaign_info,
         # KPI + Progress
@@ -356,6 +360,8 @@ async def get_run_status(
         "progress": {
             "targets_found": targets_found,
             "people_found": people_found,
+            "scraped": scraped_ok,
+            "classified": classified_count if 'classified_count' in dir() and classified_count else (scraped_ok if scraped_ok else 0),
             "pages_fetched": run.pages_fetched or 0,
             "iteration": run.current_iteration or 0,
             "people_pct": round(people_found / tp * 100, 1) if tp > 0 else 0,
@@ -951,18 +957,25 @@ async def list_runs(
         )
         targets_map = dict(tc_result.all())
 
-        # 3. Segments per run (batch)
+        # 3. Primary segment per run (most common among targets)
         seg_result = await session.execute(
-            select(CompanySourceLink.gathering_run_id, DiscoveredCompany.analysis_segment)
+            select(
+                CompanySourceLink.gathering_run_id,
+                DiscoveredCompany.analysis_segment,
+                sa_func.count(DiscoveredCompany.id).label("cnt"),
+            )
             .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
             .where(
                 CompanySourceLink.gathering_run_id.in_(run_ids),
                 DiscoveredCompany.is_target == True,
                 DiscoveredCompany.analysis_segment.isnot(None),
-            ).distinct()
+            )
+            .group_by(CompanySourceLink.gathering_run_id, DiscoveredCompany.analysis_segment)
+            .order_by(sa_func.count(DiscoveredCompany.id).desc())
         )
-        for rid, seg in seg_result.all():
-            segments_map.setdefault(rid, []).append(seg)
+        for rid, seg, cnt in seg_result.all():
+            if rid not in segments_map:
+                segments_map[rid] = seg  # Take only the most frequent
 
         # 4. People counts per run (batch)
         from app.models.pipeline import ExtractedContact
@@ -981,7 +994,7 @@ async def list_runs(
          "raw_companies": raw_map.get(r.id, r.new_companies_count or 0),
          "targets": targets_map.get(r.id, 0),
          "people": people_map.get(r.id, 0),
-         "segments": segments_map.get(r.id, []),
+         "segment": segments_map.get(r.id),
          "credits_used": r.credits_used or 0,
          "project_id": r.project_id,
          "project_name": project_names.get(r.project_id, ""),
