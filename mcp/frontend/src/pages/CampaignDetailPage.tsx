@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import { authHeaders } from '../App'
 
 const API = '/api'
@@ -24,6 +24,15 @@ export default function CampaignDetailPage() {
       .catch(e => console.error('Failed to load campaign:', e))
       .finally(() => setLoading(false))
   }, [id])
+
+  // Scroll to hash fragment (#accounts) after load
+  const { hash } = useLocation()
+  useEffect(() => {
+    if (campaign && hash) {
+      const el = document.getElementById(hash.slice(1))
+      if (el) el.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [campaign, hash])
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
   if (!campaign) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Campaign not found.</div>
