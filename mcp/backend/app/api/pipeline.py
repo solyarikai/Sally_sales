@@ -342,6 +342,8 @@ async def get_run_status(
         "scrape_rate_pct": round(scraped_ok / total_companies * 100) if total_companies > 0 else 0,
         "target_rate_pct": round(targets_classified / scraped_ok * 100) if scraped_ok > 0 and 'targets_classified' in dir() else (run.target_rate or 0),
         "credits_used": run.credits_used,
+        "apollo_total": run.raw_results_count,  # Total companies in Apollo for these filters
+        "apollo_pages_available": (run.raw_results_count // 100 + 1) if run.raw_results_count else None,
         "people_filters": run.people_filters,
         "created_at": str(run.created_at) if run.created_at else None,
         "campaign": campaign_info,
