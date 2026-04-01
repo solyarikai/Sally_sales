@@ -230,6 +230,74 @@ issues_{YYYYMMDD_HHMMSS}.md                     — issues found with solutions
 7. **Full E2E test** — document → one campaign with 6 segments
 8. **Extend create_project** — accept document_text param
 
+## Pipeline Integration Test — NOT Step-by-Step, REAL Pipeline
+
+**CRITICAL: Don't test each step separately. Test the REAL pipeline as MCP would trigger it.**
+
+### What This Means
+```
+1. Hardcode user approvals (blacklist: "no", accounts: "rinat", approve: true)
+2. Call the SAME tool endpoints MCP would call:
+   a. create_project(website: "getsally.io", document_text: <content>)
+   b. confirm_offer(project_id: X, approved: true)
+   c. align_email_accounts(project_id: X, account_filter: "rinat", confirm: true)
+   d. tam_gather(project_id: X, ..., confirm_filters: true)
+      → This triggers the REAL pipeline automatically
+3. Pipeline runs per pipeline_spec.md:
+   - Probe 100 companies → scrape starts INSTANTLY
+   - Apollo pages 2-10 in parallel while scraping
+   - Each scraped site → classify immediately (100 concurrent)
+   - Each target → people search immediately (20 concurrent)
+   - KPI checked after each person
+   - SmartLead push on completion
+4. Do NOT manually call scrape/classify/people — pipeline does it all
+5. Just poll pipeline_status until completed/insufficient
+```
+
+### What to Verify After Pipeline Completes
+```
+Per pipeline_spec.md requirements:
+  - Companies flow through scrape→classify→people (no skipping)
+  - Scraping uses Apify proxy (100 concurrent)
+  - Classification uses scraped website text (not Apollo industry)
+  - Only verified emails kept
+  - Strategy cascade works (industry → keywords → regen)
+  - 10 consecutive empty = exhausted
+  - SmartLead campaign auto-created with contacts + accounts + sequence
+```
+
+### Compliance Check Against pipeline_spec.md
+```
+After each test run, verify these pipeline_spec.md rules:
+  ✓ Probe companies reused (not re-fetched)
+  ✓ Apollo pages parallel with scraping
+  ✓ Feed pages as they arrive
+  ✓ 100 concurrent scrape, 100 concurrent classify, 20 concurrent people
+  ✓ Separate DB session per worker
+  ✓ Never combine industry + keywords in same API call
+  ✓ Only verified emails in final contacts
+  ✓ Pipeline never changes user's location/size filters
+  ✓ Classification never uses Apollo industry label
+```
+
+## Results File
+
+All discoveries, issues, and final results written to:
+**`mcp/tests/results/document_based_flow_results.md`**
+
+Contents:
+- Model comparison winner + scores
+- Apollo funding filter test results
+- Pipeline run metrics (time, companies, people, credits)
+- Opus verification scores (companies %, people %, sequences %)
+- Issues found during testing (with timestamps)
+- Solutions applied (with timestamps)
+- Final recommendation
+
+Referenced from this document (DOCUMENT_BASED_FLOW.md).
+
+---
+
 ## Reference Data
 
 - **Website**: getsally.io
