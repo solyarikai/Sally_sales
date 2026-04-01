@@ -123,14 +123,14 @@ async def dispatch_tool(tool_name: str, args: dict, token: Optional[str], reques
                 if uid:
                     session.add(MCPUsageLog(
                         user_id=uid, action="tool_call", tool_name=tool_name,
-                        metadata=log_extra,
+                        extra_data=log_extra,
                     ))
                     # Persist individual cost entries for detailed reporting
                     for entry in tracker.entries:
                         session.add(MCPUsageLog(
                             user_id=uid, action=f"cost_{entry['service']}",
                             tool_name=tool_name,
-                            metadata=entry,
+                            extra_data=entry,
                         ))
                     # Log tool call (request)
                     import json as _json
