@@ -1188,11 +1188,20 @@ def _build_apollo_people_url(domains: list[str], titles: list[str], seniorities:
 
 
 def _run_apollo_scraper(url: str, max_pages: int, output_path: str) -> list[dict]:
-    script = Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT
-    if not script.exists():
-        script = Path(".") / APOLLO_SCRAPER_SCRIPT
-    if not script.exists():
-        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found")
+    # Try multiple paths to find apollo_scraper.js
+    paths_to_try = [
+        Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT,
+        Path(".") / APOLLO_SCRAPER_SCRIPT,
+        Path("/home/leadokol/magnum-opus-project/repo") / APOLLO_SCRAPER_SCRIPT,  # Hetzner default
+        Path.home() / "magnum-opus-project/repo" / APOLLO_SCRAPER_SCRIPT,  # Home-based fallback
+    ]
+    script = None
+    for path in paths_to_try:
+        if path.exists():
+            script = path
+            break
+    if script is None:
+        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found in any location")
         return []
     args = ["node", str(script), "--url", url, "--max-pages", str(max_pages), "--output", output_path]
     try:
