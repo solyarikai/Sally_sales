@@ -13,7 +13,7 @@ Claude Code:
   1. Reads file from disk (has filesystem access)
   2. Sends content to create_project(website: "getsally.io", document_text: <content>)
   3. GPT extracts: offer, roles, filters, sequence, campaign settings
-  4. GPT identifies what CANNOT be automated (skips it, tells user why)
+  4. Silently skips what can't be automated (no explanations)
   5. Shows user extracted data → "Correct?"
   6. Standard flow: blacklist → accounts → pipeline → SmartLead
 ```
@@ -37,19 +37,6 @@ No new upload_document tool needed. `create_project` extended to accept `documen
 | Sequence A "Pipeline Pain" | 4 emails (day 1, 3, 7, 14) | SmartLead campaign sequence |
 | Campaign settings | No tracking, stop on reply, 35/mailbox/day | SmartLead campaign config |
 
-### SKIPS (cannot automate — tells user why):
-
-| Data | Why Skipped |
-|------|------------|
-| Sequence B "Fresh Funding" | Requires funding signal detection — Apollo search doesn't filter by "raised in last 90 days" |
-| Sequence C "Competitor Conquest" | Requires competitor-user detection — no way to know if company uses Belkins/CIENCE |
-| Conference attendee lists (Money20/20) | Requires manual scraping or purchased lists |
-| LinkedIn manual touchpoints (Tier 1) | Requires human research, 15 min per prospect |
-| Tier 1 high-touch personalization | Requires manual prospect research |
-| WhatsApp/Telegram channels | Not supported in pipeline |
-| Tech stack signals (Salesforce/HubSpot) | Apollo doesn't reliably filter by CRM |
-| Hiring signals | Apollo doesn't filter by "currently hiring for X role" |
-
 ### ONE Pipeline Run (not 6)
 
 The document describes ONE ICP (B2B fintech) with sub-verticals as keyword hints, NOT separate campaigns. Sub-verticals (Payments, Lending, BaaS, RegTech, WealthTech, Crypto) are used as **keywords for Apollo search** — all results go into ONE campaign with Sequence A.
@@ -69,10 +56,7 @@ ONE SmartLead campaign with Rinat accounts
 async def extract_from_document(text: str, website: str, openai_key: str, model: str) -> dict:
     """Extract project data from a strategy document.
     
-    Smart enough to:
-    - Take what can be automated
-    - Skip what requires external signals/manual work
-    - Explain what was skipped and why
+    Extracts what can be automated. Silently skips the rest.
     
     Returns:
         {
@@ -109,14 +93,7 @@ async def extract_from_document(text: str, website: str, openai_key: str, model:
                 "stop_on_reply": true,
                 "plain_text": true
             },
-            "skipped": [
-                {"item": "Sequence B: Fresh Funding", "reason": "Requires funding recency signal — Apollo can't filter 'raised in last 90 days'"},
-                {"item": "Sequence C: Competitor Conquest", "reason": "Requires competitor-user detection — not available via API"},
-                {"item": "Conference attendee lists", "reason": "Requires manual scraping or purchased data"},
-                {"item": "LinkedIn Tier 1 personalization", "reason": "Requires 15 min manual research per prospect"},
-                {"item": "Hiring signals", "reason": "Apollo doesn't reliably filter by current job postings"},
-                {"item": "Tech stack signals", "reason": "Apollo doesn't filter by CRM/tool usage"}
-            ]
+            # No "skipped" array — silently omits what can't be automated
         }
     """
 ```
@@ -143,9 +120,8 @@ async def extract_from_document(text: str, website: str, openai_key: str, model:
 | Apollo filters: locations (6) | 1 point |
 | Apollo filters: employee range correct | 1 point |
 | Sequence A: all 4 emails with subjects + bodies | 4 points |
-| Skipped items: correctly identified 5+ items with valid reasons | 2 points |
 | Campaign settings: no tracking, stop on reply, daily limit | 1 point |
-| **Total** | **15 points** |
+| **Total** | **13 points** |
 
 ### Test Method
 1. Send full document + extraction prompt to each model
