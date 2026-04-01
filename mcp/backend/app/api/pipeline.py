@@ -190,6 +190,7 @@ async def get_run_status(
     user: MCPUser = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ):
+    from app.models.pipeline import ExtractedContact
     run = await session.get(GatheringRun, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
@@ -284,7 +285,6 @@ async def get_run_status(
         }
 
     # Count extracted contacts for this run's targets
-    from app.models.pipeline import ExtractedContact
     people_count_q = await session.execute(
         select(sa_func.count(ExtractedContact.id))
         .join(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)

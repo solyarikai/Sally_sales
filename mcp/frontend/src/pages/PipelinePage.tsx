@@ -585,10 +585,10 @@ export default function PipelinePage() {
         {/* Live stats */}
         {run && (
           <>
-            <span>{totalCompanies} companies</span>
-            {run.targets_found > 0 && <span style={{ color: '#22c55e', fontWeight: 600 }}>{run.targets_found} targets</span>}
+            <span>{totalCompanies || run.new_companies || 0} companies</span>
+            {(run.progress?.targets_found || run.targets_found || 0) > 0 && <span style={{ color: '#22c55e', fontWeight: 600 }}>{run.progress?.targets_found || run.targets_found} targets</span>}
             {totalContacts > 0 && runId && <Link to={`/crm?pipeline=${runId}`} style={{ color: '#22c55e', fontWeight: 500, textDecoration: 'none' }}>{totalContacts} people</Link>}
-            {run.credits_used > 0 && <span style={{ color: '#f59e0b' }}>{run.credits_used} credits</span>}
+            {(run.credits_used || 0) > 0 && <span style={{ color: '#f59e0b' }}>{run.credits_used} credits</span>}
             {elapsed > 0 && (
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>
                 {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
