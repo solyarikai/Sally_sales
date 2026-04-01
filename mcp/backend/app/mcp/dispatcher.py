@@ -924,9 +924,11 @@ Return ONLY valid JSON."""
                 "status": "awaiting_filter_confirmation",
                 "total_available": total_available,
                 "filters_preview": {
+                    "organization_industry_tag_ids": filters.get("organization_industry_tag_ids"),
                     "q_organization_keyword_tags": keywords,
                     "organization_locations": locations,
                     "organization_num_employees_ranges": sizes,
+                    "filter_strategy": filters.get("filter_strategy", "keywords_only"),
                 },
                 "cost_estimate": cost_est,
                 "next_action": {
@@ -936,7 +938,11 @@ Return ONLY valid JSON."""
                 },
                 "message": (
                     f"Apollo search preview:\n\n"
-                    f"  Keywords: {', '.join(keywords)}\n"
+                    + (f"  Strategy: INDUSTRY FIRST (90%+ target rate) → keywords fallback\n"
+                       f"  Industry: {', '.join(filters.get('industries', []))}\n"
+                       if filters.get("organization_industry_tag_ids")
+                       else f"  Strategy: KEYWORDS (no exact industry match in map)\n")
+                    + f"  Keywords (fallback): {', '.join(keywords)}\n"
                     f"  Location: {', '.join(locations)}\n"
                     f"  Size: {', '.join(sizes)}\n"
                     f"  Total available: {total_available:,} companies\n\n"
