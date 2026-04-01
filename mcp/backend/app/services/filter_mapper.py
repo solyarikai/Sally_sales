@@ -125,7 +125,7 @@ async def map_query_to_filters(
         if industries_clean:
             keyword_tags.insert(0, industries_clean[0])
 
-    # ── Step E: Look up industry_tag_ids from apollo_industry_map (best pagination) ──
+    # ── Step E: Look up industry_tag_ids from apollo_industry_map ──
     industry_tag_ids = []
     try:
         from sqlalchemy import text as sa_text
@@ -144,14 +144,37 @@ async def map_query_to_filters(
     except Exception as e:
         logger.warning(f"Industry map lookup failed: {e}")
 
-    # Build result with BOTH industry_tag_ids (primary) and keyword_tags (fallback)
+    # ── Step F: A11 — Classify if industries are SPECIFIC or BROAD for this query ──
+    filter_strategy = "keywords_only"
+    specific_tag_ids = []
+    if industry_tag_ids:
+        try:
+            from app.services.industry_classifier import classify_industry_specificity
+            classification = await classify_industry_specificity(query, offer, industries_clean, openai_key)
+            filter_strategy = classification["recommendation"]
+            # Only keep tag_ids for SPECIFIC industries
+            specific_industries = set(i.lower() for i in classification.get("specific_industries", []))
+            if specific_industries:
+                for ind_name, tag_id in zip(industries_clean, industry_tag_ids):
+                    if ind_name.lower() in specific_industries:
+                        specific_tag_ids.append(tag_id)
+            if not specific_tag_ids:
+                filter_strategy = "keywords_first"
+            logger.info(f"A11 classifier: {filter_strategy}, specific={classification.get('specific_industries')}, "
+                        f"broad={classification.get('broad_industries')}, reason={classification.get('reason')}")
+        except Exception as e:
+            logger.warning(f"A11 classifier failed: {e} — defaulting to industry_first")
+            specific_tag_ids = industry_tag_ids
+            filter_strategy = "industry_first"
+
+    # Build result
     result = {
-        "q_organization_keyword_tags": keyword_tags,  # Fallback: used when industry_tag_ids exhausted
-        "organization_industry_tag_ids": industry_tag_ids if industry_tag_ids else None,  # Primary: 90% target rate
+        "q_organization_keyword_tags": keyword_tags,
+        "organization_industry_tag_ids": specific_tag_ids if specific_tag_ids else None,
         "industries": industries_clean,
         "organization_locations": locations,
         "organization_num_employees_ranges": ranges_clean,
-        "filter_strategy": "industry_first" if industry_tag_ids else "keywords_only",
+        "filter_strategy": filter_strategy,
         "mapping_details": {
             "industries_selected": industries_clean,
             "industry_tag_ids": industry_tag_ids,
