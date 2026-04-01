@@ -648,9 +648,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "offer_approved": False,
             "scrape_status": scrape_status,
             "message": (
-                f"Project '{project.name}' created."
+                f"Project '{project.name}' created: http://46.62.210.24:3000/projects/{project.id}"
                 + offer_display
-                + f"\n\nProject page: http://46.62.210.24:3000/projects/{project.id}"
             ),
             "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
             "next_step": "confirm_offer — user must approve the offer before gathering can start",
