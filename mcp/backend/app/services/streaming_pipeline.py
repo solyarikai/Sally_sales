@@ -186,112 +186,152 @@ class StreamingPipeline:
 
     # ── Apollo page fetching + streaming workers ──
 
-    MAX_PHASE2_PAGES = 200  # Safety cap — max pages total across all strategies
-    EXHAUSTION_THRESHOLD = 20  # Pages with 0 new targets before switching/regenerating
-    MAX_KEYWORD_REGENERATIONS = 5  # Stop pipeline after this many regenerations with no results
+    # Per-strategy page limits (from pipeline_spec.md)
+    PAGES_PER_STRATEGY = 25       # Level 1 + Level 2: 25 pages each
+    PAGES_PER_REGEN_CYCLE = 20    # Level 3: 20 pages per regeneration cycle
+    MAX_KEYWORD_REGENERATIONS = 5  # 5 regen cycles × 20 pages = 100 max
+    EXHAUSTION_THRESHOLD = 10     # 10 consecutive empty pages = strategy exhausted
+    MAX_TOTAL_PAGES = 150         # Absolute safety cap: 25 + 25 + 100 = 150
 
     async def _feed_apollo_pages(self, filters: Dict):
-        """Fetch Apollo pages until KPI met or exhausted. Switches strategy on exhaustion."""
+        """3-level strategy cascade per pipeline_spec.md.
+
+        Industry-first: L1 industry(25p) → L2 keywords(25p) → L3 regen(5×20p)
+        Keywords-first:  L1 keywords(25p) → L2 regen(5×20p) → L3 industry(25p)
+        """
         from app.services.gathering_service import GatheringService
         svc = GatheringService()
         adapter = svc._get_adapter(self.run.source_type, apollo_service=self.apollo)
         if not adapter:
             return
 
-        # Pre-load all existing domains for this project (avoids N SELECT queries per page)
-        existing_result = await self.session.execute(
-            select(DiscoveredCompany.domain).where(
-                DiscoveredCompany.project_id == self.run.project_id
+        # Pre-load existing domains
+        from app.db import async_session_maker as _asm
+        async with _asm() as _ws:
+            existing_result = await _ws.execute(
+                select(DiscoveredCompany.domain).where(DiscoveredCompany.project_id == self.run.project_id)
             )
-        )
-        self._domains_seen.update(r[0] for r in existing_result.all())
+            self._domains_seen.update(r[0] for r in existing_result.all())
 
-        # Build primary + backlog filter sets for exhaustion-based switching
-        strategies = self._build_strategies(filters)
         per_page = filters.get("per_page", 100)
+        all_tried_keywords = set(k.lower() for k in (filters.get("q_organization_keyword_tags") or []))
 
-        productive_pages = 0  # Pages that found new companies (global safety cap)
-        all_tried_keywords = set()  # Track ALL keywords across all strategies/regenerations
+        # Build strategy cascade based on A11 classifier decision
+        strategy = filters.get("filter_strategy", "keywords_only")
+        has_industry = bool(filters.get("organization_industry_tag_ids"))
+        has_keywords = bool(filters.get("q_organization_keyword_tags"))
 
-        for strategy_name, strategy_filters in strategies:
-            if self._kpi_met or self._stop:
+        if strategy == "industry_first" and has_industry:
+            # L1: industry only, L2: keywords only, L3: regen keywords
+            levels = [
+                ("L1_industry", self._make_industry_filters(filters), self.PAGES_PER_STRATEGY),
+                ("L2_keywords", self._make_keywords_filters(filters), self.PAGES_PER_STRATEGY),
+            ]
+        else:
+            # L1: keywords only, L2: regen (added dynamically), L3: industry
+            levels = [
+                ("L1_keywords", self._make_keywords_filters(filters), self.PAGES_PER_STRATEGY),
+            ]
+            if has_industry:
+                # Industry as LAST resort after all regen cycles
+                levels.append(("L3_industry", self._make_industry_filters(filters), self.PAGES_PER_STRATEGY))
+
+        total_pages = 0
+
+        for level_name, level_filters, max_pages in levels:
+            if self._kpi_met or self._stop or total_pages >= self.MAX_TOTAL_PAGES:
                 break
 
-            # Each strategy gets its own regeneration budget
-            keyword_regenerations = 0
-            consecutive_empty = 0
+            exhausted = await self._run_level(
+                adapter, level_filters, per_page, level_name,
+                max_pages=max_pages,
+                start_page=(self._tam_pages + 1) if "L1" in level_name else 1,
+            )
+            total_pages += self.pages_fetched  # approximate
 
-            # Track initial keywords
-            all_tried_keywords.update(k.lower() for k in strategy_filters.get("q_organization_keyword_tags", []))
-
-            # Start from where tam_gather left off for primary, page 1 for backlog
-            page = (self._tam_pages + 1) if strategy_name == "primary" else 1
-
-            logger.info(f"Phase 2 [{strategy_name}]: starting from page {page}")
-
-            while productive_pages < self.MAX_PHASE2_PAGES:
-                if self._kpi_met or self._stop:
-                    break
-
-                # Fetch up to 10 pages in PARALLEL for speed
-                batch_size = min(10, self.MAX_PHASE2_PAGES - productive_pages)
-                page_results = await self._fetch_pages_parallel(
-                    adapter, strategy_filters, per_page, page, batch_size
-                )
-
-                batch_new_total = 0
-                should_regen = False
-                should_break = False
-
-                for page_num, results in page_results:
-                    if self._kpi_met or self._stop:
+            if exhausted and not self._kpi_met:
+                # Level exhausted → try keyword regeneration before next level
+                for regen_num in range(1, self.MAX_KEYWORD_REGENERATIONS + 1):
+                    if self._kpi_met or self._stop or total_pages >= self.MAX_TOTAL_PAGES:
                         break
-                    if results is None:
+                    new_kw = await self._regenerate_keywords(level_filters, all_tried_keywords)
+                    if not new_kw:
+                        logger.info(f"Regen #{regen_num}: no new keywords. Moving to next level.")
+                        break
+                    all_tried_keywords.update(k.lower() for k in new_kw)
+                    regen_filters = dict(level_filters)
+                    regen_filters["q_organization_keyword_tags"] = new_kw
+                    regen_filters.pop("organization_industry_tag_ids", None)
+                    regen_filters["filter_strategy"] = "keywords_first"
+
+                    regen_exhausted = await self._run_level(
+                        adapter, regen_filters, per_page, f"regen_{regen_num}",
+                        max_pages=self.PAGES_PER_REGEN_CYCLE, start_page=1,
+                    )
+                    if not regen_exhausted:
+                        break  # Got results, KPI may be met
+
+        if not self._kpi_met:
+            logger.info(f"Phase 2 fully exhausted: {self.pages_fetched} pages, "
+                       f"{self.total_companies} companies, {self.total_people} people")
+
+    async def _run_level(self, adapter, filters: Dict, per_page: int,
+                          label: str, max_pages: int, start_page: int = 1) -> bool:
+        """Run one strategy level. Returns True if exhausted (10 consecutive empty)."""
+        consecutive_empty = 0
+        pages_this_level = 0
+        page = start_page
+
+        logger.info(f"[{label}] start page={page}, max={max_pages} pages")
+
+        while pages_this_level < max_pages:
+            if self._kpi_met or self._stop:
+                return False
+
+            batch_size = min(10, max_pages - pages_this_level)
+            page_results = await self._fetch_pages_parallel(
+                adapter, filters, per_page, page, batch_size
+            )
+
+            for page_num, results in page_results:
+                if self._kpi_met or self._stop:
+                    return False
+                if results is None:
+                    consecutive_empty += 1
+                else:
+                    self.pages_fetched += 1
+                    pages_this_level += 1
+                    new_count = await self._ingest_page_results(results)
+                    if new_count == 0:
                         consecutive_empty += 1
                     else:
-                        self.pages_fetched += 1
-                        new_count = await self._ingest_page_results(results)
-                        batch_new_total += new_count
-
-                        if new_count == 0:
-                            consecutive_empty += 1
-                        else:
-                            consecutive_empty = 0
-                            productive_pages += 1
-
-                    if consecutive_empty >= self.EXHAUSTION_THRESHOLD:
-                        should_regen = True
-                        break
-
-                logger.info(f"Phase 2 [{strategy_name}] pages {page}-{page + batch_size - 1}: "
-                           f"+{batch_new_total} new, {self.total_companies} total, "
-                           f"{self.total_people} people")
-
-                # Handle exhaustion → regenerate keywords
-                if should_regen:
-                    keyword_regenerations += 1
-                    if keyword_regenerations >= self.MAX_KEYWORD_REGENERATIONS:
-                        logger.info(f"Phase 2 [{strategy_name}]: {keyword_regenerations} regenerations "
-                                   f"exhausted. Switching strategy.")
-                        break
-
-                    logger.info(f"Phase 2 [{strategy_name}]: {consecutive_empty} empty pages. "
-                               f"Regenerating keywords ({keyword_regenerations}/{self.MAX_KEYWORD_REGENERATIONS})")
-                    new_keywords = await self._regenerate_keywords(strategy_filters, all_tried_keywords)
-                    if new_keywords:
-                        all_tried_keywords.update(k.lower() for k in new_keywords)
-                        strategy_filters["q_organization_keyword_tags"] = new_keywords
-                        strategy_filters.pop("organization_industry_tag_ids", None)
                         consecutive_empty = 0
-                        page = 1  # Restart with new keywords
-                        await self._persist_progress()
-                        continue
-                    else:
-                        logger.info(f"Phase 2 [{strategy_name}]: regeneration returned nothing. Switching.")
-                        break
 
-                await self._persist_progress()
-                page += batch_size
+                if consecutive_empty >= self.EXHAUSTION_THRESHOLD:
+                    logger.info(f"[{label}] exhausted after {pages_this_level} pages "
+                               f"({consecutive_empty} consecutive empty)")
+                    await self._persist_progress()
+                    return True
+
+            await self._persist_progress()
+            page += batch_size
+
+        logger.info(f"[{label}] completed {pages_this_level}/{max_pages} pages")
+        return pages_this_level >= max_pages  # Hit page limit = exhausted
+
+    def _make_industry_filters(self, base: Dict) -> Dict:
+        """Industry-only filters (drop keywords)."""
+        f = dict(base)
+        f.pop("q_organization_keyword_tags", None)
+        f["filter_strategy"] = "industry_first"
+        return f
+
+    def _make_keywords_filters(self, base: Dict) -> Dict:
+        """Keywords-only filters (drop industry)."""
+        f = dict(base)
+        f.pop("organization_industry_tag_ids", None)
+        f["filter_strategy"] = "keywords_first"
+        return f
 
     async def _fetch_pages_parallel(self, adapter, filters: Dict, per_page: int,
                                      start_page: int, count: int) -> list:
@@ -372,26 +412,7 @@ class StreamingPipeline:
             logger.warning(f"Keyword regeneration failed: {e}")
             return None
 
-    def _build_strategies(self, filters: Dict) -> list:
-        """Build primary + backlog filter strategies for exhaustion-based switching."""
-        strategies = [("primary", dict(filters))]
-
-        strategy = filters.get("filter_strategy", "keywords_only")
-        has_industry = bool(filters.get("organization_industry_tag_ids"))
-        has_keywords = bool(filters.get("q_organization_keyword_tags"))
-
-        if strategy == "industry_first" and has_keywords:
-            # Backlog: keywords only (drop industry tags)
-            backlog = dict(filters)
-            backlog.pop("organization_industry_tag_ids", None)
-            strategies.append(("backlog_keywords", backlog))
-        elif strategy == "keywords_first" and has_industry:
-            # Backlog: industry only (drop keywords)
-            backlog = dict(filters)
-            backlog.pop("q_organization_keyword_tags", None)
-            strategies.append(("backlog_industry", backlog))
-
-        return strategies
+    # _build_strategies REMOVED — replaced by 3-level cascade in _feed_apollo_pages
 
     async def _ingest_page_results(self, results) -> int:
         """Ingest Apollo page results. Own session — no conflicts with workers."""
