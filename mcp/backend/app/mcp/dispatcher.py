@@ -2536,6 +2536,16 @@ Return ONLY valid JSON."""
         mpc = args.get("max_people_per_company", 3)
         tc = args.get("target_companies") or _ceil(tp / mpc)
 
+        # Check campaign + accounts status for auto-push
+        campaign_status = "no accounts — manual push required after KPI"
+        if run.campaign_id:
+            from app.models.campaign import Campaign as _Camp
+            _camp = await session.get(_Camp, run.campaign_id)
+            if _camp and _camp.email_account_ids:
+                campaign_status = f"auto-push enabled ({len(_camp.email_account_ids)} accounts pre-selected)"
+            elif _camp:
+                campaign_status = "campaign exists but no accounts — call align_email_accounts first"
+
         # TIER 1: Preview before executing
         if not args.get("confirm"):
             return {
@@ -2546,12 +2556,14 @@ Return ONLY valid JSON."""
                     "project": project.name,
                     "kpi": {"target_people": tp, "max_people_per_company": mpc, "target_companies": tc},
                     "filters": run.filters,
+                    "campaign_status": campaign_status,
                 },
                 "message": (
                     f"I will run auto pipeline on #{run.id} ({project.name}):\n"
                     f"  Target: {tp} contacts, max {mpc}/company, ~{tc} target companies\n"
                     f"  Filters: {run.filters.get('q_organization_keyword_tags', [])}\n"
-                    f"  Estimated cost: ~{tc} credits\n\n"
+                    f"  Estimated cost: ~{tc} credits\n"
+                    f"  Campaign: {campaign_status}\n\n"
                     f"Approve?"
                 ),
                 "next_action": {"tool": "run_auto_pipeline", "args": {**args, "confirm": True}},

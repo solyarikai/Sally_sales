@@ -852,7 +852,8 @@ export default function PipelinePage() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {run.campaign.smartlead_url && <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(99,102,241,0.12)', color: '#818cf8', textDecoration: 'none', fontSize: 11, border: '1px solid rgba(99,102,241,0.25)' }}>SmartLead ↗</a>}
-              <Link to={`/campaigns/${run.campaign.id}`} style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 11, border: '1px solid var(--border)' }}>Campaign Details</Link>
+              <Link to={`/campaigns/${run.campaign.id}`} style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 11, border: '1px solid var(--border)' }}>Campaign</Link>
+              <Link to={`/campaigns/${run.campaign.id}#accounts`} style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 11, border: '1px solid var(--border)' }}>Accounts ({run.campaign.email_accounts?.length || 0})</Link>
             </div>
           </div>
         </div>
