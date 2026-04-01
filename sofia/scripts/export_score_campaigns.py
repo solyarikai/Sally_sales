@@ -23,7 +23,11 @@ CAMPAIGNS = [
     (3064966, "INDIA_GENERAL"),
 ]
 
-KEEP_STATUSES = {"SENT", "OPENED", "EMAIL_OPENED"}
+# SmartLead uses sequence-level statuses, not email-level
+# INPROGRESS = emails being sent, no reply yet
+# COMPLETED = all steps sent, no reply
+# We want leads who received emails but didn't reply
+KEEP_STATUSES = {"INPROGRESS", "COMPLETED"}
 
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/tmp/smartlead_export")
 
