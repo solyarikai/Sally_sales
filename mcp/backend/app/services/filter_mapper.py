@@ -112,9 +112,9 @@ async def map_query_to_filters(
 
     # Build final keyword_tags: industries (broad) + keywords (precise) + unverified (cold start)
     keyword_tags = industries_clean + keywords_clean
-    if keywords_unverified and len(keyword_tags) < 3:
-        # Only add unverified if we don't have enough verified keywords
-        keyword_tags.extend(keywords_unverified[:2])
+    if keywords_unverified and len(keyword_tags) < 20:
+        # Add unverified to reach at least 20 keywords
+        keyword_tags.extend(keywords_unverified[:20 - len(keyword_tags)])
 
     if not keyword_tags:
         # Emergency fallback — use industries only
@@ -246,14 +246,17 @@ async def _gpt_pick_filters(
     if keyword_shortlist:
         keyword_section = f"""
 KEYWORDS
-Filtering Apollo for "{query}" — pick 5-8 keywords that give best results, least noise.
+Filtering Apollo for "{query}" — pick 20-30 keywords that target companies would have on their profiles.
+Include synonyms, related terms, adjacent niches, and specific product/service names.
+More keywords = broader coverage. We want at least 20.
 {json.dumps(keyword_shortlist)}
-If fewer than 3 match, suggest up to 2 new ones in "unverified_keywords"."""
+If fewer than 20 match from the list, suggest more in "unverified_keywords" to reach at least 20 total."""
     else:
         keyword_section = """
 STEP 2 — KEYWORDS
 No known Apollo keyword tags available yet (cold start).
-Suggest 3-5 keywords that target companies would use on their profiles.
+Suggest 20-30 keywords that target companies would use on their profiles.
+Include synonyms, related terms, adjacent niches, specific product/service names.
 Put ALL in "unverified_keywords" (they haven't been verified against Apollo yet).
 Leave "keywords" empty."""
 
@@ -284,7 +287,7 @@ Return ONLY valid JSON:
                     json={
                         "model": try_model,
                         "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": 500,
+                        "max_tokens": 1000,
                         "temperature": 0,
                     },
                 )
