@@ -101,6 +101,7 @@ class ApolloService:
     async def search_people_broad(
         self,
         person_titles: Optional[List[str]] = None,
+        person_locations: Optional[List[str]] = None,
         organization_keyword_tags: Optional[List[str]] = None,
         organization_locations: Optional[List[str]] = None,
         organization_num_employees_ranges: Optional[List[str]] = None,
@@ -111,6 +112,7 @@ class ApolloService:
         Broad people search using /mixed_people/api_search WITHOUT domains.
         FREE — no credits, no email reveal.
         Searches by org location + keywords + person titles.
+        person_locations: filter by WHERE the person is located (e.g. LATAM countries).
         Returns up to 100 people per page, max 500 pages (50,000 total).
         """
         if not self.api_key:
@@ -123,6 +125,8 @@ class ApolloService:
         }
         if person_titles:
             payload["person_titles"] = person_titles
+        if person_locations:
+            payload["person_locations"] = person_locations
         if organization_keyword_tags:
             payload["q_organization_keyword_tags"] = organization_keyword_tags
         if organization_locations:

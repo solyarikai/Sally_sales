@@ -35,6 +35,7 @@ from .god_panel import router as god_panel_router
 from .lookalike import router as lookalike_router
 from .igaming import router as igaming_router
 from .telegram_outreach import router as telegram_outreach_router
+from .gathering import router as gathering_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -111,5 +112,8 @@ api_router.include_router(igaming_router)
 
 # Telegram Outreach (accounts, campaigns, proxies)
 api_router.include_router(telegram_outreach_router)
+
+# Gathering Pipeline (TAM discovery, checkpoints, approval gates)
+api_router.include_router(gathering_router)
 
 __all__ = ["api_router"]

@@ -39,6 +39,10 @@ class ApolloPeopleAPIFilters(BaseModel):
         default_factory=list,
         description="Organization locations for broad search e.g. ['Poland', 'Romania']",
     )
+    person_locations: List[str] = Field(
+        default_factory=list,
+        description="WHERE the person is located e.g. ['Mexico', 'Colombia', 'Brazil'] — use for corridor discovery.",
+    )
     organization_num_employees_ranges: List[str] = Field(
         default_factory=list,
         description="Employee count ranges e.g. ['11,50', '51,200']",
@@ -65,10 +69,14 @@ class ApolloPeopleAPIAdapter(GatheringAdapter):
         return ApolloPeopleAPIFilters(**raw_filters).model_dump()
 
     def _is_broad_search(self, validated: ApolloPeopleAPIFilters) -> bool:
-        """Broad search = no domains, has locations or keywords."""
+        """Broad search = no domains, has locations/keywords/person_locations."""
         return (
             not validated.organization_domains
-            and (validated.organization_locations or validated.q_organization_keyword_tags)
+            and (
+                validated.organization_locations
+                or validated.q_organization_keyword_tags
+                or validated.person_locations
+            )
         )
 
     async def estimate(self, filters: dict) -> EstimateResult:
@@ -148,6 +156,7 @@ class ApolloPeopleAPIAdapter(GatheringAdapter):
 
                 data = await apollo_service.search_people_broad(
                     person_titles=validated.person_titles or None,
+                    person_locations=validated.person_locations or None,
                     organization_keyword_tags=validated.q_organization_keyword_tags or None,
                     organization_locations=validated.organization_locations or None,
                     organization_num_employees_ranges=validated.organization_num_employees_ranges or None,
