@@ -253,6 +253,13 @@ class MCPApp:
         logger.info(f"MCPApp: path={path}, type={scope.get('type')}, qs_len={len(raw_qs)}, raw_path={scope.get('raw_path', b'')[:100]}")
 
         if scope["type"] in ("http", "websocket"):
+            # Log ALL headers for /sse to find where the token might be
+            if "/sse" in path:
+                hdrs = {k.decode(): v.decode() for k, v in scope.get("headers", [])}
+                auth_header = hdrs.get("authorization", "")
+                logger.info(f"SSE headers: auth='{auth_header[:30]}', "
+                           f"all_keys={list(hdrs.keys())}")
+
             if "/sse" in path:
                 # Extract token from URL: /mcp/sse?token=mcp_xxx (like SmartLead)
                 qs = scope.get("query_string", b"").decode()
