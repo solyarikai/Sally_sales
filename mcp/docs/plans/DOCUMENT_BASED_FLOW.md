@@ -37,7 +37,7 @@ User: "outreach-plan-fintech.md"
 ## One Campaign with 6-Segment Classification
 
 When user says "one campaign":
-- Apollo filters: COMBINED keywords from all 6 segments (OR logic)
+- Apollo filters: COMBINED keywords + industries from all 6 segments (OR logic — separate API calls, never combined)
 - Classification prompt: "Is this company a target? If yes, classify into one of: PAYMENTS, LENDING, BAAS, REGTECH, WEALTHTECH, CRYPTO"
 - Each company gets a segment label
 - All go into ONE SmartLead campaign with Sequence A
