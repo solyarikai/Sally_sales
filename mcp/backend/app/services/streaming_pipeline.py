@@ -303,7 +303,9 @@ class StreamingPipeline:
 
     # ── Streaming processing (Phase 2: Apollo page discovery) ──
 
-    MAX_PHASE2_PAGES = 20  # Safety cap — max pages per strategy in Phase 2
+    MAX_PHASE2_PAGES = 200  # Safety cap — max pages total across all strategies
+    EXHAUSTION_THRESHOLD = 20  # Pages with 0 new targets before switching/regenerating
+    MAX_KEYWORD_REGENERATIONS = 5  # Stop pipeline after this many regenerations with no results
 
     async def _feed_apollo_pages(self, filters: Dict):
         """Fetch Apollo pages until KPI met or exhausted. Switches strategy on exhaustion."""
@@ -325,6 +327,9 @@ class StreamingPipeline:
         strategies = self._build_strategies(filters)
         per_page = filters.get("per_page", 100)
 
+        keyword_regenerations = 0
+        total_pages_all = 0
+
         for strategy_name, strategy_filters in strategies:
             if self._kpi_met or self._stop:
                 break
@@ -341,7 +346,7 @@ class StreamingPipeline:
             logger.info(f"Phase 2 [{strategy_name}]: starting from page {page_start}")
 
             page = page_start
-            while pages_this_strategy < self.MAX_PHASE2_PAGES:
+            while total_pages_all < self.MAX_PHASE2_PAGES:
                 if self._kpi_met or self._stop:
                     break
 
@@ -354,15 +359,32 @@ class StreamingPipeline:
                     results = await adapter.gather(batch_filters)
                     self.pages_fetched += 1
                     pages_this_strategy += 1
+                    total_pages_all += 1
 
                     new_count = await self._ingest_page_results(results)
 
                     if new_count == 0:
                         consecutive_empty += 1
-                        if consecutive_empty >= 2:
-                            logger.info(f"Phase 2 [{strategy_name}]: exhausted "
-                                       f"({consecutive_empty} empty pages). Switching.")
-                            break
+                        if consecutive_empty >= self.EXHAUSTION_THRESHOLD:
+                            # Try regenerating keywords before giving up
+                            keyword_regenerations += 1
+                            if keyword_regenerations >= self.MAX_KEYWORD_REGENERATIONS:
+                                logger.info(f"Phase 2 [{strategy_name}]: {keyword_regenerations} keyword "
+                                           f"regenerations exhausted. Stopping pipeline.")
+                                self._stop = True
+                                break
+
+                            logger.info(f"Phase 2 [{strategy_name}]: {consecutive_empty} empty pages. "
+                                       f"Regenerating keywords (attempt {keyword_regenerations}/{self.MAX_KEYWORD_REGENERATIONS})")
+                            new_keywords = await self._regenerate_keywords(strategy_filters)
+                            if new_keywords:
+                                strategy_filters["q_organization_keyword_tags"] = new_keywords
+                                consecutive_empty = 0
+                                page = 1  # restart with new keywords
+                                continue
+                            else:
+                                logger.info(f"Phase 2: keyword regeneration returned nothing. Switching strategy.")
+                                break
                     else:
                         consecutive_empty = 0
 
@@ -373,11 +395,60 @@ class StreamingPipeline:
                 except Exception as e:
                     logger.warning(f"Apollo page {page} failed: {e}")
                     consecutive_empty += 1
-                    if consecutive_empty >= 2:
+                    if consecutive_empty >= self.EXHAUSTION_THRESHOLD:
                         break
 
                 await self._persist_progress()
                 page += 1
+
+    async def _regenerate_keywords(self, current_filters: Dict) -> Optional[list]:
+        """Generate fresh keywords when current ones are exhausted. Uses GPT to create new variations."""
+        try:
+            project = await self.session.get(Project, self.run.project_id)
+            if not project:
+                return None
+
+            old_keywords = current_filters.get("q_organization_keyword_tags", [])
+            query = project.target_segments or ", ".join(old_keywords[:5])
+            offer = project.sender_company or ""
+
+            from app.services.user_context import UserServiceContext
+            ctx = UserServiceContext(self.run.triggered_by.split(":")[-1] if self.run.triggered_by else "0", self.session)
+            openai_key = await ctx.get_key("openai")
+            if not openai_key:
+                return None
+
+            import httpx, json
+            prompt = (
+                f"I'm searching Apollo.io for: {query}\n"
+                f"Our product: {offer}\n\n"
+                f"These keywords are EXHAUSTED (Apollo returned no more new companies):\n"
+                f"{json.dumps(old_keywords)}\n\n"
+                f"Generate 20-30 NEW keyword variations that target the same segment but use different terms.\n"
+                f"Include: synonyms, adjacent niches, specific product names, alternate phrasings.\n"
+                f"Do NOT repeat any of the exhausted keywords.\n\n"
+                f"Return ONLY a JSON array of strings: [\"keyword1\", \"keyword2\", ...]"
+            )
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                    json={"model": "gpt-4.1-mini", "messages": [{"role": "user", "content": prompt}],
+                          "max_tokens": 800, "temperature": 0.7},
+                )
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"].strip()
+                if content.startswith("```"):
+                    content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+                new_keywords = json.loads(content)
+                # Filter out old keywords
+                old_set = set(k.lower() for k in old_keywords)
+                fresh = [k for k in new_keywords if k.lower() not in old_set]
+                logger.info(f"Regenerated {len(fresh)} fresh keywords (was {len(old_keywords)} exhausted)")
+                return fresh if fresh else None
+        except Exception as e:
+            logger.warning(f"Keyword regeneration failed: {e}")
+            return None
 
     def _build_strategies(self, filters: Dict) -> list:
         """Build primary + backlog filter strategies for exhaustion-based switching."""
@@ -608,16 +679,31 @@ class StreamingPipeline:
         target_rate = round(self.total_targets / max(self.total_classified, 1) * 100)
         scrape_rate = round(self.total_scraped / max(self.total_companies, 1) * 100)
 
+        issues = []
+        if not self._kpi_met:
+            if self.total_people == 0:
+                issues.append("No contacts found — check filters and target segments")
+            elif self.total_people < self.target_count:
+                remaining = self.target_count - self.total_people
+                issues.append(f"Only {self.total_people}/{self.target_count} contacts found ({remaining} short)")
+            if self.total_companies > 0 and target_rate < 20:
+                issues.append(f"Low target rate ({target_rate}%) — keywords may be too broad")
+            if self.total_companies > 0 and scrape_rate < 30:
+                issues.append(f"Low scrape rate ({scrape_rate}%) — many websites unreachable")
+            if total_pages > 0 and self.pages_fetched > 0:
+                issues.append(f"Apollo exhausted after {total_pages} pages — broaden location or add keywords")
+            elif total_pages > 0 and self.pages_fetched == 0 and not self._kpi_met:
+                issues.append(f"Not enough companies from {total_pages} pages — try broader filters")
+
         if self._kpi_met:
             msg = (f"Pipeline complete: {self.total_targets} targets, "
                    f"{self.total_people}/{self.target_count} people "
                    f"in {elapsed:.0f}s ({total_pages} pages, {self.run.credits_used or 0} credits)")
         else:
-            msg = (f"Pipeline insufficient: {self.total_people}/{self.target_count} people "
-                   f"({self.total_targets} targets from {self.total_companies} companies, "
-                   f"{target_rate}% target rate, {scrape_rate}% scrape rate). "
-                   f"Apollo exhausted for current filters after {total_pages} pages. "
-                   f"Suggest: broaden location or add more keywords.")
+            msg = (f"Pipeline stopped: {self.total_people}/{self.target_count} people "
+                   f"({self.total_targets} targets, {target_rate}% target rate). "
+                   + (f"Sending {self.total_people} gathered contacts to SmartLead."
+                      if self.total_people > 0 else "No contacts to send."))
 
         return {
             "status": "completed" if self._kpi_met else "insufficient",
@@ -632,5 +718,6 @@ class StreamingPipeline:
             "credits_used": self.run.credits_used or 0,
             "target_rate_pct": target_rate,
             "scrape_rate_pct": scrape_rate,
+            "issues": issues,
             "message": msg,
         }
