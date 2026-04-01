@@ -1898,11 +1898,12 @@ Return ONLY valid JSON."""
 
         return {
             "accounts": [
-                {"id": a.get("id"), "email": a.get("from_email") or a.get("email", ""), "name": a.get("from_name", "")}
-                for a in (accounts or [])[:20]
+                {"id": a.get("id"), "from_email": a.get("from_email") or a.get("email", ""), "from_name": a.get("from_name", "")}
+                for a in (accounts or [])
             ],
+            "total": len(accounts or []),
             "used_in_your_campaigns": list(campaign_accounts.values()),
-            "message": "Select email account IDs to use for the new campaign. Accounts already used in your campaigns are shown.",
+            "message": f"{len(accounts or [])} email accounts available. Select by name/email pattern.",
         }
 
     if tool_name == "align_email_accounts":
