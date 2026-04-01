@@ -412,9 +412,12 @@ class PipelineOrchestrator:
         for contact in found_contacts:
             self.session.add(contact)
         self.total_people += len(found_contacts)
+        # Track people enrichment credits on the run (bulk_match = 1 credit per person)
+        people_credits = len(found_contacts)
+        self.run.credits_used = (self.run.credits_used or 0) + people_credits
         if found_contacts:
             await self.session.flush()
-            logger.info(f"Extracted {len(found_contacts)} contacts from {len(companies)} target companies")
+            logger.info(f"Extracted {len(found_contacts)} contacts from {len(companies)} target companies ({people_credits} enrichment credits)")
 
         await self.session.flush()
 

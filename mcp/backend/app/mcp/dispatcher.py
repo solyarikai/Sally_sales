@@ -880,8 +880,8 @@ Return ONLY valid JSON."""
                                 filters["organization_industry_tag_ids"] = mapped["organization_industry_tag_ids"]
                             filters["filter_strategy"] = mapped.get("filter_strategy", "keywords_only")
                             filters["industries"] = mapped.get("industries", [])
-                            logger.info(f"Filter mapper: {len(mapped.get('organization_industry_tag_ids', []))} industry_tag_ids, "
-                                        f"{len(mapped.get('q_organization_keyword_tags', []))} keywords, "
+                            logger.info(f"Filter mapper: {len(mapped.get('organization_industry_tag_ids') or [])} industry_tag_ids, "
+                                        f"{len(mapped.get('q_organization_keyword_tags') or [])} keywords, "
                                         f"strategy={mapped.get('filter_strategy')}")
                     except Exception as e:
                         logger.warning(f"Filter mapper failed, falling back to filter_intelligence: {e}")
