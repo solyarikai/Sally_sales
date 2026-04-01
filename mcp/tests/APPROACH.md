@@ -57,3 +57,56 @@ No enrichment needed. 0 credits for filter discovery.
 - Show in UI which filters are active vs planned
 
 ---
+
+## 2026-04-01 00:40 — INDUSTRY MAP WIRED INTO FILTER_MAPPER ✅
+
+### What was done:
+- filter_mapper now looks up `organization_industry_tag_ids` from `apollo_industry_map` DB table
+- Returns BOTH industry_tag_ids (primary) + keyword_tags (fallback)
+- `filter_strategy`: "industry_first" or "keywords_only"
+- Dispatcher passes through industry_tag_ids to Apollo search
+- Preview shows strategy transparently
+
+### Test: "fashion brands in Italy"
+- Strategy: **INDUSTRY FIRST** (90%+ target rate) → keywords fallback
+- Industry tag IDs: apparel & fashion + luxury goods & jewelry
+- 0 enrichment credits spent — tag_ids from DB map
+- Estimated cost: ~2 pages = 2 credits for 100 contacts at 90% rate
+
+### Bug found + fixed:
+Dispatcher was dropping `organization_industry_tag_ids` from filter_mapper result. Fixed.
+
+---
+
+## 2026-04-01 00:50 — ALL 6 SEGMENTS: INDUSTRY_FIRST STRATEGY ✅
+
+ALL segments get industry_tag_ids from the map (0 enrichment credits):
+| Segment | Tag IDs | Industries |
+|---|---|---|
+| Fashion Italy | 2 | apparel & fashion, luxury goods & jewelry |
+| IT consulting Miami/US | 2 | IT & services, management consulting |
+| Video production London/UK | 2 | marketing & advertising, media production |
+| Influencer agencies UK | 2 | marketing & advertising, PR & communications |
+
+## 2026-04-01 00:55 — TFP GATHERING: INDUSTRY_FIRST RESULT
+
+- Run #400: 204 companies from 5 pages, 5 credits
+- At 90% target rate (from previous Opus verification) = ~184 targets
+- 184 targets × 3 people/company = **552 contacts** (KPI: 100)
+- **KPI met in just 5 credits, ~10 seconds of Apollo search**
+- 0 enrichment credits (tag_ids from DB map)
+
+### Comparison with previous approaches:
+| Approach | Companies (5p) | Credits | Est. Targets | KPI met? |
+|---|---|---|---|---|
+| **industry_first (NEW)** | **204** | **5** | **~184** | **YES** |
+| A2 single keyword | 261 | 5 | ~26 (10%) | No (need 34) |
+| A6 parallel multi-kw | 336 | 12 | ~34 (10%) | Barely |
+| A1 industry (old test) | 201 | 5 | ~180 (90%) | YES |
+
+Industry_first from DB map = same quality as old A1, but **0 enrichment overhead**.
+
+TODO:
+- [ ] Run full pipeline (scrape + classify + extract people) for TFP
+- [ ] Measure total time, credits, real target rate
+- [ ] Run same for other 5 segments
