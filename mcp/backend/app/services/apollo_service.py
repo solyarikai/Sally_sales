@@ -14,6 +14,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 import httpx
+from sqlalchemy import text as sa_text
 
 from app.services.cost_tracker import get_tracker
 
@@ -241,25 +242,16 @@ class ApolloService:
         return results
 
     async def enrich_organization(self, domain: str) -> Optional[Dict[str, Any]]:
-        """Get FULL company data by domain — includes keywords, industry, employees.
-        WARNING: costs 1 credit per call."""
-        if not self.api_key:
-            return None
-        data = await self._api_call("POST", "/organizations/enrich", {"domain": domain})
-        if data and data.get("organization"):
-            self.credits_used += 1
-            get_tracker().log_apollo(1, "enrich")
-            return data["organization"]
-        return None
+        """Get FULL company data by domain. Delegates to bulk_enrich for efficiency."""
+        results = await self.bulk_enrich_organizations([domain])
+        return results[0] if results else None
 
     async def bulk_enrich_organizations(self, domains: List[str]) -> List[Dict[str, Any]]:
         """Bulk enrich companies by domain — returns full Apollo labels.
-        Max 10 per call, 1 credit per company returned.
-        Use for adjustment phase: extract keywords/industries from top targets."""
+        Max 10 per call, 1 credit per company returned. Auto-extends industry map."""
         if not self.api_key or not domains:
             return []
         results = []
-        # Apollo bulk_enrich: max 10 per request
         for i in range(0, len(domains), 10):
             batch = domains[i:i+10]
             data = await self._api_call("POST", "/organizations/bulk_enrich", {"domains": batch})
@@ -268,7 +260,31 @@ class ApolloService:
                 self.credits_used += len(orgs)
                 get_tracker().log_apollo(len(orgs), "bulk_enrich")
                 results.extend(orgs)
+                for org in orgs:
+                    await self._extend_industry_map(org)
         return results
+
+    async def _extend_industry_map(self, org: Dict):
+        """Auto-extend apollo_industry_map table with any new industry discovered."""
+        tag_id = org.get("industry_tag_id")
+        industry = org.get("industry")
+        domain = org.get("primary_domain") or ""
+        if not tag_id or not industry:
+            return
+        try:
+            from app.db import async_session_maker
+            async with async_session_maker() as session:
+                await session.execute(
+                    sa_text(
+                        "INSERT INTO apollo_industry_map (tag_id, industry_name, sample_domain) "
+                        "VALUES (:tid, :name, :domain) "
+                        "ON CONFLICT (tag_id) DO UPDATE SET updated_at = now()"
+                    ),
+                    {"tid": tag_id, "name": industry, "domain": domain},
+                )
+                await session.commit()
+        except Exception as e:
+            logger.debug(f"Industry map extend failed: {e}")
 
     async def test_connection(self) -> bool:
         if not self.api_key:
