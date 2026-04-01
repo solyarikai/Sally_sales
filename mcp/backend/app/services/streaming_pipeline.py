@@ -325,7 +325,7 @@ class StreamingPipeline:
                 f"I'm searching Apollo.io for: {query}\n"
                 f"Our product: {offer}\n\n"
                 f"ALL these keywords have been tried and exhausted ({len(old_keywords)} total):\n"
-                f"{json.dumps(old_keywords[:50])}\n\n"
+                f"{json.dumps(old_keywords[:100])}\n\n"
                 f"Generate 20-30 COMPLETELY NEW keyword variations.\n"
                 f"Think creatively: synonyms, adjacent niches, specific product/service names,\n"
                 f"alternate phrasings, industry jargon, related technologies.\n"
@@ -337,7 +337,7 @@ class StreamingPipeline:
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
                     json={"model": "gpt-4.1-mini", "messages": [{"role": "user", "content": prompt}],
-                          "max_tokens": 800, "temperature": 0.7},
+                          "max_tokens": 1000, "temperature": 0.7},
                 )
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"].strip()
