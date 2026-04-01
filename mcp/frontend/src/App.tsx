@@ -11,17 +11,13 @@ import ConversationsPage from './pages/ConversationsPage'
 import CampaignsPage from './pages/CampaignsPage'
 import CampaignDetailPage from './pages/CampaignDetailPage'
 
-// REUSED from main app via @main alias — fix once, fixed everywhere
-import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
+// MCP-native CRM — reads from MCP DB (ExtractedContact), supports ?pipeline= filter
+import MCPCRMPage from './pages/MCPCRMPage'
 import { TasksPage } from '@main/pages/TasksPage'
 import { ToastProvider } from '@main/components/Toast'
 
-// MCP-specific CRM defaults: hide useless columns (requirement line 57)
-// This runs once on first load — user can still toggle columns via column picker
-if (!localStorage.getItem('crm:hiddenColumns:mcp_initialized')) {
-  const mcpHidden = ['Done', 'Status', 'Client Status', 'Source', 'Suitable For', 'Location', 'Website', 'Added', 'Project']
-  localStorage.setItem('crm:hiddenColumns', JSON.stringify(mcpHidden))
-  localStorage.setItem('crm:hiddenColumns:mcp_initialized', '1')
+// MCP CRM uses its own column config (mcp_crm_hidden in localStorage)
+if (false) {
 }
 
 // Theme
@@ -208,7 +204,7 @@ export default function App() {
                 <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
                 <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
                 <Route path="/campaigns" element={<CampaignsPage />} />
-                <Route path="/crm" element={<CRMPage />} />
+                <Route path="/crm" element={<MCPCRMPage />} />
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tasks/:tab" element={<TasksPage />} />
                 <Route path="/projects" element={<ProjectsPage />} />
