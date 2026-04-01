@@ -19,6 +19,37 @@ User: "outreach-plan-fintech.md"
 8. Standard flow: blacklist → accounts → pipeline → SmartLead
 ```
 
+## Pre-Testing Implementation Requirements
+
+### MUST implement before any testing begins:
+
+**1. People enrichment retry logic (apollo_service.py enrich_by_domain)**
+```
+Current: top 3 candidates → bulk_match → keep verified → done (even if 0-1 verified)
+New: top 3 → bulk_match → if <3 verified → retry with next candidates
+
+Retry rules:
+  - Go back to full candidate list (25 from seniority search)
+  - Pick NEXT candidates that MATCH target_roles from document
+  - Priority: exact role match > same seniority > lower seniority with role match
+  - NEVER enrich someone with no role relevance (no random directors)
+  - Repeat until 3 verified OR all role-matching candidates exhausted
+  - Max 3 retry rounds (max 12 credits per company worst case)
+
+Example (fintech doc target roles: VP Sales, CRO, Head of Growth, CMO, CEO):
+  Round 1: VP Sales ✓, CRO ✗ (no email), CEO ✗ → 1 verified
+  Round 2: pick Head of Growth, CMO, Co-founder → bulk_match → 2 verified
+  Total: 3 verified contacts from this company ✓
+```
+
+**2. Document extraction service (document_extractor.py)**
+Must be implemented before model comparison test can run.
+
+**3. Combined 6-segment classification prompt**
+Must handle multi-segment classification before E2E test.
+
+---
+
 ## What GPT Extracts
 
 | Data | Value |

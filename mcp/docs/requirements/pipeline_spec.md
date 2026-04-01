@@ -377,6 +377,23 @@ Step 5: Bulk email enrichment — POST /people/bulk_match
   Returns: verified emails for each person
   Cost: 1 credit per person = 3 credits per company
   THIS is a BULK endpoint — sends all 3 IDs in ONE API call, not 3 separate calls
+
+Step 6: RETRY if <3 verified emails returned
+  If bulk_match returns <3 verified:
+    - Go back to Step 3 candidates (25 total from seniority search)
+    - Pick NEXT best candidates that match target_roles (skip already tried)
+    - Prioritize by role match: exact title match > seniority match > any
+    - bulk_match the next batch (up to 3 more)
+    - Repeat until 3 verified OR all candidates exhausted
+  
+  Selection priority for retry:
+    1. Exact target_role title match (e.g. "VP Sales" when doc says VP Sales)
+    2. Same seniority level but different title (e.g. "VP Revenue" when doc says VP Sales)
+    3. Lower seniority with exact role match (e.g. "Director of Sales")
+    4. Skip: never enrich someone with no role relevance
+  
+  Cost: worst case 6-9 credits per company (2-3 retry rounds)
+  But: each company reliably produces 3 contacts → fewer companies needed for KPI
 ```
 
 ### People Search Fields:
