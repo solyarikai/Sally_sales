@@ -59,10 +59,45 @@ Tests:
   3. "all with petr" → verify finds different accounts from cache
 ```
 
-**3. Document extraction service (document_extractor.py)**
+**3. Pipeline V2 remaining fixes (from PIPELINE_V2_COMPLETE_REWRITE.md)**
+```
+Must be fixed before testing — these cause pipeline failures:
+
+FIX 2: Single Pipeline Run (NOT two) — STILL BROKEN
+  Problem: tam_gather preview creates run #441, confirm creates run #442
+  Solution: confirm must find existing pending_approval run, UPDATE it
+  File: mcp/backend/app/mcp/dispatcher.py — tam_gather confirm section
+  Status: TODO
+
+FIX 3: Probe = 1 page only — PARTIALLY DONE  
+  Problem: start_gathering fetches 10 pages even though probe already got page 1
+  Solution: probe saves 100 companies. Confirm starts from page 2.
+  File: mcp/backend/app/mcp/dispatcher.py
+  Status: Code exists but not verified working
+
+FIX 4: Tool Schema Fixes — PARTIALLY DONE
+  4.1 create_project name optional — TODO (schema still requires it)
+  4.2 confirm_offer accept string project_id — TODO (Claude sends "424" not 424)
+  4.3 align_email_accounts run_id optional — DONE (accepts project_id)
+  4.4 list_email_accounts don't dump all — TODO (still returns 247K chars)
+
+FIX 5: Email Accounts UX — TODO
+  - list_email_accounts: return count + link, not all 2411 accounts
+  - Pre-cache accounts on SmartLead key connect (see requirement #2 above)
+  - Create "account lists" in UI (e.g. "Rinat accounts" saved as reusable list)
+  - Campaign page shows associated account list with link
+  - Reuse account list entity across campaigns page + campaign details
+
+FIX 7: Total Company Count at Top — TODO
+  - Pipeline page shows "50 companies" (page size) not total
+  - Must show "306 companies" at top always
+  File: mcp/frontend/src/pages/PipelinePage.tsx
+```
+
+**4. Document extraction service (document_extractor.py)**
 Must be implemented before model comparison test can run.
 
-**4. Combined 6-segment classification prompt**
+**5. Combined 6-segment classification prompt**
 Must handle multi-segment classification before E2E test.
 
 ---
