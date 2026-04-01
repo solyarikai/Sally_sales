@@ -182,32 +182,88 @@ class ApolloService:
 
         return all_orgs
 
-    async def enrich_by_domain(self, domain: str, limit: int = 5, titles: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        """Search people at a domain. FREE via /mixed_people/api_search.
+    async def enrich_by_domain(
+        self, domain: str, limit: int = 3,
+        titles: Optional[List[str]] = None,
+        seniorities: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Optimized people extraction: 2 FREE searches → prioritize → enrich only top N.
 
-        Returns partial profiles (name, title, linkedin). Email requires bulk_match (1 credit each).
-        For MCP: return partial profiles first — email enrichment is optional.
+        Step 1: Two parallel FREE searches (/mixed_people/api_search):
+          A) By seniorities (owner, founder, c_suite, vp, head, director) — gets C-level
+          B) By no filter (per_page=20) — gets everyone for coverage
+        Step 2: Merge + dedup by person_id
+        Step 3: Filter has_email=true only
+        Step 4: Prioritize by title match to target_roles
+        Step 5: Take top `limit` (default 3)
+        Step 6: bulk_match ONLY those (limit credits, not 20+)
+
+        Cost: `limit` credits per company (typically 3).
         """
         if not self.api_key:
             return []
-        payload: Dict[str, Any] = {"q_organization_domains": domain, "page": 1, "per_page": min(limit, 10)}
-        if titles:
-            payload["person_titles"] = titles
-        search_data = await self._api_call("POST", "/mixed_people/api_search", payload)
-        if not search_data:
-            return []
-        people = search_data.get("people", [])[:limit]
-        if not people:
+
+        default_seniorities = seniorities or ["owner", "founder", "c_suite", "vp", "head", "director"]
+
+        # Step 1: Two parallel FREE searches
+        search_a_payload = {
+            "q_organization_domains": domain, "page": 1, "per_page": 20,
+            "person_seniorities": default_seniorities,
+        }
+        search_b_payload = {
+            "q_organization_domains": domain, "page": 1, "per_page": 20,
+        }
+
+        result_a, result_b = await asyncio.gather(
+            self._api_call("POST", "/mixed_people/api_search", search_a_payload),
+            self._api_call("POST", "/mixed_people/api_search", search_b_payload),
+        )
+
+        # Step 2: Merge + dedup
+        seen_ids = set()
+        all_people = []
+        for data in [result_a, result_b]:
+            if data:
+                for p in data.get("people", []):
+                    pid = p.get("id")
+                    if pid and pid not in seen_ids:
+                        seen_ids.add(pid)
+                        all_people.append(p)
+
+        # Step 3: Filter has_email=true
+        with_email = [p for p in all_people if p.get("has_email")]
+        without_email = [p for p in all_people if not p.get("has_email")]
+
+        logger.info(f"People search {domain}: {len(all_people)} total, {len(with_email)} with email")
+
+        if not with_email:
             return []
 
-        # Step 1: FREE search got people IDs
-        people_ids = [p["id"] for p in people if p.get("id")]
-        logger.info(f"People search for {domain}: found {len(people)} people, {len(people_ids)} with IDs")
+        # Step 4: Prioritize by title match
+        if titles:
+            title_lower = [t.lower() for t in titles]
+            preferred = []
+            others = []
+            for p in with_email:
+                ptitle = (p.get("title") or "").lower()
+                if any(t in ptitle for t in title_lower):
+                    preferred.append(p)
+                else:
+                    others.append(p)
+            prioritized = preferred + others
+        else:
+            prioritized = with_email
+
+        # Step 5: Take top `limit`
+        selected = prioritized[:limit]
+
+        # Step 6: bulk_match ONLY the selected (limit credits)
+        people_ids = [p["id"] for p in selected if p.get("id")]
         if not people_ids:
             return []
-        # Step 2: bulk_match to get emails (1 credit per person — REQUIRED for SmartLead)
+
         enriched = await self.enrich_people_emails(people_ids)
-        logger.info(f"People enrichment for {domain}: {len(enriched)} with emails")
+        logger.info(f"People enrichment {domain}: {len(enriched)} with emails (from {len(with_email)} candidates, {limit} selected)")
         return enriched
 
     async def enrich_people_emails(self, people_ids: List[str]) -> List[Dict[str, Any]]:

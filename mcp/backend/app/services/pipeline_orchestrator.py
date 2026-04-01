@@ -401,12 +401,23 @@ class PipelineOrchestrator:
 
         logger.info(f"Extracting people for {len(companies)} target companies (max {people_per_company}/company)")
 
-        # Get people filters from offer
+        # Get target roles — priority: run.people_filters → project.offer_summary.target_roles → GPT fallback
         project = await self.session.get(Project, self.run.project_id)
         person_titles = None
-        person_seniorities = ["c_suite", "vp", "director"]
+        person_seniorities = ["owner", "founder", "c_suite", "vp", "head", "director"]
 
-        if project and project.target_segments and self.openai_key:
+        # Priority 1: from run's people_filters (user explicitly set)
+        if self.run.people_filters and self.run.people_filters.get("person_titles"):
+            person_titles = self.run.people_filters["person_titles"]
+            person_seniorities = self.run.people_filters.get("person_seniorities", person_seniorities)
+        # Priority 2: from project offer_summary.target_roles (aligned with user)
+        elif project and project.offer_summary and isinstance(project.offer_summary, dict):
+            target_roles = project.offer_summary.get("target_roles", {})
+            if target_roles.get("titles"):
+                person_titles = target_roles["titles"]
+                person_seniorities = target_roles.get("seniorities", person_seniorities)
+        # Priority 3: GPT inference (legacy)
+        if not person_titles and project and project.target_segments and self.openai_key:
             try:
                 from app.services.offer_analyzer import infer_people_roles
                 roles = await infer_people_roles(project.target_segments, self.openai_key)
@@ -414,6 +425,8 @@ class PipelineOrchestrator:
                 person_seniorities = roles.get("person_seniorities", person_seniorities)
             except Exception:
                 pass
+
+        logger.info(f"People extraction: titles={person_titles}, seniorities={person_seniorities}")
 
         # Search people for each target company — PARALLEL (20 concurrent)
         import asyncio as _aio
@@ -424,7 +437,8 @@ class PipelineOrchestrator:
             async with sem:
                 try:
                     people = await self.apollo.enrich_by_domain(
-                        company.domain, limit=people_per_company, titles=person_titles,
+                        company.domain, limit=people_per_company,
+                        titles=person_titles, seniorities=person_seniorities,
                     )
                     for person in people:
                         found_contacts.append(ExtractedContact(
@@ -435,6 +449,8 @@ class PipelineOrchestrator:
                             last_name=person.get("last_name"),
                             job_title=person.get("title") or person.get("job_title"),
                             linkedin_url=person.get("linkedin_url"),
+                            email_verified=person.get("is_verified", False),
+                            email_source="apollo" if person.get("is_verified") else None,
                             source_data=person,
                         ))
                 except Exception as e:
