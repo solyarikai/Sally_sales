@@ -325,10 +325,23 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             )
             pending_gates = gate_result.scalars().all()
 
-        # Integration status message
+        # Integration status — BLOCK everything if keys missing
         keys_msg = ""
         if missing_keys:
-            keys_msg = f"\nMissing integrations: **{', '.join(sorted(missing_keys))}** — set up at http://46.62.210.24:3000/setup\n"
+            return {
+                "user": {"name": user.name, "email": user.email},
+                "integrations": {"configured": sorted(configured_keys), "missing": sorted(missing_keys)},
+                "setup_required": True,
+                "message": (
+                    f"Connected as {user.name}.\n\n"
+                    f"**STOP — API keys required before anything else.**\n"
+                    f"Missing: **{', '.join(sorted(missing_keys))}**\n\n"
+                    f"Go to http://46.62.210.24:3000/setup and connect ALL of these:\n"
+                    + "".join(f"  - {k}\n" for k in sorted(missing_keys))
+                    + f"\nNo projects, no campaigns, no searches until all keys are set.\n"
+                    f"Come back after setting them up."
+                ),
+            }
 
         context = {
             "user": {"name": user.name, "email": user.email},
