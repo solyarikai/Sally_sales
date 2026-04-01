@@ -348,8 +348,46 @@ IT and influencer correctly use keywords (industry is too broad for these).
 | Video London | 65% (keywords) | **40-65%** (media production industry) | may be similar or better |
 | Video UK | 70% (keywords) | **40-70%** (media production industry) | depends on what industry returns |
 
+---
+
+## 2026-04-01 03:00 — E2E v2 RESULTS (FIXED A11)
+
+| Segment | Strategy | Targets | Rate | People | KPI |
+|---|---|---|---|---|---|
+| Fashion Italy | industry_first | 4 | 24% | 12 | NO |
+| IT Miami | keywords_first | 1 | 3% | 3 | NO |
+| Video London | industry_first | 97 | 44% | **291** | **YES** |
+| IT US | industry_first | 34 | 29% | **102** | **YES** |
+| Video UK | industry_first | 25 | 30% | 75 | NO |
+| OnSocial UK | keywords_first | 3 | 8% | 9 | NO |
+
+### PROBLEMS:
+1. Fashion Italy: only 21 companies gathered (industry pages return few on reuse/blacklist)
+2. IT Miami: still 3% — keywords don't work for this niche
+3. OnSocial: collapsed from 53% to 8% — project reuse issue?
+4. Video London: GREAT — 291 people, 44% rate, industry_first works
+
+### ROOT CAUSE: Project reuse + blacklisting
+Multiple runs on same project → previous companies blacklisted → fewer new companies.
+Need FRESH projects per test segment.
+
+### ROOT CAUSE #2: Apollo pagination inconsistency
+industry_tag_ids returns variable companies per page (100 on some, 2 on others).
+21 companies from 4 pages = terrible pagination on this run.
+
+### LESSON: The approach is RIGHT but needs:
+1. Fresh projects for each test (no blacklist interference)
+2. More pages (5→10) to handle Apollo's inconsistent pagination
+3. Fallback to keywords when industry returns <50 companies per iteration
+4. IT Miami needs completely different approach (too niche for both industry and keywords)
+
+### WHAT WORKS:
+- Video London with media production industry: 291 people, KPI smashed ✅
+- IT US with industry: 102 people, KPI met ✅
+- The smart A11 approach IS correct for most segments
+
 ### REMAINING:
-- [ ] Re-run full E2E with fixed A11
-- [ ] Fix IT Miami 3% rate (need better keywords)
-- [ ] Speed up people extraction
-- [ ] Auto-loop until KPI met
+- [ ] Fresh project test (no blacklist) for Fashion Italy
+- [ ] Fix IT Miami — maybe "IT staffing" or "technology consulting" keywords
+- [ ] Increase pages to 10 to handle pagination variance
+- [ ] Implement fallback: if industry <50 companies → switch to keywords mid-run
