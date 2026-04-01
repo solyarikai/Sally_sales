@@ -309,11 +309,13 @@ async def get_run_status(
     people_found = live_people_count or run.total_people_found or 0
     targets_found = live_targets_count or run.total_targets_found or 0
 
-    # Timing
+    # Timing — use duration_seconds for completed runs, live calculation for running
     from datetime import datetime, timezone as tz
     elapsed_seconds = None
     eta_seconds = None
-    if run.started_at:
+    if run.duration_seconds and run.status in ('completed', 'insufficient', 'failed'):
+        elapsed_seconds = run.duration_seconds
+    elif run.started_at:
         now = datetime.now(tz.utc)
         started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=tz.utc)
         elapsed_seconds = int((now - started).total_seconds())
