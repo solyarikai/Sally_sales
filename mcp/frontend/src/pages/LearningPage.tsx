@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useProject } from '../App'
-import { OperatorActionsPage } from '@main/pages/OperatorActionsPage'
+import { useProject, authHeaders } from '../App'
 
 const API = '/api'
 function headers() {
@@ -48,9 +47,83 @@ export default function LearningPage() {
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto' }}>
-        {tab === 'actions' && <OperatorActionsPage />}
+        {tab === 'actions' && <ActionsTab />}
         {tab === 'analytics' && <AnalyticsTab />}
       </div>
+    </div>
+  )
+}
+
+function ActionsTab() {
+  const { project } = useProject()
+  const [items, setItems] = useState<any[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [filter, setFilter] = useState('')
+
+  useEffect(() => {
+    if (!project) { setLoading(false); return }
+    setLoading(true)
+    const params = new URLSearchParams({ page: String(page), page_size: '30' })
+    if (filter) params.set('action_type', filter)
+    fetch(`${API}/projects/${project.id}/learning/corrections?${params}`, { headers: headers() })
+      .then(r => r.ok ? r.json() : { items: [], total: 0 })
+      .then(d => { setItems(d.items || []); setTotal(d.total || 0) })
+      .finally(() => setLoading(false))
+  }, [project, page, filter])
+
+  if (!project) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Select a project</div>
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{total} actions for {project.name}</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['', 'send', 'dismiss', 'pending'].map(f => (
+            <button key={f} onClick={() => { setFilter(f); setPage(1) }} style={{
+              padding: '4px 10px', borderRadius: 4, fontSize: 11, border: '1px solid var(--border)',
+              background: filter === f ? 'var(--text-link)' : 'transparent',
+              color: filter === f ? 'white' : 'var(--text-muted)', cursor: 'pointer',
+            }}>{f || 'All'}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {items.map((item: any) => (
+          <div key={item.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{item.lead_email}</span>
+                {item.lead_company && <span style={{ color: 'var(--text-muted)', marginLeft: 8, fontSize: 12 }}>{item.lead_company}</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 500,
+                  background: item.reply_category === 'interested' ? 'rgba(34,197,94,0.15)' : item.reply_category === 'meeting_request' ? 'rgba(245,158,11,0.15)' : 'var(--bg)',
+                  color: item.reply_category === 'interested' ? '#22c55e' : item.reply_category === 'meeting_request' ? '#f59e0b' : 'var(--text-muted)',
+                }}>{item.reply_category}</span>
+                <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, background: 'var(--bg)', color: 'var(--text-muted)' }}>{item.channel}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</span>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{item.campaign_name}</div>
+            {item.ai_draft_preview && (
+              <div style={{ background: 'var(--bg)', borderRadius: 6, padding: 12, fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>AI Draft</div>
+                {item.ai_draft_preview}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {items.length < total && (
+        <div style={{ textAlign: 'center', padding: 16 }}>
+          <button onClick={() => setPage(p => p + 1)} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
+            Load more ({items.length} of {total})
+          </button>
+        </div>
+      )}
     </div>
   )
 }
