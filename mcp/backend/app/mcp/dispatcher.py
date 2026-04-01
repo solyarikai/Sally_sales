@@ -234,19 +234,27 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         except Exception:
             pass  # Don't block on auth errors — individual tools handle that
 
-    # ── Auth is automatic via SSE URL token ──
+    # ── Auth: token from SSE URL, or from tool argument, or from session store ──
 
     if tool_name == "get_context":
+        # Accept token as argument (Claude reads it from .mcp.json URL and passes it)
+        arg_token = args.get("token", "")
+        if arg_token and arg_token.startswith("mcp_"):
+            token = arg_token
+            # Store for all future tool calls in this session
+            from app.mcp.server import _session_tokens, _session_user_tokens, mcp_server
+            _session_tokens["_latest"] = token
+            try:
+                ctx = mcp_server.request_context
+                _session_user_tokens[id(ctx.session)] = token
+            except Exception:
+                pass
+
         if not token or not token.startswith("mcp_"):
             return {
                 "error": "not_authenticated",
                 "message": (
-                    "Authentication required. Your .mcp.json should use npx mcp-remote with your token:\n\n"
-                    "```json\n"
-                    '{\n  "mcpServers": {\n    "leadgen": {\n'
-                    '      "command": "npx",\n'
-                    '      "args": ["-y", "mcp-remote", "http://46.62.210.24:8002/mcp/sse?token=YOUR_TOKEN"]\n'
-                    "    }\n  }\n}\n```\n\n"
+                    "Authentication required. Pass your token: get_context(token='mcp_...')\n"
                     "Get your token at http://46.62.210.24:3000/setup"
                 ),
             }
