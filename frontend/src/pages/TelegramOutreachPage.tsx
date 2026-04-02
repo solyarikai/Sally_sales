@@ -1577,6 +1577,9 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               <button onClick={() => { setShowActionsPopup(false); run('Active warm-up stopped', () => telegramOutreachApi.bulkWarmup(ids, 'stop')); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Square className="w-3.5 h-3.5" style={{ color: '#dc2626' }} /> Stop Active Warm-up
               </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('warmup-channels'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Link2 className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Manage Channels
+              </button>
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('2fa'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Shield className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Change 2FA
               </button>
@@ -1791,6 +1794,106 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           ))}
         </div>
       )}
+      {activePanel === 'warmup-channels' && <WarmupChannelsPanel />}
+    </div>
+  );
+}
+
+
+function WarmupChannelsPanel() {
+  const { theme: t } = useTheme();
+  const A = themeColors[t.name] || themeColors.paper;
+  const { toast } = useToast();
+  const [channels, setChannels] = useState<{ id: number; url: string; title: string | null; is_active: boolean }[]>([]);
+  const [newUrl, setNewUrl] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await telegramOutreachApi.getWarmupChannels();
+      setChannels(data);
+    } catch { toast('Failed to load channels', 'error'); }
+  }, [toast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const add = async () => {
+    const url = newUrl.trim();
+    if (!url) return;
+    setLoading(true);
+    try {
+      await telegramOutreachApi.addWarmupChannel(url, newTitle.trim() || undefined);
+      setNewUrl(''); setNewTitle('');
+      await load();
+      toast('Channel added', 'success');
+    } catch { toast('Failed to add channel', 'error'); }
+    setLoading(false);
+  };
+
+  const remove = async (id: number) => {
+    try {
+      await telegramOutreachApi.deleteWarmupChannel(id);
+      setChannels(ch => ch.filter(c => c.id !== id));
+      toast('Channel removed', 'success');
+    } catch { toast('Failed to remove', 'error'); }
+  };
+
+  const toggle = async (id: number, active: boolean) => {
+    try {
+      await telegramOutreachApi.toggleWarmupChannel(id, active);
+      setChannels(ch => ch.map(c => c.id === id ? { ...c, is_active: active } : c));
+    } catch { toast('Failed to toggle', 'error'); }
+  };
+
+  const seed = async () => {
+    setLoading(true);
+    try {
+      const r = await telegramOutreachApi.seedWarmupChannels();
+      await load();
+      toast(`Seeded ${r.added} channels`, 'success');
+    } catch { toast('Failed to seed', 'error'); }
+    setLoading(false);
+  };
+
+  const inputCls = 'rounded px-2 py-1 text-xs border outline-none';
+  const inputStyle = { background: A.bg, color: A.text1, borderColor: A.border };
+
+  return (
+    <div className="pt-2 pb-1">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-semibold" style={{ color: '#059669' }}>Warm-up Channels</span>
+        <button onClick={seed} disabled={loading} className="text-[10px] px-2 py-0.5 rounded" style={{ background: A.border, color: A.text2 }}>
+          Seed defaults
+        </button>
+      </div>
+      {channels.length === 0 ? (
+        <div className="text-xs py-2" style={{ color: A.text3 }}>No channels configured. Click "Seed defaults" to add recommended channels.</div>
+      ) : (
+        <div className="flex flex-col gap-1 mb-2">
+          {channels.map(ch => (
+            <div key={ch.id} className="flex items-center gap-2 px-2 py-1 rounded text-xs" style={{ background: A.bg, border: `1px solid ${A.border}` }}>
+              <button onClick={() => toggle(ch.id, !ch.is_active)} className="w-4 h-4 flex items-center justify-center rounded" style={{ background: ch.is_active ? '#059669' : A.border }} title={ch.is_active ? 'Active' : 'Inactive'}>
+                {ch.is_active && <Check className="w-3 h-3 text-white" />}
+              </button>
+              <span className="flex-1 truncate" style={{ color: ch.is_active ? A.text1 : A.text3 }}>
+                {ch.url.startsWith('+') ? `t.me/${ch.url}` : `@${ch.url}`}
+                {ch.title && <span style={{ color: A.text3 }}> — {ch.title}</span>}
+              </span>
+              <button onClick={() => remove(ch.id)} className="opacity-50 hover:opacity-100" title="Remove">
+                <X className="w-3 h-3" style={{ color: '#dc2626' }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-1">
+        <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="Channel URL or @username" className={inputCls} style={{ ...inputStyle, flex: 1 }} onKeyDown={e => e.key === 'Enter' && add()} />
+        <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Title (optional)" className={inputCls} style={{ ...inputStyle, width: 120 }} onKeyDown={e => e.key === 'Enter' && add()} />
+        <button onClick={add} disabled={loading || !newUrl.trim()} className="px-2 py-1 rounded text-xs font-medium text-white" style={{ background: !newUrl.trim() ? A.border : '#059669' }}>
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
     </div>
   );
 }

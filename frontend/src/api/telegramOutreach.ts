@@ -264,6 +264,22 @@ export const telegramOutreachApi = {
   bulkWarmup: async (accountIds: number[], action: 'start' | 'stop' = 'start') =>
     (await api.post(`${BASE}/accounts/bulk-warmup`, { account_ids: accountIds }, { params: { action } })).data,
 
+  // Warm-up channels
+  getWarmupChannels: async () =>
+    (await api.get<{ id: number; url: string; title: string | null; is_active: boolean; created_at: string }[]>(`${BASE}/warmup/channels`)).data,
+
+  addWarmupChannel: async (url: string, title?: string) =>
+    (await api.post(`${BASE}/warmup/channels`, { url, title })).data,
+
+  deleteWarmupChannel: async (channelId: number) =>
+    (await api.delete(`${BASE}/warmup/channels/${channelId}`)).data,
+
+  toggleWarmupChannel: async (channelId: number, isActive: boolean) =>
+    (await api.patch(`${BASE}/warmup/channels/${channelId}`, null, { params: { is_active: isActive } })).data,
+
+  seedWarmupChannels: async () =>
+    (await api.post(`${BASE}/warmup/channels/seed`)).data,
+
   bulkUpdateParams: async (accountIds: number[], params: {
     device_model?: string; system_version?: string; app_version?: string;
     lang_code?: string; system_lang_code?: string;

@@ -506,6 +506,17 @@ class TgBlacklist(Base, TimestampMixin):
     added_by = Column(String(100), nullable=True)
 
 
+class TgWarmupChannel(Base):
+    """Curated channels for warm-up subscription."""
+    __tablename__ = "tg_warmup_channels"
+
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(String(255), nullable=False, unique=True)
+    title = Column(String(255), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default=func.now())
+
+
 class TgWarmupActionType(str, enum.Enum):
     CHANNEL_JOIN = "channel_join"
     REACTION = "reaction"
