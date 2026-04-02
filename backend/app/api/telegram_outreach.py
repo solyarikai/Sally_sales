@@ -5838,6 +5838,84 @@ async def send_dialog_message(
         raise HTTPException(500, f"Send failed: {str(e)[:100]}")
 
 
+@router.post("/inbox/dialogs/{dialog_id}/send-file")
+async def send_dialog_file(
+    dialog_id: int,
+    file: UploadFile = File(...),
+    caption: str = Form(""),
+    parse_mode: str = Form(""),
+    reply_to: Optional[int] = Form(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Send a file/media in a dialog via telegram_dm_service."""
+    import os, tempfile, shutil
+
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+
+    # Resolve to DM account via phone (same logic as send_dialog_message)
+    tg_acc_send = await session.get(TgAccount, dialog.account_id)
+    if not tg_acc_send:
+        raise HTTPException(400, "Outreach account not found")
+    dm_r = await session.execute(select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc_send.phone))
+    dm_candidates = dm_r.scalars().all()
+    account = next((c for c in dm_candidates if telegram_dm_service.is_connected(c.id) and c.string_session), None)
+    if not account:
+        account = next((c for c in dm_candidates if c.string_session), None)
+    if not account or account.auth_status != "active":
+        raise HTTPException(400, "Account not active")
+    if not account.string_session:
+        raise HTTPException(400, "Account has no string_session")
+
+    proxy_cfg = await _resolve_dm_proxy(account, session)
+    already_connected = telegram_dm_service.is_connected(account.id)
+
+    # Save uploaded file to temp location
+    suffix = os.path.splitext(file.filename or "file")[1] or ""
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, prefix="tg_inbox_")
+    try:
+        shutil.copyfileobj(file.file, tmp)
+        tmp.close()
+
+        if not already_connected:
+            ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
+            if not ok:
+                raise HTTPException(500, "Failed to connect account")
+
+        result = await telegram_dm_service.send_file(
+            account.id, dialog.peer_id, tmp.name,
+            caption=caption.strip() or None,
+            parse_mode=parse_mode or None,
+            reply_to=reply_to,
+        )
+
+        if not already_connected:
+            await telegram_dm_service.disconnect_account(account.id)
+
+        if result.get("success"):
+            dialog.last_message_text = (caption.strip() or f"[{file.filename or 'File'}]")[:500]
+            dialog.last_message_at = _dt.utcnow()
+            dialog.last_message_outbound = True
+            await session.commit()
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(account.id)
+        except:
+            pass
+        raise HTTPException(500, f"Send file failed: {str(e)[:100]}")
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except:
+            pass
+
+
 @router.patch("/inbox/dialogs/{dialog_id}/tag")
 async def tag_dialog(
     dialog_id: int,

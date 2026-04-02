@@ -427,8 +427,50 @@ class TelegramDMService:
 
         try:
             async for msg in client.iter_messages(entity, limit=limit):
-                if not msg.text:
+                if not msg.text and not msg.media:
                     continue
+                # Extract media info
+                media_info = None
+                if msg.media:
+                    from telethon.tl.types import (
+                        MessageMediaDocument, MessageMediaPhoto,
+                        DocumentAttributeFilename, DocumentAttributeAudio,
+                        DocumentAttributeVideo, DocumentAttributeSticker,
+                    )
+                    if isinstance(msg.media, MessageMediaPhoto):
+                        media_info = {"type": "photo"}
+                    elif isinstance(msg.media, MessageMediaDocument) and msg.media.document:
+                        doc = msg.media.document
+                        fname = None
+                        is_voice = False
+                        is_video_note = False
+                        is_sticker = False
+                        is_video = False
+                        for attr in (doc.attributes or []):
+                            if isinstance(attr, DocumentAttributeFilename):
+                                fname = attr.file_name
+                            elif isinstance(attr, DocumentAttributeAudio):
+                                is_voice = attr.voice or False
+                            elif isinstance(attr, DocumentAttributeVideo):
+                                is_video = True
+                                is_video_note = attr.round_message or False
+                            elif isinstance(attr, DocumentAttributeSticker):
+                                is_sticker = True
+                        if is_voice:
+                            media_info = {"type": "voice", "duration": next((a.duration for a in doc.attributes if isinstance(a, DocumentAttributeAudio)), 0)}
+                        elif is_sticker:
+                            media_info = {"type": "sticker"}
+                        elif is_video_note:
+                            media_info = {"type": "video_note"}
+                        elif is_video:
+                            media_info = {"type": "video", "file_name": fname or "video", "size": doc.size}
+                        else:
+                            mime = doc.mime_type or ""
+                            if mime.startswith("image/"):
+                                media_info = {"type": "photo", "file_name": fname}
+                            else:
+                                media_info = {"type": "document", "file_name": fname or "file", "size": doc.size, "mime_type": mime}
+
                 # Extract reply info
                 reply_info = None
                 if msg.reply_to and hasattr(msg.reply_to, 'reply_to_msg_id'):
@@ -472,13 +514,14 @@ class TelegramDMService:
                 messages.append({
                     "id": msg.id,
                     "direction": "outbound" if msg.sender_id == me.id else "inbound",
-                    "text": msg.text,
+                    "text": msg.text or "",
                     "sent_at": msg.date.isoformat() if msg.date else None,
                     "sender_name": self._get_sender_name(msg, me),
                     "reply_to": reply_info,
                     "reactions": msg_reactions,
                     "is_read": not msg.out or (msg.out and hasattr(msg, 'views')),
                     "fwd_from": fwd_info,
+                    "media": media_info,
                 })
         except FloodWaitError as e:
             logger.warning(f"Account {account_id} FloodWait on messages: {e.seconds}s")
@@ -536,6 +579,39 @@ class TelegramDMService:
             return {"success": False, "error": f"Rate limited. Wait {e.seconds}s."}
         except Exception as e:
             logger.error(f"Account {account_id} send failed: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_file(self, account_id: int, peer_id: int, file_path: str, caption: str = None, parse_mode: str = None, reply_to: int = None, voice_note: bool = False) -> dict:
+        """Send a file/media via Telethon send_file()."""
+        client = self._get_client(account_id)
+        try:
+            try:
+                entity = await client.get_entity(peer_id)
+            except Exception:
+                await client.get_dialogs(limit=50)
+                entity = await client.get_entity(peer_id)
+
+            pm = None
+            if parse_mode == 'md':
+                pm = 'md'
+            elif parse_mode == 'html':
+                pm = 'html'
+
+            msg = await client.send_file(
+                entity,
+                file_path,
+                caption=caption,
+                parse_mode=pm,
+                reply_to=reply_to,
+                voice_note=voice_note,
+            )
+            logger.info(f"Account {account_id}: sent file to {peer_id} (msg_id={msg.id})")
+            return {"success": True, "message_id": msg.id}
+        except FloodWaitError as e:
+            logger.warning(f"Account {account_id} FloodWait on send_file: {e.seconds}s")
+            return {"success": False, "error": f"Rate limited. Wait {e.seconds}s."}
+        except Exception as e:
+            logger.error(f"Account {account_id} send_file failed: {e}")
             return {"success": False, "error": str(e)}
 
     async def resolve_username(self, account_id: int, username: str) -> dict:
