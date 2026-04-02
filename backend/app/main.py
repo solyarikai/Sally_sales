@@ -137,20 +137,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Telegram Outreach worker start failed: {e}")
 
-
-    # Start Telegram Outreach workers (sending + reply detection)
+    # Fetch latest TG Desktop version (for anti-ban fingerprint freshness)
+    tdesktop_task = None
     try:
-        from app.services.sending_worker import sending_worker
-        from app.services.reply_detector import reply_detector
-        from app.services.auto_responder import auto_responder
-        sending_worker.start()
-        reply_detector.start()
-        auto_responder.start()
-        logger.info("Telegram Outreach workers started (sending + reply detection + auto-reply)")
+        from app.api.telegram_outreach import fetch_latest_tdesktop_version
+
+        async def _tdesktop_version_loop():
+            """Refresh latest TG Desktop version every 24h."""
+            while True:
+                await fetch_latest_tdesktop_version()
+                await asyncio.sleep(86400)  # 24h
+
+        tdesktop_task = asyncio.create_task(_tdesktop_version_loop())
+        logger.info("TG Desktop version auto-updater started")
     except Exception as e:
-        logger.warning(f"Telegram Outreach worker start failed: {e}")
+        logger.warning(f"TG Desktop version fetch failed: {e}")
 
     yield
+
+    if tdesktop_task:
+        tdesktop_task.cancel()
     
     # Shutdown
     logger.info("Shutting down...")

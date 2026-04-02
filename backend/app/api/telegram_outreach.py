@@ -5,6 +5,8 @@ Manages Telegram accounts, proxy groups, outreach campaigns,
 message sequences, and recipients.
 """
 import logging
+import re as _re
+from datetime import datetime as _dt, timedelta as _td
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy import select, func, desc, asc, delete as sa_delete, insert as sa_insert
@@ -24,6 +26,47 @@ from app.models.telegram_outreach import (
 from app.models.telegram_dm import TelegramDMAccount
 
 logger = logging.getLogger(__name__)
+
+# ── Latest TG Desktop version (auto-fetched from GitHub) ─────────────
+_latest_tdesktop_version: Optional[str] = None
+_latest_tdesktop_checked_at: Optional[_dt] = None
+_TDESKTOP_CHECK_INTERVAL = _td(hours=24)
+
+
+async def fetch_latest_tdesktop_version() -> Optional[str]:
+    """Fetch latest Telegram Desktop version from GitHub releases API."""
+    global _latest_tdesktop_version, _latest_tdesktop_checked_at
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://api.github.com/repos/telegramdesktop/tdesktop/releases/latest",
+                headers={"Accept": "application/vnd.github.v3+json"},
+            )
+            if resp.status_code == 200:
+                tag = resp.json().get("tag_name", "")
+                version = tag.lstrip("v")
+                if _re.match(r"\d+\.\d+(\.\d+)?", version):
+                    _latest_tdesktop_version = version
+                    _latest_tdesktop_checked_at = _dt.utcnow()
+                    logger.info(f"Latest TG Desktop version: {version}")
+                    return version
+    except Exception as e:
+        logger.warning(f"Failed to fetch latest TG Desktop version: {e}")
+    return _latest_tdesktop_version
+
+
+async def get_cached_tdesktop_version() -> Optional[str]:
+    """Return cached version, refreshing if stale (>24h)."""
+    if (
+        _latest_tdesktop_version is None
+        or _latest_tdesktop_checked_at is None
+        or _dt.utcnow() - _latest_tdesktop_checked_at > _TDESKTOP_CHECK_INTERVAL
+    ):
+        return await fetch_latest_tdesktop_version()
+    return _latest_tdesktop_version
+
+
 from app.schemas.telegram_outreach import (
     TgProxyGroupCreate, TgProxyGroupUpdate, TgProxyGroupResponse,
     TgProxyCreate, TgProxyBulkCreate, TgProxyResponse,
@@ -1029,12 +1072,11 @@ SYSTEM_VERSIONS = [
     "Ubuntu 22.04", "Fedora 38",
 ]
 APP_VERSIONS = [
-    "4.8.1 x64", "4.9.2 x64", "4.10.3 x64", "4.11.7 x64",
-    "4.14.4 x64", "4.15.2 x64", "4.16.8 x64",
-    "5.0.1 x64", "5.1.5 x64", "5.2.3 x64", "5.3.1 x64",
+    "5.1.5 x64", "5.2.3 x64", "5.3.1 x64",
     "5.4.0 x64", "5.5.3 x64", "5.6.2 x64",
     "6.0.0 x64", "6.1.3 x64", "6.2.4 x64",
     "6.3.0 x64", "6.4.1 x64", "6.5.1 x64", "6.6.2 x64",
+    "6.7.1 x64",
 ]
 LANG_PRESETS = ["en", "pt", "es", "de", "fr", "it", "nl", "ru", "pl", "tr", "uk", "cs", "sv", "da", "fi"]
 SYSTEM_LANG_PRESETS = [
@@ -1141,6 +1183,65 @@ async def get_device_presets():
         "lang_codes": LANG_PRESETS,
         "system_lang_codes": SYSTEM_LANG_PRESETS,
     }
+
+
+@router.get("/app-version/latest")
+async def get_latest_app_version():
+    """Return the latest known TG Desktop version (auto-fetched from GitHub)."""
+    version = await get_cached_tdesktop_version()
+    return {
+        "latest_version": f"{version} x64" if version else None,
+        "raw_version": version,
+        "checked_at": _latest_tdesktop_checked_at.isoformat() if _latest_tdesktop_checked_at else None,
+        "current_presets": APP_VERSIONS,
+    }
+
+
+@router.post("/app-version/refresh")
+async def refresh_app_version():
+    """Force re-fetch the latest TG Desktop version from GitHub."""
+    global _latest_tdesktop_checked_at
+    _latest_tdesktop_checked_at = None  # force refresh
+    version = await fetch_latest_tdesktop_version()
+    return {
+        "latest_version": f"{version} x64" if version else None,
+        "raw_version": version,
+    }
+
+
+@router.post("/accounts/bulk-update-app-version")
+async def bulk_update_app_version(
+    data: TgBulkAccountIds = None,
+    version: Optional[str] = Query(None, description="Specific version string to set (e.g. '6.7.1 x64')"),
+    all_accounts: bool = Query(False),
+    session: AsyncSession = Depends(get_session),
+):
+    """Update app_version for selected or all accounts to the latest (or specified) version."""
+    if version:
+        target_version = version
+    else:
+        latest = await get_cached_tdesktop_version()
+        if not latest:
+            raise HTTPException(400, "Could not fetch latest version. Provide version= manually.")
+        target_version = f"{latest} x64"
+
+    if all_accounts:
+        result = await session.execute(select(TgAccount))
+        accounts = result.scalars().all()
+    elif data and data.account_ids:
+        accounts = []
+        for aid in data.account_ids:
+            acc = await session.get(TgAccount, aid)
+            if acc:
+                accounts.append(acc)
+    else:
+        raise HTTPException(400, "Provide account_ids or set all_accounts=true")
+
+    for acc in accounts:
+        acc.app_version = target_version
+    await session.commit()
+
+    return {"ok": True, "version": target_version, "updated": len(accounts)}
 
 
 @router.post("/accounts/bulk-check")

@@ -1336,6 +1336,74 @@ function ProxiesTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'suc
 // ══════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════
+// App Version Panel (inline in BulkActionsBar)
+// ══════════════════════════════════════════════════════════════════════
+
+function AppVersionPanel({ ids, loading, run, inputCls, inputStyle }: {
+  ids: number[]; loading: boolean;
+  run: (label: string, fn: () => Promise<any>) => void;
+  inputCls: string; inputStyle: React.CSSProperties;
+}) {
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const [customVersion, setCustomVersion] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    telegramOutreachApi.getLatestAppVersion().then(data => {
+      setLatestVersion(data.latest_version);
+      setCheckedAt(data.checked_at);
+    }).catch(() => {});
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const data = await telegramOutreachApi.refreshAppVersion();
+      setLatestVersion(data.latest_version);
+      setCheckedAt(new Date().toISOString());
+    } catch { /* ignore */ }
+    finally { setRefreshing(false); }
+  };
+
+  const targetVersion = customVersion || latestVersion || '';
+
+  return (
+    <div className="flex flex-col gap-2 pt-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium" style={{ color: A.text3 }}>Latest TG Desktop:</span>
+        <span className="text-xs font-semibold" style={{ color: latestVersion ? A.teal : A.rose }}>
+          {latestVersion || 'unknown'}
+        </span>
+        {checkedAt && (
+          <span className="text-[10px]" style={{ color: A.text3 }}>
+            (checked {new Date(checkedAt).toLocaleDateString()})
+          </span>
+        )}
+        <button onClick={handleRefresh} disabled={refreshing}
+                className="text-[11px] px-2 py-0.5 rounded" style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text2, cursor: 'pointer' }}>
+          {refreshing ? '...' : 'Refresh'}
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="text" value={customVersion} onChange={e => setCustomVersion(e.target.value)}
+               placeholder={latestVersion || 'e.g. 6.7.1 x64'} className={cn(inputCls, 'w-40')} style={inputStyle} />
+        <button onClick={() => run(`App version → ${targetVersion}`, () => telegramOutreachApi.bulkUpdateAppVersion(ids, customVersion || undefined))}
+                disabled={loading || !targetVersion}
+                className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>
+          Apply to {ids.length}
+        </button>
+        <button onClick={() => run(`App version → ${targetVersion} (all)`, () => telegramOutreachApi.updateAllAppVersion(customVersion || undefined))}
+                disabled={loading || !targetVersion}
+                className="px-3 py-1 rounded-md text-[12px] font-medium" style={{ background: A.teal, color: '#fff' }}>
+          Apply to ALL
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // Bulk Actions Bar
 // ══════════════════════════════════════════════════════════════════════
 
@@ -1461,6 +1529,9 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('device'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Globe className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Device Settings
               </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('appversion'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <RefreshCw className="w-3.5 h-3.5" style={{ color: A.teal }} /> Update App Version
+              </button>
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('limit'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Daily Limit
               </button>
@@ -1572,6 +1643,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                   disabled={loading} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
         </div>
       )}
+      {activePanel === 'appversion' && <AppVersionPanel ids={ids} loading={loading} run={run} inputCls={inputCls} inputStyle={inputStyle} />}
       {activePanel === 'photo' && (
         <div className="pt-2">
           <div
