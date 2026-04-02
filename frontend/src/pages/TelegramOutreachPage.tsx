@@ -81,6 +81,7 @@ function StyledSelect({ value, onChange, options, placeholder, className: cls, r
   renderSelected?: (opt: { value: string; label: string }) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -89,16 +90,23 @@ function StyledSelect({ value, onChange, options, placeholder, className: cls, r
     return () => document.removeEventListener('mousedown', h);
   }, [open]);
   const selected = options.find(o => o.value === value);
+  const handleOpen = () => {
+    if (!open && ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      setOpenUp(rect.bottom + 248 > window.innerHeight);
+    }
+    setOpen(!open);
+  };
   return (
     <div ref={ref} style={{ position: 'relative' }} className={cls}>
-      <button onClick={() => setOpen(!open)} type="button"
+      <button onClick={handleOpen} type="button"
         className="w-full h-8 flex items-center justify-between gap-1 px-2.5 rounded-lg text-xs truncate outline-none"
         style={{ border: `1px solid ${A.border}`, background: A.surface, color: selected ? A.text1 : A.text3, cursor: 'pointer' }}>
         <span className="truncate">{selected ? (renderSelected ? renderSelected(selected) : selected.label) : (placeholder || 'Select...')}</span>
         <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: A.text3 }} />
       </button>
       {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: '4px 0', maxHeight: 240, overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', ...(openUp ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), left: 0, right: 0, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: '4px 0', maxHeight: 240, overflowY: 'auto' }}>
           {placeholder && (
             <button onClick={() => { onChange(''); setOpen(false); }}
               className="w-full text-left px-3 py-1.5 text-xs"
