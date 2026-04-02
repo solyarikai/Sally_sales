@@ -44,6 +44,8 @@ class DiscoveredCompany(Base):
     # Enrichment state
     is_enriched = Column(Boolean, server_default="false")
     enrichment_source = Column(String(50), nullable=True)
+    funding_stage = Column(String(100), nullable=True)
+    funding_amount = Column(Integer, nullable=True)
 
     # Raw data from source
     source_data = Column(JSONB, nullable=True)
