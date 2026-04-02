@@ -385,7 +385,8 @@ class SendingWorker:
         if max_batch <= 0:
             return
 
-        priority = getattr(campaign, 'followup_priority', 100) or 100
+        fp = getattr(campaign, 'followup_priority', None)
+        priority = fp if fp is not None else 100
         followup_slots = round(max_batch * priority / 100)
         new_lead_slots = max_batch - followup_slots
 
@@ -510,6 +511,13 @@ class SendingWorker:
             if stagger_offset > 0:
                 await asyncio.sleep(stagger_offset)
 
+            def _reset_recipient():
+                """Reset recipient so it's not stuck in IN_SEQUENCE forever."""
+                if recipient.current_step == 0:
+                    recipient.status = TgRecipientStatus.PENDING
+                else:
+                    recipient.next_message_at = datetime.utcnow()
+
             try:
                 await telegram_engine.connect(
                     account.id, phone=account.phone, api_id=account.api_id, api_hash=account.api_hash,
@@ -519,153 +527,158 @@ class SendingWorker:
                 )
             except Exception as e:
                 logger.error(f"Connect failed for {account.phone}: {e}")
+                _reset_recipient()
                 return
 
-            # Human-like pre-send delay (replaces flat uniform)
-            delay = _human_delay(
-                campaign.delay_between_sends_min or 11,
-                campaign.delay_between_sends_max or 25,
-                campaign,
-                messages_sent_today=account.messages_sent_today,
-                session_age_days=get_session_age_days(account),
-            )
-            logger.debug(f"{cname} {account.phone} delay={delay}s")
-            await asyncio.sleep(delay)
+            try:
+                # Human-like pre-send delay (replaces flat uniform)
+                delay = _human_delay(
+                    campaign.delay_between_sends_min or 11,
+                    campaign.delay_between_sends_max or 25,
+                    campaign,
+                    messages_sent_today=account.messages_sent_today,
+                    session_age_days=get_session_age_days(account),
+                )
+                logger.debug(f"{cname} {account.phone} delay={delay}s")
+                await asyncio.sleep(delay)
 
-            result = await telegram_engine.send_message(
-                account.id, recipient.username, rendered,
-                link_preview=getattr(campaign, 'link_preview', False),
-                silent=getattr(campaign, 'silent', False),
-                delete_dialog_after=getattr(campaign, 'delete_dialog_after', False),
-            )
-            status = result.get("status", "failed")
-            logger.info(f"{cname} {account.phone} -> @{recipient.username}: {status}"
-                         + (f" ({result.get('detail','')})" if status != "sent" else ""))
+                result = await telegram_engine.send_message(
+                    account.id, recipient.username, rendered,
+                    link_preview=getattr(campaign, 'link_preview', False),
+                    silent=getattr(campaign, 'silent', False),
+                    delete_dialog_after=getattr(campaign, 'delete_dialog_after', False),
+                )
+                status = result.get("status", "failed")
+                logger.info(f"{cname} {account.phone} -> @{recipient.username}: {status}"
+                             + (f" ({result.get('detail','')})" if status != "sent" else ""))
 
-            # Log message
-            msg_status = TgMessageStatus.SPAMBLOCKED if status == "spamblocked" else (TgMessageStatus.SENT if status == "sent" else TgMessageStatus.FAILED)
-            session.add(TgOutreachMessage(
-                campaign_id=campaign.id, recipient_id=recipient.id, account_id=account.id,
-                step_id=step.id, variant_id=variant.id, rendered_text=rendered,
-                status=msg_status, error_message=result.get("detail"), sent_at=datetime.utcnow(),
-            ))
+                # Log message
+                msg_status = TgMessageStatus.SPAMBLOCKED if status == "spamblocked" else (TgMessageStatus.SENT if status == "sent" else TgMessageStatus.FAILED)
+                session.add(TgOutreachMessage(
+                    campaign_id=campaign.id, recipient_id=recipient.id, account_id=account.id,
+                    step_id=step.id, variant_id=variant.id, rendered_text=rendered,
+                    status=msg_status, error_message=result.get("detail"), sent_at=datetime.utcnow(),
+                ))
 
-            # Fetch campaign-account link for per-account spamblock counter
-            ca_link_r = await session.execute(select(TgCampaignAccount).where(
-                TgCampaignAccount.campaign_id == campaign.id,
-                TgCampaignAccount.account_id == account.id))
-            ca_link = ca_link_r.scalar()
+                # Fetch campaign-account link for per-account spamblock counter
+                ca_link_r = await session.execute(select(TgCampaignAccount).where(
+                    TgCampaignAccount.campaign_id == campaign.id,
+                    TgCampaignAccount.account_id == account.id))
+                ca_link = ca_link_r.scalar()
 
-            # Update counters
-            if status == "sent":
-                self._consecutive_global_spamblocks = 0  # reset emergency counter
-                if ca_link:
-                    ca_link.consecutive_spamblock_errors = 0
-                account.messages_sent_today += 1
-                account.total_messages_sent += 1
-                campaign.messages_sent_today += 1
-                campaign.total_messages_sent += 1
-                recipient.current_step += 1
-                recipient.last_message_sent_at = datetime.utcnow()
-                recipient.assigned_account_id = account.id
+                # Update counters
+                if status == "sent":
+                    self._consecutive_global_spamblocks = 0  # reset emergency counter
+                    if ca_link:
+                        ca_link.consecutive_spamblock_errors = 0
+                    account.messages_sent_today += 1
+                    account.total_messages_sent += 1
+                    campaign.messages_sent_today += 1
+                    campaign.total_messages_sent += 1
+                    recipient.current_step += 1
+                    recipient.last_message_sent_at = datetime.utcnow()
+                    recipient.assigned_account_id = account.id
 
-                # CRM: create/update contact
-                try:
-                    crm_q = await session.execute(
-                        select(TgContact).where(TgContact.username == recipient.username)
-                    )
-                    contact = crm_q.scalar()
-                    now = datetime.utcnow()
-                    if not contact:
-                        contact = TgContact(
-                            username=recipient.username,
-                            first_name=recipient.first_name,
-                            company_name=recipient.company_name,
-                            status=TgContactStatus.CONTACTED,
-                            custom_data=recipient.custom_variables or {},
-                            campaigns=[{"id": campaign.id, "name": campaign.name}],
-                            total_messages_sent=1,
-                            first_contacted_at=now,
-                            last_contacted_at=now,
-                            source_campaign_id=campaign.id,
+                    # CRM: create/update contact
+                    try:
+                        crm_q = await session.execute(
+                            select(TgContact).where(TgContact.username == recipient.username)
                         )
-                        session.add(contact)
+                        contact = crm_q.scalar()
+                        now = datetime.utcnow()
+                        if not contact:
+                            contact = TgContact(
+                                username=recipient.username,
+                                first_name=recipient.first_name,
+                                company_name=recipient.company_name,
+                                status=TgContactStatus.CONTACTED,
+                                custom_data=recipient.custom_variables or {},
+                                campaigns=[{"id": campaign.id, "name": campaign.name}],
+                                total_messages_sent=1,
+                                first_contacted_at=now,
+                                last_contacted_at=now,
+                                source_campaign_id=campaign.id,
+                            )
+                            session.add(contact)
+                        else:
+                            contact.total_messages_sent += 1
+                            contact.last_contacted_at = now
+                            if contact.status == TgContactStatus.COLD:
+                                contact.status = TgContactStatus.CONTACTED
+                            # Add campaign if not already
+                            camp_list = contact.campaigns or []
+                            if not any(c.get("id") == campaign.id for c in camp_list):
+                                camp_list.append({"id": campaign.id, "name": campaign.name})
+                                contact.campaigns = camp_list
+                    except Exception:
+                        pass  # CRM is best-effort
+                    next_step = await self._get_next_step(campaign.id, recipient.current_step, session)
+                    if next_step and next_step.delay_days > 0:
+                        recipient.next_message_at = datetime.utcnow() + timedelta(days=next_step.delay_days)
+                    elif next_step:
+                        recipient.next_message_at = datetime.utcnow()
                     else:
-                        contact.total_messages_sent += 1
-                        contact.last_contacted_at = now
-                        if contact.status == TgContactStatus.COLD:
-                            contact.status = TgContactStatus.CONTACTED
-                        # Add campaign if not already
-                        camp_list = contact.campaigns or []
-                        if not any(c.get("id") == campaign.id for c in camp_list):
-                            camp_list.append({"id": campaign.id, "name": campaign.name})
-                            contact.campaigns = camp_list
-                except Exception:
-                    pass  # CRM is best-effort
-                next_step = await self._get_next_step(campaign.id, recipient.current_step, session)
-                if next_step and next_step.delay_days > 0:
-                    recipient.next_message_at = datetime.utcnow() + timedelta(days=next_step.delay_days)
-                elif next_step:
-                    recipient.next_message_at = datetime.utcnow()
-                else:
-                    recipient.status = TgRecipientStatus.COMPLETED
+                        recipient.status = TgRecipientStatus.COMPLETED
+                        recipient.next_message_at = None
+                elif status == "spamblocked":
+                    # Increment per-account spamblock counter
+                    if ca_link:
+                        ca_link.consecutive_spamblock_errors += 1
+                    # Only mark SPAMBLOCKED when threshold reached
+                    threshold = campaign.spamblock_errors_to_skip or 5
+                    errors_count = ca_link.consecutive_spamblock_errors if ca_link else 1
+                    if errors_count >= threshold:
+                        account.status = TgAccountStatus.SPAMBLOCKED
+                        account.spamblock_type = TgSpamblockType.TEMPORARY
+                        account.spamblocked_at = datetime.utcnow()
+                        logger.warning(f"{cname} {account.phone} spamblock threshold reached "
+                                       f"({errors_count}/{threshold}) — SPAMBLOCKED TEMPORARY")
+                    else:
+                        logger.warning(f"{cname} {account.phone} PeerFloodError "
+                                       f"({errors_count}/{threshold}) — below threshold")
+                    # Smart cascade: reassign recipient to another account
+                    failed_ids = (recipient.custom_variables or {}).get("_failed_account_ids", [])
+                    failed_ids.append(account.id)
+                    if not recipient.custom_variables:
+                        recipient.custom_variables = {}
+                    recipient.custom_variables = {**recipient.custom_variables, "_failed_account_ids": failed_ids}
+                    total_accs_r = await session.execute(select(func.count(TgCampaignAccount.id)).where(
+                        TgCampaignAccount.campaign_id == campaign.id))
+                    total_campaign_accounts = total_accs_r.scalar() or 0
+                    if len(failed_ids) >= total_campaign_accounts:
+                        recipient.status = TgRecipientStatus.FAILED
+                        recipient.next_message_at = None
+                        logger.info(f"All accounts spamblocked for @{recipient.username} — FAILED")
+                    else:
+                        recipient.status = TgRecipientStatus.PENDING
+                        recipient.assigned_account_id = None
+                        logger.info(f"Spamblock cascade @{recipient.username} via {account.phone} ({len(failed_ids)}/{total_campaign_accounts})")
+                    # Emergency stop check
+                    self._consecutive_global_spamblocks += 1
+                    if self._consecutive_global_spamblocks >= self._EMERGENCY_THRESHOLD:
+                        logger.critical(f"EMERGENCY STOP: {self._consecutive_global_spamblocks} consecutive spamblocks!")
+                        all_active = await session.execute(select(TgCampaign).where(TgCampaign.status == TgCampaignStatus.ACTIVE))
+                        for c in all_active.scalars().all():
+                            c.status = TgCampaignStatus.PAUSED
+                elif status == "bounced":
+                    if ca_link:
+                        ca_link.consecutive_spamblock_errors = 0
+                    recipient.status = TgRecipientStatus.BOUNCED
                     recipient.next_message_at = None
-            elif status == "spamblocked":
-                # Increment per-account spamblock counter
-                if ca_link:
-                    ca_link.consecutive_spamblock_errors += 1
-                # Only mark SPAMBLOCKED when threshold reached
-                threshold = campaign.spamblock_errors_to_skip or 5
-                errors_count = ca_link.consecutive_spamblock_errors if ca_link else 1
-                if errors_count >= threshold:
-                    account.status = TgAccountStatus.SPAMBLOCKED
-                    account.spamblock_type = TgSpamblockType.TEMPORARY
-                    account.spamblocked_at = datetime.utcnow()
-                    logger.warning(f"{cname} {account.phone} spamblock threshold reached "
-                                   f"({errors_count}/{threshold}) — SPAMBLOCKED TEMPORARY")
+                elif status == "flood":
+                    if ca_link:
+                        ca_link.consecutive_spamblock_errors = 0
+                    wait = result.get("wait_seconds", 60)
+                    recipient.next_message_at = datetime.utcnow() + timedelta(seconds=wait)
+                    recipient.status = TgRecipientStatus.PENDING  # retry later
                 else:
-                    logger.warning(f"{cname} {account.phone} PeerFloodError "
-                                   f"({errors_count}/{threshold}) — below threshold")
-                # Smart cascade: reassign recipient to another account
-                failed_ids = (recipient.custom_variables or {}).get("_failed_account_ids", [])
-                failed_ids.append(account.id)
-                if not recipient.custom_variables:
-                    recipient.custom_variables = {}
-                recipient.custom_variables = {**recipient.custom_variables, "_failed_account_ids": failed_ids}
-                total_accs_r = await session.execute(select(func.count(TgCampaignAccount.id)).where(
-                    TgCampaignAccount.campaign_id == campaign.id))
-                total_campaign_accounts = total_accs_r.scalar() or 0
-                if len(failed_ids) >= total_campaign_accounts:
+                    if ca_link:
+                        ca_link.consecutive_spamblock_errors = 0
                     recipient.status = TgRecipientStatus.FAILED
                     recipient.next_message_at = None
-                    logger.info(f"All accounts spamblocked for @{recipient.username} — FAILED")
-                else:
-                    recipient.status = TgRecipientStatus.PENDING
-                    recipient.assigned_account_id = None
-                    logger.info(f"Spamblock cascade @{recipient.username} via {account.phone} ({len(failed_ids)}/{total_campaign_accounts})")
-                # Emergency stop check
-                self._consecutive_global_spamblocks += 1
-                if self._consecutive_global_spamblocks >= self._EMERGENCY_THRESHOLD:
-                    logger.critical(f"EMERGENCY STOP: {self._consecutive_global_spamblocks} consecutive spamblocks!")
-                    all_active = await session.execute(select(TgCampaign).where(TgCampaign.status == TgCampaignStatus.ACTIVE))
-                    for c in all_active.scalars().all():
-                        c.status = TgCampaignStatus.PAUSED
-            elif status == "bounced":
-                if ca_link:
-                    ca_link.consecutive_spamblock_errors = 0
-                recipient.status = TgRecipientStatus.BOUNCED
-                recipient.next_message_at = None
-            elif status == "flood":
-                if ca_link:
-                    ca_link.consecutive_spamblock_errors = 0
-                wait = result.get("wait_seconds", 60)
-                recipient.next_message_at = datetime.utcnow() + timedelta(seconds=wait)
-                recipient.status = TgRecipientStatus.PENDING  # retry later
-            else:
-                if ca_link:
-                    ca_link.consecutive_spamblock_errors = 0
-                recipient.status = TgRecipientStatus.FAILED
-                recipient.next_message_at = None
+            except Exception as e:
+                logger.error(f"{cname} Unhandled error in _send_one for @{recipient.username}: {e}", exc_info=True)
+                _reset_recipient()
 
             # NOTE: do NOT disconnect here — other coroutines for the same
             # account may still be sending.  Disconnect happens after gather.
