@@ -33,6 +33,10 @@ HEADERS = {
 DELAY = 0.2
 DRY_RUN = False
 
+# Если задать — обрабатываем только эти списки (по подстроке в имени, case-insensitive).
+# Пустой список = обрабатываем все.
+ONLY_LISTS: list[str] = ["OS |", "OnSocial"]
+
 # Папка с CSV источниками (относительно рабочей директории)
 HUB_DIR = Path("sofia/get_sales_hub")
 
