@@ -105,29 +105,36 @@
 
 ---
 
-### MAJOR-01: SmartLead Auto-Push — Sequence Source Priority
+### MAJOR-01: SmartLead Auto-Push — Sequence Source Priority — VERIFIED, WORKS
 
 **Spec says**: "Generate email sequence via GPT" (Section 9)
 
 **DOCUMENT_BASED_FLOW says**: "When project has document-extracted sequences, SmartLead push MUST USE those — never generate new ones"
 
-**Code does**: `_auto_generate_campaign()` in pipeline_orchestrator.py DOES check for existing document-extracted sequences first (`rationale contains "document"`) and reuses them. Otherwise generates via CampaignIntelligenceService.
+**Code does**: Full auto-push chain verified and working:
+1. **Trigger**: After pipeline finishes, `kpi_met OR has_contacts > 0` → `_auto_generate_campaign()`
+2. **Sequence priority**: Checks for document-extracted sequence first (`rationale ILIKE "%document%"`), falls back to CampaignIntelligenceService
+3. **Gate**: Only auto-pushes if `run.campaign_id` exists AND campaign has `email_account_ids` (pre-selected via `align_email_accounts`)
+4. **Push**: 8-step flow — create SmartLead campaign, set sequences, set settings (respects document settings with defaults), set schedule (auto-detects timezone from contact geography), assign accounts, upload contacts WITH segment as custom field, update DB, Telegram notification
 
-**Status**: IMPLEMENTED (after the fix from mistake #15). But needs verification that the check actually works — the rationale string match ("document") is fragile.
+**Status**: IMPLEMENTED CORRECTLY.
 
-**Risk**: If GeneratedSequence.rationale doesn't contain the word "document", the code will skip the existing sequence and generate a new one. Should check `rationale` field more robustly or add a `source` field.
+**Minor fragility**: Document sequence detection uses `rationale.ilike("%document%")` — string matching. A `source` column on GeneratedSequence would be more robust but not blocking.
 
 ---
 
-### MAJOR-02: Segment Labels NOT Pushed to SmartLead as Tags/Custom Fields
+### ~~MAJOR-02: Segment Labels NOT Pushed to SmartLead~~ — VERIFIED, WORKS
 
-**Spec says** (implied): Campaign should have segment information visible.
+**Code does**: `_auto_push_to_smartlead()` at line 777-781 builds custom_fields per lead:
+```python
+"custom_fields": {
+    "segment": company.analysis_segment,
+    "domain": company.domain,
+    "pipeline_run": str(run.id),
+}
+```
 
-**DOCUMENT_BASED_FLOW Mistake #16 says**: "Segment labels must be pushed to SmartLead as tags/custom fields — not just stored in DB"
-
-**Code does**: `smartlead_push_campaign` in dispatcher.py uploads contacts with custom fields including `segment` and `domain`. BUT `_auto_push_to_smartlead()` in pipeline_orchestrator.py uploads contacts with `company_name` normalized + custom fields from `_format_lead_for_smartlead()`.
-
-**Gap**: Need to verify `_format_lead_for_smartlead()` actually includes `analysis_segment` from DiscoveredCompany. If it only sends email/name/company without segment, the SmartLead campaign has no segment visibility.
+**Status**: IMPLEMENTED CORRECTLY. Segment labels ARE pushed as SmartLead custom fields during auto-push. Both the manual `smartlead_push_campaign` tool and the auto-push path include segments.
 
 ---
 
@@ -464,7 +471,7 @@ Two cost tracking systems exist:
 | 1 | CRITICAL | Hardcoded via negativa categories (fintech-specific) | streaming_pipeline.py |
 | 2 | CRITICAL | Hardcoded role exclusions in GPT prompt | apollo_service.py |
 | 3 | MAJOR | Agent #2 generates 1 prompt, no variation testing | streaming_pipeline.py |
-| 4 | MAJOR | Segment labels may not reach SmartLead custom fields | pipeline_orchestrator.py |
+| ~~4~~ | ~~MAJOR~~ | ~~Segment labels~~ — VERIFIED, pushed as custom_fields | pipeline_orchestrator.py |
 | 5 | MAJOR | Apollo stats not exposed in pipeline_status | dispatcher.py |
 | 6 | MAJOR | Cost estimate uses 30% target rate (real is 80-90%) | dispatcher.py |
 | 7 | MAJOR | No automated generality test infrastructure | — |
