@@ -262,6 +262,26 @@ export const telegramOutreachApi = {
       lang_codes: string[]; system_lang_codes: string[];
     }>(`${BASE}/accounts/device-presets`)).data,
 
+  getLatestAppVersion: async () =>
+    (await api.get<{
+      latest_version: string | null; raw_version: string | null;
+      checked_at: string | null; current_presets: string[];
+    }>(`${BASE}/app-version/latest`)).data,
+
+  refreshAppVersion: async () =>
+    (await api.post<{ latest_version: string | null; raw_version: string | null }>(`${BASE}/app-version/refresh`)).data,
+
+  bulkUpdateAppVersion: async (accountIds: number[], version?: string) =>
+    (await api.post(`${BASE}/accounts/bulk-update-app-version`,
+      { account_ids: accountIds },
+      { params: { ...(version ? { version } : {}), all_accounts: accountIds.length === 0 } }
+    )).data,
+
+  updateAllAppVersion: async (version?: string) =>
+    (await api.post(`${BASE}/accounts/bulk-update-app-version`, null,
+      { params: { all_accounts: true, ...(version ? { version } : {}) } }
+    )).data,
+
   bulkRandomizeNames: async (accountIds: number[], category: string = 'male_en') =>
     (await api.post(`${BASE}/accounts/bulk-randomize-names`, { account_ids: accountIds }, { params: { category } })).data,
 
