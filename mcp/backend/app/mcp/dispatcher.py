@@ -417,7 +417,24 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             svc = SmartLeadService(api_key=api_key)
             connected = await svc.test_connection()
             campaigns = await svc.get_campaigns() if connected else []
-            message = f"{len(campaigns)} campaigns found" if connected else "Connection failed"
+            # Pre-cache ALL email accounts on key connect (instant lookups later)
+            account_count = 0
+            if connected:
+                try:
+                    all_accounts = await svc.get_email_accounts()
+                    account_count = len(all_accounts)
+                    # Cache in DB
+                    from sqlalchemy import text as _st
+                    await session.execute(_st(f"DELETE FROM smartlead_accounts_cache WHERE user_id={user.id}"))
+                    for a in all_accounts:
+                        await session.execute(_st(
+                            "INSERT INTO smartlead_accounts_cache (user_id, account_id, from_email, from_name) "
+                            "VALUES (:uid, :aid, :email, :name) ON CONFLICT (user_id, account_id) DO NOTHING"
+                        ), {"uid": user.id, "aid": a.get("id"), "email": a.get("from_email", ""), "name": a.get("from_name", "")})
+                    logger.info(f"Pre-cached {account_count} SmartLead accounts for user {user.id}")
+                except Exception as e:
+                    logger.warning(f"SmartLead account pre-cache failed: {e}")
+            message = f"{len(campaigns)} campaigns, {account_count} email accounts cached" if connected else "Connection failed"
         elif integration_name == "apollo":
             from app.services.apollo_service import ApolloService
             svc = ApolloService(api_key=api_key)
@@ -596,7 +613,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     scrape_status = "gpt_failed"
 
         project = Project(
-            company_id=company.id, user_id=user.id, name=args["name"],
+            company_id=company.id, user_id=user.id,
+            name=args.get("name") or (website.replace("https://", "").replace("http://", "").split("/")[0].split(".")[0].title() if website else "New Project"),
             website=website,
             target_segments=target_segments or None,
             target_industries=args.get("target_industries"),
@@ -667,6 +685,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
     if tool_name == "confirm_offer":
         user = await _get_user(token, session)
         project_id = args.get("project_id") or (user.active_project_id if hasattr(user, 'active_project_id') else None)
+        if project_id and isinstance(project_id, str):
+            project_id = int(project_id)  # Claude sometimes sends string "424" instead of int
         if not project_id:
             raise ValueError("project_id required")
         project = await session.get(Project, project_id)
@@ -1961,45 +1981,33 @@ Return ONLY valid JSON."""
 
     if tool_name == "list_email_accounts":
         user = await _get_user(token, session)
-        ctx = UserServiceContext(user.id, session)
-        svc = await ctx.get_smartlead_service()
-        if not svc.is_configured():
-            raise ValueError("SmartLead not connected")
+        from sqlalchemy import text as _st
 
-        campaign_id = args.get("campaign_id")
-        if campaign_id:
-            # Get accounts from specific campaign
-            accounts = await svc.get_campaign_email_accounts(campaign_id)
-        else:
-            # Get all accounts, then show which campaigns use them
-            accounts = await svc.get_email_accounts()
+        # Use cache first (instant). Fallback to API if cache empty.
+        cache_result = await session.execute(_st(
+            f"SELECT COUNT(*) FROM smartlead_accounts_cache WHERE user_id={user.id}"
+        ))
+        cache_count = cache_result.scalar() or 0
 
-        # Also get accounts from user's imported campaigns (for reuse suggestion)
-        user_campaigns = (await session.execute(
-            select(Campaign).where(Campaign.project_id.in_(
-                select(Project.id).where(Project.user_id == user.id)
-            ))
-        )).scalars().all()
+        if cache_count == 0:
+            # Cache empty — populate it now
+            ctx = UserServiceContext(user.id, session)
+            svc = await ctx.get_smartlead_service()
+            if svc.is_configured():
+                all_accounts = await svc.get_email_accounts()
+                for a in all_accounts:
+                    await session.execute(_st(
+                        "INSERT INTO smartlead_accounts_cache (user_id, account_id, from_email, from_name) "
+                        "VALUES (:uid, :aid, :email, :name) ON CONFLICT (user_id, account_id) DO NOTHING"
+                    ), {"uid": user.id, "aid": a.get("id"), "email": a.get("from_email", ""), "name": a.get("from_name", "")})
+                await session.flush()
+                cache_count = len(all_accounts)
 
-        campaign_accounts = {}
-        for camp in user_campaigns:
-            if camp.external_id:
-                camp_accts = await svc.get_campaign_email_accounts(int(camp.external_id))
-                for a in camp_accts:
-                    aid = a.get("id")
-                    if aid:
-                        if aid not in campaign_accounts:
-                            campaign_accounts[aid] = {"id": aid, "email": a.get("from_email") or a.get("email", ""), "campaigns": []}
-                        campaign_accounts[aid]["campaigns"].append(camp.name)
-
+        # NEVER dump all accounts. Return count + link.
         return {
-            "accounts": [
-                {"id": a.get("id"), "from_email": a.get("from_email") or a.get("email", ""), "from_name": a.get("from_name", "")}
-                for a in (accounts or [])
-            ],
-            "total": len(accounts or []),
-            "used_in_your_campaigns": list(campaign_accounts.values()),
-            "message": f"{len(accounts or [])} email accounts available. Select by name/email pattern.",
+            "total": cache_count,
+            "message": f"{cache_count} email accounts available. Tell me a name/email pattern (e.g. 'all with rinat') and I'll find matching accounts.",
+            "accounts_link": f"http://46.62.210.24:3000/campaigns/accounts",
         }
 
     if tool_name == "align_email_accounts":
@@ -2026,17 +2034,24 @@ Return ONLY valid JSON."""
         if project.user_id != user.id:
             raise ValueError("Project not found")
 
-        ctx = UserServiceContext(user.id, session)
-        svc = await ctx.get_smartlead_service()
-        if not svc.is_configured():
-            raise ValueError("SmartLead not connected")
-
-        # Load all accounts from SmartLead
-        all_accounts = await svc.get_email_accounts() or []
-        accounts_list = [
-            {"id": a.get("id"), "email": a.get("from_email") or a.get("email", ""), "name": a.get("from_name", "")}
-            for a in all_accounts
-        ]
+        # Load from cache (instant) or fallback to API
+        from sqlalchemy import text as _st2
+        cache = await session.execute(_st2(
+            f"SELECT account_id, from_email, from_name FROM smartlead_accounts_cache WHERE user_id={user.id}"
+        ))
+        cache_rows = cache.fetchall()
+        if cache_rows:
+            accounts_list = [{"id": r[0], "email": r[1] or "", "name": r[2] or ""} for r in cache_rows]
+        else:
+            ctx = UserServiceContext(user.id, session)
+            svc = await ctx.get_smartlead_service()
+            if not svc.is_configured():
+                raise ValueError("SmartLead not connected")
+            all_accounts = await svc.get_email_accounts() or []
+            accounts_list = [
+                {"id": a.get("id"), "email": a.get("from_email") or a.get("email", ""), "name": a.get("from_name", "")}
+                for a in all_accounts
+            ]
 
         # Filter by user query or explicit IDs
         account_ids = args.get("account_ids")
