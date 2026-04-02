@@ -156,8 +156,8 @@ def upload_leads(leads: list[dict], list_uuid: str, list_name: str):
 
 
 def main():
-    # Step 1: Download existing nicknames for dedup
-    existing_nicknames = download_existing_linkedin_nicknames()
+    # GetSales API auto-deduplicates by linkedin nickname (same UUID returned).
+    # We only dedup between files in each group.
 
     for group in FILES_TO_LISTS:
         list_uuid = group["list_uuid"]
@@ -167,7 +167,7 @@ def main():
         print(f"{'='*60}")
         print(f"Target list: {list_name} ({list_uuid})")
 
-        # Step 2: Read all xlsx files for this list
+        # Step 1: Read all xlsx files for this list
         all_rows = []
         for fpath in files:
             rows = read_xlsx(fpath)
@@ -176,52 +176,19 @@ def main():
 
         print(f"  Total rows: {len(all_rows)}")
 
-        # Step 3: Dedup within files (by linkedin_nickname)
-        seen = set()
-        deduped_rows = []
-        skipped_internal = 0
-        for row in all_rows:
-            nick = (row.get("linkedin_nickname") or "").strip().lower()
-            if not nick:
-                deduped_rows.append(row)  # keep rows without nickname
-                continue
-            if nick in seen:
-                skipped_internal += 1
-                continue
-            seen.add(nick)
-            deduped_rows.append(row)
-
-        if skipped_internal:
-            print(f"  Dedup (internal): skipped {skipped_internal} duplicates between files")
-
-        # Step 4: Dedup against existing GetSales contacts
-        new_rows = []
-        skipped_existing = 0
-        for row in deduped_rows:
-            nick = (row.get("linkedin_nickname") or "").strip().lower()
-            if nick and nick in existing_nicknames:
-                skipped_existing += 1
-                continue
-            new_rows.append(row)
-
-        print(f"  Dedup (existing GS): skipped {skipped_existing} already in GetSales")
-        print(f"  New leads to upload: {len(new_rows)}")
+        # Step 2: Dedup between files
+        new_rows = dedup_within_files(all_rows)
+        print(f"  Leads to upload: {len(new_rows)} (GS will auto-skip existing by linkedin)")
 
         if not new_rows:
             print(f"  Nothing to upload.\n")
             continue
 
-        # Step 5: Convert to API format and upload
+        # Step 3: Convert to API format and upload
         leads_payload = [xlsx_row_to_gs_lead(row) for row in new_rows]
         uploaded = upload_leads(leads_payload, list_uuid, list_name)
 
         print(f"  DONE: {uploaded}/{len(new_rows)} uploaded to '{list_name}'\n")
-
-        # Update existing nicknames with newly uploaded
-        for row in new_rows:
-            nick = (row.get("linkedin_nickname") or "").strip().lower()
-            if nick:
-                existing_nicknames.add(nick)
 
 
 if __name__ == "__main__":
