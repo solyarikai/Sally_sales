@@ -276,7 +276,7 @@ class ReplyMonitor:
                 f"Lead: {email}\n"
                 f"Category: {category}\n"
                 + (f"Text: {text[:200]}..." if text else "")
-                + f"\n\nView: http://46.62.210.24:3000/tasks/replies"
+                + f"\n\nView: https://gtm-mcp.com/tasks/replies"
             )
 
             async with httpx.AsyncClient(timeout=10) as client:
