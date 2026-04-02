@@ -451,7 +451,7 @@ export function ContactsPage() {
       monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
       monday.setHours(0, 0, 0, 0);
       try {
-        const weekData = await contactsApi.list({ page: 1, pageSize: 1, project_id: pid ?? undefined, created_after: monday.toISOString().split('T')[0] });
+        const weekData = await contactsApi.list({ page: 1, page_size: 1, project_id: pid ?? undefined, created_after: monday.toISOString().split('T')[0] });
         setWeekCount(weekData.total);
       } catch { setWeekCount(null); }
     } catch (err) {
