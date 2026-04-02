@@ -418,10 +418,43 @@ Return ONLY a JSON array of keywords to ADD (max 8):
         if industry_kw:
             optimized["q_organization_keyword_tags"] = list(optimized.get("q_organization_keyword_tags", [])) + industry_kw[:5]
 
-    # CRITICAL: add industry_tag_ids from enrichment — BEST pagination in Apollo search
+    # Add industry_tag_ids from enrichment — GPT prioritizes which match the query
     tag_ids = common_labels.get("industry_tag_ids", [])
-    if tag_ids:
-        optimized["organization_industry_tag_ids"] = tag_ids
-        logger.info(f"Added {len(tag_ids)} industry_tag_ids from enrichment (best Apollo pagination)")
+    industry_names = common_labels.get("industries", [])
+    if tag_ids and industry_names and openai_key:
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [{"role": "user", "content": f"""User is searching for: "{query}"
+These industries were found on example companies: {industry_names}
+Which 2-3 are most relevant to finding more companies matching "{query}"?
+Return ONLY a JSON array: ["industry1", "industry2"]"""}],
+                        "max_tokens": 100,
+                        "temperature": 0,
+                    },
+                )
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"].strip()
+                if content.startswith("```"):
+                    content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+                import json as _json
+                selected = _json.loads(content)
+                # Map selected names back to tag_ids
+                name_to_tid = dict(zip([n.lower() for n in industry_names], tag_ids))
+                prioritized = [name_to_tid[s.lower()] for s in selected if s.lower() in name_to_tid]
+                if prioritized:
+                    optimized["organization_industry_tag_ids"] = prioritized
+                    logger.info(f"GPT-prioritized {len(prioritized)} industry_tag_ids from {len(tag_ids)} (selected: {selected})")
+                else:
+                    optimized["organization_industry_tag_ids"] = tag_ids[:3]
+        except Exception as e:
+            logger.warning(f"Industry prioritization failed: {e}")
+            optimized["organization_industry_tag_ids"] = tag_ids[:3]
+    elif tag_ids:
+        optimized["organization_industry_tag_ids"] = tag_ids[:3]
 
     return optimized

@@ -587,6 +587,13 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                         all_titles = (roles.get("primary", []) + roles.get("secondary", [])
                                       + roles.get("tertiary", []))
 
+                        # Collect all document keywords as seeds (flat, deduped)
+                        all_doc_keywords = []
+                        for seg in segments:
+                            all_doc_keywords.extend(seg.get("keywords", []))
+                        doc_combined = extraction.get("apollo_filters", {}).get("combined_keywords", [])
+                        all_doc_keywords = list(dict.fromkeys(all_doc_keywords + doc_combined))
+
                         offer_summary = {
                             "primary_offer": extraction.get("offer", ""),
                             "value_proposition": extraction.get("value_prop", ""),
@@ -603,6 +610,11 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                             "example_companies": extraction.get("example_companies", []),
                             "exclusion_list": extraction.get("exclusion_list", []),
                             "campaign_settings": extraction.get("campaign_settings", {}),
+                            "seed_data": {
+                                "keywords": all_doc_keywords,
+                                "industry_tag_ids": [],
+                                "source": "document",
+                            },
                             "_source": "document",
                         }
                         target_segments = (
@@ -1100,17 +1112,17 @@ Return ONLY valid JSON."""
                     ctx_probe = UserServiceContext(user.id, session)
                     openai_key = await ctx_probe.get_key("openai") or _s.OPENAI_API_KEY
 
-                    # Extract seed keywords from document (if project was created from a document)
+                    # Read seed data from project (from document or examples)
                     seed_keywords = []
+                    seed_tag_ids = []
                     if project.offer_summary and isinstance(project.offer_summary, dict):
-                        if project.offer_summary.get("_source") == "document":
-                            for seg in project.offer_summary.get("segments", []):
-                                seed_keywords.extend(seg.get("keywords", []))
-                            combined = project.offer_summary.get("apollo_filters", {}).get("combined_keywords", [])
-                            seed_keywords = list(dict.fromkeys(seed_keywords + combined))  # dedupe, preserve order
-                            logger.info(f"Document seed keywords: {len(seed_keywords)} from {len(project.offer_summary.get('segments', []))} segments")
+                        seed_data = project.offer_summary.get("seed_data", {})
+                        if seed_data:
+                            seed_keywords = seed_data.get("keywords", [])
+                            seed_tag_ids = seed_data.get("industry_tag_ids", [])
+                            logger.info(f"Seeds: {len(seed_keywords)} keywords, {len(seed_tag_ids)} tag_ids (source: {seed_data.get('source')})")
 
-                    # Try filter_mapper first (uses taxonomy with embeddings + seed keywords)
+                    # Filter mapper: GPT generates keywords + picks industries
                     try:
                         from app.services.filter_mapper import map_query_to_filters
                         mapped = await map_query_to_filters(query, offer_text, openai_key, seed_keywords=seed_keywords or None)
@@ -1118,12 +1130,17 @@ Return ONLY valid JSON."""
                             filters.setdefault("q_organization_keyword_tags", mapped.get("q_organization_keyword_tags"))
                             filters.setdefault("organization_locations", mapped.get("organization_locations"))
                             filters.setdefault("organization_num_employees_ranges", mapped.get("organization_num_employees_ranges"))
-                            # Always copy industry_tag_ids for parallel stream — even if classifier said "too broad"
                             ind_ids = mapped.get("organization_industry_tag_ids") or mapped.get("mapping_details", {}).get("industry_tag_ids")
                             if ind_ids:
                                 filters["organization_industry_tag_ids"] = ind_ids
+                            # Merge seed tag_ids from examples (if any)
+                            if seed_tag_ids:
+                                existing = set(filters.get("organization_industry_tag_ids") or [])
+                                merged = list(existing | set(seed_tag_ids))
+                                filters["organization_industry_tag_ids"] = merged
+                                logger.info(f"Merged {len(seed_tag_ids)} seed tag_ids → {len(merged)} total")
                             filters["industries"] = mapped.get("industries", [])
-                            logger.info(f"Filter mapper: {len(mapped.get('organization_industry_tag_ids') or [])} tag_ids, "
+                            logger.info(f"Filter mapper: {len(filters.get('organization_industry_tag_ids') or [])} tag_ids, "
                                         f"{len(mapped.get('q_organization_keyword_tags') or [])} keywords")
                     except Exception as e:
                         logger.warning(f"Filter mapper failed, falling back to filter_intelligence: {e}")
@@ -1761,16 +1778,36 @@ Return ONLY valid JSON."""
             openai_key or "",
         )
 
+        # Store GPT-prioritized seeds on the project
+        optimized_keywords = optimized.get("q_organization_keyword_tags", [])
+        optimized_tag_ids = optimized.get("organization_industry_tag_ids", [])
+        project_id = args.get("project_id") or (user.active_project_id if user else None)
+        if project_id:
+            project = await session.get(Project, project_id)
+            if project:
+                os = dict(project.offer_summary) if project.offer_summary else {}
+                os["seed_data"] = {
+                    "keywords": optimized_keywords,
+                    "industry_tag_ids": optimized_tag_ids,
+                    "example_domains": domains[:10],
+                    "source": "examples",
+                }
+                project.offer_summary = os
+                await session.flush()
+                logger.info(f"Stored seed_data on project {project_id}: {len(optimized_keywords)} keywords, {len(optimized_tag_ids)} tag_ids")
+
         return {
             "filters_from_examples": optimized,
             "common_labels": common_labels,
             "enriched_count": len(enriched),
             "credits_used": len(enriched),
+            "seeds_stored": True,
             "message": (
                 f"Reverse-engineered filters from {len(enriched)} example companies:\n"
-                f"  Keywords: {optimized.get('q_organization_keyword_tags', [])}\n"
+                f"  Keywords: {optimized_keywords}\n"
+                f"  Industry tag IDs: {optimized_tag_ids}\n"
                 f"  Industries: {common_labels.get('industries', [])}\n\n"
-                f"Use these filters with tam_gather to find similar companies."
+                f"Seeds stored on project — tam_gather will use them automatically."
             ),
         }
 
