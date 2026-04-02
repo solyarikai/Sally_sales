@@ -2210,6 +2210,15 @@ Return ONLY valid JSON."""
         # Confirm step — create mcp_draft campaign linked to PROJECT (run linked later)
         campaign_name = args.get("campaign_name") or f"{project.name} Campaign"
 
+        # Find primary sequence for this project (if document extracted one)
+        primary_seq_id = None
+        seq_result = await session.execute(
+            select(GeneratedSequence).where(GeneratedSequence.project_id == project.id).order_by(GeneratedSequence.id).limit(1)
+        )
+        primary_seq = seq_result.scalars().first()
+        if primary_seq:
+            primary_seq_id = primary_seq.id
+
         campaign = Campaign(
             project_id=project.id,
             company_id=project.company_id,
@@ -2218,6 +2227,7 @@ Return ONLY valid JSON."""
             status="mcp_draft",
             created_by="mcp",
             email_account_ids=matched,
+            sequence_id=primary_seq_id,  # Link primary sequence
         )
         session.add(campaign)
         await session.flush()
@@ -2226,17 +2236,42 @@ Return ONLY valid JSON."""
         if run:
             run.campaign_id = campaign.id
 
-        return {
-            "campaign_id": campaign.id,
-            "project_id": project.id,
-            "status": "mcp_draft",
-            "email_accounts_count": len(matched),
-            "message": (
-                f"Campaign '{campaign_name}' created with {len(matched)} email accounts.\n"
-                f"Next: describe your target segment (e.g. 'fashion brands in Italy up to 200 employees')."
-            ),
-            "_instructions": "Ask user to describe their target segment for tam_gather. ONE question.",
-        }
+        # Check if document already extracted target info — skip "describe segment" question
+        has_document_data = (project.offer_summary and isinstance(project.offer_summary, dict)
+                            and project.offer_summary.get("_source") == "document"
+                            and project.offer_summary.get("segments"))
+
+        if has_document_data:
+            segments = project.offer_summary.get("segments", [])
+            seg_names = [s.get("name", "") for s in segments if isinstance(s, dict)]
+            return {
+                "campaign_id": campaign.id,
+                "project_id": project.id,
+                "status": "mcp_draft",
+                "email_accounts_count": len(matched),
+                "message": (
+                    f"Campaign '{campaign_name}' created with {len(matched)} email accounts.\n"
+                    f"Target segments from document: {', '.join(seg_names)}.\n"
+                    f"Ready to probe Apollo and start the pipeline."
+                ),
+                "_instructions": (
+                    "The document already has all target info. Do NOT ask user to describe segments again. "
+                    "Proceed DIRECTLY to tam_gather to probe Apollo with the document's filters. "
+                    "Call tam_gather(project_id={}) immediately.".format(project.id)
+                ),
+            }
+        else:
+            return {
+                "campaign_id": campaign.id,
+                "project_id": project.id,
+                "status": "mcp_draft",
+                "email_accounts_count": len(matched),
+                "message": (
+                    f"Campaign '{campaign_name}' created with {len(matched)} email accounts.\n"
+                    f"Next: describe your target segment (e.g. 'fashion brands in Italy up to 200 employees')."
+                ),
+                "_instructions": "Ask user to describe their target segment for tam_gather. ONE question.",
+            }
 
     if tool_name == "check_destination":
         # M1: When both SmartLead and GetSales keys present, ask which platform
