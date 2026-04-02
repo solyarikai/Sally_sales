@@ -772,12 +772,9 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
   const [csvColumns, setCsvColumns] = useState<string[]>([]);
   const [csvPreview, setCsvPreview] = useState<Record<string, string>[]>([]);
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvMapping, setCsvMapping] = useState<{
-    username_column: string;
-    first_name_column: string;
-    company_name_column: string;
-    custom_columns: Record<string, string>;
-  }>({ username_column: '', first_name_column: '', company_name_column: '', custom_columns: {} });
+  type CsvRole = 'username' | 'phone' | 'first_name' | 'company' | 'custom' | 'skip';
+  const [csvColumnRoles, setCsvColumnRoles] = useState<Record<string, CsvRole>>({});
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadRecipients = useCallback(async () => {
@@ -876,22 +873,25 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
       const res = await telegramOutreachApi.uploadRecipientsCSV(campaignId, file);
       setCsvColumns(res.columns);
       setCsvPreview(res.preview);
-      // Auto-detect username column
-      const usernameCol = res.columns.find((c: string) =>
-        c.toLowerCase().includes('username') || c.toLowerCase().includes('user')
-      ) || '';
-      const firstNameCol = res.columns.find((c: string) =>
-        c.toLowerCase().includes('first') || c.toLowerCase() === 'name'
-      ) || '';
-      const companyCol = res.columns.find((c: string) =>
-        c.toLowerCase().includes('company') || c.toLowerCase().includes('org')
-      ) || '';
-      setCsvMapping({
-        username_column: usernameCol,
-        first_name_column: firstNameCol,
-        company_name_column: companyCol,
-        custom_columns: {},
-      });
+      // Auto-detect column roles
+      const roles: Record<string, CsvRole> = {};
+      for (const col of res.columns) {
+        const lc = col.toLowerCase();
+        if (lc.includes('username') || lc.includes('user') || lc === 'nick' || lc === 'nickname' || lc === 'login' || lc === 'handle') {
+          if (!Object.values(roles).includes('username')) { roles[col] = 'username'; continue; }
+        }
+        if (lc.includes('phone') || lc === 'tel' || lc === 'mobile' || lc === 'cell') {
+          if (!Object.values(roles).includes('phone')) { roles[col] = 'phone'; continue; }
+        }
+        if (lc.includes('first') || lc === 'name' || lc === 'fname') {
+          if (!Object.values(roles).includes('first_name')) { roles[col] = 'first_name'; continue; }
+        }
+        if (lc.includes('company') || lc.includes('org') || lc === 'employer') {
+          if (!Object.values(roles).includes('company')) { roles[col] = 'company'; continue; }
+        }
+        roles[col] = 'custom';
+      }
+      setCsvColumnRoles(roles);
     } catch {
       toast('Failed to parse CSV', 'error');
     } finally {
@@ -900,23 +900,33 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
   };
 
   const handleCSVImport = async () => {
-    if (!csvFile || !csvMapping.username_column) {
-      toast('Please select the username column', 'error');
+    const usernameCol = Object.entries(csvColumnRoles).find(([, r]) => r === 'username')?.[0];
+    if (!csvFile || !usernameCol) {
+      toast('Please assign a Username column', 'error');
       return;
     }
+    const phoneCol = Object.entries(csvColumnRoles).find(([, r]) => r === 'phone')?.[0];
+    const firstNameCol = Object.entries(csvColumnRoles).find(([, r]) => r === 'first_name')?.[0];
+    const companyCol = Object.entries(csvColumnRoles).find(([, r]) => r === 'company')?.[0];
+    const customCols: Record<string, string> = {};
+    Object.entries(csvColumnRoles).forEach(([col, role]) => {
+      if (role === 'custom') customCols[col] = col.toLowerCase().replace(/\s+/g, '_');
+    });
     setUploading(true);
     try {
       const res = await telegramOutreachApi.mapColumnsCSV(campaignId, csvFile, {
-        username_column: csvMapping.username_column,
-        first_name_column: csvMapping.first_name_column || undefined,
-        company_name_column: csvMapping.company_name_column || undefined,
-        custom_columns: csvMapping.custom_columns,
+        username_column: usernameCol,
+        phone_column: phoneCol || undefined,
+        first_name_column: firstNameCol || undefined,
+        company_name_column: companyCol || undefined,
+        custom_columns: customCols,
       });
       const blMsg = res.blacklisted ? `, ${res.blacklisted} blacklisted removed` : '';
       toast(`${res.added} recipients imported${blMsg}`, 'success');
       setCsvColumns([]);
       setCsvPreview([]);
       setCsvFile(null);
+      setCsvColumnRoles({});
       setUploadMode('none');
       loadRecipients();
     } catch {
@@ -969,7 +979,7 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
                   className={cn('flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 dark:hover:bg-gray-800', 'border-gray-200 dark:border-gray-700', t.text2)}>
             <Type className="w-3.5 h-3.5" /> Paste Text
           </button>
-          <button onClick={() => fileInputRef.current?.click()}
+          <button onClick={() => setUploadMode('csv')}
                   className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
             <Upload className="w-3.5 h-3.5" /> Upload CSV
           </button>
@@ -1007,135 +1017,225 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
         </div>
       )}
 
-      {/* CSV mapping panel */}
-      {uploadMode === 'csv' && csvColumns.length > 0 && (
+      {/* CSV upload panel */}
+      {uploadMode === 'csv' && (
         <div className={cn('rounded-lg border p-4 space-y-4', 'border-gray-200 dark:border-gray-700')}>
-          <h4 className={cn('text-sm font-medium', t.text1)}>Map CSV Columns</h4>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className={cn('block text-xs font-medium mb-1', t.text2)}>Username Column *</label>
-              <select value={csvMapping.username_column}
-                      onChange={e => setCsvMapping(m => ({ ...m, username_column: e.target.value }))}
-                      className={cn('w-full px-3 py-2 rounded-lg border text-sm', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}>
-                <option value="">-- Select --</option>
-                {csvColumns.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={cn('block text-xs font-medium mb-1', t.text2)}>First Name Column</label>
-              <select value={csvMapping.first_name_column}
-                      onChange={e => setCsvMapping(m => ({ ...m, first_name_column: e.target.value }))}
-                      className={cn('w-full px-3 py-2 rounded-lg border text-sm', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}>
-                <option value="">-- None --</option>
-                {csvColumns.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={cn('block text-xs font-medium mb-1', t.text2)}>Company Name Column</label>
-              <select value={csvMapping.company_name_column}
-                      onChange={e => setCsvMapping(m => ({ ...m, company_name_column: e.target.value }))}
-                      className={cn('w-full px-3 py-2 rounded-lg border text-sm', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}>
-                <option value="">-- None --</option>
-                {csvColumns.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Custom Variables — remaining CSV columns */}
-          {csvColumns.length > 0 && (() => {
-            const extraCols = csvColumns.filter(c => c !== csvMapping.username_column && c !== csvMapping.first_name_column && c !== csvMapping.company_name_column);
-            if (extraCols.length === 0) return null;
-            const allSelected = extraCols.every(c => c in csvMapping.custom_columns);
-            return (
-              <div className={cn('rounded-lg border p-3', 'border-gray-200 dark:border-gray-700')}>
-                <div className="flex items-center justify-between mb-2">
-                  <label className={cn('text-xs font-medium', t.text2)}>
-                    Custom Variables — click columns to use as {'{{variable}}'} in messages
-                  </label>
-                  <button onClick={() => {
-                            setCsvMapping(m => {
-                              const custom = { ...m.custom_columns };
-                              if (allSelected) {
-                                extraCols.forEach(c => delete custom[c]);
-                              } else {
-                                extraCols.forEach(c => { custom[c] = c.toLowerCase().replace(/\s+/g, '_'); });
-                              }
-                              return { ...m, custom_columns: custom };
-                            });
-                          }}
-                          className={cn('text-xs px-2 py-0.5 rounded border', 'border-gray-200 dark:border-gray-700',
-                            allSelected ? 'text-red-600' : 'text-indigo-600')}>
-                    {allSelected ? 'Deselect All' : 'Select All'}
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {extraCols.map(col => {
-                    const isSelected = col in csvMapping.custom_columns;
-                    const varName = csvMapping.custom_columns[col] || col.toLowerCase().replace(/\s+/g, '_');
-                    return (
-                      <button key={col}
-                              onClick={() => {
-                                setCsvMapping(m => {
-                                  const custom = { ...m.custom_columns };
-                                  if (isSelected) delete custom[col];
-                                  else custom[col] = col.toLowerCase().replace(/\s+/g, '_');
-                                  return { ...m, custom_columns: custom };
-                                });
-                              }}
-                              className={cn('px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors',
-                                isSelected
-                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-700'
-                                  : cn('border-gray-200 dark:border-gray-700', t.text3, 'hover:bg-gray-50 dark:hover:bg-gray-800'))}>
-                        {isSelected ? `${col} → {{${varName}}}` : col}
-                      </button>
-                    );
-                  })}
-                </div>
-                {Object.keys(csvMapping.custom_columns).length > 0 && (
-                  <p className={cn('text-xs mt-2', t.text3)}>
-                    {Object.keys(csvMapping.custom_columns).length} variable(s) selected.
-                    Use in Sequence tab: {Object.values(csvMapping.custom_columns).map(v => `{{${v}}}`).join(', ')}
-                  </p>
+          {/* Drag-and-drop zone (shown when no file loaded yet) */}
+          {csvColumns.length === 0 && (
+            <>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault(); setDragOver(false);
+                  const file = e.dataTransfer.files[0];
+                  if (file && (file.name.endsWith('.csv') || file.name.endsWith('.txt'))) {
+                    handleCSVSelect(file);
+                  } else {
+                    toast('Please drop a .csv or .txt file', 'error');
+                  }
+                }}
+                className={cn(
+                  'border-2 border-dashed rounded-xl p-10 text-center transition-colors cursor-pointer',
+                  dragOver
+                    ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-700',
+                )}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className={cn('w-8 h-8 animate-spin', 'text-indigo-500')} />
+                    <p className={cn('text-sm font-medium', t.text2)}>Parsing CSV...</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className={cn('w-8 h-8', dragOver ? 'text-indigo-500' : t.text3)} />
+                    <p className={cn('text-sm font-medium', t.text1)}>
+                      Drop your CSV file here
+                    </p>
+                    <p className={cn('text-xs', t.text3)}>
+                      or <span className="text-indigo-600 dark:text-indigo-400 underline">browse files</span> — .csv, .txt
+                    </p>
+                  </div>
                 )}
               </div>
-            );
-          })()}
-
-          {/* Preview */}
-          {csvPreview.length > 0 && (
-            <div className={cn('rounded-lg border overflow-auto max-h-40', 'border-gray-200 dark:border-gray-700')}>
-              <table className="w-full text-xs">
-                <thead className={cn('border-b', 'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-800/50' : 'bg-gray-50')}>
-                  <tr>
-                    {csvColumns.map(c => (
-                      <th key={c} className={cn('text-left px-2 py-1.5 font-medium', t.text3)}>{c}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {csvPreview.map((row, i) => (
-                    <tr key={i} className={cn('border-b', 'border-gray-200 dark:border-gray-700')}>
-                      {csvColumns.map(c => (
-                        <td key={c} className={cn('px-2 py-1.5', t.text1)}>{row[c] || ''}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              <div className="flex justify-end">
+                <button onClick={() => { setUploadMode('none'); setCsvFile(null); }}
+                        className={cn('px-4 py-2 rounded-lg border text-sm', 'border-gray-200 dark:border-gray-700', t.text2)}>
+                  Cancel
+                </button>
+              </div>
+            </>
           )}
 
-          <div className="flex items-center gap-2">
-            <button onClick={handleCSVImport} disabled={uploading || !csvMapping.username_column}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
-              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Import Recipients'}
-            </button>
-            <button onClick={() => { setUploadMode('none'); setCsvColumns([]); setCsvPreview([]); setCsvFile(null); }}
-                    className={cn('px-4 py-2 rounded-lg border text-sm', 'border-gray-200 dark:border-gray-700', t.text2)}>
-              Cancel
-            </button>
-          </div>
+          {/* Column mapping + preview (shown after file parsed) */}
+          {csvColumns.length > 0 && (() => {
+            const roleLabels: Record<CsvRole, string> = {
+              username: 'Username', phone: 'Phone', first_name: 'First Name',
+              company: 'Company', custom: 'Custom Variable', skip: 'Skip',
+            };
+            const hasUsername = Object.values(csvColumnRoles).includes('username');
+            const usernameCol = Object.entries(csvColumnRoles).find(([, r]) => r === 'username')?.[0];
+            const phoneCol = Object.entries(csvColumnRoles).find(([, r]) => r === 'phone')?.[0];
+
+            // Validation helpers
+            const isValidUsername = (val: string) => {
+              const v = val.trim().replace(/^@/, '');
+              return v.length >= 3 && v.length <= 32 && /^[a-zA-Z0-9_]+$/.test(v);
+            };
+            const isValidPhone = (val: string) => {
+              const v = val.trim().replace(/[\s\-\(\)\+]/g, '');
+              return v.length >= 7 && v.length <= 15 && /^\d+$/.test(v);
+            };
+
+            // Count valid/invalid for summary
+            const usernameValues = usernameCol ? csvPreview.map(r => r[usernameCol] || '') : [];
+            const invalidUsernames = usernameValues.filter(v => v && !isValidUsername(v)).length;
+            const phoneValues = phoneCol ? csvPreview.map(r => r[phoneCol] || '') : [];
+            const invalidPhones = phoneValues.filter(v => v && !isValidPhone(v)).length;
+
+            const customVarCols = Object.entries(csvColumnRoles).filter(([, r]) => r === 'custom');
+
+            return (
+              <>
+                <div className="flex items-center justify-between">
+                  <h4 className={cn('text-sm font-medium', t.text1)}>
+                    Map Columns — {csvFile?.name}
+                  </h4>
+                  <button onClick={() => { setCsvColumns([]); setCsvPreview([]); setCsvFile(null); setCsvColumnRoles({}); }}
+                          className={cn('text-xs px-2 py-1 rounded border flex items-center gap-1', 'border-gray-200 dark:border-gray-700', t.text3)}>
+                    <X className="w-3 h-3" /> Change file
+                  </button>
+                </div>
+
+                {/* Per-column role dropdowns */}
+                <div className={cn('rounded-lg border overflow-hidden', 'border-gray-200 dark:border-gray-700')}>
+                  <table className="w-full text-sm">
+                    <thead className={cn('border-b', 'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-800/50' : 'bg-gray-50')}>
+                      <tr>
+                        <th className={cn('text-left px-3 py-2 font-medium text-xs', t.text3)}>CSV Column</th>
+                        <th className={cn('text-left px-3 py-2 font-medium text-xs', t.text3)}>Maps To</th>
+                        <th className={cn('text-left px-3 py-2 font-medium text-xs', t.text3)}>Sample Values</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvColumns.map(col => {
+                        const role = csvColumnRoles[col] || 'skip';
+                        const samples = csvPreview.slice(0, 3).map(r => r[col] || '').filter(Boolean).join(', ');
+                        return (
+                          <tr key={col} className={cn('border-b', 'border-gray-200 dark:border-gray-700',
+                            role === 'skip' ? 'opacity-50' : '')}>
+                            <td className={cn('px-3 py-2 font-medium text-xs', t.text1)}>{col}</td>
+                            <td className="px-3 py-2">
+                              <select
+                                value={role}
+                                onChange={e => {
+                                  const newRole = e.target.value as CsvRole;
+                                  setCsvColumnRoles(prev => {
+                                    const updated = { ...prev };
+                                    // Ensure unique for singleton roles
+                                    if (['username', 'phone', 'first_name', 'company'].includes(newRole)) {
+                                      Object.keys(updated).forEach(k => {
+                                        if (updated[k] === newRole) updated[k] = 'custom';
+                                      });
+                                    }
+                                    updated[col] = newRole;
+                                    return updated;
+                                  });
+                                }}
+                                className={cn('px-2 py-1.5 rounded-lg border text-xs', 'border-gray-200 dark:border-gray-700',
+                                  'bg-white dark:bg-gray-900', t.text1,
+                                  role === 'username' ? 'ring-1 ring-indigo-400' : '')}
+                              >
+                                {Object.entries(roleLabels).map(([val, label]) => (
+                                  <option key={val} value={val}>{label}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className={cn('px-3 py-2 text-xs truncate max-w-[200px]', t.text3)}>{samples}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {!hasUsername && (
+                  <p className="text-xs text-red-500 font-medium">Please assign one column as Username (required)</p>
+                )}
+
+                {/* Custom variable summary */}
+                {customVarCols.length > 0 && (
+                  <p className={cn('text-xs', t.text3)}>
+                    Custom variables: {customVarCols.map(([col]) => `{{${col.toLowerCase().replace(/\s+/g, '_')}}}`).join(', ')}
+                  </p>
+                )}
+
+                {/* Preview with validation */}
+                {csvPreview.length > 0 && (
+                  <div>
+                    <h5 className={cn('text-xs font-medium mb-1.5', t.text2)}>
+                      Preview (first {csvPreview.length} rows)
+                      {(invalidUsernames > 0 || invalidPhones > 0) && (
+                        <span className="text-red-500 ml-2 font-normal">
+                          {invalidUsernames > 0 && `${invalidUsernames} invalid username(s)`}
+                          {invalidUsernames > 0 && invalidPhones > 0 && ', '}
+                          {invalidPhones > 0 && `${invalidPhones} invalid phone(s)`}
+                        </span>
+                      )}
+                    </h5>
+                    <div className={cn('rounded-lg border overflow-auto max-h-52', 'border-gray-200 dark:border-gray-700')}>
+                      <table className="w-full text-xs">
+                        <thead className={cn('border-b sticky top-0', 'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-800/50' : 'bg-gray-50')}>
+                          <tr>
+                            {csvColumns.filter(c => csvColumnRoles[c] !== 'skip').map(c => (
+                              <th key={c} className={cn('text-left px-2 py-1.5 font-medium whitespace-nowrap', t.text3)}>
+                                {c}
+                                {csvColumnRoles[c] && csvColumnRoles[c] !== 'custom' && (
+                                  <span className="ml-1 text-indigo-500 font-normal">({roleLabels[csvColumnRoles[c]]})</span>
+                                )}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {csvPreview.map((row, i) => (
+                            <tr key={i} className={cn('border-b', 'border-gray-200 dark:border-gray-700')}>
+                              {csvColumns.filter(c => csvColumnRoles[c] !== 'skip').map(c => {
+                                const val = row[c] || '';
+                                const role = csvColumnRoles[c];
+                                let cellClass = t.text1;
+                                if (role === 'username' && val && !isValidUsername(val)) {
+                                  cellClass = 'text-red-600 bg-red-50 dark:bg-red-900/20';
+                                } else if (role === 'phone' && val && !isValidPhone(val)) {
+                                  cellClass = 'text-red-600 bg-red-50 dark:bg-red-900/20';
+                                }
+                                return (
+                                  <td key={c} className={cn('px-2 py-1.5', cellClass)}>{val}</td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button onClick={handleCSVImport} disabled={uploading || !hasUsername}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Import Recipients'}
+                  </button>
+                  <button onClick={() => { setUploadMode('none'); setCsvColumns([]); setCsvPreview([]); setCsvFile(null); setCsvColumnRoles({}); }}
+                          className={cn('px-4 py-2 rounded-lg border text-sm', 'border-gray-200 dark:border-gray-700', t.text2)}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
