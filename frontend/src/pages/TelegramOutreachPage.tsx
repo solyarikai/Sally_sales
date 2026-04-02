@@ -4034,7 +4034,6 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [newChatLoading, setNewChatLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const templateRef = useRef<HTMLDivElement>(null);
   const [linkPopup, setLinkPopup] = useState<{ url: string } | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
