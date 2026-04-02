@@ -1476,32 +1476,56 @@ async def bulk_update_privacy(
 @router.post("/accounts/bulk-revoke-sessions")
 async def bulk_revoke_sessions(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
     """Revoke all other sessions for selected accounts."""
+    import asyncio
     from telethon import functions
 
     revoked = 0
+    total_sessions_killed = 0
     errors = []
     for aid in data.account_ids:
         account = await session.get(TgAccount, aid)
         if not account or not account.api_id or not telegram_engine.session_file_exists(account.phone):
             continue
         try:
-            kwargs = _account_connect_kwargs(account)
+            # Resolve proxy — must connect via the same proxy the account normally uses
+            proxy = None
+            if account.assigned_proxy_id:
+                p = await session.get(TgProxy, account.assigned_proxy_id)
+                if p:
+                    proxy = {"host": p.host, "port": p.port, "username": p.username,
+                             "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
+            kwargs = _account_connect_kwargs(account, proxy)
             await telegram_engine.connect(aid, **kwargs)
             client = telegram_engine.get_client(aid)
             if not client or not await client.is_user_authorized():
+                errors.append(f"{account.phone}: not authorized")
                 continue
             result = await client(functions.auth.GetAuthorizationsRequest())
-            for auth in result.authorizations:
-                if not auth.current:
-                    try:
-                        await client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
-                    except Exception:
-                        pass
+            other_sessions = [a for a in result.authorizations if not a.current]
+            logger.info(f"[REVOKE] {account.phone}: found {len(result.authorizations)} sessions "
+                        f"({len(other_sessions)} non-current)")
+            killed = 0
+            for auth in other_sessions:
+                try:
+                    await client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
+                    killed += 1
+                    logger.info(f"[REVOKE] {account.phone}: killed session "
+                                f"device={auth.device_model} platform={auth.platform} "
+                                f"app={auth.app_name} ip={auth.ip}")
+                except Exception as e:
+                    logger.warning(f"[REVOKE] {account.phone}: failed to kill session "
+                                   f"device={auth.device_model}: {e}")
+                    errors.append(f"{account.phone}: session {auth.device_model}: {str(e)[:80]}")
+                await asyncio.sleep(0.5)
             await telegram_engine.disconnect(aid)
-            revoked += 1
+            total_sessions_killed += killed
+            if killed > 0 or len(other_sessions) == 0:
+                revoked += 1
+            logger.info(f"[REVOKE] {account.phone}: done — killed {killed}/{len(other_sessions)} sessions")
         except Exception as e:
-            errors.append(f"{account.phone}: {str(e)[:50]}")
-    return {"ok": True, "revoked": revoked, "errors": errors}
+            logger.error(f"[REVOKE] {account.phone}: {e}")
+            errors.append(f"{account.phone}: {str(e)[:80]}")
+    return {"ok": True, "revoked": revoked, "sessions_killed": total_sessions_killed, "errors": errors}
 
 
 @router.post("/accounts/bulk-reauthorize")
@@ -1512,6 +1536,7 @@ async def bulk_reauthorize(
     session: AsyncSession = Depends(get_session),
 ):
     """Re-authorize accounts with randomized device params + optionally new 2FA."""
+    import asyncio
     import random
 
     reauthed = 0
@@ -1526,7 +1551,14 @@ async def bulk_reauthorize(
             account.system_version = random.choice(SYSTEM_VERSIONS)
             account.app_version = random.choice(APP_VERSIONS)
 
-            kwargs = _account_connect_kwargs(account)
+            # Resolve proxy
+            proxy = None
+            if account.assigned_proxy_id:
+                p = await session.get(TgProxy, account.assigned_proxy_id)
+                if p:
+                    proxy = {"host": p.host, "port": p.port, "username": p.username,
+                             "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
+            kwargs = _account_connect_kwargs(account, proxy)
             await telegram_engine.connect(aid, **kwargs)
             client = telegram_engine.get_client(aid)
             if not client or not await client.is_user_authorized():
@@ -1541,10 +1573,12 @@ async def bulk_reauthorize(
                         if not auth.current:
                             try:
                                 await client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+                                logger.info(f"[REAUTH] {account.phone}: killed session device={auth.device_model}")
+                            except Exception as e:
+                                logger.warning(f"[REAUTH] {account.phone}: failed to kill session: {e}")
+                            await asyncio.sleep(0.5)
+                except Exception as e:
+                    logger.warning(f"[REAUTH] {account.phone}: session revoke failed: {e}")
 
             # Set new 2FA
             if new_2fa:
