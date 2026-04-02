@@ -274,25 +274,25 @@ class MCPApp:
                     logger.debug(f"SSE connection without token in query string")
 
                 # SSE connection — store token per-session, clean up on disconnect
-                session_key = None
+                session_obj_id = None
                 async with sse_transport.connect_sse(scope, receive, send) as streams:
                     read_stream, write_stream = streams
                     if url_token:
                         try:
                             from app.mcp.server import mcp_server as _ms
                             ctx = _ms.request_context
-                            session_key = f"sse_{id(ctx.session)}"
-                            _session_tokens[session_key] = url_token
-                            _session_user_tokens[id(ctx.session)] = url_token
+                            session_obj_id = id(ctx.session)
+                            _session_tokens[f"sse_{session_obj_id}"] = url_token
+                            _session_user_tokens[session_obj_id] = url_token
                         except Exception:
                             pass
                     await mcp_server.run(
                         read_stream, write_stream, mcp_server.create_initialization_options()
                     )
-                # Cleanup session tokens on SSE disconnect
-                if session_key and session_key in _session_tokens:
-                    del _session_tokens[session_key]
-                    logger.debug(f"Cleaned up session {session_key}")
+                # Full session cleanup on SSE disconnect
+                if session_obj_id:
+                    from app.mcp.server import cleanup_session
+                    cleanup_session(session_obj_id)
             elif "/messages" in path:
                 # Extract auth token from HTTP headers and store for tool calls
                 from app.mcp.server import _session_tokens
