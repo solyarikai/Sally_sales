@@ -1342,14 +1342,37 @@ Return ONLY valid JSON."""
             if filters.get("max_pages", 10) > 1:
                 filters["max_pages"] = filters.get("max_pages", 10) - 1
 
-        # Call the real gathering service
-        from app.services.gathering_service import GatheringService
-        svc = GatheringService()
-        run = await svc.start_gathering(
-            session, project.id, project.company_id,
-            source_type, filters, triggered_by=f"mcp:user:{user.id}",
-            apollo_service=apollo_svc,
+        # ── Reuse pending_approval run (from preview) instead of creating duplicate ──
+        pending_result = await session.execute(
+            select(GatheringRun).where(
+                GatheringRun.project_id == project.id,
+                GatheringRun.status == "pending_approval",
+            ).order_by(GatheringRun.id.desc()).limit(1)
         )
+        run = pending_result.scalar_one_or_none()
+
+        if run:
+            # Reuse preview run — update filters
+            run.filters = filters
+            run.source_type = source_type
+            run.triggered_by = f"mcp:user:{user.id}"
+            await session.flush()
+            logger.info(f"Reusing pending_approval run {run.id} (no duplicate)")
+        else:
+            # No preview run (direct confirm) — create new
+            import hashlib as _hl2, json as _jn3
+            _fh2 = _hl2.sha256(_jn3.dumps(filters, sort_keys=True).encode()).hexdigest()[:16]
+            run = GatheringRun(
+                project_id=project.id, company_id=project.company_id,
+                source_type=source_type, filters=filters, filter_hash=_fh2,
+                status="pending_approval", current_phase="pending",
+                triggered_by=f"mcp:user:{user.id}",
+                target_people=args.get("target_people", 100),
+                max_people_per_company=args.get("max_people_per_company", 3),
+            )
+            session.add(run)
+            await session.flush()
+            logger.info(f"Created new run {run.id} (no preview existed)")
 
         # Link existing campaign from align_email_accounts (created before tam_gather)
         _existing_camp = (await session.execute(
