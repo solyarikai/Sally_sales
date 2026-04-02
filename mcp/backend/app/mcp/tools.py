@@ -86,7 +86,7 @@ AFTER creating project, ask: "Have you launched campaigns for this project befor
                 "sender_company": {"type": "string"},
                 "sender_position": {"type": "string"},
             },
-            "required": ["name"],
+            # name is optional — auto-generated from website domain if not provided
         },
     },
     {

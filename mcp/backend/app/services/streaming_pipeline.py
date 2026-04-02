@@ -82,10 +82,16 @@ class StreamingPipeline:
         async with async_session_maker() as ws:
             project = await ws.get(Project, self.run.project_id)
             self._offer_text = project.target_segments if project else ""
+            # Extract segments for DYNAMIC classification (from document or user input)
+            self._segments = []
             if project and project.offer_summary and isinstance(project.offer_summary, dict):
                 target_roles = project.offer_summary.get("target_roles", {})
                 if target_roles.get("titles"):
                     self._person_titles = target_roles["titles"]
+                # Segments from document extraction
+                segments = project.offer_summary.get("segments", [])
+                if segments:
+                    self._segments = [s.get("name", "") for s in segments if s.get("name")]
 
     async def run_until_kpi(self, filters: Dict) -> Dict:
         """Main entry — SINGLE STREAMING MODE for everything.
@@ -596,7 +602,10 @@ class StreamingPipeline:
                                     {"role": "system", "content": (
                                         f"Classify if this company is a target customer.\n"
                                         f"Offer: {self._offer_text}\n"
-                                        f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
+                                        + (f"Target segments: {', '.join(self._segments)}\n"
+                                           f"If target, assign ONE of these segments.\n"
+                                           if self._segments else "")
+                                        + f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
                                     )},
                                     {"role": "user", "content": company_text},
                                 ],

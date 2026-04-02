@@ -101,8 +101,32 @@ Each verification logged in document_based_flow_results.md with:
 **4. Document extraction service (document_extractor.py)**
 Must be implemented before model comparison test can run.
 
-**5. Combined 6-segment classification prompt**
-Must handle multi-segment classification before E2E test.
+**5. Dynamic multi-segment classification prompt (NEVER hardcoded)**
+```
+Classification prompt is DYNAMICALLY built from whatever segments 
+the document extractor found. NOT hardcoded "6 fintech segments".
+
+If user's document has 3 segments → prompt lists 3.
+If user's document has 10 segments → prompt lists 10.
+If user provides no document (just "fashion brands in Italy") → 1 segment.
+
+The classifier receives segments from:
+  1. document_extractor output → result["segments"]
+  2. Stored on project as project.target_segments (JSON with segment list)
+  3. Injected into streaming_pipeline classifier prompt at runtime
+
+Classification prompt template:
+  "Classify if this company is a target. If target, assign ONE segment:
+   {dynamically_joined_segment_names_from_project}"
+
+Example for fintech doc:
+  "...assign ONE segment: PAYMENTS, LENDING, BAAS, REGTECH, WEALTHTECH, CRYPTO"
+
+Example for fashion (no doc):
+  "...assign ONE segment: FASHION_BRANDS"
+
+NEVER hardcode segment names. Always read from project context.
+```
 
 ---
 
