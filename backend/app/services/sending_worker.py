@@ -367,60 +367,63 @@ class SendingWorker:
             logger.debug(f"{cname} Outside send window")
             return
 
-        # Check campaign daily limit
-        if campaign.daily_message_limit and campaign.messages_sent_today >= campaign.daily_message_limit:
-            logger.debug(f"{cname} Daily limit reached")
-            return
+        # Count cold sends (step_order=1) today — daily limit applies to cold only
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        cold_counts_r = await session.execute(
+            select(
+                TgOutreachMessage.account_id,
+                func.count(TgOutreachMessage.id),
+            ).join(TgSequenceStep, TgOutreachMessage.step_id == TgSequenceStep.id)
+            .where(
+                TgOutreachMessage.status == TgMessageStatus.SENT,
+                TgOutreachMessage.sent_at >= today_start,
+                TgSequenceStep.step_order == 1,
+            ).group_by(TgOutreachMessage.account_id)
+        )
+        account_cold_counts = {row[0]: row[1] for row in cold_counts_r.all()}
 
-        # Get available accounts for this campaign
-        available_accounts = await self._get_available_accounts(campaign, session)
-        if not available_accounts:
-            logger.warning(f"{cname} No available accounts (all at limit, spamblocked, or no session)")
-            return
-
-        # Collect recipients with follow-up priority
-        batch: list[tuple] = []  # [(recipient, account, proxy_dict, step, variant, rendered)]
-        account_pending: dict[int, int] = {}  # account_id -> messages pending in this batch
-        skipped_recipient_ids: set[int] = set()
-
-        # Calculate slots based on followup_priority (0-100)
-        max_batch = len(available_accounts)
-        if campaign.daily_message_limit:
-            remaining = campaign.daily_message_limit - campaign.messages_sent_today
-            max_batch = min(max_batch, remaining)
-        if max_batch <= 0:
-            return
-
-        fp = getattr(campaign, 'followup_priority', None)
-        priority = fp if fp is not None else 100
-        followup_slots = round(max_batch * priority / 100)
-        new_lead_slots = max_batch - followup_slots
-
-        # Fetch follow-ups and new leads separately
+        # Follow-ups are UNLIMITED — don't count against daily limit
         followup_recipients = await self._pick_recipients_by_type(
-            campaign.id, "followup", followup_slots, session)
-        new_recipients = await self._pick_recipients_by_type(
-            campaign.id, "new", new_lead_slots, session)
+            campaign.id, "followup", 500, session)
 
-        # Redistribute unused slots
-        if len(followup_recipients) < followup_slots:
-            extra = followup_slots - len(followup_recipients)
-            extra_new = await self._pick_recipients_by_type(
-                campaign.id, "new", extra, session,
-                exclude_ids={r.id for r in new_recipients})
-            new_recipients.extend(extra_new)
-        if len(new_recipients) < new_lead_slots:
-            extra = new_lead_slots - len(new_recipients)
-            extra_fu = await self._pick_recipients_by_type(
-                campaign.id, "followup", extra, session,
-                exclude_ids={r.id for r in followup_recipients})
-            followup_recipients.extend(extra_fu)
+        # Get available accounts for new leads (filtered by cold limit)
+        available_accounts = await self._get_available_accounts(campaign, session, account_cold_counts)
+
+        # New leads: limited by campaign daily_message_limit (cold only)
+        cold_remaining = 500
+        if campaign.daily_message_limit:
+            camp_cold_r = await session.execute(
+                select(func.count(TgOutreachMessage.id))
+                .join(TgSequenceStep, TgOutreachMessage.step_id == TgSequenceStep.id)
+                .where(
+                    TgOutreachMessage.campaign_id == campaign.id,
+                    TgOutreachMessage.status == TgMessageStatus.SENT,
+                    TgOutreachMessage.sent_at >= today_start,
+                    TgSequenceStep.step_order == 1,
+                )
+            )
+            cold_sent_today = camp_cold_r.scalar() or 0
+            cold_remaining = max(0, campaign.daily_message_limit - cold_sent_today)
+            logger.debug(f"{cname} Cold limit: {cold_sent_today}/{campaign.daily_message_limit} sent, {cold_remaining} remaining")
+
+        new_lead_limit = min(cold_remaining, len(available_accounts)) if available_accounts else 0
+        new_recipients = await self._pick_recipients_by_type(
+            campaign.id, "new", new_lead_limit, session) if new_lead_limit > 0 else []
+
+        # Collect batch
+        batch: list[tuple] = []  # [(recipient, account, proxy_dict, step, variant, rendered)]
+        account_pending: dict[int, int] = {}  # account_id -> all messages pending in this batch
+        account_cold_pending: dict[int, int] = {}  # cold sends pending in this batch
+        skipped_recipient_ids: set[int] = set()
 
         all_recipients = followup_recipients + new_recipients
 
+        cold_in_batch = 0
         for recipient in all_recipients:
-            if campaign.daily_message_limit and (campaign.messages_sent_today + len(batch)) >= campaign.daily_message_limit:
-                break
+            is_cold = recipient.current_step == 0
+            # Daily limit only applies to cold sends (step 0); follow-ups are unlimited
+            if is_cold and campaign.daily_message_limit and cold_in_batch >= cold_remaining:
+                continue
 
             step, variant = await self._get_step_and_variant(campaign.id, recipient.current_step, session)
             if not step or not variant:
@@ -438,11 +441,9 @@ class SendingWorker:
                     logger.warning(f"{cname} @{recipient.username} follow-up bound to missing account_id={recipient.assigned_account_id} — skipping")
                     skipped_recipient_ids.add(recipient.id)
                     continue
-                if (
-                    account.status != TgAccountStatus.ACTIVE
-                    or account.messages_sent_today + account_pending.get(account.id, 0) >= get_effective_daily_limit(account)
-                ):
+                if account.status != TgAccountStatus.ACTIVE:
                     # Bound account unavailable — do NOT reassign (rules 3-5)
+                    # Follow-ups bypass daily limit — only check active status
                     logger.info(f"{cname} @{recipient.username} follow-up bound to {account.phone} but unavailable — skipping, will retry later")
                     skipped_recipient_ids.add(recipient.id)
                     continue
@@ -451,7 +452,8 @@ class SendingWorker:
                 # Round-robin, skip accounts at limit + failed for this recipient
                 failed_for = set((recipient.custom_variables or {}).get("_failed_account_ids", []))
                 for acc in sorted(available_accounts, key=lambda a: account_pending.get(a.id, 0)):
-                    if acc.id not in failed_for and acc.messages_sent_today + account_pending.get(acc.id, 0) < get_effective_daily_limit(acc):
+                    acc_cold = account_cold_counts.get(acc.id, 0) + account_cold_pending.get(acc.id, 0)
+                    if acc.id not in failed_for and acc_cold < get_effective_daily_limit(acc):
                         account = acc
                         break
                 if not account:
@@ -507,6 +509,9 @@ class SendingWorker:
             recipient.status = TgRecipientStatus.IN_SEQUENCE
             account_pending[account.id] = account_pending.get(account.id, 0) + 1
             batch.append((recipient, account, proxy_dict, step, variant, rendered))
+            if is_cold:
+                cold_in_batch += 1
+                account_cold_pending[account.id] = account_cold_pending.get(account.id, 0) + 1
 
         if not batch:
             logger.debug(f"{cname} No recipients to send to")
@@ -782,11 +787,10 @@ class SendingWorker:
             logger.warning(f"Counter drift for campaign '{campaign.name}': counter={campaign.messages_sent_today}, actual={real_camp_count}")
             campaign.messages_sent_today = real_camp_count
 
-    async def _get_available_accounts(self, campaign: TgCampaign, session: AsyncSession) -> list[TgAccount]:
-        """Get accounts for campaign: active + spamblocked (skip only same-day spamblock).
-        Spamblocked accounts skip the rest of the day they got spamblocked, try again next day.
-        Warm-up: young sessions get reduced limits (2/day ramp).
-        Young sessions (< 7 days): hard-capped + slower delays."""
+    async def _get_available_accounts(self, campaign: TgCampaign, session: AsyncSession,
+                                      account_cold_counts: dict[int, int] | None = None) -> list[TgAccount]:
+        """Get accounts for campaign that haven't hit their cold-send limit.
+        Daily limit only counts cold sends (step 0); follow-ups are unlimited."""
         today = datetime.utcnow().date()
         result = await session.execute(
             select(TgAccount)
@@ -806,8 +810,9 @@ class SendingWorker:
             if acc.status == TgAccountStatus.SPAMBLOCKED:
                 if acc.spamblocked_at and acc.spamblocked_at.date() == today:
                     continue
-            # Warm-up aware limit check (includes young session hard cap)
-            if acc.messages_sent_today >= get_effective_daily_limit(acc):
+            # Warm-up aware limit check — cold sends only (follow-ups unlimited)
+            cold_used = (account_cold_counts or {}).get(acc.id, 0)
+            if cold_used >= get_effective_daily_limit(acc):
                 continue
             if is_young_session(acc):
                 young_count += 1
