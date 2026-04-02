@@ -68,6 +68,13 @@ async def logout():
     return resp
 
 
+@app.post("/user/{user_id}/delete")
+async def delete_user(request: Request, user_id: int):
+    check_auth(request)
+    await pool.execute("UPDATE mcp_users SET is_active = false WHERE id = $1", user_id)
+    return RedirectResponse("/admin/", status_code=302)
+
+
 # ── Dashboard ──
 
 @app.get("/", response_class=HTMLResponse)
@@ -121,6 +128,7 @@ async def dashboard(request: Request, date_from: str = "", date_to: str = ""):
             <td>{u['analysis_runs']} ({openai_cost})</td>
             <td>{u['tool_calls']}</td>
             <td><a href="/admin/user/{u['id']}/conversations">{u['conversations']}</a></td>
+            <td><form method="post" action="/admin/user/{u['id']}/delete" onsubmit="return confirm('Delete {u['email']}?')" style="margin:0"><button type="submit" style="background:#ef4444;font-size:10px;padding:3px 8px">Del</button></form></td>
         </tr>"""
 
     return _render(HTML_DASHBOARD, style=STYLE,
@@ -292,7 +300,7 @@ HTML_DASHBOARD = """<!DOCTYPE html><html><head><title>GTM MCP Admin</title>%%sty
         <table>
             <thead><tr>
                 <th>ID</th><th>Email</th><th>Name</th><th>Created</th><th>Projects</th>
-                <th>Apollo</th><th>OpenAI</th><th>Tool Calls</th><th>Conversations</th>
+                <th>Apollo</th><th>OpenAI</th><th>Tool Calls</th><th>Conversations</th><th></th>
             </tr></thead>
             <tbody>{%%rows%%}</tbody>
         </table>
@@ -308,6 +316,9 @@ HTML_USER = """<!DOCTYPE html><html><head><title>User %%user_id%% — GTM MCP Ad
     <div class="card">
         <h1>%%email%%</h1>
         <p style="color:#888">%%name%% · Created: %%created%% · <a href="/admin/user/%%user_id%%/conversations">View conversations</a></p>
+        <form method="post" action="/admin/user/%%user_id%%/delete" onsubmit="return confirm('Delete user %%email%%? This will deactivate the account.')" style="margin-top:12px">
+            <button type="submit" style="background:#ef4444;font-size:12px;padding:6px 14px">Delete User</button>
+        </form>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
