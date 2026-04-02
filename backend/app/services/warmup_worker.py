@@ -1,13 +1,17 @@
 """
 Warm-up Worker — background loop that performs active warm-up actions for Telegram accounts.
 
-Active warm-up simulates real user activity over 14 days:
-  1. Channel joins: Subscribe to 1-2 curated channels per day
-  2. Reactions: Add emoji reactions to recent posts in subscribed channels
-  3. Conversations: Exchange messages with warm (oldest) accounts in the system
+Active warm-up simulates real user activity over 14 days with a gradual schedule:
+  Phase 1 (days 1-3):  1-2 channel joins/day, 1-2 reactions/day
+  Phase 2 (days 4-7):  2-3 reactions/day, 1 conversation/day
+  Phase 3 (days 8-10): channel joins resume, 3-4 reactions/day, 2 conversations/day
+  Phase 4 (days 11-14): full activity — 4-5 reactions, 2-3 conversations, channel views
+
+After day 14 the warm-up is complete (full message limits), but maintenance
+mode continues: 1-2 reactions/day to keep the account healthy.
 
 Each tick (every 30 min) checks accounts with warmup_active=True and executes
-scheduled actions based on the current warm-up day (1-14).
+scheduled actions based on the current warm-up day.
 """
 import asyncio
 import logging
@@ -33,15 +37,24 @@ logger = logging.getLogger(__name__)
 WARMUP_DURATION_DAYS = 14
 TICK_INTERVAL_SECONDS = 30 * 60  # 30 minutes
 
-# Channel join schedule: 1-2 per day, spread across first 8 days
-CHANNELS_PER_DAY = (1, 2)  # min, max
-
-# Reaction schedule: 2-3 per day, starting from day 2
-REACTIONS_PER_DAY = (2, 3)
 REACTION_EMOJIS = ["👍", "❤️", "🔥", "😂", "👏", "🤔"]
 
-# Conversation schedule: 1-2 per day, starting from day 3
-CONVERSATIONS_PER_DAY = (1, 2)
+# ── Gradual schedule by phase ────────────────────────────────────────
+# Each phase defines (min, max) per-day limits for each activity type.
+# fmt: off
+PHASE_SCHEDULE = {
+    # Phase 1: days 1-3 — light activity, build presence
+    (1, 3):   {"channels": (1, 2), "reactions": (1, 2), "conversations": (0, 0), "views": (0, 0)},
+    # Phase 2: days 4-7 — start conversations, more reactions
+    (4, 7):   {"channels": (0, 0), "reactions": (2, 3), "conversations": (1, 1), "views": (0, 0)},
+    # Phase 3: days 8-10 — ramp up, rejoin channels
+    (8, 10):  {"channels": (1, 2), "reactions": (3, 4), "conversations": (2, 2), "views": (0, 0)},
+    # Phase 4: days 11-14 — full activity
+    (11, 14): {"channels": (0, 0), "reactions": (4, 5), "conversations": (2, 3), "views": (2, 3)},
+}
+# Maintenance: day 15+ — keep account healthy
+MAINTENANCE_REACTIONS = (1, 2)
+# fmt: on
 
 # Fallback channel list (used only when DB table is empty)
 FALLBACK_WARMUP_CHANNELS = [
@@ -132,36 +145,29 @@ class WarmupWorker:
 
             await session.commit()
 
+    def _get_phase_limits(self, warmup_day: int) -> dict:
+        """Return per-day action limits for the given warmup day."""
+        for (day_start, day_end), limits in PHASE_SCHEDULE.items():
+            if day_start <= warmup_day <= day_end:
+                return limits
+        return None  # past day 14
+
     async def _process_account(self, account: TgAccount, session: AsyncSession):
-        """Execute warm-up actions for a single account."""
+        """Execute warm-up actions for a single account based on gradual schedule."""
         if not account.warmup_started_at:
             return
 
         # Calculate warm-up day (1-based)
         warmup_day = (datetime.utcnow() - account.warmup_started_at).days + 1
-
-        # Auto-stop after 14 days
-        if warmup_day > WARMUP_DURATION_DAYS:
-            logger.info(f"Warm-up complete for {account.phone} (day {warmup_day})")
-            account.warmup_active = False
-            return
+        is_maintenance = warmup_day > WARMUP_DURATION_DAYS
 
         # Check working hours (rough UTC+3 check)
         current_hour_msk = (datetime.utcnow().hour + 3) % 24
         if current_hour_msk < WARMUP_HOUR_START or current_hour_msk >= WARMUP_HOUR_END:
             return
 
-        # Count actions already done today for this account
+        # Count what types of actions we've done today
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_count_q = await session.execute(
-            select(func.count(TgWarmupLog.id)).where(
-                TgWarmupLog.account_id == account.id,
-                TgWarmupLog.performed_at >= today_start,
-            )
-        )
-        actions_today = today_count_q.scalar() or 0
-
-        # Check what types of actions we've done today
         today_types_q = await session.execute(
             select(TgWarmupLog.action_type, func.count(TgWarmupLog.id)).where(
                 TgWarmupLog.account_id == account.id,
@@ -170,21 +176,38 @@ class WarmupWorker:
         )
         today_by_type = dict(today_types_q.all())
 
-        # Decide which actions to perform this tick
-        # Channel joins: days 1-8, 1-2 per day
+        if is_maintenance:
+            # Post-warmup maintenance: only 1-2 reactions/day to stay healthy
+            reactions_today = today_by_type.get(TgWarmupActionType.REACTION, 0)
+            if reactions_today < random.randint(*MAINTENANCE_REACTIONS):
+                await self._add_reaction(account, session)
+            return
+
+        # Active warmup: look up phase limits
+        limits = self._get_phase_limits(warmup_day)
+        if not limits:
+            return
+
         joins_today = today_by_type.get(TgWarmupActionType.CHANNEL_JOIN, 0)
-        if warmup_day <= 8 and joins_today < random.randint(*CHANNELS_PER_DAY):
+        reactions_today = today_by_type.get(TgWarmupActionType.REACTION, 0)
+        convos_today = today_by_type.get(TgWarmupActionType.CONVERSATION, 0)
+        views_today = today_by_type.get(TgWarmupActionType.CHANNEL_VIEW, 0)
+
+        ch_min, ch_max = limits["channels"]
+        if ch_max > 0 and joins_today < random.randint(ch_min, ch_max):
             await self._join_channel(account, warmup_day, session)
 
-        # Reactions: starting day 2, 2-3 per day
-        reactions_today = today_by_type.get(TgWarmupActionType.REACTION, 0)
-        if warmup_day >= 2 and reactions_today < random.randint(*REACTIONS_PER_DAY):
+        rx_min, rx_max = limits["reactions"]
+        if rx_max > 0 and reactions_today < random.randint(rx_min, rx_max):
             await self._add_reaction(account, session)
 
-        # Conversations: starting day 3, 1-2 per day
-        convos_today = today_by_type.get(TgWarmupActionType.CONVERSATION, 0)
-        if warmup_day >= 3 and convos_today < random.randint(*CONVERSATIONS_PER_DAY):
+        cv_min, cv_max = limits["conversations"]
+        if cv_max > 0 and convos_today < random.randint(cv_min, cv_max):
             await self._send_warmup_message(account, session)
+
+        vw_min, vw_max = limits["views"]
+        if vw_max > 0 and views_today < random.randint(vw_min, vw_max):
+            await self._view_channel(account, session)
 
     async def _get_client(self, account: TgAccount, session: AsyncSession):
         """Connect to Telegram and return client, or None on failure."""
@@ -464,6 +487,53 @@ class WarmupWorker:
             if exchange_idx < num_exchanges - 1:
                 await asyncio.sleep(random.uniform(20, 60))
 
+    async def _view_channel(self, account: TgAccount, session: AsyncSession):
+        """Open a subscribed channel and scroll through recent messages (simulates reading)."""
+        # Get channels this account has joined
+        joined_q = await session.execute(
+            select(TgWarmupLog.detail).where(
+                TgWarmupLog.account_id == account.id,
+                TgWarmupLog.action_type == TgWarmupActionType.CHANNEL_JOIN,
+                TgWarmupLog.success == True,
+            )
+        )
+        joined_channels = [r[0] for r in joined_q.all()]
+        if not joined_channels:
+            return
+
+        channel = random.choice(joined_channels)
+
+        client = await self._get_client(account, session)
+        if not client:
+            return
+
+        try:
+            entity = await client.get_entity(channel)
+            # Fetch recent messages (simulates scrolling / reading the feed)
+            messages = await client.get_messages(entity, limit=random.randint(10, 30))
+            if messages:
+                # Mark messages as read — Telethon sends ReadHistory automatically
+                # when get_messages is called, but we can also explicitly mark read
+                from telethon.tl.functions.messages import ReadHistoryRequest
+                from telethon.tl.functions.channels import ReadHistoryRequest as ChannelReadHistoryRequest
+                try:
+                    await client(ChannelReadHistoryRequest(channel=entity, max_id=messages[0].id))
+                except Exception:
+                    pass  # Some channels may not support this
+
+            # Human-like browsing delay
+            await asyncio.sleep(random.uniform(3, 8))
+
+            detail = f"{channel}:{len(messages) if messages else 0}msgs"
+            await self._log_action(session, account.id, TgWarmupActionType.CHANNEL_VIEW, detail)
+            logger.info(f"Warm-up: {account.phone} viewed {channel} ({len(messages) if messages else 0} msgs)")
+        except Exception as e:
+            error_msg = str(e)[:200]
+            await self._log_action(session, account.id, TgWarmupActionType.CHANNEL_VIEW,
+                                   channel, success=False, error=error_msg)
+            logger.warning(f"Warm-up channel view failed for {account.phone}: {e}")
+        finally:
+            await telegram_engine.disconnect(account.id)
 
 
 # Singleton

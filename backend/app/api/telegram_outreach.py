@@ -113,7 +113,8 @@ def _warmup_info(acc) -> dict:
     warmup_progress = None
     if getattr(acc, "warmup_active", False) and acc.warmup_started_at:
         wu_day = (datetime.utcnow() - acc.warmup_started_at).days + 1
-        warmup_progress = {"day": wu_day, "total_days": 14}
+        phase = "maintenance" if wu_day > 14 else "active"
+        warmup_progress = {"day": wu_day, "total_days": 14, "phase": phase}
     return {
         "effective_daily_limit": eff, "warmup_day": day, "is_young_session": _is_young(acc),
         "warmup_active": getattr(acc, "warmup_active", False),
