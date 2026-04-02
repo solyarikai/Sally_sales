@@ -592,9 +592,15 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                         const lines: string[] = [];
                         if (sessionDate) lines.push(`Сессия: ${fmt(sessionDate)} (${ageFmt(sessionDate)})`);
                         if (tgDate) lines.push(`TG аккаунт: ~${fmt(tgDate)} (${ageFmt(tgDate)})`);
+                        const sessionDays = sessionDate ? Math.floor((Date.now() - new Date(sessionDate).getTime()) / 86400000) : null;
+                        const showAgeWarn = !acc.skip_warmup && (acc.is_young_session || acc.warmup_day != null);
                         return (
-                          <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative' }}>
+                          <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             {ageFmt(primaryDate)}
+                            {showAgeWarn && (
+                              <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#d97706' }}
+                                title={`Аккаунт слишком новый${sessionDays != null ? ` (${sessionDays} дн.)` : ''}, включён Warm-up`} />
+                            )}
                             <span className="age-tooltip">{lines.join('\n')}</span>
                           </span>
                         );
@@ -1551,7 +1557,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                   <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
                 </span>
               </div>
-              <button onClick={() => { setShowActionsPopup(false); run('Warm-up skipped', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+              <button onClick={() => { if (!window.confirm(`⚠ Отключить Warm-up для ${ids.length} аккаунтов?\nНовые аккаунты без прогрева рискуют получить бан.`)) return; setShowActionsPopup(false); run('Warm-up skipped', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Skip Warm-up
               </button>
               <button onClick={() => { setShowActionsPopup(false); run('Warm-up restored', () => telegramOutreachApi.bulkSkipWarmup(ids, false)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
@@ -2132,7 +2138,12 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                 </div>
                 <button
                   type="button"
-                  onClick={() => set('skip_warmup', form.skip_warmup === 'true' ? 'false' : 'true')}
+                  onClick={() => {
+                    if (form.skip_warmup !== 'true') {
+                      if (!window.confirm('⚠ Отключение Warm-up снимает все ограничения на отправку.\nНовые аккаунты без прогрева рискуют получить бан.\n\nВы уверены?')) return;
+                    }
+                    set('skip_warmup', form.skip_warmup === 'true' ? 'false' : 'true');
+                  }}
                   className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
                   style={{ background: form.skip_warmup === 'true' ? '#d97706' : A.border }}
                 >
