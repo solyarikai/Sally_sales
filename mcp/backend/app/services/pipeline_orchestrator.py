@@ -620,8 +620,8 @@ async def _notify_pipeline_complete(session, run, user_id: int, result: dict):
             f"Target companies: {tf}\n"
             f"Pages: {run.pages_fetched or 0}\n"
             f"Credits: {run.credits_used or 0}\n\n"
-            f"Pipeline: http://46.62.210.24:3000/pipeline/{run.id}\n"
-            f"CRM: http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}"
+            f"Pipeline: https://gtm-mcp.com/pipeline/{run.id}\n"
+            f"CRM: https://gtm-mcp.com/crm?pipeline={run.id}&project_id={run.project_id}"
         )
         if kpi_met:
             msg += "\n\nSequence generation starting — check campaign DRAFT shortly."
@@ -853,7 +853,7 @@ async def _auto_push_to_smartlead(session, run, campaign, seq, user_id: int):
                         f"{campaign.name}\n"
                         f"{leads_uploaded} leads · {len(account_ids)} accounts\n\n"
                         f"SmartLead: {smartlead_url}\n"
-                        f"MCP: http://46.62.210.24:3000/campaigns/{campaign.id}"
+                        f"MCP: https://gtm-mcp.com/campaigns/{campaign.id}"
                     )
                     async with _httpx.AsyncClient(timeout=10) as client:
                         await client.post(

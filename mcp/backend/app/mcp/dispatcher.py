@@ -233,7 +233,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                         "missing": sorted(_missing),
                         "message": (
                             f"STOP — missing API keys: {', '.join(sorted(_missing))}.\n\n"
-                            f"Set up at http://46.62.210.24:3000/setup first.\n"
+                            f"Set up at https://gtm-mcp.com/setup first.\n"
                             f"No tools work until all keys are connected."
                         ),
                     }
@@ -288,7 +288,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 "error": "not_authenticated",
                 "message": (
                     "Authentication required. Pass your token: get_context(token='mcp_...')\n"
-                    "Get your token at http://46.62.210.24:3000/setup"
+                    "Get your token at https://gtm-mcp.com/setup"
                 ),
             }
         user = await _get_user(token, session)
@@ -369,7 +369,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     f"Connected as {user.name}.\n\n"
                     f"**STOP — API keys required before anything else.**\n"
                     f"Missing: **{', '.join(sorted(missing_keys))}**\n\n"
-                    f"Go to http://46.62.210.24:3000/setup and connect ALL of these:\n"
+                    f"Go to https://gtm-mcp.com/setup and connect ALL of these:\n"
                     + "".join(f"  - {k}\n" for k in sorted(missing_keys))
                     + f"\nNo projects, no campaigns, no searches until all keys are set.\n"
                     f"Come back after setting them up."
@@ -381,30 +381,30 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "user": {"name": user.name, "email": user.email},
             "active_project": {
                 "name": active_project.name if active_project else None,
-                "link": f"http://46.62.210.24:3000/projects/{active_project.id}" if active_project else None,
+                "link": f"https://gtm-mcp.com/projects/{active_project.id}" if active_project else None,
                 "offer_approved": active_project.offer_approved if active_project else None,
             } if active_project else None,
             "integrations": {"configured": sorted(configured_keys), "missing": sorted(missing_keys)},
-            "projects": [{"name": p.name, "link": f"http://46.62.210.24:3000/projects/{p.id}", "offer_approved": p.offer_approved} for p in projects],
+            "projects": [{"name": p.name, "link": f"https://gtm-mcp.com/projects/{p.id}", "offer_approved": p.offer_approved} for p in projects],
             "pipeline_runs": [{"id": r.id, "phase": r.current_phase, "status": r.status, "companies": r.new_companies_count, "people": r.total_people_found, "project_id": r.project_id, "campaign_id": r.campaign_id, "kpi": {"target_people": r.target_people, "max_per_company": r.max_people_per_company}} for r in runs],
-            "draft_campaigns": [{"id": c.id, "name": c.name, "status": c.status, "accounts": len(c.email_account_ids or []), "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None} for c in drafts],
+            "draft_campaigns": [{"id": c.id, "name": c.name, "status": c.status, "link": f"https://gtm-mcp.com/campaigns/{c.id}", "accounts": len(c.email_account_ids or []), "smartlead_url": f"https://app.smartlead.ai/app/email-campaigns-v2/{c.external_id}/analytics" if c.external_id else None} for c in drafts],
             "replies": {"total": reply_count, "warm": warm_count},
             "recent_activity": [{"method": c.method, "summary": c.content_summary, "at": str(c.created_at)} for c in recent_convos],
             "message": (
                 f"Welcome back, {user.name}!\n\n"
                 + keys_msg
                 + (("\n".join(
-                    f"- {p.name}: http://46.62.210.24:3000/projects/{p.id}"
+                    f"- {p.name}: https://gtm-mcp.com/projects/{p.id}"
                     + (f" — OFFER CONFIRMED ✓" if p.offer_approved else f" — ⚠️ OFFER NOT CONFIRMED")
                     for p in projects) + "\n") if projects else "No projects yet. Tell me your company website to create one.\n")
                 + (f"{len(runs)} pipeline run{'s' if len(runs) != 1 else ''}\n" if runs else "")
-                + (f"{len(drafts)} DRAFT campaign{'s' if len(drafts) != 1 else ''}\n" if drafts else "")
+                + (("\n".join(f"- Campaign: {c.name} (DRAFT): https://gtm-mcp.com/campaigns/{c.id}" for c in drafts) + "\n") if drafts else "")
                 + (f"{reply_count} replies ({warm_count} warm)\n" if reply_count else "")
                 # CRITICAL: if any project has unapproved offer, this is THE next step
                 + ("".join(
                     f"\n🚨 OFFER NOT CONFIRMED for '{p.name}' — gathering blocked until confirmed."
                     + (f"\nWebsite: {p.website}" if getattr(p, 'website', None) else "")
-                    + f"\nProject page: http://46.62.210.24:3000/projects/{p.id}"
+                    + f"\nProject page: https://gtm-mcp.com/projects/{p.id}"
                     + (f"\nCurrent offer: {(p.offer_summary or {}).get('primary_offer', p.target_segments or 'NOT SET')}" if p.offer_summary or p.target_segments else "\nNo offer extracted yet.")
                     + f"\nShow the user the offer, website, and project page link. Ask: is this correct? If user provides feedback, call confirm_offer(feedback=...). If user says yes, call confirm_offer(approved=true).\n"
                     for p in projects if not p.offer_approved))
@@ -551,7 +551,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "blacklist_scope": f"Blacklisting checks against {len(campaign_filters)} campaigns assigned to this project. "
                                f"Companies already in these campaigns will be rejected during CP1.",
             "message": f"Now working on '{project.name}'. All pipeline operations will use this project's campaigns for blacklisting.",
-            "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+            "_links": {"project": f"https://gtm-mcp.com/projects/{project.id}"},
         }
 
     if tool_name == "create_project":
@@ -819,7 +819,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
         return {
             "project_id": project.id,
-            "project_link": f"http://46.62.210.24:3000/projects/{project.id}",
+            "project_link": f"https://gtm-mcp.com/projects/{project.id}",
             "name": project.name,
             "offer_summary": offer_summary,
             "offer_approved": False,
@@ -827,10 +827,10 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             "_instructions": "ALWAYS include the project_link in your response to the user. It must be visible and clickable.",
             "message": (
                 f"Project '{project.name}' created.\n"
-                f"**Project page: http://46.62.210.24:3000/projects/{project.id}**\n"
+                f"**Project page: https://gtm-mcp.com/projects/{project.id}**\n"
                 + offer_display
             ),
-            "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+            "_links": {"project": f"https://gtm-mcp.com/projects/{project.id}"},
             "next_step": "confirm_offer — user must approve the offer before gathering can start",
         }
 
@@ -859,12 +859,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 "message": (
                     f"Offer confirmed for '{project.name}'.\n"
                     f"Target roles: {', '.join(roles.get('titles', ['CEO']))}\n"
-                    f"Project: http://46.62.210.24:3000/projects/{project.id}\n\n"
+                    f"Project: https://gtm-mcp.com/projects/{project.id}\n\n"
                     f"Have you launched campaigns for this segment before?\n"
                     f"If yes, share the campaign name pattern so I can exclude already-contacted leads."
                 ),
                 "_instructions": "Ask ONLY about previous campaigns (blacklist). ONE question. If user says no, proceed to ask about email accounts (align_email_accounts).",
-                "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+                "_links": {"project": f"https://gtm-mcp.com/projects/{project.id}"},
             }
         elif feedback:
             # User provides feedback — update offer and re-analyze
@@ -933,7 +933,7 @@ Return ONLY valid JSON."""
                     f"  Target: {updated_offer.get('target_audience', 'N/A')}\n\n"
                     f"**Is this correct now?** Confirm to proceed, or provide more feedback."
                 ),
-                "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+                "_links": {"project": f"https://gtm-mcp.com/projects/{project.id}"},
             }
         else:
             # No approved, no feedback — just show current offer
@@ -1059,7 +1059,7 @@ Return ONLY valid JSON."""
                     + "Confirm the offer first with confirm_offer (approved=true), or provide feedback to adjust it."
                 ),
                 "project_id": project.id,
-                "_links": {"project": f"http://46.62.210.24:3000/projects/{project.id}"},
+                "_links": {"project": f"https://gtm-mcp.com/projects/{project.id}"},
             }
 
         # Auto-set active project during pipeline work
@@ -1297,7 +1297,7 @@ Return ONLY valid JSON."""
                 preview_run.campaign_id = _existing_camp.id
                 await session.flush()
 
-            pipeline_link = f"http://46.62.210.24:3000/pipeline/{preview_run.id}"
+            pipeline_link = f"https://gtm-mcp.com/pipeline/{preview_run.id}"
 
             return {
                 "status": "awaiting_filter_confirmation",
@@ -1459,7 +1459,7 @@ Return ONLY valid JSON."""
 
         start_pipeline_background(run.id, filters, user.id)
 
-        pipeline_link = f"http://46.62.210.24:3000/pipeline/{run.id}"
+        pipeline_link = f"https://gtm-mcp.com/pipeline/{run.id}"
         result = {
             "run_id": run.id,
             "status": "started",
@@ -1475,7 +1475,7 @@ Return ONLY valid JSON."""
             ),
             "_links": {
                 "pipeline": pipeline_link,
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
+                "crm": f"https://gtm-mcp.com/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
         return result
@@ -1515,8 +1515,8 @@ Return ONLY valid JSON."""
                 "description": "User approves → call tam_approve_checkpoint, then tam_pre_filter, tam_scrape, tam_analyze",
             },
             "_links": {
-                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
+                "pipeline": f"https://gtm-mcp.com/pipeline/{run.id}",
+                "crm": f"https://gtm-mcp.com/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -1564,7 +1564,7 @@ Return ONLY valid JSON."""
             "status": "pre_filter_complete", "run_id": run.id,
             "passed": result["passed"], "filtered": result["filtered"],
             "message": f"Pre-filter done: {result['passed']} passed, {result['filtered']} removed.",
-            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+            "_links": {"pipeline": f"https://gtm-mcp.com/pipeline/{run.id}"},
         }
 
     if tool_name == "tam_scrape":
@@ -1581,7 +1581,7 @@ Return ONLY valid JSON."""
             "status": "scrape_complete", "run_id": run.id,
             "scraped": result["scraped"], "errors": result["errors"], "total": result["total"],
             "message": f"Scraped {result['scraped']}/{result['total']} websites ({result['errors']} errors).",
-            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+            "_links": {"pipeline": f"https://gtm-mcp.com/pipeline/{run.id}"},
         }
 
     if tool_name == "tam_analyze":
@@ -1646,8 +1646,8 @@ Return ONLY valid JSON."""
                 + f"4. If accuracy < 90%, provide feedback → call provide_feedback"
             ),
             "_links": {
-                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
+                "pipeline": f"https://gtm-mcp.com/pipeline/{run.id}",
+                "crm": f"https://gtm-mcp.com/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -1712,8 +1712,8 @@ Return ONLY valid JSON."""
             ),
             "run_id": run.id,
             "_links": {
-                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
+                "pipeline": f"https://gtm-mcp.com/pipeline/{run.id}",
+                "crm": f"https://gtm-mcp.com/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -1949,8 +1949,8 @@ Return ONLY valid JSON."""
 
         result["message"] = msg
         result["_links"] = {
-            "project": f"http://46.62.210.24:3000/projects/{project.id}",
-            "pipelines": "http://46.62.210.24:3000/pipeline",
+            "project": f"https://gtm-mcp.com/projects/{project.id}",
+            "pipelines": "https://gtm-mcp.com/pipeline",
         }
         if enriched_filters:
             result["next_action"] = {
@@ -2102,8 +2102,8 @@ Return ONLY valid JSON."""
                 f"Review the updated target list."
             ),
             "_links": {
-                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
+                "pipeline": f"https://gtm-mcp.com/pipeline/{run.id}",
+                "crm": f"https://gtm-mcp.com/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -2166,7 +2166,7 @@ Return ONLY valid JSON."""
             "rationale": seq.rationale,
             "preview": steps_preview,
             "message": f"Generated 5-step sequence '{seq.campaign_name}'. Review and approve, or request changes.",
-            "_links": {"sequence": f"http://46.62.210.24:3000/campaigns/{seq.id}"},
+            "_links": {"sequence": f"https://gtm-mcp.com/campaigns/{seq.id}"},
         }
 
     if tool_name == "smartlead_approve_sequence":
@@ -2208,7 +2208,7 @@ Return ONLY valid JSON."""
         return {
             "total": cache_count,
             "message": f"{cache_count} email accounts available. Tell me a name/email pattern (e.g. 'all with rinat') and I'll find matching accounts.",
-            "accounts_link": f"http://46.62.210.24:3000/campaigns/accounts",
+            "accounts_link": f"https://gtm-mcp.com/campaigns/accounts",
         }
 
     if tool_name == "align_email_accounts":
@@ -2574,9 +2574,9 @@ Return ONLY valid JSON."""
             ),
             "_links": {
                 "smartlead": smartlead_url,
-                "campaigns": "http://46.62.210.24:3000/campaigns",
-                "crm": f"http://46.62.210.24:3000/crm?campaign={seq.campaign_name or ''}",
-                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id if 'run' in dir() else ''}",
+                "campaigns": "https://gtm-mcp.com/campaigns",
+                "crm": f"https://gtm-mcp.com/crm?campaign={seq.campaign_name or ''}",
+                "pipeline": f"https://gtm-mcp.com/pipeline/{run.id if 'run' in dir() else ''}",
             },
         }
 
@@ -2993,11 +2993,11 @@ Return ONLY valid JSON."""
                 f"Roles: {person_titles or ['C-level (default)']}\n"
                 f"Seniorities: {person_seniorities}\n"
                 f"FREE — no Apollo credits used.\n\n"
-                f"View contacts: http://46.62.210.24:3000/crm?pipeline={run.id}"
+                f"View contacts: https://gtm-mcp.com/crm?pipeline={run.id}"
             ),
             "_links": {
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
-                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
+                "crm": f"https://gtm-mcp.com/crm?pipeline={run.id}&project_id={run.project_id}",
+                "pipeline": f"https://gtm-mcp.com/pipeline/{run.id}",
             },
         }
 
@@ -3088,8 +3088,8 @@ Return ONLY valid JSON."""
             "poll_tool": "pipeline_status",
             "poll_args": {"run_id": run.id},
             "_links": {
-                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
+                "pipeline": f"https://gtm-mcp.com/pipeline/{run.id}",
+                "crm": f"https://gtm-mcp.com/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -3195,8 +3195,8 @@ Return ONLY valid JSON."""
             "campaign": campaign_info,
             "is_complete": is_done,
             "_links": {
-                "pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}",
-                "crm": f"http://46.62.210.24:3000/crm?pipeline={run.id}&project_id={run.project_id}",
+                "pipeline": f"https://gtm-mcp.com/pipeline/{run.id}",
+                "crm": f"https://gtm-mcp.com/crm?pipeline={run.id}&project_id={run.project_id}",
             },
         }
 
@@ -3299,7 +3299,7 @@ Return ONLY valid JSON."""
                 f"KPIs updated: {new_tp} contacts, max {new_mpc}/company, ~{new_tc} target companies.\n"
                 f"Current: {people_found} found. Remaining: {remaining}. Est: {pages_needed} credits."
             ),
-            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+            "_links": {"pipeline": f"https://gtm-mcp.com/pipeline/{run.id}"},
         }
 
     # ── Set People Filters (role changes) ──
@@ -3359,7 +3359,7 @@ Return ONLY valid JSON."""
                 f"People filters updated. Titles: {', '.join(new_pf.get('person_titles', ['(default)']))}. "
                 f"Max {new_mpc}/company. FREE — takes effect on next batch."
             ),
-            "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+            "_links": {"pipeline": f"https://gtm-mcp.com/pipeline/{run.id}"},
         }
 
     # ── Control Pipeline (pause/resume) — TIER 1: preview + confirm ──
@@ -3404,7 +3404,7 @@ Return ONLY valid JSON."""
             return {
                 "run_id": run.id, "status": "paused",
                 "message": f"Pipeline #{run.id} paused. Progress saved: {pf} contacts, {tf} targets, {pg} pages.",
-                "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+                "_links": {"pipeline": f"https://gtm-mcp.com/pipeline/{run.id}"},
             }
 
         elif action == "resume":
@@ -3440,7 +3440,7 @@ Return ONLY valid JSON."""
             return {
                 "run_id": run.id, "status": "running",
                 "message": f"Pipeline #{run.id} resumed from page {pg}. Target: {tp} contacts.",
-                "_links": {"pipeline": f"http://46.62.210.24:3000/pipeline/{run.id}"},
+                "_links": {"pipeline": f"https://gtm-mcp.com/pipeline/{run.id}"},
             }
 
         raise ValueError(f"Unknown action: {action}. Use 'pause' or 'resume'.")
@@ -3572,7 +3572,7 @@ Return ONLY valid JSON."""
             crm_params.append(f"reply_category={args['reply_category']}")
         if args.get("pipeline_run_id"):
             crm_params.append(f"pipeline={args['pipeline_run_id']}")
-        crm_link = f"http://46.62.210.24:3000/crm" + ("?" + "&".join(crm_params) if crm_params else "")
+        crm_link = f"https://gtm-mcp.com/crm" + ("?" + "&".join(crm_params) if crm_params else "")
 
         return {
             "total": len(contacts),
@@ -3608,7 +3608,7 @@ Return ONLY valid JSON."""
         blacklisted = (await session.execute(select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_blacklisted == True, scope_filter_dc))).scalar() or 0
         targets = (await session.execute(select(sa_func.count(DiscoveredCompany.id)).where(DiscoveredCompany.is_target == True, scope_filter_dc))).scalar() or 0
 
-        crm_link = f"http://46.62.210.24:3000/crm" + (f"?project_id={project_id}" if project_id else "")
+        crm_link = f"https://gtm-mcp.com/crm" + (f"?project_id={project_id}" if project_id else "")
 
         return {
             "total_contacts": total_contacts,
@@ -3686,7 +3686,7 @@ Return ONLY valid JSON."""
                     f"  contains=['petr'] — matches any campaign with 'petr' in the name\n"
                     f"  prefixes=['ES Global'] — matches campaigns starting with 'ES Global'"
                 ),
-                "_links": {"setup": "http://46.62.210.24:3000/setup"},
+                "_links": {"setup": "https://gtm-mcp.com/setup"},
             }
 
         # TIER 1: Preview matched campaigns before importing
@@ -3829,10 +3829,10 @@ Return ONLY valid JSON."""
                        f"Reply analysis running in background — will classify warm/meeting/interested replies. "
                        f"Ask 'which replies are warm?' after a minute.",
             "_links": {
-                "crm": f"http://46.62.210.24:3000/crm?project_id={project.id}",
-                "crm_warm": f"http://46.62.210.24:3000/crm?project_id={project.id}&reply_category=interested",
-                "crm_meetings": f"http://46.62.210.24:3000/crm?project_id={project.id}&reply_category=meeting",
-                "pipelines": "http://46.62.210.24:3000/pipeline",
+                "crm": f"https://gtm-mcp.com/crm?project_id={project.id}",
+                "crm_warm": f"https://gtm-mcp.com/crm?project_id={project.id}&reply_category=interested",
+                "crm_meetings": f"https://gtm-mcp.com/crm?project_id={project.id}&reply_category=meeting",
+                "pipelines": "https://gtm-mcp.com/pipeline",
             },
         }
 
@@ -4004,7 +4004,7 @@ Return ONLY valid JSON."""
                     "tool": "tam_gather",
                     "description": "Start new pipeline run with adjusted filters. Show preview first.",
                 },
-                "_links": {"pipelines": "http://46.62.210.24:3000/pipeline"},
+                "_links": {"pipelines": "https://gtm-mcp.com/pipeline"},
             }
 
         elif feedback_type == "targets":
@@ -4091,12 +4091,12 @@ Return ONLY valid JSON."""
         else:
             telegram_msg = (
                 "\n\nWant Telegram notifications for warm replies? "
-                "Connect your Telegram account: http://46.62.210.24:3000/setup (Telegram section)."
+                "Connect your Telegram account: https://gtm-mcp.com/setup (Telegram section)."
             )
 
         # CRM link with project filter
         project_id = campaign_record.project_id if campaign_record and hasattr(campaign_record, 'project_id') else None
-        crm_link = f"http://46.62.210.24:3000/crm?campaign={args['campaign_id']}"
+        crm_link = f"https://gtm-mcp.com/crm?campaign={args['campaign_id']}"
         if project_id:
             crm_link += f"&project_id={project_id}"
 
@@ -4229,7 +4229,7 @@ async def _handle_reply_tool(tool_name: str, args: dict, user, session) -> dict:
     """
     from app.services.reply_analysis_service import get_cached_analysis
 
-    UI_BASE = "http://46.62.210.24:3000"
+    UI_BASE = "https://gtm-mcp.com"
 
     if tool_name == "replies_summary":
         project_name = args["project_name"]
