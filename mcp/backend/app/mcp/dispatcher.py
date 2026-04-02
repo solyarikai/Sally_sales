@@ -1436,9 +1436,9 @@ Return ONLY valid JSON."""
             await session.flush()
             logger.info(f"Saved {probe_saved} probe companies from preview (page 1 reused)")
 
-        # Track total pages consumed by tam_gather (probe page + remaining pages)
+        # Track pages ACTUALLY fetched by tam_gather (only the probe page, not planned total)
         if "api" in source_type:
-            run.pages_fetched = max_pages  # Total pages including probe
+            run.pages_fetched = probe_page_done if (probe_page_done and probe_companies) else 0
             await session.flush()
 
         # Bug 6: Credit tracking — calculate actual credits used

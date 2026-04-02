@@ -1,6 +1,7 @@
 """MCP Server — uses official MCP Python SDK for proper protocol compliance."""
 import json
 import logging
+import time
 
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
@@ -26,6 +27,9 @@ _session_tokens: dict[str, str] = {}
 # Each SSE connection = one session. Token stored per session_id.
 _session_user_tokens: dict[int, str] = {}  # session_object_id → token
 
+# Track initialized sessions (prevents "request before initialization" errors)
+_initialized_sessions: set[int] = set()
+
 
 @mcp_server.list_tools()
 async def list_tools() -> list[Tool]:
@@ -37,6 +41,17 @@ async def list_tools() -> list[Tool]:
             inputSchema=t.get("inputSchema", {"type": "object", "properties": {}}),
         ))
     return tools
+
+
+def cleanup_session(session_id: int):
+    """Remove all traces of a session — called on SSE disconnect."""
+    _session_user_tokens.pop(session_id, None)
+    _initialized_sessions.discard(session_id)
+    # Clean up any sse_* keys for this session
+    to_remove = [k for k in _session_tokens if k == f"sse_{session_id}"]
+    for k in to_remove:
+        del _session_tokens[k]
+    logger.debug(f"Session {session_id} cleaned up. Active: {len(_session_tokens)} tokens, {len(_initialized_sessions)} initialized")
 
 
 @mcp_server.call_tool()

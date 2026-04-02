@@ -6,7 +6,7 @@ Architecture:
   1. Workers start FIRST (scraper, classifier, people)
   2. Existing companies (from tam_gather probe+confirm) fed to scrape_queue — flow immediately
   3. If KPI not met: Apollo pages fetched in PARALLEL batches of 10 → results fed to same scrape_queue
-  4. Exhaustion: 20 empty pages → regenerate keywords via GPT (up to 5 times per strategy)
+  4. Exhaustion: 10 consecutive empty pages (Apollo-raw) → regenerate keywords via GPT (up to 5 cycles)
   5. KPI checked after each person — pipeline stops immediately when target met
   6. On completion or exhaustion: auto-push gathered contacts to SmartLead
 
@@ -282,7 +282,8 @@ class StreamingPipeline:
             self.total_companies = len(existing)
             for dc in existing:
                 self._domains_seen.add(dc.domain)
-                await self.scrape_queue.put(dc)
+                if not await self._safe_put(self.scrape_queue, dc):
+                    break
 
         # Apollo pages run IN PARALLEL with scraping (not blocking)
         # Workers are ALREADY processing probe companies while Apollo fetches pages 2-10+
