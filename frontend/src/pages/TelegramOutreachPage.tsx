@@ -7,6 +7,7 @@ import {
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
   LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon, Mic,
+  BarChart3, ChevronUp,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -397,6 +398,11 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TgAccount | null>(null);
 
+  // Overview analytics
+  const [overviewData, setOverviewData] = useState<any>(null);
+  const [overviewRange, setOverviewRange] = useState<'7d' | '30d'>('7d');
+  const [showOverview, setShowOverview] = useState(true);
+
   const loadAccounts = useCallback(async () => {
     setLoading(true);
     try {
@@ -419,6 +425,11 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
   useEffect(() => { loadTags(); }, [loadTags]);
+  useEffect(() => {
+    telegramOutreachApi.getAccountsAnalyticsOverview()
+      .then(d => setOverviewData(d))
+      .catch(() => setOverviewData(null));
+  }, []);
 
   // Close add menu on click outside
   useEffect(() => {
@@ -574,6 +585,88 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
             toast={toast}
             onDone={() => { setSelectedIds(new Set()); loadAccounts(); }}
           />
+        </div>
+      )}
+
+      {/* Overview Analytics Dashboard */}
+      {overviewData && (
+        <div className="rounded-xl border overflow-hidden" style={{ borderColor: A.border, background: A.surface }}>
+          <button
+            onClick={() => setShowOverview(!showOverview)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-black/[0.02]"
+            style={{ borderBottom: showOverview ? `1px solid ${A.border}` : 'none' }}>
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" style={{ color: A.blue }} />
+              <span className="text-[13px] font-semibold" style={{ color: A.text1 }}>Analytics Overview</span>
+            </div>
+            {showOverview ? <ChevronUp className="w-4 h-4" style={{ color: A.text3 }} /> : <ChevronDown className="w-4 h-4" style={{ color: A.text3 }} />}
+          </button>
+          {showOverview && (() => {
+            const sent = overviewRange === '7d' ? overviewData.sent_7d : overviewData.sent_30d;
+            const replies = overviewRange === '7d' ? overviewData.replies_7d : overviewData.replies_30d;
+            const errors = overviewRange === '7d' ? overviewData.errors_7d : overviewData.errors_30d;
+            const replyRate = sent > 0 ? ((replies / sent) * 100).toFixed(1) : '0.0';
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - (overviewRange === '7d' ? 7 : 30));
+            const chartData = (overviewData.daily || []).filter((d: any) => new Date(d.date) >= cutoff);
+            return (
+              <div className="p-4 space-y-4">
+                {/* Range toggle + metrics row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-6">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold" style={{ color: A.blue, fontVariantNumeric: 'tabular-nums' }}>{sent}</div>
+                      <div className="text-[10px] font-medium uppercase tracking-wider" style={{ color: A.text3 }}>Unique Sent</div>
+                    </div>
+                    <div className="w-px h-10" style={{ background: A.border }} />
+                    <div className="text-center">
+                      <div className="text-2xl font-bold" style={{ color: '#22C55E', fontVariantNumeric: 'tabular-nums' }}>{replies}</div>
+                      <div className="text-[10px] font-medium uppercase tracking-wider" style={{ color: A.text3 }}>Unique Replies</div>
+                    </div>
+                    <div className="w-px h-10" style={{ background: A.border }} />
+                    <div className="text-center">
+                      <div className="text-2xl font-bold" style={{ color: '#EF4444', fontVariantNumeric: 'tabular-nums' }}>{errors}</div>
+                      <div className="text-[10px] font-medium uppercase tracking-wider" style={{ color: A.text3 }}>Spamblock</div>
+                    </div>
+                    <div className="w-px h-10" style={{ background: A.border }} />
+                    <div className="text-center">
+                      <div className="text-2xl font-bold" style={{ color: A.text1, fontVariantNumeric: 'tabular-nums' }}>{replyRate}%</div>
+                      <div className="text-[10px] font-medium uppercase tracking-wider" style={{ color: A.text3 }}>Reply Rate</div>
+                    </div>
+                  </div>
+                  <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: A.border }}>
+                    {(['7d', '30d'] as const).map(r => (
+                      <button key={r} onClick={() => setOverviewRange(r)}
+                        className="px-4 py-1.5 text-[12px] font-medium transition-colors"
+                        style={{
+                          background: overviewRange === r ? A.blue : 'transparent',
+                          color: overviewRange === r ? '#fff' : A.text3,
+                          cursor: 'pointer', border: 'none',
+                        }}>
+                        {r === '7d' ? '7 days' : '30 days'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Chart */}
+                {chartData.length > 0 && (
+                  <ResponsiveContainer width="100%" height={overviewRange === '7d' ? 140 : 180}>
+                    <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: A.text3 }} tickFormatter={(v: string) => { const d = new Date(v); return `${d.getDate()}/${d.getMonth()+1}`; }} interval="preserveStartEnd" />
+                      <YAxis tick={{ fontSize: 10, fill: A.text3 }} allowDecimals={false} />
+                      <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: `1px solid ${A.border}`, background: A.surface }} />
+                      <Area type="monotone" dataKey="sent" stroke={A.blue} fill={A.blueBg} strokeWidth={1.5} name="Sent" />
+                      <Area type="monotone" dataKey="replies" stroke="#22C55E" fill="#DCFCE7" strokeWidth={1.5} name="Replies" />
+                      <Area type="monotone" dataKey="spamblocked" stroke="#EF4444" fill="#FEE2E2" strokeWidth={1.5} name="Spamblock" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+                {chartData.length === 0 && (
+                  <div className="text-center py-6 text-[12px]" style={{ color: A.text3 }}>No sending data yet</div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 

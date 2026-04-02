@@ -2250,6 +2250,111 @@ async def get_account_analytics(account_id: int, session: AsyncSession = Depends
     }
 
 
+@router.get("/accounts/analytics/overview")
+async def get_accounts_analytics_overview(session: AsyncSession = Depends(get_session)):
+    """Aggregate messaging analytics across ALL accounts — daily sent/replies/errors for 7d and 30d."""
+    from datetime import datetime, timedelta
+    from sqlalchemy import cast, Date
+
+    now = datetime.utcnow()
+    d30 = now - timedelta(days=30)
+    d7 = now - timedelta(days=7)
+
+    # Daily breakdown for last 30 days (all accounts)
+    daily_q = await session.execute(
+        select(
+            cast(TgOutreachMessage.sent_at, Date).label("day"),
+            TgOutreachMessage.status,
+            func.count(TgOutreachMessage.id),
+        ).where(
+            TgOutreachMessage.sent_at >= d30,
+        ).group_by("day", TgOutreachMessage.status).order_by("day")
+    )
+    daily_rows = daily_q.all()
+
+    daily: dict = {}
+    for day, status, cnt in daily_rows:
+        ds = day.isoformat()
+        if ds not in daily:
+            daily[ds] = {"date": ds, "sent": 0, "failed": 0, "spamblocked": 0, "replies": 0}
+        st = status.value if hasattr(status, "value") else status
+        if st == "sent":
+            daily[ds]["sent"] += cnt
+        elif st in ("failed", "bounced"):
+            daily[ds]["failed"] += cnt
+        elif st == "spamblocked":
+            daily[ds]["spamblocked"] += cnt
+
+    # Daily replies (all accounts)
+    from app.models.telegram_outreach import TgIncomingReply
+    daily_replies_q = await session.execute(
+        select(
+            cast(TgIncomingReply.received_at, Date).label("day"),
+            func.count(TgIncomingReply.id),
+        ).where(
+            TgIncomingReply.received_at >= d30,
+        ).group_by("day").order_by("day")
+    )
+    for day, cnt in daily_replies_q.all():
+        ds = day.isoformat()
+        if ds not in daily:
+            daily[ds] = {"date": ds, "sent": 0, "failed": 0, "spamblocked": 0, "replies": 0}
+        daily[ds]["replies"] = cnt
+
+    for d in daily.values():
+        d.setdefault("replies", 0)
+
+    # Unique sent (distinct recipients)
+    sent_7 = (await session.execute(
+        select(func.count(func.distinct(TgOutreachMessage.recipient_id))).where(
+            TgOutreachMessage.sent_at >= d7,
+            TgOutreachMessage.status.in_([TgMessageStatus.SENT]),
+        )
+    )).scalar() or 0
+    sent_30 = (await session.execute(
+        select(func.count(func.distinct(TgOutreachMessage.recipient_id))).where(
+            TgOutreachMessage.sent_at >= d30,
+            TgOutreachMessage.status.in_([TgMessageStatus.SENT]),
+        )
+    )).scalar() or 0
+
+    # Unique replies (distinct recipients)
+    replies_7 = (await session.execute(
+        select(func.count(func.distinct(TgIncomingReply.recipient_id))).where(
+            TgIncomingReply.received_at >= d7,
+        )
+    )).scalar() or 0
+    replies_30 = (await session.execute(
+        select(func.count(func.distinct(TgIncomingReply.recipient_id))).where(
+            TgIncomingReply.received_at >= d30,
+        )
+    )).scalar() or 0
+
+    # Spamblock errors (distinct recipients)
+    errors_7 = (await session.execute(
+        select(func.count(func.distinct(TgOutreachMessage.recipient_id))).where(
+            TgOutreachMessage.sent_at >= d7,
+            TgOutreachMessage.status.in_([TgMessageStatus.SPAMBLOCKED]),
+        )
+    )).scalar() or 0
+    errors_30 = (await session.execute(
+        select(func.count(func.distinct(TgOutreachMessage.recipient_id))).where(
+            TgOutreachMessage.sent_at >= d30,
+            TgOutreachMessage.status.in_([TgMessageStatus.SPAMBLOCKED]),
+        )
+    )).scalar() or 0
+
+    return {
+        "daily": sorted(daily.values(), key=lambda x: x["date"]),
+        "sent_7d": sent_7,
+        "sent_30d": sent_30,
+        "replies_7d": replies_7,
+        "replies_30d": replies_30,
+        "errors_7d": errors_7,
+        "errors_30d": errors_30,
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # MULTI-FORMAT IMPORT & CONVERSION
 # ═══════════════════════════════════════════════════════════════════════
