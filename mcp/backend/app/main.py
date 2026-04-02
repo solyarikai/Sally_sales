@@ -455,4 +455,4 @@ app = _token_capture_wrapper  # type: ignore
 
 @_original_app.get("/")
 async def root():
-    return {"service": "mcp-leadgen", "version": "1.0.0", "docs": "/docs"}
+    return {"service": "gtm-mcp", "version": "1.0.0", "docs": "/docs"}
