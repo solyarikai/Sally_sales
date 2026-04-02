@@ -231,15 +231,15 @@ export default function SetupPage() {
         <code style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
 {`{
   "mcpServers": {
-    "leadgen": {
+    "gtm-mcp": {
       "type": "sse",
-      "url": "http://46.62.210.24:8002/mcp/sse?token=${token}"
+      "url": "https://gtm-mcp.com/mcp/sse?token=${token}"
     }
   }
 }`}
         </code>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={() => copyToClipboard(JSON.stringify({mcpServers:{leadgen:{type:"sse",url:`http://46.62.210.24:8002/mcp/sse?token=${token}`}}}, null, 2))}
+          <button onClick={() => copyToClipboard(JSON.stringify({mcpServers:{"gtm-mcp":{type:"sse",url:`https://gtm-mcp.com/mcp/sse?token=${token}`}}}, null, 2))}
             style={{ fontSize: 11, padding: '4px 12px', borderRadius: 4, border: '1px solid var(--border)', background: tokenCopied ? '#22c55e' : 'transparent', color: tokenCopied ? 'white' : '#3b82f6', cursor: 'pointer', fontWeight: 500 }}>
             {tokenCopied ? 'Copied!' : 'Copy .mcp.json'}
           </button>
