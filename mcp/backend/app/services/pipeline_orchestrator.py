@@ -737,8 +737,9 @@ async def _auto_push_to_smartlead(session, run, campaign, seq, user_id: int):
             return
         sl_campaign_id = int(sl_campaign_id)
 
-        # 2. Set sequences
-        await svc.set_campaign_sequences(sl_campaign_id, seq.sequence_steps)
+        # 2. Set sequences (sequence_steps is {"steps": [...]}, extract the list)
+        steps_list = seq.sequence_steps.get("steps", seq.sequence_steps) if isinstance(seq.sequence_steps, dict) else seq.sequence_steps
+        await svc.set_campaign_sequences(sl_campaign_id, steps_list)
 
         # 3. Set settings — from document extraction if available, else defaults
         doc_settings = {}
