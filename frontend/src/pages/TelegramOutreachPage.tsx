@@ -573,15 +573,19 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap" style={{ color: A.text3 }}>
-                      {(acc.telegram_created_at || acc.session_created_at) ? (() => {
-                        const d = new Date(acc.telegram_created_at || acc.session_created_at!);
-                        const days = Math.floor((Date.now() - d.getTime()) / 86400000);
-                        const label = days >= 30 ? `${Math.floor(days / 30)}m ${days % 30}d` : `${days}d`;
-                        const tooltip = `Зарегистрирован не позднее ${d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+                      {(acc.session_created_at || acc.telegram_created_at) ? (() => {
+                        const fmt = (iso: string) => { const d = new Date(iso); return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }); };
+                        const ageFmt = (iso: string) => { const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); return days >= 365 ? `${Math.floor(days / 365)}y ${Math.floor((days % 365) / 30)}m` : days >= 30 ? `${Math.floor(days / 30)}m ${days % 30}d` : `${days}d`; };
+                        const sessionDate = acc.session_created_at;
+                        const tgDate = acc.telegram_created_at;
+                        const primaryDate = sessionDate || tgDate!;
+                        const lines: string[] = [];
+                        if (sessionDate) lines.push(`Сессия: ${fmt(sessionDate)} (${ageFmt(sessionDate)})`);
+                        if (tgDate) lines.push(`TG аккаунт: ~${fmt(tgDate)} (${ageFmt(tgDate)})`);
                         return (
                           <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative' }}>
-                            {label}
-                            <span className="age-tooltip">{tooltip}</span>
+                            {ageFmt(primaryDate)}
+                            <span className="age-tooltip">{lines.join('\n')}</span>
                           </span>
                         );
                       })() : '--'}
