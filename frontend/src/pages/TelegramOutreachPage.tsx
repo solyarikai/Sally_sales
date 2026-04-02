@@ -18,7 +18,7 @@ import type {
   TgAccount, TgAccountTag, TgProxyGroup, TgProxy, TgCampaign,
 } from '../api/telegramOutreach';
 
-type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'blacklist' | 'inbox' | 'info';
+type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'pipeline' | 'blacklist' | 'inbox' | 'info';
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -218,7 +218,7 @@ export function TelegramOutreachPage() {
       key: 'leads', label: 'Leads', icon: Users,
       items: [
         { key: 'crm', label: 'All Leads', icon: Users },
-        { key: null, label: 'Pipeline', icon: LayoutGrid, disabled: true },
+        { key: 'pipeline', label: 'Pipeline', icon: LayoutGrid },
       ],
     },
     {
@@ -361,6 +361,7 @@ export function TelegramOutreachPage() {
           {tab === 'proxies' && <ProxiesTab t={t} toast={toast} />}
           {tab === 'parser' && <ParserTab t={t} toast={toast} />}
           {tab === 'crm' && <CrmTab t={t} toast={toast} />}
+          {tab === 'pipeline' && <PipelineTab toast={toast} />}
           {tab === 'blacklist' && <BlacklistTab toast={toast} />}
           {tab === 'inbox' && <InboxTab toast={toast} />}
           {tab === 'info' && <InfoTab t={t} />}
@@ -5392,7 +5393,318 @@ function BlacklistTab({ toast }: { toast: (msg: string, type?: 'success' | 'erro
 
 // CRM_STATUS_COLORS removed — using StyledSelect for status
 
-const CRM_PIPELINE = ['cold', 'contacted', 'replied', 'qualified', 'meeting_set', 'converted', 'not_interested'];
+const CRM_PIPELINE = ['cold', 'contacted', 'replied', 'interested', 'qualified', 'meeting_set', 'converted', 'not_interested'];
+
+const PIPELINE_LABELS: Record<string, string> = {
+  cold: 'New', contacted: 'Contacted', replied: 'Replied', interested: 'Interested',
+  qualified: 'Qualified', meeting_set: 'Meeting', converted: 'Closed Won', not_interested: 'Closed Lost',
+};
+
+const PIPELINE_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  cold:            { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB', dot: '#9CA3AF' },
+  contacted:       { bg: '#EEF1FE', text: '#3B4FCF', border: '#C7D0FA', dot: '#4F6BF0' },
+  replied:         { bg: '#ECFDF5', text: '#065F46', border: '#A7F3D0', dot: '#10B981' },
+  interested:      { bg: '#FFF7ED', text: '#9A3412', border: '#FED7AA', dot: '#F97316' },
+  qualified:       { bg: '#F5F3FF', text: '#5B21B6', border: '#DDD6FE', dot: '#8B5CF6' },
+  meeting_set:     { bg: '#FDF2F8', text: '#9D174D', border: '#FBCFE8', dot: '#EC4899' },
+  converted:       { bg: '#F0FDF4', text: '#166534', border: '#BBF7D0', dot: '#22C55E' },
+  not_interested:  { bg: '#FEF2F2', text: '#991B1B', border: '#FECACA', dot: '#EF4444' },
+};
+
+function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const [pipeline, setPipeline] = useState<Record<string, { count: number; contacts: any[] }>>({});
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState('');
+  const [draggedContact, setDraggedContact] = useState<any>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
+  const [selectedContact, setSelectedContact] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const loadPipeline = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: any = { limit_per_status: 50 };
+      if (searchDebounced) params.search = searchDebounced;
+      setPipeline(await telegramOutreachApi.getCrmPipeline(params));
+    } catch { toast('Failed to load pipeline', 'error'); }
+    finally { setLoading(false); }
+  }, [searchDebounced, toast]);
+
+  useEffect(() => { loadPipeline(); }, [loadPipeline]);
+
+  const onSearchChange = (val: string) => {
+    setSearch(val);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setSearchDebounced(val), 300);
+  };
+
+  const handleDragStart = (e: React.DragEvent, contact: any) => {
+    setDraggedContact(contact);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(contact.id));
+  };
+
+  const handleDragOver = (e: React.DragEvent, status: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverStatus(status);
+  };
+
+  const handleDragLeave = () => setDragOverStatus(null);
+
+  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+    e.preventDefault();
+    setDragOverStatus(null);
+    if (!draggedContact || draggedContact.status === targetStatus) {
+      setDraggedContact(null);
+      return;
+    }
+    // Optimistic update
+    setPipeline(prev => {
+      const next = { ...prev };
+      const fromKey = draggedContact.status;
+      if (next[fromKey]) {
+        next[fromKey] = {
+          count: next[fromKey].count - 1,
+          contacts: next[fromKey].contacts.filter((c: any) => c.id !== draggedContact.id),
+        };
+      }
+      if (next[targetStatus]) {
+        next[targetStatus] = {
+          count: next[targetStatus].count + 1,
+          contacts: [{ ...draggedContact, status: targetStatus }, ...next[targetStatus].contacts],
+        };
+      }
+      return next;
+    });
+    try {
+      await telegramOutreachApi.updateCrmContact(draggedContact.id, { status: targetStatus });
+    } catch {
+      toast('Failed to update status', 'error');
+      loadPipeline();
+    }
+    setDraggedContact(null);
+  };
+
+  const openContact = async (c: any) => {
+    setSelectedContact(c);
+    try {
+      const h = await telegramOutreachApi.getCrmContactHistory(c.id);
+      setHistory(h.history);
+    } catch { setHistory([]); }
+  };
+
+  const updateStatus = async (id: number, status: string) => {
+    try {
+      await telegramOutreachApi.updateCrmContact(id, { status });
+      loadPipeline();
+    } catch { toast('Failed', 'error'); }
+  };
+
+  const totalContacts = CRM_PIPELINE.reduce((sum, s) => sum + (pipeline[s]?.count || 0), 0);
+
+  if (loading && Object.keys(pipeline).length === 0) {
+    return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" style={{ color: A.text3 }} /></div>;
+  }
+
+  return (
+    <div className="flex flex-col h-full -m-6">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 px-6 py-3 border-b" style={{ borderColor: A.border, background: A.surface }}>
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: A.text3 }} />
+          <input type="text" placeholder="Search leads..." value={search}
+                 onChange={e => onSearchChange(e.target.value)}
+                 className="pl-8 pr-3 py-1.5 rounded-lg border text-xs w-full"
+                 style={{ borderColor: A.border, background: A.bg, color: A.text1 }} />
+        </div>
+        <span className="text-xs" style={{ color: A.text3 }}>{totalContacts} leads</span>
+        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: A.text3 }} />}
+      </div>
+
+      {/* Kanban Board */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex gap-3 p-4 h-full" style={{ minWidth: CRM_PIPELINE.length * 260 }}>
+          {CRM_PIPELINE.map(status => {
+            const col = pipeline[status] || { count: 0, contacts: [] };
+            const pc = PIPELINE_COLORS[status] || PIPELINE_COLORS.cold;
+            const isDropTarget = dragOverStatus === status;
+            return (
+              <div key={status}
+                   className="flex flex-col rounded-xl transition-all"
+                   style={{
+                     width: 260, minWidth: 260, flexShrink: 0,
+                     background: isDropTarget ? pc.bg : '#F7F7F5',
+                     border: `2px ${isDropTarget ? 'dashed' : 'solid'} ${isDropTarget ? pc.dot : 'transparent'}`,
+                   }}
+                   onDragOver={e => handleDragOver(e, status)}
+                   onDragLeave={handleDragLeave}
+                   onDrop={e => handleDrop(e, status)}>
+                {/* Column Header */}
+                <div className="flex items-center gap-2 px-3 py-2.5 shrink-0">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: pc.dot }} />
+                  <span className="text-xs font-semibold truncate" style={{ color: A.text1 }}>
+                    {PIPELINE_LABELS[status] || status}
+                  </span>
+                  <span className="ml-auto text-[10px] font-medium rounded-full px-1.5 py-0.5"
+                        style={{ background: pc.bg, color: pc.text }}>
+                    {col.count}
+                  </span>
+                </div>
+
+                {/* Cards */}
+                <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-1.5"
+                     style={{ scrollbarWidth: 'thin', scrollbarColor: `${A.border} transparent` }}>
+                  {col.contacts.map((c: any) => (
+                    <div key={c.id}
+                         draggable
+                         onDragStart={e => handleDragStart(e, c)}
+                         onClick={() => openContact(c)}
+                         className="rounded-lg border p-2.5 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-sm"
+                         style={{
+                           background: A.surface, borderColor: A.border,
+                           opacity: draggedContact?.id === c.id ? 0.4 : 1,
+                         }}>
+                      {/* Avatar + Name */}
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
+                             style={{ background: pc.dot }}>
+                          {(c.first_name?.[0] || c.username?.[0] || '?').toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium truncate" style={{ color: A.text1 }}>
+                            {[c.first_name, c.last_name].filter(Boolean).join(' ') || `@${c.username}`}
+                          </div>
+                          {c.company_name && (
+                            <div className="text-[10px] truncate" style={{ color: A.text3 }}>{c.company_name}</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Tags */}
+                      {c.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {c.tags.slice(0, 3).map((tag: string, i: number) => (
+                            <span key={i} className="text-[9px] px-1.5 py-0.5 rounded"
+                                  style={{ background: '#F3F4F6', color: A.text2 }}>{tag}</span>
+                          ))}
+                          {c.tags.length > 3 && (
+                            <span className="text-[9px] px-1 py-0.5" style={{ color: A.text3 }}>+{c.tags.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Footer: messages + date */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px]" style={{ color: A.text3 }}>
+                            {c.total_messages_sent} sent
+                          </span>
+                          {c.total_replies_received > 0 && (
+                            <span className="text-[10px]" style={{ color: '#16a34a' }}>
+                              {c.total_replies_received} replies
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px]" style={{ color: A.text3 }}>
+                          {c.last_contacted_at ? new Date(c.last_contacted_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : ''}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {col.contacts.length === 0 && (
+                    <div className="text-center py-6">
+                      <p className="text-[10px]" style={{ color: A.text3 }}>No leads</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Contact Detail Modal */}
+      {selectedContact && (
+        <ModalBackdrop onClose={() => setSelectedContact(null)}>
+          <div className="w-[600px] rounded-xl border shadow-xl max-h-[80vh] overflow-y-auto"
+               style={{ borderColor: A.border, background: A.surface }}>
+            <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: A.border }}>
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>@{selectedContact.username}</h2>
+                <p className="text-xs" style={{ color: A.text3 }}>
+                  {[selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ')}
+                  {selectedContact.company_name ? ` - ${selectedContact.company_name}` : ''}
+                </p>
+              </div>
+              <button onClick={() => setSelectedContact(null)} className="p-1 hover:bg-[#F5F5F0] rounded">
+                <X className="w-5 h-5" style={{ color: A.text3 }} />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Status</label>
+                <StyledSelect
+                  value={selectedContact.status}
+                  onChange={v => { updateStatus(selectedContact.id, v); setSelectedContact({ ...selectedContact, status: v }); }}
+                  options={CRM_PIPELINE.map(s => ({ value: s, label: PIPELINE_LABELS[s] || s }))}
+                />
+              </div>
+              {selectedContact.campaigns?.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Campaigns</label>
+                  <div className="text-xs" style={{ color: A.text1 }}>
+                    {selectedContact.campaigns.map((c: any) => c.name).join(', ')}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
+                  <div className="text-lg font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>Sent</div>
+                </div>
+                <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
+                  <div className="text-lg font-bold text-green-600">{selectedContact.total_replies_received}</div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>Replies</div>
+                </div>
+                <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
+                  <div className="text-lg font-bold" style={{ color: A.text1 }}>
+                    {selectedContact.last_contacted_at ? new Date(selectedContact.last_contacted_at).toLocaleDateString() : '--'}
+                  </div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>Last Contact</div>
+                </div>
+              </div>
+              {history.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>History</h3>
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                    {history.map((h: any, i: number) => (
+                      <div key={i} className="rounded px-3 py-2 text-xs"
+                           style={{ background: h.type === 'sent' ? '#F9F9F7' : A.tealBg }}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-medium" style={{ color: h.type === 'sent' ? A.text3 : A.teal }}>
+                            {h.type === 'sent' ? 'Sent' : 'Reply'}
+                          </span>
+                          <span className="text-[10px]" style={{ color: A.text3 }}>
+                            {h.time ? new Date(h.time).toLocaleString() : ''}
+                          </span>
+                        </div>
+                        <p style={{ color: A.text1 }}>{h.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </ModalBackdrop>
+      )}
+    </div>
+  );
+}
+
 
 function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) { void _t;
   const [contacts, setContacts] = useState<any[]>([]);
@@ -5447,7 +5759,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   return (
     <div className="space-y-4">
       {/* Pipeline Stats */}
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-8 gap-2">
         {CRM_PIPELINE.map(s => (
           <button key={s} onClick={() => { setStatusFilter(statusFilter === s ? '' : s); setPage(1); }}
                   className={cn('rounded-lg border px-3 py-2 text-center transition-colors',

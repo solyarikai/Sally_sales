@@ -4433,6 +4433,46 @@ async def crm_pipeline_stats(session: AsyncSession = Depends(get_session)):
     return {"total": total, **stats}
 
 
+@router.get("/crm/pipeline")
+async def crm_pipeline(
+    search: Optional[str] = None,
+    limit_per_status: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+):
+    """Pipeline Kanban view — contacts grouped by status with counts."""
+    result = {}
+    for st in TgContactStatus:
+        query = select(TgContact).where(TgContact.status == st)
+        count_query = select(func.count(TgContact.id)).where(TgContact.status == st)
+
+        if search:
+            like = f"%{search}%"
+            sf = (
+                (TgContact.username.ilike(like)) | (TgContact.first_name.ilike(like)) |
+                (TgContact.last_name.ilike(like)) | (TgContact.company_name.ilike(like))
+            )
+            query = query.where(sf)
+            count_query = count_query.where(sf)
+
+        total = (await session.execute(count_query)).scalar() or 0
+        query = query.order_by(desc(TgContact.last_contacted_at).nullslast()).limit(limit_per_status)
+        contacts = (await session.execute(query)).scalars().all()
+
+        result[st.value] = {
+            "count": total,
+            "contacts": [{
+                "id": c.id, "username": c.username, "first_name": c.first_name,
+                "last_name": c.last_name, "company_name": c.company_name,
+                "status": c.status.value, "tags": c.tags or [],
+                "total_messages_sent": c.total_messages_sent,
+                "total_replies_received": c.total_replies_received,
+                "last_contacted_at": c.last_contacted_at.isoformat() if c.last_contacted_at else None,
+                "campaigns": c.campaigns or [],
+            } for c in contacts],
+        }
+    return result
+
+
 @router.get("/crm/contacts/{contact_id}/history")
 async def get_contact_history(contact_id: int, session: AsyncSession = Depends(get_session)):
     """Get full message history for a CRM contact."""
