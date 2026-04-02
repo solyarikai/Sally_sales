@@ -19,21 +19,25 @@ total = None
 t_start = time.time()
 
 while True:
-    for attempt in range(5):
+    for attempt in range(8):
         try:
             r = client.get(
                 "https://amazing.getsales.io/leads/api/leads",
                 params={"limit": limit, "offset": offset}
             )
             if r.status_code == 429:
-                print("  Rate limited, waiting 10s...", flush=True)
-                time.sleep(10)
+                print("  Rate limited, waiting 15s...", flush=True)
+                time.sleep(15)
+                continue
+            if not r.text.strip():
+                print(f"  Empty response at offset {offset}, retry {attempt+1}...", flush=True)
+                time.sleep(5 * (attempt + 1))
                 continue
             data = r.json()
             break
         except Exception as e:
-            print(f"  Retry {attempt+1}/5 at offset {offset}: {e}", flush=True)
-            time.sleep(3 * (attempt + 1))
+            print(f"  Retry {attempt+1}/8 at offset {offset}: {e}", flush=True)
+            time.sleep(5 * (attempt + 1))
     else:
         print(f"  Skipping offset {offset} after 5 failures", flush=True)
         offset += limit
