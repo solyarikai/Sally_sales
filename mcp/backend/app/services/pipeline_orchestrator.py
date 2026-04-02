@@ -554,6 +554,7 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
             has_contacts = (result.get("total_people", 0) > 0)
             if result.get("kpi_met") or has_contacts:
                 await _auto_generate_campaign(session, run, user_id, openai_key)
+                await session.commit()  # Persist auto-push DB updates (campaign.external_id, seq.status)
 
     except Exception as e:
         logger.exception(f"Background pipeline {run_id} failed: {e}")
