@@ -95,11 +95,8 @@ export default function SetupPage() {
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{userEmail}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
             <code style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', opacity: 0.6, wordBreak: 'break-all' }}>
-              {showToken ? token : `${token.slice(0, 24)}...`}
+              {token}
             </code>
-            <button onClick={() => setShowToken(!showToken)} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px', opacity: 0.6 }}>
-              {showToken ? 'Hide' : 'Show'}
-            </button>
             <button onClick={() => { copyToken() }}
               style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: tokenCopied ? '#22c55e' : 'transparent', color: tokenCopied ? 'white' : 'var(--text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               {tokenCopied ? 'Copied!' : 'Copy'}
