@@ -1161,6 +1161,7 @@ async def bulk_set_photo(
         if account.api_id and account.api_hash and telegram_engine.session_file_exists(account.phone):
             try:
                 from telethon.tl import functions as _fn, types as _tp
+                from telethon.errors import FrozenMethodInvalidError
                 # Use engine with proper proxy + device fingerprint
                 proxy = None
                 if account.assigned_proxy_id:
@@ -1170,6 +1171,11 @@ async def bulk_set_photo(
                         proxy = {"host": _p_rec.host, "port": _p_rec.port, "username": _p_rec.username,
                                  "password": _p_rec.password, "protocol": _p_rec.protocol.value if hasattr(_p_rec.protocol, 'value') else _p_rec.protocol}
                 kwargs = _account_connect_kwargs(account, proxy)
+                # Disconnect stale cached client first, then reconnect fresh
+                try:
+                    await telegram_engine.disconnect(aid)
+                except Exception:
+                    pass
                 _client = await telegram_engine.connect(aid, **kwargs)
                 if await _client.is_user_authorized():
                     # Delete ALL existing profile photos
@@ -1191,13 +1197,23 @@ async def bulk_set_photo(
                     tg_synced += 1
                     logger.info(f"Photo set for {account.phone}: deleted old, uploaded new")
                 await telegram_engine.disconnect(aid)
+            except FrozenMethodInvalidError:
+                account.status = TgAccountStatus.FROZEN
+                errors.append(f"{account.phone}: account is FROZEN by Telegram")
+                logger.warning(f"Account {account.phone} is FROZEN — marked status")
+                try:
+                    await telegram_engine.disconnect(aid)
+                except Exception:
+                    pass
             except Exception as e:
                 errors.append(f"{account.phone}: {str(e)[:80]}")
+                logger.warning(f"Photo upload failed for {account.phone}: {e}")
                 try:
                     await telegram_engine.disconnect(aid)
                 except Exception:
                     pass
 
+    await session.commit()
     return {"ok": True, "count": updated, "tg_synced": tg_synced, "old_deleted": old_deleted, "photos_uploaded": len(photo_contents), "errors": errors}
 
 
