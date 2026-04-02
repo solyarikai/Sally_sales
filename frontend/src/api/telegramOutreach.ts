@@ -32,7 +32,7 @@ export interface TgAccount {
   warmup_active?: boolean;
   warmup_started_at?: string;
   warmup_actions_done?: number;
-  warmup_progress?: { day: number; total_days: number } | null;
+  warmup_progress?: { day: number; total_days: number; phase?: string } | null;
   messages_sent_today: number;
   total_messages_sent: number;
   proxy_group_id?: number;
