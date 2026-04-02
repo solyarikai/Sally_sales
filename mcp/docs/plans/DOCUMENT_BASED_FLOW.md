@@ -199,8 +199,12 @@ Split into batches of 25. Launch parallel agents.
 Each agent checks: is this company a real B2B fintech?
   - Payments/Lending/BaaS/RegTech/WealthTech/Crypto?
   - 20-500 employees? Series A-D?
-  - Correct segment label assigned?
+  - SEGMENT LABEL: every target company MUST have one of exactly 6 labels:
+    PAYMENTS, LENDING, BAAS, REGTECH, WEALTHTECH, CRYPTO
+  - Is the label CORRECT for what this company actually does?
+    (e.g. Stripe → PAYMENTS not LENDING, Plaid → BAAS not REGTECH)
 Score: % of companies that are REAL targets per document ICP.
+Segment score: % of companies with CORRECT segment label.
 ```
 
 ### People verification (all 100+)
