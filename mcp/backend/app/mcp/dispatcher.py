@@ -241,6 +241,33 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
     # ── Auth: token from SSE URL, or from tool argument, or from session store ──
 
+    def _next_step(projects, drafts, runs):
+        """Determine next step based on current state."""
+        for p in projects:
+            if not p.offer_approved:
+                continue
+            has_doc = (p.offer_summary and isinstance(p.offer_summary, dict)
+                       and p.offer_summary.get("_source") == "document"
+                       and p.offer_summary.get("segments"))
+            has_accounts = any(d.project_id == p.id and d.email_account_ids for d in drafts)
+            has_pipeline = any(r.project_id == p.id for r in runs)
+
+            if has_doc and has_accounts and not has_pipeline:
+                segs = [s.get("name", "") for s in p.offer_summary.get("segments", []) if isinstance(s, dict)]
+                return (
+                    f"\n\n**Ready to launch pipeline for '{p.name}'.**\n"
+                    f"Document segments: {', '.join(segs)}\n"
+                    f"Email accounts: configured\n"
+                    f"Call tam_gather(project_id={p.id}) NOW to probe Apollo and start the pipeline.\n"
+                    f"Do NOT ask user to describe segments — the document already has everything."
+                )
+            elif has_doc and not has_accounts:
+                return (
+                    f"\n\nAccounts not set up for '{p.name}'. "
+                    f"Ask: which email accounts to use? (e.g. 'all with rinat in name')"
+                )
+        return "\nReady for next step. Ask the user what they'd like to do — ONE question only."
+
     if tool_name == "get_context":
         # Accept token as argument (Claude reads it from .mcp.json URL and passes it)
         arg_token = args.get("token", "")
@@ -380,7 +407,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                     + (f"\nCurrent offer: {(p.offer_summary or {}).get('primary_offer', p.target_segments or 'NOT SET')}" if p.offer_summary or p.target_segments else "\nNo offer extracted yet.")
                     + f"\nShow the user the offer, website, and project page link. Ask: is this correct? If user provides feedback, call confirm_offer(feedback=...). If user says yes, call confirm_offer(approved=true).\n"
                     for p in projects if not p.offer_approved))
-                + ("\nReady for next step. Ask the user what they'd like to do — ONE question only, no lists." if all(p.offer_approved for p in projects) else "")
+                + (_next_step(projects, drafts, runs) if all(p.offer_approved for p in projects) else "")
             ),
         }
 
