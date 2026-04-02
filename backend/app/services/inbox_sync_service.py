@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.telegram_outreach import (
-    TgInboxDialog, TgRecipient, TgAccount, TgOutreachMessage,
+    TgInboxDialog, TgRecipient, TgAccount, TgOutreachMessage, TgProxy,
 )
 from app.models.telegram_dm import TelegramDMAccount
 from app.services.telegram_dm_service import telegram_dm_service
@@ -63,6 +63,22 @@ class InboxSyncService:
             tg_account_id = new_tg.id
             logger.info(f"Inbox sync: auto-created TgAccount {tg_account_id} for phone {account.phone}")
 
+        # Resolve proxy: prefer dm_account.proxy_config, fallback to TgAccount.assigned_proxy
+        proxy_cfg = account.proxy_config
+        if not proxy_cfg and account.phone:
+            proxy_result = await session.execute(
+                select(TgProxy).join(TgAccount, TgAccount.assigned_proxy_id == TgProxy.id)
+                .where(TgAccount.phone == account.phone, TgProxy.is_active.is_(True)).limit(1)
+            )
+            proxy = proxy_result.scalar_one_or_none()
+            if proxy:
+                proxy_cfg = {
+                    "type": proxy.protocol.value if proxy.protocol else "socks5",
+                    "host": proxy.host, "port": proxy.port,
+                    "username": proxy.username, "password": proxy.password,
+                }
+                logger.info(f"Inbox sync: proxy fallback for {account.phone} ← {proxy.host}:{proxy.port}")
+
         # Check if already connected — avoid disconnect at the end if so
         already_connected = telegram_dm_service.is_connected(account_id)
 
@@ -70,7 +86,7 @@ class InboxSyncService:
             # Connect via telegram_dm_service
             if not already_connected:
                 logger.info(f"Inbox sync: connecting account {account_id} ({account.phone})")
-                ok = await telegram_dm_service.connect_account(account_id, account.string_session, account.proxy_config)
+                ok = await telegram_dm_service.connect_account(account_id, account.string_session, proxy_cfg)
                 if not ok:
                     logger.warning(f"Inbox sync: account {account_id} ({account.phone}) — connect failed")
                     return 0

@@ -273,9 +273,11 @@ class TelegramDMService:
                 accounts = result.scalars().all()
 
                 # Copy data while session is open; also load fingerprints from TgAccount
+                from app.models.telegram_outreach import TgProxy
                 account_data = []
                 for acc in accounts:
                     fp = {}
+                    proxy = acc.proxy_config
                     if acc.phone:
                         tg_acc = (await session.execute(
                             select(TgAccount).where(TgAccount.phone == acc.phone).limit(1)
@@ -288,7 +290,19 @@ class TelegramDMService:
                                 "lang_code": tg_acc.lang_code,
                                 "system_lang_code": tg_acc.system_lang_code,
                             }
-                    account_data.append((acc.id, acc.string_session, acc.proxy_config, fp))
+                            # Fallback: resolve proxy from TgAccount if dm_account has none
+                            if not proxy and tg_acc.assigned_proxy_id:
+                                tg_proxy = (await session.execute(
+                                    select(TgProxy).where(TgProxy.id == tg_acc.assigned_proxy_id, TgProxy.is_active.is_(True))
+                                )).scalar()
+                                if tg_proxy:
+                                    proxy = {
+                                        "type": tg_proxy.protocol.value if tg_proxy.protocol else "socks5",
+                                        "host": tg_proxy.host, "port": tg_proxy.port,
+                                        "username": tg_proxy.username, "password": tg_proxy.password,
+                                    }
+                                    logger.info(f"Reconnect proxy fallback: dm_account {acc.id} ({acc.phone}) ← {tg_proxy.host}:{tg_proxy.port}")
+                    account_data.append((acc.id, acc.string_session, proxy, fp))
 
             connected = 0
             for acc_id, ss, proxy, fp in account_data:

@@ -275,6 +275,31 @@ async def _try_reassign_proxy(session: AsyncSession, account: TgAccount) -> TgPr
     return None
 
 
+async def _resolve_dm_proxy(account: TelegramDMAccount, session: AsyncSession) -> dict | None:
+    """Resolve proxy_config for DM account. Falls back to TgAccount.assigned_proxy if NULL."""
+    if account.proxy_config:
+        return account.proxy_config
+    if not account.phone:
+        return None
+    tg_result = await session.execute(
+        select(TgProxy).join(TgAccount, TgAccount.assigned_proxy_id == TgProxy.id)
+        .where(TgAccount.phone == account.phone, TgProxy.is_active.is_(True)).limit(1)
+    )
+    proxy = tg_result.scalar_one_or_none()
+    if not proxy:
+        logger.warning(f"Proxy fallback: dm_account {account.id} ({account.phone}) — no proxy found in TgAccount either")
+        return None
+    resolved = {
+        "type": proxy.protocol.value if proxy.protocol else "socks5",
+        "host": proxy.host,
+        "port": proxy.port,
+        "username": proxy.username,
+        "password": proxy.password,
+    }
+    logger.info(f"Proxy fallback: dm_account {account.id} ({account.phone}) ← TgAccount proxy {proxy.host}:{proxy.port}")
+    return resolved
+
+
 async def _sync_proxy_to_dm_account(session: AsyncSession, phone: str, proxy: TgProxy | None):
     """Sync assigned proxy from TgAccount to TelegramDMAccount.proxy_config (matched by phone)."""
     if not phone:
@@ -4441,12 +4466,14 @@ async def get_dialog_messages(
     if not account.string_session:
         raise HTTPException(400, "Account has no string_session")
 
+    proxy_cfg = await _resolve_dm_proxy(account, session)
+
     # Check if already connected — avoid disconnect at the end if so
     already_connected = telegram_dm_service.is_connected(account.id)
 
     try:
         if not already_connected:
-            ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
+            ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
             if not ok:
                 raise HTTPException(500, "Failed to connect account")
 
@@ -4555,12 +4582,14 @@ async def send_dialog_message(
     if not account.string_session:
         raise HTTPException(400, "Account has no string_session")
 
+    proxy_cfg = await _resolve_dm_proxy(account, session)
+
     # Check if already connected — avoid disconnect at the end if so
     already_connected = telegram_dm_service.is_connected(account.id)
 
     try:
         if not already_connected:
-            ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
+            ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
             if not ok:
                 raise HTTPException(500, "Failed to connect account")
 
@@ -4627,9 +4656,10 @@ async def delete_dialog_message(
         account = next((c for c in dm_candidates if c.string_session), None)
     if not account:
         raise HTTPException(400, "No DM account available")
+    proxy_cfg = await _resolve_dm_proxy(account, session)
     already = telegram_dm_service.is_connected(account.id)
     if not already:
-        ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
+        ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
         if not ok:
             raise HTTPException(500, "Failed to connect")
     try:
@@ -4667,9 +4697,10 @@ async def react_dialog_message(
         account = next((c for c in dm_candidates if c.string_session), None)
     if not account:
         raise HTTPException(400, "No DM account available")
+    proxy_cfg = await _resolve_dm_proxy(account, session)
     already = telegram_dm_service.is_connected(account.id)
     if not already:
-        ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
+        ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
         if not ok:
             raise HTTPException(500, "Failed to connect")
     try:
@@ -4713,9 +4744,10 @@ async def forward_dialog_messages(
     if not account:
         raise HTTPException(400, "No DM account available")
 
+    proxy_cfg = await _resolve_dm_proxy(account, session)
     already = telegram_dm_service.is_connected(account.id)
     if not already:
-        ok = await telegram_dm_service.connect_account(account.id, account.string_session, account.proxy_config)
+        ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
         if not ok:
             raise HTTPException(500, "Failed to connect")
     try:
@@ -4856,10 +4888,11 @@ async def create_new_chat(
         tg_account_id = new_tg.id
 
     # Connect and resolve username
+    proxy_cfg = await _resolve_dm_proxy(dm_acc, session)
     already_connected = telegram_dm_service.is_connected(dm_account_id)
     try:
         if not already_connected:
-            ok = await telegram_dm_service.connect_account(dm_account_id, dm_acc.string_session, dm_acc.proxy_config)
+            ok = await telegram_dm_service.connect_account(dm_account_id, dm_acc.string_session, proxy_cfg)
             if not ok:
                 raise HTTPException(500, "Failed to connect account")
 
