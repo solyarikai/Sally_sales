@@ -493,8 +493,10 @@ class TelegramEngine:
                             result["spamblock"] = "unknown"
                             logger.warning(f"Unrecognized SpamBot response for {phone}: {text[:200]}")
 
-                    # Clean up dialog
+                    # Clean up dialog (delay to avoid automation fingerprint)
                     try:
+                        import random
+                        await asyncio.sleep(random.uniform(2, 5))
                         await client.delete_dialog(spambot)
                     except Exception:
                         pass
@@ -581,6 +583,8 @@ class TelegramEngine:
             )
             if delete_dialog_after:
                 try:
+                    import random
+                    await asyncio.sleep(random.uniform(3, 7))
                     await client.delete_dialog(entity)
                 except Exception:
                     pass
