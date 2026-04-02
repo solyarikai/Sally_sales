@@ -751,11 +751,13 @@ class SendingWorker:
                         account.spamblocked_at = datetime.utcnow()
                         logger.warning(f"{cname} {account.phone} spamblock threshold reached "
                                        f"({errors_count}/{threshold}) — SPAMBLOCKED TEMPORARY")
+                        # Cascade: reassign ALL pending recipients bound to this account
+                        await self._cascade_reassign_all(campaign, account, session)
                     else:
                         logger.warning(f"{cname} {account.phone} PeerFloodError "
                                        f"({errors_count}/{threshold}) — below threshold")
+                    # Handle the current recipient that just failed
                     if recipient.current_step == 0:
-                        # First message: cascade to another account
                         failed_ids = (recipient.custom_variables or {}).get("_failed_account_ids", [])
                         failed_ids.append(account.id)
                         if not recipient.custom_variables:
@@ -773,9 +775,11 @@ class SendingWorker:
                             recipient.assigned_account_id = None
                             logger.info(f"Spamblock cascade @{recipient.username} via {account.phone} ({len(failed_ids)}/{total_campaign_accounts})")
                     else:
-                        # Follow-up: lead stays bound to this account (rules 3-5)
-                        recipient.next_message_at = datetime.utcnow() + timedelta(hours=1)
-                        logger.info(f"{cname} @{recipient.username} follow-up spamblocked via {account.phone} — retry in 1h (bound)")
+                        # Follow-up: unbound by _cascade_reassign_all if threshold reached;
+                        # otherwise retry in 1h on same account (below threshold)
+                        if errors_count < threshold:
+                            recipient.next_message_at = datetime.utcnow() + timedelta(hours=1)
+                            logger.info(f"{cname} @{recipient.username} follow-up spamblocked via {account.phone} — retry in 1h (bound)")
                     # Emergency stop check
                     self._consecutive_global_spamblocks += 1
                     if self._consecutive_global_spamblocks >= self._EMERGENCY_THRESHOLD:
@@ -906,6 +910,58 @@ class SendingWorker:
         if young_count:
             logger.info(f"Campaign {campaign.name}: {young_count}/{len(filtered)} accounts are young sessions (<{YOUNG_SESSION_DAYS}d)")
         return filtered
+
+    # ── Cascade reassignment ────────────────────────────────────────
+
+    async def _cascade_reassign_all(
+        self, campaign: TgCampaign, spamblocked_account: TgAccount, session: AsyncSession
+    ) -> None:
+        """When an account is marked SPAMBLOCKED, reassign ALL pending/in-sequence
+        recipients bound to it to other available accounts."""
+        cname = f"[{campaign.name}]"
+        acct_id = spamblocked_account.id
+        acct_phone = spamblocked_account.phone
+
+        # Find all recipients assigned to the spamblocked account that still need messages
+        pending_r = await session.execute(
+            select(TgRecipient).where(
+                TgRecipient.campaign_id == campaign.id,
+                TgRecipient.assigned_account_id == acct_id,
+                TgRecipient.status.in_([TgRecipientStatus.PENDING, TgRecipientStatus.IN_SEQUENCE]),
+            )
+        )
+        recipients_to_reassign = list(pending_r.scalars().all())
+        if not recipients_to_reassign:
+            return
+
+        # Get other available accounts (excluding the spamblocked one)
+        other_accounts = await self._get_available_accounts(campaign, session)
+        other_accounts = [a for a in other_accounts if a.id != acct_id]
+
+        reassigned_count = 0
+        waiting_count = 0
+        # Track how many we assign to each account for even distribution
+        assign_counts: dict[int, int] = {a.id: 0 for a in other_accounts}
+
+        for r in recipients_to_reassign:
+            if other_accounts:
+                # Round-robin: pick account with fewest new assignments
+                new_account = min(other_accounts, key=lambda a: assign_counts[a.id])
+                r.assigned_account_id = new_account.id
+                assign_counts[new_account.id] += 1
+                reassigned_count += 1
+            else:
+                # No available accounts — clear assignment, will be picked up
+                # when an account becomes available (round-robin at send time)
+                r.assigned_account_id = None
+                waiting_count += 1
+
+        if reassigned_count:
+            logger.info(f"{cname} Account {acct_phone} spamblocked — reassigned {reassigned_count} "
+                        f"pending recipients to other accounts")
+        if waiting_count:
+            logger.warning(f"{cname} Account {acct_phone} spamblocked — {waiting_count} recipients "
+                           f"waiting for account (no alternatives available)")
 
     # ── Recipient selection ───────────────────────────────────────────
 
