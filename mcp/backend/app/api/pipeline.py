@@ -1815,3 +1815,39 @@ async def delete_account_list(
     await session.execute(text("DELETE FROM email_account_lists WHERE id = :lid AND user_id = :uid"), {"lid": list_id, "uid": user.id})
     await session.commit()
     return {"deleted": True}
+
+
+@router.get("/company-reasoning")
+async def get_company_reasoning(
+    domain: str = Query(..., description="Company domain to look up"),
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Get MCP classification reasoning for a company by domain."""
+    # Find the most recent classification for this domain across user's projects
+    result = await session.execute(
+        select(DiscoveredCompany)
+        .join(Project, DiscoveredCompany.project_id == Project.id)
+        .where(Project.user_id == user.id, DiscoveredCompany.domain == domain.lower().strip())
+        .order_by(DiscoveredCompany.updated_at.desc())
+        .limit(1)
+    )
+    company = result.scalar_one_or_none()
+    if not company:
+        return {"found": False, "domain": domain}
+
+    return {
+        "found": True,
+        "domain": domain,
+        "name": company.name,
+        "is_target": company.is_target,
+        "segment": company.analysis_segment,
+        "reasoning": company.analysis_reasoning,
+        "status": company.status,
+        "industry": company.industry,
+        "employee_count": company.employee_count,
+        "country": company.country,
+        "city": company.city,
+        "funding_stage": company.funding_stage,
+        "pipeline_link": f"/pipeline/{company.project_id}" if company.project_id else None,
+    }

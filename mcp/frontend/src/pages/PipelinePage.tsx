@@ -362,14 +362,24 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
         <span>~{minTargets} target companies</span>
       </div>
 
+      {/* Apollo pool stats */}
+      {(run.apollo_total > 0 || run.apollo_pages_available > 0) && (
+        <div style={{ display: 'flex', gap: 24, marginTop: 10, fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 8, flexWrap: 'wrap' }}>
+          <span title="Total companies in Apollo matching your filters">Apollo pool: {(run.apollo_total || 0).toLocaleString()} companies</span>
+          <span title="Total pages available for these filters">{run.apollo_pages_available || 0} pages available</span>
+          <span title="Pages fetched so far">{progress.pages_fetched || 0} pages fetched</span>
+          <span title="Unique companies obtained after dedup">{run.total_companies || 0} obtained</span>
+        </div>
+      )}
+
       {/* Detailed stats — scrape, classification rates */}
       {(run.scraped_ok > 0 || run.total_companies > 0) && (
-        <div style={{ display: 'flex', gap: 24, marginTop: 10, fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 24, marginTop: 4, fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: 8, flexWrap: 'wrap' }}>
           {run.total_companies > 0 && (
-            <span>Scraped: {run.scraped_ok || 0}/{run.total_companies} ({run.scrape_rate_pct || 0}%)</span>
+            <span>Scraped: {run.scraped_ok || 0}/{run.total_companies} ({run.scrape_rate_pct || 0}%){run.scraped_errors > 0 ? ` — ${run.scraped_errors} failed` : ''}</span>
           )}
           {run.targets_classified > 0 && (
-            <span>Target rate: {run.targets_classified}/{run.scraped_ok || run.classified_count || '?'} ({run.target_rate_pct || 0}%)</span>
+            <span>Targets: {run.targets_classified}/{run.scraped_ok || run.classified_count || '?'} ({run.target_rate_pct || 0}%){run.rejected_classified > 0 ? ` — ${run.rejected_classified} rejected` : ''}</span>
           )}
           {(run.targets_classified || 0) > 0 && run.targets_no_contacts != null && (
             <span>With contacts: {(run.targets_classified || 0) - (run.targets_no_contacts || 0)}</span>

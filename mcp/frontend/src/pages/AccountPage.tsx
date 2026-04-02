@@ -138,11 +138,14 @@ export default function AccountPage() {
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f43f5e' }} />
               <span style={{ fontSize: 13, fontWeight: 600 }}>MCP</span>
             </div>
-            <div style={bigNum}>{((mcp.total_tokens || 0) / 1000).toFixed(1)}K</div>
+            <div style={bigNum}>${(mcp.cost_usd || 0).toFixed(4)}</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
-              {(mcp.input_tokens || 0).toLocaleString()} in<br />
-              {(mcp.output_tokens || 0).toLocaleString()} out<br />
-              {mcp.tool_calls || 0} calls
+              {((mcp.total_tokens || 0) / 1000).toFixed(1)}K tokens<br />
+              {(mcp.input_tokens || 0).toLocaleString()} in / {(mcp.output_tokens || 0).toLocaleString()} out<br />
+              {mcp.tool_calls || 0} tool calls
+              {mcp.tool_calls > 0 && stats.total_campaigns > 0 && (
+                <><br /><span style={{ color: '#f43f5e', fontSize: 10 }}>~${((mcp.cost_usd || 0) / (stats.total_campaigns || 1) * 20).toFixed(2)}/mo est. (20 campaigns)</span></>
+              )}
             </div>
           </div>
         </div>
