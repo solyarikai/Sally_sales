@@ -136,6 +136,10 @@ class TgAccountResponse(BaseModel):
     warmup_day: Optional[int] = None
     is_young_session: bool = False
     skip_warmup: bool = False
+    warmup_active: bool = False
+    warmup_started_at: Optional[datetime] = None
+    warmup_actions_done: int = 0
+    warmup_progress: Optional[dict] = None  # {day, total_days, actions_today}
     messages_sent_today: int = 0
     total_messages_sent: int = 0
     proxy_group_id: Optional[int] = None
@@ -432,3 +436,27 @@ class TgBlacklistListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ── Warm-up ──────────────────────────────────────────────────────────
+
+class TgWarmupStatusResponse(BaseModel):
+    account_id: int
+    warmup_active: bool
+    warmup_day: Optional[int] = None
+    total_days: int = 14
+    warmup_started_at: Optional[datetime] = None
+    actions_done: int = 0
+    actions_today: int = 0
+    recent_actions: list[dict] = []  # [{action_type, detail, success, performed_at}]
+
+
+class TgWarmupLogResponse(BaseModel):
+    id: int
+    account_id: int
+    action_type: str
+    detail: Optional[str] = None
+    success: bool = True
+    error_message: Optional[str] = None
+    performed_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}

@@ -28,6 +28,10 @@ export interface TgAccount {
   warmup_day?: number | null;
   is_young_session?: boolean;
   skip_warmup?: boolean;
+  warmup_active?: boolean;
+  warmup_started_at?: string;
+  warmup_actions_done?: number;
+  warmup_progress?: { day: number; total_days: number } | null;
   messages_sent_today: number;
   total_messages_sent: number;
   proxy_group_id?: number;
@@ -246,6 +250,19 @@ export const telegramOutreachApi = {
 
   bulkSkipWarmup: async (accountIds: number[], skip: boolean = true) =>
     (await api.post(`${BASE}/accounts/bulk-skip-warmup`, { account_ids: accountIds }, { params: { skip } })).data,
+
+  // Active warm-up
+  warmupStart: async (accountId: number) =>
+    (await api.post(`${BASE}/accounts/${accountId}/warmup/start`)).data,
+
+  warmupStop: async (accountId: number) =>
+    (await api.post(`${BASE}/accounts/${accountId}/warmup/stop`)).data,
+
+  warmupStatus: async (accountId: number) =>
+    (await api.get(`${BASE}/accounts/${accountId}/warmup/status`)).data,
+
+  bulkWarmup: async (accountIds: number[], action: 'start' | 'stop' = 'start') =>
+    (await api.post(`${BASE}/accounts/bulk-warmup`, { account_ids: accountIds }, { params: { action } })).data,
 
   bulkUpdateParams: async (accountIds: number[], params: {
     device_model?: string; system_version?: string; app_version?: string;
