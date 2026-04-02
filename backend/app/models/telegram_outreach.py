@@ -524,6 +524,7 @@ class TgWarmupActionType(str, enum.Enum):
     CHANNEL_JOIN = "channel_join"
     REACTION = "reaction"
     CONVERSATION = "conversation"
+    CHANNEL_VIEW = "channel_view"
 
 
 class TgWarmupLog(Base):

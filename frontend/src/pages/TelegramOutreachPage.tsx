@@ -721,7 +721,11 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                       {acc.skip_warmup ? <span style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} title="Warm-up skipped (manual override)">SKIP</span>
                         : acc.warmup_day != null ? <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
                       {!acc.skip_warmup && acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
-                      {acc.warmup_active && acc.warmup_progress && <span style={{ color: '#059669', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title={`Active warm-up: day ${acc.warmup_progress.day}/${acc.warmup_progress.total_days}, ${acc.warmup_actions_done || 0} actions done`}>🔥D{acc.warmup_progress.day}</span>}
+                      {acc.warmup_active && acc.warmup_progress && (
+                        acc.warmup_progress.phase === 'maintenance'
+                          ? <span style={{ color: '#0891b2', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title={`Maintenance mode (day ${acc.warmup_progress.day}): 1-2 reactions/day to keep account healthy`}>✓MT</span>
+                          : <span style={{ color: '#059669', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title={`Active warm-up: day ${acc.warmup_progress.day}/${acc.warmup_progress.total_days}, ${acc.warmup_actions_done || 0} actions done`}>🔥D{acc.warmup_progress.day}</span>
+                      )}
                     </td>
                     <td className="px-1 py-2.5" onClick={e => e.stopPropagation()}>
                       <button onClick={() => setEditingAccount(acc)}
@@ -2771,12 +2775,16 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                 const day = ws?.warmup_day ?? account.warmup_progress?.day ?? null;
                 const totalDays = ws?.total_days ?? 14;
                 const pct = day != null ? Math.min(100, Math.round((day / totalDays) * 100)) : 0;
+                const isMaintenance = isActive && day != null && day > totalDays;
                 const isCompleted = !isActive && day != null && day >= totalDays;
 
                 // Phase calculation
                 let phaseName = 'Not started';
                 let phaseDesc = 'Start warm-up to reduce ban risk';
-                if (isCompleted) {
+                if (isMaintenance) {
+                  phaseName = 'Maintenance';
+                  phaseDesc = 'Warm-up complete. 1-2 reactions/day to keep account healthy.';
+                } else if (isCompleted) {
                   phaseName = 'Completed';
                   phaseDesc = 'Warm-up finished. Maintenance actions continue.';
                 } else if (isActive && day != null) {
