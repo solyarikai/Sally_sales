@@ -318,13 +318,12 @@ class StreamingPipeline:
     async def _feed_apollo_pages(self, filters: Dict):
         """3-level strategy cascade per pipeline_spec.md.
 
+        Uses Apollo service DIRECTLY (not main app's GatheringService adapter).
         Industry-first: L1 industry(25p) → L2 keywords(25p) → L3 regen(5×20p)
         Keywords-first:  L1 keywords(25p) → L2 regen(5×20p) → L3 industry(25p)
         """
-        from app.services.gathering_service import GatheringService
-        svc = GatheringService()
-        adapter = svc._get_adapter(self.run.source_type, apollo_service=self.apollo)
-        if not adapter:
+        if not self.apollo:
+            logger.warning("No Apollo service — cannot feed pages")
             return
 
         # Pre-load existing domains
@@ -379,7 +378,7 @@ class StreamingPipeline:
                 break
 
             exhausted = await self._run_level(
-                adapter, level_filters, per_page, level_name,
+                level_filters, per_page, level_name,
                 max_pages=max_pages,
                 start_page=(self._tam_pages + 1) if "L1" in level_name else 1,
             )
@@ -401,7 +400,7 @@ class StreamingPipeline:
                     regen_filters["filter_strategy"] = "keywords_first"
 
                     regen_exhausted = await self._run_level(
-                        adapter, regen_filters, per_page, f"regen_{regen_num}",
+                        regen_filters, per_page, f"regen_{regen_num}",
                         max_pages=self.PAGES_PER_REGEN_CYCLE, start_page=1,
                     )
                     if not regen_exhausted:
@@ -411,7 +410,7 @@ class StreamingPipeline:
             logger.info(f"Phase 2 fully exhausted: {self.pages_fetched} pages, "
                        f"{self.total_companies} companies, {self.total_people} people")
 
-    async def _run_level(self, adapter, filters: Dict, per_page: int,
+    async def _run_level(self, filters: Dict, per_page: int,
                           label: str, max_pages: int, start_page: int = 1) -> bool:
         """Run one strategy level. Returns True if exhausted (10 consecutive empty)."""
         consecutive_empty = 0
@@ -427,7 +426,7 @@ class StreamingPipeline:
             batch_size = min(10, max_pages - pages_this_level)
             # Fetches pages AND feeds companies to scrape queue AS each page arrives
             page_counts = await self._fetch_pages_parallel(
-                adapter, filters, per_page, page, batch_size
+                filters, per_page, page, batch_size
             )
 
             # Process results (companies already in scrape queue from fetch_and_feed)
@@ -469,22 +468,52 @@ class StreamingPipeline:
         f["filter_strategy"] = "keywords_first"
         return f
 
-    async def _fetch_pages_parallel(self, adapter, filters: Dict, per_page: int,
+    async def _fetch_pages_parallel(self, filters: Dict, per_page: int,
                                      start_page: int, count: int) -> list:
-        """Fetch `count` pages in parallel. Feed companies to scrape_queue AS EACH PAGE ARRIVES."""
+        """Fetch `count` pages in parallel using self.apollo DIRECTLY.
+        Feed companies to scrape_queue AS EACH PAGE ARRIVES.
+        NEVER uses main app's GatheringService or adapter pattern."""
         results_list = []
 
+        # Extract Apollo search params from filters
+        keyword_tags = filters.get("q_organization_keyword_tags")
+        industry_tag_ids = filters.get("organization_industry_tag_ids")
+        locations = filters.get("organization_locations")
+        num_employees = filters.get("organization_num_employees_ranges")
+        funding_stages = filters.get("organization_latest_funding_stage_cd")
+
         async def fetch_and_feed(page_num):
-            """Fetch one page and immediately feed results to scrape queue."""
+            """Fetch one page via self.apollo and immediately feed to scrape queue."""
             try:
-                f = dict(filters)
-                f["page"] = page_num
-                f["max_pages"] = 1
-                f["per_page"] = per_page
-                results = await adapter.gather(f)
-                # Track Apollo page credit (1 credit per page)
-                self.run.credits_used = (self.run.credits_used or 0) + 1
-                # Feed to scrape queue IMMEDIATELY — don't wait for other pages
+                data = await self.apollo.search_organizations(
+                    keyword_tags=keyword_tags,
+                    industry_tag_ids=industry_tag_ids,
+                    locations=locations,
+                    num_employees_ranges=num_employees,
+                    latest_funding_stages=funding_stages,
+                    page=page_num,
+                    per_page=per_page,
+                )
+                orgs = (data or {}).get("organizations", [])
+                # Convert to pipeline format
+                results = []
+                for org in orgs:
+                    domain = org.get("primary_domain") or org.get("domain", "")
+                    if domain:
+                        if domain.startswith("http"):
+                            from urllib.parse import urlparse
+                            domain = urlparse(domain).hostname or domain
+                        if domain.startswith("www."):
+                            domain = domain[4:]
+                        results.append({
+                            "domain": domain.strip().lower(),
+                            "name": org.get("name", domain),
+                            "industry": org.get("industry"),
+                            "employee_count": org.get("estimated_num_employees"),
+                            "country": org.get("country"),
+                            "city": org.get("city"),
+                        })
+                # Feed to scrape queue IMMEDIATELY
                 if results:
                     new_count = await self._ingest_page_results(results)
                     results_list.append((page_num, new_count))
@@ -492,11 +521,10 @@ class StreamingPipeline:
                     results_list.append((page_num, 0))
             except Exception as e:
                 logger.warning(f"Apollo page {page_num} failed: {e}")
-                results_list.append((page_num, -1))  # -1 = error
+                results_list.append((page_num, -1))
 
         tasks = [fetch_and_feed(start_page + i) for i in range(count)]
-        await asyncio.gather(*tasks)  # Pages feed to queue AS they arrive
-        # Sort by page number — exhaustion counts CONSECUTIVE pages in order
+        await asyncio.gather(*tasks)
         return sorted(results_list, key=lambda x: x[0])
 
     async def _regenerate_keywords(self, current_filters: Dict, all_tried: Set[str]) -> Optional[list]:

@@ -206,6 +206,83 @@ No manual backfill needed — 79 tags covers all 112 industry names.
 6. Result: 90% target rate
 ```
 
+---
+
+## MCP-Specific Implementation — Methods to Call
+
+**CRITICAL: The MCP streaming pipeline must use its OWN Apollo service directly.
+NEVER import from main app's `GatheringService` or its adapter pattern.**
+
+### Apollo Search (per page)
+```python
+# In streaming_pipeline.py — use self.apollo directly
+data = await self.apollo.search_organizations(
+    keyword_tags=keywords,           # OR industry_tag_ids (NEVER both)
+    industry_tag_ids=industry_ids,   # 
+    num_employees_ranges=emp_ranges, # ALWAYS applied
+    locations=locations,             # ALWAYS applied if user specified
+    latest_funding_stages=funding,   # Level 0 priority (dropped when exhausted)
+    page=page_num,
+    per_page=100,
+)
+orgs = data.get("organizations", [])
+total = data.get("pagination", {}).get("total_entries", 0)
+```
+
+### Apollo Search (multi-page parallel)
+```python
+# Fetches up to max_pages in parallel batches of batch_size
+all_orgs = await self.apollo.search_organizations_all_pages(
+    keyword_tags=keywords,
+    num_employees_ranges=emp_ranges,
+    latest_funding_stages=funding,
+    max_pages=25,
+    per_page=100,
+    batch_size=10,  # 10 pages fetched in parallel
+)
+```
+
+### People Enrichment
+```python
+# FREE search by seniority
+search_data = await self.apollo._api_call("POST", "/mixed_people/api_search", {
+    "q_organization_domains": domain,
+    "person_seniorities": ["owner", "founder", "c_suite", "vp", "head", "director"],
+    "page": 1, "per_page": 25,
+})
+
+# PAID enrichment (1 credit per person)
+enriched = await self.apollo.enrich_people_emails(people_ids)
+```
+
+### Company Enrichment (for seed-based search)
+```python
+data = await self.apollo.enrich_organization(domain)
+# Returns: industry, industry_tag_id, estimated_num_employees, etc.
+```
+
+### What NOT to use
+```
+NEVER: from app.services.gathering_service import GatheringService
+NEVER: svc._get_adapter(source_type)
+NEVER: adapter.gather(filters)
+
+These are main app code. MCP pipeline uses self.apollo directly.
+```
+
+### Funding Filter as Level 0 Priority
+```
+The cascade with funding:
+  L0: primary_strategy + funding_stages → 25 pages max
+      When 10 consecutive empty = exhausted → DROP funding:
+  L1: primary_strategy (no funding) → 25 pages max
+  L2: regen keywords (no funding) → 5 × 20 pages
+  L3: fallback strategy (no funding) → 25 pages
+
+Funding is SOFT (drops when exhausted).
+Geo + size are HARD (never dropped).
+```
+
 ### Level 5: Exhausted — Report to User
 ```
 Pipeline marks "insufficient" with clear stats:
