@@ -132,9 +132,9 @@ class TgAccount(Base, TimestampMixin):
     # Telegram client params
     api_id = Column(Integer, nullable=True)
     api_hash = Column(String(100), nullable=True)
-    device_model = Column(String(100), nullable=True, default="Samsung SM-G998B")
-    system_version = Column(String(50), nullable=True, default="SDK 33")
-    app_version = Column(String(50), nullable=True, default="10.6.2")
+    device_model = Column(String(100), nullable=True, default="PC 64bit")
+    system_version = Column(String(50), nullable=True, default="Windows 10")
+    app_version = Column(String(50), nullable=True, default="6.5.1 x64")
     lang_code = Column(String(10), nullable=True, default="en")
     system_lang_code = Column(String(10), nullable=True, default="en-US")
 
