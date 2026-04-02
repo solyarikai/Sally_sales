@@ -298,7 +298,7 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
         {kpiMet ? (
           <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>KPI MET</span>
         ) : (
-          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: run.status === 'completed' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: run.status === 'completed' ? '#22c55e' : '#ef4444' }}>{run.status === 'completed' ? 'DONE' : 'STOPPED'}</span>
+          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>COMPLETED</span>
         )}
         <span style={{ color: 'var(--text)', fontWeight: 500 }}>{peopleCt} people</span>
         <span style={{ color: 'var(--text-muted)' }}>{targetsCt} targets</span>
@@ -320,8 +320,7 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
       {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, fontSize: 12 }}>
         {run.status === 'completed' && kpiMet && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: 'rgba(34,197,94,0.2)', color: '#22c55e' }}>KPI MET</span>}
-        {run.status === 'completed' && !kpiMet && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>COMPLETED</span>}
-        {run.status === 'insufficient' && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>INSUFFICIENT</span>}
+        {(run.status === 'completed' && !kpiMet || run.status === 'insufficient') && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>COMPLETED</span>}
         {isPaused && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>PAUSED</span>}
         {run.status === 'running' && !isPaused && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>RUNNING</span>}
         <span style={{ color: 'var(--text-muted)' }}>{formatDuration(timing.elapsed_seconds)} elapsed</span>
