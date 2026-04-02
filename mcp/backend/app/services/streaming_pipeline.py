@@ -734,47 +734,69 @@ class StreamingPipeline:
         if not page_companies:
             return 0
 
-        # Create companies in own session
+        # Create or reuse companies — handles cross-run duplicates via upsert
         created_dcs = []
         async with async_session_maker() as ws:
+            from sqlalchemy import text as sa_text
             for company_data in page_companies:
                 domain = company_data.get("domain", "").lower().strip()
-                dc = DiscoveredCompany(
-                    project_id=self.run.project_id,
-                    company_id=self.run.company_id,
-                    domain=domain,
-                    name=company_data.get("name"),
-                    industry=company_data.get("industry"),
-                    employee_count=company_data.get("employee_count"),
-                    country=company_data.get("country"),
-                    city=company_data.get("city"),
-                    source_data=company_data,
+                # Check if company already exists for this project (from previous runs)
+                existing = await ws.execute(
+                    select(DiscoveredCompany).where(
+                        DiscoveredCompany.project_id == self.run.project_id,
+                        DiscoveredCompany.domain == domain,
+                    )
                 )
-                ws.add(dc)
+                dc = existing.scalars().first()
+                if dc:
+                    # Reuse existing company — reset classification for fresh analysis
+                    dc.is_target = None
+                    dc.analysis_segment = None
+                    dc.analysis_reasoning = None
+                    dc.status = "new" if not dc.scraped_text else "scraped"
+                else:
+                    dc = DiscoveredCompany(
+                        project_id=self.run.project_id,
+                        company_id=self.run.company_id,
+                        domain=domain,
+                        name=company_data.get("name"),
+                        industry=company_data.get("industry"),
+                        employee_count=company_data.get("employee_count"),
+                        country=company_data.get("country"),
+                        city=company_data.get("city"),
+                        source_data=company_data,
+                    )
+                    ws.add(dc)
             await ws.flush()
-            for dc in ws.new:
-                pass  # flush assigned IDs
-            # Re-query to get IDs
-            from sqlalchemy import text as sa_text
-            r = await ws.execute(sa_text(
-                f"SELECT id, domain, name, industry, employee_count, country, city "
-                f"FROM discovered_companies WHERE project_id={self.run.project_id} "
-                f"AND domain IN ({','.join(repr(c.get('domain','').lower().strip()) for c in page_companies)}) "
-                f"ORDER BY id DESC LIMIT {len(page_companies)}"
-            ))
-            rows = r.fetchall()
-            for row in rows:
-                # Use simple namespace — NOT a SQLAlchemy model (avoids session tracking)
+
+            # Re-query to get all company IDs (both new and reused)
+            domain_list = [c.get("domain", "").lower().strip() for c in page_companies]
+            r = await ws.execute(
+                select(DiscoveredCompany).where(
+                    DiscoveredCompany.project_id == self.run.project_id,
+                    DiscoveredCompany.domain.in_(domain_list),
+                )
+            )
+            all_dcs = r.scalars().all()
+            for dc_obj in all_dcs:
                 from types import SimpleNamespace
                 dc = SimpleNamespace(
-                    id=row[0], domain=row[1], name=row[2], industry=row[3],
-                    employee_count=row[4], country=row[5], city=row[6],
+                    id=dc_obj.id, domain=dc_obj.domain, name=dc_obj.name,
+                    industry=dc_obj.industry, employee_count=dc_obj.employee_count,
+                    country=dc_obj.country, city=dc_obj.city,
                     project_id=self.run.project_id, company_id=self.run.company_id,
-                    scraped_text=None, status=None, is_target=None,
-                    analysis_segment=None, analysis_reasoning=None,
+                    scraped_text=dc_obj.scraped_text, status=dc_obj.status,
+                    is_target=dc_obj.is_target,
+                    analysis_segment=dc_obj.analysis_segment,
+                    analysis_reasoning=dc_obj.analysis_reasoning,
                 )
                 created_dcs.append(dc)
-                ws.add(CompanySourceLink(discovered_company_id=dc.id, gathering_run_id=self.run.id))
+                # Link to current run (ON CONFLICT skip if already linked)
+                try:
+                    ws.add(CompanySourceLink(discovered_company_id=dc.id, gathering_run_id=self.run.id))
+                    await ws.flush()
+                except Exception:
+                    await ws.rollback()
             await ws.commit()
 
         for dc in created_dcs:
