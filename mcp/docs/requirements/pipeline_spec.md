@@ -33,7 +33,12 @@ offer_summary = {
   "exclusion_list": [{"type": "...", "reason": "..."}],
   "sequences": [
     {"name": "Sequence Name", "steps": [...], "cadence_days": [...]}
-  ]
+  ],
+  "seed_data": {
+    "keywords": ["all segment keywords, deduped"],
+    "industry_tag_ids": [],  // empty for documents (no Apollo IDs)
+    "source": "document"
+  }
 }
 ```
 
@@ -114,6 +119,15 @@ tam_gather(project_id, query="fashion brands in Italy")
 **Prioritization** (nice-to-have, graceful degradation):
 - **Funding** (series_a, series_b) — from document. Applied when Apollo has data, silently dropped when exhausted. Unfunded streams continue in parallel.
 
+### Apollo Industry Taxonomy
+**Table**: `apollo_taxonomy` (PostgreSQL)
+**Content**: 84 real Apollo industries, each with a unique `tag_id` (hex MongoDB ObjectId)
+**Source**: Enriched from real company data via Apollo `/organizations/enrich` endpoint
+**Auto-extension**: New industries discovered automatically during:
+- Company enrichment (`apollo_service.bulk_enrich_organizations`)
+- People enrichment (`apollo_service.enrich_people_emails` — `bulk_match` returns org data including `industry_tag_id`)
+**No keywords stored**: Apollo accepts any free-text keywords. Only industry name ↔ tag_id mapping is maintained.
+
 ### Step A: Industry Selection
 **File**: `services/filter_mapper.py:_pick_industries()`
 **Model**: `gpt-4.1-mini` (fallback: `gpt-4o-mini`)
@@ -171,13 +185,13 @@ Generate 20-30 keywords...
 }
 ```
 
-## 6. APOLLO PROBE
+## 7. APOLLO PROBE
 **File**: `services/filter_intelligence.py:probe_and_scrape()`
 **Input**: Final assembled filters
 **Method**: Apollo API `/organizations/search` (1 credit per call)
 **Output**: `total_available` companies, sample results for preview
 
-## 7. PIPELINE PREVIEW → USER APPROVAL
+## 8. PIPELINE PREVIEW → USER APPROVAL
 **File**: `mcp/dispatcher.py` (tam_gather PREVIEW mode)
 **Shows user**: All keywords, industries, tag_ids, cost estimate, KPIs, pipeline link
 **Waits for**: User says "Proceed?" → `tam_gather(confirm_filters=true)`
@@ -188,7 +202,7 @@ Generate 20-30 keywords...
 - User provides only website → after project creation, ask "What companies and where?"
 - Document provides everything → show preview, ask only "Proceed?"
 
-## 8. AUTONOMOUS PIPELINE
+## 9. AUTONOMOUS PIPELINE
 **File**: `services/streaming_pipeline.py`
 **Runs in background after user confirms**
 
@@ -236,13 +250,14 @@ L1_industry    → industry_tag_ids + geo + size       (precise, good pagination
 **Cost**: ~$0.003 per company ($0.07 per 300 companies)
 
 ### Phase 4: Extract People
-**Method**: Apollo `/mixed_people/api_search` (FREE, no credits)
+**Method**: Apollo `/mixed_people/api_search` (FREE, no credits) → `/people/bulk_match` (1 credit per person)
 **Config**: 3 contacts per target company (20 concurrent)
 **Roles**: Auto-adjusted based on project's offer:
 - Payroll offer → VP HR, CHRO, Head of People
 - SaaS offer → CTO, VP Engineering
 - Fashion offer → Brand Director, CMO
 **Priority**: owner/founder > c_suite > vp > head > director
+**Side effect**: `bulk_match` returns org data including `industry_tag_id` → auto-extends `apollo_taxonomy` with any new industries discovered
 
 ### Phase 5: Auto-Push to SmartLead
 **Trigger**: When KPI met (default: 100 people, 3/company)
@@ -267,7 +282,7 @@ L1_industry    → industry_tag_ids + geo + size       (precise, good pagination
 - Video London: 81 targets, 134 people, 55s, $0.19
 - IT Miami: 18 targets, 39 people, 27s, $0.04
 
-## 9. REPLY MONITORING
+## 10. REPLY MONITORING
 **File**: `services/reply_monitor.py`
 **Frequency**: Every 3 minutes (background poller)
 **Classification model**: `gpt-4o-mini`
@@ -275,7 +290,7 @@ L1_industry    → industry_tag_ids + geo + size       (precise, good pagination
 **Categories**: interested, meeting_request, not_interested, out_of_office, wrong_person, unsubscribe, question, other
 **Notifications**: Telegram bot for warm replies (interested, meeting_request)
 
-## 10. OPERATOR LEARNING
+## 11. OPERATOR LEARNING
 **File**: `api/pipeline.py` (learning_router)
 **Frontend**: `LearningPage.tsx` — Actions tab + Analytics tab
 **Flow**:
