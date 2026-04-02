@@ -3381,6 +3381,114 @@ async def update_account_profile(
     return result
 
 
+@router.post("/accounts/{account_id}/check-username")
+async def check_username_availability(
+    account_id: int,
+    username: str = Query(...),
+    session: AsyncSession = Depends(get_session),
+):
+    """Check if a Telegram username is available."""
+    account, proxy = await _get_account_with_proxy(account_id, session)
+    if not telegram_engine.session_file_exists(account.phone):
+        raise HTTPException(400, "No session file")
+
+    kwargs = _account_connect_kwargs(account, proxy)
+    await telegram_engine.connect(account_id, **kwargs)
+    result = await telegram_engine.check_username(account_id, username)
+    await telegram_engine.disconnect(account_id)
+    return result
+
+
+def _generate_username_candidates(first_name: str, last_name: str) -> list[str]:
+    """Generate human-like username candidates from a name."""
+    import random
+    import re
+
+    _CYRILLIC_MAP = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+        'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+        'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+        'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+        'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+    }
+
+    def to_latin(s: str) -> str:
+        result = []
+        for ch in s.lower():
+            if ch in _CYRILLIC_MAP:
+                result.append(_CYRILLIC_MAP[ch])
+            else:
+                result.append(ch)
+        return ''.join(result)
+
+    fn = re.sub(r'[^a-z0-9]', '', to_latin(first_name.strip()))
+    ln = re.sub(r'[^a-z0-9]', '', to_latin(last_name.strip())) if last_name else ''
+
+    candidates = []
+    if fn and ln:
+        candidates += [
+            f"{fn}_{ln}",
+            f"{fn}{ln}",
+            f"{fn[0]}{ln}",
+            f"{fn}{ln[0]}",
+            f"{fn}_{ln[0]}",
+            f"{fn[0]}_{ln}",
+            f"{ln}_{fn}",
+            f"{ln}{fn[0]}",
+        ]
+        for suffix in [random.randint(1, 99), random.randint(100, 999)]:
+            candidates += [
+                f"{fn}_{ln}{suffix}",
+                f"{fn[0]}{ln}{suffix}",
+                f"{fn}{ln[0]}{suffix}",
+            ]
+    elif fn:
+        candidates += [fn]
+        for suffix in [random.randint(1, 99), random.randint(100, 999)]:
+            candidates.append(f"{fn}{suffix}")
+
+    # Filter: Telegram usernames must be 5-32 chars, a-z0-9_
+    valid = []
+    seen = set()
+    for c in candidates:
+        c = re.sub(r'[^a-z0-9_]', '', c)
+        if len(c) >= 5 and len(c) <= 32 and c not in seen:
+            seen.add(c)
+            valid.append(c)
+    return valid
+
+
+@router.post("/accounts/{account_id}/suggest-usernames")
+async def suggest_usernames(
+    account_id: int,
+    first_name: str = Query(...),
+    last_name: str = Query(""),
+    session: AsyncSession = Depends(get_session),
+):
+    """Generate human-like usernames and check availability."""
+    account, proxy = await _get_account_with_proxy(account_id, session)
+    if not telegram_engine.session_file_exists(account.phone):
+        raise HTTPException(400, "No session file")
+
+    candidates = _generate_username_candidates(first_name, last_name)
+    if not candidates:
+        return {"suggestions": []}
+
+    kwargs = _account_connect_kwargs(account, proxy)
+    await telegram_engine.connect(account_id, **kwargs)
+
+    suggestions = []
+    for uname in candidates:
+        result = await telegram_engine.check_username(account_id, uname)
+        if result.get("available"):
+            suggestions.append(uname)
+            if len(suggestions) >= 5:
+                break
+
+    await telegram_engine.disconnect(account_id)
+    return {"suggestions": suggestions}
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # AUTO-REPLY CONFIG & CONVERSATIONS
 # ═══════════════════════════════════════════════════════════════════════

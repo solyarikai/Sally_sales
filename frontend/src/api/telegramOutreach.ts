@@ -468,6 +468,12 @@ export const telegramOutreachApi = {
   }) =>
     (await api.post(`${BASE}/accounts/${accountId}/update-profile`, null, { params })).data,
 
+  checkUsername: async (accountId: number, username: string) =>
+    (await api.post<{ status: string; available?: boolean; reason?: string }>(`${BASE}/accounts/${accountId}/check-username`, null, { params: { username } })).data,
+
+  suggestUsernames: async (accountId: number, firstName: string, lastName: string) =>
+    (await api.post<{ suggestions: string[] }>(`${BASE}/accounts/${accountId}/suggest-usernames`, null, { params: { first_name: firstName, last_name: lastName } })).data,
+
   // CRM
   listCrmContacts: async (params: { page?: number; page_size?: number; status?: string; search?: string } = {}) =>
     (await api.get(`${BASE}/crm/contacts`, { params })).data,
