@@ -73,9 +73,9 @@ The response shows: project name, ICP, active campaigns, and which companies are
         "description": """Create a new project from website OR strategy document.
 
 WHEN USER SAYS: "easystaff.io", "our website is X" → call with website=URL.
-WHEN USER SAYS: "launch outreach-plan.md", "use this document" → call with document_text=content.
-Document mode extracts EVERYTHING: offer, roles, segments, sequence, campaign settings.
-AFTER creating project, show what was extracted and ask: "Does this look correct?" (ONE question only).""",
+WHEN USER SAYS: "launch outreach-plan.md", "use this document", "launch <filename>" → MUST pass document_text=FULL FILE CONTENT (the entire raw text, not a summary). Read the file first, then pass ALL of it.
+CRITICAL: document_text must be the COMPLETE file content. NEVER summarize, paraphrase, or extract parts — pass the ENTIRE document verbatim. This triggers the document extraction pipeline which extracts segments, roles, sequences, geo, funding, settings automatically.
+AFTER creating project, show what was extracted and ask user: "Does this look correct?" WAIT for user response. Do NOT auto-confirm.""",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -95,11 +95,12 @@ AFTER creating project, show what was extracted and ask: "Does this look correct
         "name": "confirm_offer",
         "description": """Confirm or adjust the project's offer. MANDATORY before gathering.
 
-After create_project, show the extracted offer to user and ask ONLY: "Does this look correct?"
-- If yes → call with approved=true. Then STOP and WAIT for user's next instruction.
-- If no → call with feedback. Then STOP and show updated offer.
-
-ONE action per message. After confirming, do NOT start gathering or ask other questions. Wait for user.""",
+CRITICAL RULES:
+1. NEVER call this tool until the USER explicitly says "yes", "looks good", "confirm", etc.
+2. NEVER auto-confirm. NEVER call with approved=true AND feedback in the same turn.
+3. After create_project: show what was extracted, ask "Does this look correct?", then STOP and WAIT.
+4. Only when user responds with approval → call with approved=true.
+5. After confirming, STOP. Wait for user's next instruction. Do NOT chain more actions.""",
         "inputSchema": {
             "type": "object",
             "properties": {
