@@ -469,3 +469,41 @@ class TgWarmupChannelResponse(BaseModel):
     is_active: bool = True
     created_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
+
+
+# ── Campaign Timeline ────────────────────────────────────────────────
+
+class TgTimelineStepStatus(BaseModel):
+    """Status of a single message step for a recipient in the timeline."""
+    status: str  # scheduled, sent, read, replied, failed, spamblocked, pending
+    sent_at: Optional[datetime] = None
+    read_at: Optional[datetime] = None
+    replied_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+
+class TgTimelineRecipient(BaseModel):
+    """One row in the campaign timeline grid."""
+    id: int
+    username: str
+    first_name: Optional[str] = None
+    status: str
+    assigned_account_id: Optional[int] = None
+    assigned_account_phone: Optional[str] = None
+    next_message_at: Optional[datetime] = None
+    steps: dict[str, TgTimelineStepStatus] = {}  # key = step_order as string
+
+
+class TgTimelineStep(BaseModel):
+    """Column header info for the timeline."""
+    step_order: int
+    step_id: int
+    delay_days: int
+
+
+class TgCampaignTimelineResponse(BaseModel):
+    steps: list[TgTimelineStep] = []
+    recipients: list[TgTimelineRecipient] = []
+    total: int = 0
+    page: int = 1
+    page_size: int = 50

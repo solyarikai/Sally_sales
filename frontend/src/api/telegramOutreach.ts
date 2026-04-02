@@ -419,6 +419,18 @@ export const telegramOutreachApi = {
       totals: { sent: number; read: number; replied: number; total_recipients: number };
     },
 
+  getCampaignTimeline: async (id: number, params: { page?: number; page_size?: number; search?: string; sort_by?: string; sort_dir?: string } = {}) =>
+    (await api.get(`${BASE}/campaigns/${id}/timeline`, { params })).data as {
+      steps: { step_order: number; step_id: number; delay_days: number }[];
+      recipients: {
+        id: number; username: string; first_name: string | null; status: string;
+        assigned_account_id: number | null; assigned_account_phone: string | null;
+        next_message_at: string | null;
+        steps: Record<string, { status: string; sent_at: string | null; read_at: string | null; replied_at: string | null; error_message: string | null }>;
+      }[];
+      total: number; page: number; page_size: number;
+    },
+
   getCampaignAccounts: async (id: number) =>
     (await api.get(`${BASE}/campaigns/${id}/accounts`)).data,
 

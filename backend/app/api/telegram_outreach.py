@@ -85,6 +85,7 @@ from app.schemas.telegram_outreach import (
     TgBlacklistUploadText, TgBlacklistResponse, TgBlacklistListResponse,
     TgWarmupStatusResponse, TgWarmupLogResponse,
     TgWarmupChannelCreate, TgWarmupChannelResponse,
+    TgCampaignTimelineResponse, TgTimelineRecipient, TgTimelineStep, TgTimelineStepStatus,
 )
 
 router = APIRouter(prefix="/telegram-outreach", tags=["Telegram Outreach"])
@@ -2810,6 +2811,172 @@ async def get_campaign_step_stats(campaign_id: int, session: AsyncSession = Depe
             "total_recipients": campaign.total_recipients,
         },
     }
+
+
+# ── Campaign Timeline ─────────────────────────────────────────────────
+
+@router.get("/campaigns/{campaign_id}/timeline", response_model=TgCampaignTimelineResponse)
+async def get_campaign_timeline(
+    campaign_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    search: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query("username"),
+    sort_dir: Optional[str] = Query("asc"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Campaign Timeline: per-recipient message status grid across sequence steps."""
+    campaign = await session.get(TgCampaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    # 1. Get sequence steps
+    seq_q = await session.execute(
+        select(TgSequence).where(TgSequence.campaign_id == campaign_id)
+    )
+    sequence = seq_q.scalar()
+    timeline_steps: list[TgTimelineStep] = []
+    step_id_to_order: dict[int, int] = {}
+    if sequence:
+        steps_q = await session.execute(
+            select(TgSequenceStep)
+            .where(TgSequenceStep.sequence_id == sequence.id)
+            .order_by(TgSequenceStep.step_order)
+        )
+        for s in steps_q.scalars().all():
+            timeline_steps.append(TgTimelineStep(step_order=s.step_order, step_id=s.id, delay_days=s.delay_days))
+            step_id_to_order[s.id] = s.step_order
+
+    # 2. Query recipients with pagination + search + sorting
+    base_filter = [TgRecipient.campaign_id == campaign_id]
+    if search:
+        base_filter.append(TgRecipient.username.ilike(f"%{search}%"))
+
+    count_q = select(func.count(TgRecipient.id)).where(*base_filter)
+    total = (await session.execute(count_q)).scalar() or 0
+
+    sort_col = {
+        "username": TgRecipient.username,
+        "status": TgRecipient.status,
+        "first_name": TgRecipient.first_name,
+    }.get(sort_by, TgRecipient.username)
+    order_fn = asc if sort_dir == "asc" else desc
+
+    recip_q = (
+        select(TgRecipient)
+        .where(*base_filter)
+        .order_by(order_fn(sort_col))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    recip_result = await session.execute(recip_q)
+    recipients = recip_result.scalars().all()
+
+    if not recipients:
+        return TgCampaignTimelineResponse(steps=timeline_steps, recipients=[], total=total, page=page, page_size=page_size)
+
+    recip_ids = [r.id for r in recipients]
+    account_ids = list({r.assigned_account_id for r in recipients if r.assigned_account_id})
+
+    # 3. Bulk-load accounts for phone numbers
+    account_phone_map: dict[int, str] = {}
+    if account_ids:
+        acc_q = await session.execute(
+            select(TgAccount.id, TgAccount.phone).where(TgAccount.id.in_(account_ids))
+        )
+        account_phone_map = {row.id: row.phone for row in acc_q}
+
+    # 4. Bulk-load all outreach messages for these recipients
+    msgs_q = await session.execute(
+        select(TgOutreachMessage)
+        .where(TgOutreachMessage.recipient_id.in_(recip_ids))
+        .order_by(TgOutreachMessage.sent_at)
+    )
+    all_messages = msgs_q.scalars().all()
+
+    # Group messages by recipient_id → step_id
+    from collections import defaultdict
+    msgs_by_recip: dict[int, dict[int, TgOutreachMessage]] = defaultdict(dict)
+    for m in all_messages:
+        if m.step_id:
+            msgs_by_recip[m.recipient_id][m.step_id] = m
+
+    # 5. Bulk-load incoming replies for these recipients (first reply per recipient)
+    replies_q = await session.execute(
+        select(TgIncomingReply.recipient_id, func.min(TgIncomingReply.received_at).label("first_reply_at"))
+        .where(
+            TgIncomingReply.campaign_id == campaign_id,
+            TgIncomingReply.recipient_id.in_(recip_ids),
+        )
+        .group_by(TgIncomingReply.recipient_id)
+    )
+    reply_times: dict[int, _dt] = {row.recipient_id: row.first_reply_at for row in replies_q}
+
+    # 6. Build timeline rows
+    timeline_recipients: list[TgTimelineRecipient] = []
+    for r in recipients:
+        step_statuses: dict[str, TgTimelineStepStatus] = {}
+        recip_msgs = msgs_by_recip.get(r.id, {})
+        first_reply_at = reply_times.get(r.id)
+
+        for ts in timeline_steps:
+            msg = recip_msgs.get(ts.step_id)
+            if msg:
+                # Determine status
+                if msg.status.value in ("failed", "spamblocked"):
+                    step_status = TgTimelineStepStatus(
+                        status=msg.status.value,
+                        sent_at=msg.sent_at,
+                        error_message=msg.error_message,
+                    )
+                elif first_reply_at and msg.sent_at and first_reply_at >= msg.sent_at:
+                    # Check if this is the last step before reply (reply attributed here)
+                    later_msg = any(
+                        m.sent_at and m.sent_at > msg.sent_at and m.status.value == "sent"
+                        for m in recip_msgs.values()
+                    )
+                    if not later_msg:
+                        step_status = TgTimelineStepStatus(
+                            status="replied",
+                            sent_at=msg.sent_at,
+                            read_at=msg.read_at,
+                            replied_at=first_reply_at,
+                        )
+                    elif msg.read_at:
+                        step_status = TgTimelineStepStatus(status="read", sent_at=msg.sent_at, read_at=msg.read_at)
+                    else:
+                        step_status = TgTimelineStepStatus(status="sent", sent_at=msg.sent_at)
+                elif msg.read_at:
+                    step_status = TgTimelineStepStatus(status="read", sent_at=msg.sent_at, read_at=msg.read_at)
+                else:
+                    step_status = TgTimelineStepStatus(status="sent", sent_at=msg.sent_at)
+            elif ts.step_order == r.current_step + 1 and r.next_message_at:
+                step_status = TgTimelineStepStatus(status="scheduled", sent_at=r.next_message_at)
+            elif ts.step_order <= r.current_step:
+                step_status = TgTimelineStepStatus(status="sent")  # step done but msg not found
+            else:
+                step_status = TgTimelineStepStatus(status="pending")
+
+            step_statuses[str(ts.step_order)] = step_status
+
+        timeline_recipients.append(TgTimelineRecipient(
+            id=r.id,
+            username=r.username,
+            first_name=r.first_name,
+            status=r.status.value,
+            assigned_account_id=r.assigned_account_id,
+            assigned_account_phone=account_phone_map.get(r.assigned_account_id) if r.assigned_account_id else None,
+            next_message_at=r.next_message_at,
+            steps=step_statuses,
+        ))
+
+    return TgCampaignTimelineResponse(
+        steps=timeline_steps,
+        recipients=timeline_recipients,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 # ── Campaign Accounts ──────────────────────────────────────────────────
