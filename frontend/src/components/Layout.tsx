@@ -59,7 +59,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/actions', icon: Activity, label: 'Actions', global: true },
     { path: '/god-panel', icon: Shield, label: 'God Panel', global: true, badge: true },
     { path: '/igaming', icon: Gamepad2, label: 'iGaming', global: true },
-    { path: '/telegram-outreach', icon: Send, label: 'TG Outreach', global: true },
+    { path: '/outreach/campaigns', icon: Send, label: 'TG Outreach', global: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
     { path: '/settings', icon: Settings, label: 'Settings', global: true },
   ];
@@ -139,6 +139,9 @@ export function Layout({ children }: LayoutProps) {
     }
     if (path.startsWith('/knowledge/')) {
       return location.pathname.startsWith('/knowledge');
+    }
+    if (path.startsWith('/outreach/')) {
+      return location.pathname.startsWith('/outreach');
     }
     return location.pathname.startsWith(path);
   };
