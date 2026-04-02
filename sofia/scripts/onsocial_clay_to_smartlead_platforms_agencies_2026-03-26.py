@@ -1635,6 +1635,7 @@ def _export_getsales(without_email: list[dict], today: str) -> Path:
         gs["last_name"] = c.get("last_name", "")
         gs["position"] = c.get("title", "")
         gs["linkedin_nickname"] = _extract_linkedin_nickname(li_url)
+        gs["linkedin_id"] = _extract_linkedin_nickname(li_url)
         gs["linkedin_url"] = li_url
         gs["company_name"] = normalize_company(c.get("company_name", ""))
         gs["company_domain"] = c.get("domain", "")
