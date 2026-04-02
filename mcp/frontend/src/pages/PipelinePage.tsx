@@ -695,6 +695,18 @@ export default function PipelinePage() {
                       </div>
                     </div>
                   )}
+                  {/* Funding filter (prioritization) */}
+                  {run.filters.organization_latest_funding_stage_cd?.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>FUNDING PRIORITY (Level 0)</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {run.filters.organization_latest_funding_stage_cd.map((f: string) => (
+                          <span key={f} style={{ padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', fontSize: 11, color: '#f59e0b', fontWeight: 500 }}>{f.replace('_', ' ').toUpperCase()}</span>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Funded companies searched first. Drops to all companies when exhausted.</div>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 16 }}>
                     {run.filters.organization_locations?.length > 0 && (
                       <div>

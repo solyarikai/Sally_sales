@@ -79,6 +79,38 @@ Compare: time to KPI, pages used, credits spent
 
 ---
 
+## REAL Test Results (fresh Apollo search, 2026-04-02)
+
+| Strategy | Companies/3pages | Total Avail | Credits | Time | Est. Credits to KPI |
+|----------|-----------------|-------------|---------|------|---------------------|
+| **Keywords + Funding** | **64** | 1,933 | 3 | 4.5s | **~103** |
+| Keywords NO funding | 0 | 43,212 | 1 | — | ~440 (sparse) |
+| **Industry + Funding** | **62** | 1,852 | 3 | 3.0s | **~105** |
+| Industry NO funding | 0 | 93,120 | 1 | — | ~440 (sparse) |
+
+### CRITICAL FINDING
+**Funding filter FIXES Apollo's sparse pagination!** Without funding, Apollo returns 0 results per page despite 43K-93K total. With funding, returns 20+ per page. Funding is NOT optional — it's essential for Apollo to work.
+
+### Winner
+**Keywords + Funding** — marginally more companies (64 vs 62), est. 103 credits to KPI.
+Both strategies very close with funding. Industry-first is 0.5s faster per batch.
+
+### Exhaustion Cascade (with funding as Level 0)
+```
+L0: Keywords + Funding (Series A-D) → 1,933 companies pool → ~10 pages = ~200 companies
+    If 10 consecutive empty = exhausted → drop funding:
+L1: Keywords (no funding) → 43,212 pool BUT sparse pagination (0 per page!)
+    This level will exhaust quickly (10 empty) → try regen:
+L2: Regenerated keywords (no funding) → may find different pool
+L3: Industry fallback (no funding) → 93,120 pool BUT also sparse
+
+IMPORTANT: Level 0 (funded) is the ONLY level that gives good pagination.
+If Level 0 exhausts, remaining levels likely produce very few companies.
+The funded pool (1,933) should be enough for KPI in most cases.
+```
+
+---
+
 ## Answers (to be filled after testing)
 
 ### Was campaign 3118379 gathered without funding filter?
