@@ -373,6 +373,7 @@ class TgTeleRaptorAccount(BaseModel):
     last_connect_date: Optional[str] = None
     tgid: Optional[int] = None
     register_time: Optional[str] = None  # ISO date if available from export
+    reg_date: Optional[float] = None  # Unix timestamp from TeleRaptor JSON
 
     model_config = {"extra": "ignore"}
 

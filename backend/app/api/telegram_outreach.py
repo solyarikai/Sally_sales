@@ -187,9 +187,16 @@ def _estimate_registration_date(tg_user_id: Optional[int]) -> Optional[str]:
     return None
 
 
-def _parse_session_date(register_time: Optional[str], tgid: Optional[int] = None):
-    """Get account registration date from register_time string or estimate from tgid."""
+def _parse_session_date(register_time: Optional[str], tgid: Optional[int] = None,
+                        reg_date: Optional[float] = None):
+    """Get session creation date from reg_date (unix ts), register_time string, or estimate from tgid."""
     from datetime import datetime as dt
+    # Prefer reg_date unix timestamp (from TeleRaptor JSON)
+    if reg_date:
+        try:
+            return dt.utcfromtimestamp(reg_date)
+        except (ValueError, TypeError, OSError):
+            pass
     if register_time:
         try:
             return dt.fromisoformat(register_time).replace(tzinfo=None)
@@ -695,7 +702,7 @@ async def list_accounts(
     result = await session.execute(query)
     accounts = result.scalars().unique().all()
 
-    # Backfill missing country_code and session_created_at (from tgid only)
+    # Backfill missing country_code and telegram_created_at (from tgid estimate)
     dirty = False
     for acc in accounts:
         if not acc.country_code and acc.phone:
@@ -705,7 +712,10 @@ async def list_accounts(
         if acc.telegram_user_id:
             est = _parse_session_date(None, acc.telegram_user_id)
             if est:
-                if not acc.session_created_at or est < acc.session_created_at:
+                if not acc.telegram_created_at:
+                    acc.telegram_created_at = est
+                    dirty = True
+                if not acc.session_created_at:
                     acc.session_created_at = est
                     dirty = True
     if dirty:
@@ -1625,7 +1635,8 @@ async def import_teleraptor_accounts(data: TgTeleRaptorImportRequest,
             last_connected_at=last_connected,
             country_code=_detect_country(phone),
             telegram_user_id=raw.tgid,
-            session_created_at=_parse_session_date(raw.register_time, raw.tgid) or last_connected or func.now(),
+            session_created_at=_parse_session_date(raw.register_time, raw.tgid, raw.reg_date) or last_connected or func.now(),
+            telegram_created_at=_parse_session_date(None, raw.tgid) if raw.tgid else None,
         )
         session.add(account)
         added += 1
