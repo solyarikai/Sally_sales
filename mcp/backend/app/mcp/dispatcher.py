@@ -1100,10 +1100,20 @@ Return ONLY valid JSON."""
                     ctx_probe = UserServiceContext(user.id, session)
                     openai_key = await ctx_probe.get_key("openai") or _s.OPENAI_API_KEY
 
-                    # Try filter_mapper first (uses taxonomy with embeddings)
+                    # Extract seed keywords from document (if project was created from a document)
+                    seed_keywords = []
+                    if project.offer_summary and isinstance(project.offer_summary, dict):
+                        if project.offer_summary.get("_source") == "document":
+                            for seg in project.offer_summary.get("segments", []):
+                                seed_keywords.extend(seg.get("keywords", []))
+                            combined = project.offer_summary.get("apollo_filters", {}).get("combined_keywords", [])
+                            seed_keywords = list(dict.fromkeys(seed_keywords + combined))  # dedupe, preserve order
+                            logger.info(f"Document seed keywords: {len(seed_keywords)} from {len(project.offer_summary.get('segments', []))} segments")
+
+                    # Try filter_mapper first (uses taxonomy with embeddings + seed keywords)
                     try:
                         from app.services.filter_mapper import map_query_to_filters
-                        mapped = await map_query_to_filters(query, offer_text, openai_key)
+                        mapped = await map_query_to_filters(query, offer_text, openai_key, seed_keywords=seed_keywords or None)
                         if mapped and (mapped.get("q_organization_keyword_tags") or mapped.get("organization_industry_tag_ids")):
                             filters.setdefault("q_organization_keyword_tags", mapped.get("q_organization_keyword_tags"))
                             filters.setdefault("organization_locations", mapped.get("organization_locations"))
@@ -1154,10 +1164,9 @@ Return ONLY valid JSON."""
                 if doc_filters.get("employee_range") and not filters.get("organization_num_employees_ranges"):
                     filters["organization_num_employees_ranges"] = [doc_filters["employee_range"]]
                     logger.info(f"Document employee range: {doc_filters['employee_range']}")
-                # Use document's specific keywords (more precise than filter_mapper)
-                if doc_filters.get("combined_keywords"):
-                    filters["q_organization_keyword_tags"] = doc_filters["combined_keywords"]
-                    logger.info(f"Document keywords override: {len(doc_filters['combined_keywords'])} specific keywords")
+                # Document keywords are now passed as seeds to filter_mapper (Step A2)
+                # instead of overriding — this lets GPT pick the best keywords from
+                # both taxonomy matches AND document seeds
 
         # ── Auto-calculate pages from target_count BEFORE validation ──
         if "api" in source_type:
@@ -2426,15 +2435,25 @@ Return ONLY valid JSON."""
         # 2. Set sequences
         await svc.set_campaign_sequences(campaign_id, seq.sequence_steps)
 
-        # 3. Set production settings (M3: match reference campaign 3070919)
-        # Hardcoded in SmartLeadService: no tracking, plain text, stop on reply, 40% follow-up
-        await svc.set_campaign_settings(campaign_id)
+        # 3. Set production settings — read from document extraction if available
+        doc_settings = {}
+        project = await session.get(Project, seq.project_id)
+        if project and project.offer_summary and isinstance(project.offer_summary, dict):
+            doc_settings = project.offer_summary.get("campaign_settings", {})
+        try:
+            await svc.set_campaign_settings(
+                campaign_id,
+                track_open=doc_settings.get("tracking", False),
+                stop_on_reply=doc_settings.get("stop_on_reply", True),
+                plain_text=doc_settings.get("plain_text", True),
+            )
+        except Exception as e:
+            logger.warning(f"Campaign settings failed, using defaults: {e}")
+            await svc.set_campaign_settings(campaign_id)
 
         # 4. Set schedule (M2: 9-18 in target contact timezone)
         target_country = args.get("target_country", "")
         if not target_country:
-            # Try to get from project's gathering filters or gathered contact geo
-            project = await session.get(Project, seq.project_id)
             if project and project.target_segments:
                 for country in ["United States", "Germany", "United Kingdom", "India", "Australia", "UAE", "Canada", "France", "Netherlands", "Switzerland"]:
                     if country.lower() in (project.target_segments or "").lower():

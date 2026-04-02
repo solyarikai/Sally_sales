@@ -51,13 +51,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         except (LookupError, AttributeError):
             pass
     if not token:
-        # Fallback: token captured from SSE URL (path or query string)
-        token = _session_tokens.get("_latest", "")
-    if not token:
-        for sid, t in _session_tokens.items():
-            if t:
-                token = t
-                break
+        # Resolve from session-specific token store (set by SSE URL on connect)
+        try:
+            ctx = mcp_server.request_context
+            session_key = f"sse_{id(ctx.session)}"
+            token = _session_tokens.get(session_key, '')
+        except (LookupError, AttributeError):
+            pass
     logger.info(f"call_tool({name}): token={'YES:'+token[:12] if token else 'NONE'}, "
                 f"_session_tokens={list(_session_tokens.keys())}, "
                 f"_session_user_tokens={len(_session_user_tokens)}")
