@@ -230,11 +230,14 @@ class ApolloService:
         # Works for ANY industry — fintech, fashion, SaaS, whatever the document says.
 
         if titles and len(with_email) > 0:
-            eligible = await self._gpt_rank_candidates(with_email, titles, domain)
+            gpt_selected = await self._gpt_rank_candidates(with_email, titles, domain)
+            # GPT-selected first, then fill remaining slots from all candidates by seniority
+            # This ensures avg 2.5+ people per company while prioritizing target roles
+            seen_ids = {p.get("id") for p in gpt_selected}
+            fallback = [p for p in with_email if p.get("id") not in seen_ids]
+            prioritized = gpt_selected + fallback  # Target matches first, then seniority fallback
         else:
-            eligible = with_email
-
-        prioritized = eligible  # Already ranked by GPT
+            prioritized = with_email
 
         # Step 4-6: Enrich in rounds until `limit` verified emails or candidates exhausted
         enriched_all = []
@@ -318,17 +321,26 @@ class ApolloService:
             name = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
             cand_lines.append(f"{i}: {name} — {title}")
 
+        # Expand CRO to be unambiguous
+        expanded_titles = []
+        for t in target_titles:
+            if t.upper() == "CRO":
+                expanded_titles.append("CRO (Chief Revenue Officer — NOT Chief Risk Officer)")
+            else:
+                expanded_titles.append(t)
+
         prompt = (
-            f"Select ONLY people whose function matches one of these TARGET ROLES:\n"
-            f"{', '.join(target_titles)}\n\n"
+            f"Select up to 3 people to contact for an outreach campaign.\n"
+            f"TARGET ROLES (select people matching these): {', '.join(expanded_titles)}\n\n"
             f"CANDIDATES at {domain}:\n" + "\n".join(cand_lines) + "\n\n"
-            f"RULES (no hardcoded exclusions — purely match against the target roles above):\n"
-            f"1. Match the FUNCTION, not seniority. 'Head of X' only matches if X is a target function.\n"
-            f"2. COMPOUND titles ('Co-Founder & CTO'): the second part is the function. Include ONLY if that function is in the target list.\n"
-            f"3. 'Chief of Staff to X' is administrative support, NOT the same as X.\n"
-            f"4. Generic titles with no function ('Director', 'VP') — exclude, can't verify match.\n"
-            f"5. If uncertain but the role seems close to a target function — include.\n\n"
-            f"Return JSON: {{\"selected\": [0, 3, 5]}} — indices of matches only."
+            f"SELECTION RULES:\n"
+            f"1. Select people whose function matches a TARGET ROLE above (highest priority)\n"
+            f"2. For compound titles ('X & Y'), the Y part is the function — select only if Y matches a target role\n"
+            f"3. 'Chief Risk Officer' ≠ 'Chief Revenue Officer' — only match CRO if it means Revenue\n"
+            f"4. Skip generic titles without a department ('Director', 'VP' alone)\n"
+            f"5. If fewer than 3 match exactly, also select CEO/Founder/President as universal contacts\n"
+            f"6. If still fewer than 3, prefer senior business-facing roles over technical/operational ones\n\n"
+            f"Return JSON: {{\"selected\": [0, 3, 5]}} — up to 3 indices, best first."
         )
 
         try:
@@ -343,7 +355,7 @@ class ApolloService:
                 # No key — fall back to simple title matching
                 return candidates
 
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with httpx.AsyncClient(timeout=20) as client:
                 resp = await client.post(
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},

@@ -572,6 +572,8 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                             },
                             "segments": segments,
                             "apollo_filters": extraction.get("apollo_filters", {}),
+                            "example_companies": extraction.get("example_companies", []),
+                            "exclusion_list": extraction.get("exclusion_list", []),
                             "_source": "document",
                         }
                         target_segments = (
@@ -676,7 +678,6 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         # ── Store extracted sequences from document ──
         sequence_display = ""
         if extracted_sequences:
-            from app.models.campaign import GeneratedSequence, Campaign
             for seq_data in extracted_sequences:
                 steps = seq_data.get("steps", [])
                 if not steps:
@@ -755,6 +756,18 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 offer_display += f"\n**Target decision makers:** {', '.join(role_titles)}\n"
                 if role_reasoning:
                     offer_display += f"  Reasoning: {role_reasoning}\n"
+            # Show example companies from document
+            example_companies = offer_summary.get("example_companies", [])
+            if example_companies:
+                offer_display += f"\n**Seed companies ({len(example_companies)}):**\n"
+                for ex in example_companies[:5]:
+                    offer_display += f"  - {ex.get('name', '?')} ({ex.get('domain', '?')})\n"
+            # Show exclusion list from document
+            exclusion_list = offer_summary.get("exclusion_list", [])
+            if exclusion_list:
+                offer_display += f"\n**Exclusion rules ({len(exclusion_list)}):**\n"
+                for ex in exclusion_list[:5]:
+                    offer_display += f"  - {ex.get('type', '?')}\n"
             # Show sequences from document
             if sequence_display:
                 offer_display += sequence_display

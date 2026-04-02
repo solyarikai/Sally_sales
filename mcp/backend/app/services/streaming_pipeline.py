@@ -107,23 +107,30 @@ class StreamingPipeline:
                 segments = offer.get("segments", [])
                 if segments:
                     self._segments = [s.get("name", "") for s in segments if s.get("name")]
+                # Load exclusion list from document for Agent #2
+                if offer.get("exclusion_list"):
+                    self._exclusion_list = offer["exclusion_list"]
                 # Use stored classification prompt if available
                 if offer.get("classification_prompt"):
                     self._classification_prompt = offer["classification_prompt"]
 
-            # Generate classification prompt dynamically if not stored
+            # Generate classification prompt if not stored
             if not getattr(self, "_classification_prompt", None):
-                # Try Agent #2 (GPT generates optimal prompt from context)
-                try:
-                    self._classification_prompt = await self._generate_classification_prompt()
-                except Exception:
+                # If document has exclusion list → use Agent #2 to generate from it
+                if getattr(self, '_exclusion_list', None):
+                    try:
+                        self._classification_prompt = await self._generate_classification_prompt()
+                    except Exception:
+                        self._classification_prompt = self._build_via_negativa_prompt()
+                else:
+                    # No exclusion list from document → use minimal via negativa
                     self._classification_prompt = self._build_via_negativa_prompt()
 
     def _build_via_negativa_prompt(self) -> str:
-        """Build via negativa classification prompt — DYNAMIC, no hardcoded exclusions.
+        """Build via negativa classification prompt — dynamic from project context.
 
-        Uses GPT to generate exclusion rules from the offer/segments context.
-        Falls back to a minimal generic prompt if no context available.
+        Uses offer text, segments, and document exclusion list.
+        No generic hardcoded categories — exclusions derived from context.
         """
         segments_line = ""
         if self._segments:
@@ -132,40 +139,49 @@ class StreamingPipeline:
                 f"If target, assign ONE of these segments.\n"
             )
 
-        # Minimal prompt — NO hardcoded exclusion categories.
-        # The offer text itself tells GPT what's relevant and what's not.
+        # Include document's exclusion list if available
+        exclusion_rules = ""
+        if getattr(self, '_exclusion_list', None):
+            rules = [f"- {ex.get('type','')}: {ex.get('reason','')}" for ex in self._exclusion_list]
+            exclusion_rules = "\nDOCUMENT EXCLUSIONS:\n" + "\n".join(rules) + "\n"
+
         return (
             f"You classify companies as potential customers using VIA NEGATIVA.\n\n"
             f"WE SELL: {self._offer_text}\n"
-            f"{segments_line}\n"
-            f"EXCLUDE (is_target=false) if the company is clearly NOT a potential buyer of what we sell.\n"
-            f"Ask: 'Would this company realistically BUY or BENEFIT from our product/service?'\n"
-            f"- If NO reasonable path to becoming a customer → exclude.\n"
-            f"- If they COULD be a customer (even indirectly) → include.\n\n"
-            f"INCLUDE (is_target=true) if the company operates in the target space and could benefit.\n"
-            f"- Companies with both consumer AND B2B arms: include if they have a B2B product division.\n"
-            f"- WHEN IN DOUBT: include (false positives are cheaper than missing real targets).\n\n"
+            f"{segments_line}"
+            f"{exclusion_rules}\n"
+            f"EXCLUDE (is_target=false) if the company would clearly NOT buy what we sell.\n"
+            f"INCLUDE (is_target=true) if the company could realistically be a customer.\n"
+            f"When in doubt → include.\n\n"
             f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
         )
 
     async def _generate_classification_prompt(self) -> str:
         """Agent #2: Generate optimal classification prompt from project context.
 
-        Reads offer, segments, and target audience → generates exclusion rules
-        specific to THIS campaign. No hardcoded categories.
+        Reads offer, segments, target audience, AND document exclusion list
+        → generates exclusion rules specific to THIS campaign. No hardcoded categories.
         """
         import httpx, json
+
+        # Get exclusion list from project offer_summary if available
+        exclusion_context = ""
+        if hasattr(self, '_exclusion_list') and self._exclusion_list:
+            exclusion_lines = [f"- {ex.get('type','')}: {ex.get('reason','')}" for ex in self._exclusion_list]
+            exclusion_context = f"\nDOCUMENT EXCLUSION LIST (from user's strategy doc):\n" + "\n".join(exclusion_lines) + "\n"
 
         meta_prompt = (
             f"Generate a classification prompt for filtering companies in a lead generation pipeline.\n\n"
             f"CONTEXT:\n"
             f"We sell: {self._offer_text}\n"
-            f"Target segments: {', '.join(self._segments) if self._segments else 'general'}\n\n"
+            f"Target segments: {', '.join(self._segments) if self._segments else 'general'}\n"
+            f"{exclusion_context}\n"
             f"Generate a VIA NEGATIVA classification prompt that:\n"
             f"1. Lists 5-8 EXCLUSION rules specific to this campaign (what types of companies are NOT potential buyers)\n"
-            f"2. Lists 3-4 INCLUSION rules (what makes a company a good target)\n"
-            f"3. Uses the offer context to derive exclusions — don't use generic rules\n"
-            f"4. Ends with: Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}\n\n"
+            f"2. INCORPORATE the document's exclusion list above (if provided) into the rules\n"
+            f"3. Lists 3-4 INCLUSION rules (what makes a company a good target)\n"
+            f"4. Uses the offer context to derive exclusions — don't use generic rules\n"
+            f"5. Ends with: Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}\n\n"
             f"Return ONLY the prompt text, no explanation."
         )
 
@@ -175,7 +191,7 @@ class StreamingPipeline:
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {self.openai_key}", "Content-Type": "application/json"},
                     json={"model": "gpt-4.1-mini", "messages": [{"role": "user", "content": meta_prompt}],
-                          "max_tokens": 1000, "temperature": 0.3},
+                          "max_tokens": 1000, "temperature": 0},
                 )
                 data = resp.json()
                 generated = data["choices"][0]["message"]["content"].strip()
@@ -706,6 +722,36 @@ class StreamingPipeline:
                     is_target = parsed.get("is_target", False)
                     segment = parsed.get("segment", "")
                     reasoning = parsed.get("reasoning", "")
+                    confidence = parsed.get("confidence", "high")
+
+                    # TWO-PASS: low/medium confidence → re-evaluate with gpt-4o
+                    if confidence in ("low", "medium"):
+                        try:
+                            resp2 = await client.post(
+                                "https://api.openai.com/v1/chat/completions",
+                                headers={"Authorization": f"Bearer {self.openai_key}",
+                                         "Content-Type": "application/json"},
+                                json={
+                                    "model": "gpt-4o",
+                                    "messages": [
+                                        {"role": "system", "content": self._classification_prompt},
+                                        {"role": "user", "content": company_text},
+                                    ],
+                                    "max_tokens": 200, "temperature": 0,
+                                },
+                            )
+                            data2 = resp2.json()
+                            content2 = data2.get("choices", [{}])[0].get("message", {}).get("content", "")
+                            clean2 = content2.strip()
+                            if clean2.startswith("```"):
+                                clean2 = clean2.split("\n", 1)[1].rsplit("```", 1)[0]
+                            parsed2 = json.loads(clean2)
+                            is_target = parsed2.get("is_target", is_target)
+                            segment = parsed2.get("segment", segment)
+                            reasoning = f"[2-pass] {parsed2.get('reasoning', reasoning)}"
+                        except Exception:
+                            pass  # Keep pass-1 result
+
                     status = "target" if is_target else "rejected"
 
                     # Write to DB with own session

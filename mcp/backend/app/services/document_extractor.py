@@ -53,16 +53,30 @@ Extract:
    - "employee_range": "min,max" (e.g. "20,500")
    - "industries": [Apollo industry names if identifiable]
    - "funding_stages": [if mentioned: "series_a", "series_b", etc.]
-7. "sequences" — array of email sequences that CAN be automated:
+7. "sequences" — array of email sequences:
    - "name": sequence name
    - "steps": array of {{"day": N, "subject": "...", "body": "..."}}
-   - ONLY include sequences where ALL variables are standard ({{{{company}}}}, {{{{firstName}}}}, {{{{signature}}}})
-   - SKIP sequences requiring external data (funding dates, competitor info, event attendance)
+   - Use ONLY SmartLead variable format (snake_case): {{{{first_name}}}}, {{{{last_name}}}}, {{{{company_name}}}}, {{{{email}}}}, {{{{city}}}}, {{{{phone_number}}}}
+   - IMPORTANT: SmartLead uses snake_case! NOT {{{{firstName}}}} or {{{{company}}}}. Use {{{{first_name}}}} and {{{{company_name}}}}.
+   - For signature use {{{{signature}}}} (SmartLead built-in).
+   - For ANY non-standard variable: replace with natural text that works without external data.
+   - The sequence MUST work as-is in SmartLead with only lead fields filled.
 8. "campaign_settings" — object with:
    - "daily_limit_per_mailbox": number
    - "tracking": boolean
    - "stop_on_reply": boolean
    - "plain_text": boolean
+9. "example_companies" — array of example/seed companies mentioned in the document:
+   - "domain": company website domain (e.g. "softswiss.com")
+   - "name": company name
+   - "reason": why they're a good example (1 line)
+   Look for sections titled "examples", "seed companies", "top companies", "filter seeds", etc.
+   If no examples mentioned, omit this field.
+10. "exclusion_list" — array of company types or specific companies to EXCLUDE:
+   Look for sections titled "exclude", "shit list", "not target", "negative list", etc.
+   - "type": category to exclude (e.g. "Casino Operators", "Recruitment Agencies")
+   - "reason": why to exclude
+   If no exclusions mentioned, omit this field.
 
 Return ONLY the JSON object, no markdown formatting.
 
@@ -90,6 +104,89 @@ DOCUMENT:
                 clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
 
             result = json.loads(clean)
+
+            # Post-process sequences: GPT rewrites emails with unfillable variables
+            # Keeps user's tone/intent but makes ALL variables standard SmartLead ones
+            import re
+            # SmartLead variable name mapping: normalize to match lead column names
+            VAR_MAP = {
+                "firstname": "first_name", "firstName": "first_name",
+                "lastname": "last_name", "lastName": "last_name",
+                "company": "company_name", "companyName": "company_name", "company_name": "company_name",
+                "city": "city", "email": "email",
+                "phone": "phone_number", "phoneNumber": "phone_number", "phone_number": "phone_number",
+                "signature": "signature",
+                "first_name": "first_name", "last_name": "last_name",
+            }
+            STANDARD_VARS = set(VAR_MAP.values()) | set(VAR_MAP.keys())
+
+            # First pass: normalize all variable names to SmartLead format
+            for seq in result.get("sequences", []):
+                for step in seq.get("steps", []):
+                    for field in ("subject", "body"):
+                        text = step.get(field, "")
+                        for old_var, new_var in VAR_MAP.items():
+                            if old_var != new_var:
+                                text = text.replace("{{" + old_var + "}}", "{{" + new_var + "}}")
+                        step[field] = text
+
+            for seq in result.get("sequences", []):
+                has_unfillable = False
+                for step in seq.get("steps", []):
+                    for field in ("subject", "body"):
+                        variables = re.findall(r'\{\{(\w+)\}\}', step.get(field, ""))
+                        if any(v.lower() not in STANDARD_VARS for v in variables):
+                            has_unfillable = True
+                            break
+
+                if has_unfillable:
+                    # GPT rewrites the sequence to use only standard variables
+                    try:
+                        rewrite_prompt = (
+                            f"Rewrite this email sequence to use ONLY these variables: "
+                            f"{{{{first_name}}}}, {{{{last_name}}}}, {{{{company_name}}}}, {{{{city}}}}, {{{{signature}}}}\n"
+                            f"IMPORTANT: Use snake_case variable names — {{{{first_name}}}} NOT {{{{firstName}}}}, {{{{company_name}}}} NOT {{{{company}}}}.\n\n"
+                            f"KEEP: the same tone, structure, day spacing, and sales intent.\n"
+                            f"REPLACE: any custom variables (like {{{{hiring_role_or_signal}}}}, {{{{estimated_acv}}}}, "
+                            f"{{{{calendly_link}}}}) with natural language that works WITHOUT external data.\n"
+                            f"The emails must read naturally with ONLY the standard variables filled.\n\n"
+                            f"Original sequence:\n"
+                        )
+                        for step in seq.get("steps", []):
+                            rewrite_prompt += f"\nEmail (Day {step.get('day')}):\nSubject: {step.get('subject')}\nBody: {step.get('body')}\n"
+
+                        rewrite_prompt += (
+                            f"\n\nReturn JSON array: [{{\"day\": N, \"subject\": \"...\", \"body\": \"...\"}}]\n"
+                            f"Keep {{{{company}}}}, {{{{firstName}}}}, {{{{signature}}}} as variables. Replace everything else with natural text."
+                        )
+
+                        async with httpx.AsyncClient(timeout=30) as rewrite_client:
+                            rr = await rewrite_client.post(
+                                "https://api.openai.com/v1/chat/completions",
+                                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                                json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": rewrite_prompt}],
+                                      "max_tokens": 3000, "temperature": 0.3},
+                            )
+                            rr_data = rr.json()
+                            rr_content = rr_data["choices"][0]["message"]["content"].strip()
+                            if rr_content.startswith("```"):
+                                rr_content = rr_content.split("\n", 1)[1].rsplit("```", 1)[0]
+                            rewritten = json.loads(rr_content)
+                            seq["steps"] = rewritten
+                            logger.info(f"GPT rewrote sequence '{seq.get('name','')}' — {len(rewritten)} emails, all variables standard")
+                    except Exception as e:
+                        # Fallback: simple replacement
+                        logger.warning(f"GPT sequence rewrite failed: {e}, using simple replacement")
+                        for step in seq.get("steps", []):
+                            for field in ("subject", "body"):
+                                text = step.get(field, "")
+                                variables = re.findall(r'\{\{(\w+)\}\}', text)
+                                for var in variables:
+                                    if var.lower() not in STANDARD_VARS:
+                                        replacement = var.replace("_", " ")
+                                        text = text.replace("{{" + var + "}}", replacement)
+                                        logger.info(f"Replaced unfillable {{{{{var}}}}} → '{replacement}'")
+                                step[field] = text
 
             # Add metadata
             result["_model"] = model
