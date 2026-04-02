@@ -953,6 +953,23 @@ Hard-learned lessons from the April 2, 2026 testing disaster. Every single one o
 - "98.6% accuracy" means nothing if the SmartLead campaign still has 66% leads from the old run
 - **End-to-end verification = check what's actually in SmartLead**, not what your offline test says
 
+### 17. RAN PIPELINE DIRECTLY INSTEAD OF THROUGH ORCHESTRATOR — SMARTLEAD AUTO-PUSH NEVER FIRED
+
+**What happened**: Test script called `pipe.run_until_kpi()` directly instead of going through the orchestrator. Pipeline ran fine — 75 targets, 138 people, 7 segments, KPI met in 30s. But SmartLead campaign was never created (`external_id: None`). User asked "smartlead campaign is automatically created after default KPI hit?" — yes it should be, but it wasn't.
+
+**Root cause**: The auto-push to SmartLead happens in the ORCHESTRATOR (`pipeline_orchestrator.py`), not in the streaming pipeline itself. The orchestrator's `run_pipeline_background()` calls `_auto_generate_campaign()` → `_auto_push_to_smartlead()` AFTER the pipeline completes. By running the pipeline directly, the entire post-pipeline flow was bypassed.
+
+**Also broken**: The orchestrator had a `Campaign` import error (`cannot access local variable 'Campaign'`) from a different code path, which would have prevented the auto-push even if the orchestrator was used.
+
+**Why it was stupid**: Testing a pipeline by bypassing the orchestrator is like testing a car engine on a bench and claiming the car drives. The orchestrator IS the production code path — MCP tools call the orchestrator, not the pipeline directly.
+
+**The rule**:
+- ALWAYS test through the full production code path: MCP tool → orchestrator → pipeline → auto-push
+- Never call `pipe.run_until_kpi()` or pipeline methods directly in test scripts
+- After pipeline completes, VERIFY the SmartLead campaign was created: check `campaign_id` is not None, check SmartLead API for the campaign
+- If auto-push didn't fire, check: was the orchestrator used? are there import errors? did `_auto_generate_campaign` get called?
+- **The test is not done until the SmartLead campaign exists with correct leads and sequence**
+
 ### Summary Checklist — Before ANY Pipeline Test
 
 ```
