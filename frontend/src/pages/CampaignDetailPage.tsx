@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Settings2, ListOrdered, Users, Eye, MessageSquare, Reply, Download, Bot,
+  ArrowLeft, Settings2, ListOrdered, Users, Eye, MessageSquare, Reply, Download,
   Plus, Trash2, Save, Upload, Loader2, Play, Pause,
   ChevronLeft, ChevronRight, RefreshCw, Type, BarChart3, X, Search, UserPlus, Check,
   Table2,
@@ -2203,7 +2203,7 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
 // Review Tab (Wizard Step 4)
 // ══════════════════════════════════════════════════════════════════════
 
-type ReviewSubTab = 'timeline' | 'analytics' | 'sent' | 'replies';
+type ReviewSubTab = 'timeline' | 'analytics' | 'sent' | 'replies' | 'preview';
 
 function ReviewTab({ campaignId, campaign, t, toast, isDark, onStart }: TabProps & { campaignId: number; campaign: TgCampaign; onStart: () => void }) {
   const [subTab, setSubTab] = useState<ReviewSubTab>('timeline');
@@ -2213,6 +2213,7 @@ function ReviewTab({ campaignId, campaign, t, toast, isDark, onStart }: TabProps
     { key: 'analytics', label: 'Analytics', icon: BarChart3 },
     { key: 'sent', label: 'Sent Messages', icon: MessageSquare },
     { key: 'replies', label: 'Replies', icon: Reply },
+    { key: 'preview', label: 'Preview', icon: Eye },
   ];
 
   return (
@@ -2252,6 +2253,7 @@ function ReviewTab({ campaignId, campaign, t, toast, isDark, onStart }: TabProps
       {subTab === 'analytics' && <AnalyticsTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />}
       {subTab === 'sent' && <MessagesTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />}
       {subTab === 'replies' && <RepliesTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />}
+      {subTab === 'preview' && <PreviewStatsTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />}
     </div>
   );
 }
