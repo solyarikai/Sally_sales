@@ -4019,6 +4019,16 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [forwardPopup, setForwardPopup] = useState<{ msgIds: number[] } | null>(null);
   const [forwardSearch, setForwardSearch] = useState('');
   const [forwardDialogs, setForwardDialogs] = useState<any[]>([]);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+  const [showNotes, setShowNotes] = useState(false);
+  const notesRef = useRef<HTMLDivElement>(null);
+  const [dialogNotes, setDialogNotes] = useState<Record<number, string>>(() => {
+    try {
+      const raw = localStorage.getItem('inbox_dialog_notes');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatUsername, setNewChatUsername] = useState('');
   const [newChatLoading, setNewChatLoading] = useState(false);
@@ -4139,6 +4149,40 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showTemplates]);
+
+  // Close status dropdown on outside click
+  useEffect(() => {
+    if (!showStatusDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) {
+        setShowStatusDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showStatusDropdown]);
+
+  // Close notes popup on outside click
+  useEffect(() => {
+    if (!showNotes) return;
+    const handler = (e: MouseEvent) => {
+      if (notesRef.current && !notesRef.current.contains(e.target as Node)) {
+        setShowNotes(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showNotes]);
+
+  // Save notes to localStorage whenever they change
+  const saveNote = useCallback((dialogId: number, text: string) => {
+    setDialogNotes(prev => {
+      const next = { ...prev, [dialogId]: text };
+      if (!text.trim()) delete next[dialogId];
+      localStorage.setItem('inbox_dialog_notes', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   // Load campaigns & accounts & campaign tags & account tags on mount
   useEffect(() => {
@@ -4696,6 +4740,9 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                     }
                     setSelectedDialog(dialog);
                     exitSelectMode();
+                    setShowStatusDropdown(false);
+                    setShowNotes(false);
+                    setShowTemplates(false);
                     // Clear unread dot locally + persist to DB
                     if (dialog.unread_count > 0) {
                       setDialogs(prev => prev.map(d => d.id === dialog.id ? { ...d, unread_count: 0 } : d));
@@ -4813,18 +4860,62 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   ].filter(Boolean).join(' \u00B7 ')}
                 </p>
               </div>
-              {selectedDialog.tag && TAG_COLORS[selectedDialog.tag] && (
-                <span
-                  className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+              {/* Status dropdown */}
+              <div className="relative" ref={statusDropdownRef}>
+                <button
+                  onClick={() => setShowStatusDropdown(v => !v)}
+                  className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 border text-[11px] font-medium transition-colors"
                   style={{
-                    background: TAG_COLORS[selectedDialog.tag].bg,
-                    color: TAG_COLORS[selectedDialog.tag].text,
-                    border: `1px solid ${TAG_COLORS[selectedDialog.tag].border}`,
+                    borderColor: selectedDialog.tag && TAG_COLORS[selectedDialog.tag] ? TAG_COLORS[selectedDialog.tag].border : A.border,
+                    background: selectedDialog.tag && TAG_COLORS[selectedDialog.tag] ? TAG_COLORS[selectedDialog.tag].bg : 'transparent',
+                    color: selectedDialog.tag && TAG_COLORS[selectedDialog.tag] ? TAG_COLORS[selectedDialog.tag].text : A.text3,
+                    cursor: 'pointer',
                   }}
                 >
-                  {selectedDialog.tag.replace('_', ' ')}
-                </span>
-              )}
+                  {selectedDialog.tag ? selectedDialog.tag.replace('_', ' ') : 'Status'}
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {showStatusDropdown && (
+                  <div className="absolute right-0 top-full mt-1 w-44 rounded-xl shadow-lg border overflow-hidden" style={{ background: A.surface, borderColor: A.border, zIndex: 30 }}>
+                    {([
+                      { key: 'interested', label: 'Interested' },
+                      { key: 'not_interested', label: 'Not Interested' },
+                      { key: 'meeting_set', label: 'Meeting Set' },
+                    ] as const).map(t => {
+                      const isActive = selectedDialog.tag === t.key;
+                      const tc = TAG_COLORS[t.key];
+                      return (
+                        <button
+                          key={t.key}
+                          onClick={() => { handleTag(t.key); setShowStatusDropdown(false); }}
+                          className="w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 transition-colors"
+                          style={{ color: A.text1, background: isActive ? tc.bg : 'transparent' }}
+                          onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#F3F4F6'; }}
+                          onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? tc.bg : 'transparent'; }}
+                        >
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: tc.text }} />
+                          <span className="flex-1">{t.label}</span>
+                          {isActive && <Check className="w-3.5 h-3.5" style={{ color: tc.text }} />}
+                        </button>
+                      );
+                    })}
+                    {selectedDialog.tag && (
+                      <>
+                        <div style={{ height: 1, background: A.border }} />
+                        <button
+                          onClick={() => { handleTag(selectedDialog.tag); setShowStatusDropdown(false); }}
+                          className="w-full text-left px-3 py-2 text-[12px] transition-colors"
+                          style={{ color: A.text3 }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          Clear status
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={async () => {
                   try {
@@ -5043,37 +5134,9 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   </div>
                 )}
 
-                {/* Lead status tag buttons */}
-                {!selectMode && <div className="px-4 py-2 flex gap-1.5 flex-wrap" style={{ borderTop: `1px solid ${A.border}` }}>
-                  {([
-                    { key: 'interested', label: 'Interested', bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
-                    { key: 'not_interested', label: 'Not Interested', bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
-                    { key: 'meeting_set', label: 'Meeting Set', bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' },
-                  ] as const).map(t => {
-                    const isActive = selectedDialog.tag === t.key;
-                    return (
-                      <button
-                        key={t.key}
-                        onClick={() => handleTag(t.key)}
-                        className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all"
-                        style={{
-                          background: isActive ? t.bg : 'transparent',
-                          color: isActive ? t.text : A.text3,
-                          border: `1px solid ${isActive ? t.border : A.border}`,
-                          cursor: 'pointer',
-                        }}
-                        onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = t.bg; e.currentTarget.style.color = t.text; e.currentTarget.style.borderColor = t.border; } }}
-                        onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = A.text3; e.currentTarget.style.borderColor = A.border; } }}
-                      >
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>}
-
-                {/* Input row */}
-                <div className="relative px-4 py-3 flex gap-2 items-end" style={{ borderTop: `1px solid ${A.border}` }}>
-                  {/* Templates popup */}
+                {/* Input area */}
+                <div className="relative px-4 py-2 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${A.border}` }}>
+                  {/* Templates popup (absolute) */}
                   {showTemplates && (
                     <div
                       ref={templateRef}
@@ -5097,7 +5160,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                             onClick={() => {
                               setEditorContent(tpl.text);
                               setShowTemplates(false);
-                              inputRef.current?.focus();
+                              editorRef.current?.focus();
                             }}
                             className="text-left px-2.5 py-2 rounded-lg text-xs transition-colors"
                             style={{ color: A.text1 }}
@@ -5108,7 +5171,6 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                             <span className="block mt-0.5" style={{ color: A.text2, lineHeight: '1.4' }}>{tpl.text}</span>
                           </button>
                         ))}
-                        {/* Custom templates */}
                         {customTemplates.length > 0 && (
                           <>
                             <div style={{ height: 1, background: A.border, margin: '4px 0' }} />
@@ -5130,7 +5192,6 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                             ))}
                           </>
                         )}
-                        {/* Add new template */}
                         <div style={{ height: 1, background: A.border, margin: '4px 0' }} />
                         <button onClick={() => { setShowTemplates(false); setShowSaveTemplate(true); }}
                           className="w-full text-left px-2.5 py-1.5 text-[11px] font-medium"
@@ -5142,130 +5203,181 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                       </div>
                     </div>
                   )}
-                  {/* Templates toggle button */}
-                  <button
-                    onClick={() => setShowTemplates(v => !v)}
-                    title="Quick reply templates"
-                    className="h-9 w-9 rounded-lg flex items-center justify-center border transition-colors flex-shrink-0"
-                    style={{
-                      borderColor: showTemplates ? A.blue : A.border,
-                      background: showTemplates ? A.blueBg : 'transparent',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={e => { if (!showTemplates) e.currentTarget.style.background = '#F3F4F6'; }}
-                    onMouseLeave={e => { if (!showTemplates) e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <BookOpen className="w-4 h-4" style={{ color: showTemplates ? A.blue : A.text3 }} />
-                  </button>
-                  <div className="flex-1 flex flex-col gap-1">
-                    {/* Sender account info */}
-                    {selectedDialog && (selectedDialog.account_username || selectedDialog.account_phone) && (
-                      <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: A.text3 }}>
-                        <span>via</span>
-                        <span className="font-medium" style={{ color: A.text2 }}>
-                          {selectedDialog.account_username ? `@${selectedDialog.account_username}` : selectedDialog.account_phone}
-                        </span>
-                        {selectedDialog.account_name && (
-                          <span style={{ color: A.text3 }}>({selectedDialog.account_name})</span>
-                        )}
+
+                  {/* Notes popup (absolute) */}
+                  {showNotes && selectedDialog && (
+                    <div
+                      ref={notesRef}
+                      className="absolute left-4 right-4 rounded-xl shadow-lg border overflow-hidden"
+                      style={{ bottom: '100%', marginBottom: 4, background: A.surface, borderColor: A.border, zIndex: 20 }}
+                    >
+                      <div className="px-3 py-2 flex items-center gap-1.5" style={{ borderBottom: `1px solid ${A.border}`, background: '#F9FAFB' }}>
+                        <Edit3 className="w-3.5 h-3.5" style={{ color: A.text3 }} />
+                        <span className="text-[11px] font-semibold" style={{ color: A.text2 }}>Notes</span>
+                        <span className="text-[10px]" style={{ color: A.text3 }}>— {selectedDialog.peer_name || selectedDialog.name || 'Dialog'}</span>
                       </div>
-                    )}
-                    {/* Reply preview */}
-                    {replyTo && (
-                      <div className="flex items-center gap-2 px-2 py-1 rounded-lg text-[11px]" style={{ background: A.blueBg, color: A.text2 }}>
-                        <div className="flex-1 truncate" style={{ borderLeft: `2px solid ${A.blue}`, paddingLeft: 6 }}>
-                          <span style={{ color: A.blue, fontWeight: 600 }}>Reply</span>{' '}
-                          {(replyTo.text || '').slice(0, 60)}
-                        </div>
-                        <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: A.text3, padding: 2 }}>
+                      <div className="p-2">
+                        <textarea
+                          value={dialogNotes[selectedDialog.id] || ''}
+                          onChange={e => saveNote(selectedDialog.id, e.target.value)}
+                          placeholder="Add notes about this contact..."
+                          className="w-full text-xs rounded-lg border outline-none resize-none"
+                          style={{ borderColor: A.border, color: A.text1, background: '#FAFAFA', padding: '8px 10px', minHeight: 80, maxHeight: 160 }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Row 1: Quick Reply | Notes */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { setShowTemplates(v => !v); setShowNotes(false); }}
+                      title="Quick reply templates"
+                      className="h-7 px-2 rounded-md flex items-center gap-1.5 border text-[11px] transition-colors"
+                      style={{
+                        borderColor: showTemplates ? A.blue : A.border,
+                        background: showTemplates ? A.blueBg : 'transparent',
+                        color: showTemplates ? A.blue : A.text3,
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={e => { if (!showTemplates) e.currentTarget.style.background = '#F3F4F6'; }}
+                      onMouseLeave={e => { if (!showTemplates) e.currentTarget.style.background = showTemplates ? A.blueBg : 'transparent'; }}
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span className="font-medium">Templates</span>
+                    </button>
+                    <button
+                      onClick={() => { setShowNotes(v => !v); setShowTemplates(false); }}
+                      title="Notes for this contact"
+                      className="h-7 px-2 rounded-md flex items-center gap-1.5 border text-[11px] transition-colors"
+                      style={{
+                        borderColor: showNotes ? A.blue : A.border,
+                        background: showNotes ? A.blueBg : 'transparent',
+                        color: showNotes ? A.blue : A.text3,
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={e => { if (!showNotes) e.currentTarget.style.background = '#F3F4F6'; }}
+                      onMouseLeave={e => { if (!showNotes) e.currentTarget.style.background = showNotes ? A.blueBg : 'transparent'; }}
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span className="font-medium">Notes</span>
+                      {selectedDialog && dialogNotes[selectedDialog.id] && (
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: A.blue }} />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Row 2: Formatting toolbar */}
+                  <div className="relative flex items-center gap-0.5 px-0.5">
+                    {([
+                      ['bold', 'B', 'Bold · Ctrl+B', 'font-bold'],
+                      ['italic', 'I', 'Italic · Ctrl+I', 'italic'],
+                      ['underline', 'U', 'Underline · Ctrl+U', 'underline'],
+                      ['strikeThrough', 'S', 'Strikethrough · Ctrl+Shift+X', 'line-through'],
+                      ['code', '</>', 'Code · Ctrl+Shift+M', ''],
+                      ['span:tg-spoiler', '◉', 'Spoiler · Ctrl+Shift+P', ''],
+                      ['blockquote', '❝', 'Quote · Ctrl+Shift+.', ''],
+                    ] as [string, string, string, string][]).map(([fmt, label, title, cls]) => (
+                      <button
+                        key={fmt}
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => {
+                          if (fmt.startsWith('span:')) applyFormat('span', { class: fmt.split(':')[1] });
+                          else applyFormat(fmt);
+                        }}
+                        title={title}
+                        className={`fmt-btn ${cls}`}
+                      >{label}</button>
+                    ))}
+                    <button
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => applyFormat('createLink')}
+                      title="Link · Ctrl+K"
+                      className="fmt-btn"
+                    ><Link2 className="w-3 h-3" /></button>
+                    {/* Link URL popup */}
+                    {linkPopup && (
+                      <div className="absolute bottom-full left-0 mb-1 flex items-center gap-1 p-2 rounded-lg shadow-lg border"
+                           style={{ background: A.surface, borderColor: A.border, zIndex: 10 }}>
+                        <input
+                          type="url"
+                          value={linkPopup.url}
+                          onChange={e => setLinkPopup({ url: e.target.value })}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); applyLink(linkPopup.url); }
+                            if (e.key === 'Escape') { setLinkPopup(null); editorRef.current?.focus(); }
+                          }}
+                          placeholder="https://..."
+                          autoFocus
+                          className="h-7 px-2 text-xs rounded border outline-none"
+                          style={{ borderColor: A.border, color: A.text1, width: 220 }}
+                        />
+                        <button onClick={() => applyLink(linkPopup.url)}
+                                className="h-7 px-2.5 text-xs rounded text-white font-medium"
+                                style={{ background: A.blue }}>
+                          OK
+                        </button>
+                        <button onClick={() => { setLinkPopup(null); editorRef.current?.focus(); }}
+                                className="fmt-btn" style={{ color: A.text3 }}>
                           <X className="w-3 h-3" />
                         </button>
                       </div>
                     )}
-                    <div className="flex-1 flex flex-col">
-                      <div
-                        ref={editorRef}
-                        contentEditable={!sending}
-                        suppressContentEditableWarning
-                        onInput={() => setMessageText(editorRef.current?.textContent || '')}
-                        onKeyDown={handleEditorKeyDown}
-                        onPaste={handleEditorPaste}
-                        data-placeholder="Type a message... (Shift+Enter for new line)"
-                        className="inbox-editor rounded-lg border text-sm outline-none"
-                        style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
-                      />
-                      {/* Formatting toolbar */}
-                      <div className="relative flex items-center gap-0.5 px-1 pt-1">
-                        {([
-                          ['bold', 'B', 'Bold · Ctrl+B', 'font-bold'],
-                          ['italic', 'I', 'Italic · Ctrl+I', 'italic'],
-                          ['underline', 'U', 'Underline · Ctrl+U', 'underline'],
-                          ['strikeThrough', 'S', 'Strikethrough · Ctrl+Shift+X', 'line-through'],
-                          ['code', '</>', 'Code · Ctrl+Shift+M', ''],
-                          ['span:tg-spoiler', '◉', 'Spoiler · Ctrl+Shift+P', ''],
-                          ['blockquote', '❝', 'Quote · Ctrl+Shift+.', ''],
-                        ] as [string, string, string, string][]).map(([fmt, label, title, cls]) => (
-                          <button
-                            key={fmt}
-                            onMouseDown={e => e.preventDefault()}
-                            onClick={() => {
-                              if (fmt.startsWith('span:')) applyFormat('span', { class: fmt.split(':')[1] });
-                              else applyFormat(fmt);
-                            }}
-                            title={title}
-                            className={`fmt-btn ${cls}`}
-                          >{label}</button>
-                        ))}
-                        <button
-                          onMouseDown={e => e.preventDefault()}
-                          onClick={() => applyFormat('createLink')}
-                          title="Link · Ctrl+K"
-                          className="fmt-btn"
-                        ><Link2 className="w-3 h-3" /></button>
-                        {/* Link URL popup */}
-                        {linkPopup && (
-                          <div className="absolute bottom-full left-0 mb-1 flex items-center gap-1 p-2 rounded-lg shadow-lg border"
-                               style={{ background: A.surface, borderColor: A.border, zIndex: 10 }}>
-                            <input
-                              type="url"
-                              value={linkPopup.url}
-                              onChange={e => setLinkPopup({ url: e.target.value })}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') { e.preventDefault(); applyLink(linkPopup.url); }
-                                if (e.key === 'Escape') { setLinkPopup(null); editorRef.current?.focus(); }
-                              }}
-                              placeholder="https://..."
-                              autoFocus
-                              className="h-7 px-2 text-xs rounded border outline-none"
-                              style={{ borderColor: A.border, color: A.text1, width: 220 }}
-                            />
-                            <button onClick={() => applyLink(linkPopup.url)}
-                                    className="h-7 px-2.5 text-xs rounded text-white font-medium"
-                                    style={{ background: A.blue }}>
-                              OK
-                            </button>
-                            <button onClick={() => { setLinkPopup(null); editorRef.current?.focus(); }}
-                                    className="fmt-btn" style={{ color: A.text3 }}>
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
                   </div>
-                  <button
-                    onClick={handleSend}
-                    disabled={sending || !messageText.trim()}
-                    className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
-                    style={{
-                      background: messageText.trim() ? A.blue : '#E5E7EB',
-                      cursor: messageText.trim() ? 'pointer' : 'default',
-                    }}
-                  >
-                    {sending
-                      ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-                      : <Send className="w-4 h-4 text-white" />}
-                  </button>
+
+                  {/* Reply preview */}
+                  {replyTo && (
+                    <div className="flex items-center gap-2 px-2 py-1 rounded-lg text-[11px]" style={{ background: A.blueBg, color: A.text2 }}>
+                      <div className="flex-1 truncate" style={{ borderLeft: `2px solid ${A.blue}`, paddingLeft: 6 }}>
+                        <span style={{ color: A.blue, fontWeight: 600 }}>Reply</span>{' '}
+                        {(replyTo.text || '').slice(0, 60)}
+                      </div>
+                      <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: A.text3, padding: 2 }}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Row 3: Editor + Send button */}
+                  <div className="flex gap-2 items-end">
+                    <div
+                      ref={editorRef}
+                      contentEditable={!sending}
+                      suppressContentEditableWarning
+                      onInput={() => setMessageText(editorRef.current?.textContent || '')}
+                      onKeyDown={handleEditorKeyDown}
+                      onPaste={handleEditorPaste}
+                      data-placeholder="Type a message... (Shift+Enter for new line)"
+                      className="inbox-editor flex-1 rounded-lg border text-sm outline-none"
+                      style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={sending || !messageText.trim()}
+                      className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
+                      style={{
+                        background: messageText.trim() ? A.blue : '#E5E7EB',
+                        cursor: messageText.trim() ? 'pointer' : 'default',
+                      }}
+                    >
+                      {sending
+                        ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+                        : <Send className="w-4 h-4 text-white" />}
+                    </button>
+                  </div>
+
+                  {/* Row 4: Account signature */}
+                  {selectedDialog && (selectedDialog.account_username || selectedDialog.account_phone) && (
+                    <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: A.text3 }}>
+                      <span>via</span>
+                      <span className="font-medium" style={{ color: A.text2 }}>
+                        {selectedDialog.account_username ? `@${selectedDialog.account_username}` : selectedDialog.account_phone}
+                      </span>
+                      {selectedDialog.account_name && (
+                        <span style={{ color: A.text3 }}>({selectedDialog.account_name})</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
