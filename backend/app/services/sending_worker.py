@@ -28,6 +28,7 @@ from app.models.telegram_outreach import (
     TgSequence, TgSequenceStep, TgStepVariant,
     TgOutreachMessage, TgMessageStatus,
     TgProxy, TgContact, TgContactStatus,
+    TgIncomingReply,
 )
 from app.services.telegram_engine import telegram_engine
 
@@ -531,6 +532,24 @@ class SendingWorker:
                 return
 
             try:
+                # Safety: re-check if recipient already replied (race with reply_detector)
+                await session.refresh(recipient)
+                if recipient.status == TgRecipientStatus.REPLIED:
+                    logger.info(f"{cname} @{recipient.username} already replied — skipping follow-up")
+                    return
+                # Also check for incoming reply records not yet processed by reply_detector
+                if recipient.current_step > 0:
+                    reply_exists = await session.execute(
+                        select(TgIncomingReply.id).where(
+                            TgIncomingReply.recipient_id == recipient.id,
+                        ).limit(1)
+                    )
+                    if reply_exists.scalar():
+                        recipient.status = TgRecipientStatus.REPLIED
+                        recipient.next_message_at = None
+                        logger.info(f"{cname} @{recipient.username} has incoming reply record — marking REPLIED, skipping follow-up")
+                        return
+
                 # Human-like pre-send delay (replaces flat uniform)
                 delay = _human_delay(
                     campaign.delay_between_sends_min or 11,
