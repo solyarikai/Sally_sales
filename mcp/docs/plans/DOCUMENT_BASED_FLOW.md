@@ -160,17 +160,38 @@ When user says "one campaign":
 The document says "Series A through Series D" and "raised funding in last 90 days".
 Apollo has `organization_latest_funding_stage_cd` filter.
 
-### Questions to Answer
-1. Does organization SEARCH return funding data (stage, date, amount)?
-2. Or does only enrichment return it? (enrichment = 1 credit per company = too expensive)
-3. Does the funding stage filter actually work? How many companies match?
-4. Is the total with funding filter still large enough for default KPI (100 people)?
+### Funding Filter as PRIORITIZATION Layer
 
-### Test Plan
+Funding filter is NOT a hard requirement — it's a prioritization layer.
+Funded companies are higher quality (actively scaling), so search them FIRST.
+If funding pool exhausts before KPI, fall back to non-funded companies.
+
 ```
-Test A: Search WITHOUT funding filter → count total, check if funding data in response
-Test B: Search WITH funding filter (series_a, series_b, series_c, series_d) → count total
-Test C: Compare → is filtered set big enough? Does response include funding date?
+Strategy cascade when document mentions funding (e.g. "Series A-D"):
+
+Level 0 (highest priority): Keywords/Industries + Funding filter
+  - Apollo: q_organization_keyword_tags=["fintech","payments",...] 
+            + organization_latest_funding_stage_cd=["series_a","series_b","series_c","series_d"]
+  - NEVER combine industry_tag_ids + keywords in same call (AND kills results)
+  - But DO combine keywords + funding_stage (they work together)
+  - Result: ~540 companies (tested). High quality, funded, scaling.
+  - Process: scrape → classify → people until KPI met or exhausted
+
+Level 1 (if Level 0 exhausted): Keywords/Industries WITHOUT funding filter
+  - Same keywords, same locations, same size — just drop funding filter
+  - Opens up 17,000+ companies (the full fintech pool)
+  - Lower priority (includes bootstrapped, stagnant companies)
+  - Continue until KPI met
+
+Level 2+: Standard exhaustion cascade (per pipeline_spec.md)
+  - Strategy switching, keyword regeneration, etc.
+```
+
+### Test Results (Phase 2)
+```
+Without funding filter: 17,318 companies
+With Series A-D filter: 540 companies (3%)
+Recommendation: USE funding as Level 0 priority, fall back to no-funding at Level 1
 ```
 
 ## GPT Model Testing Plan
