@@ -437,7 +437,7 @@ export const telegramOutreachApi = {
     (await api.post<{ results: Record<string, any>[] }>(`${BASE}/accounts/bulk-check-live`, { account_ids: accountIds })).data,
 
   bulkCheckAlive: async (accountIds: number[]) =>
-    (await api.post<{ total: number; alive: number; results: Record<string, any>[] }>(`${BASE}/accounts/bulk-check-alive`, { account_ids: accountIds })).data,
+    (await api.post<{ total: number; alive: number; frozen: number; banned: number; dead: number; results: Record<string, any>[] }>(`${BASE}/accounts/bulk-check-alive`, { account_ids: accountIds })).data,
 
   updateProfile: async (accountId: number, params: {
     first_name?: string; last_name?: string; about?: string; username?: string;
