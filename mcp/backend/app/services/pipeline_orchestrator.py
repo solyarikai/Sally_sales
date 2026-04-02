@@ -727,7 +727,15 @@ async def _auto_push_to_smartlead(session, run, campaign, seq, user_id: int):
         if not campaign_data:
             logger.warning(f"Failed to create SmartLead campaign for run {run.id}")
             return
-        sl_campaign_id = campaign_data.get("id")
+        # SmartLead may return dict {"id": 123} or just the ID as string/int
+        if isinstance(campaign_data, dict):
+            sl_campaign_id = campaign_data.get("id")
+        else:
+            sl_campaign_id = campaign_data
+        if not sl_campaign_id:
+            logger.warning(f"SmartLead create_campaign returned no ID: {campaign_data}")
+            return
+        sl_campaign_id = int(sl_campaign_id)
 
         # 2. Set sequences
         await svc.set_campaign_sequences(sl_campaign_id, seq.sequence_steps)

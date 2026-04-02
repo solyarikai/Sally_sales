@@ -177,8 +177,8 @@ async def list_projects(
     projects = []
     for p in result.scalars().all():
         offer = p.offer_summary if isinstance(p.offer_summary, dict) and p.offer_summary.get("primary_offer") else None
-        # Inject sequences from generated_sequences table if not in offer_summary
-        if offer and not offer.get("sequences"):
+        # Always inject sequences from DB (has full bodies) — overrides offer_summary version
+        if offer:
             from app.models.campaign import GeneratedSequence
             seq_result = await session.execute(
                 select(GeneratedSequence).where(GeneratedSequence.project_id == p.id).order_by(GeneratedSequence.id)
