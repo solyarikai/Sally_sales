@@ -51,9 +51,14 @@ def extract_slug(url: str) -> str | None:
     return None
 
 
-def build_email_to_slug() -> dict[str, str]:
-    """Читает все CSV в get_sales_hub и строит {email.lower(): linkedin_slug}."""
-    mapping: dict[str, str] = {}
+def build_mappings() -> tuple[dict[str, str], dict[str, str]]:
+    """Читает все CSV в get_sales_hub.
+    Возвращает:
+      email_map  — {email.lower(): linkedin_slug}
+      name_map   — {full_name.lower(): linkedin_slug}  (для контактов без email)
+    """
+    email_map: dict[str, str] = {}
+    name_map: dict[str, str] = {}
 
     for csv_path in HUB_DIR.rglob("*.csv"):
         try:
@@ -67,9 +72,11 @@ def build_email_to_slug() -> dict[str, str]:
 
         cols = list(rows[0].keys())
 
-        # Найти колонки
         email_col = next(
             (c for c in cols if c.lower() in ("work_email", "email", "work email")), None
+        )
+        name_col = next(
+            (c for c in cols if c.lower() in ("full_name", "name")), None
         )
         url_col = next(
             (c for c in cols if c.lower() in ("linkedin_url", "linkedin url")), None
@@ -78,25 +85,29 @@ def build_email_to_slug() -> dict[str, str]:
             (c for c in cols if c.lower() in ("linkedin_nickname", "linkedin nickname")), None
         )
 
-        if not email_col:
-            continue
-
         for row in rows:
-            email = row.get(email_col, "").strip().lower()
-            if not email:
-                continue
-
-            # Предпочитаем nickname, fallback — извлечь из URL
+            # Получаем slug
             slug = None
             if nick_col:
                 slug = row.get(nick_col, "").strip() or None
             if not slug and url_col:
                 slug = extract_slug(row.get(url_col, ""))
+            if not slug:
+                continue
 
-            if slug and email not in mapping:
-                mapping[email] = slug
+            # Матч по email
+            if email_col:
+                email = row.get(email_col, "").strip().lower()
+                if email and email not in email_map:
+                    email_map[email] = slug
 
-    return mapping
+            # Матч по имени (fallback)
+            if name_col:
+                name = row.get(name_col, "").strip().lower()
+                if name and name not in name_map:
+                    name_map[name] = slug
+
+    return email_map, name_map
 
 
 # ── GetSales API ────────────────────────────────────────────────────────────────
