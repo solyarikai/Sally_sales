@@ -330,13 +330,17 @@ class StreamingPipeline:
             logger.warning("No Apollo service — cannot feed pages")
             return
 
-        # Pre-load existing domains
+        # Pre-load domains from THIS RUN only (not all previous runs)
+        # Each run discovers companies independently — cross-run dedup at SmartLead level
         from app.db import async_session_maker as _asm
         async with _asm() as _ws:
             existing_result = await _ws.execute(
-                select(DiscoveredCompany.domain).where(DiscoveredCompany.project_id == self.run.project_id)
+                select(DiscoveredCompany.domain)
+                .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                .where(CompanySourceLink.gathering_run_id == self.run.id)
             )
             self._domains_seen.update(r[0] for r in existing_result.all())
+            logger.info(f"Pre-loaded {len(self._domains_seen)} domains from current run")
 
         per_page = filters.get("per_page", 100)
 
