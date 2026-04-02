@@ -613,7 +613,7 @@ export const telegramOutreachApi = {
     (await api.post(`${BASE}/inbox/sync`, null, { params: accountId ? { account_id: accountId } : {} })).data,
 
   listInboxAccounts: async () =>
-    (await api.get(`${BASE}/inbox/accounts`)).data as { id: number; phone: string; username?: string; first_name?: string; is_connected: boolean; auth_status: string; campaign_ids: number[]; tag_names: string[] }[],
+    (await api.get(`${BASE}/inbox/accounts`)).data as { id: number; phone: string; username?: string; first_name?: string; last_name?: string; is_connected: boolean; auth_status: string; tg_status?: string; campaign_ids: number[]; tag_names: string[] }[],
 
   updateCampaignTags: async (campaignId: number, tags: string[]) =>
     (await api.patch(`${BASE}/campaigns/${campaignId}/tags`, tags)).data,
