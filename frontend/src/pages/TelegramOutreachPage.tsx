@@ -2989,8 +2989,9 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
         {/* Warmup Debug Modal */}
         {showWarmupDebug && warmupStatus && (() => {
           // Group actions by day
-          const allActions = warmupLogs.length > 0 ? warmupLogs : warmupStatus.recent_actions;
-          const grouped: Record<string, typeof allActions> = {};
+          type WuAction = { action_type: string; detail: string | null; success: boolean; performed_at: string | null };
+          const allActions: WuAction[] = warmupLogs.length > 0 ? warmupLogs : warmupStatus.recent_actions;
+          const grouped: Record<string, WuAction[]> = {};
           for (const a of allActions) {
             const d = a.performed_at ? new Date(a.performed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unknown';
             (grouped[d] ??= []).push(a);
