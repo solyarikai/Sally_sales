@@ -562,6 +562,22 @@ class TelegramEngine:
 
         return {"status": "ok", **result}
 
+    async def check_username(self, account_id: int, username: str) -> dict:
+        """Check if a username is available for this account."""
+        client = self.get_client(account_id)
+        if not client or not client.is_connected():
+            return {"status": "error", "detail": "Account not connected"}
+
+        try:
+            available = await client(functions.account.CheckUsernameRequest(username=username))
+            return {"status": "ok", "available": available}
+        except errors.UsernameInvalidError:
+            return {"status": "ok", "available": False, "reason": "invalid"}
+        except errors.UsernameOccupiedError:
+            return {"status": "ok", "available": False, "reason": "occupied"}
+        except Exception as e:
+            return {"status": "error", "detail": str(e)}
+
     # ── Send message ──────────────────────────────────────────────────
 
     async def send_message(

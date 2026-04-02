@@ -1996,6 +1996,53 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
   });
   const [saving, setSaving] = useState(false);
 
+  // Username check state
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'error'>('idle');
+  const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showUsernamePrompt, setShowUsernamePrompt] = useState(false);
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  const checkUsernameAvailability = useCallback(async (uname: string) => {
+    if (!uname || uname.length < 5) {
+      setUsernameStatus(uname ? 'invalid' : 'idle');
+      return;
+    }
+    setUsernameStatus('checking');
+    try {
+      const res = await telegramOutreachApi.checkUsername(account.id, uname);
+      if (res.status === 'ok') {
+        setUsernameStatus(res.available ? 'available' : (res.reason === 'invalid' ? 'invalid' : 'taken'));
+      } else {
+        setUsernameStatus('error');
+      }
+    } catch {
+      setUsernameStatus('error');
+    }
+  }, [account.id]);
+
+  const handleUsernameChange = useCallback((value: string) => {
+    const clean = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    setForm(f => ({ ...f, username: clean }));
+    setUsernameStatus('idle');
+    if (usernameTimerRef.current) clearTimeout(usernameTimerRef.current);
+    if (clean && clean !== (account.username || '')) {
+      usernameTimerRef.current = setTimeout(() => checkUsernameAvailability(clean), 700);
+    }
+  }, [account.username, checkUsernameAvailability]);
+
+  const loadSuggestions = useCallback(async (fn: string, ln: string) => {
+    setLoadingSuggestions(true);
+    try {
+      const res = await telegramOutreachApi.suggestUsernames(account.id, fn, ln);
+      setUsernameSuggestions(res.suggestions || []);
+    } catch {
+      setUsernameSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }, [account.id]);
+
   // Telethon state
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<Record<string, any> | null>(null);
@@ -2007,10 +2054,10 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleSave = async () => {
+  const doSave = async (overrides?: Record<string, any>) => {
     setSaving(true);
     try {
-      const data: Record<string, any> = { ...form };
+      const data: Record<string, any> = { ...form, ...overrides };
       data.daily_message_limit = Number(data.daily_message_limit) || 10;
       data.skip_warmup = data.skip_warmup === 'true';
       for (const k of ['username', 'first_name', 'last_name', 'bio']) {
@@ -2024,6 +2071,20 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    const nameChanged =
+      (form.first_name || '') !== (account.first_name || '') ||
+      (form.last_name || '') !== (account.last_name || '');
+    const usernameChanged = (form.username || '') !== (account.username || '');
+
+    if (nameChanged && !usernameChanged && (form.first_name || form.last_name)) {
+      setShowUsernamePrompt(true);
+      loadSuggestions(form.first_name, form.last_name);
+      return;
+    }
+    await doSave();
   };
 
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
@@ -2088,9 +2149,29 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
               </div>
               <div>
                 <label className={panelLabelCls} style={{ color: A.text3 }}>Username</label>
-                <input value={form.username} onChange={e => set('username', e.target.value)}
-                       className={panelInputCls}
-                       style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+                <div className="relative">
+                  <input value={form.username} onChange={e => handleUsernameChange(e.target.value)}
+                         placeholder="username"
+                         className={panelInputCls + ' pr-8'}
+                         style={{
+                           background: A.surface, color: A.text1,
+                           borderColor: usernameStatus === 'available' ? '#22c55e'
+                             : usernameStatus === 'taken' || usernameStatus === 'invalid' ? '#ef4444'
+                             : A.border,
+                         }} />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                    {usernameStatus === 'checking' && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: A.text3 }} />}
+                    {usernameStatus === 'available' && <Check className="w-3.5 h-3.5 text-green-500" />}
+                    {usernameStatus === 'taken' && <X className="w-3.5 h-3.5 text-red-500" />}
+                    {usernameStatus === 'invalid' && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
+                  </span>
+                </div>
+                {usernameStatus === 'taken' && (
+                  <p className="text-[10px] mt-0.5 text-red-500">Username is taken</p>
+                )}
+                {usernameStatus === 'invalid' && form.username && (
+                  <p className="text-[10px] mt-0.5 text-red-500">Invalid (min 5 chars, a-z 0-9 _)</p>
+                )}
               </div>
               <div>
                 <label className={panelLabelCls} style={{ color: A.text3 }}>Status</label>
@@ -2470,6 +2551,55 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
           <ConfirmModal message={`Delete account ${account.phone}?`}
             onConfirm={doDeleteAccount}
             onCancel={() => setConfirmDeleteAccount(false)} />
+        )}
+        {/* Username change prompt */}
+        {showUsernamePrompt && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
+            <div className="rounded-xl shadow-xl p-5 w-[360px]" style={{ background: A.surface, border: `1px solid ${A.border}` }}>
+              <h3 className="text-sm font-semibold mb-1" style={{ color: A.text1 }}>Change username?</h3>
+              <p className="text-xs mb-3" style={{ color: A.text3 }}>
+                You changed the name to <b>{[form.first_name, form.last_name].filter(Boolean).join(' ')}</b>. Update the username to match?
+              </p>
+
+              {loadingSuggestions ? (
+                <div className="flex items-center gap-2 py-3 justify-center text-xs" style={{ color: A.text3 }}>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Finding available usernames...
+                </div>
+              ) : usernameSuggestions.length > 0 ? (
+                <div className="space-y-1.5 mb-3">
+                  {usernameSuggestions.map(s => (
+                    <button key={s} onClick={() => {
+                      setForm(f => ({ ...f, username: s }));
+                      setUsernameStatus('available');
+                      setShowUsernamePrompt(false);
+                      doSave({ username: s });
+                    }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm font-mono transition-colors hover:ring-1"
+                      style={{ background: A.bg, color: A.text1, border: `1px solid ${A.border}` }}
+                      onMouseEnter={e => (e.currentTarget.style.borderColor = A.blue)}
+                      onMouseLeave={e => (e.currentTarget.style.borderColor = A.border)}>
+                      @{s}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs py-2 mb-3" style={{ color: A.text3 }}>No available usernames found. You can set one manually.</p>
+              )}
+
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setShowUsernamePrompt(false); doSave(); }}
+                  className="flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
+                  style={{ border: `1px solid ${A.border}`, color: A.text1 }}>
+                  Skip
+                </button>
+                <button onClick={() => setShowUsernamePrompt(false)}
+                  className="flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors hover:bg-[#F3F3F1]"
+                  style={{ border: `1px solid ${A.border}`, color: A.text3 }}>
+                  Set manually
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
