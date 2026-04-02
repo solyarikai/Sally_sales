@@ -29,6 +29,7 @@ async def map_query_to_filters(
     offer: str,
     openai_key: str,
     model: str = "gpt-4.1-mini",
+    seed_keywords: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Full pipeline: query → Apollo filters.
 
@@ -60,6 +61,13 @@ async def map_query_to_filters(
     employee_ranges = taxonomy_service.get_employee_ranges()
     keyword_map_size = len(all_keywords)
 
+    # ── Step A2: Merge seed keywords from document (if provided) ──
+    if seed_keywords:
+        existing = set(k.lower() for k in keyword_shortlist)
+        seeds_added = [k for k in seed_keywords if k.lower() not in existing]
+        keyword_shortlist = seeds_added + keyword_shortlist  # seeds first for priority
+        logger.info(f"Seed keywords: {len(seed_keywords)} provided, {len(seeds_added)} new → shortlist now {len(keyword_shortlist)}")
+
     logger.info(f"Filter mapper: {len(all_industries)} industries, "
                 f"{keyword_map_size} keywords in map, {len(keyword_shortlist)} in shortlist")
 
@@ -78,6 +86,7 @@ async def map_query_to_filters(
         employee_ranges=employee_ranges,
         openai_key=openai_key,
         model=model,
+        seed_keywords=seed_keywords,
     )
     # Override industries with the focused selection
     gpt_result["industries"] = selected_industries
@@ -186,6 +195,7 @@ async def map_query_to_filters(
             "shortlist_size": len(keyword_shortlist),
             "model_used": gpt_result.get("model_used", model),
             "strategy": f"{'industry_first → keywords_fallback' if industry_tag_ids else 'keywords_only (no industry match)'}",
+            "seed_keywords_count": len(seed_keywords) if seed_keywords else 0,
         },
     }
 
@@ -239,6 +249,7 @@ async def _gpt_pick_filters(
     employee_ranges: List[str],
     openai_key: str,
     model: str = "gpt-4.1-mini",
+    seed_keywords: Optional[List[str]] = None,
 ) -> Dict:
     """GPT picks from provided lists. Never invents."""
 
@@ -260,12 +271,20 @@ Include synonyms, related terms, adjacent niches, specific product/service names
 Put ALL in "unverified_keywords" (they haven't been verified against Apollo yet).
 Leave "keywords" empty."""
 
+    seed_section = ""
+    if seed_keywords:
+        seed_section = f"""
+SEED KEYWORDS (from user's strategy document — PRIORITIZE these):
+{json.dumps(seed_keywords[:30])}
+These keywords come directly from the user's outreach strategy. Include ALL that appear in the keyword list above.
+Also use them as inspiration to pick related/adjacent keywords from the list."""
+
     prompt = f"""You map business queries to Apollo.io search filters.
 Select ONLY from the lists provided. Never invent.
 
 User's segment: {query}
 User's product: {offer}
-
+{seed_section}
 {keyword_section}
 
 EMPLOYEE SIZE

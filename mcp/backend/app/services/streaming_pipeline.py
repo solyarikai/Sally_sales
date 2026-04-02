@@ -61,6 +61,7 @@ class StreamingPipeline:
         self.total_targets = 0
         self.total_people = 0
         self.pages_fetched = 0
+        self.apollo_total_entries = 0  # Total companies in Apollo matching filters
 
         # Queues (for streaming phase only — Apollo page discovery)
         self.scrape_queue: asyncio.Queue = asyncio.Queue(maxsize=200)
@@ -71,6 +72,7 @@ class StreamingPipeline:
         self._kpi_met = False
         self._kpi_met_at: Optional[float] = None
         self._stop = False
+        self._shutdown = asyncio.Event()  # Set on KPI met — unblocks all queue.put() calls
         self._domains_seen: Set[str] = set()
         self._started_at = time.time()
         self._tam_pages = run.pages_fetched or 0  # Pages already consumed by tam_gather
@@ -210,6 +212,43 @@ class StreamingPipeline:
             return self._build_via_negativa_prompt()
 
 
+    async def _safe_put(self, queue: asyncio.Queue, item) -> bool:
+        """Put item into queue, but abort immediately if shutdown is triggered.
+
+        Returns True if item was placed, False if shutdown fired first.
+        Prevents the classic producer-consumer deadlock: when KPI is met the
+        downstream consumer stops, queues fill up, upstream producers block on
+        put() forever, and the finally-block that sends poison pills never runs.
+        """
+        if self._shutdown.is_set():
+            return False
+        # Race: wait for EITHER queue space OR shutdown signal
+        put_task = asyncio.create_task(queue.put(item))
+        shutdown_task = asyncio.create_task(self._shutdown.wait())
+        done, pending = await asyncio.wait(
+            {put_task, shutdown_task}, return_when=asyncio.FIRST_COMPLETED,
+        )
+        for t in pending:
+            t.cancel()
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
+        if put_task in done:
+            return True
+        return False
+
+    def _trigger_shutdown(self):
+        """Signal all producers to stop blocking on queue.put().
+
+        Called when KPI is met. Sets the shutdown event so every _safe_put
+        and every worker loop breaks immediately. No more deadlocks.
+        """
+        self._kpi_met = True
+        self._kpi_met_at = time.time()
+        self._shutdown.set()
+        logger.info(f"SHUTDOWN triggered: {self.total_people} people >= {self.target_count}")
+
     async def run_until_kpi(self, filters: Dict) -> Dict:
         """Main entry — SINGLE STREAMING MODE for everything.
 
@@ -248,15 +287,22 @@ class StreamingPipeline:
         # Apollo pages run IN PARALLEL with scraping (not blocking)
         # Workers are ALREADY processing probe companies while Apollo fetches pages 2-10+
         try:
-            if not self._kpi_met:
+            if not self._shutdown.is_set():
                 await self._feed_apollo_pages(filters)
         except Exception as e:
             logger.error(f"Apollo page fetching failed: {e}")
         finally:
-            # ALWAYS send poison pills to ALL queues — workers must stop even if Apollo crashes
-            await self.scrape_queue.put(None)
-            await self.classify_queue.put(None)
-            await self.people_queue.put(None)
+            # Drain queues first so poison pills aren't blocked behind full queues
+            for q in (self.scrape_queue, self.classify_queue, self.people_queue):
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+            # ALWAYS send poison pills to ALL queues — workers must stop
+            self.scrape_queue.put_nowait(None)
+            self.classify_queue.put_nowait(None)
+            self.people_queue.put_nowait(None)
 
         await asyncio.gather(*workers, return_exceptions=True)
 
@@ -420,9 +466,9 @@ class StreamingPipeline:
             await asyncio.gather(*streams)
 
         # ── L2: Keyword regeneration (sequential — needs previous results) ──
-        if not self._kpi_met and not self._stop:
+        if not self._shutdown.is_set() and not self._stop:
             for regen_num in range(1, self.MAX_KEYWORD_REGENERATIONS + 1):
-                if self._kpi_met or self._stop:
+                if self._shutdown.is_set() or self._stop:
                     break
                 regen_base = kw_filters or filters
                 new_kw = await self._regenerate_keywords(regen_base, all_tried_keywords, cycle_num=regen_num)
@@ -455,7 +501,7 @@ class StreamingPipeline:
         logger.info(f"[{label}] start page={page}, max={max_pages} pages")
 
         while pages_this_level < max_pages:
-            if self._kpi_met or self._stop:
+            if self._shutdown.is_set() or self._stop:
                 return False
 
             batch_size = min(10, max_pages - pages_this_level)
@@ -466,7 +512,7 @@ class StreamingPipeline:
 
             # Process results (companies already in scrape queue from fetch_and_feed)
             for page_num, new_count, apollo_raw in page_counts:
-                if self._kpi_met or self._stop:
+                if self._shutdown.is_set() or self._stop:
                     return False
                 self.pages_fetched += 1
                 pages_this_level += 1
@@ -599,6 +645,11 @@ class StreamingPipeline:
                     per_page=per_page,
                 )
                 orgs = (data or {}).get("organizations", [])
+                # Capture total_entries from Apollo pagination (first page that returns it)
+                pagination = (data or {}).get("pagination", {})
+                total = pagination.get("total_entries", 0)
+                if total and total > self.apollo_total_entries:
+                    self.apollo_total_entries = total
                 # Track Apollo search credit (1 credit per page)
                 self.run.credits_used = (self.run.credits_used or 0) + 1
                 # Convert to pipeline format
@@ -763,7 +814,7 @@ class StreamingPipeline:
         from app.db import async_session_maker
         page_companies = []
         for company_data in (results or []):
-            if self._kpi_met:
+            if self._shutdown.is_set():
                 break
             domain = company_data.get("domain", "").lower().strip()
             if not domain or domain in self._domains_seen:
@@ -859,7 +910,8 @@ class StreamingPipeline:
 
         for dc in created_dcs:
             self.total_companies += 1
-            await self.scrape_queue.put(dc)
+            if not await self._safe_put(self.scrape_queue, dc):
+                break  # Shutdown triggered — stop feeding
 
         return len(created_dcs)
 
@@ -870,17 +922,18 @@ class StreamingPipeline:
 
         async def scrape_one(dc):
             async with sem:
-                if self._kpi_met:
+                if self._shutdown.is_set():
                     return
                 try:
                     result = await self._scraper.scrape_website(f"https://{dc.domain}")
+                    if self._shutdown.is_set():
+                        return
                     if result.get("success"):
                         text = result["text"][:50000]
-                        # Write to DB with own session (no conflicts)
                         async with async_session_maker() as ws:
                             await ws.execute(
                                 select(DiscoveredCompany).where(DiscoveredCompany.id == dc.id)
-                            )  # load into session
+                            )
                             from sqlalchemy import update
                             await ws.execute(
                                 update(DiscoveredCompany).where(DiscoveredCompany.id == dc.id).values(
@@ -890,10 +943,10 @@ class StreamingPipeline:
                                 )
                             )
                             await ws.commit()
-                        dc.scraped_text = text  # keep in memory for classifier
+                        dc.scraped_text = text
                         dc.status = "scraped"
                         self.total_scraped += 1
-                        await self.classify_queue.put(dc)
+                        await self._safe_put(self.classify_queue, dc)
                     else:
                         async with async_session_maker() as ws:
                             from sqlalchemy import update
@@ -909,7 +962,7 @@ class StreamingPipeline:
             dc = await self.scrape_queue.get()
             if dc is None:
                 break
-            if self._kpi_met:
+            if self._shutdown.is_set():
                 break
             tasks.append(asyncio.create_task(scrape_one(dc)))
 
@@ -945,7 +998,7 @@ class StreamingPipeline:
 
         async def classify_one(dc):
             async with sem:
-                if not dc.scraped_text or self._kpi_met:
+                if not dc.scraped_text or self._shutdown.is_set():
                     return
                 try:
                     company_text = f"Company: {dc.name or dc.domain}\nDomain: {dc.domain}"
@@ -1023,7 +1076,7 @@ class StreamingPipeline:
                     self.total_classified += 1
                     if is_target:
                         self.total_targets += 1
-                        await self.people_queue.put(dc)
+                        await self._safe_put(self.people_queue, dc)
                 except Exception as e:
                     dc.status = "classify_failed"
                     logger.debug(f"Classify {dc.domain}: {e}")
@@ -1033,7 +1086,7 @@ class StreamingPipeline:
             dc = await self.classify_queue.get()
             if dc is None:
                 break
-            if self._kpi_met:
+            if self._shutdown.is_set():
                 break
             tasks.append(asyncio.create_task(classify_one(dc)))
 
@@ -1050,7 +1103,7 @@ class StreamingPipeline:
         sem = asyncio.Semaphore(20)
 
         async def extract_one(dc):
-            if self._kpi_met:
+            if self._shutdown.is_set():
                 return
             async with sem:
                 try:
@@ -1077,9 +1130,7 @@ class StreamingPipeline:
                             ))
                             self.total_people += 1
                             if self.total_people >= self.target_count:
-                                self._kpi_met = True
-                                self._kpi_met_at = time.time()
-                                logger.info(f"KPI MET: {self.total_people} people >= {self.target_count}")
+                                self._trigger_shutdown()
                                 break
                         # Store org data from bulk_match back to company (free with enrichment)
                         org_data = people[0] if people else {}
@@ -1114,7 +1165,7 @@ class StreamingPipeline:
             dc = await self.people_queue.get()
             if dc is None:
                 break
-            if self._kpi_met:
+            if self._shutdown.is_set():
                 break
             tasks.append(asyncio.create_task(extract_one(dc)))
 
@@ -1129,14 +1180,17 @@ class StreamingPipeline:
             from app.db import async_session_maker
             from sqlalchemy import update
             async with async_session_maker() as ws:
+                vals = dict(
+                    new_companies_count=self.total_companies,
+                    pages_fetched=self._tam_pages + self.pages_fetched,
+                    total_targets_found=self.total_targets,
+                    total_people_found=self.total_people,
+                    credits_used=self.run.credits_used or 0,
+                )
+                if self.apollo_total_entries:
+                    vals["raw_results_count"] = self.apollo_total_entries
                 await ws.execute(
-                    update(GatheringRun).where(GatheringRun.id == self.run.id).values(
-                        new_companies_count=self.total_companies,
-                        pages_fetched=self._tam_pages + self.pages_fetched,
-                        total_targets_found=self.total_targets,
-                        total_people_found=self.total_people,
-                        credits_used=self.run.credits_used or 0,
-                    )
+                    update(GatheringRun).where(GatheringRun.id == self.run.id).values(**vals)
                 )
                 await ws.commit()
         except Exception as e:
@@ -1181,7 +1235,7 @@ class StreamingPipeline:
                       if self.total_people > 0 else "No contacts to send."))
 
         return {
-            "status": "completed" if self._kpi_met else "insufficient",
+            "status": "completed",  # Always "completed" per spec — use kpi_met field to distinguish outcome
             "kpi_met": self._kpi_met,
             "total_companies": self.total_companies,
             "total_scraped": self.total_scraped,

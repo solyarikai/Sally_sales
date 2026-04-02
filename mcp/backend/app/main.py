@@ -269,25 +269,30 @@ class MCPApp:
                         break
                 if url_token:
                     from app.mcp.server import _session_tokens, _session_user_tokens
-                    _session_tokens["_latest"] = url_token
                     logger.info(f"Token from SSE URL: {url_token[:12]}...")
                 else:
                     logger.debug(f"SSE connection without token in query string")
 
-                # SSE connection
+                # SSE connection — store token per-session, clean up on disconnect
+                session_key = None
                 async with sse_transport.connect_sse(scope, receive, send) as streams:
                     read_stream, write_stream = streams
-                    # Auto-login from URL token (set per-session)
                     if url_token:
                         try:
                             from app.mcp.server import mcp_server as _ms
                             ctx = _ms.request_context
+                            session_key = f"sse_{id(ctx.session)}"
+                            _session_tokens[session_key] = url_token
                             _session_user_tokens[id(ctx.session)] = url_token
                         except Exception:
                             pass
                     await mcp_server.run(
                         read_stream, write_stream, mcp_server.create_initialization_options()
                     )
+                # Cleanup session tokens on SSE disconnect
+                if session_key and session_key in _session_tokens:
+                    del _session_tokens[session_key]
+                    logger.debug(f"Cleaned up session {session_key}")
             elif "/messages" in path:
                 # Extract auth token from HTTP headers and store for tool calls
                 from app.mcp.server import _session_tokens
@@ -307,13 +312,10 @@ class MCPApp:
                             session_id = part.split("=", 1)[1]
                             _session_tokens[session_id] = token
                             break
-                    _session_tokens["_latest"] = token
 
-                # If no token from HTTP headers, look up from session store (set by login tool)
+                # If no token from HTTP headers, look up from session store
                 if not token and session_id:
                     token = _session_tokens.get(session_id, "")
-                if not token:
-                    token = _session_tokens.get("_latest", "")
 
                 # Intercept request body for conversation logging
                 body_chunks = []
@@ -332,7 +334,7 @@ class MCPApp:
                     if body_chunks:
                         import asyncio
                         # Re-read token from session store (login tool may have just set it)
-                        log_token = token or _session_tokens.get(session_id, "") or _session_tokens.get("_latest", "")
+                        log_token = token or _session_tokens.get(session_id, "")
                         full_body = b"".join(body_chunks)
                         task = asyncio.create_task(
                             _log_conversation_message(full_body, log_token, session_id)
@@ -444,8 +446,7 @@ async def _token_capture_wrapper(scope, receive, send):
                 scope["raw_path"] = clean_path.encode()
 
         if token:
-            from app.mcp.server import _session_tokens
-            _session_tokens["_latest"] = token
+            # Token stored per-session in SSE handler, not globally
             logger.info(f"Token captured: {token[:12]}... (from {'path' if '/sse/' in path else 'qs'})")
 
     await _original_app(scope, receive, send)

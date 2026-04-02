@@ -472,7 +472,7 @@ class PipelineOrchestrator:
     def _finalize(self, result: Dict) -> Dict:
         tp = self.run.target_people or DEFAULT_TARGET_COUNT
         mpc = self.run.max_people_per_company or DEFAULT_CONTACTS_PER_COMPANY
-        result["status"] = "completed" if self.total_people >= tp else "insufficient"
+        result["status"] = "completed"  # Always "completed" per spec — kpi_met field distinguishes outcome
         result["total_targets"] = self.total_targets
         result["total_people"] = self.total_people
         result["total_companies"] = self.total_companies
@@ -532,8 +532,8 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
             # Mark complete
             if run.status != "paused":
                 kpi_met = result.get("kpi_met")
-                run.status = "completed" if kpi_met else "insufficient"
-                run.current_phase = "kpi_met" if kpi_met else "exhausted"
+                run.status = "completed"  # Always "completed" per spec
+                run.current_phase = "kpi_met" if kpi_met else "exhausted"  # Use phase to distinguish outcome
                 run.completed_at = datetime.now(timezone.utc)
                 # Use pipeline's frozen elapsed (frozen at KPI met) instead of wall clock
                 pipeline_elapsed = result.get("elapsed_seconds")
