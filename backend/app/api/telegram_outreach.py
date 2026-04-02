@@ -3393,9 +3393,14 @@ async def check_username_availability(
         raise HTTPException(400, "No session file")
 
     kwargs = _account_connect_kwargs(account, proxy)
-    await telegram_engine.connect(account_id, **kwargs)
-    result = await telegram_engine.check_username(account_id, username)
-    await telegram_engine.disconnect(account_id)
+    try:
+        await telegram_engine.connect(account_id, **kwargs)
+    except Exception as e:
+        raise HTTPException(502, f"Cannot connect to Telegram: {e}")
+    try:
+        result = await telegram_engine.check_username(account_id, username)
+    finally:
+        await telegram_engine.disconnect(account_id)
     return result
 
 
@@ -3475,17 +3480,21 @@ async def suggest_usernames(
         return {"suggestions": []}
 
     kwargs = _account_connect_kwargs(account, proxy)
-    await telegram_engine.connect(account_id, **kwargs)
+    try:
+        await telegram_engine.connect(account_id, **kwargs)
+    except Exception as e:
+        raise HTTPException(502, f"Cannot connect to Telegram: {e}")
 
-    suggestions = []
-    for uname in candidates:
-        result = await telegram_engine.check_username(account_id, uname)
-        if result.get("available"):
-            suggestions.append(uname)
-            if len(suggestions) >= 5:
-                break
-
-    await telegram_engine.disconnect(account_id)
+    try:
+        suggestions = []
+        for uname in candidates:
+            result = await telegram_engine.check_username(account_id, uname)
+            if result.get("available"):
+                suggestions.append(uname)
+                if len(suggestions) >= 5:
+                    break
+    finally:
+        await telegram_engine.disconnect(account_id)
     return {"suggestions": suggestions}
 
 
