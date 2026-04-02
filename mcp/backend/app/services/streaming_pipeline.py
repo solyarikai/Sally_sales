@@ -495,6 +495,8 @@ class StreamingPipeline:
                     per_page=per_page,
                 )
                 orgs = (data or {}).get("organizations", [])
+                # Track Apollo search credit (1 credit per page)
+                self.run.credits_used = (self.run.credits_used or 0) + 1
                 # Convert to pipeline format
                 results = []
                 for org in orgs:
