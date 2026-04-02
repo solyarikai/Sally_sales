@@ -69,6 +69,7 @@ class StreamingPipeline:
 
         # State
         self._kpi_met = False
+        self._kpi_met_at: Optional[float] = None
         self._stop = False
         self._domains_seen: Set[str] = set()
         self._started_at = time.time()
@@ -252,15 +253,21 @@ class StreamingPipeline:
         except Exception as e:
             logger.error(f"Apollo page fetching failed: {e}")
         finally:
-            # ALWAYS send poison pill — workers must stop even if Apollo crashes
+            # ALWAYS send poison pills to ALL queues — workers must stop even if Apollo crashes
             await self.scrape_queue.put(None)
+            await self.classify_queue.put(None)
+            await self.people_queue.put(None)
 
         await asyncio.gather(*workers, return_exceptions=True)
 
         # Final progress persist
         await self._persist_progress()
 
-        elapsed = time.time() - self._started_at
+        # Use KPI-met timestamp for elapsed (frozen at the moment KPI was hit)
+        if self._kpi_met_at:
+            elapsed = self._kpi_met_at - self._started_at
+        else:
+            elapsed = time.time() - self._started_at
         logger.info(f"Pipeline done: {self.total_scraped} scraped, {self.total_targets} targets, "
                     f"{self.total_people} people in {elapsed:.0f}s")
         return self._build_result(elapsed)
@@ -380,40 +387,37 @@ class StreamingPipeline:
         kw_filters = self._make_keywords_filters(filters) if has_keywords else None
         ind_filters = self._make_industry_filters(filters) if has_industry else None
 
-        # ── L0: PARALLEL funded streams (keywords + industry simultaneously) ──
-        if has_funding and funding_stages:
-            l0_streams = []
-            if kw_filters:
-                kw_funded = dict(kw_filters)
-                kw_funded["organization_latest_funding_stage_cd"] = funding_stages
-                l0_streams.append(self._run_level(kw_funded, per_page, "L0_kw_funded", max_pages=25, start_page=1))
-            if ind_filters:
-                ind_funded = dict(ind_filters)
-                ind_funded["organization_latest_funding_stage_cd"] = funding_stages
-                l0_streams.append(self._run_level(ind_funded, per_page, "L0_ind_funded", max_pages=25, start_page=1))
+        # ── ALL STREAMS IN PARALLEL — no sequential fallback ──
+        # Funded + unfunded + industry all launch simultaneously
+        # _kpi_met flag stops all streams when target reached
+        streams = []
 
-            if l0_streams:
-                logger.info(f"L0: {len(l0_streams)} parallel funded streams")
-                await asyncio.gather(*l0_streams)
+        if kw_filters and has_funding and funding_stages:
+            kw_funded = dict(kw_filters)
+            kw_funded["organization_latest_funding_stage_cd"] = funding_stages
+            streams.append(self._run_level(kw_funded, per_page, "L0_kw_funded", max_pages=25, start_page=1))
 
-        # ── L1: PARALLEL unfunded streams (if KPI not met) ──
-        if not self._kpi_met and not self._stop:
-            l1_streams = []
-            if kw_filters:
-                l1_streams.append(self._run_level(
-                    kw_filters, per_page, "L1_keywords",
-                    max_pages=self.PAGES_PER_STRATEGY,
-                    start_page=(self._tam_pages + 1) if self._tam_pages else 1,
-                ))
-            if ind_filters:
-                l1_streams.append(self._run_level(
-                    ind_filters, per_page, "L1_industry",
-                    max_pages=self.PAGES_PER_STRATEGY, start_page=1,
-                ))
+        if ind_filters and has_funding and funding_stages:
+            ind_funded = dict(ind_filters)
+            ind_funded["organization_latest_funding_stage_cd"] = funding_stages
+            streams.append(self._run_level(ind_funded, per_page, "L0_ind_funded", max_pages=25, start_page=1))
 
-            if l1_streams:
-                logger.info(f"L1: {len(l1_streams)} parallel unfunded streams")
-                await asyncio.gather(*l1_streams)
+        if kw_filters:
+            streams.append(self._run_level(
+                kw_filters, per_page, "L1_keywords",
+                max_pages=self.PAGES_PER_STRATEGY,
+                start_page=(self._tam_pages + 1) if self._tam_pages else 1,
+            ))
+
+        if ind_filters:
+            streams.append(self._run_level(
+                ind_filters, per_page, "L1_industry",
+                max_pages=self.PAGES_PER_STRATEGY, start_page=1,
+            ))
+
+        if streams:
+            logger.info(f"Launching {len(streams)} parallel streams (funded={has_funding}, keywords={has_keywords}, industry={has_industry})")
+            await asyncio.gather(*streams)
 
         # ── L2: Keyword regeneration (sequential — needs previous results) ──
         if not self._kpi_met and not self._stop:
@@ -866,6 +870,8 @@ class StreamingPipeline:
 
         async def scrape_one(dc):
             async with sem:
+                if self._kpi_met:
+                    return
                 try:
                     result = await self._scraper.scrape_website(f"https://{dc.domain}")
                     if result.get("success"):
@@ -904,7 +910,7 @@ class StreamingPipeline:
             if dc is None:
                 break
             if self._kpi_met:
-                continue
+                break
             tasks.append(asyncio.create_task(scrape_one(dc)))
 
         if tasks:
@@ -1028,7 +1034,7 @@ class StreamingPipeline:
             if dc is None:
                 break
             if self._kpi_met:
-                continue
+                break
             tasks.append(asyncio.create_task(classify_one(dc)))
 
         if tasks:
@@ -1072,6 +1078,7 @@ class StreamingPipeline:
                             self.total_people += 1
                             if self.total_people >= self.target_count:
                                 self._kpi_met = True
+                                self._kpi_met_at = time.time()
                                 logger.info(f"KPI MET: {self.total_people} people >= {self.target_count}")
                                 break
                         # Store org data from bulk_match back to company (free with enrichment)
@@ -1106,6 +1113,8 @@ class StreamingPipeline:
         while True:
             dc = await self.people_queue.get()
             if dc is None:
+                break
+            if self._kpi_met:
                 break
             tasks.append(asyncio.create_task(extract_one(dc)))
 

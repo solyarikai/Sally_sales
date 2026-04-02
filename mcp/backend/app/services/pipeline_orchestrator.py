@@ -535,9 +535,14 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
                 run.status = "completed" if kpi_met else "insufficient"
                 run.current_phase = "kpi_met" if kpi_met else "exhausted"
                 run.completed_at = datetime.now(timezone.utc)
-                elapsed = (run.completed_at - run.started_at).total_seconds() if run.started_at else None
-                if elapsed:
-                    run.duration_seconds = int(elapsed)
+                # Use pipeline's frozen elapsed (frozen at KPI met) instead of wall clock
+                pipeline_elapsed = result.get("elapsed_seconds")
+                if pipeline_elapsed:
+                    run.duration_seconds = int(pipeline_elapsed)
+                else:
+                    elapsed = (run.completed_at - run.started_at).total_seconds() if run.started_at else None
+                    if elapsed:
+                        run.duration_seconds = int(elapsed)
                 run.notes = (run.notes or "") + f"\n{result.get('message', '')}"
                 if result.get("issues"):
                     run.error_message = "\n".join(result["issues"])
