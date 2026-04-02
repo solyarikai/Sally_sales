@@ -12,13 +12,13 @@ sys.path.insert(0, "/app")
 os.chdir("/app")
 
 from sqlalchemy import select, or_
-from app.database import async_session
+from app.db import async_session_maker
 from app.models.telegram_outreach import TgAccount
 from app.services.device_fingerprints import generate_fingerprint
 
 
 async def main():
-    async with async_session() as session:
+    async with async_session_maker() as session:
         # Find accounts with Android fingerprints
         result = await session.execute(
             select(TgAccount).where(
