@@ -113,6 +113,7 @@ class TgAccountUpdate(BaseModel):
     status: Optional[str] = None
     proxy_group_id: Optional[int] = None
     assigned_proxy_id: Optional[int] = None
+    skip_warmup: Optional[bool] = None
 
 
 class TgAccountResponse(BaseModel):
@@ -134,6 +135,7 @@ class TgAccountResponse(BaseModel):
     effective_daily_limit: Optional[int] = None
     warmup_day: Optional[int] = None
     is_young_session: bool = False
+    skip_warmup: bool = False
     messages_sent_today: int = 0
     total_messages_sent: int = 0
     proxy_group_id: Optional[int] = None

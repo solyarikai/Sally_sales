@@ -27,6 +27,7 @@ export interface TgAccount {
   effective_daily_limit?: number;
   warmup_day?: number | null;
   is_young_session?: boolean;
+  skip_warmup?: boolean;
   messages_sent_today: number;
   total_messages_sent: number;
   proxy_group_id?: number;
@@ -242,6 +243,9 @@ export const telegramOutreachApi = {
 
   bulkSetLimit: async (accountIds: number[], limit: number) =>
     (await api.post(`${BASE}/accounts/bulk-set-limit`, { account_ids: accountIds }, { params: { daily_message_limit: limit } })).data,
+
+  bulkSkipWarmup: async (accountIds: number[], skip: boolean = true) =>
+    (await api.post(`${BASE}/accounts/bulk-skip-warmup`, { account_ids: accountIds }, { params: { skip } })).data,
 
   bulkUpdateParams: async (accountIds: number[], params: {
     device_model?: string; system_version?: string; app_version?: string;
