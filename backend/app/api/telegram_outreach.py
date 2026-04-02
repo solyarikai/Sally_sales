@@ -1128,9 +1128,9 @@ DEFAULT_WARMUP_CHANNELS_SEED = [
     ("dark_ads_chat", "Dark Ads Chat"),
     ("chatdnative", "Chat D Native"),
     ("cpa_lenta", "CPA Лента"),
-    ("+/-d8UvrddIvI1NWVi", None),
+    ("+-d8UvrddIvI1NWVi", None),
     ("leadssulive", "Leads Su Live"),
-    ("+/dNk09qoykgEzNWVi", None),
+    ("+dNk09qoykgEzNWVi", None),
     ("thepartnerkin", "The Partnerkin"),
 ]
 
