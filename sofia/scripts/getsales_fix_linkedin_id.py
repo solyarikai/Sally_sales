@@ -207,7 +207,11 @@ def main():
                 email = (lead.get("work_email") or lead.get("personal_email") or "").strip().lower()
                 slug = email_to_slug.get(email) if email else None
 
-                # Fallback: slug прямо из поля linkedin если там URL (не slug)
+                # Fallback: матч по full_name (для контактов без email)
+                if not slug:
+                    name = f"{lead.get('first_name', '')} {lead.get('last_name', '')}".strip().lower()
+                    slug = name_to_slug.get(name) if name else None
+
                 if not slug:
                     no_data += 1
                     total_no_data += 1
