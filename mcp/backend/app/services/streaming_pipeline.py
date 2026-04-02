@@ -313,11 +313,11 @@ class StreamingPipeline:
     # ── Apollo page fetching + streaming workers ──
 
     # Per-strategy page limits — aggressive to hit 100 people KPI
-    PAGES_PER_STRATEGY = 50       # L0/L1: 50 pages per stream (parallel = 100 total)
-    PAGES_PER_REGEN_CYCLE = 25    # L2: 25 pages per regen cycle
-    MAX_KEYWORD_REGENERATIONS = 10 # 10 regen cycles with different angles
-    EXHAUSTION_THRESHOLD = 20     # 20 consecutive empty pages = strategy exhausted
-    MAX_TOTAL_PAGES = 500         # Need 300-500 companies for KPI, ~5/page sparse
+    PAGES_PER_STRATEGY = 25       # Per stream (run 450 hit KPI in 39 pages total)
+    PAGES_PER_REGEN_CYCLE = 20    # Per regen cycle
+    MAX_KEYWORD_REGENERATIONS = 5  # 5 regen cycles with different angles
+    EXHAUSTION_THRESHOLD = 10     # 10 consecutive APOLLO-EMPTY pages (not dedup-empty)
+    MAX_TOTAL_PAGES = 150         # Safety cap
 
     async def _feed_apollo_pages(self, filters: Dict):
         """3-level strategy cascade per pipeline_spec.md.
@@ -339,6 +339,16 @@ class StreamingPipeline:
             self._domains_seen.update(r[0] for r in existing_result.all())
 
         per_page = filters.get("per_page", 100)
+
+        # AUTO-EXPAND keywords before search — turn 30 base into 80-100 specific ones
+        base_kw = (filters.get("q_organization_keyword_tags") or
+                   filters.get("mapping_details", {}).get("keywords_selected", []))
+        if base_kw and len(base_kw) < 60:
+            expanded = await self._expand_keywords(base_kw)
+            if expanded and len(expanded) > len(base_kw):
+                filters["q_organization_keyword_tags"] = expanded
+                logger.info(f"Keywords expanded: {len(base_kw)} → {len(expanded)}")
+
         all_tried_keywords = set(k.lower() for k in (filters.get("q_organization_keyword_tags") or []))
 
         # HARD FILTERS from project — ALWAYS applied, never dropped
@@ -446,12 +456,14 @@ class StreamingPipeline:
             )
 
             # Process results (companies already in scrape queue from fetch_and_feed)
-            for page_num, new_count in page_counts:
+            for page_num, new_count, apollo_raw in page_counts:
                 if self._kpi_met or self._stop:
                     return False
                 self.pages_fetched += 1
                 pages_this_level += 1
-                if new_count <= 0:  # 0 = empty, -1 = error
+                # Exhaustion based on APOLLO returning nothing (not dedup)
+                # Apollo returning companies that are all dupes = pool still has data
+                if apollo_raw <= 0:  # Apollo returned NOTHING = truly empty page
                     consecutive_empty += 1
                 else:
                     consecutive_empty = 0
@@ -469,6 +481,57 @@ class StreamingPipeline:
 
         logger.info(f"[{label}] completed {pages_this_level}/{max_pages} pages")
         return pages_this_level >= max_pages  # Hit page limit = exhausted
+
+    async def _expand_keywords(self, base_keywords: list) -> list:
+        """Auto-expand base keywords to 80-100 segment-specific ones using GPT.
+        Called ONCE at pipeline start. Works for ANY industry — fintech, iGaming, fashion."""
+        try:
+            import httpx, json
+            segments_text = ", ".join(self._segments) if self._segments else "general"
+            offer_text = self._offer_text or "B2B lead generation"
+
+            prompt = (
+                f"You have {len(base_keywords)} base keywords for an Apollo.io company search:\n"
+                f"{json.dumps(base_keywords)}\n\n"
+                f"Target segments: {segments_text}\n"
+                f"We sell: {offer_text}\n\n"
+                f"EXPAND these into 80-100 SPECIFIC keywords. For each segment, add:\n"
+                f"- Specific product/platform type names (e.g. 'payment gateway API', not 'payment solutions')\n"
+                f"- Technology terms (e.g. 'PCI DSS', 'ISO 20022', 'open banking API')\n"
+                f"- Use case phrases (e.g. 'merchant onboarding', 'instant settlements')\n"
+                f"- Buyer search terms (e.g. 'KYC vendor', 'BaaS provider', 'card issuing platform')\n\n"
+                f"Each keyword: 2-4 words, specific enough to find relevant B2B companies.\n"
+                f"Include ALL original keywords plus 50-70 new ones.\n"
+                f"Return ONLY a JSON array: [\"keyword1\", \"keyword2\", ...]"
+            )
+
+            async with httpx.AsyncClient(timeout=25) as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {self.openai_key}", "Content-Type": "application/json"},
+                    json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": prompt}],
+                          "max_tokens": 2000, "temperature": 0.5},
+                )
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"].strip()
+                if content.startswith("```"):
+                    content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+                expanded = json.loads(content)
+
+                # Merge: keep all base + add new, dedup
+                all_kw = list(base_keywords)
+                seen = {k.lower() for k in base_keywords}
+                for kw in expanded:
+                    if kw.lower() not in seen:
+                        all_kw.append(kw)
+                        seen.add(kw.lower())
+
+                logger.info(f"Keyword expansion: {len(base_keywords)} base → {len(all_kw)} total "
+                           f"(+{len(all_kw) - len(base_keywords)} new)")
+                return all_kw
+        except Exception as e:
+            logger.warning(f"Keyword expansion failed: {e}")
+            return base_keywords
 
     def _make_industry_filters(self, base: Dict) -> Dict:
         """Industry-only filters (drop keywords). Pulls industry_tag_ids from mapping_details if needed."""
@@ -542,14 +605,15 @@ class StreamingPipeline:
                             "city": org.get("city"),
                         })
                 # Feed to scrape queue IMMEDIATELY
+                apollo_raw = len(orgs)  # How many Apollo returned (before dedup)
                 if results:
                     new_count = await self._ingest_page_results(results)
-                    results_list.append((page_num, new_count))
+                    results_list.append((page_num, new_count, apollo_raw))
                 else:
-                    results_list.append((page_num, 0))
+                    results_list.append((page_num, 0, apollo_raw))
             except Exception as e:
                 logger.warning(f"Apollo page {page_num} failed: {e}")
-                results_list.append((page_num, -1))
+                results_list.append((page_num, -1, 0))
 
         tasks = [fetch_and_feed(start_page + i) for i in range(count)]
         await asyncio.gather(*tasks)
