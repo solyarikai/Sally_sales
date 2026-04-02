@@ -17,15 +17,17 @@
 
 ## PART 1: pipeline_spec.md vs Actual Code
 
-### CRITICAL-01: Probe Page Reuse — NOT VERIFIED
+### ~~CRITICAL-01: Probe Page Reuse~~ — VERIFIED, WORKS CORRECTLY
 
 **Spec says**: Probe call fetches page 1 (100 companies), saves to DB, and is REUSED when pipeline starts. Pipeline starts from page 2.
 
-**Code does**: `tam_gather` in dispatcher.py stores probe companies in `filters["_probe_companies"]` and sets `filters["_page_done"] = 1`. On confirm, it passes these to `start_pipeline_background()`. But `StreamingPipeline.run_until_kpi()` in streaming_pipeline.py loads `existing companies` from DB (status new/gathered) and feeds them to scrape_queue — it does NOT explicitly consume `_probe_companies` from filters.
+**Code does**: Full flow works correctly:
+1. **Preview**: Dispatcher fetches page 1 (100 companies), stores in `filters["_probe_companies"]`, sets `_probe_page_done = 1`
+2. **Confirm**: Dispatcher pops `_probe_companies`, creates `DiscoveredCompany` rows in DB, sets `filters["page_offset"] = 2`, reduces `max_pages` by 1
+3. **Pipeline**: `StreamingPipeline.__init__` reads `self._tam_pages = run.pages_fetched`. L1 starts from `start_page = (self._tam_pages + 1)` = page 2. Probe companies already in DB, picked up by `run_until_kpi()` as existing companies → fed to scrape_queue.
+4. **Credits**: `_persist_progress()` reports `self._tam_pages + self.pages_fetched` — counts probe page correctly.
 
-**Risk**: Probe companies may be fetched TWICE (wasting 1 credit) or lost entirely if the handoff between dispatcher and streaming pipeline doesn't persist them as DiscoveredCompany rows before pipeline starts.
-
-**Fix needed**: Verify that `_save_probe_companies()` creates DiscoveredCompany rows that `run_until_kpi()` picks up. Add test.
+**Status**: IMPLEMENTED CORRECTLY. No wasted credits, no duplicate fetches.
 
 ---
 
@@ -466,7 +468,7 @@ Two cost tracking systems exist:
 | 5 | MAJOR | Apollo stats not exposed in pipeline_status | dispatcher.py |
 | 6 | MAJOR | Cost estimate uses 30% target rate (real is 80-90%) | dispatcher.py |
 | 7 | MAJOR | No automated generality test infrastructure | — |
-| 8 | MAJOR | Probe page reuse — handoff not verified | dispatcher.py → streaming_pipeline.py |
+| ~~8~~ | ~~MAJOR~~ | ~~Probe page reuse~~ — VERIFIED OK | dispatcher.py → streaming_pipeline.py |
 | 9 | HARDCODE | Frontend URL hardcoded to 46.62.210.24:3000 | dispatcher.py |
 | 10 | HARDCODE | SmartLead campaign settings not configurable per project | smartlead_service.py |
 
