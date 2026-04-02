@@ -78,14 +78,18 @@ class SmartLeadService:
     # ── Campaign Creation ──
 
     async def create_campaign(self, name: str) -> Optional[Dict[str, Any]]:
-        """Create a DRAFT campaign. Retries once on 'Plan expired' intermittent error."""
+        """Create a DRAFT campaign. Retries with exponential backoff on failure/429."""
         import asyncio
-        result = await self._api_call("POST", "/campaigns/create", {"name": name})
-        if result is None:
-            # Retry once — SmartLead sometimes returns "Plan expired!" intermittently
-            await asyncio.sleep(2)
+        delays = [2, 4, 8]  # Exponential backoff
+        for attempt in range(len(delays) + 1):
             result = await self._api_call("POST", "/campaigns/create", {"name": name})
-        return result
+            if result is not None:
+                return result
+            if attempt < len(delays):
+                logger.warning(f"create_campaign failed (attempt {attempt + 1}), retrying in {delays[attempt]}s")
+                await asyncio.sleep(delays[attempt])
+        logger.error(f"create_campaign failed after {len(delays) + 1} attempts")
+        return None
 
     async def set_campaign_sequences(self, campaign_id: int, sequences: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Set email sequence steps with A/B variant support.
@@ -148,15 +152,27 @@ class SmartLeadService:
     async def set_campaign_settings(self, campaign_id: int,
                                      track_open: bool = False, stop_on_reply: bool = True,
                                      plain_text: bool = True, follow_up_pct: int = 40) -> Optional[Dict[str, Any]]:
-        """Set campaign delivery settings. Defaults from reference campaign 3070919.
-        All settings configurable from document extraction or user override."""
-        return await self._api_call("POST", f"/campaigns/{campaign_id}/settings", {
+        """Set campaign delivery settings. Retries once with defaults on failure."""
+        payload = {
             "track_settings": [] if not track_open else ["TRACK_EMAIL_OPEN", "TRACK_LINK_CLICK"],
             "stop_lead_settings": "REPLY_TO_AN_EMAIL" if stop_on_reply else "DONT_REPLY_TO_AN_EMAIL",
             "send_as_plain_text": plain_text,
             "follow_up_percentage": follow_up_pct,
             "enable_ai_esp_matching": True,
-        })
+        }
+        result = await self._api_call("POST", f"/campaigns/{campaign_id}/settings", payload)
+        if result is None:
+            # Retry with safe defaults
+            logger.warning(f"Campaign {campaign_id} settings failed, retrying with defaults")
+            default_payload = {
+                "track_settings": [],
+                "stop_lead_settings": "REPLY_TO_AN_EMAIL",
+                "send_as_plain_text": True,
+                "follow_up_percentage": 40,
+                "enable_ai_esp_matching": True,
+            }
+            result = await self._api_call("POST", f"/campaigns/{campaign_id}/settings", default_payload)
+        return result
 
     async def set_campaign_email_accounts(self, campaign_id: int, account_ids: List[int]) -> Optional[Dict[str, Any]]:
         """Assign email sending accounts to campaign."""
@@ -170,10 +186,14 @@ class SmartLeadService:
         offset = 0
         while True:
             data = await self._api_call("GET", "/email-accounts", params={"offset": offset, "limit": 100})
-            if not isinstance(data, list) or not data:
+            if data is None:
                 break
-            all_accounts.extend(data)
-            if len(data) < 100:
+            # SmartLead may return a bare list OR {"data": [...]} wrapper
+            entries = data if isinstance(data, list) else data.get("data", [])
+            if not entries:
+                break
+            all_accounts.extend(entries)
+            if len(entries) < 100:
                 break
             offset += 100
         return all_accounts
