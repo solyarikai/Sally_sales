@@ -98,11 +98,15 @@ class SmartLeadService:
         """
         formatted = []
         for i, step in enumerate(sequences):
+            # Convert \n to <br> for SmartLead HTML rendering
+            body = step.get("body", "")
+            if body and "<br" not in body and "\n" in body:
+                body = body.replace("\n", "<br>")
             entry = {
                 "seq_number": step.get("step", i + 1),
                 "seq_delay_details": {"delay_in_days": step.get("day", i * 3)},
                 "subject": step.get("subject", ""),
-                "email_body": step.get("body", ""),
+                "email_body": body,
             }
 
             formatted.append(entry)

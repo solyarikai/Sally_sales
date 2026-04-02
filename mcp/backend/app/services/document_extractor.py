@@ -147,13 +147,14 @@ DOCUMENT:
                     # GPT rewrites the sequence to use only standard variables
                     try:
                         rewrite_prompt = (
-                            f"Rewrite this email sequence to use ONLY these variables: "
-                            f"{{{{first_name}}}}, {{{{last_name}}}}, {{{{company_name}}}}, {{{{city}}}}, {{{{signature}}}}\n"
-                            f"IMPORTANT: Use snake_case variable names — {{{{first_name}}}} NOT {{{{firstName}}}}, {{{{company_name}}}} NOT {{{{company}}}}.\n\n"
-                            f"KEEP: the same tone, structure, day spacing, and sales intent.\n"
-                            f"REPLACE: any custom variables (like {{{{hiring_role_or_signal}}}}, {{{{estimated_acv}}}}, "
-                            f"{{{{calendly_link}}}}) with natural language that works WITHOUT external data.\n"
-                            f"The emails must read naturally with ONLY the standard variables filled.\n\n"
+                            f"Fix the variables in this email sequence. Available variables: "
+                            f"{{{{first_name}}}}, {{{{last_name}}}}, {{{{company_name}}}}, {{{{city}}}}, {{{{signature}}}}\n\n"
+                            f"RULES:\n"
+                            f"1. Keep the EXACT original text word-for-word. Do NOT rewrite, paraphrase, or shorten.\n"
+                            f"2. ONLY change unfillable variables like {{{{hiring_role_or_signal}}}}, {{{{estimated_acv}}}}, {{{{calendly_link}}}} — "
+                            f"replace them with natural language that makes sense without external data.\n"
+                            f"3. Normalize variable names: {{{{firstName}}}} → {{{{first_name}}}}, {{{{company}}}} → {{{{company_name}}}}\n"
+                            f"4. Keep ALL line breaks, formatting, and structure exactly as-is.\n\n"
                             f"Original sequence:\n"
                         )
                         for step in seq.get("steps", []):
