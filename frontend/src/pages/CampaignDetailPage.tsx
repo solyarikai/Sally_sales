@@ -927,10 +927,12 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
     duplicates_count: number;
     duplicates: Array<{
       username: string; campaign_id: number; campaign_name: string;
-      campaign_status: string; current_step: number; recipient_status: string;
+      campaign_status: string; current_step: number; total_steps: number;
+      step_label: string; recipient_status: string; campaign_completion_pct: number;
       assigned_account: string | null;
     }>;
   } | null>(null);
+  const [removingDupes, setRemovingDupes] = useState<Set<string>>(new Set());
 
   const loadRecipients = useCallback(async () => {
     setLoading(true);
@@ -1176,35 +1178,105 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                {crossDupes.duplicates_count} lead{crossDupes.duplicates_count !== 1 ? 's' : ''} already contacted in other campaigns
-              </p>
-              <div className="mt-2 max-h-48 overflow-y-auto">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                  {crossDupes.duplicates_count} lead{crossDupes.duplicates_count !== 1 ? 's' : ''} already in other campaigns
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCrossDupes(null)}
+                    className="px-2.5 py-1 text-xs font-medium rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-700"
+                  >
+                    Keep All
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const uniqueUsernames = [...new Set(crossDupes.duplicates.map(d => d.username))];
+                      setRemovingDupes(new Set(uniqueUsernames.map(u => u.toLowerCase())));
+                      try {
+                        const res = await telegramOutreachApi.bulkRemoveRecipients(campaignId, uniqueUsernames);
+                        toast(`Removed ${res.removed} duplicate lead${res.removed !== 1 ? 's' : ''}`, 'success');
+                        setCrossDupes(null);
+                        setRemovingDupes(new Set());
+                        loadRecipients();
+                      } catch { toast('Failed to remove duplicates', 'error'); setRemovingDupes(new Set()); }
+                    }}
+                    className="px-2.5 py-1 text-xs font-medium rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800"
+                  >
+                    Remove All
+                  </button>
+                </div>
+              </div>
+              <div className="mt-1 max-h-64 overflow-y-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-left text-amber-700 dark:text-amber-400 border-b border-amber-200 dark:border-amber-700">
                       <th className="pb-1 pr-3">Username</th>
                       <th className="pb-1 pr-3">Campaign</th>
-                      <th className="pb-1 pr-3">Status</th>
+                      <th className="pb-1 pr-3">Progress</th>
                       <th className="pb-1 pr-3">Step</th>
-                      <th className="pb-1">Account</th>
+                      <th className="pb-1 pr-3">Status</th>
+                      <th className="pb-1">Action</th>
                     </tr>
                   </thead>
                   <tbody className="text-amber-800 dark:text-amber-300">
                     {crossDupes.duplicates.map((d, i) => (
-                      <tr key={i} className="border-b border-amber-100 dark:border-amber-800/50">
-                        <td className="py-1 pr-3 font-mono">@{d.username}</td>
-                        <td className="py-1 pr-3">{d.campaign_name}</td>
-                        <td className="py-1 pr-3">{d.recipient_status}</td>
-                        <td className="py-1 pr-3">{d.current_step}</td>
-                        <td className="py-1">{d.assigned_account || '-'}</td>
+                      <tr key={i} className={cn(
+                        'border-b border-amber-100 dark:border-amber-800/50',
+                        removingDupes.has(d.username.toLowerCase()) && 'opacity-50'
+                      )}>
+                        <td className="py-1.5 pr-3 font-mono">@{d.username}</td>
+                        <td className="py-1.5 pr-3">
+                          <span>{d.campaign_name}</span>
+                          <span className="ml-1 text-[10px] text-amber-500">({d.campaign_status})</span>
+                        </td>
+                        <td className="py-1.5 pr-3">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-12 h-1.5 rounded-full bg-amber-200 dark:bg-amber-800 overflow-hidden">
+                              <div className="h-full rounded-full bg-amber-500" style={{ width: `${d.campaign_completion_pct}%` }} />
+                            </div>
+                            <span className="text-[10px]">{d.campaign_completion_pct}%</span>
+                          </div>
+                        </td>
+                        <td className="py-1.5 pr-3 whitespace-nowrap">{d.step_label}</td>
+                        <td className="py-1.5 pr-3">
+                          <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium',
+                            d.recipient_status === 'replied' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
+                            d.recipient_status === 'completed' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' :
+                            d.recipient_status === 'in_sequence' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' :
+                            'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                          )}>{d.recipient_status}</span>
+                        </td>
+                        <td className="py-1.5">
+                          <button
+                            disabled={removingDupes.has(d.username.toLowerCase())}
+                            onClick={async () => {
+                              setRemovingDupes(prev => new Set([...prev, d.username.toLowerCase()]));
+                              try {
+                                await telegramOutreachApi.bulkRemoveRecipients(campaignId, [d.username]);
+                                setCrossDupes(prev => {
+                                  if (!prev) return null;
+                                  const remaining = prev.duplicates.filter(x => x.username.toLowerCase() !== d.username.toLowerCase());
+                                  if (remaining.length === 0) return null;
+                                  return { ...prev, duplicates: remaining, duplicates_count: new Set(remaining.map(r => r.username.toLowerCase())).size };
+                                });
+                                setRemovingDupes(prev => { const n = new Set(prev); n.delete(d.username.toLowerCase()); return n; });
+                                loadRecipients();
+                                toast(`Removed @${d.username}`, 'success');
+                              } catch { toast('Failed to remove', 'error'); setRemovingDupes(prev => { const n = new Set(prev); n.delete(d.username.toLowerCase()); return n; }); }
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-medium rounded bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800 disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                These leads were already added. Review to avoid duplicate outreach.
+                These leads are already in other campaigns. Remove to avoid duplicate outreach, or keep to send anyway.
               </p>
             </div>
             <button onClick={() => setCrossDupes(null)} className="text-amber-500 hover:text-amber-700 dark:hover:text-amber-300">

@@ -486,11 +486,17 @@ export const telegramOutreachApi = {
       campaign_name: string;
       campaign_status: string;
       current_step: number;
+      total_steps: number;
+      step_label: string;
       recipient_status: string;
+      campaign_completion_pct: number;
       assigned_account: string | null;
     }>;
   }> =>
     (await api.post(`${BASE}/campaigns/${campaignId}/recipients/check-duplicates`, { usernames })).data,
+
+  bulkRemoveRecipients: async (campaignId: number, usernames: string[]): Promise<{ ok: boolean; removed: number }> =>
+    (await api.post(`${BASE}/campaigns/${campaignId}/recipients/bulk-remove`, { usernames })).data,
 
   // Sequences
   getSequence: async (campaignId: number) =>

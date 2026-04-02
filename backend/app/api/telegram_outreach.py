@@ -77,7 +77,7 @@ from app.schemas.telegram_outreach import (
     TgCampaignStatsResponse,
     TgRecipientResponse, TgRecipientListResponse,
     TgRecipientUploadText, TgRecipientUploadCSVMapping,
-    TgCheckDuplicatesRequest, TgCheckDuplicatesResponse, TgDuplicateDetail,
+    TgCheckDuplicatesRequest, TgCheckDuplicatesResponse, TgDuplicateDetail, TgBulkRemoveRecipients,
     TgSequenceSchema, TgSequenceStepSchema, TgStepVariantSchema,
     TgSequencePreviewRequest, TgSequencePreviewResponse,
     TgOutreachMessageResponse, TgOutreachMessageListResponse,
@@ -3449,6 +3449,7 @@ async def check_cross_campaign_duplicates(campaign_id: int, data: TgCheckDuplica
             TgCampaign.id.label("cid"),
             TgCampaign.name.label("cname"),
             TgCampaign.status.label("cstatus"),
+            TgCampaign.total_recipients.label("ctotal"),
         )
         .join(TgCampaign, TgRecipient.campaign_id == TgCampaign.id)
         .where(
@@ -3469,15 +3470,65 @@ async def check_cross_campaign_duplicates(campaign_id: int, data: TgCheckDuplica
         for a in acc_rows.all():
             acc_map[a.id] = a.username or a.first_name or f"Account #{a.id}"
 
+    # Get total steps per campaign for completion %
+    campaign_ids = {r.cid for r in rows}
+    steps_map: dict[int, int] = {}
+    if campaign_ids:
+        steps_result = await session.execute(
+            select(
+                TgSequence.campaign_id,
+                sa_func.count(TgSequenceStep.id).label("total_steps"),
+            )
+            .join(TgSequenceStep, TgSequence.id == TgSequenceStep.sequence_id, isouter=True)
+            .where(TgSequence.campaign_id.in_(campaign_ids))
+            .group_by(TgSequence.campaign_id)
+        )
+        for s in steps_result.all():
+            steps_map[s.campaign_id] = s.total_steps
+
+    # Count completed recipients per campaign for completion %
+    completed_map: dict[int, int] = {}
+    if campaign_ids:
+        completed_result = await session.execute(
+            select(
+                TgRecipient.campaign_id,
+                sa_func.count(TgRecipient.id).label("completed"),
+            )
+            .where(
+                TgRecipient.campaign_id.in_(campaign_ids),
+                TgRecipient.status.in_(["completed", "replied"]),
+            )
+            .group_by(TgRecipient.campaign_id)
+        )
+        for c in completed_result.all():
+            completed_map[c.campaign_id] = c.completed
+
     duplicates = []
     for r in rows:
+        total_steps = steps_map.get(r.cid, 1) or 1
+        total_recip = r.ctotal or 1
+        completed_count = completed_map.get(r.cid, 0)
+        completion_pct = round(completed_count * 100 / total_recip)
+
+        # Build step label: "Step 1 (initial)" or "Step 2 (follow-up 1)"
+        step = r.current_step
+        if step <= 0:
+            step_label = "Not started"
+        elif step == 1:
+            step_label = "Step 1 (initial)"
+        else:
+            step_label = f"Step {step} (follow-up {step - 1})"
+
         duplicates.append(TgDuplicateDetail(
             username=r.username,
             campaign_id=r.cid,
             campaign_name=r.cname,
             campaign_status=r.cstatus.value if hasattr(r.cstatus, 'value') else str(r.cstatus),
             current_step=r.current_step,
+            total_steps=total_steps,
+            step_label=step_label,
             recipient_status=r.status.value if hasattr(r.status, 'value') else str(r.status),
+            campaign_completion_pct=completion_pct,
             assigned_account=acc_map.get(r.assigned_account_id),
         ))
 
@@ -3487,6 +3538,40 @@ async def check_cross_campaign_duplicates(campaign_id: int, data: TgCheckDuplica
         duplicates_count=len(unique_usernames),
         duplicates=duplicates,
     )
+
+
+@router.post("/campaigns/{campaign_id}/recipients/bulk-remove")
+async def bulk_remove_recipients(campaign_id: int, data: TgBulkRemoveRecipients,
+                                  session: AsyncSession = Depends(get_session)):
+    """Remove recipients by username from a campaign."""
+    if not data.usernames:
+        return {"ok": True, "removed": 0}
+
+    from sqlalchemy import func as sa_func
+    clean = [u.strip().lstrip("@").lower() for u in data.usernames if u.strip()]
+    if not clean:
+        return {"ok": True, "removed": 0}
+
+    result = await session.execute(
+        select(TgRecipient)
+        .where(
+            TgRecipient.campaign_id == campaign_id,
+            sa_func.lower(TgRecipient.username).in_(clean),
+        )
+    )
+    recipients = result.scalars().all()
+    for r in recipients:
+        await session.delete(r)
+
+    # Update campaign total
+    campaign = await session.get(TgCampaign, campaign_id)
+    if campaign:
+        count_result = await session.execute(
+            select(sa_func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
+        )
+        campaign.total_recipients = count_result.scalar() or 0
+
+    return {"ok": True, "removed": len(recipients)}
 
 
 # ═══════════════════════════════════════════════════════════════════════
