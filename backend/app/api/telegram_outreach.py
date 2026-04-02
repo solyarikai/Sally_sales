@@ -3218,6 +3218,10 @@ async def map_csv_columns(campaign_id: int,
             continue
 
         custom_vars = {}
+        if mapping.phone_column:
+            phone_val = row.get(mapping.phone_column, "").strip()
+            if phone_val:
+                custom_vars["phone"] = phone_val
         for csv_col, var_name in mapping.custom_columns.items():
             custom_vars[var_name] = row.get(csv_col, "")
 

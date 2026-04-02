@@ -455,6 +455,7 @@ export const telegramOutreachApi = {
 
   mapColumnsCSV: async (campaignId: number, file: File, mapping: {
     username_column: string;
+    phone_column?: string;
     first_name_column?: string;
     company_name_column?: string;
     custom_columns?: Record<string, string>;

@@ -261,6 +261,7 @@ class TgRecipientUploadText(BaseModel):
 class TgRecipientUploadCSVMapping(BaseModel):
     """Map CSV columns to recipient fields."""
     username_column: str
+    phone_column: Optional[str] = None
     first_name_column: Optional[str] = None
     company_name_column: Optional[str] = None
     custom_columns: dict[str, str] = {}  # csv_column -> variable_name
