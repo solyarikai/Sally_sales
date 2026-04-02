@@ -2972,7 +2972,7 @@ const TAG_COLORS: Record<string, { bg: string; text: string; border: string }> =
   interested:         { bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
   info_requested:     { bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' },
   not_interested:     { bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
-  meeting_scheduled:  { bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' },
+  meeting_set:        { bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' },
 };
 
 function DialogAvatar({ name, peerId, accountId }: { name: string; peerId: number; accountId?: number }) {
@@ -3877,7 +3877,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   {([
                     { key: 'interested', label: 'Interested', bg: '#ECFDF5', text: '#0D9488', border: '#99F6E4' },
                     { key: 'not_interested', label: 'Not Interested', bg: '#FFF1F2', text: '#E05D6F', border: '#FECDD3' },
-                    { key: 'meeting_scheduled', label: 'Meeting Scheduled', bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' },
+                    { key: 'meeting_set', label: 'Meeting Set', bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' },
                   ] as const).map(t => {
                     const isActive = selectedDialog.tag === t.key;
                     return (
