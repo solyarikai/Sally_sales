@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Settings2, ListOrdered, Users, Eye, MessageSquare, Reply, Download,
@@ -587,6 +587,7 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
   };
 
   const insertVariable = (stepIdx: number, varIdx: number, variable: string) => {
+    setVarPopup(null);
     const textareaId = `seq-${stepIdx}-${varIdx}`;
     const el = document.getElementById(textareaId) as HTMLTextAreaElement | null;
     if (!el) return;
@@ -595,12 +596,81 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
     const currentText = sequence?.steps[stepIdx]?.variants[varIdx]?.message_text || '';
     const newText = currentText.substring(0, start) + `{{${variable}}}` + currentText.substring(end);
     updateVariant(stepIdx, varIdx, { message_text: newText });
-    // Restore cursor position after React re-render
     setTimeout(() => {
       el.focus();
       const pos = start + variable.length + 4;
       el.setSelectionRange(pos, pos);
     }, 0);
+  };
+
+  // ── { Variable insertion popup ────────────────────────────────────
+  const [varPopup, setVarPopup] = useState<{
+    stepIdx: number; varIdx: number; triggerPos: number; selectedIdx: number; filter: string;
+  } | null>(null);
+  const varPopupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!varPopup) return;
+    const handler = (e: MouseEvent) => {
+      if (varPopupRef.current && !varPopupRef.current.contains(e.target as Node)) setVarPopup(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [varPopup]);
+
+  const popupItems = useMemo(() => {
+    const items: { name: string; label: string; type: 'var' | 'spintax'; section: 'system' | 'csv' }[] = [
+      { name: 'username', label: 'Username', type: 'var', section: 'system' },
+      { name: 'first_name', label: 'First name', type: 'var', section: 'system' },
+      { name: 'company_name', label: 'Company name', type: 'var', section: 'system' },
+      { name: '__spintax__', label: 'Random text (Spintax)', type: 'spintax', section: 'system' },
+      ...customVars.map(v => ({ name: v, label: v, type: 'var' as const, section: 'csv' as const })),
+    ];
+    if (!varPopup?.filter) return items;
+    const f = varPopup.filter;
+    return items.filter(v => v.name.toLowerCase().includes(f) || v.label.toLowerCase().includes(f));
+  }, [varPopup?.filter, customVars]);
+
+  const selectPopupItem = (item: { name: string; type: string }) => {
+    if (!varPopup || !sequence) return;
+    const { stepIdx, varIdx, triggerPos } = varPopup;
+    const el = document.getElementById(`seq-${stepIdx}-${varIdx}`) as HTMLTextAreaElement;
+    const currentText = sequence.steps[stepIdx]?.variants[varIdx]?.message_text || '';
+    const cursorPos = el?.selectionStart ?? triggerPos;
+    const before = currentText.substring(0, triggerPos - 1);
+    const after = currentText.substring(cursorPos);
+    if (item.type === 'spintax') {
+      const tpl = '{option1|option2|option3}';
+      updateVariant(stepIdx, varIdx, { message_text: before + tpl + after });
+      setVarPopup(null);
+      setTimeout(() => { el?.focus(); el?.setSelectionRange(before.length + 1, before.length + tpl.length - 1); }, 0);
+    } else {
+      const ins = `{{${item.name}}}`;
+      updateVariant(stepIdx, varIdx, { message_text: before + ins + after });
+      setVarPopup(null);
+      setTimeout(() => { el?.focus(); const p = before.length + ins.length; el?.setSelectionRange(p, p); }, 0);
+    }
+  };
+
+  const handleSeqChange = (e: React.ChangeEvent<HTMLTextAreaElement>, stepIdx: number, varIdx: number) => {
+    const val = e.target.value;
+    updateVariant(stepIdx, varIdx, { message_text: val });
+    const cur = e.target.selectionStart;
+    if (cur > 0 && val[cur - 1] === '{') {
+      if (cur > 1 && val[cur - 2] === '{') { setVarPopup(null); return; }
+      setVarPopup({ stepIdx, varIdx, triggerPos: cur, selectedIdx: 0, filter: '' });
+    } else if (varPopup?.stepIdx === stepIdx && varPopup?.varIdx === varIdx) {
+      if (cur < varPopup.triggerPos) setVarPopup(null);
+      else setVarPopup(p => p ? { ...p, filter: val.substring(p.triggerPos, cur).toLowerCase(), selectedIdx: 0 } : null);
+    }
+  };
+
+  const handleSeqKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, stepIdx: number, varIdx: number) => {
+    if (!varPopup || varPopup.stepIdx !== stepIdx || varPopup.varIdx !== varIdx || !popupItems.length) return;
+    if (e.key === 'Escape') { e.preventDefault(); setVarPopup(null); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setVarPopup(p => p ? { ...p, selectedIdx: Math.min(p.selectedIdx + 1, popupItems.length - 1) } : null); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setVarPopup(p => p ? { ...p, selectedIdx: Math.max(p.selectedIdx - 1, 0) } : null); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); selectPopupItem(popupItems[Math.min(varPopup.selectedIdx, popupItems.length - 1)]); }
   };
 
   if (loading) {
@@ -720,15 +790,90 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
                       ))}
                     </div>
 
-                    {/* Message textarea */}
-                    <textarea
-                      id={`seq-${stepIdx}-${varIdx}`}
-                      rows={5}
-                      value={variant.message_text}
-                      onChange={e => updateVariant(stepIdx, varIdx, { message_text: e.target.value })}
-                      placeholder="Type your message... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables"
-                      className={cn('w-full px-3 py-2 rounded-lg border text-sm font-mono leading-relaxed resize-y', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}
-                    />
+                    {/* Message textarea with { variable popup */}
+                    <div className="relative">
+                      <textarea
+                        id={`seq-${stepIdx}-${varIdx}`}
+                        rows={5}
+                        value={variant.message_text}
+                        onChange={e => handleSeqChange(e, stepIdx, varIdx)}
+                        onKeyDown={e => handleSeqKeyDown(e, stepIdx, varIdx)}
+                        placeholder="Type your message... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables"
+                        className={cn('w-full px-3 py-2 rounded-lg border text-sm font-mono leading-relaxed resize-y', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}
+                      />
+                      {varPopup?.stepIdx === stepIdx && varPopup?.varIdx === varIdx && popupItems.length > 0 && (() => {
+                        const sysItems = popupItems.filter(i => i.section === 'system' && i.type === 'var');
+                        const spxItem = popupItems.find(i => i.type === 'spintax');
+                        const csvItems = popupItems.filter(i => i.section === 'csv');
+                        return (
+                          <div ref={varPopupRef}
+                               className={cn('absolute z-50 left-0 w-72 bottom-full mb-1 rounded-lg border shadow-lg overflow-hidden max-h-64 overflow-y-auto',
+                                 'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-900' : 'bg-white')}>
+                            {sysItems.length > 0 && (
+                              <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold',
+                                isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
+                                Variables
+                              </div>
+                            )}
+                            {sysItems.map(item => {
+                              const gi = popupItems.indexOf(item);
+                              return (
+                                <button key={item.name}
+                                        onClick={() => selectPopupItem(item)}
+                                        onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
+                                        className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
+                                          varPopup.selectedIdx === gi
+                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                            : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
+                                  <span className="font-mono text-xs opacity-40">{'{{'}</span>
+                                  <span>{item.label}</span>
+                                  <span className="font-mono text-xs opacity-40">{'}}'}</span>
+                                </button>
+                              );
+                            })}
+                            {spxItem && (() => {
+                              const gi = popupItems.indexOf(spxItem);
+                              return (
+                                <button onClick={() => selectPopupItem(spxItem)}
+                                        onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
+                                        className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 border-t',
+                                          'border-gray-100 dark:border-gray-800',
+                                          varPopup.selectedIdx === gi
+                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                            : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
+                                  <Type className="w-3.5 h-3.5 opacity-50" />
+                                  <span>Random text</span>
+                                  <span className={cn('text-xs ml-auto', t.text3)}>Spintax</span>
+                                </button>
+                              );
+                            })()}
+                            {csvItems.length > 0 && (
+                              <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold border-t',
+                                'border-gray-100 dark:border-gray-800',
+                                isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
+                                CSV Columns
+                              </div>
+                            )}
+                            {csvItems.map(item => {
+                              const gi = popupItems.indexOf(item);
+                              return (
+                                <button key={item.name}
+                                        onClick={() => selectPopupItem(item)}
+                                        onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
+                                        className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
+                                          varPopup.selectedIdx === gi
+                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                            : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
+                                  <span className="font-mono text-xs text-indigo-500">{'{{'}</span>
+                                  <span>{item.label}</span>
+                                  <span className="font-mono text-xs text-indigo-500">{'}}'}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 ))}
               </div>
