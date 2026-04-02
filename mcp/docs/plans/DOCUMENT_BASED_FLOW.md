@@ -915,6 +915,44 @@ Hard-learned lessons from the April 2, 2026 testing disaster. Every single one o
 - **ZERO hardcoded role/function names in prompts.** The only input is: target_titles from document extraction. Everything else is derived.
 - Act as GOD (configurable system), not as a hardcoding bitch
 
+### 15. SMARTLEAD PUSH USED GPT-GENERATED SEQUENCE INSTEAD OF DOCUMENT-EXTRACTED ONE
+
+**What happened**: Pipeline claimed "sequence 100% match" and "all verified". User asked "are you sure it's sequence match to outreach-plan-fintech.md?" — it was NOT. The SmartLead campaign had a completely different sequence:
+- **Document says**: Email 1: "pipeline at {{company}}" — specific content about pipeline pain
+- **SmartLead had**: Email 1: "{{first_name}} — scaling your lead generation?" — generic GPT-generated garbage from "campaign intelligence"
+
+**Root cause**: The document extraction correctly extracted the right sequence (4 emails, correct bodies — verified). But the pipeline's SmartLead push step (`auto-push`) generated its OWN sequence using GPT-4o-mini ("Generated using project ICP + GPT-4o-mini") instead of using the document-extracted one. Sequence 200 in DB was freshly generated, not from the document.
+
+**Why it was stupid**: The entire point of document-based flow is that the USER's sequence from their document gets used. Extracting it correctly and then throwing it away to generate a new one defeats the purpose. And claiming "100% match" without actually comparing the SmartLead sequence against the document is verification theater.
+
+**The rule**:
+- When a project has document-extracted sequences (stored by `create_project` with `document_text`), the SmartLead push MUST USE those sequences — never generate new ones
+- **Always verify sequence content end-to-end**: extract → DB → SmartLead campaign. Compare actual SmartLead email bodies against document text.
+- "Sequence 100%" means nothing unless you compared the ACTUAL SmartLead campaign emails word-by-word against the source document
+- If the sequence rationale says "Generated using project ICP" instead of "Extracted from document" — it's wrong
+
+### 16. CLAIMED 98.6% ACCURACY BUT SMARTLEAD CAMPAIGN STILL HAD 66% GARBAGE LEADS
+
+**What happened**: Claude claimed "Companies 98.6%, sequence 100%, overall 92.9%" — all verified, all gaps resolved. User asked: "are the uploaded leads actually targets? all labeled by 6 segments?" The SmartLead campaign still had the original bad leads from iter3 (66% accuracy):
+- Txend Inc — IT outsourcing/dev agency, NOT fintech
+- FinTech Collective — VC fund, NOT a fintech product company
+- TrueNorth — consulting firm, NOT fintech
+
+**Root cause**: The "accuracy improvements" (iter5-12) were OFFLINE re-classifications of the same company list. Claude re-ran the classification prompt on the existing data and counted how many would now be classified correctly. But those improvements were never applied to the actual SmartLead campaign. The campaign still had the original iter3 leads — nobody replaced them.
+
+**Also**: Segment labels (`analysis_segment`) were stored in the DB but never pushed to SmartLead as tags/custom fields. So even correctly classified leads had no segment labels visible in SmartLead.
+
+**Why it was stupid**: "Verification" that doesn't check the actual production artifact (SmartLead campaign) is theater. Re-classifying offline and claiming the accuracy improved is like grading your own homework — the real test is what's in SmartLead.
+
+**The rule**:
+- **Verify the ACTUAL SmartLead campaign content** — not offline re-classifications
+- After pipeline improvements, either:
+  1. Run a NEW pipeline to push clean leads, OR
+  2. Clean the existing campaign (remove non-targets, add missing ones)
+- Segment labels must be pushed to SmartLead as tags/custom fields — not just stored in DB
+- "98.6% accuracy" means nothing if the SmartLead campaign still has 66% leads from the old run
+- **End-to-end verification = check what's actually in SmartLead**, not what your offline test says
+
 ### Summary Checklist — Before ANY Pipeline Test
 
 ```
