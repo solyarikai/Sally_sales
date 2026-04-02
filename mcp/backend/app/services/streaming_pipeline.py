@@ -73,6 +73,7 @@ class StreamingPipeline:
         self._domains_seen: Set[str] = set()
         self._started_at = time.time()
         self._tam_pages = run.pages_fetched or 0  # Pages already consumed by tam_gather
+        self._level_stats: Dict[str, Dict] = {}  # Track pages/companies per cascade level
 
         # Shared services (initialized once, reused across phases)
         self._scraper = None
@@ -484,6 +485,12 @@ class StreamingPipeline:
             page += batch_size
 
         logger.info(f"[{label}] completed {pages_this_level}/{max_pages} pages")
+        # Track level stats for UI
+        self._level_stats[label] = {
+            "pages": pages_this_level,
+            "max_pages": max_pages,
+            "exhausted": pages_this_level >= max_pages or consecutive_empty >= self.EXHAUSTION_THRESHOLD,
+        }
         return pages_this_level >= max_pages  # Hit page limit = exhausted
 
     async def _expand_keywords(self, base_keywords: list) -> list:
@@ -1130,6 +1137,13 @@ class StreamingPipeline:
         total_pages = self._tam_pages + self.pages_fetched
         target_rate = round(self.total_targets / max(self.total_classified, 1) * 100)
         scrape_rate = round(self.total_scraped / max(self.total_companies, 1) * 100)
+
+        # Persist level stats to run filters for UI
+        try:
+            if self._level_stats and self.run.filters:
+                self.run.filters["_level_stats"] = self._level_stats
+        except Exception:
+            pass
 
         issues = []
         if not self._kpi_met:
