@@ -164,8 +164,9 @@ def update_linkedin(client: httpx.Client, lead_uuid: str, slug: str) -> bool:
 
 def main():
     print("📂 Загружаю CSV источники...")
-    email_to_slug = build_email_to_slug()
-    print(f"   Email→slug маппингов: {len(email_to_slug)}\n")
+    email_to_slug, name_to_slug = build_mappings()
+    print(f"   Email→slug маппингов: {len(email_to_slug)}")
+    print(f"   Name→slug маппингов:  {len(name_to_slug)}\n")
 
     total_checked = 0
     total_already_ok = 0
