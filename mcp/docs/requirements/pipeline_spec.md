@@ -282,7 +282,154 @@ L1_industry    → industry_tag_ids + geo + size       (precise, good pagination
 - Video London: 81 targets, 134 people, 55s, $0.19
 - IT Miami: 18 targets, 39 people, 27s, $0.04
 
-## 10. REPLY MONITORING
+---
+
+## 10. DOCUMENT → PROJECT CREATION — AGENT CHAIN
+
+Full trace of what happens when a user provides a strategy document or website URL.
+
+### Agent Chain
+```
+User input (document or URL)
+  │
+  ├─ Document path:
+  │   Agent #1: Document Extractor (gpt-4.1-mini)
+  │   Input: raw text (up to 15K chars) + website URL
+  │   Output: offer, segments, roles, filters, sequences,
+  │           campaign_settings, exclusion_list
+  │   Variable normalization: gpt-4o-mini (if unfillable vars)
+  │
+  ├─ Website path:
+  │   Layer 1: Apify scrape (residential proxy, 15s timeout)
+  │   Layer 2: Direct HTTP + meta extraction (fallback)
+  │   Layer 3: GPT analysis (gpt-4.1-mini) — always runs
+  │   Output: offer_summary with _source="website"|"gpt_knowledge"
+  │
+  ▼
+  project.offer_summary (JSONB) ← stored on Project record
+  │
+  ▼ confirm_offer (user approval or feedback)
+  │   If feedback: gpt-4.1-mini re-extracts with feedback context
+  │   Sets: offer_approved = True
+  │
+  ▼ align_email_accounts (filter, preset_name, or explicit IDs)
+  │   Creates mcp_draft Campaign with selected accounts
+  │
+  ▼ tam_gather (preview phase)
+  │
+  ├─ Filter generation chain:
+  │   ├ Step A: _pick_industries (gpt-4.1-mini) → 2-3 tag_ids
+  │   ├ Step B: _generate_keywords (gpt-4.1-mini) → 20-30 keywords
+  │   │         seed_keywords from document inform generation
+  │   ├ Step C: _extract_locations (regex) → countries
+  │   ├ Step D: Document overrides (locations, funding, size)
+  │   └ Step E: Seed tag_id merge (union with filter_mapper)
+  │
+  ├─ A11 Classifier (gpt-4o-mini) — informational label only
+  ├─ Apollo Probe (1 page, 1 credit) → total_entries + 100 companies
+  └─ Preview response → user confirms → pipeline starts
+```
+
+### offer_summary JSON Schema
+```json
+{
+  "_source": "document | website | gpt_knowledge",
+  "primary_offer": "What we sell",
+  "value_proposition": "Problem solved",
+  "target_audience": "Who buys",
+  "target_roles": {
+    "titles": ["VP Sales", "CRO", "CMO"],
+    "primary": ["CEO", "VP Sales"],
+    "secondary": ["Director of Sales"],
+    "tertiary": ["Manager"],
+    "seniorities": ["c_suite", "vp", "head", "director"],
+    "exclude_titles": ["Chief Risk Officer"]
+  },
+  "segments": [
+    {"name": "PAYMENTS", "keywords": ["payment gateway API", "PSP", ...]},
+    {"name": "LENDING", "keywords": ["lending-as-a-service", ...]}
+  ],
+  "apollo_filters": {
+    "combined_keywords": ["60-80 merged keywords"],
+    "locations": ["United States", "United Kingdom"],
+    "employee_range": "20,500",
+    "industries": ["financial services"],
+    "funding_stages": ["series_a", "series_b"]
+  },
+  "exclusion_list": [{"type": "competitors", "reason": "..."}],
+  "campaign_settings": {"tracking": false, "stop_on_reply": true, "plain_text": true},
+  "seed_data": {"keywords": [...], "industry_tag_ids": [], "source": "document"}
+}
+```
+
+### Classification Prompt Generation (Pipeline Init)
+```
+If exclusion_list exists:
+  Agent #2 (gpt-4.1-mini) → via negativa prompt with 5-8 exclusion + 3-4 inclusion rules
+Else:
+  Generic _build_via_negativa_prompt() from offer_text + segments
+```
+
+### GPT Models Across the Chain
+
+| Step | Model | Purpose |
+|------|-------|---------|
+| Document extraction | gpt-4.1-mini | Extract all structured data from strategy doc |
+| Variable normalization | gpt-4o-mini | Fix SmartLead {{variables}} |
+| Website analysis | gpt-4.1-mini | Scrape + extract offer from URL |
+| Offer feedback merge | gpt-4.1-mini | Update offer from user corrections |
+| Industry selection | gpt-4.1-mini | Pick 2-3 Apollo industries from 84 |
+| Keyword generation | gpt-4.1-mini | Generate 20-30 search keywords (seed-informed) |
+| Industry specificity (A11) | gpt-4o-mini | SPECIFIC vs BROAD label (informational) |
+| Classification prompt (Agent #2) | gpt-4.1-mini | Generate via negativa rules from document |
+| Company classification | gpt-4o-mini | Classify each scraped company |
+| 2-pass re-evaluation | gpt-4o | Re-classify on low/medium confidence |
+| Keyword regeneration | gpt-4.1-mini | Fresh keywords per angle (10 angles) |
+| Sequence generation | gpt-4o | Generate 4-5 step email sequence |
+| People role selection | gpt-4o-mini | Rank candidates by target roles |
+
+---
+
+## 11. MCP BEHAVIOR RULES
+
+### Token & Auth Gating
+- No token → respond ONLY with signup link
+- Keys not configured → list WHICH keys missing + Setup page link
+- All 4 keys (Apollo, OpenAI, SmartLead, Apify) required before pipeline ops
+
+### Approval Gates
+Show "what I will do" + wait for user approval before:
+- Starting/pausing/resuming pipeline
+- Changing target definition or classification prompts
+- Pushing to SmartLead or activating campaigns
+- Any action that costs credits
+
+### Cost Transparency
+Show estimated costs BEFORE executing: Apollo credits, Apify GB, OpenAI tokens
+
+### No Hardcoding
+- Classification prompts generated fresh from project context
+- Filter mapping uses general approach — no bias toward specific industries
+- All tested against multiple segments for generality
+
+---
+
+## 12. SYSTEM ARCHITECTURE
+
+### Isolation
+- Own PostgreSQL (`mcp_leadgen`), own Redis (port 6380)
+- Shared frontend components via `@main` alias
+- Independent from main leadgen app
+
+### Pipeline UI
+- Status column: new → scraping → scraped → analyzing → target/rejected
+- Segment label column (PAYMENTS, LENDING, etc.)
+- Click row → modal with analysis details
+- Company name normalization stored + passed to SmartLead
+
+---
+
+## 13. REPLY MONITORING
 **File**: `services/reply_monitor.py`
 **Frequency**: Every 3 minutes (background poller)
 **Classification model**: `gpt-4o-mini`
