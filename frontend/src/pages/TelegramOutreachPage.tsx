@@ -589,8 +589,9 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap tabular-nums">
                       <span style={{ color: atLimit ? A.rose : A.text1, fontWeight: atLimit ? 600 : 400 }}>{acc.messages_sent_today}</span>
                       <span style={{ color: A.text3 }}>/{effLimit}</span>
-                      {acc.warmup_day != null && <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up day ${acc.warmup_day}`}>WU</span>}
-                      {acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
+                      {acc.skip_warmup ? <span style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} title="Warm-up skipped (manual override)">SKIP</span>
+                        : acc.warmup_day != null ? <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up day ${acc.warmup_day}`}>WU</span> : null}
+                      {!acc.skip_warmup && acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
                     </td>
                     <td className="px-1 py-2.5" onClick={e => e.stopPropagation()}>
                       <button onClick={() => setEditingAccount(acc)}
@@ -1459,6 +1460,12 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('limit'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Daily Limit
               </button>
+              <button onClick={() => { setShowActionsPopup(false); run('Warm-up skipped', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Minus className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Skip Warm-up
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); run('Warm-up restored', () => telegramOutreachApi.bulkSkipWarmup(ids, false)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <RefreshCw className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Restore Warm-up
+              </button>
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('2fa'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Shield className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Change 2FA
               </button>
@@ -1886,6 +1893,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     app_version: account.app_version || '',
     lang_code: account.lang_code || '',
     system_lang_code: account.system_lang_code || '',
+    skip_warmup: account.skip_warmup ? 'true' : 'false',
   });
   const [saving, setSaving] = useState(false);
 
@@ -1905,6 +1913,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     try {
       const data: Record<string, any> = { ...form };
       data.daily_message_limit = Number(data.daily_message_limit) || 10;
+      data.skip_warmup = data.skip_warmup === 'true';
       for (const k of ['username', 'first_name', 'last_name', 'bio']) {
         if (!data[k]) data[k] = null;
       }
@@ -2016,6 +2025,23 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                        onChange={e => set('daily_message_limit', e.target.value)}
                        className={panelInputCls}
                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: A.bg, border: `1px solid ${A.border}` }}>
+                <div>
+                  <label className="text-xs font-medium" style={{ color: A.text1 }}>Skip Warm-up</label>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>
+                    {account.warmup_day != null ? `Warm-up day ${account.warmup_day}` : account.is_young_session ? 'Young session' : 'No warm-up active'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => set('skip_warmup', form.skip_warmup === 'true' ? 'false' : 'true')}
+                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                  style={{ background: form.skip_warmup === 'true' ? '#d97706' : A.border }}
+                >
+                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
+                        style={{ transform: form.skip_warmup === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
+                </button>
               </div>
               <div>
                 <label className={panelLabelCls} style={{ color: A.text3 }}>Device Model</label>

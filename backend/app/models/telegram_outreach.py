@@ -166,6 +166,7 @@ class TgAccount(Base, TimestampMixin):
     country_code = Column(String(5), nullable=True)
     session_created_at = Column(DateTime, nullable=True)
     telegram_user_id = Column(BigInteger, nullable=True)
+    skip_warmup = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # Timestamps
     last_connected_at = Column(DateTime, nullable=True)

@@ -52,6 +52,8 @@ def get_session_age_days(account) -> int | None:
 
 def is_young_session(account) -> bool:
     """True if session is less than YOUNG_SESSION_DAYS old."""
+    if getattr(account, "skip_warmup", False):
+        return False
     age = get_session_age_days(account)
     return age is not None and age < YOUNG_SESSION_DAYS
 
@@ -65,6 +67,9 @@ def get_effective_daily_limit(account) -> int:
     Accounts without session_created_at are treated as mature (full limit).
     """
     base_limit = account.daily_message_limit or 10
+
+    if getattr(account, "skip_warmup", False):
+        return base_limit
 
     if not account.session_created_at:
         return base_limit

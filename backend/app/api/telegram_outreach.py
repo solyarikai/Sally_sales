@@ -50,7 +50,7 @@ def _warmup_info(acc) -> dict:
     from datetime import datetime
     eff = get_effective_daily_limit(acc)
     day = None
-    if acc.session_created_at:
+    if not getattr(acc, "skip_warmup", False) and acc.session_created_at:
         age = (datetime.utcnow() - acc.session_created_at).days
         base = acc.daily_message_limit or 10
         if WARMUP_MSGS_PER_DAY * (age + 1) < base:
@@ -653,11 +653,12 @@ async def list_accounts(
             acc.country_code = _detect_country(acc.phone)
             if acc.country_code:
                 dirty = True
-        if acc.telegram_user_id and not acc.session_created_at:
+        if acc.telegram_user_id:
             est = _parse_session_date(None, acc.telegram_user_id)
             if est:
-                acc.session_created_at = est
-                dirty = True
+                if not acc.session_created_at or est < acc.session_created_at:
+                    acc.session_created_at = est
+                    dirty = True
     if dirty:
         try:
             await session.commit()
@@ -684,6 +685,7 @@ async def list_accounts(
             effective_daily_limit=wu["effective_daily_limit"],
             warmup_day=wu["warmup_day"],
             is_young_session=wu["is_young_session"],
+            skip_warmup=acc.skip_warmup,
             messages_sent_today=acc.messages_sent_today,
             total_messages_sent=acc.total_messages_sent,
             proxy_group_id=acc.proxy_group_id,
@@ -740,6 +742,7 @@ async def create_account(data: TgAccountCreate, session: AsyncSession = Depends(
         daily_message_limit=account.daily_message_limit,
         effective_daily_limit=wu["effective_daily_limit"],
         warmup_day=wu["warmup_day"],
+        skip_warmup=account.skip_warmup,
         messages_sent_today=0, total_messages_sent=0,
         tags=[], campaigns_count=0,
         created_at=account.created_at, updated_at=account.updated_at,
@@ -805,6 +808,7 @@ async def update_account(account_id: int, data: TgAccountUpdate, session: AsyncS
         daily_message_limit=account.daily_message_limit,
         effective_daily_limit=wu["effective_daily_limit"],
         warmup_day=wu["warmup_day"],
+        skip_warmup=account.skip_warmup,
         messages_sent_today=account.messages_sent_today,
         total_messages_sent=account.total_messages_sent,
         proxy_group_id=account.proxy_group_id,
@@ -869,6 +873,17 @@ async def bulk_set_limit(data: TgBulkAccountIds, daily_message_limit: int = Quer
         if account:
             account.daily_message_limit = daily_message_limit
     return {"ok": True, "count": len(data.account_ids), "daily_message_limit": daily_message_limit}
+
+
+@router.post("/accounts/bulk-skip-warmup")
+async def bulk_skip_warmup(data: TgBulkAccountIds, skip: bool = Query(True),
+                            session: AsyncSession = Depends(get_session)):
+    """Toggle skip_warmup for multiple accounts."""
+    for aid in data.account_ids:
+        account = await session.get(TgAccount, aid)
+        if account:
+            account.skip_warmup = skip
+    return {"ok": True, "count": len(data.account_ids), "skip_warmup": skip}
 
 
 @router.post("/accounts/bulk-update-params")
