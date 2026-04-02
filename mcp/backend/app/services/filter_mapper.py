@@ -1,16 +1,13 @@
 """Apollo Filter Mapper — maps user query to Apollo search filters.
 
 Steps:
-  A. Embedding pre-filter: query → top 50 keywords from taxonomy by similarity
-  B. GPT filter mapper: picks from industries (112) + keywords (50) + size (8)
+  A. GPT picks 2-3 industries from 67 real Apollo industries → tag_id lookup
+  B. GPT generates 20-30 keywords freely (no predefined list)
   C. Location extractor: regex, no GPT
-  D. Filter assembler: combine + validate
+  D. Filter assembler: return both tag_ids + keywords for parallel streams
 
-Input:  "IT consulting in Miami" + "EasyStaff payroll platform"
-Output: {"q_organization_keyword_tags": [...], "organization_locations": [...],
-         "organization_num_employees_ranges": [...]}
-
-All values come from known Apollo vocabulary. No hallucination.
+Apollo accepts ANY free-text in q_organization_keyword_tags.
+No keyword taxonomy or embeddings needed.
 """
 import json
 import logging
@@ -23,6 +20,8 @@ from app.services.cost_tracker import extract_openai_usage
 
 logger = logging.getLogger(__name__)
 
+EMPLOYEE_RANGES = ["1,10", "11,50", "51,200", "201,500", "501,1000", "1001,5000", "5001,10000", "10001,"]
+
 
 async def map_query_to_filters(
     query: str,
@@ -31,177 +30,84 @@ async def map_query_to_filters(
     model: str = "gpt-4.1-mini",
     seed_keywords: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Full pipeline: query → Apollo filters.
+    """Map a user query to Apollo search filters.
 
-    Returns:
-        {
-            "q_organization_keyword_tags": [...],
-            "organization_locations": [...],
-            "organization_num_employees_ranges": [...],
-            "mapping_details": {
-                "industries_selected": [...],
-                "keywords_selected": [...],
-                "unverified_keywords": [...],
-                "employee_ranges": [...],
-                "locations": [...],
-                "keyword_map_size": N,
-                "shortlist_size": N,
-                "model_used": "...",
-            }
-        }
+    Returns both industry_tag_ids AND keywords — streaming pipeline
+    runs them in parallel and stops at KPI.
     """
-    from app.services.taxonomy_service import taxonomy_service
     from app.db import async_session_maker
+    from sqlalchemy import text as sa_text
 
-    # ── Step A: Embedding pre-filter (uses DB session for pgvector search) ──
-    async with async_session_maker() as tax_session:
-        keyword_shortlist = await taxonomy_service.get_keyword_shortlist(query, openai_key, tax_session, top_n=50)
-        all_industries = await taxonomy_service.get_all_industries(tax_session)
-        all_keywords = await taxonomy_service.get_all_keywords(tax_session)
-    employee_ranges = taxonomy_service.get_employee_ranges()
-    keyword_map_size = len(all_keywords)
+    # ── Step A: Load real Apollo industries (with tag_ids) from DB ──
+    async with async_session_maker() as session:
+        result = await session.execute(
+            sa_text("SELECT term, tag_id FROM apollo_taxonomy WHERE term_type='industry' AND tag_id IS NOT NULL ORDER BY term")
+        )
+        industry_rows = result.all()
 
-    # ── Step A2: Merge seed keywords from document (if provided) ──
-    if seed_keywords:
-        existing = set(k.lower() for k in keyword_shortlist)
-        seeds_added = [k for k in seed_keywords if k.lower() not in existing]
-        keyword_shortlist = seeds_added + keyword_shortlist  # seeds first for priority
-        logger.info(f"Seed keywords: {len(seed_keywords)} provided, {len(seeds_added)} new → shortlist now {len(keyword_shortlist)}")
+    industries = [r[0] for r in industry_rows]
+    industry_tag_map = {r[0].lower(): r[1] for r in industry_rows}
 
-    logger.info(f"Filter mapper: {len(all_industries)} industries, "
-                f"{keyword_map_size} keywords in map, {len(keyword_shortlist)} in shortlist")
+    logger.info(f"Filter mapper: {len(industries)} Apollo industries loaded")
 
-    # ── Step B1: Industry selection (separate call, own model — gpt-4o-mini tested at 100%) ──
+    # ── Step B1: GPT picks 2-3 industries ──
     selected_industries = await _pick_industries(
-        query=query, offer=offer, industries=all_industries,
-        openai_key=openai_key,
+        query=query, offer=offer, industries=industries, openai_key=openai_key,
     )
 
-    # ── Step B2: Keywords + size (combined call) ──
-    gpt_result = await _gpt_pick_filters(
-        query=query,
-        offer=offer,
-        industries=all_industries,
-        keyword_shortlist=keyword_shortlist,
-        employee_ranges=employee_ranges,
-        openai_key=openai_key,
-        model=model,
+    # ── Step B2: GPT generates keywords + employee size (unconstrained) ──
+    gpt_result = await _generate_keywords(
+        query=query, offer=offer, openai_key=openai_key, model=model,
         seed_keywords=seed_keywords,
     )
-    # Override industries with the focused selection
-    gpt_result["industries"] = selected_industries
 
-    # ── Step C: Location extraction ──
+    # ── Step C: Location extraction (regex) ──
     locations = _extract_locations(query)
 
-    # ── Step D: Assemble + validate ──
-    industries_selected = gpt_result.get("industries", [])
-    keywords_selected = gpt_result.get("keywords", [])
-    unverified = gpt_result.get("unverified_keywords", [])
+    # ── Step D: Assemble ──
+    keywords = gpt_result.get("keywords", [])
     size_ranges = gpt_result.get("employee_ranges", ["11,50", "51,200"])
 
-    # Validate industries against known list
-    valid_industries = set(i.lower() for i in all_industries)
-    industries_clean = [i for i in industries_selected if i.lower() in valid_industries]
-    if len(industries_clean) < len(industries_selected):
-        dropped = [i for i in industries_selected if i.lower() not in valid_industries]
-        logger.warning(f"Dropped invalid industries: {dropped}")
-
-    # Validate keywords against known list
-    valid_keywords = set(k.lower() for k in all_keywords)
-    keywords_clean = [k for k in keywords_selected if k.lower() in valid_keywords]
-    keywords_unverified = [k for k in keywords_selected if k.lower() not in valid_keywords]
-    keywords_unverified.extend(unverified)
-
     # Validate employee ranges
-    valid_ranges = set(employee_ranges)
+    valid_ranges = set(EMPLOYEE_RANGES)
     ranges_clean = [r for r in size_ranges if r in valid_ranges]
     if not ranges_clean:
-        ranges_clean = ["11,50", "51,200"]  # safe default
+        ranges_clean = ["11,50", "51,200"]
 
-    # Build final keyword_tags: industries (broad) + keywords (precise) + unverified (cold start)
-    keyword_tags = industries_clean + keywords_clean
-    if keywords_unverified and len(keyword_tags) < 20:
-        # Add unverified to reach at least 20 keywords
-        keyword_tags.extend(keywords_unverified[:20 - len(keyword_tags)])
-
+    # Add industry names to keywords for broad coverage
+    keyword_tags = list(selected_industries) + keywords
     if not keyword_tags:
-        # Emergency fallback — use industries only
-        keyword_tags = industries_clean[:3] if industries_clean else [query.split(" in ")[0]]
+        keyword_tags = [query.split(" in ")[0]]
 
-    # Ensure at least 1 industry name for broad coverage
-    if not any(i.lower() in set(k.lower() for k in keyword_tags) for i in industries_clean):
-        if industries_clean:
-            keyword_tags.insert(0, industries_clean[0])
-
-    # ── Step E: Look up industry_tag_ids from apollo_taxonomy ──
+    # Look up tag_ids for selected industries
     industry_tag_ids = []
-    try:
-        from sqlalchemy import text as sa_text
-        async with async_session_maker() as map_session:
-            for ind_name in industries_clean:
-                row = await map_session.execute(
-                    sa_text("SELECT tag_id FROM apollo_taxonomy WHERE term_type='industry' AND LOWER(term) = LOWER(:name) AND tag_id IS NOT NULL"),
-                    {"name": ind_name},
-                )
-                tag = row.scalar_one_or_none()
-                if tag:
-                    industry_tag_ids.append(tag)
-                    logger.info(f"Industry tag_id: '{ind_name}' → {tag}")
-                else:
-                    logger.info(f"No tag_id for '{ind_name}' — will use keyword_tags fallback")
-    except Exception as e:
-        logger.warning(f"Industry tag_id lookup failed: {e}")
+    for ind_name in selected_industries:
+        tag = industry_tag_map.get(ind_name.lower())
+        if tag:
+            industry_tag_ids.append(tag)
+            logger.info(f"Industry tag_id: '{ind_name}' → {tag}")
 
-    # ── Step F: A11 — Classify if industries are SPECIFIC or BROAD for this query ──
-    filter_strategy = "keywords_only"
-    specific_tag_ids = []
-    if industry_tag_ids:
-        try:
-            from app.services.industry_classifier import classify_industry_specificity
-            classification = await classify_industry_specificity(query, offer, industries_clean, openai_key)
-            filter_strategy = classification["recommendation"]
-            # Only keep tag_ids for SPECIFIC industries
-            specific_industries = set(i.lower() for i in classification.get("specific_industries", []))
-            if specific_industries:
-                for ind_name, tag_id in zip(industries_clean, industry_tag_ids):
-                    if ind_name.lower() in specific_industries:
-                        specific_tag_ids.append(tag_id)
-            if not specific_tag_ids:
-                filter_strategy = "keywords_first"
-            logger.info(f"A11 classifier: {filter_strategy}, specific={classification.get('specific_industries')}, "
-                        f"broad={classification.get('broad_industries')}, reason={classification.get('reason')}")
-        except Exception as e:
-            logger.warning(f"A11 classifier failed: {e} — defaulting to industry_first")
-            specific_tag_ids = industry_tag_ids
-            filter_strategy = "industry_first"
+    # Deduplicate tag_ids (multiple names can share same tag)
+    industry_tag_ids = list(dict.fromkeys(industry_tag_ids))
 
-    # Build result
     result = {
         "q_organization_keyword_tags": keyword_tags,
-        "organization_industry_tag_ids": specific_tag_ids if specific_tag_ids else None,
-        "industries": industries_clean,
+        "organization_industry_tag_ids": industry_tag_ids if industry_tag_ids else None,
+        "industries": selected_industries,
         "organization_locations": locations,
         "organization_num_employees_ranges": ranges_clean,
-        "filter_strategy": filter_strategy,
         "mapping_details": {
-            "industries_selected": industries_clean,
+            "industries_selected": selected_industries,
             "industry_tag_ids": industry_tag_ids,
-            "keywords_selected": keywords_clean,
-            "unverified_keywords": keywords_unverified,
+            "keywords_generated": keywords,
             "employee_ranges": ranges_clean,
             "locations": locations,
-            "keyword_map_size": keyword_map_size,
-            "shortlist_size": len(keyword_shortlist),
             "model_used": gpt_result.get("model_used", model),
-            "strategy": f"{'industry_first → keywords_fallback' if industry_tag_ids else 'keywords_only (no industry match)'}",
             "seed_keywords_count": len(seed_keywords) if seed_keywords else 0,
         },
     }
 
-    logger.info(f"Filters assembled: {len(industry_tag_ids)} industry_tag_ids, "
-                f"{len(keyword_tags)} keyword_tags, {len(locations)} locations, "
-                f"strategy={result['filter_strategy']}")
+    logger.info(f"Filters: {len(industry_tag_ids)} tag_ids, {len(keyword_tags)} keywords, {len(locations)} locations")
     return result
 
 
@@ -209,10 +115,10 @@ async def _pick_industries(
     query: str, offer: str, industries: List[str],
     openai_key: str, model: str = "gpt-4.1-mini",
 ) -> List[str]:
-    """Industry selection. gpt-4.1-mini won the 20-approach × 5-model test."""
-    prompt = f""""{query}" — 2-3 matching industries.
+    """Pick 2-3 Apollo industries for a query."""
+    prompt = f""""{query}" — pick 2-3 matching Apollo industries.
 {json.dumps(industries)}
-JSON: {{"industries": ["exact name"]}}"""
+JSON: {{"industries": ["exact name from list"]}}"""
 
     for try_model in [model, "gpt-4o-mini"]:
         try:
@@ -241,60 +147,39 @@ JSON: {{"industries": ["exact name"]}}"""
     return industries[:2]
 
 
-async def _gpt_pick_filters(
+async def _generate_keywords(
     query: str,
     offer: str,
-    industries: List[str],
-    keyword_shortlist: List[str],
-    employee_ranges: List[str],
     openai_key: str,
     model: str = "gpt-4.1-mini",
     seed_keywords: Optional[List[str]] = None,
 ) -> Dict:
-    """GPT picks from provided lists. Never invents."""
-
-    keyword_section = ""
-    if keyword_shortlist:
-        keyword_section = f"""
-KEYWORDS
-Filtering Apollo for "{query}" — pick 20-30 keywords that target companies would have on their profiles.
-Include synonyms, related terms, adjacent niches, and specific product/service names.
-More keywords = broader coverage. We want at least 20.
-{json.dumps(keyword_shortlist)}
-If fewer than 20 match from the list, suggest more in "unverified_keywords" to reach at least 20 total."""
-    else:
-        keyword_section = """
-STEP 2 — KEYWORDS
-No known Apollo keyword tags available yet (cold start).
-Suggest 20-30 keywords that target companies would use on their profiles.
-Include synonyms, related terms, adjacent niches, specific product/service names.
-Put ALL in "unverified_keywords" (they haven't been verified against Apollo yet).
-Leave "keywords" empty."""
+    """GPT generates keywords freely — no predefined list constraint."""
 
     seed_section = ""
     if seed_keywords:
         seed_section = f"""
-SEED KEYWORDS (from user's strategy document — PRIORITIZE these):
+SEED KEYWORDS (from user's strategy document — use these as a starting point):
 {json.dumps(seed_keywords[:30])}
-These keywords come directly from the user's outreach strategy. Include ALL that appear in the keyword list above.
-Also use them as inspiration to pick related/adjacent keywords from the list."""
+Include these and generate related/adjacent keywords."""
 
-    prompt = f"""You map business queries to Apollo.io search filters.
-Select ONLY from the lists provided. Never invent.
+    prompt = f"""Generate Apollo.io search keywords for finding B2B companies.
 
 User's segment: {query}
 User's product: {offer}
 {seed_section}
-{keyword_section}
+
+Generate 20-30 keywords that target companies would have on their Apollo profiles.
+Include: industry terms, product/service names, technology names, synonyms,
+adjacent niches, specific sub-sectors, business model descriptors.
+More keywords = broader search coverage.
 
 EMPLOYEE SIZE
 Pick 1-3 ranges that match the typical BUYER of this product.
-Available ranges: {json.dumps(employee_ranges)}
-Think: what size companies would buy this product?
+Available: {json.dumps(EMPLOYEE_RANGES)}
 
 Return ONLY valid JSON:
-{{"keywords": ["exact keyword from list"],
-  "unverified_keywords": ["suggested keyword not in list"],
+{{"keywords": ["keyword1", "keyword2", ...],
   "employee_ranges": ["11,50", "51,200"]}}"""
 
     for try_model in [model, "gpt-4o-mini"]:
@@ -312,29 +197,26 @@ Return ONLY valid JSON:
                 )
                 data = resp.json()
                 if "error" in data:
-                    logger.warning(f"Filter mapper {try_model}: {data['error']}")
+                    logger.warning(f"Keyword gen {try_model}: {data['error']}")
                     continue
-                extract_openai_usage(data, try_model, "map_filters")
+                extract_openai_usage(data, try_model, "generate_keywords")
                 content = data["choices"][0]["message"]["content"].strip()
                 if content.startswith("```"):
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0]
                 result = json.loads(content)
                 result["model_used"] = try_model
-                # Normalize: if GPT returned dicts instead of strings
+                # Normalize if GPT returned dicts
                 raw_kw = result.get("keywords", [])
                 if raw_kw and isinstance(raw_kw[0], dict):
                     result["keywords"] = [k.get("term", k.get("name", "")) for k in raw_kw if k.get("term") or k.get("name")]
-                logger.info(f"Keywords for '{query}': {result.get('keywords', [])}")
+                logger.info(f"Generated {len(result.get('keywords', []))} keywords for '{query}'")
                 return result
         except Exception as e:
-            logger.warning(f"Filter mapper {try_model} failed: {e}")
+            logger.warning(f"Keyword gen {try_model} failed: {e}")
             continue
 
-    # Total fallback
     return {
-        "industries": industries[:2] if industries else [],
-        "keywords": [],
-        "unverified_keywords": [query.split(" in ")[0]],
+        "keywords": [query.split(" in ")[0]],
         "employee_ranges": ["11,50", "51,200"],
         "model_used": "fallback",
     }
@@ -342,21 +224,17 @@ Return ONLY valid JSON:
 
 def _extract_locations(query: str) -> List[str]:
     """Extract location from query using rules. No GPT needed."""
-    # Common patterns: "in Miami", "in UK and UAE", "in Italy"
     match = re.search(r'\bin\s+(.+?)(?:\s+for|\s+with|\s+targeting|\s*$)', query, re.IGNORECASE)
     if not match:
         return []
 
     loc_text = match.group(1).strip()
-
-    # Split on "and" / ","
     parts = re.split(r'\s+and\s+|,\s*', loc_text, flags=re.IGNORECASE)
     locations = []
     for part in parts:
         part = part.strip()
         if not part:
             continue
-        # Remove trailing segment words that leaked in
         part = re.sub(r'\s*(companies|firms|agencies|brands|platforms|businesses)\s*$', '', part, flags=re.IGNORECASE).strip()
         if part:
             locations.append(part)
