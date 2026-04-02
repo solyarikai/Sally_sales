@@ -1801,9 +1801,10 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
 
 
 function WarmupChannelsPanel() {
-  const { theme: t } = useTheme();
-  const A = themeColors[t.name] || themeColors.paper;
-  const { toast } = useToast();
+  const toastCtx = useToast();
+  const toast = useCallback((msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+    toastCtx[type](msg);
+  }, [toastCtx]);
   const [channels, setChannels] = useState<{ id: number; url: string; title: string | null; is_active: boolean }[]>([]);
   const [newUrl, setNewUrl] = useState('');
   const [newTitle, setNewTitle] = useState('');
