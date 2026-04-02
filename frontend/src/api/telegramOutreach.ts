@@ -262,6 +262,9 @@ export const telegramOutreachApi = {
   warmupStatus: async (accountId: number) =>
     (await api.get(`${BASE}/accounts/${accountId}/warmup/status`)).data,
 
+  warmupLogs: async (accountId: number): Promise<{ action_type: string; detail: string | null; success: boolean; error_message: string | null; performed_at: string | null }[]> =>
+    (await api.get(`${BASE}/accounts/${accountId}/warmup/logs`)).data,
+
   bulkWarmup: async (accountIds: number[], action: 'start' | 'stop' = 'start') =>
     (await api.post(`${BASE}/accounts/bulk-warmup`, { account_ids: accountIds }, { params: { action } })).data,
 

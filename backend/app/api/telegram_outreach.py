@@ -1108,6 +1108,30 @@ async def warmup_status(account_id: int, session: AsyncSession = Depends(get_ses
     )
 
 
+@router.get("/accounts/{account_id}/warmup/logs")
+async def warmup_logs(account_id: int, session: AsyncSession = Depends(get_session)):
+    """Get full warmup action history for debug modal."""
+    account = await session.get(TgAccount, account_id)
+    if not account:
+        raise HTTPException(404, "Account not found")
+    q = await session.execute(
+        select(TgWarmupLog).where(
+            TgWarmupLog.account_id == account_id,
+        ).order_by(desc(TgWarmupLog.performed_at)).limit(200)
+    )
+    logs = q.scalars().all()
+    return [
+        {
+            "action_type": a.action_type.value if hasattr(a.action_type, 'value') else a.action_type,
+            "detail": a.detail,
+            "success": a.success,
+            "error_message": a.error_message,
+            "performed_at": a.performed_at.isoformat() if a.performed_at else None,
+        }
+        for a in logs
+    ]
+
+
 @router.post("/accounts/bulk-warmup")
 async def bulk_warmup(data: TgBulkAccountIds, action: str = Query("start"),
                        session: AsyncSession = Depends(get_session)):

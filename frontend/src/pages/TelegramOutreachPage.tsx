@@ -2238,6 +2238,26 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
   });
   const [saving, setSaving] = useState(false);
 
+  // Warmup status state
+  const [warmupStatus, setWarmupStatus] = useState<{
+    warmup_active: boolean; warmup_day: number | null; total_days: number;
+    warmup_started_at: string | null; actions_done: number; actions_today: number;
+    recent_actions: { action_type: string; detail: string | null; success: boolean; performed_at: string }[];
+  } | null>(null);
+  const [showWarmupDebug, setShowWarmupDebug] = useState(false);
+  const [warmupLogs, setWarmupLogs] = useState<{ action_type: string; detail: string | null; success: boolean; error_message: string | null; performed_at: string | null }[]>([]);
+  const [warmupExpanded, setWarmupExpanded] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    telegramOutreachApi.warmupStatus(account.id).then(data => { if (!cancelled) setWarmupStatus(data); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [account.id]);
+
+  const refreshWarmupStatus = useCallback(() => {
+    telegramOutreachApi.warmupStatus(account.id).then(setWarmupStatus).catch(() => {});
+  }, [account.id]);
+
   // Username check state
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'error'>('idle');
   const usernameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2498,41 +2518,106 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                         style={{ transform: form.skip_warmup === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
                 </button>
               </div>
-              {/* Active Warm-up */}
-              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: account.warmup_active ? '#F0FDF4' : A.bg, border: `1px solid ${account.warmup_active ? '#BBF7D0' : A.border}` }}>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <label className="text-xs font-medium" style={{ color: A.text1 }}>Active Warm-up</label>
-                    <span title="14-day program: joins channels, adds reactions, exchanges messages. Simulates real user activity to reduce ban risk.">
-                      <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
-                    </span>
+              {/* Active Warm-up — Enhanced */}
+              {(() => {
+                const ws = warmupStatus;
+                const isActive = ws?.warmup_active ?? account.warmup_active;
+                const day = ws?.warmup_day ?? account.warmup_progress?.day ?? null;
+                const totalDays = ws?.total_days ?? 14;
+                const pct = day != null ? Math.min(100, Math.round((day / totalDays) * 100)) : 0;
+                const isCompleted = !isActive && day != null && day >= totalDays;
+
+                // Phase calculation
+                let phaseName = 'Not started';
+                let phaseDesc = 'Start warm-up to reduce ban risk';
+                if (isCompleted) {
+                  phaseName = 'Completed';
+                  phaseDesc = 'Warm-up finished. Maintenance actions continue.';
+                } else if (isActive && day != null) {
+                  if (day <= 3) { phaseName = 'Initial Phase'; phaseDesc = 'Subscribing to channels, light reactions'; }
+                  else if (day <= 7) { phaseName = 'Growth Phase'; phaseDesc = 'Adding conversations, increasing activity'; }
+                  else if (day <= 10) { phaseName = 'Active Phase'; phaseDesc = 'Full activity: channels, reactions, conversations'; }
+                  else { phaseName = 'Final Phase'; phaseDesc = 'Peak activity, preparing for outreach'; }
+                }
+
+                // Next action estimate (worker ticks every 30 min, 9-22 Moscow UTC+3)
+                let nextActionText = '';
+                if (isActive) {
+                  const now = new Date();
+                  const mskHour = (now.getUTCHours() + 3) % 24;
+                  if (mskHour >= 9 && mskHour < 22) {
+                    const minsLeft = 30 - (now.getMinutes() % 30);
+                    nextActionText = `~${minsLeft} min`;
+                  } else {
+                    nextActionText = mskHour >= 22 ? 'Tomorrow 9:00 MSK' : `Today ${9 - mskHour}h`;
+                  }
+                }
+
+                return (
+                  <div className="col-span-2 rounded-lg px-3 py-3 space-y-2" style={{ background: isActive ? '#F0FDF4' : isCompleted ? '#ECFDF5' : A.bg, border: `1px solid ${isActive ? '#BBF7D0' : isCompleted ? '#A7F3D0' : A.border}` }}>
+                    {/* Header row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium" style={{ color: A.text1 }}>Account Warmup</label>
+                        <span title="14-day program: joins channels, adds reactions, exchanges messages. Simulates real user activity to reduce ban risk.">
+                          <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {(isActive || isCompleted || (ws && ws.actions_done > 0)) && (
+                          <button type="button" onClick={() => { refreshWarmupStatus(); telegramOutreachApi.warmupLogs(account.id).then(setWarmupLogs).catch(() => {}); setShowWarmupDebug(true); }}
+                            className="px-2 py-0.5 rounded text-[10px] font-medium transition-colors hover:bg-gray-100"
+                            style={{ color: A.text3, border: `1px solid ${A.border}` }}>
+                            Debug
+                          </button>
+                        )}
+                        <button type="button"
+                          onClick={async () => {
+                            try {
+                              if (isActive) {
+                                await telegramOutreachApi.warmupStop(account.id);
+                                toast('Active warm-up stopped', 'success');
+                              } else {
+                                await telegramOutreachApi.warmupStart(account.id);
+                                toast('Active warm-up started', 'success');
+                              }
+                              refreshWarmupStatus();
+                              onSaved();
+                            } catch { toast('Failed to toggle warm-up', 'error'); }
+                          }}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-medium text-white"
+                          style={{ background: isActive ? '#dc2626' : '#059669' }}>
+                          {isActive ? 'Stop' : 'Start'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Phase + description */}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold" style={{ color: isCompleted ? '#059669' : isActive ? '#065F46' : A.text2 }}>{phaseName}</span>
+                        {isActive && day != null && <span className="text-[10px]" style={{ color: A.text3 }}>Day {day}/{totalDays}</span>}
+                        {isActive && <span className="text-[10px]" style={{ color: A.text3 }}>{pct}%</span>}
+                      </div>
+                      <div className="text-[10px]" style={{ color: A.text3 }}>{phaseDesc}</div>
+                    </div>
+
+                    {/* Progress bar */}
+                    {(isActive || isCompleted) && (
+                      <div className="space-y-1">
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#D1FAE5' }}>
+                          <div className="h-full rounded-full transition-all duration-500"
+                               style={{ width: `${isCompleted ? 100 : pct}%`, background: isCompleted ? '#10B981' : '#059669' }} />
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]" style={{ color: A.text3 }}>
+                          <span>{ws ? `${ws.actions_done} total actions · ${ws.actions_today} today` : `${account.warmup_actions_done || 0} actions`}</span>
+                          {nextActionText && <span>Next: {nextActionText}</span>}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {account.warmup_active && account.warmup_progress
-                      ? `Day ${account.warmup_progress.day}/${account.warmup_progress.total_days} · ${account.warmup_actions_done || 0} actions`
-                      : 'Not active'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      if (account.warmup_active) {
-                        await telegramOutreachApi.warmupStop(account.id);
-                        toast('Active warm-up stopped', 'success');
-                      } else {
-                        await telegramOutreachApi.warmupStart(account.id);
-                        toast('Active warm-up started', 'success');
-                      }
-                      onSaved();
-                    } catch { toast('Failed to toggle warm-up', 'error'); }
-                  }}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-medium text-white"
-                  style={{ background: account.warmup_active ? '#dc2626' : '#059669' }}
-                >
-                  {account.warmup_active ? 'Stop' : 'Start'}
-                </button>
-              </div>
+                );
+              })()}
               <div>
                 <label className={panelLabelCls} style={{ color: A.text3 }}>Device Model</label>
                 <input value={form.device_model} onChange={e => set('device_model', e.target.value)}
@@ -2901,6 +2986,69 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
             </div>
           </div>
         )}
+        {/* Warmup Debug Modal */}
+        {showWarmupDebug && warmupStatus && (() => {
+          // Group actions by day
+          const allActions = warmupLogs.length > 0 ? warmupLogs : warmupStatus.recent_actions;
+          const grouped: Record<string, typeof allActions> = {};
+          for (const a of allActions) {
+            const d = a.performed_at ? new Date(a.performed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unknown';
+            (grouped[d] ??= []).push(a);
+          }
+          const days = Object.entries(grouped);
+          const actionLabel = (t: string) => t === 'channel_join' ? 'Join Channel' : t === 'reaction' ? 'Add Reaction' : t === 'conversation' ? 'Conversation' : t;
+          const actionColor = (t: string) => t === 'channel_join' ? '#2563EB' : t === 'reaction' ? '#D97706' : '#059669';
+
+          return (
+            <div className="absolute inset-0 z-10 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
+              <div className="rounded-xl shadow-xl w-[400px] max-h-[75vh] flex flex-col" style={{ background: A.surface, border: `1px solid ${A.border}` }}>
+                <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${A.border}` }}>
+                  <div>
+                    <h3 className="text-sm font-semibold" style={{ color: A.text1 }}>Warmup Sessions Debug</h3>
+                    <p className="text-[10px]" style={{ color: A.text3 }}>
+                      Day {warmupStatus.warmup_day ?? '—'}/{warmupStatus.total_days} · {warmupStatus.actions_done} total · {warmupStatus.actions_today} today
+                    </p>
+                  </div>
+                  <button onClick={() => setShowWarmupDebug(false)} className="p-1 rounded hover:bg-gray-100">
+                    <X className="w-4 h-4" style={{ color: A.text3 }} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                  {days.length === 0 && <p className="text-xs text-center py-4" style={{ color: A.text3 }}>No warmup actions recorded yet.</p>}
+                  {days.map(([dayLabel, actions]) => (
+                    <div key={dayLabel}>
+                      <button type="button" onClick={() => setWarmupExpanded(p => ({ ...p, [dayLabel]: !p[dayLabel] }))}
+                        className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-md hover:bg-gray-50 transition-colors">
+                        <span className="text-[11px] font-semibold" style={{ color: A.text1 }}>{dayLabel}</span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: A.bg, color: A.text3 }}>{actions.length} actions</span>
+                          <ChevronDown className="w-3 h-3 transition-transform" style={{ color: A.text3, transform: warmupExpanded[dayLabel] ? 'rotate(180deg)' : 'rotate(0)' }} />
+                        </span>
+                      </button>
+                      {warmupExpanded[dayLabel] && (
+                        <div className="mt-1 ml-2 space-y-1">
+                          {actions.map((a, i) => (
+                            <div key={i} className="flex items-start gap-2 px-2 py-1.5 rounded-md text-[10px]" style={{ background: A.bg }}>
+                              <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full" style={{ background: a.success ? actionColor(a.action_type) : '#EF4444' }} />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-medium" style={{ color: actionColor(a.action_type) }}>{actionLabel(a.action_type)}</span>
+                                  <span style={{ color: A.text3 }}>{a.performed_at ? new Date(a.performed_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                                  {!a.success && <span className="text-red-500 font-medium">FAILED</span>}
+                                </div>
+                                {a.detail && <div className="truncate" style={{ color: A.text3 }}>{a.detail}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Keyframe for slide-in animation */}
