@@ -203,9 +203,26 @@ async def connect_account(
     if not account.string_session:
         raise HTTPException(400, "No saved session. Re-upload tdata.")
 
+    # Resolve proxy: prefer dm_account.proxy_config, fallback to TgAccount.assigned_proxy
+    proxy_cfg = account.proxy_config
+    if not proxy_cfg and account.phone:
+        from app.models.telegram_outreach import TgAccount, TgProxy
+        proxy_result = await session.execute(
+            select(TgProxy).join(TgAccount, TgAccount.assigned_proxy_id == TgProxy.id)
+            .where(TgAccount.phone == account.phone, TgProxy.is_active.is_(True)).limit(1)
+        )
+        proxy = proxy_result.scalar_one_or_none()
+        if proxy:
+            proxy_cfg = {
+                "type": proxy.protocol.value if proxy.protocol else "socks5",
+                "host": proxy.host, "port": proxy.port,
+                "username": proxy.username, "password": proxy.password,
+            }
+            logger.info(f"Connect proxy fallback: dm_account {account.id} ({account.phone}) ← {proxy.host}:{proxy.port}")
+
     try:
         ok = await telegram_dm_service.connect_account(
-            account.id, account.string_session, account.proxy_config
+            account.id, account.string_session, proxy_cfg
         )
     except Exception as e:
         account.auth_status = "error"
