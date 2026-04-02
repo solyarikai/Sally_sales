@@ -5420,7 +5420,7 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const loadPipeline = useCallback(async () => {
     setLoading(true);
