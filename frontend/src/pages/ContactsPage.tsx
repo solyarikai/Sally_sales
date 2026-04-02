@@ -72,6 +72,7 @@ export function ContactsPage() {
   const [stats, setStats] = useState<ContactStats | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [total, setTotal] = useState(0);
+  const [weekCount, setWeekCount] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters — compact command-bar style (initialized from URL params)
@@ -444,6 +445,15 @@ export function ContactsPage() {
       if (requestId === statsRequestRef.current) {
         setStats(data);
       }
+      // Load this week's new contacts count
+      const now = new Date();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+      monday.setHours(0, 0, 0, 0);
+      try {
+        const weekData = await contactsApi.getContacts({ page: 1, pageSize: 1, project_id: pid ?? undefined, created_after: monday.toISOString().split('T')[0] });
+        setWeekCount(weekData.total);
+      } catch { setWeekCount(null); }
     } catch (err) {
       console.error('Failed to load stats:', err);
     }
@@ -1049,7 +1059,12 @@ export function ContactsPage() {
       {/* Command bar — minimal */}
       <div className="px-5 py-2" style={{ borderBottom: `1px solid ${isDark ? '#2a2a2a' : '#eee'}` }}>
         <div className="flex items-center gap-2.5">
-          <span className="text-xs shrink-0 tabular-nums" style={{ color: t.text5 }}>{formatNumber(total)}</span>
+          <span className="text-xs shrink-0 tabular-nums" style={{ color: t.text5 }}>
+            {formatNumber(total)}
+            {weekCount != null && weekCount > 0 && (
+              <span className="ml-1.5 text-emerald-500 font-medium">+{formatNumber(weekCount)} this week</span>
+            )}
+          </span>
 
           {/* Search */}
           <div className="relative flex-1 max-w-xs ml-auto">
