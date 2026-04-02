@@ -593,55 +593,55 @@ class StreamingPipeline:
                     company_text += f"\n\nWebsite:\n{dc.scraped_text[:3000]}"
 
                     resp = await client.post(
-                            "https://api.openai.com/v1/chat/completions",
-                            headers={"Authorization": f"Bearer {self.openai_key}",
-                                     "Content-Type": "application/json"},
-                            json={
-                                "model": "gpt-4o-mini",
-                                "messages": [
-                                    {"role": "system", "content": (
-                                        f"Classify if this company is a target customer.\n"
-                                        f"Offer: {self._offer_text}\n"
-                                        + (f"Target segments: {', '.join(self._segments)}\n"
-                                           f"If target, assign ONE of these segments.\n"
-                                           if self._segments else "")
-                                        + f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
-                                    )},
-                                    {"role": "user", "content": company_text},
-                                ],
-                                "max_tokens": 150, "temperature": 0.1,
-                            },
-                        )
-                        data = resp.json()
-                        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                        clean = content.strip()
-                        if clean.startswith("```"):
-                            clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
-                        parsed = json.loads(clean)
+                        "https://api.openai.com/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {self.openai_key}",
+                                 "Content-Type": "application/json"},
+                        json={
+                            "model": "gpt-4o-mini",
+                            "messages": [
+                                {"role": "system", "content": (
+                                    f"Classify if this company is a target customer.\n"
+                                    f"Offer: {self._offer_text}\n"
+                                    + (f"Target segments: {', '.join(self._segments)}\n"
+                                       f"If target, assign ONE of these segments.\n"
+                                       if self._segments else "")
+                                    + f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
+                                )},
+                                {"role": "user", "content": company_text},
+                            ],
+                            "max_tokens": 150, "temperature": 0.1,
+                        },
+                    )
+                    data = resp.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    clean = content.strip()
+                    if clean.startswith("```"):
+                        clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+                    parsed = json.loads(clean)
 
-                        is_target = parsed.get("is_target", False)
-                        segment = parsed.get("segment", "")
-                        reasoning = parsed.get("reasoning", "")
-                        status = "target" if is_target else "rejected"
+                    is_target = parsed.get("is_target", False)
+                    segment = parsed.get("segment", "")
+                    reasoning = parsed.get("reasoning", "")
+                    status = "target" if is_target else "rejected"
 
-                        # Write to DB with own session
-                        async with async_session_maker() as ws:
-                            from sqlalchemy import update
-                            await ws.execute(
-                                update(DiscoveredCompany).where(DiscoveredCompany.id == dc.id).values(
-                                    is_target=is_target, analysis_segment=segment,
-                                    analysis_reasoning=reasoning, status=status,
-                                )
+                    # Write to DB with own session
+                    async with async_session_maker() as ws:
+                        from sqlalchemy import update
+                        await ws.execute(
+                            update(DiscoveredCompany).where(DiscoveredCompany.id == dc.id).values(
+                                is_target=is_target, analysis_segment=segment,
+                                analysis_reasoning=reasoning, status=status,
                             )
-                            await ws.commit()
+                        )
+                        await ws.commit()
 
-                        dc.is_target = is_target
-                        dc.analysis_segment = segment
-                        dc.status = status
-                        self.total_classified += 1
-                        if is_target:
-                            self.total_targets += 1
-                            await self.people_queue.put(dc)
+                    dc.is_target = is_target
+                    dc.analysis_segment = segment
+                    dc.status = status
+                    self.total_classified += 1
+                    if is_target:
+                        self.total_targets += 1
+                        await self.people_queue.put(dc)
                 except Exception as e:
                     dc.status = "classify_failed"
                     logger.debug(f"Classify {dc.domain}: {e}")
