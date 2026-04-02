@@ -9,10 +9,9 @@ GS_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vYW1hemluZy5
 headers = {"Authorization": f"Bearer {GS_TOKEN}"}
 client = httpx.Client(headers=headers, timeout=30)
 
-print("Downloading all GetSales contacts (linkedin + email)...")
+print("Downloading all GetSales contacts (linkedin nicknames + emails)...", flush=True)
 gs_linkedin = set()
 gs_email = set()
-gs_contacts = {}
 
 offset = 0
 limit = 1000
@@ -26,18 +25,23 @@ while True:
                 "https://amazing.getsales.io/leads/api/leads",
                 params={"limit": limit, "offset": offset}
             )
+            if r.status_code == 429:
+                print("  Rate limited, waiting 10s...", flush=True)
+                time.sleep(10)
+                continue
             data = r.json()
             break
         except Exception as e:
-            print(f"  Retry {attempt+1}/5 at offset {offset}: {e}")
+            print(f"  Retry {attempt+1}/5 at offset {offset}: {e}", flush=True)
             time.sleep(3 * (attempt + 1))
     else:
-        print(f"  Skipping offset {offset} after 5 failures")
+        print(f"  Skipping offset {offset} after 5 failures", flush=True)
         offset += limit
         continue
+
     if total is None:
-        total = data["total"]
-        print(f"Total in GetSales: {total}")
+        total = data.get("total", 0)
+        print(f"Total in GetSales: {total}", flush=True)
 
     batch = data.get("data", [])
     if not batch:
@@ -47,28 +51,23 @@ while True:
         lead = item["lead"]
         li = (lead.get("linkedin") or "").strip().lower()
         email = (lead.get("work_email") or lead.get("personal_email") or "").strip().lower()
-        first = lead.get("first_name") or ""
-        last = lead.get("last_name") or ""
-        name = f"{first} {last}".strip()
-        status = lead.get("status") or ""
-
         if li:
             gs_linkedin.add(li)
-            gs_contacts[li] = {"name": name, "email": email, "status": status, "li": li}
         if email:
             gs_email.add(email)
 
     offset += len(batch)
-    if offset % 10000 == 0:
+    if offset % 20000 == 0:
         elapsed = time.time() - t_start
-        print(f"  {offset}/{total} ({elapsed:.0f}s)...")
+        print(f"  {offset}/{total} ({elapsed:.0f}s)...", flush=True)
 
     if not data.get("has_more"):
         break
 
-print(f"Done: {len(gs_linkedin)} unique LinkedIn, {len(gs_email)} unique emails ({time.time()-t_start:.0f}s)")
+elapsed = time.time() - t_start
+print(f"Done: {len(gs_linkedin):,} LinkedIn, {len(gs_email):,} emails in {elapsed:.0f}s", flush=True)
 
 with open("/tmp/gs_linkedin_set.json", "w") as f:
-    json.dump({"linkedin": list(gs_linkedin), "email": list(gs_email), "contacts": gs_contacts}, f)
+    json.dump({"linkedin": list(gs_linkedin), "email": list(gs_email)}, f)
 
-print("Saved to /tmp/gs_linkedin_set.json")
+print("Saved to /tmp/gs_linkedin_set.json", flush=True)
