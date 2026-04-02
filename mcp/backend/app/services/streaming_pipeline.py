@@ -600,13 +600,17 @@ class StreamingPipeline:
                             domain = urlparse(domain).hostname or domain
                         if domain.startswith("www."):
                             domain = domain[4:]
+                        # Extract ALL useful fields from Apollo response
+                        country = org.get("country") or org.get("organization_country")
+                        city = org.get("city") or org.get("organization_city")
+                        state = org.get("state") or org.get("organization_state")
                         results.append({
                             "domain": domain.strip().lower(),
                             "name": org.get("name", domain),
                             "industry": org.get("industry"),
-                            "employee_count": org.get("estimated_num_employees"),
-                            "country": org.get("country"),
-                            "city": org.get("city"),
+                            "employee_count": org.get("estimated_num_employees") or org.get("num_contacts"),
+                            "country": country,
+                            "city": f"{city}, {state}" if city and state else (city or state),
                         })
                 # Feed to scrape queue IMMEDIATELY
                 apollo_raw = len(orgs)  # How many Apollo returned (before dedup)
@@ -749,11 +753,20 @@ class StreamingPipeline:
                 )
                 dc = existing.scalars().first()
                 if dc:
-                    # Reuse existing company — reset classification for fresh analysis
+                    # Reuse existing company — update geo/industry from fresh Apollo data + reset classification
                     dc.is_target = None
                     dc.analysis_segment = None
                     dc.analysis_reasoning = None
                     dc.status = "new" if not dc.scraped_text else "scraped"
+                    # Update company data from Apollo (may have been NULL before)
+                    if company_data.get("country"):
+                        dc.country = company_data["country"]
+                    if company_data.get("city"):
+                        dc.city = company_data["city"]
+                    if company_data.get("industry"):
+                        dc.industry = company_data["industry"]
+                    if company_data.get("employee_count"):
+                        dc.employee_count = company_data["employee_count"]
                 else:
                     dc = DiscoveredCompany(
                         project_id=self.run.project_id,
@@ -1020,6 +1033,18 @@ class StreamingPipeline:
                                 self._kpi_met = True
                                 logger.info(f"KPI MET: {self.total_people} people >= {self.target_count}")
                                 break
+                        # Store org data from bulk_match back to company (free with enrichment)
+                        org_data = people[0] if people else {}
+                        if org_data.get("org_country"):
+                            from sqlalchemy import update
+                            await ws.execute(
+                                update(DiscoveredCompany).where(DiscoveredCompany.id == dc.id).values(
+                                    country=org_data.get("org_country"),
+                                    city=org_data.get("org_city"),
+                                    industry=org_data.get("org_industry"),
+                                    employee_count=org_data.get("org_employee_count"),
+                                )
+                            )
                         await ws.commit()
                     # Update progress with own session
                     self.run.credits_used = (self.run.credits_used or 0) + len(people)

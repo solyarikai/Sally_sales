@@ -297,6 +297,8 @@ class ApolloService:
             phone = None
             if match.get("phone_numbers"):
                 phone = match["phone_numbers"][0].get("sanitized_number")
+            # Extract organization data (comes free with bulk_match)
+            org = match.get("organization", {})
             results.append({
                 "email": match.get("email"),
                 "first_name": match.get("first_name"),
@@ -305,6 +307,13 @@ class ApolloService:
                 "linkedin_url": match.get("linkedin_url"),
                 "is_verified": True,
                 "phone": phone,
+                # Organization data — store back to company record
+                "org_country": org.get("country"),
+                "org_city": org.get("city"),
+                "org_industry": org.get("industry"),
+                "org_employee_count": org.get("estimated_num_employees"),
+                "org_funding": org.get("latest_funding_stage"),
+                "org_funding_amount": org.get("latest_funding_amount"),
             })
         return results
 
