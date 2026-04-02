@@ -460,3 +460,17 @@ class TgWarmupLogResponse(BaseModel):
     error_message: Optional[str] = None
     performed_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
+
+
+class TgWarmupChannelCreate(BaseModel):
+    url: str
+    title: Optional[str] = None
+
+
+class TgWarmupChannelResponse(BaseModel):
+    id: int
+    url: str
+    title: Optional[str] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}

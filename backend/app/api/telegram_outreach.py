@@ -22,7 +22,7 @@ from app.models.telegram_outreach import (
     TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgRecipientStatus, TgMessageStatus,
     TgInboxDialog, TgContact, TgContactStatus,
     TgIncomingReply, TgBlacklist,
-    TgWarmupLog, TgWarmupActionType,
+    TgWarmupLog, TgWarmupActionType, TgWarmupChannel,
 )
 from app.models.telegram_dm import TelegramDMAccount
 
@@ -84,6 +84,7 @@ from app.schemas.telegram_outreach import (
     TgTeleRaptorImportRequest, TgTeleRaptorImportResponse,
     TgBlacklistUploadText, TgBlacklistResponse, TgBlacklistListResponse,
     TgWarmupStatusResponse, TgWarmupLogResponse,
+    TgWarmupChannelCreate, TgWarmupChannelResponse,
 )
 
 router = APIRouter(prefix="/telegram-outreach", tags=["Telegram Outreach"])
@@ -1118,6 +1119,82 @@ async def bulk_warmup(data: TgBulkAccountIds, action: str = Query("start"),
             account.warmup_active = False
             count += 1
     return {"ok": True, "count": count, "action": action}
+
+
+# ── Warm-up Channels CRUD ───────────────────────────────────────────
+
+DEFAULT_WARMUP_CHANNELS_SEED = [
+    ("sokolov_outreach", "Sokolov Outreach"),
+    ("dark_ads_chat", "Dark Ads Chat"),
+    ("chatdnative", "Chat D Native"),
+    ("cpa_lenta", "CPA Лента"),
+    ("+/-d8UvrddIvI1NWVi", None),
+    ("leadssulive", "Leads Su Live"),
+    ("+/dNk09qoykgEzNWVi", None),
+    ("thepartnerkin", "The Partnerkin"),
+]
+
+
+@router.get("/warmup/channels", response_model=list[TgWarmupChannelResponse])
+async def list_warmup_channels(session: AsyncSession = Depends(get_session)):
+    """List all curated warm-up channels."""
+    result = await session.execute(
+        select(TgWarmupChannel).order_by(TgWarmupChannel.id)
+    )
+    return result.scalars().all()
+
+
+@router.post("/warmup/channels", response_model=TgWarmupChannelResponse, status_code=201)
+async def add_warmup_channel(data: TgWarmupChannelCreate,
+                              session: AsyncSession = Depends(get_session)):
+    """Add a channel to the warm-up list."""
+    url = data.url.strip()
+    # Normalise: strip https://t.me/ prefix if given
+    for prefix in ("https://t.me/", "http://t.me/", "t.me/"):
+        if url.startswith(prefix):
+            url = url[len(prefix):]
+            break
+    ch = TgWarmupChannel(url=url, title=data.title)
+    session.add(ch)
+    await session.flush()
+    await session.refresh(ch)
+    return ch
+
+
+@router.delete("/warmup/channels/{channel_id}")
+async def delete_warmup_channel(channel_id: int,
+                                 session: AsyncSession = Depends(get_session)):
+    """Remove a channel from the warm-up list."""
+    ch = await session.get(TgWarmupChannel, channel_id)
+    if not ch:
+        raise HTTPException(404, "Channel not found")
+    await session.delete(ch)
+    return {"ok": True}
+
+
+@router.patch("/warmup/channels/{channel_id}", response_model=TgWarmupChannelResponse)
+async def toggle_warmup_channel(channel_id: int, is_active: bool = Query(...),
+                                 session: AsyncSession = Depends(get_session)):
+    """Toggle a warm-up channel active/inactive."""
+    ch = await session.get(TgWarmupChannel, channel_id)
+    if not ch:
+        raise HTTPException(404, "Channel not found")
+    ch.is_active = is_active
+    return ch
+
+
+@router.post("/warmup/channels/seed")
+async def seed_warmup_channels(session: AsyncSession = Depends(get_session)):
+    """Seed default warm-up channels (idempotent)."""
+    added = 0
+    for url, title in DEFAULT_WARMUP_CHANNELS_SEED:
+        existing = await session.execute(
+            select(TgWarmupChannel).where(TgWarmupChannel.url == url)
+        )
+        if not existing.scalar_one_or_none():
+            session.add(TgWarmupChannel(url=url, title=title))
+            added += 1
+    return {"ok": True, "added": added}
 
 
 @router.post("/accounts/bulk-update-params")

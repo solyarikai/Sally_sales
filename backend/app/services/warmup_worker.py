@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import async_session_maker
 from app.models.telegram_outreach import (
     TgAccount, TgAccountStatus, TgProxy,
-    TgWarmupLog, TgWarmupActionType,
+    TgWarmupLog, TgWarmupActionType, TgWarmupChannel,
 )
 from app.services.telegram_engine import telegram_engine
 from app.services.warmup_messages import ALL_QUESTIONS, ALL_ANSWERS
@@ -43,8 +43,8 @@ REACTION_EMOJIS = ["👍", "❤️", "🔥", "😂", "👏", "🤔"]
 # Conversation schedule: 1-2 per day, starting from day 3
 CONVERSATIONS_PER_DAY = (1, 2)
 
-# Default curated channels for warm-up
-DEFAULT_WARMUP_CHANNELS = [
+# Fallback channel list (used only when DB table is empty)
+FALLBACK_WARMUP_CHANNELS = [
     "sokolov_outreach",
     "dark_ads_chat",
     "chatdnative",
@@ -239,8 +239,19 @@ class WarmupWorker:
         if account:
             account.warmup_actions_done = (account.warmup_actions_done or 0) + 1
 
+    async def _get_warmup_channels(self, session: AsyncSession) -> list[str]:
+        """Load active warmup channels from DB, fall back to hardcoded list."""
+        result = await session.execute(
+            select(TgWarmupChannel.url).where(TgWarmupChannel.is_active == True)
+        )
+        channels = [r[0] for r in result.all()]
+        return channels if channels else list(FALLBACK_WARMUP_CHANNELS)
+
     async def _join_channel(self, account: TgAccount, warmup_day: int, session: AsyncSession):
         """Join a random channel from the curated list."""
+        # Load channels from DB
+        warmup_channels = await self._get_warmup_channels(session)
+
         # Get already-joined channels for this account
         joined_q = await session.execute(
             select(TgWarmupLog.detail).where(
@@ -252,7 +263,7 @@ class WarmupWorker:
         already_joined = {r[0] for r in joined_q.all()}
 
         # Pick a channel not yet joined
-        available = [ch for ch in DEFAULT_WARMUP_CHANNELS if ch not in already_joined]
+        available = [ch for ch in warmup_channels if ch not in already_joined]
         if not available:
             return  # All channels already joined
 
@@ -264,12 +275,20 @@ class WarmupWorker:
 
         try:
             from telethon.tl.functions.channels import JoinChannelRequest
-            entity = await client.get_entity(channel)
-            await client(JoinChannelRequest(entity))
+            from telethon.tl.functions.messages import ImportChatInviteRequest
+
+            if channel.startswith("+") or channel.startswith("joinchat/"):
+                # Private invite link: +HASH or joinchat/HASH
+                invite_hash = channel.lstrip("+").replace("joinchat/", "")
+                await client(ImportChatInviteRequest(invite_hash))
+            else:
+                entity = await client.get_entity(channel)
+                await client(JoinChannelRequest(entity))
+
             # Human-like delay after action
             await asyncio.sleep(random.uniform(2, 5))
             await self._log_action(session, account.id, TgWarmupActionType.CHANNEL_JOIN, channel)
-            logger.info(f"Warm-up: {account.phone} joined @{channel}")
+            logger.info(f"Warm-up: {account.phone} joined {channel}")
         except Exception as e:
             error_msg = str(e)[:200]
             await self._log_action(session, account.id, TgWarmupActionType.CHANNEL_JOIN,
