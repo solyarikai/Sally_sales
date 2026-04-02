@@ -70,16 +70,18 @@ The response shows: project name, ICP, active campaigns, and which companies are
     },
     {
         "name": "create_project",
-        "description": """Create a new project from the user's website.
+        "description": """Create a new project from website OR strategy document.
 
-WHEN USER SAYS: "easystaff.io", "our website is X", "we sell Y" → call THIS with website=URL.
-The website is scraped to extract offer/value proposition. This is REQUIRED before gathering.
-AFTER creating project, ask: "Have you launched campaigns for this project before?" (ONE question only).""",
+WHEN USER SAYS: "easystaff.io", "our website is X" → call with website=URL.
+WHEN USER SAYS: "launch outreach-plan.md", "use this document" → call with document_text=content.
+Document mode extracts EVERYTHING: offer, roles, segments, sequence, campaign settings.
+AFTER creating project, show what was extracted and ask: "Does this look correct?" (ONE question only).""",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
-                "website": {"type": "string", "description": "Company website URL (e.g. 'https://easystaff.io'). REQUIRED — will be scraped to extract value proposition for ICP and sequence generation."},
+                "website": {"type": "string", "description": "Company website URL (e.g. 'https://easystaff.io'). Scraped to extract offer."},
+                "document_text": {"type": "string", "description": "Full text of strategy/outreach document. Extracts: offer, roles, segments, sequence, settings. Use instead of website when user provides a document."},
                 "target_segments": {"type": "string", "description": "ICP description (e.g. 'Series A-B SaaS in DACH, 50-500 emp')"},
                 "target_industries": {"type": "string", "description": "Target industries (e.g. 'SaaS, Fintech, IT Services')"},
                 "sender_name": {"type": "string"},

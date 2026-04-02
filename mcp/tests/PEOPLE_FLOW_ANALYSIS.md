@@ -103,7 +103,7 @@ send 1 bulk call with all 150 IDs at once.
 ```
 
 ## WHAT THE MAIN APP DOES DIFFERENTLY
-
+why 
 Main backend (`backend/app/services/apollo_service.py`):
 - Same 2-step flow (search free → bulk_match paid)
 - BUT populates `email_verified` column on ExtractedContact

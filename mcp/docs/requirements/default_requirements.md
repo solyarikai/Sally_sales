@@ -25,7 +25,7 @@ After gathering launched mcp must ask user (essential to ask before creating sma
 
 Then user answers “use Eleonora accounts from the previous campaigns (campaigns the user provided as “launched before for this project”) for both campaigns / pipelines (both variations must be approoairte and tested!!!!! Must test variations of user messages keeping the intent you remember?) 
 
-After target companies are gathered for each pipeline mcp must notify user about stats and then tell the the people filters applied (by default clevel but even better to adjust to the offer, add a gpt4omini mapper here too if it’s essential to adjust filter to the offer) and share links to the exact pipeline page when sharing info/updtes about the pipeline
+After target companies are gathered for each pipeline mcp must notify user about stats and then tell the the people filters applied (by default clevel but even better to adjust to the offer, add a gpt4omini theper here too if it’s essential to adjust filter to the offer) and share links to the exact pipeline page when sharing info/updtes about the pipeline
 
 After people are gathered for each pipeline smartlead campaign must be created with perfect sequence adjusted to the offer, test email sent and mcp must write to user:
 1. Smartlead campaign link: <link>
@@ -104,7 +104,8 @@ adjusting gpt4omini prompt until required accuracy achieved to furher use the im
   phase at least 10 times with deffirent approaches for fitlers extension and choose the best, think generalyl!!!!! 
    not tovias and hardcode for my particuklar test case but solve on the any general level    
 
-   ❯ load map of apollo keywords and industries filters !!!!!! to use it effectively from the very start when user   
+   ❯ load lsis
+    of apollo keywords and industries filters !!!!!! to use it effectively from the very start when user   
   provided a prompt to gather companies   
 
 

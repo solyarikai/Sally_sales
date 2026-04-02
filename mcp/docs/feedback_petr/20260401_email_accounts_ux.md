@@ -1,4 +1,4 @@
-# Email Accounts UX — Future Implementation Plan
+why # Email Accounts UX — Future Implementation Plan
 
 ## Date: 2026-04-01
 

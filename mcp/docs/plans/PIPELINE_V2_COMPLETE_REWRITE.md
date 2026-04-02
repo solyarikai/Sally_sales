@@ -64,7 +64,7 @@ async def _persist_progress(self):
 ### FIX 5: Email Accounts UX
 - Don't list accounts in MCP (too large)
 - Return: "2,411 accounts available. View at http://host/campaigns/accounts"
-- Accept filter pattern: "all with elnar" → return count + preview of first 5
+- Accept filter pattern: "all with elnar" → return count + preview of first 5 -- TODO and must provide link the campaign in ui with the emails accounts visible after clicking the link, also in accounts page such associated list of elnar acounts must be created with the link to campaing, so reuse such entity as email accounts list in emails acconts subpage of campainsg page, in campsing details too - reuse enitiyies as god to avoid duplication and redundancy
 - Pre-cache accounts when SmartLead key connected
 
 ### FIX 6: Pipeline Completion Banner (already deployed)

@@ -225,27 +225,16 @@ class ApolloService:
         if not with_email:
             return []
 
-        # Step 3: Prioritize — seniority order (owner > c_suite > vp > head > director)
-        # Then by title match to offer-specific roles
-        SENIORITY_RANK = {"owner": 0, "founder": 1, "c_suite": 2, "partner": 3, "vp": 4, "head": 5, "director": 6, "manager": 7}
+        # Step 3: GPT-powered role selection — dynamic, no hardcoding.
+        # Send candidate list + target roles to GPT → returns ranked indices.
+        # Works for ANY industry — fintech, fashion, SaaS, whatever the document says.
 
-        def rank_person(p):
-            ptitle = (p.get("title") or "").lower()
-            # Seniority rank from title keywords
-            sen_rank = 99
-            for sen, rank in SENIORITY_RANK.items():
-                if sen in ptitle or (sen == "c_suite" and any(x in ptitle for x in ["chief", "ceo", "cfo", "cmo", "cto", "coo"])):
-                    sen_rank = min(sen_rank, rank)
-            # Boost if title matches offer-specific roles
-            title_boost = 0
-            if titles:
-                for t in titles:
-                    if t.lower() in ptitle:
-                        title_boost = -10  # Strong boost
-                        break
-            return sen_rank + title_boost
+        if titles and len(with_email) > 0:
+            eligible = await self._gpt_rank_candidates(with_email, titles, domain)
+        else:
+            eligible = with_email
 
-        prioritized = sorted(with_email, key=rank_person)
+        prioritized = eligible  # Already ranked by GPT
 
         # Step 4-6: Enrich in rounds until `limit` verified emails or candidates exhausted
         enriched_all = []
@@ -316,6 +305,78 @@ class ApolloService:
             })
         return results
 
+    async def _gpt_rank_candidates(self, candidates: list, target_titles: list, domain: str) -> list:
+        """Use GPT to select which candidates match target roles. Dynamic — no hardcoding.
+        Returns candidates sorted by relevance (best matches first, non-matches removed).
+        """
+        import httpx, json
+
+        # Build candidate list for GPT
+        cand_lines = []
+        for i, p in enumerate(candidates):
+            title = p.get("title", "Unknown")
+            name = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
+            cand_lines.append(f"{i}: {name} — {title}")
+
+        prompt = (
+            f"Select ONLY people whose function matches one of these TARGET ROLES:\n"
+            f"{', '.join(target_titles)}\n\n"
+            f"CANDIDATES at {domain}:\n" + "\n".join(cand_lines) + "\n\n"
+            f"RULES (no hardcoded exclusions — purely match against the target roles above):\n"
+            f"1. Match the FUNCTION, not seniority. 'Head of X' only matches if X is a target function.\n"
+            f"2. COMPOUND titles ('Co-Founder & CTO'): the second part is the function. Include ONLY if that function is in the target list.\n"
+            f"3. 'Chief of Staff to X' is administrative support, NOT the same as X.\n"
+            f"4. Generic titles with no function ('Director', 'VP') — exclude, can't verify match.\n"
+            f"5. If uncertain but the role seems close to a target function — include.\n\n"
+            f"Return JSON: {{\"selected\": [0, 3, 5]}} — indices of matches only."
+        )
+
+        try:
+            # Use the OpenAI key from wherever it was configured
+            openai_key = getattr(self, '_openai_key', None)
+            if not openai_key:
+                # Try to get from environment
+                import os
+                openai_key = os.environ.get("OPENAI_API_KEY", "")
+
+            if not openai_key:
+                # No key — fall back to simple title matching
+                return candidates
+
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 100, "temperature": 0,
+                    },
+                )
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"].strip()
+                if content.startswith("```"):
+                    content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+                parsed = json.loads(content)
+                selected_indices = parsed.get("selected", [])
+
+                if not selected_indices:
+                    return candidates  # GPT found no matches — return all
+
+                # Return selected candidates in GPT's priority order
+                result = []
+                for idx in selected_indices:
+                    if 0 <= idx < len(candidates):
+                        result.append(candidates[idx])
+
+                logger.info(f"GPT role filter {domain}: {len(result)}/{len(candidates)} selected "
+                           f"for roles {target_titles[:3]}")
+                return result if result else candidates
+
+        except Exception as e:
+            logger.warning(f"GPT role ranking failed for {domain}: {e}")
+            return candidates  # Fallback: return all
+
     async def enrich_organization(self, domain: str) -> Optional[Dict[str, Any]]:
         """Get FULL company data by domain. Delegates to bulk_enrich for efficiency."""
         results = await self.bulk_enrich_organizations([domain])
@@ -383,3 +444,7 @@ class ApolloService:
 
     def reset_credits(self):
         self.credits_used = 0
+
+
+# Module-level singleton for backward compat with older imports
+apollo_service = ApolloService()

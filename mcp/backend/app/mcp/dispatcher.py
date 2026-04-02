@@ -536,12 +536,57 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             await session.flush()
 
         website = args.get("website")
+        document_text = args.get("document_text")
         target_segments = args.get("target_segments") or ""
         offer_summary = None
         scrape_status = "not_scraped"
+        extracted_sequences = []
+        extracted_settings = {}
+
+        # ── Document-based extraction: extracts EVERYTHING from strategy doc ──
+        if document_text:
+            try:
+                from app.services.document_extractor import extract_from_document
+                ctx = UserServiceContext(user.id, session)
+                openai_key = await ctx.get_key("openai")
+                if openai_key:
+                    extraction = await extract_from_document(
+                        document_text, website or "", openai_key, model="gpt-4.1-nano"
+                    )
+                    if not extraction.get("error"):
+                        roles = extraction.get("target_roles", {})
+                        segments = extraction.get("segments", [])
+                        all_titles = (roles.get("primary", []) + roles.get("secondary", [])
+                                      + roles.get("tertiary", []))
+
+                        offer_summary = {
+                            "primary_offer": extraction.get("offer", ""),
+                            "value_proposition": extraction.get("value_prop", ""),
+                            "target_audience": extraction.get("target_audience", ""),
+                            "target_roles": {
+                                "titles": all_titles,
+                                "primary": roles.get("primary", []),
+                                "secondary": roles.get("secondary", []),
+                                "tertiary": roles.get("tertiary", []),
+                                "seniorities": roles.get("seniorities", ["c_suite", "vp", "head", "director"]),
+                            },
+                            "segments": segments,
+                            "apollo_filters": extraction.get("apollo_filters", {}),
+                            "_source": "document",
+                        }
+                        target_segments = (
+                            f"{extraction.get('offer', '')}. Target: {extraction.get('target_audience', '')}"
+                        )
+                        extracted_sequences = extraction.get("sequences", [])
+                        extracted_settings = extraction.get("campaign_settings", {})
+                        scrape_status = "document_extracted"
+                        logger.info(f"Document extraction: {len(segments)} segments, "
+                                   f"{len(all_titles)} roles, {len(extracted_sequences)} sequences")
+            except Exception as e:
+                logger.error(f"Document extraction failed: {e}")
 
         # ── 3-layer offer extraction: proxy -> direct+meta -> GPT knowledge ──
-        if website:
+        if not offer_summary and website:
             if not website.startswith("http"):
                 website = f"https://{website}"
             import httpx as _hx, re as _re, json as _jn
@@ -628,6 +673,56 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
         await session.flush()
         user.active_project_id = project.id
 
+        # ── Store extracted sequences from document ──
+        sequence_display = ""
+        if extracted_sequences:
+            from app.models.campaign import GeneratedSequence, Campaign
+            for seq_data in extracted_sequences:
+                steps = seq_data.get("steps", [])
+                if not steps:
+                    continue
+                # Create GeneratedSequence
+                seq = GeneratedSequence(
+                    project_id=project.id, company_id=company.id,
+                    campaign_name=seq_data.get("name", f"Sequence from document"),
+                    sequence_steps={"steps": steps},
+                    sequence_step_count=len(steps),
+                    rationale="Extracted from strategy document",
+                    status="draft",
+                    model_used="document_extraction",
+                )
+                session.add(seq)
+                await session.flush()
+
+                # Create draft Campaign linked to sequence
+                campaign = Campaign(
+                    project_id=project.id, company_id=company.id,
+                    name=seq_data.get("name", f"Draft — {project.name}"),
+                    status="mcp_draft", created_by="mcp",
+                    sequence_id=seq.id,
+                    config={
+                        "from_document": True,
+                        "settings": extracted_settings,
+                        "daily_limit_per_mailbox": extracted_settings.get("daily_limit_per_mailbox"),
+                        "tracking": extracted_settings.get("tracking", False),
+                        "stop_on_reply": extracted_settings.get("stop_on_reply", True),
+                        "plain_text": extracted_settings.get("plain_text", True),
+                    },
+                )
+                session.add(campaign)
+                await session.flush()
+
+                sequence_display += f"\n**Sequence: {seq.campaign_name}** ({len(steps)} emails)\n"
+                for i, step in enumerate(steps):
+                    sequence_display += f"  Email {i+1} (Day {step.get('day', '?')}): {step.get('subject', 'No subject')}\n"
+                sequence_display += f"\n**Campaign settings:** "
+                if extracted_settings:
+                    sequence_display += f"{'No tracking' if not extracted_settings.get('tracking') else 'Tracking on'}, "
+                    sequence_display += f"{'Stop on reply' if extracted_settings.get('stop_on_reply') else 'Continue after reply'}, "
+                    sequence_display += f"{extracted_settings.get('daily_limit_per_mailbox', '?')}/mailbox/day\n"
+
+                logger.info(f"Created sequence {seq.id} ({len(steps)} steps) + draft campaign {campaign.id}")
+
         # Queue for background re-analysis if inline scrape failed
         if not offer_summary and website:
             from app.services.offer_scraper import queue_offer_analysis
@@ -640,22 +735,34 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
             role_titles = target_roles.get("titles", [])
             role_reasoning = target_roles.get("reasoning", "")
 
+            source = "document" if offer_summary.get("_source") == "document" else website
             offer_display = (
-                f"\n\n**Offer extracted from {website}:**\n"
+                f"\n\n**Offer extracted from {source}:**\n"
                 f"  Product: {offer_summary.get('primary_offer', 'N/A')}\n"
                 f"  Value prop: {offer_summary.get('value_proposition', 'N/A')}\n"
                 f"  Target audience: {offer_summary.get('target_audience', 'N/A')}\n"
             )
             if offer_summary.get("products"):
                 offer_display += "  All products: " + ", ".join(p.get("name", "") for p in offer_summary["products"]) + "\n"
+            # Show segments from document
+            segments = offer_summary.get("segments", [])
+            if segments:
+                offer_display += f"\n**{len(segments)} market segments:**\n"
+                for seg in segments:
+                    kw_list = seg.get("keywords", [])
+                    offer_display += f"  - {seg.get('name', '?')}: {', '.join(kw_list[:5])}\n"
             if role_titles:
                 offer_display += f"\n**Target decision makers:** {', '.join(role_titles)}\n"
                 if role_reasoning:
                     offer_display += f"  Reasoning: {role_reasoning}\n"
+            # Show sequences from document
+            if sequence_display:
+                offer_display += sequence_display
             offer_display += (
-                f"\n**Is this correct?** Review: offer, target audience, AND target roles. "
-                f"If anything is wrong (e.g. wrong product, wrong roles), tell me. "
-                f"Once confirmed, these roles will be used to find the right people at target companies."
+                f"\n**Is this correct?** Review: offer, target audience, roles"
+                + (", segments, and sequence" if segments else "")
+                + f". If anything is wrong, tell me. "
+                f"Once confirmed, these will be used to find leads and create the campaign."
             )
         else:
             offer_display = (
