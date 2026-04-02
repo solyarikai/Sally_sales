@@ -278,7 +278,10 @@ class TgDuplicateDetail(BaseModel):
     campaign_name: str
     campaign_status: str
     current_step: int
+    total_steps: int
+    step_label: str
     recipient_status: str
+    campaign_completion_pct: int
     assigned_account: Optional[str] = None
 
 
@@ -286,6 +289,11 @@ class TgCheckDuplicatesResponse(BaseModel):
     total_checked: int
     duplicates_count: int
     duplicates: list[TgDuplicateDetail]
+
+
+class TgBulkRemoveRecipients(BaseModel):
+    """Remove recipients by username from a campaign."""
+    usernames: list[str]
 
 
 # ── Sequence ───────────────────────────────────────────────────────────
