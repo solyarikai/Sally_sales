@@ -1,0 +1,343 @@
+campaign_id,campaign_name,email,first_name,last_name,full_name,title,company_name,location,linkedin_url,email_status,open_count,score_title,score_geo,score_engagement,score_total,priority_tier
+3065429,INFPLAT_MENA_APAC,joby@scoop.app,Joby,Joseph,Joby Joseph,Co-Founder & CTO,Scoop,Kochi India,http://www.linkedin.com/in/jobymathewjoseph,INPROGRESS,0,10,5,1,16,A
+3065429,INFPLAT_MENA_APAC,p.tsaggas@susurrus.io,Panagiotis,Tsaggas,Panagiotis Tsaggas,Co-Founder & CCO,Susurrus,Dubai UAE,http://www.linkedin.com/in/panagiotistsaggas,INPROGRESS,0,10,5,1,16,A
+3065429,INFPLAT_MENA_APAC,lina@susurrus.io,Lina,Stoumpou,Lina Stoumpou,Co-founder CEO,Susurrus,Dubai UAE,http://www.linkedin.com/in/stavroulastoumpou,INPROGRESS,0,10,5,1,16,A
+3065429,INFPLAT_MENA_APAC,jason@bintango.com,Jason,Lee BintanGO,Jason Lee BintanGO,Co-Founder & CEO,BintanGO,Singapore,http://www.linkedin.com/in/bintango,INPROGRESS,0,10,5,1,16,A
+3059650,INFPLAT_INDIA,turan@sketchmedia.co,Turan,Selvi,Turan Selvi,Founder/CEO,Clipster,"Dubai, United Arab Emirates",http://www.linkedin.com/in/turan-selvi,INPROGRESS,0,10,5,1,16,A
+3059650,INFPLAT_INDIA,sagar@clanconnect.ai,Sagar,Pushp,Sagar Pushp,Chief Executive Officer and Co-Founder,ClanConnect,"New Delhi, India",http://www.linkedin.com/in/sagar-p-97520311,INPROGRESS,0,10,5,1,16,A
+3059650,INFPLAT_INDIA,akash@fancall.in,Akash,Chaudhary,Akash Chaudhary,Founder and CEO,Fancall Private Limited,India,http://www.linkedin.com/in/akash-chaudhary-99733a197,INPROGRESS,0,10,5,1,16,A
+3059650,INFPLAT_INDIA,pooja@aer.media,Pooja,Doshi-Sharma,Pooja Doshi-Sharma,Co-Founder,Aer Media,"Mumbai, India",http://www.linkedin.com/in/pooja2006,INPROGRESS,0,10,5,1,16,A
+3059650,INFPLAT_INDIA,vishal@krazyfox.in,Vishal,Srivastava,Vishal Srivastava,Co-Founder,Krazyfox,India,http://www.linkedin.com/in/vishal-srivastava-5519b4143,INPROGRESS,0,10,5,1,16,A
+3059650,INFPLAT_INDIA,ishank@mobavenue.ai,Ishank,Joshi,Ishank Joshi,CEO & Co-Founder,Mobavenue,"New Delhi, India",http://www.linkedin.com/in/parth-parekh-bba705171,INPROGRESS,0,10,5,1,16,A
+3063527,IMAGENCY_INDIA,amit@galvor.com,Amit,Singh,Amit Singh,Co-Founder & CEO,Galvor,"Bengaluru, India",http://www.linkedin.com/in/amitsingh178,INPROGRESS,0,10,5,1,16,A
+3063527,IMAGENCY_INDIA,viraj@monk-e.in,Viraj,Sheth,Viraj Sheth,Co-Founder & CEO,Monk-E,"Mumbai, India",http://www.linkedin.com/in/viraj-sawant-995950169,INPROGRESS,0,10,5,1,16,A
+3064966,INDIA_GENERAL,kartikey@ylytic.com,Kartikey,Yadav,Kartikey Yadav,Chief Executive Officer,Ylytic,"Bengaluru, India",http://www.linkedin.com/in/kartikey19,INPROGRESS,0,10,5,1,16,A
+3059650,INFPLAT_INDIA,toby@fabulate.com.au,Toby,Kennett,Toby Kennett,Co-Founder CEO,Fabulate,Sydney Australia,http://www.linkedin.com/in/toby-kennett-5a115ab,INPROGRESS,0,10,4,1,15,A
+3059650,INFPLAT_INDIA,ben@fabulate.com.au,Ben,Gunn,Ben Gunn,Co-Founder Chief Revenue Officer,Fabulate,Sydney Australia,http://www.linkedin.com/in/bengunn,INPROGRESS,0,10,4,1,15,A
+3059650,INFPLAT_INDIA,nathan@fabulate.com.au,Nathan,Powell,Nathan Powell,Co-Founder Chief Product and Strategy Officer,Fabulate,Sydney Australia,http://www.linkedin.com/in/nathanspowell,INPROGRESS,0,10,4,1,15,A
+3065429,INFPLAT_MENA_APAC,lynette@atisfy.com,Lynette,Chee,Lynette Chee,Head of Growth and Partnerships APAC,AtisfyReach,Singapore,http://www.linkedin.com/in/cheelynette,INPROGRESS,0,8,5,1,14,B
+3065429,INFPLAT_MENA_APAC,oktorika@bintango.com,Oktorika,Mandasari,Oktorika Mandasari,Co-Founder & Chief Marketing Officer,BintanGO,Jakarta Indonesia,http://www.linkedin.com/in/rikabintango,INPROGRESS,0,10,3,1,14,B
+3059650,INFPLAT_INDIA,mansi@opraahfx.com,Mansi,Gupta,Mansi Gupta,Chief Business Officer,OpraahFx,"New Delhi, India",http://www.linkedin.com/in/mansi-gupta-97baa9125,INPROGRESS,0,8,5,1,14,B
+3059650,INFPLAT_INDIA,rishabh@krazyfox.in,Rishabh,Dixit,Rishabh Dixit,Head of Brand Partnership & Influencer Marketing,Krazyfox,"Bengaluru, India",http://www.linkedin.com/in/rishabh-d-372a7a114,INPROGRESS,0,8,5,1,14,B
+3059650,INFPLAT_INDIA,karishma.nayak@starbuzz.ai,Karishma,Nayak,Karishma Nayak,Head of Marketing,Starbuzz.ai,"Hyderabad, India",http://www.linkedin.com/in/karishma-nayak-088527230,INPROGRESS,0,8,5,1,14,B
+3063527,IMAGENCY_INDIA,anupriya.dhaka@socioimpulse.com,Anupriya,Dhaka,Anupriya Dhaka,Head of Business,Socio Impulse,"Gurgaon, India",http://www.linkedin.com/in/anupriya-dhaka-64700b157,INPROGRESS,0,8,5,1,14,B
+3063527,IMAGENCY_INDIA,swaraj.kamal@socioimpulse.com,Swaraj,Kamal,Swaraj Kamal,Head of Production,Socio Impulse,"Gurugram, India",http://www.linkedin.com/in/swaraj-kamal-5b0346241,INPROGRESS,0,8,5,1,14,B
+3063527,IMAGENCY_INDIA,aishwarya@monk-e.in,Aishwarya,Kerkar,Aishwarya Kerkar,"VP, Branded Content and IPs",Monk-E,"Mumbai, India",http://www.linkedin.com/in/aishwarya-kerkar-544167104,INPROGRESS,0,8,5,1,14,B
+3065429,INFPLAT_MENA_APAC,lucy@fabulate.com.au,Lucy,Ronald,Lucy Ronald,Head of Strategy and Talent,Fabulate,Sydney Australia,http://www.linkedin.com/in/lucy-ronald-2b724b123,INPROGRESS,0,8,4,1,13,B
+3059650,INFPLAT_INDIA,alice.hortense@socialsoup.com,Alice,Hortense,Alice Hortense,Head of Partnerships and Strategy,Social Soup (Australia & NZ),"Sydney, Australia",http://www.linkedin.com/in/alice-hortense,INPROGRESS,0,8,4,1,13,B
+3065429,INFPLAT_MENA_APAC,vivian@scoop.app,Vivian,Gomez,Vivian Gomez,Co-Founder,Scoop,San Francisco California,http://www.linkedin.com/in/vivian-gomez-409ab638,COMPLETED,0,10,1,1,12,B
+3065429,INFPLAT_MENA_APAC,rfakhry@salesforce.com,Rawad,Fakhry,Rawad Fakhry,Growth Director,Sociata,United Arab Emirates,http://www.linkedin.com/in/rawadfakhry,INPROGRESS,0,6,5,1,12,B
+3065429,INFPLAT_MENA_APAC,luciano@thetimeless.club,Luciano,Burattin,Luciano Burattin,Co-Founder,Timeless Club,Milan Italy,http://www.linkedin.com/in/luciano-burattin,COMPLETED,0,10,1,1,12,B
+3065429,INFPLAT_MENA_APAC,matteo@thetimeless.club,Matteo,Bortolotti,Matteo Bortolotti,Co-Founder,Timeless Club,Milan Italy,http://www.linkedin.com/in/matteo-bortolotti-3099bb163,INPROGRESS,0,10,1,1,12,B
+3065429,INFPLAT_MENA_APAC,federico@thetimeless.club,Federico,Raimondi,Federico Raimondi,Co-Founder & CTO,Timeless Club,Milan Italy,http://www.linkedin.com/in/federico-raimondi-08ab3a121,INPROGRESS,0,10,1,1,12,B
+3065429,INFPLAT_MENA_APAC,james@wotokol.com,James,Hu,James Hu,Chief Executive Officer,Wotokol,Hangzhou China,http://www.linkedin.com/in/james-hu-6a9b10164,INPROGRESS,0,10,1,1,12,B
+3059650,INFPLAT_INDIA,jeremy@clipster.gg,Jeremy,Lim,Jeremy Lim,Creative Director,Clipster,"Singapore, Singapore",http://www.linkedin.com/in/jeremy-lim-4b41b3b8,INPROGRESS,0,6,5,1,12,B
+3063527,IMAGENCY_INDIA,drishty@pulpkey.com,Drishty,Tanwar,Drishty Tanwar,Senior Account Director,Pulpkey - The Influencer Marketing Company,"New Delhi, India",http://www.linkedin.com/in/drishty-tanwar-870286194,INPROGRESS,0,6,5,1,12,B
+3063527,IMAGENCY_INDIA,kajal@pulpkey.com,Kajal,Jain,Kajal Jain,Senior Account Director,Pulpkey - The Influencer Marketing Company,"Belgaum, India",http://www.linkedin.com/in/kajal-jain-5020bb261,INPROGRESS,0,6,5,1,12,B
+3063527,IMAGENCY_INDIA,anish@influirmedia.com,Anish,Saha,Anish Saha,Director,Influir Media,"New Delhi, India",http://www.linkedin.com/in/anish-saha-6a500533,INPROGRESS,0,6,5,1,12,B
+3063527,IMAGENCY_INDIA,dhiman@resilienceesports.com,Dhiman,Kashyap,Dhiman Kashyap,CEO,Resilience Esports,,http://www.linkedin.com/in/dhiman-kashyap-98296714b,INPROGRESS,0,10,1,1,12,B
+3065429,INFPLAT_MENA_APAC,eliza@fabulate.com.au,Eliza,Lewis,Eliza Lewis,Sales Director (VIC),Fabulate,Melbourne Australia,http://www.linkedin.com/in/eliza-lewis-5b194542,INPROGRESS,0,6,4,1,11,B
+3065429,INFPLAT_MENA_APAC,terri@fabulate.com.au,Terri,Owens,Terri Owens,Client Service and Operations Director,Fabulate,Sydney Australia,http://www.linkedin.com/in/terri-owens23,INPROGRESS,0,6,4,1,11,B
+3065429,INFPLAT_MENA_APAC,melwin@fabulate.com.au,Melwin,Mathews,Melwin Mathews,Product and Platform Manager,Fabulate,Melbourne Australia,http://www.linkedin.com/in/melwin-mathews,INPROGRESS,0,4,4,1,9,B
+3065429,INFPLAT_MENA_APAC,laura.b@brandsnob.co,Laura,Brooker,Laura Brooker,Business Development Manager,BrandSnob,Melbourne Australia,http://www.linkedin.com/in/laura-brooker-b50219b8,INPROGRESS,0,4,4,1,9,B
+3065429,INFPLAT_MENA_APAC,elissa@fabulate.com.au,Elissa,Branwhite,Elissa Branwhite,Partnerships Manager,Fabulate,Sydney Australia,http://www.linkedin.com/in/elissa-branwhite-83370a162,INPROGRESS,0,4,4,1,9,B
+3065429,INFPLAT_MENA_APAC,gabriella@fabulate.com.au,Gabriella,Vieira,Gabriella Vieira,Partnerships Manager,Fabulate,Sydney Australia,http://www.linkedin.com/in/gabriella-vieira-7160921b7,INPROGRESS,0,4,4,1,9,B
+3065429,INFPLAT_MENA_APAC,maissa@reachrsocial.com,Maissa,Ezzo,Maissa Ezzo,Account Director,Reachr,Egypt,http://www.linkedin.com/in/maissa-ezzo-217459b6,INPROGRESS,0,6,1,1,8,B
+3059650,INFPLAT_INDIA,manish@memedia.in,Manish,Jalan,Manish Jalan,,MeMedia,"New Delhi, India",http://www.linkedin.com/in/manish-jalan-70045ba8,INPROGRESS,0,2,5,1,8,B
+3059650,INFPLAT_INDIA,suraj@theboredmonkey.com,Suraj,Adawade,Suraj Adawade,Production Head,TheBoredMonkey,"Mumbai, India",http://www.linkedin.com/in/suraj-adawade-7945021a4,INPROGRESS,0,2,5,1,8,B
+3059650,INFPLAT_INDIA,sachin@vhub.ai,Sachin,Modi,Sachin Modi,,VHub,India,http://www.linkedin.com/in/sachin-modi-vhub,INPROGRESS,0,2,5,1,8,B
+3059650,INFPLAT_INDIA,anshai@clanconnect.ai,Anshai,Lal,Anshai Lal,,ClanConnect,"New Delhi, India",http://www.linkedin.com/in/anshai-lal-89b3b9196,INPROGRESS,0,2,5,1,8,B
+3059650,INFPLAT_INDIA,pranav@opraahfx.com,Pranav,Panpalia,Pranav Panpalia,,OpraahFx,"Noida, India",http://www.linkedin.com/in/pranav-panpalia-717a9480,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,amerchant@direxions.com,Ashish,Merchant,Ashish Merchant,,Direxions,"Mumbai, India",http://www.linkedin.com/in/ashishmerchant,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,animesh@globalprconnect.com,Animesh,Kumar,Animesh Kumar,,Global PR Connect,"New Delhi, India",http://www.linkedin.com/in/animesh-kumar-digital,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,pratik@begetbiz.com,Pratik,Agrawal,Pratik Agrawal,,BegetBiz,"Odisha, India",http://www.linkedin.com/in/pratik-agrawal-b7b94213a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,monika.sharma@digitalshoutouts.com,Monika,Sharma,Monika Sharma,,Digital ShoutOuts Media,"Gurugram, India",http://www.linkedin.com/in/monika-sharma-496079a0,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ronit@berolling.in,Ronit,Thakur,Ronit Thakur,,Be Rolling Media,"New Delhi, India",http://www.linkedin.com/in/ronit-thakur-9aa320190,COMPLETED,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tapobrata@onetruepairing.co.in,Tapobrata,Chatterjee,Tapobrata Chatterjee,,One True Pairing Pvt. Ltd.,"Kolkata, India",http://www.linkedin.com/in/tapobrata-chatterjee-a930992a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tushar@wesocioo.com,Tushar,Sharma,Tushar Sharma,,WeSocioo,"Ghaziabad, India",http://www.linkedin.com/in/tushar-sharma-69aa47187,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kartik@thesambarpeople.com,Kartik,Aysola,Kartik Aysola,,Sambar People Consulting (P) Ltd,"Hyderabad, India",http://www.linkedin.com/in/kartik-aysola-26514928,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,aanchal@quantafi.in,Aanchal,Gupta,Aanchal Gupta,,Quantafi Digital,"New Delhi, India",http://www.linkedin.com/in/aanchal1,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,atusha@yinyangcreatives.in,Atusha,Anand,Atusha Anand,,YinYang Creatives,"New Delhi, India",http://www.linkedin.com/in/atusha-anand,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,gaurav.r@globalprconnect.com,Gaurav,Raj,Gaurav Raj,,Global PR Connect,"New Delhi, India",http://www.linkedin.com/in/gauravujayraj,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,anas@xpressoglobal.net,Anas,Rahman,Anas Rahman,,Xpresso Global,"Thrissur, India",http://www.linkedin.com/in/anas-rahman-399861208,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,saurabh@quantafi.in,Saurabh,Sangar,Saurabh Sangar,,Quantafi Digital,"Gurgaon, India",http://www.linkedin.com/in/saurabh-sangar-a2450b7,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mohib@pulpkey.com,Mohib,Patel,Mohib Patel,Senior Partner,Pulpkey - The Influencer Marketing Company,"Gurugram, India",http://www.linkedin.com/in/mohib-patel,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,adarsh@brandspay.com,Adarsh,Badlani,Adarsh Badlani,,BrandsPay,"New Delhi, India",http://www.linkedin.com/in/adarsh-badlani-503606a0,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sujith@jumpnow.agency,Sujith,Ilamurugu,Sujith Ilamurugu,,JumpNow,"Chennai, India",http://www.linkedin.com/in/sujithilamurugu,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,amisha.chandra@socioimpulse.com,Amisha,Chandra,Amisha Chandra,,Socio Impulse,"Gurugram, India",http://www.linkedin.com/in/amisha-chandra-0414021b5,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,neha@onenativestudio.com,Neha,Malhotra,Neha Malhotra,,OneNative Studio,"Mumbai, India",http://www.linkedin.com/in/neha-malhotra-68255b17,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tushar@7p-digital.com,Tushar,Arora,Tushar Arora,,7P Digital,"Gurugram, India",http://www.linkedin.com/in/tushar-arora-6272ab15a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kunika@moodswingsentertainment.in,Kunika,Saini,Kunika Saini,,Mood Swings Entertainment,"New Delhi, India",http://www.linkedin.com/in/kunika-saini-87a101128,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,pawan@syncwync.com,Pawan,Jaiswal,Pawan Jaiswal,,SyncWync,"Raipur, India",http://www.linkedin.com/in/parsahiya,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,khoj@adsharks.in,Khoj,Kumar,Khoj Kumar,,Adsharks Media,"New Delhi, India",http://www.linkedin.com/in/khoj-kumar-4aaa07319,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,arjun@quantafi.in,Arjun,Kapoor,Arjun Kapoor,,Quantafi Digital,"Gurugram, India",http://www.linkedin.com/in/arjun-kapoor-4b1a15121,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,avinan@focacciadigital.com,Avinan,R,Avinan R,,Focaccia Digital,"Bengaluru, India",http://www.linkedin.com/in/avinan,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,gaurav@elementsmediaworks.com,Gaurav,Sable,Gaurav Sable,,Elements Mediaworks,"Mumbai, India",http://www.linkedin.com/in/gaurav-sable-490a79246,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rajesh@iganatech.com,Rajesh,Gowda,Rajesh Gowda,,iGANA,"Mysore division, India",http://www.linkedin.com/in/rajesh-gowda-739275100,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shruti.mishra@imagestereo.com,Shruti,Mishra,Shruti Mishra,,IImage Stereo Marcom Pvt Ltd,"Noida, India",http://www.linkedin.com/in/shruti-mishra-761b5b8b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tanishshah@unitymedia.co.in,Tanish,Shah,Tanish Shah,,Unity media,"Mumbai, India",http://www.linkedin.com/in/tanish-shah-85a270107,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shahbaz@grow2viral.com,Shahbaz,Ahmed,Shahbaz Ahmed,,Grow2Viral,"Noida, India",http://www.linkedin.com/in/okshahbaz,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,komal@yinyangcreatives.in,Komal,Chhaniara,Komal Chhaniara,,YinYang Creatives,"Mumbai, India",http://www.linkedin.com/in/komal-chhaniara-3a40ba146,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,naman.kalra@opraahfx.com,Naman,Kalra,Naman Kalra,,OpraahFx,"New Delhi, India",http://www.linkedin.com/in/naman-kalra-02934a218,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,yash@digitaleaf.in,Yash,Mishra,Yash Mishra,,Digital Leaf Marketing,"Kanpur, India",http://www.linkedin.com/in/yashmishra7,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ishita@magixengage.com,Ishita,Poddar,Ishita Poddar,,MAGIX ENGAGE PVT LTD,"Maharashtra, India",http://www.linkedin.com/in/ishita-poddar-9347719a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,raja@trendloud.com,Raja,Ramamurthy,Raja Ramamurthy,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/raja-ramamurthy-79496b74,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,manshita.sharma@socioimpulse.com,Manshita,Sharma,Manshita Sharma,,Socio Impulse,"New Delhi, India",http://www.linkedin.com/in/manshita-sharma-5b047b1bb,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tusshar@quantafi.in,Tusshar,Arora,Tusshar Arora,,Quantafi Digital,"Gurugram, India",http://www.linkedin.com/in/tusshararora,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kanishk@rvcj.com,Kanishk,Gawde,Kanishk Gawde,,The Lazy Panda & Monkey Co.,"Mumbai, India",http://www.linkedin.com/in/kanishkgawde,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,raghav.pareek@myecomnomics.com,Raghav,Pareek,Raghav Pareek,,Ecomnomics,"Kolkata, India",http://www.linkedin.com/in/raghav-pareek-ecomnomics,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shivam@barcodent.com,Shivam,Mittal,Shivam Mittal,,Barcode Entertainment : Strategic Brand Solutions,"Gurugram, India",http://www.linkedin.com/in/shivam-mittal-77a2a0211,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,prabuns@khosocial.com,Prabu,Ns,Prabu Ns,,Kho Social,"Coimbatore, India",http://www.linkedin.com/in/prabuns,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jagan@fliarsmedia.com,Jagan,N,Jagan N,,Fliars Media,"Puducherry, India",http://www.linkedin.com/in/jagan-n-89b191197,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,muskan@influze.co,Muskan,Baig,Muskan Baig,,Influze,"Mumbai, India",http://www.linkedin.com/in/muskan-baig-754b71188,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ravi@socioboxx.com,Ravi,Mittal,Ravi Mittal,,SocioBoxx,"Mumbai, India",http://www.linkedin.com/in/ravi-mittal-cfa-frm-a6472a5,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,adarsh@emplace.in,Adarsh,Mishra,Adarsh Mishra,,Emplace HQ,"Mumbai, India",http://www.linkedin.com/in/adarshmishra3,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,brijeshsolanki@thecrafttank.com,Brijesh,Solanki,Brijesh Solanki,,The Craft Tank,"Mumbai, India",http://www.linkedin.com/in/brijesh-solanki,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,gayatri@moodswingsentertainment.in,Gayatri,Koli,Gayatri Koli,,Mood Swings Entertainment,"New Delhi, India",http://www.linkedin.com/in/gayatri-k-b52b3559,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mayursachdev@vavodigital.com,Mayur,Sachdev,Mayur Sachdev,,Vavo Digital | Influencer Marketing,"Mumbai, India",http://www.linkedin.com/in/mayur-sachdev-460a10236,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,anas@coppereyemedia.com,Anas,Haq,Anas Haq,,Copper Eye Media,"Noida, India",http://www.linkedin.com/in/anas-haq-aa8a7032,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vinita@krossoverentertainment.com,Vinita,Bangard,Vinita Bangard,,KROSSOVER ENTERTAINMENT PRIVATE LIMITED,"Mumbai, India",http://www.linkedin.com/in/vinita-bangard-0546787,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,panna@affiniquemarketing.com,Panna,Gupta,Panna Gupta,,Affinique Marketing,"New Delhi, India",http://www.linkedin.com/in/panna-gupta-2974a56,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,gorish@socialsauce.in,Gorish,Popli,Gorish Popli,,Social Sauce,"Gurugram, India",http://www.linkedin.com/in/gorish-popli-27152a143,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,lavisha@monk-e.in,Lavisha,Chhabria,Lavisha Chhabria,,Monk-E,"Mumbai, India",http://www.linkedin.com/in/lavisha-chhabria-867a4616a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,abhishek@adstreetcommunications.com,Abhishek,Jha,Abhishek Jha,,AdStreet Communications Pvt Ltd,"Mumbai, India",http://www.linkedin.com/in/abhishek-jha-58036b7,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vignesh@monk-e.in,Vignesh,Chezhian,Vignesh Chezhian,,Monk-E,"Thane, India",http://www.linkedin.com/in/vignesh-chezhian-a027aa1b3,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,aanchal@adsgrove.com,Aanchal,Kapoor,Aanchal Kapoor,,Adsgrove Digital,"New Delhi, India",http://www.linkedin.com/in/aanchal-kapoor,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,anand@sar-xmarketing.com,Anand,Kumar,Anand Kumar,,SAR-X Marketing,"New Delhi, India",http://www.linkedin.com/in/anand-kumar-905a3694,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rohin@aftermathventures.in,Rohin,Bhaumik,Rohin Bhaumik,,AfterMath Ventures,"Chennai, India",http://www.linkedin.com/in/rohinbhaumik,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vandana.s@adstreetcommunications.com,Vandana,Singh,Vandana Singh,,AdStreet Communications Pvt Ltd,"Mumbai, India",http://www.linkedin.com/in/vandana-singh-727892202,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,milan@indeskmedia.com,Milan,Mishra,Milan Mishra,,Indesk Media Pvt Ltd,"New Delhi, India",http://www.linkedin.com/in/milanmishra25,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sarim@rockmysales.com,Sarim,Siddiqui,Sarim Siddiqui,,Rock My Sales (RMS),"Noida, India",http://www.linkedin.com/in/sarim-siddiqui-046866a0,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rohit@onetruepairing.co.in,Rohit,Chauhan,Rohit Chauhan,,One True Pairing Pvt. Ltd.,"Gurgaon, India",http://www.linkedin.com/in/rohit-kumar-chauhan-5a954145,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,zealthakkar@unitymedia.co.in,Zeal,Thakkar,Zeal Thakkar,,Unity media,"Mumbai, India",http://www.linkedin.com/in/zeal-thakkar-686b4a3a4,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kedar@thecrafttank.com,Kedar,Shet,Kedar Shet,,The Craft Tank,"Mumbai, India",http://www.linkedin.com/in/kedarshet,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ashish@magixengage.com,Ashish,Lala,Ashish Lala,,MAGIX ENGAGE PVT LTD,"Mumbai, India",http://www.linkedin.com/in/ashish-lala-846b1612,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,manpreet@theplugmedia.in,Manpreet,Singh,Manpreet Singh,,The Plug Media,"Mumbai, India",http://www.linkedin.com/in/manpreet-singh-2a08841b4,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mohit@digitheist.com,Mohit,Singhal,Mohit Singhal,,Digitheist,"Noida, India",http://www.linkedin.com/in/letsgo2market,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,richa.sharma@cibc.com,Richa,Sharma,Richa Sharma,,Comm Sutra,"Mumbai, India",http://www.linkedin.com/in/richa-sharma-8997b5237,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shivangi.dwivedi@momentum.co.in,Shivangi,Dwivedi,Shivangi Dwivedi,,Momentum Communications (India) Pvt. Ltd.,"Gurugram, India",http://www.linkedin.com/in/shivangi-dwivedi-a73482172,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,abhishek@houseofunblur.com,Abhishek,Pandey,Abhishek Pandey,,House of Unblur,"Mumbai, India",http://www.linkedin.com/in/performancemarketingd2c,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,zaki@monk-e.in,Zaki,Pirzada,Zaki Pirzada,,Monk-E,"Mumbai, India",http://www.linkedin.com/in/zaki-pirzada-56b49217a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,chhavi@commsutra.com,Chhavi,Dang,Chhavi Dang,,Comm Sutra,"Mumbai, India",http://www.linkedin.com/in/chhavi-dang,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tanvin@elementsmediaworks.com,Tanvi,Nevgi,Tanvi Nevgi,,Elements Mediaworks,"Mumbai, India",http://www.linkedin.com/in/tanvi-nevgi-99b03ab2,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vishal@commercify360.com,Vishal,Kumar,Vishal Kumar,,Commercify360,"New Delhi, India",http://www.linkedin.com/in/vishal-kumar-2179a5209,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,divya@bapl.com,Divya,Palat,Divya Palat,,Balancing Act,"Mumbai, India",http://www.linkedin.com/in/divyapalat,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vinith@tamadamedia.com,Vinith,Kumar,Vinith Kumar,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/vinith-kumar-035367a0,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,varun@routeignite.com,Varun,Bansal,Varun Bansal,,Route Ignite Solutions Pvt. Ltd.,"Gurugram, India",http://www.linkedin.com/in/varunbansal90,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sainath@monk-e.in,Sainath,Menon,Sainath Menon,,Monk-E,"Thane, India",http://www.linkedin.com/in/sainath-menon-1a11aa138,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mohanjoy@trendloud.com,Mohan,Joy,Mohan Joy,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/mohan-joy-9b27a41b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kuldeep@monk-e.in,Kuldeep,Singh,Kuldeep Singh,,Monk-E,"Bengaluru, India",http://www.linkedin.com/in/kuldeep-singh-046229191,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kushagra@bitsphere.in,Kushagra,Rajput,Kushagra Rajput,,Bitsphere,"Ranchi, India",http://www.linkedin.com/in/kushagra-rajput,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,arundhathy@cntrlm.com,Arundhathy,Roopraj,Arundhathy Roopraj,,Cntrl M - Control Your Marketing,"Kochi, India",http://www.linkedin.com/in/arundhathy-r-b983bb22a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,achodankar@direxions.com,Ashish,Chodankar,Ashish Chodankar,,Direxions,"Mumbai, India",http://www.linkedin.com/in/ashish-chodankar,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,venu@indiefluence.in,Venugopal,Singhal,Venugopal Singhal,,Indiefluence.in,"Kurukshetra, India",http://www.linkedin.com/in/venugopalsinghal,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shakshi@aryumedia.com,Shakshi,Sharma,Shakshi Sharma,,ArYu Media Pvt Ltd,"Bengaluru, India",http://www.linkedin.com/in/shakshi98,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,dhruv@opraahfx.com,Dhruv,Bhasin,Dhruv Bhasin,,OpraahFx,"New Delhi, India",http://www.linkedin.com/in/dhruv-bhasin-560625145,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,pawan@commercify360.com,Pawan,Kumar,Pawan Kumar,,Commercify360,"Gurugram, India",http://www.linkedin.com/in/pawan-kumar-a75778208,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,neha@monk-e.in,Neha,Maurya,Neha Maurya,,Monk-E,"Mumbai, India",http://www.linkedin.com/in/neha-maurya-a65961188,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jatin@viaens.com,Jatin,Suri,Jatin Suri,,viaENS,India,http://www.linkedin.com/in/jatin-suri-b8980885,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,chintan@webrangerstalent.com,Chintan,Pavlankar,Chintan Pavlankar,,WebRangers Talent Management,"Mumbai, India",http://www.linkedin.com/in/chintan-pavlankar-593a0427,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,nkumar@direxions.com,Naresh,Hejibu,Naresh Hejibu,,Direxions,"Bengaluru, India",http://www.linkedin.com/in/hnkumar,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,aarti@elementsmediaworks.com,Aarti,Nagpall,Aarti Nagpall,,Elements Mediaworks,"Mumbai, India",http://www.linkedin.com/in/aarti-nagpall-1a0b64125,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sneha@myecomnomics.com,Sneha,Singhi,Sneha Singhi,,Ecomnomics,"Kolkata, India",http://www.linkedin.com/in/snehasinghi03,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,saikrishna@tamadamedia.com,Saikrishna,Miryala,Saikrishna Miryala,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/saikrishna-miryala-1a068a215,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,latika@rockmysales.com,Latika,Sharma,Latika Sharma,,Rock My Sales (RMS),"New Delhi, India",http://www.linkedin.com/in/latika-sharma-078b6a125,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,chintan@worldofinit.com,Chintan,Mevada,Chintan Mevada,,INIT Design Studio,"Ahmedabad, India",http://www.linkedin.com/in/chintan-mevada-20336573,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rishav@mintmoremarketing.com,Rishav,Chatterjee,Rishav Chatterjee,,Mint More Marketing,"Kolkata, India",http://www.linkedin.com/in/rishav-chatterjee-80694213a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,aditya@notesandcodes.com,Aditya,Yadav,Aditya Yadav,,Notes & Codes,"New Delhi, India",http://www.linkedin.com/in/aditya-yadav-a2659372,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,yash@ierare.com,Yash,Pandya,Yash Pandya,,IERARE,"Ahmedabad, India",http://www.linkedin.com/in/yash-pandya-080730165,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,anchal@commercify360.com,Anchal,Gupta,Anchal Gupta,,Commercify360,"Noida, India",http://www.linkedin.com/in/anchal-gupta-19a409115,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,arjun@armoks.com,Arjun,Kamble,Arjun Kamble,,Armoks Media Pvt. Ltd.,"Maharashtra, India",http://www.linkedin.com/in/arjun-kamble-40544426b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sooraj@brandlabz.in,Sooraj,Balachandran,Sooraj Balachandran,,BrandLabz,"Ernakulam, India",http://www.linkedin.com/in/soorajbalachandran,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,abirami@growthginger.com,Abirami,Ramasamy,Abirami Ramasamy,,Growth Ginger,"Tiruppur, India",http://www.linkedin.com/in/abirami-ramasamy-042a9b200,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sushmita.verma@zefmo.com,Sushmita,Verma,Sushmita Verma,,Zefmo,"New Delhi, India",http://www.linkedin.com/in/sushmita-verma-866b3910,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sourav@longwaystudios.com,Sourav,Yadav,Sourav Yadav,,Longway Studios,"Mumbai, India",http://www.linkedin.com/in/connectsourav,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ashwani@onetruepairing.co.in,Ashwani,Niraj,Ashwani Niraj,,One True Pairing Pvt. Ltd.,"Ghaziabad, India",http://www.linkedin.com/in/ashwani-niraj-52a44257,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,saurav@globalprconnect.com,Saurav,Lohani,Saurav Lohani,,Global PR Connect,"Noida, India",http://www.linkedin.com/in/saurav-lohani-9129a711b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tanya@monk-e.in,Tanya,Kotnala,Tanya Kotnala,,Monk-E,India,http://www.linkedin.com/in/tanya-kotnala-492799185,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,pushpendra@commercify360.com,Pushpendra,Bajpai,Pushpendra Bajpai,,Commercify360,"Gurugram, India",http://www.linkedin.com/in/pushpendra-bajpai-aa2226253,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,bhawana.mishra@zefmo.com,Bhawana,Mishra,Bhawana Mishra,,Zefmo,"Gurgaon, India",http://www.linkedin.com/in/bhawana-mishra-a19b66155,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vkgubendiran@ceridigital.com,Gubendiran,Vk,Gubendiran Vk,,Orange Events,"Chennai, India",http://www.linkedin.com/in/gubendiran-vk-a9563626a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,aryan.pandita@adsgrove.com,Aryan,Pandita,Aryan Pandita,,Adsgrove Digital,"New Delhi, India",http://www.linkedin.com/in/aryan-pandita-42232a1a6,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,senthilnathan@trendloud.com,Senthil,Nathan,Senthil Nathan,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/senthil-nathan-13b415120,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jatin@worldofinit.com,Jatin,Patel,Jatin Patel,,INIT Design Studio,"Ahmedabad, India",http://www.linkedin.com/in/jatin-patel-0985bb22,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,robin@worldofinit.com,Robin,Joseph,Robin Joseph,,INIT Design Studio,"Ahmedabad, India",http://www.linkedin.com/in/robin-joseph-16aa1b105,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,pratiksha@syncwync.com,Pratiksha,Tharwani,Pratiksha Tharwani,,SyncWync,"Raipur, India",http://www.linkedin.com/in/pratiksha-tharwani-5a27471a7,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rohit@humourme.in,Rohit,Anand,Rohit Anand,,Humour Me,"New Delhi, India",http://www.linkedin.com/in/rohit-anand-0aa93523b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,saumya@elementsmediaworks.com,Saumya,Mandot,Saumya Mandot,,Elements Mediaworks,"Mumbai, India",http://www.linkedin.com/in/saumya-mandot-b50218308,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,bhagyashree@commsutra.com,Bhagyashree,Rana,Bhagyashree Rana,,Comm Sutra,"Mumbai, India",http://www.linkedin.com/in/bhagyashree-rana-104b20a3,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sfurti@viralmarketingtrends.com,Sfurti,Sahare,Sfurti Sahare,,Viral Marketing Trends,"Baramati, India",http://www.linkedin.com/in/sfurtisahare,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,niranjana@monk-e.in,Niranjana,Joshi,Niranjana Joshi,,Monk-E,"Mumbai, India",http://www.linkedin.com/in/niranjana-joshi-b19249234,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mahera@onenativestudio.com,Mahera,Dutta,Mahera Dutta,,OneNative Studio,"Mumbai, India",http://www.linkedin.com/in/mahera-dutta-a98b65135,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sahil@monk-e.in,Sahil,Solanki,Sahil Solanki,,Monk-E,"Mumbai, India",http://www.linkedin.com/in/sahil-solanki-840b2119b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,clifford@humourme.in,Clifford,Afonso,Clifford Afonso,,Humour Me,"New Delhi, India",http://www.linkedin.com/in/clifford-afonso-29976071,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vignesh@trendloud.com,Vignesh,Pm,Vignesh Pm,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/vignesh-pm-34b955180,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,akhil.vinjamuri@tamadamedia.com,Vinjamuri,Akhil,Vinjamuri Akhil,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/vinjamuri-akhil-40180924b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,suhail@perfomaxmedia.com,Suhail,Shamsudheen,Suhail Shamsudheen,,Perfomax - Beyond Marketing,"Kochi, India",http://www.linkedin.com/in/suhailshams,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sandeep@7p-digital.com,Sandeep,Singh,Sandeep Singh,,7P Digital,"Gurugram, India",http://www.linkedin.com/in/sandeepsingh99,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,manish@humourme.in,Manish,Negi,Manish Negi,,Humour Me,"Noida, India",http://www.linkedin.com/in/manish-negi-1a8423b0,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mrityunjoy@mindandmatter.in,Mrityunjoy,Biswas,Mrityunjoy Biswas,,Mind & Matter India,"Kolkata, India",http://www.linkedin.com/in/mrityunjoy-biswas-3b67b949,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sijin@cntrlm.com,Sijin,Saji,Sijin Saji,,Cntrl M - Control Your Marketing,India,http://www.linkedin.com/in/sijin-saji-76012621a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sweta@tamadamedia.com,Sweta,Pendyala,Sweta Pendyala,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/sweta-pendyala-4156a3143,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jeetu.koli@adsgrove.com,Jeetu,Koli,Jeetu Koli,,Adsgrove Digital,"New Delhi, India",http://www.linkedin.com/in/jeetu-koli-b77673170,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vanshikha@7p-digital.com,Vanshikha,Gour,Vanshikha Gour,,7P Digital,"Gurugram, India",http://www.linkedin.com/in/vanshikha-gour-177237189,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jithin@trendloud.com,Jithin,Mathew,Jithin Mathew,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/jithin-mathew-a4b009168,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,chitra@cogneet.com,Chitra,Biswas,Chitra Biswas,,Cogneet,"Faridabad, India",http://www.linkedin.com/in/chitra-biswas-6a51b2140,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,swetha@trendloud.com,Swetha,R,Swetha R,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/swetha-r-0b8593184,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,srivinay@performena.com,Srivinay,Salian,Srivinay Salian,,Mediagist,"Mumbai, India",http://www.linkedin.com/in/srivinaysalian,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,nipender@affiniquemarketing.com,Nipender,Kumar,Nipender Kumar,,Affinique Marketing,"New Delhi, India",http://www.linkedin.com/in/nipender-kumar-24294a111,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,anindita@socialsauce.in,Anindita,Saha,Anindita Saha,,Social Sauce,"Faridabad, India",http://www.linkedin.com/in/anindita-saha-78967020b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,arpita@socialsauce.in,Arpita,Singh,Arpita Singh,,Social Sauce,"Gurugram, India",http://www.linkedin.com/in/arpita-singh-60298822b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kamesh@syncwync.com,Kamesh,J,Kamesh J,,SyncWync,"Raipur, India",http://www.linkedin.com/in/kamesh-j-763065168,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vikranth@mutinytalent.com,Vikranth,Shetty,Vikranth Shetty,,Mutiny Talent,"Hyderabad, India",http://www.linkedin.com/in/vikranth-shetty-b2a5312b0,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shivani.joshi@lokpriy.org,Shivani,Joshi,Shivani Joshi,,Henceforth,"New Delhi, India",http://www.linkedin.com/in/shivani-joshi-,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,yash@worldofinit.com,Yash,Rajyaguru,Yash Rajyaguru,,INIT Design Studio,"Ahmedabad, India",http://www.linkedin.com/in/yash-rajyaguru-23a827193,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,udit.thapa@socialarrow.media,Udit,Thapa,Udit Thapa,,OG Talent Media,"Noida, India",http://www.linkedin.com/in/udit-thapa-3861a7154,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rohit@digitheist.com,Rohit,Sharma,Rohit Sharma,,Digitheist,"Lucknow, India",http://www.linkedin.com/in/rohit-sharma-24b58961,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ajith@mediamate.in,Ajith,A,Ajith A,,MediaMate Advertising India Pvt. Ltd.,"Thiruvananthapuram, India",http://www.linkedin.com/in/ajith-kumar-m-a-91657548,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ashu@sparkupreach.com,Ashu,Gandhi,Ashu Gandhi,,Sparkupreach,"Amritsar, India",http://www.linkedin.com/in/theashugandhi,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tushar@grow2viral.com,Tushar,Sharma,Tushar Sharma,,Grow2Viral,"Ghaziabad, India",http://www.linkedin.com/in/tushar-sharma-58745a282,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jasmeet.kaur@momentum.co.in,Jasmeet,Kaur,Jasmeet Kaur,,Momentum Communications (India) Pvt. Ltd.,"Gurugram, India",http://www.linkedin.com/in/jasmeet-kaur-55211a25a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,aditya@focacciadigital.com,Aditya,Swaminathan,Aditya Swaminathan,,Focaccia Digital,"Bengaluru, India",http://www.linkedin.com/in/aditya-swaminathan-20010018,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,chinmay@magixengage.com,Chinmay,Deshpande,Chinmay Deshpande,,MAGIX ENGAGE PVT LTD,"Mumbai, India",http://www.linkedin.com/in/chinmay-deshpande-76a36087,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,aditya@bapl.com,Aditya,Hitkari,Aditya Hitkari,,Balancing Act,"Mumbai, India",http://www.linkedin.com/in/aditya-hitkari-2462a3364,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mohit@humourme.in,Mohit,Rawat,Mohit Rawat,,Humour Me,"New Delhi, India",http://www.linkedin.com/in/mohit-rawat-8a41b119a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jitesh@syncwync.com,Jitesh,Jaiswal,Jitesh Jaiswal,,SyncWync,"Gurugram, India",http://www.linkedin.com/in/jiteshkjaiswal,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sulthan@gravityatoms.com,Sulthan,Shaik,Sulthan Shaik,,Gravity Atoms,"Hyderabad, India",http://www.linkedin.com/in/sulthan-shaik-52b501230,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,beerajaah@sheeko.in,Beerajaah,Sswain,Beerajaah Sswain,,BS Consult,"Bengaluru, India",http://www.linkedin.com/in/beeraajaah,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,prerna@viralglitch.com,Prerna,Srivastava,Prerna Srivastava,,Viral Glitch,"New Delhi, India",http://www.linkedin.com/in/prerna-srivastava-a872916a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,akash@tankandtoast.com,Akash,Malik,Akash Malik,,Tank & Toast Media,"New Delhi, India",http://www.linkedin.com/in/akashmalik13,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,suraj@armoks.com,Suraj,Kale,Suraj Kale,,Armoks Media Pvt. Ltd.,"Pune, India",http://www.linkedin.com/in/suraj-kale-94195817a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mohit.sharma@grapsmarketing.com,Mohit,Sharma,Mohit Sharma,,Graps Marketing Pvt Ltd - Influencer Marketing Company,"Bhopal, India",http://www.linkedin.com/in/mohitsharmalink,COMPLETED,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ruchita.s@bottomlinemedia.co.in,Ruchita,Shah,Ruchita Shah,,Bottomline Media Pvt Ltd,"Mumbai, India",http://www.linkedin.com/in/ruchita-shah-222204324,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,smukherjee@direxions.com,Suvendra,Mukherjee,Suvendra Mukherjee,,Direxions,"Kolkata, India",http://www.linkedin.com/in/suvendra-mukherjee-84631498,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,riya.garg@momentum.co.in,Riya,Garg,Riya Garg,,Momentum Communications (India) Pvt. Ltd.,"New Delhi, India",http://www.linkedin.com/in/riya-garg26,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jenisha.fernandes@digitalshoutouts.com,Jenisha,Fernandes,Jenisha Fernandes,Regional Sales Head,Digital ShoutOuts Media,"Mumbai, India",http://www.linkedin.com/in/jenisha-fernandes-a50420141,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tanya@berolling.in,Tanya,Swami,Tanya Swami,,Be Rolling Media,"New Delhi, India",http://www.linkedin.com/in/tanya-swami-83137822a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vipin@affiniquemarketing.com,Vipin,Kumar,Vipin Kumar,,Affinique Marketing,"Noida, India",http://www.linkedin.com/in/vipin-kumar-101626367,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,harpreet.kaur@momentum.co.in,Harpreet,Kaur,Harpreet Kaur,,Momentum Communications (India) Pvt. Ltd.,"New Delhi, India",http://www.linkedin.com/in/harpreet-kaur-4a34a8207,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,priya.nidadavolu@azistaindustries.com,Sai,Nidadavolu,Sai Nidadavolu,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/sai-priya-nidadavolu-3baab3160,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,afsal@xpressoglobal.net,Muhammed,Afsal,Muhammed Afsal,,Xpresso Global,"Malappuram, India",http://www.linkedin.com/in/muhammed-afsal-9609a21a2,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,punit@91ninjas.com,Punit,Kumar,Punit Kumar,,Growth Ginger,"New Delhi, India",http://www.linkedin.com/in/seo-expert-punit,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,himanshi@unitymedia.co.in,Himanshi,Choudhary,Himanshi Choudhary,,Unity media,"Mumbai, India",http://www.linkedin.com/in/himanshi-choudhary-6bb361236,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,dawood@nzxtmediazone.com,Dawood,Qureshi,Dawood Qureshi,,NZXT Media Private Limited,India,http://www.linkedin.com/in/dawood-qureshi-b5203723a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,nimesh@abasana.in,Nimesh,Abasana,Nimesh Abasana,,Abasana Advertising,"Ahmedabad, India",http://www.linkedin.com/in/nimesh-abasana-12565b119,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ritika@elementsmediaworks.com,Ritika,Purohit,Ritika Purohit,,Elements Mediaworks,"Mumbai, India",http://www.linkedin.com/in/ritika-purohit-b05486294,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,srishti.dutta@momentum.co.in,Srishti,Dutta,Srishti Dutta,,Momentum Communications (India) Pvt. Ltd.,"New Delhi, India",http://www.linkedin.com/in/srishti-dutta-7287311a2,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kishan@affiniquemarketing.com,Kishan,Kumar,Kishan Kumar,,Affinique Marketing,"New Delhi, India",http://www.linkedin.com/in/kishan-kumar-ab8113297,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sreehari@goecworld.com,Sreehari,Kb,Sreehari Kb,,Xpresso Global,"Ernakulam, India",http://www.linkedin.com/in/sreehari-kb-88293a1a9,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sandeep@dconstellations.com,Sandeep,Khasnavis,Sandeep Khasnavis,,,"New Delhi, India",http://www.linkedin.com/in/sandeep-khasnavis-81a75b9,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,amathan@direxions.com,Alice,Mathan,Alice Mathan,,Direxions,"Mumbai, India",http://www.linkedin.com/in/alice-mathan-9466a516,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jyothish@xpressoglobal.net,Jyothish,R,Jyothish R,,Xpresso Global,"Kozhikode, India",http://www.linkedin.com/in/jyothish-m-r-590968230,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,pragnatej@mutinytalent.com,Pragnatej,Kondala,Pragnatej Kondala,,Mutiny Talent,"Hyderabad, India",http://www.linkedin.com/in/pragnatej-kondala-a972a9275,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vipul.arora@indeskmedia.com,Vipul,Arora,Vipul Arora,,Indesk Media Pvt Ltd,"New Delhi, India",http://www.linkedin.com/in/vipul-arora-indesk,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vineeth@xpressoglobal.net,Vineeth,Vinump,Vineeth Vinump,,Xpresso Global,"Kozhikode, India",http://www.linkedin.com/in/vineeth-vinu-mp-36361670,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,krithika@trendloud.com,Krithika,G,Krithika G,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/krithika-g-49557b200,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vishnu@xpressoglobal.net,Vishnu,T,Vishnu T,,Xpresso Global,"Kozhikode, India",http://www.linkedin.com/in/vishnu-t-509741186,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sudipta@enmmey.com,Sudipta,Kanrar,Sudipta Kanrar,,ENMMEY,"Kolkata, India",http://www.linkedin.com/in/sudipta-kanrar-a9316b23a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,anindi.gupta@socioimpulse.com,Anindi,Gupta,Anindi Gupta,Senior Marketing Executive,Socio Impulse,"New Delhi, India",http://www.linkedin.com/in/anindi-gupta-a0b9a02a4,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rahul@houseofunblur.com,Rahul,Radhakrishnan,Rahul Radhakrishnan,,House of Unblur,"Palakkad, India",http://www.linkedin.com/in/njanrahul,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,aditya@armoks.com,Aditya,Kolge,Aditya Kolge,,Armoks Media Pvt. Ltd.,"Mumbai, India",http://www.linkedin.com/in/aditya-kolge-a38b0b214,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,deepak@tamadamedia.com,Deepak,B,Deepak B,,Tamada Media Private Limited,"Bengaluru, India",http://www.linkedin.com/in/deepak-b-4a2b66211,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vedant@monk-e.in,Vedant,Jain,Vedant Jain,Brand Partner,Monk-E,"Mumbai, India",http://www.linkedin.com/in/vedant-jain-972380277,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,piyush@creativefuel.io,Piyush,Jain,Piyush Jain,,DBMC,"Indore, India",http://www.linkedin.com/in/piyush-jain-633875210,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ajju@tamadamedia.com,Azeem,Ajju,Azeem Ajju,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/azeem-ajju-91333924a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ibrahim@ismartmedia.in,Mohd,Ibrahim,Mohd Ibrahim,,I Smart Media,"New Delhi, India",http://www.linkedin.com/in/mohd-ibrahim-ab293a97,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,abinaya@trendloud.com,Abinaya,B,Abinaya B,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/abinaya-b-1596578b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tushar@influish.com,Tushar,Jain,Tushar Jain,,INFLUISH,"Udaipur, India",http://www.linkedin.com/in/betushar,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,gayatri.anand@momentum.co.in,Gayatri,Anand,Gayatri Anand,,Momentum Communications (India) Pvt. Ltd.,"Gurugram, India",http://www.linkedin.com/in/gayatri-anand-458364228,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sabarish@trendloud.com,Sabarish,S,Sabarish S,,Trend Loud,"Karur, India",http://www.linkedin.com/in/sabarish-s-672a83171,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,arjun@tamadamedia.com,Arjun,Pardhasarathy,Arjun Pardhasarathy,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/arjun-pardhasarathy-b34275213,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ankitagiri@grow2viral.com,Ankita,Giri,Ankita Giri,,Grow2Viral,"Noida, India",http://www.linkedin.com/in/ankgiri12,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mukul@bizsquared.com,Mukul,Ramdeo,Mukul Ramdeo,,Bizsquared,"Jaipur, India",http://www.linkedin.com/in/mukul-ramdeo-6bb51772,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,jayanth@tamadamedia.com,Jayanth,Goutham,Jayanth Goutham,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/jayanth-kumar-goutham-b58503263,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,media@ismartmedia.in,I,Media,I Media,,I Smart Media,"Bathinda, India",http://www.linkedin.com/in/i-smart-media-55396110a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,akash@viralglitch.com,Akash,Kumar,Akash Kumar,,Viral Glitch,"New Delhi, India",http://www.linkedin.com/in/akash-kumar-70263b1b7,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,bhargav.macharla@tamadamedia.com,Bhargav,Macharla,Bhargav Macharla,,Tamada Media Private Limited,"Andhra Pradesh, India",http://www.linkedin.com/in/bhargav-macharla-809b75162,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rajesh@worldofinit.com,Rajesh,,Rajesh,,INIT Design Studio,"Kerala, India",http://www.linkedin.com/in/rajesh-ms-97aa7b176,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shubham@armoks.com,Shubham,Shivalkar,Shubham Shivalkar,,Armoks Media Pvt. Ltd.,"Mumbai, India",http://www.linkedin.com/in/shubham-shivalkar-4606562a8,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,varun@worldofinit.com,Varun,Dahisaria,Varun Dahisaria,,INIT Design Studio,"Mumbai, India",http://www.linkedin.com/in/varun-dahisaria-6a010210b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rohan@tamadamedia.com,Lalith,Rohan,Lalith Rohan,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/lalith-rohan-7771aa255,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,pandey@thesupportagency.in,Shivi,Pandey,Shivi Pandey,,TSA-The Support Agency,"Haridwar, India",http://www.linkedin.com/in/shivi-pandey-499b33212,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shweta@onetruepairing.co.in,Shweta,Chauhan,Shweta Chauhan,,One True Pairing Pvt. Ltd.,"Gurugram, India",http://www.linkedin.com/in/shweta-chauhan-24632b283,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,upendra@tamadamedia.com,Upendra,Tungala,Upendra Tungala,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/upendra-tungala-776157250,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,preetha@trendloud.com,Preetha,Prabakaran,Preetha Prabakaran,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/preetha-k-prabakaran-5991a428b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,nandani.gupta@influirmedia.com,Nandani,Gupta,Nandani Gupta,,Influir Media,"New Delhi, India",http://www.linkedin.com/in/nandani-gupta-377546244,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shadab@grow2viral.com,Shadab,Alam,Shadab Alam,,Grow2Viral,"Noida, India",http://www.linkedin.com/in/shadab-alam-1ba21422a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,richa@7p-digital.com,Richa,Bhunja,Richa Bhunja,,7P Digital,"Gurugram, India",http://www.linkedin.com/in/richa-bhunja-a699282a2,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,devjeet@affiniquemarketing.com,Devjeet,Dasgupta,Devjeet Dasgupta,,Affinique Marketing,"New Delhi, India",http://www.linkedin.com/in/devjeetdasgupta1979,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vikas@commercify360.com,Vikas,Vishwakarma,Vikas Vishwakarma,,Commercify360,"Mumbai, India",http://www.linkedin.com/in/vikas-vishwakarma-676544183,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,phani@tamadamedia.com,Phani,Pulaparthi,Phani Pulaparthi,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/phani-pulaparthi-9a389019b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rahul@tamadamedia.com,Rahul,Tamada,Rahul Tamada,,Tamada Media Private Limited,"Hyderabad, India",http://www.linkedin.com/in/rahultamada,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,saideep@tamadamedia.com,Saideep,Reddy,Saideep Reddy,,Tamada Media Private Limited,"Telangana, India",http://www.linkedin.com/in/saideep-reddy-06199311,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,anshul@influirmedia.com,Anshul,Thakur,Anshul Thakur,,Influir Media,"New Delhi, India",http://www.linkedin.com/in/anshul-thakur-906303179,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,bhumika@affiniquemarketing.com,Bhumika,Jain,Bhumika Jain,,Affinique Marketing,"New Delhi, India",http://www.linkedin.com/in/bhumika-jain-45042316,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,himanshu@commercify360.com,Himanshu,Shukla,Himanshu Shukla,,Commercify360,"Gurgaon, India",http://www.linkedin.com/in/himanshu-gaurav-shukla-067249123,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ruban@stcnetworks.in,Ruban,J,Ruban J,,STC Networks,"Chennai, India",http://www.linkedin.com/in/ruban-isaac,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,abra@xpressoglobal.net,Nihas,Abra,Nihas Abra,,Xpresso Global,"Kochi, India",http://www.linkedin.com/in/nihas-abra-4404981aa,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vidhya@trendloud.com,Vidhya,Sukumaran,Vidhya Sukumaran,,Trend Loud,"Chennai, India",http://www.linkedin.com/in/vidhya-sukumaran-83b9501a,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,manickam@embellishgroup.com,Manickam,Kathiresan,Manickam Kathiresan,,Embellish Medianest,"Chennai, India",http://www.linkedin.com/in/manickam-kathiresan-b23180194,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,amit@pulpkey.com,Amit,Mondal,Amit Mondal,,Pulpkey - The Influencer Marketing Company,"Gurugram, India",http://www.linkedin.com/in/amitmondal50,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,angad.singh@growthrocket.media,Angad,Satia,Angad Satia,,Growth Rocket,"Gurugram, India",http://www.linkedin.com/in/angad-singh-satia-ab94ab1b1,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,deepanshugarg@slideinmedia.com,Deepanshu,Garg,Deepanshu Garg,,Slidein Media,"Mumbai, India",http://www.linkedin.com/in/deepanshuugarg,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sowmitra@hii.agency,Sowmitra,Desai,Sowmitra Desai,,Hii Agency,"Pune, India",http://www.linkedin.com/in/sowmitra-desai,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,gursheen@slideinmedia.com,Gursheen,Khanuja,Gursheen Khanuja,,Slidein Media,"Mumbai, India",http://www.linkedin.com/in/gursheenkhanuja,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tarushi@7p-digital.com,Tarushi,Rastogi,Tarushi Rastogi,,7P Digital,"Gurugram, India",http://www.linkedin.com/in/tarushi-rastogi-11117376,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,aditya@marketingmasalaa.com,Aditya,Gupta,Aditya Gupta,,Influir Media,"Mumbai, India",http://www.linkedin.com/in/aditya-gupta-30a580211,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,dhruv@humourme.in,Dhruv,Sachdeva,Dhruv Sachdeva,,Humour Me,"Gurugram, India",http://www.linkedin.com/in/dhrvsachdeva,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,shreya@theideaslab.com,Shreya,Soni,Shreya Soni,,The Ideas Lab,"New Delhi, India",http://www.linkedin.com/in/shreyasoni,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kanav@viaens.com,Kanav,Gupta,Kanav Gupta,,viaENS,India,http://www.linkedin.com/in/kanavgupta01,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,naim.siddiqui@momentum.co.in,Naimur,Siddiqui,Naimur Siddiqui,,Momentum Communications (India) Pvt. Ltd.,"Gurgaon, India",http://www.linkedin.com/in/naims,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ayushman@growthrocket.media,Ayushman,Pandita,Ayushman Pandita,,Growth Rocket,"New Delhi, India",http://www.linkedin.com/in/ayushman-pandita,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,divya@7p-digital.com,Divya,Batra,Divya Batra,,7P Digital,"Gurgaon, India",http://www.linkedin.com/in/divyabatra1,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vedant@lehlah.club,Vedant,Gudka,Vedant Gudka,,LehLah,"Mumbai, India",http://www.linkedin.com/in/vedant-gudka-44a98418b,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ankita.k@resilienceesports.com,Ankita,Kanungoe,Ankita Kanungoe,,Resilience Media and Tech,"New Delhi, India",http://www.linkedin.com/in/ankita-kanungoe-b04a72200,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,kushall@brodeway.in,Kushall,,Kushall,,Brodeway,"Chandigarh, India",http://www.linkedin.com/in/kushalbanarsidass,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,ronee@resilienceesports.com,Ronee,Das,Ronee Das,COO,Resilience Media and Tech,"Kolkata, India",http://www.linkedin.com/in/ronee-das-14438a212,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tanay@socialsauce.in,Tanay,,Tanay,,Social Sauce,"New Delhi, India",http://www.linkedin.com/in/tanaydey,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,raihan@circuitmgmt.com,Raihan,Sidhiq,Raihan Sidhiq,,Circuit Artist Network,"Bengaluru, India",http://www.linkedin.com/in/raihansidhiq,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,nikhil@aftermathventures.in,Nikhil,Raj,Nikhil Raj,,AfterMath Ventures,"Bengaluru, India",http://www.linkedin.com/in/nikhil-raj-a93122176,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sajjad@velaire.in,Sajjad,Khan,Sajjad Khan,,Surge Media,"Mumbai, India",http://www.linkedin.com/in/sajjad-khan-36276a191,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,mukesh@digitalshoutouts.com,Mukesh,Tuhania,Mukesh Tuhania,,Digital ShoutOuts Media,"Gurugram, India",http://www.linkedin.com/in/mukesh-tuhania,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,himanshugaur@indeskmedia.com,Himanshu,Gaur,Himanshu Gaur,,Indesk Media Pvt Ltd,"New Delhi, India",http://www.linkedin.com/in/himanshu-gaur-a5676a1aa,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,risshie@sar-xmarketing.com,Risshie,Kaushal,Risshie Kaushal,,SAR-X Marketing,"New Delhi, India",http://www.linkedin.com/in/risshie-kaushal-42443563,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,vinay@vmerg.com,Vinay,Mishra,Vinay Mishra,,vmerg,"Bengaluru, India",http://www.linkedin.com/in/vinay-kumar-mishra-902b18199,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,pravin@digitalplannet.in,Pravin,Chaudhari,Pravin Chaudhari,,DIGITAL PLANET,"Pune, India",http://www.linkedin.com/in/pravin-chaudhari20,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,manoj@gencmedia.in,Manoj,Padaiyachi,Manoj Padaiyachi,,Gen C Media,"Mumbai, India",http://www.linkedin.com/in/manojpadaiyachi,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,piyushprakash@fnfmedia.in,Piyush,Prakash,Piyush Prakash,,FNF Media,"New Delhi, India",http://www.linkedin.com/in/piyush-prakash-3ab11a77,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,sonali.agrawal@thehype.in,Sonali,Agrawal,Sonali Agrawal,,The Hype,"Kasganj, India",http://www.linkedin.com/in/sonaliagrawall,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,subhani@wideeyesdigital.com,Siddiqui,Subhani,Siddiqui Subhani,,WideEyes Digital,"Mumbai, India",http://www.linkedin.com/in/siddiquisubhani,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,radhikaagrawal@vavodigital.com,Radhika,Agrawal,Radhika Agrawal,,Vavo Digital | Influencer Marketing,"Mumbai, India",http://www.linkedin.com/in/radhika-vavo,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,nehapuri@vavodigital.com,Neha,Puri,Neha Puri,,Vavo Digital | Influencer Marketing,"New Delhi, India",http://www.linkedin.com/in/nehakpuri,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,anas@influze.co,Anas,Penwala,Anas Penwala,,Influze,"Mumbai, India",http://www.linkedin.com/in/anaspenwala,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,tamal@ozo.marketing,Tamal,Mondal,Tamal Mondal,,OZO Media - Influencer Marketing Agency,"West Bengal, India",http://www.linkedin.com/in/tamal-mondal-0109a51b5,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,prashant@convertup.com,Prashant,Badola,Prashant Badola,,Convertup Media Private Limited,"New Delhi, India",http://www.linkedin.com/in/prashant-badola-b6748515,INPROGRESS,0,2,5,1,8,B
+3063527,IMAGENCY_INDIA,rohit@convertup.com,Rohit,Tomar,Rohit Tomar,,Convertup Media Private Limited,"New Delhi, India",http://www.linkedin.com/in/rohit-tomar-593aa766,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,chandrayee@clanconnect.ai,Chandrayee,Chattopadhyay,Chandrayee Chattopadhyay,,ClanConnect,"New Delhi, India",http://www.linkedin.com/in/chandrayee-chattopadhyay-9340a1bb,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,nikhil.k@clanconnect.ai,Nikhil,Kasegaonkar,Nikhil Kasegaonkar,,ClanConnect,"Thane, India",http://www.linkedin.com/in/nikhil-kasegaonkar-052b0b24,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,nidhi@swaykart.com,Nidhi,Nanda,Nidhi Nanda,,Swaykart,"Bengaluru, India",http://www.linkedin.com/in/nidhi-nanda-673042b4,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,lavin@getevangelized.com,Lavin,Mirchandani,Lavin Mirchandani,,Evangelized,"Mumbai, India",http://www.linkedin.com/in/lavin-mirchandani-a60a8215,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,abhinesh@viralityx.co,Abhinesh,Singh,Abhinesh Singh,,ViralityX,"Gurugram, India",http://www.linkedin.com/in/abhinesh-singh-87b36715a,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,lishita@clanconnect.ai,Lishita,Jain,Lishita Jain,,ClanConnect,"New Delhi, India",http://www.linkedin.com/in/lishita-jain-b4975211b,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,shweta@clanconnect.ai,Shweta,Jain,Shweta Jain,,ClanConnect,"New Delhi, India",http://www.linkedin.com/in/shweta-jain-7b3b7414a,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,arnika@clanconnect.ai,Arnika,Garg,Arnika Garg,,ClanConnect,"New Delhi, India",http://www.linkedin.com/in/arnika-garg-08a18a185,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,anuj.padhiyar@ylytic.com,Anuj,Padhiyar,Anuj Padhiyar,,Ylytic,"Bengaluru, India",http://www.linkedin.com/in/anuj-padhiyar,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,ritu@getevangelized.com,Ritu,Bhatia,Ritu Bhatia,,Evangelized,"Mumbai, India",http://www.linkedin.com/in/ritu-bhatia-83855721,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,samiya@clanconnect.ai,Samiya,Moin,Samiya Moin,,ClanConnect,"New Delhi, India",http://www.linkedin.com/in/samiya-moin-97a4b2153,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,muskan@viralityx.co,Muskan,Dhiman,Muskan Dhiman,,ViralityX,"Gurugram, India",http://www.linkedin.com/in/muskan-dhiman-1a9403196,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,shivomana@clanconnect.ai,Shivomana,Bhandari,Shivomana Bhandari,,ClanConnect,"New Delhi, India",http://www.linkedin.com/in/shivomana-bhandari-40aa5b1b5,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,sravi@clanconnect.ai,Sravi,Kumar,Sravi Kumar,,ClanConnect,"New Delhi, India",http://www.linkedin.com/in/sravi-kumar-37b3b9196,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,armaan@astatine.ai,Armaan,Kapoor,Armaan Kapoor,,Astatine,"Mumbai, India",http://www.linkedin.com/in/armaan-kapoor-1b3b9196,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,navneet.kaur@biggbell.in,Navneet,Kaur,Navneet Kaur,,BiggBell,India,http://www.linkedin.com/in/navneet-kaur-biggbell,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,pooja@whitemediasolutions.com,Pooja,Bathija,Pooja Bathija,,White Media Solutions,India,http://www.linkedin.com/in/pooja-bathija,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,afzal@influe.in,Afzal,Khan,Afzal Khan,,Influe,India,http://www.linkedin.com/in/afzal-khan-influe,INPROGRESS,0,2,5,1,8,B
+3064966,INDIA_GENERAL,navin@whitemediasolutions.com,Navin,Chandwani,Navin Chandwani,,White Media Solutions,India,http://www.linkedin.com/in/navin-chandwani,INPROGRESS,0,2,5,1,8,B
+3065429,INFPLAT_MENA_APAC,haissya@bintango.com,Haissya,Nazelina,Haissya Nazelina,Senior Business Development Executive,BintanGO,South Jakarta Indonesia,http://www.linkedin.com/in/haissya-nazelina-565423b9,INPROGRESS,0,2,3,1,6,C
+3065429,INFPLAT_MENA_APAC,nour@sociata.com,Nour,Atrissi,Nour Atrissi,Creator Development Manager,Sociata,Lebanon,http://www.linkedin.com/in/nouratrissi,INPROGRESS,0,4,1,1,6,C
+3065429,INFPLAT_MENA_APAC,donny@bintango.com,Donny,Rachman,Donny Rachman,Senior Business Development Executive,BintanGO,Jakarta Indonesia,http://www.linkedin.com/in/donny-rachman-08b1b0114,INPROGRESS,0,2,3,1,6,C
+3065429,INFPLAT_MENA_APAC,bunga@bintango.com,Bunga,Rafsanzani,Bunga Rafsanzani,Senior Account Executive,BintanGO,South Jakarta Indonesia,http://www.linkedin.com/in/bunga-aprillia-,INPROGRESS,0,2,3,1,6,C
+3063527,IMAGENCY_INDIA,brooke.monroe@socialflyny.com,Brooke,Monroe,Brooke Monroe,,Socialfly,"Richmond, Virginia",http://www.linkedin.com/in/brookemonroewriterextraordinaire,INPROGRESS,0,2,1,1,4,C
+3063527,IMAGENCY_INDIA,maryjo@balacct.com,Mary,Watson,Mary Watson,,Balancing Act,"Towson, Maryland",http://www.linkedin.com/in/mary-jo-watson-01a7519b,INPROGRESS,0,2,1,1,4,C
+3063527,IMAGENCY_INDIA,nabil@midian.live,Nabil,Mohammed,Nabil Mohammed,,Median,"Guangzhou, China",http://www.linkedin.com/in/nwardye,INPROGRESS,0,2,1,1,4,C
+3063527,IMAGENCY_INDIA,dhruv@indeskmedia.com,Dhruv,Behl,Dhruv Behl,,Indesk Media Pvt Ltd,,http://www.linkedin.com/in/dhruv-behl-993293361,INPROGRESS,0,2,1,1,4,C
+3063527,IMAGENCY_INDIA,sanjay@trendloud.com,Sanjay,Subashchandran,Sanjay Subashchandran,,Trend Loud,,http://www.linkedin.com/in/sanjay-subashchandran-78041b7,INPROGRESS,0,2,1,1,4,C
