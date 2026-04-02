@@ -98,6 +98,63 @@ function ProjectCard({ project }: { project: any }) {
             </div>
           )}
 
+          {/* Target Segments (from document) */}
+          {offer?.segments && offer.segments.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Target Segments ({offer.segments.length})</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {offer.segments.map((s: any, i: number) => (
+                  <span key={i} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', fontWeight: 500 }}>
+                    {s.name || s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Target Roles (from document) */}
+          {offer?.target_roles?.titles && offer.target_roles.titles.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Target Roles ({offer.target_roles.titles.length})</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {offer.target_roles.titles.map((r: string, i: number) => (
+                  <span key={i} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: 'rgba(168,85,247,0.1)', color: '#a855f7', fontWeight: 500 }}>
+                    {r}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sequences (from document) */}
+          {offer?.sequences && offer.sequences.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Sequences ({offer.sequences.length})</div>
+              {offer.sequences.map((seq: any, i: number) => (
+                <div key={i} style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{seq.name || `Sequence ${i + 1}`}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    {(seq.steps || []).map((step: any, j: number) => (
+                      <div key={j}>Day {step.day}: {step.subject}</div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Exclusion Rules (from document) */}
+          {offer?.exclusion_list && offer.exclusion_list.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Exclusion Rules ({offer.exclusion_list.length})</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                {offer.exclusion_list.map((e: any, i: number) => (
+                  <div key={i} style={{ marginBottom: 2 }}>{'\u2022'} <span style={{ fontWeight: 500 }}>{e.type}</span>{e.reason ? ` — ${e.reason}` : ''}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Key differentiators */}
           {offer?.key_differentiators && offer.key_differentiators.length > 0 && (
             <div style={{ marginBottom: 12 }}>
@@ -160,7 +217,7 @@ function ProjectCard({ project }: { project: any }) {
           {/* Source info */}
           {offer?._source && (
             <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              Offer extracted from: {offer._source === 'gpt_knowledge' ? 'AI knowledge' : 'website scrape'}
+              Offer extracted from: {offer._source === 'document' ? 'strategy document' : offer._source === 'gpt_knowledge' ? 'AI knowledge' : 'website scrape'}
               {offer._analyzed_at && ` on ${new Date(offer._analyzed_at).toLocaleDateString()}`}
             </div>
           )}
