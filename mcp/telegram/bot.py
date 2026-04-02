@@ -1,5 +1,5 @@
 """
-Telegram Bot → MCP LeadGen bridge.
+Telegram Bot → GTM MCP bridge.
 GPT-4o-mini translates user messages into MCP tool calls.
 
 Usage:

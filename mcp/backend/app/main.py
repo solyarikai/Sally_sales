@@ -1,4 +1,4 @@
-"""MCP LeadGen — FastAPI application entry point."""
+"""GTM MCP — FastAPI application entry point."""
 import logging
 from contextlib import asynccontextmanager
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("MCP LeadGen starting up...")
+    logger.info("GTM MCP starting up...")
     # Start reply monitor (polls SmartLead every 3 min for new replies)
     try:
         from app.services.reply_monitor import start_reply_monitor
@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Taxonomy seed failed: {e}")
     yield
-    logger.info("MCP LeadGen shutting down...")
+    logger.info("GTM MCP shutting down...")
     try:
         from app.services.reply_monitor import get_reply_monitor
         get_reply_monitor().stop()
@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="MCP LeadGen",
+    title="GTM MCP",
     version="1.0.0",
     lifespan=lifespan,
 )

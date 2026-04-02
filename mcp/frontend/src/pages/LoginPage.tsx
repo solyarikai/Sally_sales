@@ -87,8 +87,8 @@ export default function LoginPage() {
             <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--bg, #fff)' }}>M</span>
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--text, #333)' }}>MCP LeadGen</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted, #999)' }}>AI-powered lead generation platform</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--text, #333)' }}>GTM MCP</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #999)' }}>AI-powered GTM platform</div>
           </div>
         </div>
 

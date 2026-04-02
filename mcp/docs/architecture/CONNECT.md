@@ -1,4 +1,4 @@
-# MCP LeadGen — Connection Guide
+# GTM MCP — Connection Guide
 
 Server URL: `http://46.62.210.24:8002/mcp/sse`
 

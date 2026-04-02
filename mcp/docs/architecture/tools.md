@@ -1,4 +1,4 @@
-# MCP LeadGen Tools — 26 Tools
+# GTM MCP Tools — 26 Tools
 
 Server: `http://46.62.210.24:8002/mcp/sse`
 
