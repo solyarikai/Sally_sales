@@ -349,6 +349,9 @@ export const telegramOutreachApi = {
   bulkRevokeSessions: async (accountIds: number[]) =>
     (await api.post(`${BASE}/accounts/bulk-revoke-sessions`, { account_ids: accountIds })).data,
 
+  bulkOpProgress: async (taskId: string) =>
+    (await api.get(`${BASE}/accounts/bulk-op-progress/${taskId}`)).data,
+
   bulkReauthorize: async (accountIds: number[], params: { new_2fa?: string; close_old_sessions?: boolean } = {}) =>
     (await api.post(`${BASE}/accounts/bulk-reauthorize`, { account_ids: accountIds }, { params })).data,
 
