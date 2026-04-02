@@ -2251,7 +2251,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
           </div>
           <div className="flex items-center gap-2">
             {step !== 'done' && (
-              <button onClick={step === 'done' ? () => onSaved() : onClose}
+              <button onClick={onClose}
                 className={cn('px-4 py-2 rounded-lg border text-sm', t.cardBorder, t.text1)}>Cancel</button>
             )}
             {step === 'phone' && (
