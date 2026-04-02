@@ -350,73 +350,74 @@ class StreamingPipeline:
         if not filters.get("organization_num_employees_ranges") and getattr(self, '_project_employee_range', None):
             filters["organization_num_employees_ranges"] = [self._project_employee_range]
 
-        # Build strategy cascade — funding as Level 0 priority (soft filter)
-        # Funding prioritizes but doesn't exclude: funded first → all → regen → industry
-        strategy = filters.get("filter_strategy", "keywords_only")
+        # PARALLEL STREAMS — keywords + industry simultaneously
+        # Both feed same scrape_queue, dedup by self._domains_seen
         has_industry = bool(filters.get("organization_industry_tag_ids"))
         has_keywords = bool(filters.get("q_organization_keyword_tags"))
         has_funding = bool(filters.get("organization_latest_funding_stage_cd") or
                           filters.get("mapping_details", {}).get("funding_stages"))
 
-        # Extract funding stages from filters
         funding_stages = (filters.get("organization_latest_funding_stage_cd") or
                          filters.get("mapping_details", {}).get("funding_stages"))
 
-        levels = []
+        kw_filters = self._make_keywords_filters(filters) if has_keywords else None
+        ind_filters = self._make_industry_filters(filters) if has_industry else None
 
-        # Level 0: Funding + primary strategy (highest quality — funded companies first)
+        # ── L0: PARALLEL funded streams (keywords + industry simultaneously) ──
         if has_funding and funding_stages:
-            if strategy == "industry_first" and has_industry:
-                l0_filters = self._make_industry_filters(filters)
-            else:
-                l0_filters = self._make_keywords_filters(filters)
-            l0_filters["organization_latest_funding_stage_cd"] = funding_stages
-            levels.append(("L0_funded", l0_filters, self.PAGES_PER_STRATEGY))
+            l0_streams = []
+            if kw_filters:
+                kw_funded = dict(kw_filters)
+                kw_funded["organization_latest_funding_stage_cd"] = funding_stages
+                l0_streams.append(self._run_level(kw_funded, per_page, "L0_kw_funded", max_pages=15, start_page=1))
+            if ind_filters:
+                ind_funded = dict(ind_filters)
+                ind_funded["organization_latest_funding_stage_cd"] = funding_stages
+                l0_streams.append(self._run_level(ind_funded, per_page, "L0_ind_funded", max_pages=15, start_page=1))
 
-        # Levels 1+: Same strategy WITHOUT funding (broader pool)
-        if strategy == "industry_first" and has_industry:
-            levels.extend([
-                ("L1_industry", self._make_industry_filters(filters), self.PAGES_PER_STRATEGY),
-                ("L2_keywords", self._make_keywords_filters(filters), self.PAGES_PER_STRATEGY),
-            ])
-        else:
-            levels.append(("L1_keywords", self._make_keywords_filters(filters), self.PAGES_PER_STRATEGY))
-            if has_industry:
-                levels.append(("L3_industry", self._make_industry_filters(filters), self.PAGES_PER_STRATEGY))
+            if l0_streams:
+                logger.info(f"L0: {len(l0_streams)} parallel funded streams")
+                await asyncio.gather(*l0_streams)
 
-        total_pages = 0
+        # ── L1: PARALLEL unfunded streams (if KPI not met) ──
+        if not self._kpi_met and not self._stop:
+            l1_streams = []
+            if kw_filters:
+                l1_streams.append(self._run_level(
+                    kw_filters, per_page, "L1_keywords",
+                    max_pages=self.PAGES_PER_STRATEGY,
+                    start_page=(self._tam_pages + 1) if self._tam_pages else 1,
+                ))
+            if ind_filters:
+                l1_streams.append(self._run_level(
+                    ind_filters, per_page, "L1_industry",
+                    max_pages=self.PAGES_PER_STRATEGY, start_page=1,
+                ))
 
-        for level_name, level_filters, max_pages in levels:
-            if self._kpi_met or self._stop or total_pages >= self.MAX_TOTAL_PAGES:
-                break
+            if l1_streams:
+                logger.info(f"L1: {len(l1_streams)} parallel unfunded streams")
+                await asyncio.gather(*l1_streams)
 
-            exhausted = await self._run_level(
-                level_filters, per_page, level_name,
-                max_pages=max_pages,
-                start_page=(self._tam_pages + 1) if "L1" in level_name else 1,
-            )
-            total_pages += self.pages_fetched  # approximate
+        # ── L2: Keyword regeneration (sequential — needs previous results) ──
+        if not self._kpi_met and not self._stop:
+            for regen_num in range(1, self.MAX_KEYWORD_REGENERATIONS + 1):
+                if self._kpi_met or self._stop:
+                    break
+                regen_base = kw_filters or filters
+                new_kw = await self._regenerate_keywords(regen_base, all_tried_keywords)
+                if not new_kw:
+                    logger.info(f"Regen #{regen_num}: no new keywords.")
+                    break
+                all_tried_keywords.update(k.lower() for k in new_kw)
+                regen_filters = dict(regen_base)
+                regen_filters["q_organization_keyword_tags"] = new_kw
+                regen_filters.pop("organization_industry_tag_ids", None)
 
-            if exhausted and not self._kpi_met:
-                # Level exhausted → try keyword regeneration before next level
-                for regen_num in range(1, self.MAX_KEYWORD_REGENERATIONS + 1):
-                    if self._kpi_met or self._stop or total_pages >= self.MAX_TOTAL_PAGES:
-                        break
-                    new_kw = await self._regenerate_keywords(level_filters, all_tried_keywords)
-                    if not new_kw:
-                        logger.info(f"Regen #{regen_num}: no new keywords. Moving to next level.")
-                        break
-                    all_tried_keywords.update(k.lower() for k in new_kw)
-                    regen_filters = dict(level_filters)
-                    regen_filters["q_organization_keyword_tags"] = new_kw
-                    regen_filters.pop("organization_industry_tag_ids", None)
-                    regen_filters["filter_strategy"] = "keywords_first"
-
-                    regen_exhausted = await self._run_level(
-                        regen_filters, per_page, f"regen_{regen_num}",
-                        max_pages=self.PAGES_PER_REGEN_CYCLE, start_page=1,
-                    )
-                    if not regen_exhausted:
+                regen_exhausted = await self._run_level(
+                    regen_filters, per_page, f"regen_{regen_num}",
+                    max_pages=self.PAGES_PER_REGEN_CYCLE, start_page=1,
+                )
+                if not regen_exhausted:
                         break  # Got results, KPI may be met
 
         if not self._kpi_met:

@@ -46,9 +46,13 @@ Extract:
    NOT generic categories like "Companies with Sales Teams" or "Funded Companies".
    Each with:
    - "name": SHORT industry label in CAPS (e.g. "PAYMENTS", "LENDING", "REGTECH")
-   - "keywords": [Apollo search keywords for this specific sub-vertical]
+   - "keywords": [8-10 SPECIFIC product keywords per segment, NOT generic]
+     For PAYMENTS: "payment gateway API", "PSP platform", "merchant acquiring", "payment orchestration", "A2A payments", "card issuing API", "checkout API", "recurring billing platform"
+     For LENDING: "lending-as-a-service", "loan origination system", "credit decisioning API", "underwriting automation", "BNPL infrastructure"
+     For REGTECH: "KYC API", "AML platform", "identity verification API", "transaction monitoring", "sanctions screening"
+     NOT: "payment solutions", "digital payments" (too generic, returns noise)
 6. "apollo_filters" — object with:
-   - "combined_keywords": [ALL keywords from ALL segments merged]
+   - "combined_keywords": [ALL keywords from ALL segments merged — aim for 60-80 total]
    - "locations": [target countries/regions]
    - "employee_range": "min,max" (e.g. "20,500")
    - "industries": [Apollo industry names if identifiable]
