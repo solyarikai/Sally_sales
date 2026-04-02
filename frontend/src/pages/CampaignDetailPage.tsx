@@ -1321,17 +1321,23 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
 
 function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { campaignId: number }) { void _isDark;
   const [stats, setStats] = useState<TgCampaignStats | null>(null);
+  const [stepStats, setStepStats] = useState<{
+    steps: { step_order: number; step_id: number; delay_days: number; sent: number; read: number; replied: number }[];
+    totals: { sent: number; read: number; replied: number; total_recipients: number };
+  } | null>(null);
   const [activity, setActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, a] = await Promise.all([
+      const [s, ss, a] = await Promise.all([
         telegramOutreachApi.getCampaignStats(campaignId),
+        telegramOutreachApi.getCampaignStepStats(campaignId),
         telegramOutreachApi.getCampaignActivity(campaignId, 200),
       ]);
       setStats(s);
+      setStepStats(ss);
       setActivity(a.activity || []);
     } catch { toast('Failed to load analytics', 'error'); }
     finally { setLoading(false); }
@@ -1362,19 +1368,92 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
     { label: 'Bounced', value: stats.bounced, color: '#F97316' },
   ] : [];
   const totalR = stats?.total_recipients || 1;
+  const pct = (n: number, d: number) => d > 0 ? Math.round((n / d) * 100) : 0;
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className={cn('w-6 h-6 animate-spin', t.text3)} /></div>;
 
   return (
     <div className="space-y-6">
+      {/* Summary Cards — Sent / Read / Replied */}
+      {stepStats && (
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: 'Sent', value: stepStats.totals.sent, pctVal: 100, color: '#6366F1', bg: '#EEF2FF' },
+            { label: 'Read', value: stepStats.totals.read, pctVal: pct(stepStats.totals.read, stepStats.totals.sent), color: '#3B82F6', bg: '#EFF6FF' },
+            { label: 'Replied', value: stepStats.totals.replied, pctVal: pct(stepStats.totals.replied, stepStats.totals.sent), color: '#22C55E', bg: '#F0FDF4' },
+          ].map(c => (
+            <div key={c.label} className="rounded-xl p-5 text-center" style={{ border: `1px solid ${B.border}`, background: B.surface }}>
+              <div className="text-3xl font-bold tabular-nums" style={{ color: c.color }}>{c.value}</div>
+              <div className="text-lg font-semibold tabular-nums mt-0.5" style={{ color: c.color, opacity: 0.7 }}>{c.pctVal}%</div>
+              <div className="text-xs mt-1 font-medium" style={{ color: B.text3 }}>{c.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Per-Step Funnel */}
+      {stepStats && stepStats.steps.length > 0 && (
+        <div className="rounded-xl p-5" style={{ border: `1px solid ${B.border}`, background: B.surface }}>
+          <h3 className="text-sm font-semibold mb-4" style={{ color: B.text1 }}>Per-Step Analytics</h3>
+          <div className="space-y-3">
+            {stepStats.steps.map((step) => (
+              <div key={step.step_id} className="rounded-lg p-3" style={{ border: `1px solid ${B.border}`, background: B.bg }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                      {step.step_order}
+                    </span>
+                    <span className="text-sm font-medium" style={{ color: B.text1 }}>
+                      {step.step_order === 1 ? 'Initial Message' : `Follow-up ${step.step_order - 1}`}
+                    </span>
+                    {step.delay_days > 0 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded" style={{ color: B.text3, background: B.surface }}>
+                        +{step.delay_days}d
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: '#6366F1' }} />
+                    <span className="text-xs" style={{ color: B.text3 }}>Sent</span>
+                    <span className="text-sm font-semibold tabular-nums" style={{ color: B.text1 }}>{step.sent}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: '#3B82F6' }} />
+                    <span className="text-xs" style={{ color: B.text3 }}>Read</span>
+                    <span className="text-sm font-semibold tabular-nums" style={{ color: B.text1 }}>{step.read}</span>
+                    {step.sent > 0 && <span className="text-xs tabular-nums" style={{ color: B.text3 }}>({pct(step.read, step.sent)}%)</span>}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: '#22C55E' }} />
+                    <span className="text-xs" style={{ color: B.text3 }}>Replied</span>
+                    <span className="text-sm font-semibold tabular-nums" style={{ color: B.text1 }}>{step.replied}</span>
+                    {step.sent > 0 && <span className="text-xs tabular-nums" style={{ color: B.text3 }}>({pct(step.replied, step.sent)}%)</span>}
+                  </div>
+                </div>
+                {/* Mini progress bar */}
+                {step.sent > 0 && (
+                  <div className="flex h-1.5 rounded-full overflow-hidden mt-2" style={{ background: '#E5E7EB' }}>
+                    <div className="h-full" style={{ width: `${pct(step.read, step.sent)}%`, background: '#3B82F6' }} />
+                    <div className="h-full" style={{ width: `${pct(step.replied, step.sent)}%`, background: '#22C55E' }} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Additional metrics row */}
       {stats && (
         <div className="grid grid-cols-5 gap-3">
           {[
             { label: 'Recipients', value: stats.total_recipients, color: B.blue },
             { label: 'Total Sent', value: stats.total_messages_sent, color: B.text1 },
             { label: 'Replied', value: stats.replied, color: '#22C55E' },
-            { label: 'Reply Rate', value: `${totalR > 0 ? Math.round((stats.replied / totalR) * 100) : 0}%`, color: B.blue },
-            { label: 'Delivery', value: `${totalR > 0 ? Math.round(((totalR - stats.failed - stats.bounced) / totalR) * 100) : 0}%`, color: '#3B82F6' },
+            { label: 'Reply Rate', value: `${pct(stats.replied, totalR)}%`, color: B.blue },
+            { label: 'Delivery', value: `${pct(totalR - stats.failed - stats.bounced, totalR)}%`, color: '#3B82F6' },
           ].map(s => (
             <div key={s.label} className="rounded-xl p-4 text-center" style={{ border: `1px solid ${B.border}`, background: B.surface }}>
               <div className="text-2xl font-bold tabular-nums" style={{ color: s.color }}>{s.value}</div>

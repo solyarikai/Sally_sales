@@ -21,7 +21,7 @@ from app.models.telegram_outreach import (
     TgCampaign, TgCampaignAccount, TgCampaignStatus,
     TgAccount, TgAccountStatus,
     TgRecipient, TgRecipientStatus,
-    TgIncomingReply,
+    TgIncomingReply, TgOutreachMessage,
     TgProxy,
 )
 from app.services.telegram_engine import telegram_engine
@@ -201,6 +201,25 @@ class ReplyDetector:
                 continue
 
             recipient = recipient_usernames[username]
+
+            # Track read status via read_outbox_max_id
+            try:
+                read_outbox_max_id = getattr(dialog.dialog, 'read_outbox_max_id', 0) or 0
+                if read_outbox_max_id > 0:
+                    unread_msgs = await session.execute(
+                        select(TgOutreachMessage).where(
+                            TgOutreachMessage.campaign_id == campaign.id,
+                            TgOutreachMessage.recipient_id == recipient.id,
+                            TgOutreachMessage.account_id == account.id,
+                            TgOutreachMessage.tg_message_id.isnot(None),
+                            TgOutreachMessage.tg_message_id <= read_outbox_max_id,
+                            TgOutreachMessage.read_at.is_(None),
+                        )
+                    )
+                    for msg in unread_msgs.scalars().all():
+                        msg.read_at = datetime.utcnow()
+            except Exception as e:
+                logger.debug(f"Read tracking failed for @{username}: {e}")
 
             # Check last message — is it from them (incoming)?
             last_msg = dialog.message

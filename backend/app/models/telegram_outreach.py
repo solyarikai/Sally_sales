@@ -362,6 +362,8 @@ class TgOutreachMessage(Base):
     )
     error_message = Column(Text, nullable=True)
     sent_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    tg_message_id = Column(Integer, nullable=True)  # Telegram msg ID for read tracking
+    read_at = Column(DateTime, nullable=True)  # When recipient read this message
 
     # Relationships
     campaign = relationship("TgCampaign", back_populates="messages")

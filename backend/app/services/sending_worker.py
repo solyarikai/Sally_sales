@@ -676,6 +676,7 @@ class SendingWorker:
                     campaign_id=campaign.id, recipient_id=recipient.id, account_id=account.id,
                     step_id=step.id, variant_id=variant.id, rendered_text=rendered,
                     status=msg_status, error_message=result.get("detail"), sent_at=datetime.utcnow(),
+                    tg_message_id=result.get("message_id"),
                 ))
 
                 # Fetch campaign-account link for per-account spamblock counter
