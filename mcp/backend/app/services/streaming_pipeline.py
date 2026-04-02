@@ -604,13 +604,38 @@ class StreamingPipeline:
                         country = org.get("country") or org.get("organization_country")
                         city = org.get("city") or org.get("organization_city")
                         state = org.get("state") or org.get("organization_state")
+                        emp = org.get("estimated_num_employees") or org.get("num_contacts")
+                        city_full = f"{city}, {state}" if city and state else (city or state)
+                        # Build full source_data from Apollo org (preserve all fields)
+                        raw_org = {
+                            "domain": domain.strip().lower(),
+                            "name": org.get("name"),
+                            "country": country, "city": city, "state": state,
+                            "industry": org.get("industry"),
+                            "employee_count": emp,
+                            "employee_range": org.get("employee_range"),
+                            "founded_year": org.get("founded_year"),
+                            "linkedin_url": org.get("linkedin_url"),
+                            "website_url": org.get("website_url"),
+                            "phone": org.get("phone") or (org.get("primary_phone") or {}).get("number"),
+                            "revenue": org.get("revenue") or org.get("estimated_annual_revenue"),
+                            "revenue_raw": org.get("revenue_raw") or org.get("organization_revenue"),
+                            "sic_codes": org.get("sic_codes"),
+                            "naics_codes": org.get("naics_codes"),
+                            "apollo_id": org.get("id"),
+                            "num_contacts_in_apollo": org.get("num_contacts"),
+                            "headcount_6m_growth": org.get("headcount_6m_growth"),
+                            "headcount_12m_growth": org.get("headcount_12m_growth"),
+                            "languages": org.get("languages"),
+                        }
                         results.append({
                             "domain": domain.strip().lower(),
                             "name": org.get("name", domain),
                             "industry": org.get("industry"),
-                            "employee_count": org.get("estimated_num_employees") or org.get("num_contacts"),
+                            "employee_count": emp,
                             "country": country,
-                            "city": f"{city}, {state}" if city and state else (city or state),
+                            "city": city_full,
+                            "_raw_org": raw_org,
                         })
                 # Feed to scrape queue IMMEDIATELY
                 apollo_raw = len(orgs)  # How many Apollo returned (before dedup)
@@ -767,7 +792,14 @@ class StreamingPipeline:
                         dc.industry = company_data["industry"]
                     if company_data.get("employee_count"):
                         dc.employee_count = company_data["employee_count"]
+                    # Update source_data with full Apollo org
+                    raw_org = company_data.get("_raw_org")
+                    if raw_org:
+                        dc.source_data = raw_org
+                        if raw_org.get("linkedin_url") and not dc.linkedin_url:
+                            dc.linkedin_url = raw_org["linkedin_url"]
                 else:
+                    raw_org = company_data.get("_raw_org", company_data)
                     dc = DiscoveredCompany(
                         project_id=self.run.project_id,
                         company_id=self.run.company_id,
@@ -777,7 +809,9 @@ class StreamingPipeline:
                         employee_count=company_data.get("employee_count"),
                         country=company_data.get("country"),
                         city=company_data.get("city"),
-                        source_data=company_data,
+                        linkedin_url=raw_org.get("linkedin_url"),
+                        website_url=raw_org.get("website_url"),
+                        source_data=raw_org,
                     )
                     ws.add(dc)
             await ws.flush()
