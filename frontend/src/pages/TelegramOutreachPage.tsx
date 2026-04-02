@@ -598,8 +598,9 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                           <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             {ageFmt(primaryDate)}
                             {showAgeWarn && (
-                              <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#d97706' }}
-                                title={`Аккаунт слишком новый${sessionDays != null ? ` (${sessionDays} дн.)` : ''}, включён Warm-up`} />
+                              <span title={`Аккаунт слишком новый${sessionDays != null ? ` (${sessionDays} дн.)` : ''}, включён Warm-up`} style={{ display: 'inline-flex' }}>
+                                <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#d97706' }} />
+                              </span>
                             )}
                             <span className="age-tooltip">{lines.join('\n')}</span>
                           </span>
