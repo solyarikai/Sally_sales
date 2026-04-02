@@ -10,6 +10,7 @@ import LearningPage from './pages/LearningPage'
 import ConversationsPage from './pages/ConversationsPage'
 import CampaignsPage from './pages/CampaignsPage'
 import CampaignDetailPage from './pages/CampaignDetailPage'
+import EmailAccountsPage from './pages/EmailAccountsPage'
 
 // REUSED from main app via @main alias — fix once, fixed everywhere
 import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
@@ -40,6 +41,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/setup': 'Setup — GTM MCP',
   '/pipeline': 'Pipeline — GTM MCP',
   '/campaigns': 'Campaigns — GTM MCP',
+  '/email-accounts': 'Email Accounts — GTM MCP',
   '/crm': 'CRM — GTM MCP',
   '/tasks': 'Tasks — GTM MCP',
   '/projects': 'Projects — GTM MCP',
@@ -187,6 +189,7 @@ export default function App() {
                 <NavLink to="/pipeline">Pipeline</NavLink>
                 <NavLink to="/projects">Projects</NavLink>
                 <NavLink to="/campaigns">Campaigns</NavLink>
+                <NavLink to="/email-accounts">Accounts</NavLink>
                 <NavLink to="/crm">CRM</NavLink>
                 <NavLink to="/tasks">Tasks</NavLink>
                 <NavLink to="/learning">Learning</NavLink>
@@ -207,6 +210,7 @@ export default function App() {
                 <Route path="/pipeline/:runId/prompts" element={<PromptsPage />} />
                 <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
                 <Route path="/campaigns" element={<CampaignsPage />} />
+                <Route path="/email-accounts" element={<EmailAccountsPage />} />
                 <Route path="/crm" element={<CRMPage />} />
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tasks/:tab" element={<TasksPage />} />

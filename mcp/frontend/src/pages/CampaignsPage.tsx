@@ -136,6 +136,22 @@ export default function CampaignsPage() {
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No sequence data available.</div>
                   )}
 
+                  {/* Email accounts */}
+                  {c.email_accounts?.length > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>
+                        Email Accounts ({c.email_accounts.length})
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {c.email_accounts.map((a: any, i: number) => (
+                          <span key={i} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                            {a.email || a.from_email}{a.name || a.from_name ? ` (${a.name || a.from_name})` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Settings summary */}
                   <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-muted)' }}>
                     {c.timezone && <span>TZ: {c.timezone}</span>}

@@ -44,6 +44,13 @@ Cross-referenced against: `pipeline_spec.md`, `DOCUMENT_BASED_FLOW.md`, `REALITY
 | Dynamic classification | No hardcoded segments/industries/roles |
 | Shutdown event (deadlock prevention) | `_safe_put` at every queue boundary |
 | Session token isolation | Per-session keys + `cleanup_session()` on disconnect |
+| Email verification (verified-only) | `apollo_service.py:295` — only `email_status == "verified"` saved |
+| Credit tracking (1/person not 1/search) | `apollo_service.py:288-289` |
+| GPT role selection + CRO disambiguation | `apollo_service.py:320-399` |
+| SmartLead variable consistency | Upload uses `company_name`; sequences use `{{company}}`; SmartLead auto-maps |
+| Reply classification + Telegram notify | `reply_monitor.py:184-200` — warm replies → Telegram |
+| Document extraction (all fields) | `document_extractor.py:35-84` + variable normalization |
+| 7 "NEVER" rules from spec | All verified compliant (filters, sessions, scraping, classification) |
 
 ---
 

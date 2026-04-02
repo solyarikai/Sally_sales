@@ -1710,3 +1710,108 @@ async def get_learning_examples(
 ):
     """Reference examples for this project — stub for now."""
     return {"items": [], "total": 0, "page": page, "page_size": page_size}
+
+
+# ── Email Accounts ──
+
+@router.get("/email-accounts")
+async def list_email_accounts(
+    search: Optional[str] = Query(None),
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """List all cached SmartLead email accounts for current user."""
+    from sqlalchemy import text, or_
+    query = text(
+        "SELECT account_id, from_email, from_name, cached_at "
+        "FROM smartlead_accounts_cache WHERE user_id = :uid ORDER BY from_email"
+    )
+    result = await session.execute(query, {"uid": user.id})
+    accounts = [{"id": r[0], "email": r[1], "name": r[2], "cached_at": str(r[3]) if r[3] else None} for r in result.fetchall()]
+    if search:
+        s = search.lower()
+        accounts = [a for a in accounts if s in (a["email"] or "").lower() or s in (a["name"] or "").lower()]
+    return {"accounts": accounts, "total": len(accounts)}
+
+
+@router.post("/email-accounts/sync")
+async def sync_email_accounts(
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Force re-fetch email accounts from SmartLead API and update cache."""
+    from app.services.smartlead_service import SmartLeadService
+    from app.models.integration import MCPIntegrationSetting
+    from app.auth.middleware import _decrypt_key
+    # Get SmartLead key
+    integ = (await session.execute(
+        select(MCPIntegrationSetting).where(
+            MCPIntegrationSetting.user_id == user.id,
+            MCPIntegrationSetting.integration_name == "smartlead",
+        )
+    )).scalar()
+    if not integ:
+        raise HTTPException(400, "SmartLead not connected")
+    api_key = _decrypt_key(integ.api_key_encrypted)
+    svc = SmartLeadService(api_key)
+    all_accounts = await svc.get_email_accounts()
+    # Clear old cache + insert new
+    from sqlalchemy import text
+    await session.execute(text("DELETE FROM smartlead_accounts_cache WHERE user_id = :uid"), {"uid": user.id})
+    for acc in all_accounts:
+        await session.execute(text(
+            "INSERT INTO smartlead_accounts_cache (user_id, account_id, from_email, from_name) "
+            "VALUES (:uid, :aid, :email, :name) ON CONFLICT (user_id, account_id) DO UPDATE SET from_email=:email, from_name=:name, cached_at=now()"
+        ), {"uid": user.id, "aid": acc.get("id"), "email": acc.get("from_email") or acc.get("email", ""), "name": acc.get("from_name") or acc.get("name", "")})
+    await session.commit()
+    return {"synced": len(all_accounts), "message": f"Synced {len(all_accounts)} accounts from SmartLead"}
+
+
+@router.get("/email-account-lists")
+async def list_account_lists(
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """List saved email account presets."""
+    from sqlalchemy import text
+    result = await session.execute(text(
+        "SELECT id, name, filter_pattern, account_ids, account_count, created_at "
+        "FROM email_account_lists WHERE user_id = :uid ORDER BY created_at DESC"
+    ), {"uid": user.id})
+    return [{"id": r[0], "name": r[1], "filter_pattern": r[2], "account_ids": r[3], "account_count": r[4], "created_at": str(r[5])} for r in result.fetchall()]
+
+
+class AccountListCreate(BaseModel):
+    name: str
+    account_ids: list
+    filter_pattern: Optional[str] = None
+
+
+@router.post("/email-account-lists")
+async def create_account_list(
+    body: AccountListCreate,
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Save an email account preset."""
+    import json
+    from sqlalchemy import text
+    await session.execute(text(
+        "INSERT INTO email_account_lists (user_id, name, filter_pattern, account_ids, account_count) "
+        "VALUES (:uid, :name, :fp, :aids::jsonb, :cnt)"
+    ), {"uid": user.id, "name": body.name, "fp": body.filter_pattern, "aids": json.dumps(body.account_ids), "cnt": len(body.account_ids)})
+    await session.commit()
+    return {"message": f"List '{body.name}' saved with {len(body.account_ids)} accounts"}
+
+
+@router.delete("/email-account-lists/{list_id}")
+async def delete_account_list(
+    list_id: int,
+    user: MCPUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete a saved account preset."""
+    from sqlalchemy import text
+    await session.execute(text("DELETE FROM email_account_lists WHERE id = :lid AND user_id = :uid"), {"lid": list_id, "uid": user.id})
+    await session.commit()
+    return {"deleted": True}
