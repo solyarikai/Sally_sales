@@ -493,11 +493,21 @@ export default function PipelinePage() {
   // Column visibility — persisted per run in localStorage
   const colKey = `pipeline_columns_${runId || 'global'}`
   const colWidthKey = `pipeline_colwidths_${runId || 'global'}`
+  const DEFAULT_COLUMN_CONFIG: Record<string, boolean> = {
+    analysis_segment: false,
+    employee_count: false,
+    country: false,
+    city: false,
+    funding_stage: false,
+    contacts_count: false,
+    analysis_reasoning: true,
+    scrape_text_preview: true,
+  }
   const [columnConfig, setColumnConfig] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem(colKey)
-      return saved ? JSON.parse(saved) : {}
-    } catch { return {} }
+      return saved ? JSON.parse(saved) : DEFAULT_COLUMN_CONFIG
+    } catch { return DEFAULT_COLUMN_CONFIG }
   })
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
     try {
@@ -528,11 +538,11 @@ export default function PipelinePage() {
     { key: 'domain', label: 'Domain', filterType: 'text' as const, essential: true },
     { key: 'name', label: 'Name', filterType: 'text' as const, essential: true },
     { key: 'status', label: 'Status', filterType: 'dropdown' as const, essential: true },
-    { key: 'analysis_segment', label: 'Segment', filterType: 'dropdown' as const, essential: true },
   ]
 
   // Optional built-in columns (hideable via CRM-style dropdown)
   const optionalColumns = [
+    { key: 'analysis_segment', label: 'Segment', filterType: 'dropdown' as const },
     { key: 'employee_count', label: 'Size', filterType: 'text' as const },
     { key: 'country', label: 'Country', filterType: 'dropdown' as const },
     { key: 'city', label: 'City', filterType: 'text' as const },
