@@ -141,21 +141,16 @@ class SmartLeadService:
             "max_new_leads_per_day": 1500,
         })
 
-    async def set_campaign_settings(self, campaign_id: int) -> Optional[Dict[str, Any]]:
-        """Set campaign delivery settings — EXACT copy of reference campaign 3070919.
-
-        Reference: Petr ES Australia (production, ACTIVE, proven settings)
-        - track_settings: [] (NO tracking — no open/click tracking)
-        - stop on reply
-        - plain text
-        - 40% follow-up
-        - AI ESP matching enabled
-        """
+    async def set_campaign_settings(self, campaign_id: int,
+                                     track_open: bool = False, stop_on_reply: bool = True,
+                                     plain_text: bool = True, follow_up_pct: int = 40) -> Optional[Dict[str, Any]]:
+        """Set campaign delivery settings. Defaults from reference campaign 3070919.
+        All settings configurable from document extraction or user override."""
         return await self._api_call("POST", f"/campaigns/{campaign_id}/settings", {
-            "track_settings": [],
-            "stop_lead_settings": "REPLY_TO_AN_EMAIL",
-            "send_as_plain_text": True,
-            "follow_up_percentage": 40,
+            "track_settings": [] if not track_open else ["TRACK_EMAIL_OPEN", "TRACK_LINK_CLICK"],
+            "stop_lead_settings": "REPLY_TO_AN_EMAIL" if stop_on_reply else "DONT_REPLY_TO_AN_EMAIL",
+            "send_as_plain_text": plain_text,
+            "follow_up_percentage": follow_up_pct,
             "enable_ai_esp_matching": True,
         })
 

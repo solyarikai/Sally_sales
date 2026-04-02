@@ -640,19 +640,33 @@ async def _auto_generate_campaign(session, run, user_id: int, openai_key: str):
         if not project:
             return
 
-        # Generate sequence via CampaignIntelligenceService
-        from app.services.campaign_intelligence import CampaignIntelligenceService
-        svc = CampaignIntelligenceService(openai_key=openai_key)
-        seq = await svc.generate_sequence(
-            session=session,
-            project_id=run.project_id,
-            campaign_name=f"{project.name} - Pipeline #{run.id}",
+        # Check if project already has a document-extracted sequence (from create_project with document_text)
+        from app.models.campaign import GeneratedSequence
+        from sqlalchemy import select
+        existing_seq = await session.execute(
+            select(GeneratedSequence)
+            .where(GeneratedSequence.project_id == run.project_id)
+            .where(GeneratedSequence.rationale.ilike("%document%"))
+            .order_by(GeneratedSequence.id.desc())
         )
+        seq = existing_seq.scalars().first()
+
+        if seq:
+            logger.info(f"Using document-extracted sequence #{seq.id} for pipeline {run.id}")
+        else:
+            # No document sequence → generate one via CampaignIntelligenceService
+            from app.services.campaign_intelligence import CampaignIntelligenceService
+            svc = CampaignIntelligenceService(openai_key=openai_key)
+            seq = await svc.generate_sequence(
+                session=session,
+                project_id=run.project_id,
+                campaign_name=f"{project.name} - Pipeline #{run.id}",
+            )
 
         if not seq or not hasattr(seq, 'id'):
             return
 
-        logger.info(f"Auto-generated sequence #{seq.id} for pipeline {run.id}")
+        logger.info(f"Sequence #{seq.id} ready for pipeline {run.id}")
         run.notes = (run.notes or "") + f"\nAuto-sequence: #{seq.id}"
         await session.flush()
 
@@ -701,8 +715,16 @@ async def _auto_push_to_smartlead(session, run, campaign, seq, user_id: int):
         # 2. Set sequences
         await svc.set_campaign_sequences(sl_campaign_id, seq.sequence_steps)
 
-        # 3. Set settings (production defaults)
-        await svc.set_campaign_settings(sl_campaign_id)
+        # 3. Set settings — from document extraction if available, else defaults
+        doc_settings = {}
+        if campaign.config and isinstance(campaign.config, dict):
+            doc_settings = campaign.config.get("settings", {})
+        await svc.set_campaign_settings(
+            sl_campaign_id,
+            track_open=doc_settings.get("tracking", False),
+            stop_on_reply=doc_settings.get("stop_on_reply", True),
+            plain_text=doc_settings.get("plain_text", True),
+        )
 
         # 4. Set schedule (timezone from contacts geography)
         target_country = ""
@@ -730,13 +752,14 @@ async def _auto_push_to_smartlead(session, run, campaign, seq, user_id: int):
         if account_ids:
             await svc.set_campaign_email_accounts(sl_campaign_id, account_ids)
 
-        # 6. Upload target contacts
+        # 6. Upload target contacts — ONLY from THIS run (not old runs)
         from app.models.pipeline import ExtractedContact
         contacts_result = await session.execute(
             select(ExtractedContact, DiscoveredCompany)
             .outerjoin(DiscoveredCompany, DiscoveredCompany.id == ExtractedContact.discovered_company_id)
+            .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
             .where(
-                ExtractedContact.project_id == seq.project_id,
+                CompanySourceLink.gathering_run_id == run.id,  # THIS run only
                 DiscoveredCompany.is_target == True,
                 ExtractedContact.email.isnot(None),
             )

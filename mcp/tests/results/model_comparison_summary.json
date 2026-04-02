@@ -1,0 +1,17 @@
+{
+  "test_date": "2026-04-01",
+  "document": "outreach-plan-fintech.md",
+  "scoring_max": 13,
+  "winner": "gpt-4.1-nano",
+  "results": [
+    {"model": "gpt-4o-mini", "score": 13, "pct": 100, "time_s": 21.0, "segments": 8, "sequences": 1, "keywords": 10},
+    {"model": "gpt-4.1-nano", "score": 13, "pct": 100, "time_s": 11.6, "segments": 4, "sequences": 3, "keywords": 23},
+    {"model": "gpt-4.1-mini", "score": 12, "pct": 92, "time_s": 19.6, "segments": 1, "sequences": 3, "keywords": 9},
+    {"model": "gpt-5-nano", "score": 0, "pct": 0, "time_s": null, "error": "JSON parse failure"},
+    {"model": "gpt-5-mini", "score": 0, "pct": 0, "time_s": null, "error": "JSON parse failure"},
+    {"model": "gpt-5.4-nano", "score": 0, "pct": 0, "time_s": null, "error": "JSON parse failure"},
+    {"model": "gpt-5.4-mini", "score": 0, "pct": 0, "time_s": null, "error": "JSON parse failure"}
+  ],
+  "winner_rationale": "gpt-4.1-nano: 100% score, fastest (11.6s), most keywords (23), cheapest. GPT-5 models all failed JSON parsing.",
+  "recommendation": "Use gpt-4.1-nano for document extraction"
+}

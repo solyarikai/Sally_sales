@@ -1,0 +1,9 @@
+{
+  "model": "gpt-5.4-nano",
+  "test_date": "2026-04-01",
+  "document": "outreach-plan-fintech.md",
+  "status": "error",
+  "score": 0,
+  "max_score": 13,
+  "error": "JSON parse failure"
+}

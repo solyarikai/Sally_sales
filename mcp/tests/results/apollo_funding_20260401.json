@@ -1,0 +1,10 @@
+{
+  "test_date": "2026-04-01",
+  "query": "fintech + payments keywords",
+  "results": {
+    "without_funding_filter": {"companies": 17318, "description": "All fintech companies matching keywords"},
+    "with_funding_filter": {"companies": 540, "filter": "series_a,series_b,series_c,series_d", "description": "Only funded companies (Series A-D)"}
+  },
+  "recommendation": "Use funding as Level 0 priority. 540 funded companies = high quality pool. Fall back to non-funded (17K) if Level 0 exhausted.",
+  "implementation_note": "Pipeline supports organization_latest_funding_stage_cd filter. Can combine with keywords (NOT with industry_tag_ids)."
+}
