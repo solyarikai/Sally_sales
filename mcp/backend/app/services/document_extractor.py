@@ -40,9 +40,13 @@ Extract:
    - "secondary": [list of secondary titles]
    - "tertiary": [list of tertiary/fallback titles]
    - "seniorities": [Apollo seniority levels: "owner", "founder", "c_suite", "vp", "head", "director"]
-5. "segments" — array of target sub-segments, each with:
-   - "name": segment name (e.g. "Payments/PSPs")
-   - "keywords": [Apollo search keywords for this segment]
+5. "segments" — array of INDUSTRY SUB-VERTICALS (not ICP categories).
+   Look for sections about sub-verticals, market segments, or industry niches.
+   Each segment is a distinct INDUSTRY TYPE (e.g. "Payments", "Lending", "RegTech").
+   NOT generic categories like "Companies with Sales Teams" or "Funded Companies".
+   Each with:
+   - "name": SHORT industry label in CAPS (e.g. "PAYMENTS", "LENDING", "REGTECH")
+   - "keywords": [Apollo search keywords for this specific sub-vertical]
 6. "apollo_filters" — object with:
    - "combined_keywords": [ALL keywords from ALL segments merged]
    - "locations": [target countries/regions]
