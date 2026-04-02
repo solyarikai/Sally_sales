@@ -1,0 +1,62 @@
+{
+  "campaigns": {
+    "c-OnSocial_IM-FIRST AGENCIES #C": {
+      "info": "**ID:** 3050462 | **Status:** ACTIVE | **Sent:** 290 | **Replies:** 1 (0.3%) | **Created:** 2026-03-17",
+      "stats": {
+        "total_leads": 234,
+        "status_breakdown": {
+          "INPROGRESS": 231,
+          "PAUSED": 2,
+          "COMPLETED": 1
+        },
+        "positive_responses": 0,
+        "response_rate": 0.0
+      }
+    },
+    "c-OnSocial_IM-FIRST AGENCIES INDIA #C": {
+      "info": "**ID:** 3063527 | **Status:** ACTIVE | **Sent:** 383 | **Replies:** 3 (0.8%) | **Created:** 2026-03-20",
+      "stats": {
+        "total_leads": 287,
+        "status_breakdown": {
+          "INPROGRESS": 277,
+          "COMPLETED": 2,
+          "BLOCKED": 4,
+          "PAUSED": 4
+        },
+        "positive_responses": 0,
+        "response_rate": 0.0
+      }
+    },
+    "c-OnSocial_IM-FIRST AGENCIES EUROPE #C": {
+      "info": "**ID:** 3064335 | **Status:** ACTIVE | **Sent:** 559 | **Replies:** 0 (0.0%) | **Created:** 2026-03-20",
+      "stats": {
+        "total_leads": 1441,
+        "status_breakdown": {
+          "STARTED": 1097,
+          "INPROGRESS": 337,
+          "COMPLETED": 1,
+          "PAUSED": 6
+        },
+        "positive_responses": 0,
+        "response_rate": 0.0
+      }
+    },
+    "c-OnSocial_IM-FIRST AGENCIES US_CANADA_LATAM #C": {
+      "info": "**ID:** 3071851 | **Status:** ACTIVE | **Sent:** 338 | **Replies:** 0 (0.0%) | **Created:** 2026-03-23",
+      "stats": {
+        "total_leads": 1504,
+        "status_breakdown": {
+          "STARTED": 1495,
+          "PAUSED": 9
+        },
+        "positive_responses": 0,
+        "response_rate": 0.0
+      }
+    }
+  },
+  "summary": {
+    "total_campaigns": 4,
+    "total_leads": 3466,
+    "total_positive": 0
+  }
+}
