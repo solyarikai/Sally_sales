@@ -71,12 +71,14 @@ function Tick({ checked, indeterminate, onChange, className }: {
 // ── Sortable Header ──────────────────────────────────────────────────
 
 // ── Custom styled select (replaces native <select>) ─────────────────
-function StyledSelect({ value, onChange, options, placeholder, className: cls }: {
+function StyledSelect({ value, onChange, options, placeholder, className: cls, renderOption, renderSelected }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
   placeholder?: string;
   className?: string;
+  renderOption?: (opt: { value: string; label: string }, isSelected: boolean) => React.ReactNode;
+  renderSelected?: (opt: { value: string; label: string }) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -92,7 +94,7 @@ function StyledSelect({ value, onChange, options, placeholder, className: cls }:
       <button onClick={() => setOpen(!open)} type="button"
         className="w-full h-8 flex items-center justify-between gap-1 px-2.5 rounded-lg text-xs truncate outline-none"
         style={{ border: `1px solid ${A.border}`, background: A.surface, color: selected ? A.text1 : A.text3, cursor: 'pointer' }}>
-        <span className="truncate">{selected ? selected.label : (placeholder || 'Select...')}</span>
+        <span className="truncate">{selected ? (renderSelected ? renderSelected(selected) : selected.label) : (placeholder || 'Select...')}</span>
         <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: A.text3 }} />
       </button>
       {open && (
@@ -108,11 +110,11 @@ function StyledSelect({ value, onChange, options, placeholder, className: cls }:
           )}
           {options.map(o => (
             <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
-              className="w-full text-left px-3 py-1.5 text-xs truncate"
+              className={`w-full text-left px-3 ${renderOption ? 'py-2' : 'py-1.5'} text-xs`}
               style={{ color: value === o.value ? A.blue : A.text1, background: value === o.value ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
               onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = '#F5F5F0'; }}
               onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = ''; }}>
-              {o.label}
+              {renderOption ? renderOption(o, value === o.value) : o.label}
             </button>
           ))}
         </div>
@@ -3305,6 +3307,14 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     return list;
   }, [accounts, filterCampaign, filterAccountTag]);
 
+  const accountMap = useMemo(() => {
+    const m: Record<string, any> = {};
+    for (const a of filteredAccounts) m[String(a.id)] = a;
+    return m;
+  }, [filteredAccounts]);
+
+  const statusColors: Record<string, string> = { active: '#22c55e', paused: '#f59e0b', spamblocked: '#ef4444', frozen: '#3b82f6', banned: '#dc2626', dead: '#6b7280' };
+
   // Apply handler — loads dialogs
   const handleApply = useCallback(async () => {
     const hasFilter = filterAccount || filterCampaign || filterTag || filterLeadStatus;
@@ -3669,7 +3679,36 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
             value={filterAccount}
             onChange={setFilterAccount}
             placeholder="Account"
-            options={filteredAccounts.map((a: any) => ({ value: String(a.id), label: `${a.phone}${a.username ? ` @${a.username}` : ''}` }))}
+            options={filteredAccounts.map((a: any) => ({ value: String(a.id), label: [a.first_name, a.last_name].filter(Boolean).join(' ') || a.phone || `#${a.id}` }))}
+            renderSelected={(opt) => {
+              const a = accountMap[opt.value];
+              if (!a) return opt.label;
+              const name = [a.first_name, a.last_name].filter(Boolean).join(' ');
+              const st = a.tg_status || 'active';
+              return (
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusColors[st] || '#6b7280' }} />
+                  <span className="truncate">{name || a.phone}{a.username ? ` @${a.username}` : ''}</span>
+                </span>
+              );
+            }}
+            renderOption={(opt, isSel) => {
+              const a = accountMap[opt.value];
+              if (!a) return opt.label;
+              const name = [a.first_name, a.last_name].filter(Boolean).join(' ');
+              const st = a.tg_status || 'active';
+              return (
+                <div className="flex items-start gap-2">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1" style={{ background: statusColors[st] || '#6b7280' }} />
+                  <div className="min-w-0">
+                    <div className="font-medium truncate" style={{ color: isSel ? A.blue : A.text1 }}>{name || a.phone || `#${a.id}`}</div>
+                    <div className="truncate" style={{ color: A.text3, fontSize: 10 }}>
+                      {a.username ? `@${a.username}` : ''}{a.username && a.phone ? ' · ' : ''}{a.phone || ''}{st !== 'active' ? ` · ${st}` : ''}
+                    </div>
+                  </div>
+                </div>
+              );
+            }}
           />
           {/* Row 2: Campaign + Account Tag */}
           <div className="flex gap-1.5">

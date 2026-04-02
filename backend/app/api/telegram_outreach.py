@@ -4590,8 +4590,10 @@ async def list_inbox_accounts(session: AsyncSession = Depends(get_session)):
             "phone": a.phone,
             "username": a.username,
             "first_name": a.first_name,
+            "last_name": a.last_name,
             "is_connected": a.is_connected,
             "auth_status": a.auth_status,
+            "tg_status": tg.status.value if tg else None,
             "campaign_ids": campaign_ids,
             "tag_names": tag_names,
         })
