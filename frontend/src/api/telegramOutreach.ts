@@ -501,6 +501,12 @@ export const telegramOutreachApi = {
     })).data;
   },
 
+  addByPhone: async (phone: string, twoFaPassword?: string) =>
+    (await api.post<{ account_id: number; phone: string; status: string; device_model: string }>(
+      `${BASE}/accounts/add-by-phone`, null,
+      { params: { phone, ...(twoFaPassword ? { two_fa_password: twoFaPassword } : {}) } }
+    )).data,
+
   authSendCode: async (accountId: number) =>
     (await api.post(`${BASE}/accounts/${accountId}/auth/send-code`)).data,
 

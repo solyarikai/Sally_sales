@@ -3482,6 +3482,7 @@ async def list_campaign_messages(
 from app.models.telegram_outreach import TgIncomingReply
 from app.schemas.telegram_outreach import TgIncomingReplyResponse, TgIncomingReplyListResponse
 from app.services.telegram_engine import telegram_engine, TelegramEngine, session_file_to_string_session
+from telethon.sessions import StringSession
 
 
 async def _get_account_with_proxy(account_id: int, session: AsyncSession) -> tuple:
@@ -3570,6 +3571,89 @@ async def upload_session(account_id: int, file: UploadFile = File(...),
 
 # ── Auth flow ─────────────────────────────────────────────────────────
 
+
+async def _save_session_after_auth(account_id: int, account, session: AsyncSession):
+    """After successful auth, save StringSession and user info from get_me()."""
+    client = telegram_engine.get_client(account_id)
+    if not client:
+        return
+    try:
+        if await client.is_user_authorized():
+            me = await client.get_me()
+            if me:
+                account.telegram_user_id = me.id
+                if me.username:
+                    account.username = me.username
+                if me.first_name:
+                    account.first_name = me.first_name
+                if me.last_name:
+                    account.last_name = me.last_name
+            account.string_session = StringSession.save(client.session)
+            account.session_file = account.phone
+            account.status = TgAccountStatus.ACTIVE
+            account.last_connected_at = func.now()
+            logger.info(f"Session saved for account {account_id} ({account.phone})")
+    except Exception as e:
+        logger.warning(f"Failed to save session after auth for {account_id}: {e}")
+
+
+@router.post("/accounts/add-by-phone")
+async def add_by_phone(
+    phone: str = Query(..., description="Phone number with country code, e.g. 351920619583"),
+    two_fa_password: Optional[str] = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Create account + auto-generate fingerprint + send auth code in one step."""
+    phone = phone.strip().lstrip("+")
+    if not phone:
+        raise HTTPException(400, "Phone is required")
+
+    # Check duplicate
+    existing = await session.execute(select(TgAccount).where(TgAccount.phone == phone))
+    if existing.scalar():
+        raise HTTPException(409, f"Account with phone {phone} already exists")
+
+    # Generate unique fingerprint using device_fingerprints pool
+    from app.services.device_fingerprints import generate_fingerprint
+    existing_models_q = await session.execute(select(TgAccount.device_model).where(TgAccount.device_model.isnot(None)))
+    existing_models = {r[0] for r in existing_models_q.all()}
+    fp = generate_fingerprint(exclude_models=existing_models)
+
+    # Create account with TDesktop credentials
+    account = TgAccount(
+        phone=phone,
+        api_id=TDESKTOP_API_ID,
+        api_hash=TDESKTOP_API_HASH,
+        device_model=fp["device_model"],
+        system_version=fp["system_version"],
+        app_version=fp["app_version"],
+        lang_code=fp["lang_code"],
+        system_lang_code=fp["system_lang_code"],
+        two_fa_password=two_fa_password,
+        country_code=_detect_country(phone),
+        session_created_at=func.now(),
+        daily_message_limit=5,
+    )
+    session.add(account)
+    await session.flush()
+
+    # Send auth code
+    kwargs = _account_connect_kwargs(account, proxy=None)
+    try:
+        result = await telegram_engine.send_code(account.id, **kwargs)
+    except Exception as e:
+        # Rollback the account creation if send_code fails
+        await session.delete(account)
+        raise HTTPException(400, f"Failed to send code: {e}")
+
+    return {
+        "account_id": account.id,
+        "phone": account.phone,
+        "status": result.get("status", "code_sent"),
+        "device_model": fp["device_model"],
+    }
+
+
 @router.post("/accounts/{account_id}/auth/send-code")
 async def auth_send_code(account_id: int, session: AsyncSession = Depends(get_session)):
     account, proxy = await _get_account_with_proxy(account_id, session)
@@ -3586,8 +3670,7 @@ async def auth_verify_code(account_id: int, code: str = Query(...),
     if result.get("status") == "authorized":
         account = await session.get(TgAccount, account_id)
         if account:
-            account.status = TgAccountStatus.ACTIVE
-            account.last_connected_at = func.now()
+            await _save_session_after_auth(account_id, account, session)
 
     return result
 
@@ -3600,8 +3683,9 @@ async def auth_verify_2fa(account_id: int, password: str = Query(...),
     if result.get("status") == "authorized":
         account = await session.get(TgAccount, account_id)
         if account:
-            account.status = TgAccountStatus.ACTIVE
-            account.last_connected_at = func.now()
+            if password:
+                account.two_fa_password = password
+            await _save_session_after_auth(account_id, account, session)
 
     return result
 
