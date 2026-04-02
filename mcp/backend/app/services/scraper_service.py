@@ -139,6 +139,18 @@ class ScraperService:
         port = getattr(settings, 'APIFY_PROXY_PORT', 8000)
         return f"http://groups-RESIDENTIAL,session-{session_id}:{password}@{host}:{port}"
 
+    def _is_retryable(self, result: Dict) -> bool:
+        """Check if a scrape failure is worth retrying."""
+        sc = result.get("status_code")
+        err = result.get("error", "")
+        # Standard retryable: 429, 5xx
+        if sc and (sc == 429 or sc >= 500):
+            return True
+        # Apify proxy upstream errors (590 UPSTREAM502/504) or timeouts
+        if "UPSTREAM" in err or "TIMEOUT" in err:
+            return True
+        return False
+
     async def scrape_website(self, url: str, timeout: int = 15, max_retries: int = 3) -> Dict[str, Any]:
         original = url
         is_valid, normalized, error = self._validate_url(url)
@@ -147,24 +159,86 @@ class ScraperService:
 
         result = await self._fetch_url(original, normalized, timeout)
 
-        # Retry on 429 / 5xx with exponential backoff
-        retryable = result.get("status_code") in (429, 500, 502, 503, 504)
+        # Retry with proxy on retryable errors
         for attempt in range(max_retries):
-            if result["success"] or not retryable:
+            if result["success"] or not self._is_retryable(result):
                 break
             delay = (attempt + 1) * 2  # 2s, 4s
-            logger.debug(f"Retry {attempt+1}/{max_retries} for {url} after {delay}s (status {result.get('status_code')})")
+            logger.debug(f"Retry {attempt+1}/{max_retries} for {url} after {delay}s (status {result.get('status_code')}, {result.get('error', '')[:40]})")
             await asyncio.sleep(delay)
             result = await self._fetch_url(original, normalized, timeout)
-            retryable = result.get("status_code") in (429, 500, 502, 503, 504)
 
-        # HTTP fallback
+        # Direct fetch fallback (no proxy) when proxy keeps failing
+        if not result["success"] and self._get_proxy_url():
+            err = result.get("error", "")
+            proxy_failure = ("UPSTREAM" in err or "CONNECTION" in err or "TIMEOUT" in err
+                             or (result.get("status_code") or 0) >= 500)
+            if proxy_failure:
+                logger.debug(f"Proxy failed for {url}, trying direct fetch")
+                direct_result = await self._fetch_url_direct(original, normalized, timeout)
+                if direct_result["success"]:
+                    return direct_result
+                # Also try HTTP if HTTPS direct failed
+                if "CONNECTION" in direct_result.get("error", "") or "SSL" in direct_result.get("error", ""):
+                    http_url = normalized.replace("https://", "http://")
+                    http_result = await self._fetch_url_direct(original, http_url, timeout)
+                    if http_result["success"]:
+                        return http_result
+
+        # HTTP fallback (with proxy)
         if not result["success"] and "CONNECTION" in result.get("error", ""):
             http_url = normalized.replace("https://", "http://")
             http_result = await self._fetch_url(original, http_url, timeout)
             if http_result["success"]:
                 return http_result
         return result
+
+    async def _fetch_url_direct(self, original: str, fetch_url: str, timeout: int) -> Dict[str, Any]:
+        """Fetch URL WITHOUT proxy — fallback when residential proxy fails."""
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(timeout),
+                follow_redirects=True,
+                verify=True,
+            ) as client:
+                response = await client.get(fetch_url, headers=self._get_headers())
+                status_code = response.status_code
+
+                if status_code == 403:
+                    return {"success": False, "error": "BLOCKED: Access denied (403)", "url": original, "status_code": 403}
+                elif status_code == 404:
+                    return {"success": False, "error": "NOT_FOUND: Page does not exist (404)", "url": original, "status_code": 404}
+                elif status_code >= 400:
+                    return {"success": False, "error": f"ERROR: HTTP {status_code}", "url": original, "status_code": status_code}
+
+                try:
+                    html = response.text
+                except Exception:
+                    try:
+                        html = response.content.decode('utf-8', errors='ignore')
+                    except Exception:
+                        html = response.content.decode('latin-1', errors='ignore')
+
+                if self._is_binary_content(html):
+                    return {"success": False, "error": "ENCODING_ERROR: Could not decode page content", "url": original, "status_code": status_code}
+
+                text = self._extract_text(html, fetch_url)
+                if not text or len(text) < 50:
+                    return {"success": False, "error": "EMPTY: No text content", "url": original, "status_code": status_code}
+
+                return {"success": True, "text": text, "url": original, "final_url": str(response.url), "status_code": status_code}
+
+        except httpx.TimeoutException:
+            return {"success": False, "error": "TIMEOUT: Direct fetch timed out", "url": original, "status_code": None}
+        except httpx.ConnectError as e:
+            error_str = str(e).lower()
+            if "ssl" in error_str or "certificate" in error_str:
+                return {"success": False, "error": "SSL_ERROR: Certificate verification failed", "url": original, "status_code": None}
+            if "nodename" in error_str or "getaddrinfo" in error_str:
+                return {"success": False, "error": "DNS_ERROR: Domain not found", "url": original, "status_code": None}
+            return {"success": False, "error": "CONNECTION_ERROR: Could not connect", "url": original, "status_code": None}
+        except Exception as e:
+            return {"success": False, "error": f"ERROR: {str(e)[:100]}", "url": original, "status_code": None}
 
     async def _fetch_url(self, original: str, fetch_url: str, timeout: int) -> Dict[str, Any]:
         """Fetch URL with Apify residential proxy + full text extraction."""
