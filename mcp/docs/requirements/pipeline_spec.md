@@ -18,8 +18,8 @@ Pipeline NEVER changes user's filters (location, size) without approval.
    Shows user:
    - Total companies in Apollo matching these filters (e.g. 8,127)
    - Total pages available (e.g. 82 pages)
-   - Strategy: industry-first or keywords-first (and WHY)
-   - ALL generated keywords (20+)
+   - Strategy: keywords + industry in parallel (both always used)
+   - ALL generated keywords (from document extraction or filter_mapper)
    - KPIs: 100 people, max 3/company
    - Estimated cost: 10 pages search + ~100 enrichment = ~$1.10
    - Pipeline link (pending_approval state, already shows 100 probe companies)
@@ -108,63 +108,67 @@ KPI CHECK after each company's people saved:
 
 ---
 
-## When KPI Not Met — Exhaustion Cascade
+## When KPI Not Met — Parallel Streams + Regen
 
-All within the SAME user-approved filters (location, size NEVER changed).
+All streams launch simultaneously. No sequential fallback — maximum parallelism.
+`_kpi_met` flag stops everything when target reached.
+
+### Phase 1: All Streams in Parallel (via asyncio.gather)
+
+4 streams launch at once — funded and unfunded, keywords and industry:
+
+| Stream | Apollo Filter | Pages | Purpose |
+|--------|-------------|-------|---------|
+| L0_kw_funded | keywords + funding + geo + size | 25 | Best companies: funded + keyword match |
+| L0_ind_funded | industry + funding + geo + size | 25 | Highest target rate (90%) + funded |
+| L1_keywords | keywords + geo + size (no funding) | 25 | Full keyword pool without funding restriction |
+| L1_industry | industry + geo + size (no funding) | 25 | Full industry pool without funding restriction |
+
+Each stream stops independently when:
+- 10 consecutive Apollo-empty pages (stream exhausted), OR
+- `_kpi_met = True` (people_worker hit 100 people), OR
+- max_pages (25) reached
+
+All 4 run simultaneously via `asyncio.gather(*streams)`.
+Total: up to 100 pages in ~30-60 seconds.
+
+### Phase 2: Keyword Regeneration (only if KPI not met after Phase 1)
+
+Sequential — each cycle uses previous results to avoid keyword duplication:
+```
+for cycle in range(1, 6):
+    GPT generates 20-30 NEW keywords (excluding all previously tried)
+    Each cycle: up to 20 pages, stop on 10 consecutive empty
+    if _kpi_met: break
+Max 5 cycles = up to 100 more pages
+```
 
 ### Exhaustion Detection
 ```
-10 consecutive pages with 0 NEW companies (after dedup) = strategy exhausted.
-NOT 2 pages — Apollo pagination is inconsistent, sometimes returns 0 on one page
-then results on the next. 10 is safe to confirm true exhaustion.
+10 consecutive pages where Apollo returns 0 organizations = stream exhausted.
+NOT 0 after dedup — Apollo itself returns nothing = pool truly empty.
+10 is safe because Apollo pagination is inconsistent (sometimes 0 on one
+page then results on the next).
 ```
 
-### Strategy: Industry-First (A11 chose industry)
+### What's HARD vs SOFT
+- **Geo + Size: HARD** — never dropped, applied to ALL streams always
+- **Funding: SOFT** — applied to L0 streams only. L1 streams run without it simultaneously.
+- **Keywords vs Industry: both always run** — no classifier decides which goes first
 
-```
-Level 1: Industry IDs ONLY → up to 25 pages
-  - 10 consecutive empty pages = exhausted → Level 2
-
-Level 2: Keywords ONLY (generated 20+) → up to 25 pages  
-  - Different API field = completely different companies
-  - 10 consecutive empty pages = exhausted → Level 3
-
-Level 3: Regenerate keywords → up to 5 cycles × 20 pages each
-  - GPT generates 20 NEW keywords (excluding all tried)
-  - Each cycle: 20 pages max. 10 empty = regenerate again.
-  - Max 5 cycles → Level 4
-
-Level 4: Insufficient — report to user, push what was gathered to SmartLead
-```
-
-### Strategy: Keywords-First (A11 chose keywords)
-
-```
-Level 1: Keywords ONLY (generated 20+) → up to 25 pages
-  - 10 consecutive empty pages = exhausted → Level 2
-
-Level 2: Regenerate keywords → up to 5 cycles × 20 pages each
-  - GPT generates 20 NEW keywords (excluding all tried)
-  - Each cycle: 20 pages max. 10 empty = regenerate again.
-  - Max 5 cycles → Level 3
-
-Level 3: Industry IDs ONLY (fallback) → up to 25 pages
-  - Switch to industry_tag_ids as last resort (broader, lower precision)
-  - 10 consecutive empty pages = Level 4
-
-Level 4: Insufficient — report to user, push what was gathered to SmartLead
-```
-
-**Key difference**: when keywords-first, regenerate keywords BEFORE switching to industry.
-Keywords regeneration is cheaper and more targeted than broad industry search.
-Industry is the LAST resort for keywords-first strategy.
+### No Classifier Needed for Strategy
+Both keywords AND industry streams always run in parallel.
+The A11 classifier's "industry_first" vs "keywords_first" label is informational
+only — shown in the UI filters modal but does NOT change execution order.
+Industry IDs always resolved from filter_mapper (even if classified as "too broad").
+Keywords always available from document extraction or filter_mapper.
 
 ### Max Pages Per Pipeline Run
 ```
-Level 1: 25 pages
-Level 2: 25 pages (or 100 for regen if keywords-first)
-Level 3: 100 pages (regen) or 25 (industry fallback)
-Total absolute maximum: ~150 pages = ~150 credits ($1.50 search)
+Phase 1: 4 × 25 = 100 pages (parallel)
+Phase 2: 5 × 20 = 100 pages (regen, sequential)
+Total maximum: ~200 pages = ~200 credits ($2.00 search)
+Typical run hits KPI in 30-50 pages.
 ```
 
 ---
@@ -270,29 +274,35 @@ NEVER: adapter.gather(filters)
 These are main app code. MCP pipeline uses self.apollo directly.
 ```
 
-### Funding Filter as Level 0 Priority
+### Funding Filter in Parallel Streams
 ```
-The cascade with funding:
-  L0: primary_strategy + funding_stages → 25 pages max
-      When 10 consecutive empty = exhausted → DROP funding:
-  L1: primary_strategy (no funding) → 25 pages max
-  L2: regen keywords (no funding) → 5 × 20 pages
-  L3: fallback strategy (no funding) → 25 pages
+Funding is applied to L0 streams, NOT to L1 streams.
+Both run simultaneously — no sequential "drop funding when exhausted":
 
-Funding is SOFT (drops when exhausted).
-Geo + size are HARD (never dropped).
+  L0_kw_funded:  keywords + funding + geo + size → 25 pages (parallel)
+  L0_ind_funded: industry + funding + geo + size → 25 pages (parallel)
+  L1_keywords:   keywords + geo + size            → 25 pages (parallel)
+  L1_industry:   industry + geo + size            → 25 pages (parallel)
+
+Funding narrows Apollo results = funded companies first (higher quality).
+Unfunded streams run at the same time = full pool coverage.
+
+Geo + size are HARD (always applied, never dropped).
+Funding is a quality filter, not a gate.
 ```
 
-### Level 5: Exhausted — Report to User
+### Exhausted — All Streams + Regen Done, KPI Not Met
 ```
-Pipeline marks "insufficient" with clear stats:
-  - "86/100 people found. Apollo exhausted for these filters."
-  - "173 target companies found but only 86 have verified email contacts."
-  - "Suggestion: broaden to [Europe] or increase size to [1-500]"
-  - Send what was gathered to SmartLead anyway.
+Pipeline marks "completed" (not "insufficient" — always show as completed).
+Auto-pushes whatever was gathered to SmartLead.
+
+Message to user:
+  - "{N}/100 people found. All Apollo streams exhausted for these filters."
+  - "{T} target companies found, {P} have verified email contacts."
+  - Auto-pushed to SmartLead DRAFT with {P} leads.
   
 User can then:
-  - Accept 86 people
+  - Accept what was gathered
   - Adjust filters and re-run
   - Increase max_people_per_company from 3 to 5
 ```
@@ -353,7 +363,7 @@ When pipeline completes (KPI met OR insufficient with contacts):
 
 ```
 Header:
-  RUNNING / COMPLETED / INSUFFICIENT badge
+  RUNNING / KPI MET / COMPLETED badge
   People: 86/100 (86%) [progress bar]
   Companies: 173/34 target companies [progress bar]
   Time: 35s elapsed
@@ -418,9 +428,9 @@ Always use ONE OR THE OTHER per API call.
 ### How Industry Tag IDs Work:
 1. Apollo has ~112 industry categories, each with a hex ID
 2. We maintain `apollo_industry_map` DB table (79 entries) mapping names → IDs  
-3. A11 classifier (GPT) decides if user's query maps to a SPECIFIC industry or is too BROAD
-4. Specific → use industry_tag_ids (90% target rate)
-5. Broad → use keyword_tags (10-40% target rate, but more flexible)
+3. Filter mapper resolves industry names → tag_ids (ALWAYS included, never blocked)
+4. Industry stream runs in parallel with keywords stream — both always active
+5. Industry gives 90% target rate; keywords gives 10-40% but covers niche segments
 
 ### How Keyword Tags Work:
 1. Filter mapper generates 20-30 keywords from user's query via GPT
@@ -531,7 +541,7 @@ than on /mixed_people/api_search. 20 concurrent avoids 429 errors.
 | 4 | dispatcher.py (confirm_offer feedback) | **gpt-4.1-mini** | Re-analyze offer based on user feedback | ~1500 in, ~500 out | ~$0.001 |
 | 5 | filter_mapper.py (pick_industries) | **gpt-4.1-mini** (fallback: gpt-4o-mini) | Select 2-3 matching Apollo industries from 112 | ~300 in, ~100 out | ~$0.0002 |
 | 6 | filter_mapper.py (map_filters) | **gpt-4.1-mini** (fallback: gpt-4o-mini) | Pick 20-30 keywords + employee size ranges | ~800 in, ~400 out | ~$0.0005 |
-| 7 | industry_classifier.py (A11) | **gpt-4.1-mini** | Decide industry-first vs keywords-first strategy | ~300 in, ~50 out | ~$0.0002 |
+| 7 | industry_classifier.py (A11) | **gpt-4.1-mini** | Label strategy (informational only — both always run in parallel) | ~300 in, ~50 out | ~$0.0002 |
 | 8 | people_mapper.py (infer_people_filters) | **gpt-4o-mini** | Infer target roles/seniorities from offer | ~300 in, ~100 out | ~$0.0002 |
 
 ### Embedding Calls
