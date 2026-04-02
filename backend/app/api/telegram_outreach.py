@@ -275,6 +275,29 @@ async def _try_reassign_proxy(session: AsyncSession, account: TgAccount) -> TgPr
     return None
 
 
+async def _sync_proxy_to_dm_account(session: AsyncSession, phone: str, proxy: TgProxy | None):
+    """Sync assigned proxy from TgAccount to TelegramDMAccount.proxy_config (matched by phone)."""
+    if not phone:
+        return
+    result = await session.execute(
+        select(TelegramDMAccount).where(TelegramDMAccount.phone == phone)
+    )
+    dm_acc = result.scalar_one_or_none()
+    if not dm_acc:
+        return
+    if proxy:
+        dm_acc.proxy_config = {
+            "type": proxy.protocol.value if proxy.protocol else "socks5",
+            "host": proxy.host,
+            "port": proxy.port,
+            "username": proxy.username,
+            "password": proxy.password,
+        }
+    else:
+        dm_acc.proxy_config = None
+    logger.info(f"Proxy sync: dm_account {dm_acc.id} ({phone}) ← proxy {'%s:%s' % (proxy.host, proxy.port) if proxy else 'cleared'}")
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # PROXY GROUPS
 # ═══════════════════════════════════════════════════════════════════════
@@ -505,6 +528,7 @@ async def check_proxy_group(group_id: int, auto_delete: bool = Query(False),
     reassigned_count = 0
     for acc in reassign_accounts:
         new_proxy = await _try_reassign_proxy(session, acc)
+        await _sync_proxy_to_dm_account(session, acc.phone, new_proxy)
         if new_proxy:
             reassigned_count += 1
 
@@ -764,6 +788,11 @@ async def update_account(account_id: int, data: TgAccountUpdate, session: AsyncS
 
     await session.flush()
 
+    # Auto-sync proxy to DM account when assigned_proxy_id changes
+    if "assigned_proxy_id" in changed_fields:
+        proxy = await session.get(TgProxy, account.assigned_proxy_id) if account.assigned_proxy_id else None
+        await _sync_proxy_to_dm_account(session, account.phone, proxy)
+
     # Auto-sync profile to Telegram if session exists and profile fields changed
     profile_fields = {"first_name", "last_name", "bio", "username"}
     changed_profile = profile_fields & set(changed_fields.keys())
@@ -856,9 +885,11 @@ async def bulk_assign_proxy(data: TgBulkAssignProxy, session: AsyncSession = Dep
             proxy = next(proxy_iter, None)
             if proxy:
                 account.assigned_proxy_id = proxy.id
+                await _sync_proxy_to_dm_account(session, account.phone, proxy)
                 assigned_count += 1
             else:
                 account.assigned_proxy_id = None
+                await _sync_proxy_to_dm_account(session, account.phone, None)
     return {"ok": True, "count": len(data.account_ids),
             "proxies_assigned": assigned_count,
             "proxies_available": len(free_proxies)}
