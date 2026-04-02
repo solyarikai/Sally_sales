@@ -29,10 +29,10 @@ export default function SetupPage() {
   const [tokenCopied, setTokenCopied] = useState(false)
   const [showToken, setShowToken] = useState(false)
 
-  const copyToken = () => {
+  const copyToClipboard = (text: string) => {
     // Fallback for HTTP (navigator.clipboard requires HTTPS)
     const ta = document.createElement('textarea')
-    ta.value = token
+    ta.value = text
     ta.style.position = 'fixed'
     ta.style.opacity = '0'
     document.body.appendChild(ta)
@@ -42,6 +42,8 @@ export default function SetupPage() {
     setTokenCopied(true)
     setTimeout(() => setTokenCopied(false), 2000)
   }
+
+  const copyToken = () => copyToClipboard(token)
 
   useEffect(() => {
     if (!token) { window.location.href = '/'; return }
@@ -233,18 +235,18 @@ export default function SetupPage() {
 {`{
   "mcpServers": {
     "leadgen": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://46.62.210.24:8002/mcp/sse?token=${showToken ? token : token.slice(0, 16) + '...'}"]
+      "type": "sse",
+      "url": "http://46.62.210.24:8002/mcp/sse?token=${token}"
     }
   }
 }`}
         </code>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={() => { navigator.clipboard.writeText(JSON.stringify({mcpServers:{leadgen:{command:"npx",args:["-y","mcp-remote",`http://46.62.210.24:8002/mcp/sse?token=${token}`]}}}, null, 2)); copyToken() }}
+          <button onClick={() => copyToClipboard(JSON.stringify({mcpServers:{leadgen:{type:"sse",url:`http://46.62.210.24:8002/mcp/sse?token=${token}`}}}, null, 2))}
             style={{ fontSize: 11, padding: '4px 12px', borderRadius: 4, border: '1px solid var(--border)', background: tokenCopied ? '#22c55e' : 'transparent', color: tokenCopied ? 'white' : '#3b82f6', cursor: 'pointer', fontWeight: 500 }}>
             {tokenCopied ? 'Copied!' : 'Copy .mcp.json'}
           </button>
-          <span>Paste into your project's <code style={{ fontSize: 11 }}>.mcp.json</code> file. Requires Node.js.</span>
+          <span>Paste into your project's <code style={{ fontSize: 11 }}>.mcp.json</code> file.</span>
         </div>
       </div>
     </div>
