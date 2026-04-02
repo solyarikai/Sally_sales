@@ -24,6 +24,7 @@ from app.models.telegram_outreach import (
     TgWarmupLog, TgWarmupActionType,
 )
 from app.services.telegram_engine import telegram_engine
+from app.services.warmup_messages import ALL_QUESTIONS, ALL_ANSWERS
 
 logger = logging.getLogger(__name__)
 
@@ -366,8 +367,8 @@ class WarmupWorker:
             return
 
         try:
-            # Pick a random warmup message
-            message = random.choice(WARMUP_MESSAGES)
+            # Pick a random warmup message (question for openers, answer for replies)
+            message = random.choice(ALL_QUESTIONS)
             entity = await client.get_entity(buddy.telegram_user_id)
             await client.send_message(entity, message)
             await asyncio.sleep(random.uniform(2, 5))
@@ -383,51 +384,6 @@ class WarmupWorker:
         finally:
             await telegram_engine.disconnect(account.id)
 
-
-# ── Warmup message bank (Russian + English) ─────────────────────────
-
-WARMUP_MESSAGES = [
-    # Greetings / how are you
-    "Привет, как дела?",
-    "Здарова! Как жизнь?",
-    "Привет! Как прошёл день?",
-    "Hey, what's up?",
-    "Hi! How's it going?",
-    "Привет! Давно не общались",
-    "Как твои дела сегодня?",
-    "Привет) Что нового?",
-    "Hello! How are you doing?",
-    "Hey there! What's new?",
-    # Weather / weekend
-    "Какие планы на выходные?",
-    "Как погода у вас?",
-    "Any plans for the weekend?",
-    "Классная погода сегодня, не находишь?",
-    "Что делаешь в субботу?",
-    # Work
-    "Как работа, всё хорошо?",
-    "Много работы сегодня?",
-    "How's work going?",
-    "Busy day today?",
-    "Как там проект продвигается?",
-    # Recommendations
-    "Есть что посмотреть хорошее?",
-    "Можешь что-то посоветовать почитать?",
-    "Any good movie recommendations?",
-    "Что нового посмотрел?",
-    "Слышал про какие-нибудь хорошие книги?",
-    # General
-    "Ок, понял тебя",
-    "Согласен!",
-    "Точно, верно подмечено",
-    "Sounds good!",
-    "Makes sense, thanks",
-    "Да, согласен на 100%",
-    "Хорошая идея!",
-    "Ладно, давай созвонимся потом",
-    "Cool, let's catch up later",
-    "Всё понятно, спасибо!",
-]
 
 
 # Singleton
