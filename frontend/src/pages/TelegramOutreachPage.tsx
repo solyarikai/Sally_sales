@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
@@ -20,6 +20,31 @@ import type {
 } from '../api/telegramOutreach';
 
 type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'pipeline' | 'blacklist' | 'inbox' | 'info';
+
+const TAB_ROUTES: Record<Tab, string> = {
+  inbox: '/outreach/inbox',
+  campaigns: '/outreach/campaigns',
+  accounts: '/outreach/accounts',
+  crm: '/outreach/crm/leads',
+  pipeline: '/outreach/crm/pipeline',
+  parser: '/outreach/tools/parser',
+  proxies: '/outreach/tools/proxies',
+  blacklist: '/outreach/tools/blacklist',
+  info: '/outreach/settings',
+};
+
+function pathToTab(pathname: string): Tab {
+  if (pathname.startsWith('/outreach/crm/leads')) return 'crm';
+  if (pathname.startsWith('/outreach/crm/pipeline')) return 'pipeline';
+  if (pathname.startsWith('/outreach/tools/parser')) return 'parser';
+  if (pathname.startsWith('/outreach/tools/proxies')) return 'proxies';
+  if (pathname.startsWith('/outreach/tools/blacklist')) return 'blacklist';
+  if (pathname.startsWith('/outreach/inbox')) return 'inbox';
+  if (pathname.startsWith('/outreach/campaigns')) return 'campaigns';
+  if (pathname.startsWith('/outreach/accounts')) return 'accounts';
+  if (pathname.startsWith('/outreach/settings')) return 'info';
+  return 'campaigns';
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -189,7 +214,10 @@ export function TelegramOutreachPage() {
     toastCtx[type](msg);
   }, [toastCtx]);
 
-  const [tab, setTab] = useState<Tab>('accounts');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const tab: Tab = pathToTab(location.pathname);
+  const setTab = useCallback((t: Tab) => navigate(TAB_ROUTES[t]), [navigate]);
   const [workerRunning, setWorkerRunning] = useState(false);
 
   // Poll worker status
@@ -936,7 +964,7 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
     try {
       const created = await telegramOutreachApi.createCampaign({ name: 'New Campaign' });
       toast('Campaign created', 'success');
-      navigate(`/telegram-outreach/campaign/${created.id}`);
+      navigate(`/outreach/campaigns/${created.id}`);
     } catch {
       toast('Failed to create campaign', 'error');
     }
@@ -1047,7 +1075,7 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
                 <tr
                   key={c.id}
                   style={{ borderTop: `1px solid ${A.border}`, cursor: 'pointer' }}
-                  onClick={() => navigate(`/telegram-outreach/campaign/${c.id}`)}
+                  onClick={() => navigate(`/outreach/campaigns/${c.id}`)}
                   onMouseEnter={e => { e.currentTarget.style.background = '#F8F8F5'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = ''; }}
                 >

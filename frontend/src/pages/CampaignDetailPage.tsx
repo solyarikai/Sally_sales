@@ -72,7 +72,7 @@ export function CampaignDetailPage() {
     return (
       <div className={cn('flex flex-col items-center justify-center h-full gap-4', t.text3)}>
         <p>Campaign not found</p>
-        <button onClick={() => navigate('/telegram-outreach')}
+        <button onClick={() => navigate('/outreach/campaigns')}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">
           Back to Outreach
         </button>
@@ -101,7 +101,7 @@ export function CampaignDetailPage() {
       {/* Header */}
       <div style={{ borderBottom: `1px solid ${B.border}` }} className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/telegram-outreach')}
+          <button onClick={() => navigate('/outreach/campaigns')}
                   className="p-1.5 rounded-lg hover:bg-gray-100" style={{ color: B.text2 }}>
             <ArrowLeft className="w-5 h-5" />
           </button>

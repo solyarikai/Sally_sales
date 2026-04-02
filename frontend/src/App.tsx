@@ -194,17 +194,19 @@ function App() {
           </Layout>
         } />
 
-        {/* Telegram Outreach */}
-        <Route path="/telegram-outreach" element={
-          <Layout>
-            <TelegramOutreachPage />
-          </Layout>
-        } />
-        <Route path="/telegram-outreach/campaign/:id" element={
+        {/* Telegram Outreach — separate routes with shared sidebar */}
+        <Route path="/outreach/campaigns/:id" element={
           <Layout>
             <CampaignDetailPage />
           </Layout>
         } />
+        <Route path="/outreach/*" element={
+          <Layout>
+            <TelegramOutreachPage />
+          </Layout>
+        } />
+        {/* Legacy redirect */}
+        <Route path="/telegram-outreach" element={<Navigate to="/outreach/campaigns" replace />} />
 
         {/* Global CRM contacts page (not company-scoped) */}
         <Route path="/contacts" element={
