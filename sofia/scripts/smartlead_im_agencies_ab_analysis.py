@@ -129,17 +129,18 @@ def get_campaign_leads_by_status(campaign_id: int, status: str = "REPLIED", limi
         )
 
         if not data:
+            print(f"    ⚠️ Нет данных от API (возможно, статус-фильтр не поддерживается)")
             break
 
-        campaign_leads = data.get("data", [])
+        campaign_leads = data.get("data", []) if isinstance(data, dict) else data
         if not campaign_leads:
             break
 
         leads.extend(campaign_leads)
-        total = data.get("total_leads", 0)
+        total = data.get("total_leads", 0) if isinstance(data, dict) else len(campaign_leads)
         print(f"    ✓ Получено {len(leads)} из {total}")
 
-        if len(leads) >= total:
+        if len(leads) >= total or len(campaign_leads) < limit:
             break
 
         offset += limit
@@ -244,9 +245,13 @@ def compare_campaigns(results: List[Dict]) -> None:
 def export_results(results: List[Dict], output_dir: str = None) -> None:
     """Экспортировать результаты в JSON."""
     if output_dir is None:
-        output_dir = "/Users/sofia/Documents/GitHub/Sally_sales/sofia/projects/OnSocial/hub"
+        # Используем относительный путь от текущей директории скрипта
+        output_dir = "sofia/projects/OnSocial/hub"
 
-    output_path = Path(output_dir) / f"im_agencies_ab_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    output_file = output_path / f"im_agencies_ab_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
     export_data = {
         "analysis_date": datetime.now().isoformat(),
@@ -262,8 +267,8 @@ def export_results(results: List[Dict], output_dir: str = None) -> None:
         }
     }
 
-    output_path.write_text(json.dumps(export_data, indent=2, ensure_ascii=False))
-    print(f"\n✅ Результаты сохранены: {output_path}")
+    output_file.write_text(json.dumps(export_data, indent=2, ensure_ascii=False))
+    print(f"\n✅ Результаты сохранены: {output_file}")
 
 
 def main():
