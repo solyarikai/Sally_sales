@@ -4738,7 +4738,19 @@ async def create_new_chat(
         if row:
             tg_account_id = row[0]
     if not tg_account_id:
-        raise HTTPException(400, "No outreach account found for this phone")
+        if not dm_acc.phone:
+            raise HTTPException(400, "Account has no phone number")
+        # Auto-create TgAccount so TgInboxDialog FK is satisfied
+        new_tg = TgAccount(
+            phone=dm_acc.phone,
+            username=dm_acc.username,
+            first_name=dm_acc.first_name,
+            last_name=getattr(dm_acc, "last_name", None),
+            string_session=dm_acc.string_session,
+        )
+        session.add(new_tg)
+        await session.flush()
+        tg_account_id = new_tg.id
 
     # Connect and resolve username
     already_connected = telegram_dm_service.is_connected(dm_account_id)

@@ -47,8 +47,21 @@ class InboxSyncService:
             if row:
                 tg_account_id = row[0]
         if not tg_account_id:
-            logger.warning(f"Inbox sync: no TG outreach account found for phone {account.phone} — cannot sync")
-            return 0
+            if not account.phone:
+                logger.warning(f"Inbox sync: account {account_id} has no phone — cannot sync")
+                return 0
+            # Auto-create TgAccount so TgInboxDialog FK is satisfied
+            new_tg = TgAccount(
+                phone=account.phone,
+                username=account.username,
+                first_name=account.first_name,
+                last_name=getattr(account, "last_name", None),
+                string_session=account.string_session,
+            )
+            session.add(new_tg)
+            await session.flush()
+            tg_account_id = new_tg.id
+            logger.info(f"Inbox sync: auto-created TgAccount {tg_account_id} for phone {account.phone}")
 
         # Check if already connected — avoid disconnect at the end if so
         already_connected = telegram_dm_service.is_connected(account_id)
