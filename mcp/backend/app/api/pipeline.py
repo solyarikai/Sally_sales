@@ -641,17 +641,18 @@ async def _get_company_detail(company, session):
 
     data = _company_to_dict(company, scrape=scrape, truncate_reasoning=False)
 
-    # Add full detail fields
+    # Add full detail fields — prefer CompanyScrape, fallback to DiscoveredCompany
     if scrape:
         data["scrape_text"] = scrape.clean_text
         data["scrape_error"] = scrape.error_message
         data["scrape_http_code"] = scrape.http_status_code
         data["scrape_timestamp"] = str(scrape.scraped_at) if scrape.scraped_at else None
     else:
-        data["scrape_text"] = None
+        # Fallback: streaming pipeline stores text in DiscoveredCompany directly
+        data["scrape_text"] = company.scraped_text
         data["scrape_error"] = None
         data["scrape_http_code"] = None
-        data["scrape_timestamp"] = None
+        data["scrape_timestamp"] = str(company.scraped_at) if company.scraped_at else None
 
     # Full source_data (already included but explicitly confirm it's not stripped)
     data["source_data"] = company.source_data or {}
@@ -766,21 +767,21 @@ def _compute_company_status(c, scrape=None):
         return "blacklisted"
     if c.is_pre_filtered:
         return "filtered"
-    # Check scrape state
-    if scrape:
-        if scrape.scrape_status != "success":
-            return "scrape_failed"
-    # Check analysis state
+    # Analysis state takes priority (scrape + classify already happened)
     if c.is_target is True:
         if c.is_enriched:
             return "verified"
         return "target"
     if c.is_target is False:
         return "rejected"
-    # is_target is None — analysis hasn't run yet
-    if scrape and scrape.scrape_status == "success":
+    # Check streaming pipeline status field (set by _scraper_worker)
+    if c.status in ("scraped", "scrape_failed", "target", "rejected", "classify_failed"):
+        return c.status
+    # Fallback to CompanyScrape table (old gathering service)
+    if scrape:
+        if scrape.scrape_status != "success":
+            return "scrape_failed"
         return "scraped"
-    # No scrape yet, not blacklisted, not filtered
     return "gathered"
 
 
@@ -877,9 +878,14 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False, contacts_count=0)
         "status": _compute_company_status(c, scrape),
         "keywords": keywords,
         "apollo_url": apollo_url,
-        # Scrape info (from JOIN)
-        "scrape_status": scrape.scrape_status if scrape else None,
-        "scrape_text_size": scrape.text_size_bytes if scrape else None,
+        # Scrape info — prefer CompanyScrape, fallback to DiscoveredCompany fields
+        "scrape_status": (scrape.scrape_status if scrape else None) or (
+            "success" if c.status in ("scraped", "target", "rejected", "classify_failed") and c.scraped_text else
+            "failed" if c.status == "scrape_failed" else None
+        ),
+        "scrape_text_size": (scrape.text_size_bytes if scrape else None) or (
+            len(c.scraped_text) if c.scraped_text else None
+        ),
         "scrape_text_preview": (
             (scrape.clean_text[:150] + "...") if scrape and scrape.clean_text and len(scrape.clean_text) > 150
             else (scrape.clean_text if scrape and scrape.clean_text else None)
