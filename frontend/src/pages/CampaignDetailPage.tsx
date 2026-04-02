@@ -215,11 +215,6 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
     timezone: campaign.timezone,
     send_from_hour: campaign.send_from_hour,
     send_to_hour: campaign.send_to_hour,
-    delay_between_sends_min: campaign.delay_between_sends_min,
-    delay_between_sends_max: campaign.delay_between_sends_max,
-    delay_randomness_percent: campaign.delay_randomness_percent,
-    spamblock_errors_to_skip: campaign.spamblock_errors_to_skip,
-    followup_priority: (campaign as any).followup_priority ?? 100,
     link_preview: (campaign as any).link_preview || false,
     silent: (campaign as any).silent || false,
     delete_dialog_after: (campaign as any).delete_dialog_after || false,
@@ -329,54 +324,6 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
             <input type="number" min={0} max={23} value={form.send_to_hour}
                    onChange={e => setForm(f => ({ ...f, send_to_hour: Number(e.target.value) }))}
                    className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Delay Between Sends (min sec)</label>
-            <input type="number" min={1} value={form.delay_between_sends_min}
-                   onChange={e => setForm(f => ({ ...f, delay_between_sends_min: Number(e.target.value) }))}
-                   className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Delay Between Sends (max sec)</label>
-            <input type="number" min={1} value={form.delay_between_sends_max}
-                   onChange={e => setForm(f => ({ ...f, delay_between_sends_max: Number(e.target.value) }))}
-                   className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Delay Randomness %</label>
-            <input type="number" min={0} max={100} value={form.delay_randomness_percent}
-                   onChange={e => setForm(f => ({ ...f, delay_randomness_percent: Number(e.target.value) }))}
-                   className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Spamblock Errors to Skip</label>
-            <input type="number" min={0} value={form.spamblock_errors_to_skip}
-                   onChange={e => setForm(f => ({ ...f, spamblock_errors_to_skip: Number(e.target.value) }))}
-                   className={inputCls} />
-          </div>
-        </div>
-
-        {/* Follow-up Priority */}
-        <div className="mt-4 rounded-lg p-4" style={{ border: `1px solid ${isDark ? '#374151' : '#E5E7EB'}`, background: isDark ? '#1F2937' : '#FAFAFA' }}>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm font-semibold" style={{ color: isDark ? '#F3F4F6' : '#1F2937' }}>Prioritise sending pattern</span>
-          </div>
-          <p className="text-xs mb-3" style={{ color: isDark ? '#9CA3AF' : '#6B7280' }}>Decide how much priority needs to be given to follow ups vs new lead.</p>
-          <div className="relative">
-            <input type="range" min={0} max={100} step={10} value={form.followup_priority}
-                   onChange={e => setForm(f => ({ ...f, followup_priority: Number(e.target.value) }))}
-                   className="priority-slider"
-                   style={{ '--val': `${form.followup_priority}%` } as React.CSSProperties} />
-          </div>
-          <div className="flex justify-between mt-1.5">
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: isDark ? '#9CA3AF' : '#9CA3AF' }}>New leads first</span>
-            <span className="px-2.5 py-0.5 rounded-md text-xs font-medium"
-                  style={{ background: '#4F6BF0', color: '#fff' }}>
-              {form.followup_priority === 100 ? '100% follow ups' :
-               form.followup_priority === 0 ? '100% new leads' :
-               `${form.followup_priority}% follow up / ${100 - form.followup_priority}% new`}
-            </span>
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: isDark ? '#9CA3AF' : '#9CA3AF' }}>Follow-ups first</span>
           </div>
         </div>
 

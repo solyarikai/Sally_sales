@@ -42,6 +42,12 @@ YOUNG_SESSION_DAYS = 7     # sessions < 7 days old get extra restrictions
 YOUNG_SESSION_MAX_MSGS = 5 # hard cap for young sessions regardless of base limit
 YOUNG_SESSION_DELAY_MULT = 1.8  # delay multiplier for young sessions
 
+# ── Hardcoded sending parameters (not user-configurable) ────────────
+DELAY_BASE_MIN = 11        # min seconds between sends
+DELAY_BASE_MAX = 25        # max seconds between sends
+SPAMBLOCK_THRESHOLD = 5    # spamblock errors before account skips the day
+MAX_COLD_PER_HOUR_PER_ACCOUNT = 2  # hard limit: max cold messages per hour per account
+
 
 def get_session_age_days(account) -> int | None:
     """Return session age in days, or None if unknown."""
@@ -435,12 +441,27 @@ class SendingWorker:
         )
         account_cold_counts = {row[0]: row[1] for row in cold_counts_r.all()}
 
+        # Count cold sends per account in the last hour (hard limit: 2/hr/account)
+        hour_ago = datetime.utcnow() - timedelta(hours=1)
+        hourly_counts_r = await session.execute(
+            select(
+                TgOutreachMessage.account_id,
+                func.count(TgOutreachMessage.id),
+            ).join(TgSequenceStep, TgOutreachMessage.step_id == TgSequenceStep.id)
+            .where(
+                TgOutreachMessage.status == TgMessageStatus.SENT,
+                TgOutreachMessage.sent_at >= hour_ago,
+                TgSequenceStep.step_order == 1,
+            ).group_by(TgOutreachMessage.account_id)
+        )
+        account_hourly_cold = {row[0]: row[1] for row in hourly_counts_r.all()}
+
         # Follow-ups are UNLIMITED — don't count against daily limit
         followup_recipients = await self._pick_recipients_by_type(
             campaign.id, "followup", 500, session)
 
         # Get available accounts for new leads (filtered by cold limit)
-        available_accounts = await self._get_available_accounts(campaign, session, account_cold_counts)
+        available_accounts = await self._get_available_accounts(campaign, session, account_cold_counts, account_hourly_cold)
 
         # New leads: spread evenly across schedule window (cold only)
         cold_remaining = 500
@@ -512,7 +533,8 @@ class SendingWorker:
                 failed_for = set((recipient.custom_variables or {}).get("_failed_account_ids", []))
                 for acc in sorted(available_accounts, key=lambda a: account_pending.get(a.id, 0)):
                     acc_cold = account_cold_counts.get(acc.id, 0) + account_cold_pending.get(acc.id, 0)
-                    if acc.id not in failed_for and acc_cold < get_effective_daily_limit(acc):
+                    acc_hourly = account_hourly_cold.get(acc.id, 0) + account_cold_pending.get(acc.id, 0)
+                    if acc.id not in failed_for and acc_cold < get_effective_daily_limit(acc) and acc_hourly < MAX_COLD_PER_HOUR_PER_ACCOUNT:
                         account = acc
                         break
                 if not account:
@@ -627,10 +649,10 @@ class SendingWorker:
                         logger.info(f"{cname} @{recipient.username} has incoming reply record — marking REPLIED, skipping follow-up")
                         return
 
-                # Human-like pre-send delay (replaces flat uniform)
+                # Human-like pre-send delay (hardcoded base range)
                 delay = _human_delay(
-                    campaign.delay_between_sends_min or 11,
-                    campaign.delay_between_sends_max or 25,
+                    DELAY_BASE_MIN,
+                    DELAY_BASE_MAX,
                     campaign,
                     messages_sent_today=account.messages_sent_today,
                     session_age_days=get_session_age_days(account),
@@ -720,8 +742,8 @@ class SendingWorker:
                     # Increment per-account spamblock counter
                     if ca_link:
                         ca_link.consecutive_spamblock_errors += 1
-                    # Only mark SPAMBLOCKED when threshold reached
-                    threshold = campaign.spamblock_errors_to_skip or 5
+                    # Only mark SPAMBLOCKED when threshold reached (hardcoded)
+                    threshold = SPAMBLOCK_THRESHOLD
                     errors_count = ca_link.consecutive_spamblock_errors if ca_link else 1
                     if errors_count >= threshold:
                         account.status = TgAccountStatus.SPAMBLOCKED
@@ -847,7 +869,8 @@ class SendingWorker:
             campaign.messages_sent_today = real_camp_count
 
     async def _get_available_accounts(self, campaign: TgCampaign, session: AsyncSession,
-                                      account_cold_counts: dict[int, int] | None = None) -> list[TgAccount]:
+                                      account_cold_counts: dict[int, int] | None = None,
+                                      account_hourly_cold: dict[int, int] | None = None) -> list[TgAccount]:
         """Get accounts for campaign that haven't hit their cold-send limit.
         Daily limit only counts cold sends (step 0); follow-ups are unlimited."""
         today = datetime.utcnow().date()
@@ -872,6 +895,10 @@ class SendingWorker:
             # Warm-up aware limit check — cold sends only (follow-ups unlimited)
             cold_used = (account_cold_counts or {}).get(acc.id, 0)
             if cold_used >= get_effective_daily_limit(acc):
+                continue
+            # Hourly cold limit: max 2 cold messages per hour per account
+            hourly_used = (account_hourly_cold or {}).get(acc.id, 0)
+            if hourly_used >= MAX_COLD_PER_HOUR_PER_ACCOUNT:
                 continue
             if is_young_session(acc):
                 young_count += 1

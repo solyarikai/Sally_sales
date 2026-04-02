@@ -193,11 +193,6 @@ class TgCampaignUpdate(BaseModel):
     timezone: Optional[str] = None
     send_from_hour: Optional[int] = None
     send_to_hour: Optional[int] = None
-    delay_between_sends_min: Optional[int] = None
-    delay_between_sends_max: Optional[int] = None
-    delay_randomness_percent: Optional[int] = None
-    spamblock_errors_to_skip: Optional[int] = None
-    followup_priority: Optional[int] = None
     link_preview: Optional[bool] = None
     silent: Optional[bool] = None
     delete_dialog_after: Optional[bool] = None
