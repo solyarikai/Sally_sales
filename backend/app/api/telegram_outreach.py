@@ -4738,6 +4738,74 @@ async def get_contact_history(contact_id: int, session: AsyncSession = Depends(g
     return {"history": history}
 
 
+@router.get("/crm/contacts/{contact_id}/campaigns")
+async def get_contact_campaigns(contact_id: int, session: AsyncSession = Depends(get_session)):
+    """Get campaign step progression for a CRM contact."""
+    from sqlalchemy.orm import joinedload, selectinload
+
+    contact = await session.get(TgContact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+
+    # Find all recipients with this username, load campaign + sequence
+    recip_result = await session.execute(
+        select(TgRecipient)
+        .where(TgRecipient.username == contact.username)
+        .options(
+            joinedload(TgRecipient.campaign).selectinload(TgCampaign.sequence).selectinload(TgSequence.steps),
+        )
+    )
+    recipients = recip_result.scalars().unique().all()
+
+    if not recipients:
+        return {"campaigns": []}
+
+    # Get all outreach messages for these recipients
+    msg_result = await session.execute(
+        select(TgOutreachMessage)
+        .where(TgOutreachMessage.recipient_id.in_([r.id for r in recipients]))
+        .order_by(TgOutreachMessage.sent_at)
+    )
+    all_msgs = msg_result.scalars().all()
+    msgs_by_recipient: dict[int, list] = {}
+    for m in all_msgs:
+        msgs_by_recipient.setdefault(m.recipient_id, []).append(m)
+
+    campaigns = []
+    for recip in recipients:
+        camp = recip.campaign
+        if not camp:
+            continue
+        seq = camp.sequence
+        total_steps = len(seq.steps) if seq else 0
+
+        # Build per-step info
+        recip_msgs = msgs_by_recipient.get(recip.id, [])
+        steps_info = []
+        for step in (seq.steps if seq else []):
+            step_msg = next((m for m in recip_msgs if m.step_id == step.id), None)
+            steps_info.append({
+                "step_order": step.step_order,
+                "delay_days": step.delay_days,
+                "label": "Initial" if step.step_order == 1 else f"Follow-up {step.step_order - 1}",
+                "status": step_msg.status.value if step_msg else ("scheduled" if step.step_order == recip.current_step + 1 else "pending"),
+                "sent_at": step_msg.sent_at.isoformat() if step_msg and step_msg.sent_at else None,
+                "read_at": step_msg.read_at.isoformat() if step_msg and step_msg.read_at else None,
+            })
+
+        campaigns.append({
+            "campaign_id": camp.id,
+            "campaign_name": camp.name,
+            "campaign_status": camp.status.value,
+            "recipient_status": recip.status.value,
+            "current_step": recip.current_step,
+            "total_steps": total_steps,
+            "steps": steps_info,
+        })
+
+    return {"campaigns": campaigns}
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # TOOLS — Phone Checker + Story Engagement
 # ═══════════════════════════════════════════════════════════════════════
