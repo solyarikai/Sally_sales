@@ -393,6 +393,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddByPhoneModal, setShowAddByPhoneModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TgAccount | null>(null);
 
@@ -508,14 +509,19 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
           {showAddMenu && (
             <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border shadow-lg z-50 py-1"
               style={{ background: A.surface, borderColor: A.border }}>
+              <button onClick={() => { setShowAddMenu(false); setShowAddByPhoneModal(true); }}
+                className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors font-medium"
+                style={{ color: A.text1 }}>
+                <Phone className="w-3.5 h-3.5 inline mr-2 opacity-50" />Add by Phone
+              </button>
               <button onClick={() => { setShowAddMenu(false); setShowAddModal(true); }}
                 className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
-                style={{ color: A.text1 }}>
-                <Plus className="w-3.5 h-3.5 inline mr-2 opacity-50" />Single Account
+                style={{ color: A.text2 }}>
+                <Plus className="w-3.5 h-3.5 inline mr-2 opacity-50" />Manual Entry
               </button>
               <button onClick={() => { setShowAddMenu(false); setShowImportModal(true); }}
                 className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
-                style={{ color: A.text1 }}>
+                style={{ color: A.text2 }}>
                 <Upload className="w-3.5 h-3.5 inline mr-2 opacity-50" />Bulk Import
               </button>
               <div className="border-t my-1" style={{ borderColor: A.border }} />
@@ -748,6 +754,11 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
       )}
 
       {/* Modals */}
+      {showAddByPhoneModal && (
+        <AddByPhoneModal t={t} toast={toast} isDark={isDark}
+                         onClose={() => setShowAddByPhoneModal(false)}
+                         onSaved={() => { setShowAddByPhoneModal(false); loadAccounts(); }} />
+      )}
       {showAddModal && (
         <AddAccountModal t={t} toast={toast} isDark={isDark}
                          onClose={() => setShowAddModal(false)}
@@ -2042,6 +2053,241 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
   );
 }
 
+
+
+// ══════════════════════════════════════════════════════════════════════
+// Add by Phone Modal (multi-step auth wizard)
+// ══════════════════════════════════════════════════════════════════════
+
+function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
+  t: any; toast: any; isDark: boolean; onClose: () => void; onSaved: () => void;
+}) {
+  const [step, setStep] = useState<'phone' | 'code' | '2fa' | 'done'>('phone');
+  const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [accountId, setAccountId] = useState<number | null>(null);
+  const [deviceModel, setDeviceModel] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const codeRef = useRef<HTMLInputElement>(null);
+
+  const inputCls = cn('w-full px-3 py-2.5 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
+  const labelCls = cn('block text-xs font-medium mb-1.5', t.text3);
+
+  const handleSendCode = async () => {
+    const cleaned = phone.trim().replace(/[^0-9]/g, '');
+    if (!cleaned || cleaned.length < 7) { setError('Enter a valid phone number with country code'); return; }
+    setLoading(true); setError('');
+    try {
+      const res = await telegramOutreachApi.addByPhone(cleaned);
+      setAccountId(res.account_id);
+      setDeviceModel(res.device_model);
+      if (res.status === 'already_authorized') {
+        setStep('done');
+        toast('Account authorized', 'success');
+      } else {
+        setStep('code');
+        setTimeout(() => codeRef.current?.focus(), 100);
+      }
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to send code');
+    } finally { setLoading(false); }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!code.trim() || !accountId) return;
+    setLoading(true); setError('');
+    try {
+      const res = await telegramOutreachApi.authVerifyCode(accountId, code.trim());
+      if (res.status === 'authorized') {
+        setStep('done');
+        toast('Account authorized', 'success');
+      } else if (res.status === '2fa_required') {
+        setStep('2fa');
+      } else if (res.status === 'error') {
+        setError(res.detail || 'Verification failed');
+      }
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to verify code');
+    } finally { setLoading(false); }
+  };
+
+  const handleVerify2FA = async () => {
+    if (!password.trim() || !accountId) return;
+    setLoading(true); setError('');
+    try {
+      const res = await telegramOutreachApi.authVerify2FA(accountId, password.trim());
+      if (res.status === 'authorized') {
+        setStep('done');
+        toast('Account authorized', 'success');
+      } else if (res.status === 'error') {
+        setError(res.detail || '2FA verification failed');
+      }
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Wrong 2FA password');
+    } finally { setLoading(false); }
+  };
+
+  const stepTitles = { phone: 'Add Account by Phone', code: 'Enter Verification Code', '2fa': 'Two-Factor Authentication', done: 'Account Added' };
+  const stepNumber = { phone: 1, code: 2, '2fa': 3, done: step === 'done' ? 3 : 4 };
+
+  return (
+    <ModalBackdrop onClose={step === 'done' ? () => onSaved() : onClose}>
+      <div className={cn('w-[440px] rounded-xl border shadow-xl', t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white')}>
+        {/* Header */}
+        <div className={cn('flex items-center justify-between px-6 py-4 border-b', t.cardBorder)}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: step === 'done' ? '#059669' : '#4F46E5' }}>
+              {step === 'done'
+                ? <Check className="w-4 h-4 text-white" />
+                : <Phone className="w-4 h-4 text-white" />}
+            </div>
+            <div>
+              <h2 className={cn('text-[15px] font-semibold', t.text1)}>{stepTitles[step]}</h2>
+              {step !== 'done' && (
+                <div className={cn('text-[11px]', t.text3)}>Step {stepNumber[step]} of 3</div>
+              )}
+            </div>
+          </div>
+          <button onClick={step === 'done' ? () => onSaved() : onClose}
+            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5">
+          {step === 'phone' && (
+            <div className="space-y-4">
+              <div>
+                <label className={labelCls}>Phone Number</label>
+                <input value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSendCode()}
+                  placeholder="351920619583"
+                  className={inputCls} autoFocus />
+                <div className={cn('text-[11px] mt-1.5', t.text3)}>
+                  Include country code without + sign
+                </div>
+              </div>
+              <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
+                style={{ background: isDark ? '#1E293B' : '#F8FAFC' }}>
+                <Info className="w-3.5 h-3.5 inline mr-1.5 opacity-60" />
+                A unique device fingerprint will be auto-generated. Telegram Desktop credentials are used for best compatibility.
+              </div>
+            </div>
+          )}
+
+          {step === 'code' && (
+            <div className="space-y-4">
+              <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
+                style={{ background: isDark ? '#1E293B' : '#F0FDF4' }}>
+                Code sent to <span className="font-medium" style={{ color: isDark ? '#86EFAC' : '#059669' }}>+{phone.replace(/[^0-9]/g, '')}</span>
+                {deviceModel && <span className="opacity-60"> (device: {deviceModel})</span>}
+              </div>
+              <div>
+                <label className={labelCls}>Verification Code</label>
+                <input ref={codeRef} value={code}
+                  onChange={e => setCode(e.target.value.replace(/[^0-9]/g, ''))}
+                  onKeyDown={e => e.key === 'Enter' && handleVerifyCode()}
+                  placeholder="12345"
+                  maxLength={6} className={cn(inputCls, 'text-center text-lg tracking-[0.3em] font-mono')} />
+                <div className={cn('text-[11px] mt-1.5', t.text3)}>
+                  Check your Telegram app or SMS for the code
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === '2fa' && (
+            <div className="space-y-4">
+              <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
+                style={{ background: isDark ? '#1E293B' : '#FFFBEB' }}>
+                <Shield className="w-3.5 h-3.5 inline mr-1.5 opacity-60" />
+                This account has two-factor authentication enabled
+              </div>
+              <div>
+                <label className={labelCls}>2FA Password</label>
+                <input value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleVerify2FA()}
+                  type="password" placeholder="Enter your cloud password"
+                  className={inputCls} autoFocus />
+              </div>
+            </div>
+          )}
+
+          {step === 'done' && (
+            <div className="text-center py-4 space-y-3">
+              <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center" style={{ background: '#ECFDF5' }}>
+                <Check className="w-6 h-6" style={{ color: '#059669' }} />
+              </div>
+              <div className={cn('text-sm font-medium', t.text1)}>Account successfully authorized</div>
+              <div className={cn('text-xs', t.text3)}>
+                +{phone.replace(/[^0-9]/g, '')} is ready to use
+                {deviceModel && <> with device fingerprint <span className="font-mono text-[11px]">{deviceModel}</span></>}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-3 rounded-lg px-3 py-2 text-[12px] font-medium"
+              style={{ background: '#FEF2F2', color: '#DC2626' }}>
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className={cn('flex items-center justify-between px-6 py-4 border-t', t.cardBorder)}>
+          {/* Step dots */}
+          <div className="flex items-center gap-1.5">
+            {[1, 2, 3].map(s => (
+              <div key={s} className="w-1.5 h-1.5 rounded-full transition-colors"
+                style={{ background: s <= stepNumber[step] ? '#4F46E5' : isDark ? '#374151' : '#E5E7EB' }} />
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            {step !== 'done' && (
+              <button onClick={step === 'done' ? () => onSaved() : onClose}
+                className={cn('px-4 py-2 rounded-lg border text-sm', t.cardBorder, t.text1)}>Cancel</button>
+            )}
+            {step === 'phone' && (
+              <button onClick={handleSendCode} disabled={loading || !phone.trim()}
+                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Send Code
+              </button>
+            )}
+            {step === 'code' && (
+              <button onClick={handleVerifyCode} disabled={loading || code.length < 4}
+                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Verify
+              </button>
+            )}
+            {step === '2fa' && (
+              <button onClick={handleVerify2FA} disabled={loading || !password.trim()}
+                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Verify
+              </button>
+            )}
+            {step === 'done' && (
+              <button onClick={onSaved}
+                className="flex items-center gap-2 px-5 py-2 text-white rounded-lg text-sm font-medium"
+                style={{ background: '#059669' }}>
+                <Check className="w-4 h-4" /> Done
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </ModalBackdrop>
+  );
+}
 
 
 // ══════════════════════════════════════════════════════════════════════
