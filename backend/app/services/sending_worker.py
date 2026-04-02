@@ -139,6 +139,59 @@ def is_within_send_window(campaign: TgCampaign) -> bool:
         return hour >= campaign.send_from_hour or hour < campaign.send_to_hour
 
 
+# ── Spread scheduling ────────────────────────────────────────────────
+
+def _calc_spread_allowance(campaign, cold_sent_today: int) -> int:
+    """How many cold messages may be sent RIGHT NOW.
+
+    Distributes daily_message_limit evenly across the send window with
+    deterministic per-day jitter (±15 min, capped for dense schedules).
+    Returns delta between 'should-have-been-sent-by-now' and
+    'actually-sent-today', capped at 2 per tick to prevent burst on
+    late start or restart.
+    """
+    daily_limit = campaign.daily_message_limit
+    if not daily_limit:
+        return 500  # no limit configured
+
+    now = now_in_tz(campaign.timezone or "UTC")
+    from_h = campaign.send_from_hour
+    to_h = campaign.send_to_hour
+
+    # Window duration in minutes
+    if to_h > from_h:
+        window_mins = (to_h - from_h) * 60
+    else:
+        window_mins = (24 - from_h + to_h) * 60
+    if window_mins <= 0:
+        window_mins = 24 * 60
+
+    # Minutes elapsed since window opened today
+    current_mins = ((now.hour * 60 + now.minute) - from_h * 60) % (24 * 60)
+    if current_mins > window_mins:
+        current_mins = window_mins
+
+    # Deterministic jitter per slot (stable across ticks within one day)
+    seed = campaign.id * 100000 + now.toordinal()
+    rng = random.Random(seed)
+
+    slot_interval = window_mins / daily_limit
+    max_jitter = min(15.0, slot_interval / 3)  # cap jitter for dense schedules
+
+    slots_due = 0
+    for i in range(daily_limit):
+        ideal_mins = (i + 0.5) * slot_interval
+        jitter = rng.uniform(-max_jitter, max_jitter)
+        slot_time = max(0.0, min(float(window_mins), ideal_mins + jitter))
+        if current_mins >= slot_time:
+            slots_due += 1
+
+    remaining = max(0, slots_due - cold_sent_today)
+
+    # Cap catch-up: never burst more than 2 in one tick
+    return min(remaining, 2)
+
+
 # ── Human-like delay helpers ─────────────────────────────────────────
 
 def _human_delay(base_min: float, base_max: float, campaign: TgCampaign,
@@ -389,7 +442,7 @@ class SendingWorker:
         # Get available accounts for new leads (filtered by cold limit)
         available_accounts = await self._get_available_accounts(campaign, session, account_cold_counts)
 
-        # New leads: limited by campaign daily_message_limit (cold only)
+        # New leads: spread evenly across schedule window (cold only)
         cold_remaining = 500
         if campaign.daily_message_limit:
             camp_cold_r = await session.execute(
@@ -403,8 +456,14 @@ class SendingWorker:
                 )
             )
             cold_sent_today = camp_cold_r.scalar() or 0
-            cold_remaining = max(0, campaign.daily_message_limit - cold_sent_today)
-            logger.debug(f"{cname} Cold limit: {cold_sent_today}/{campaign.daily_message_limit} sent, {cold_remaining} remaining")
+            cold_remaining = _calc_spread_allowance(campaign, cold_sent_today)
+            if cold_remaining == 0 and cold_sent_today < campaign.daily_message_limit:
+                now_local = now_in_tz(campaign.timezone or "UTC")
+                mins_left = ((campaign.send_to_hour * 60) - (now_local.hour * 60 + now_local.minute)) % (24 * 60)
+                if mins_left < 60:
+                    deferred = campaign.daily_message_limit - cold_sent_today
+                    logger.info(f"{cname} Window ending in {mins_left}min — {deferred} cold messages deferred to tomorrow")
+            logger.debug(f"{cname} Spread: {cold_sent_today}/{campaign.daily_message_limit} sent, {cold_remaining} allowed this tick")
 
         new_lead_limit = min(cold_remaining, len(available_accounts)) if available_accounts else 0
         new_recipients = await self._pick_recipients_by_type(
