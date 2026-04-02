@@ -13,7 +13,7 @@ from app.mcp.dispatcher import dispatch_tool
 logger = logging.getLogger(__name__)
 
 # Create MCP server instance
-mcp_server = Server("mcp-leadgen")
+mcp_server = Server("gtm-mcp")
 
 # SSE transport — path is relative to mount point (/mcp), so just /messages
 sse_transport = SseServerTransport("/messages")
