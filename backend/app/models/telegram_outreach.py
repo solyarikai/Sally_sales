@@ -168,6 +168,11 @@ class TgAccount(Base, TimestampMixin):
     telegram_user_id = Column(BigInteger, nullable=True)
     skip_warmup = Column(Boolean, nullable=False, default=False, server_default="false")
 
+    # Active warm-up (channel joins, reactions, conversations)
+    warmup_active = Column(Boolean, nullable=False, default=False, server_default="false")
+    warmup_started_at = Column(DateTime, nullable=True)
+    warmup_actions_done = Column(Integer, nullable=False, default=0, server_default="0")
+
     # Timestamps
     last_connected_at = Column(DateTime, nullable=True)
     last_checked_at = Column(DateTime, nullable=True)
@@ -499,3 +504,31 @@ class TgBlacklist(Base, TimestampMixin):
     username = Column(String(100), nullable=False, unique=True, index=True)
     reason = Column(String(255), nullable=True)
     added_by = Column(String(100), nullable=True)
+
+
+class TgWarmupActionType(str, enum.Enum):
+    CHANNEL_JOIN = "channel_join"
+    REACTION = "reaction"
+    CONVERSATION = "conversation"
+
+
+class TgWarmupLog(Base):
+    """Log of warm-up actions performed by accounts."""
+    __tablename__ = "tg_warmup_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(Integer, ForeignKey("tg_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    action_type = Column(
+        SQLEnum(TgWarmupActionType, values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
+    )
+    detail = Column(Text, nullable=True)  # channel URL, reaction emoji, conversation partner
+    success = Column(Boolean, nullable=False, default=True)
+    error_message = Column(Text, nullable=True)
+    performed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    account = relationship("TgAccount")
+
+    __table_args__ = (
+        Index("ix_tg_warmup_log_account_at", "account_id", "performed_at"),
+    )

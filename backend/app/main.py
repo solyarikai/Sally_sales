@@ -125,15 +125,17 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Sally bot start failed: {e}")
 
 
-    # Start Telegram Outreach workers (sending + reply detection)
+    # Start Telegram Outreach workers (sending + reply detection + warm-up)
     try:
         from app.services.sending_worker import sending_worker
         from app.services.reply_detector import reply_detector
         from app.services.auto_responder import auto_responder
+        from app.services.warmup_worker import warmup_worker
         sending_worker.start()
         reply_detector.start()
         auto_responder.start()
-        logger.info("Telegram Outreach workers started (sending + reply detection + auto-reply)")
+        warmup_worker.start()
+        logger.info("Telegram Outreach workers started (sending + reply detection + auto-reply + warm-up)")
     except Exception as e:
         logger.warning(f"Telegram Outreach worker start failed: {e}")
 
@@ -170,6 +172,14 @@ async def lifespan(app: FastAPI):
         logger.info("Sally bot stopped")
     except Exception as e:
         logger.warning(f"Sally bot stop failed: {e}")
+
+    # Stop warmup worker
+    try:
+        from app.services.warmup_worker import warmup_worker
+        warmup_worker.stop()
+        logger.info("WarmupWorker stopped")
+    except Exception as e:
+        logger.warning(f"WarmupWorker stop failed: {e}")
 
     # Stop CRM scheduler
     try:

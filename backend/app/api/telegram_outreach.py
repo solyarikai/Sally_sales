@@ -22,6 +22,7 @@ from app.models.telegram_outreach import (
     TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgRecipientStatus, TgMessageStatus,
     TgInboxDialog, TgContact, TgContactStatus,
     TgIncomingReply, TgBlacklist,
+    TgWarmupLog, TgWarmupActionType,
 )
 from app.models.telegram_dm import TelegramDMAccount
 
@@ -82,6 +83,7 @@ from app.schemas.telegram_outreach import (
     TgBulkAssignProxy, TgBulkTag, TgBulkAccountIds,
     TgTeleRaptorImportRequest, TgTeleRaptorImportResponse,
     TgBlacklistUploadText, TgBlacklistResponse, TgBlacklistListResponse,
+    TgWarmupStatusResponse, TgWarmupLogResponse,
 )
 
 router = APIRouter(prefix="/telegram-outreach", tags=["Telegram Outreach"])
@@ -94,7 +96,7 @@ TDESKTOP_API_HASH = "b18441a1ff607e10a989891a5462e627"
 
 
 def _warmup_info(acc) -> dict:
-    """Compute effective_daily_limit, warmup_day, and is_young_session for an account."""
+    """Compute effective_daily_limit, warmup_day, is_young_session, and active warmup progress."""
     from app.services.sending_worker import get_effective_daily_limit, WARMUP_MSGS_PER_DAY, is_young_session as _is_young
     from datetime import datetime
     eff = get_effective_daily_limit(acc)
@@ -104,7 +106,18 @@ def _warmup_info(acc) -> dict:
         base = acc.daily_message_limit or 10
         if WARMUP_MSGS_PER_DAY * (age + 1) < base:
             day = age + 1
-    return {"effective_daily_limit": eff, "warmup_day": day, "is_young_session": _is_young(acc)}
+    # Active warmup progress
+    warmup_progress = None
+    if getattr(acc, "warmup_active", False) and acc.warmup_started_at:
+        wu_day = (datetime.utcnow() - acc.warmup_started_at).days + 1
+        warmup_progress = {"day": wu_day, "total_days": 14}
+    return {
+        "effective_daily_limit": eff, "warmup_day": day, "is_young_session": _is_young(acc),
+        "warmup_active": getattr(acc, "warmup_active", False),
+        "warmup_started_at": acc.warmup_started_at if hasattr(acc, "warmup_started_at") else None,
+        "warmup_actions_done": getattr(acc, "warmup_actions_done", 0) or 0,
+        "warmup_progress": warmup_progress,
+    }
 
 
 async def _extract_and_save_string_session(
@@ -999,6 +1012,100 @@ async def bulk_skip_warmup(data: TgBulkAccountIds, skip: bool = Query(True),
         if account:
             account.skip_warmup = skip
     return {"ok": True, "count": len(data.account_ids), "skip_warmup": skip}
+
+
+# ── Active Warm-up endpoints ─────────────────────────────────────────
+
+@router.post("/accounts/{account_id}/warmup/start")
+async def warmup_start(account_id: int, session: AsyncSession = Depends(get_session)):
+    """Start active warm-up for an account (14-day program)."""
+    account = await session.get(TgAccount, account_id)
+    if not account:
+        raise HTTPException(404, "Account not found")
+    if account.warmup_active:
+        return {"ok": True, "message": "Warm-up already active"}
+    account.warmup_active = True
+    account.warmup_started_at = _dt.utcnow()
+    account.warmup_actions_done = 0
+    return {"ok": True, "message": "Warm-up started"}
+
+
+@router.post("/accounts/{account_id}/warmup/stop")
+async def warmup_stop(account_id: int, session: AsyncSession = Depends(get_session)):
+    """Stop active warm-up for an account."""
+    account = await session.get(TgAccount, account_id)
+    if not account:
+        raise HTTPException(404, "Account not found")
+    account.warmup_active = False
+    return {"ok": True, "message": "Warm-up stopped"}
+
+
+@router.get("/accounts/{account_id}/warmup/status", response_model=TgWarmupStatusResponse)
+async def warmup_status(account_id: int, session: AsyncSession = Depends(get_session)):
+    """Get warm-up status and recent actions for an account."""
+    account = await session.get(TgAccount, account_id)
+    if not account:
+        raise HTTPException(404, "Account not found")
+
+    warmup_day = None
+    if account.warmup_active and account.warmup_started_at:
+        warmup_day = (_dt.utcnow() - account.warmup_started_at).days + 1
+
+    # Count today's actions
+    today_start = _dt.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_q = await session.execute(
+        select(func.count(TgWarmupLog.id)).where(
+            TgWarmupLog.account_id == account_id,
+            TgWarmupLog.performed_at >= today_start,
+        )
+    )
+    actions_today = today_q.scalar() or 0
+
+    # Recent actions (last 20)
+    recent_q = await session.execute(
+        select(TgWarmupLog).where(
+            TgWarmupLog.account_id == account_id,
+        ).order_by(desc(TgWarmupLog.performed_at)).limit(20)
+    )
+    recent = recent_q.scalars().all()
+
+    return TgWarmupStatusResponse(
+        account_id=account_id,
+        warmup_active=account.warmup_active,
+        warmup_day=warmup_day,
+        warmup_started_at=account.warmup_started_at,
+        actions_done=account.warmup_actions_done or 0,
+        actions_today=actions_today,
+        recent_actions=[
+            {
+                "action_type": a.action_type.value if hasattr(a.action_type, 'value') else a.action_type,
+                "detail": a.detail,
+                "success": a.success,
+                "performed_at": a.performed_at.isoformat() if a.performed_at else None,
+            }
+            for a in recent
+        ],
+    )
+
+
+@router.post("/accounts/bulk-warmup")
+async def bulk_warmup(data: TgBulkAccountIds, action: str = Query("start"),
+                       session: AsyncSession = Depends(get_session)):
+    """Start or stop active warm-up for multiple accounts."""
+    count = 0
+    for aid in data.account_ids:
+        account = await session.get(TgAccount, aid)
+        if not account:
+            continue
+        if action == "start" and not account.warmup_active:
+            account.warmup_active = True
+            account.warmup_started_at = _dt.utcnow()
+            account.warmup_actions_done = 0
+            count += 1
+        elif action == "stop" and account.warmup_active:
+            account.warmup_active = False
+            count += 1
+    return {"ok": True, "count": count, "action": action}
 
 
 @router.post("/accounts/bulk-update-params")
