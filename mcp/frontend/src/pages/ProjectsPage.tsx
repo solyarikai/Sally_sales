@@ -126,20 +126,38 @@ function ProjectCard({ project }: { project: any }) {
             </div>
           )}
 
-          {/* Sequences (from document) */}
+          {/* Sequences (from document) — expandable with full email bodies */}
           {offer?.sequences && offer.sequences.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Sequences ({offer.sequences.length})</div>
-              {offer.sequences.map((seq: any, i: number) => (
-                <div key={i} style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 4 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{seq.name || `Sequence ${i + 1}`}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    {(seq.steps || []).map((step: any, j: number) => (
-                      <div key={j}>Day {step.day}: {step.subject}</div>
-                    ))}
+              {offer.sequences.map((seq: any, i: number) => {
+                const steps = seq.steps || []
+                return (
+                  <div key={i} style={{ borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 8, overflow: 'hidden' }}>
+                    <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{seq.name || `Sequence ${i + 1}`}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{steps.length} emails</div>
+                      </div>
+                    </div>
+                    <div style={{ padding: '0' }}>
+                      {steps.map((step: any, j: number) => (
+                        <div key={j} style={{ padding: '10px 12px', borderBottom: j < steps.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', marginBottom: 4 }}>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '1px 6px', borderRadius: 3 }}>Day {step.day}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{step.subject || '(no subject)'}</span>
+                          </div>
+                          {step.body && (
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', padding: '6px 8px', background: 'var(--bg)', borderRadius: 4, marginTop: 4 }}>
+                              {step.body.replace(/<br\s*\/?>/g, '\n').replace(/<[^>]+>/g, '')}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -151,6 +169,58 @@ function ProjectCard({ project }: { project: any }) {
                 {offer.exclusion_list.map((e: any, i: number) => (
                   <div key={i} style={{ marginBottom: 2 }}>{'\u2022'} <span style={{ fontWeight: 500 }}>{e.type}</span>{e.reason ? ` — ${e.reason}` : ''}</div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Search Filters — Geo, Funding, Size */}
+          {offer?.apollo_filters && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Search Filters</div>
+              <div style={{ display: 'grid', gap: 4, fontSize: 12 }}>
+                {offer.apollo_filters.locations?.length > 0 && (
+                  <div style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text)' }}>Geo:</span>{' '}
+                    {offer.apollo_filters.locations.join(', ')}
+                  </div>
+                )}
+                {offer.apollo_filters.funding_stages?.length > 0 && (
+                  <div style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text)' }}>Funding:</span>{' '}
+                    {offer.apollo_filters.funding_stages.map((s: string) => s.replace(/_/g, ' ')).join(', ')}
+                  </div>
+                )}
+                {offer.apollo_filters.employee_range && (
+                  <div style={{ color: 'var(--text-secondary)' }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text)' }}>Size:</span>{' '}
+                    {offer.apollo_filters.employee_range} employees
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Campaign Settings */}
+          {offer?.campaign_settings && Object.keys(offer.campaign_settings).length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Campaign Settings</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
+                  {offer.campaign_settings.tracking ? 'Tracking ON' : 'No tracking'}
+                </span>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
+                  {offer.campaign_settings.stop_on_reply ? 'Stop on reply' : 'Continue after reply'}
+                </span>
+                {offer.campaign_settings.daily_limit_per_mailbox && (
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(168,85,247,0.1)', color: '#a855f7' }}>
+                    {offer.campaign_settings.daily_limit_per_mailbox}/mailbox/day
+                  </span>
+                )}
+                {offer.campaign_settings.plain_text && (
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
+                    Plain text
+                  </span>
+                )}
               </div>
             </div>
           )}

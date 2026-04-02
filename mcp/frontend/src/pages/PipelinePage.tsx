@@ -282,16 +282,28 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
   const peoplePct = progress.people_pct || 0
   const targetsPct = progress.targets_pct || 0
 
-  // Collapsed view — no duplication with stats line, just time + status
+  const kpiMet = (progress.people_found || 0) >= targetCount
+  const peopleCt = progress.people_found || 0
+  const targetsCt = progress.targets_found || 0
+
+  // Collapsed view — show key results at a glance
   if (collapsed) {
     return (
       <div onClick={() => setCollapsed(false)} style={{
-        padding: '6px 16px', borderRadius: 8, cursor: 'pointer', marginBottom: 8, fontSize: 12,
-        background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.1)',
+        padding: '8px 16px', borderRadius: 8, cursor: 'pointer', marginBottom: 8, fontSize: 12,
+        background: kpiMet ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)',
+        border: `1px solid ${kpiMet ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: run.status === 'completed' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: run.status === 'completed' ? '#22c55e' : '#ef4444' }}>{run.status === 'completed' ? 'DONE' : 'STOPPED'}</span>
+        {kpiMet ? (
+          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>KPI MET</span>
+        ) : (
+          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: run.status === 'completed' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: run.status === 'completed' ? '#22c55e' : '#ef4444' }}>{run.status === 'completed' ? 'DONE' : 'STOPPED'}</span>
+        )}
+        <span style={{ color: 'var(--text)', fontWeight: 500 }}>{peopleCt} people</span>
+        <span style={{ color: 'var(--text-muted)' }}>{targetsCt} targets</span>
         <span style={{ color: 'var(--text-muted)' }}>{formatDuration(timing.elapsed_seconds)}</span>
+        {(progress.pages_fetched || 0) > 0 && <span style={{ color: 'var(--text-muted)' }}>{progress.pages_fetched} pages</span>}
         <span style={{ color: 'var(--text-muted)', marginLeft: 'auto', fontSize: 10 }}>▼</span>
       </div>
     )
@@ -307,7 +319,8 @@ function KPIProgressBanner({ run, onPause, onResume }: { run: any; onPause: () =
     }}>
       {/* Top row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, fontSize: 12 }}>
-        {run.status === 'completed' && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>COMPLETED</span>}
+        {run.status === 'completed' && kpiMet && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: 'rgba(34,197,94,0.2)', color: '#22c55e' }}>KPI MET</span>}
+        {run.status === 'completed' && !kpiMet && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,0.15)', color: '#22c55e' }}>COMPLETED</span>}
         {run.status === 'insufficient' && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>INSUFFICIENT</span>}
         {isPaused && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>PAUSED</span>}
         {run.status === 'running' && !isPaused && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>RUNNING</span>}
@@ -385,7 +398,7 @@ export default function PipelinePage() {
   const [iterDropOpen, setIterDropOpen] = useState(false)
   const [showFiltersModal, setShowFiltersModal] = useState(false)
   const [filtersTab, setFiltersTab] = useState<'company'|'people'>('company')
-  const [showCampaign, setShowCampaign] = useState(false)
+  // showCampaign removed — campaign info shown inline
   const [elapsed, setElapsed] = useState(0)
 
   // Live timer — ticks every second while pipeline is running
@@ -601,12 +614,6 @@ export default function PipelinePage() {
 
         {/* Right side — icon buttons */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Campaign */}
-          {run?.campaign?.id && (
-            <button onClick={() => setShowCampaign(!showCampaign)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: showCampaign ? 'rgba(99,102,241,0.15)' : 'transparent', color: '#6366f1', fontWeight: 500, border: '1px solid rgba(99,102,241,0.3)', cursor: 'pointer' }}>
-              Campaign
-            </button>
-          )}
           {/* Prompts */}
           {runId && <Link to={`/pipeline/${runId}/prompts`} style={{ padding: '4px 8px', borderRadius: 6, fontSize: 14, color: 'var(--text-muted)', textDecoration: 'none', border: '1px solid var(--border)' }} title="Prompts">📝</Link>}
           {/* Filters modal */}
@@ -780,17 +787,16 @@ export default function PipelinePage() {
         </div>
       )}
 
-      {/* Campaign expandable block */}
-      {showCampaign && run?.campaign && (
-        <div style={{ padding: 10, borderRadius: 8, background: 'var(--bg-card)', border: '1px solid rgba(99,102,241,0.3)', marginBottom: 12, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontWeight: 600, fontSize: 13 }}>{run.campaign.name}</span>
-            <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', background: run.campaign.status === 'mcp_draft' ? 'rgba(129,140,248,0.15)' : run.campaign.status === 'active' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)', color: run.campaign.status === 'mcp_draft' ? '#818cf8' : run.campaign.status === 'active' ? '#22c55e' : '#f59e0b' }}>{run.campaign.status}</span>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {run.campaign.smartlead_url && <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(99,102,241,0.12)', color: '#818cf8', textDecoration: 'none', fontSize: 11, border: '1px solid rgba(99,102,241,0.25)' }}>SmartLead ↗</a>}
-            <Link to={`/campaigns/${run.campaign.id}`} style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text-secondary)', textDecoration: 'none', fontSize: 11, border: '1px solid var(--border)' }}>Campaign Details</Link>
-          </div>
+      {/* Campaign info — inline, compact */}
+      {run?.campaign?.id && (
+        <div style={{ padding: '6px 12px', borderRadius: 6, background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', marginBottom: 10, fontSize: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Campaign:</span>
+          <Link to={`/campaigns/${run.campaign.id}`} style={{ fontWeight: 500, color: '#6366f1', textDecoration: 'none' }}>{run.campaign.name || 'Draft'}</Link>
+          <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
+            background: run.campaign.status === 'active' ? 'rgba(34,197,94,0.15)' : run.campaign.status === 'draft' ? 'rgba(245,158,11,0.15)' : 'rgba(129,140,248,0.15)',
+            color: run.campaign.status === 'active' ? '#22c55e' : run.campaign.status === 'draft' ? '#f59e0b' : '#818cf8',
+          }}>{run.campaign.status}</span>
+          {run.campaign.smartlead_url && <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ color: '#818cf8', textDecoration: 'underline', fontSize: 11, marginLeft: 'auto' }}>SmartLead ↗</a>}
         </div>
       )}
 

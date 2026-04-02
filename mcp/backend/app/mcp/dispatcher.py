@@ -34,7 +34,7 @@ def _format_duration(seconds: int) -> str:
 
 
 def _build_strategy_message(filters, keywords, locations, sizes, total_available,
-                            target_people, max_ppc, cost_est, people_defaults):
+                            target_people, max_ppc, cost_est, people_defaults, funding=None):
     """Build transparent strategy message showing primary + backlog filters."""
     strategy = filters.get("filter_strategy", "keywords_only")
     industries = filters.get("industries", [])
@@ -93,7 +93,8 @@ def _build_strategy_message(filters, keywords, locations, sizes, total_available
         f"  Keywords ({len(all_keywords)}): {kw_display}\n\n"
         f"  Location: {', '.join(locations)}\n"
         f"  Size: {', '.join(sizes)}\n"
-        f"  Available: {total_available:,} companies in Apollo\n\n"
+        + (f"  Funding: {', '.join(f.replace('_', ' ').title() for f in funding)}\n" if funding else "")
+        + f"  Available: {total_available:,} companies in Apollo\n\n"
         f"  KPIs: {target_people} target people, max {max_ppc}/company"
         f"{people_section}\n\n"
         f"Estimated cost:\n"
@@ -601,6 +602,7 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                             "apollo_filters": extraction.get("apollo_filters", {}),
                             "example_companies": extraction.get("example_companies", []),
                             "exclusion_list": extraction.get("exclusion_list", []),
+                            "campaign_settings": extraction.get("campaign_settings", {}),
                             "_source": "document",
                         }
                         target_segments = (
@@ -704,12 +706,12 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
 
         # ── Store extracted sequences from document ──
         sequence_display = ""
+        primary_seq = None
         if extracted_sequences:
-            for seq_data in extracted_sequences:
+            for i, seq_data in enumerate(extracted_sequences):
                 steps = seq_data.get("steps", [])
                 if not steps:
                     continue
-                # Create GeneratedSequence
                 seq = GeneratedSequence(
                     project_id=project.id, company_id=company.id,
                     campaign_name=seq_data.get("name", f"Sequence from document"),
@@ -721,35 +723,38 @@ async def _dispatch(tool_name: str, args: dict, token: Optional[str], session) -
                 )
                 session.add(seq)
                 await session.flush()
+                if i == 0:
+                    primary_seq = seq
+                sequence_display += f"\n**Sequence: {seq.campaign_name}** ({len(steps)} emails)\n"
+                for j, step in enumerate(steps):
+                    sequence_display += f"  Email {j+1} (Day {step.get('day', '?')}): {step.get('subject', 'No subject')}\n"
+                logger.info(f"Created sequence {seq.id} ({len(steps)} steps)")
 
-                # Create draft Campaign linked to sequence
+            # ONE draft campaign for the PRIMARY sequence (not one per sequence)
+            if primary_seq:
                 campaign = Campaign(
                     project_id=project.id, company_id=company.id,
-                    name=seq_data.get("name", f"Draft — {project.name}"),
+                    name=f"{project.name} Campaign",
                     status="mcp_draft", created_by="mcp",
-                    sequence_id=seq.id,
+                    sequence_id=primary_seq.id,
                     config={
                         "from_document": True,
                         "settings": extracted_settings,
-                        "daily_limit_per_mailbox": extracted_settings.get("daily_limit_per_mailbox"),
                         "tracking": extracted_settings.get("tracking", False),
                         "stop_on_reply": extracted_settings.get("stop_on_reply", True),
                         "plain_text": extracted_settings.get("plain_text", True),
+                        "daily_limit_per_mailbox": extracted_settings.get("daily_limit_per_mailbox"),
                     },
                 )
                 session.add(campaign)
                 await session.flush()
+                logger.info(f"Created 1 draft campaign {campaign.id} with primary sequence {primary_seq.id}")
 
-                sequence_display += f"\n**Sequence: {seq.campaign_name}** ({len(steps)} emails)\n"
-                for i, step in enumerate(steps):
-                    sequence_display += f"  Email {i+1} (Day {step.get('day', '?')}): {step.get('subject', 'No subject')}\n"
+            if extracted_settings:
                 sequence_display += f"\n**Campaign settings:** "
-                if extracted_settings:
-                    sequence_display += f"{'No tracking' if not extracted_settings.get('tracking') else 'Tracking on'}, "
-                    sequence_display += f"{'Stop on reply' if extracted_settings.get('stop_on_reply') else 'Continue after reply'}, "
-                    sequence_display += f"{extracted_settings.get('daily_limit_per_mailbox', '?')}/mailbox/day\n"
-
-                logger.info(f"Created sequence {seq.id} ({len(steps)} steps) + draft campaign {campaign.id}")
+                sequence_display += f"{'No tracking' if not extracted_settings.get('tracking') else 'Tracking on'}, "
+                sequence_display += f"{'Stop on reply' if extracted_settings.get('stop_on_reply') else 'Continue after reply'}, "
+                sequence_display += f"{extracted_settings.get('daily_limit_per_mailbox', '?')}/mailbox/day\n"
 
         # Queue for background re-analysis if inline scrape failed
         if not offer_summary and website:
@@ -1129,6 +1134,26 @@ Return ONLY valid JSON."""
                 except Exception as e:
                     logger.warning(f"Auto-filter discovery failed: {e}")
 
+        # ── OVERRIDE with document-extracted geo/funding (authoritative) ──
+        if project.offer_summary and isinstance(project.offer_summary, dict):
+            doc_filters = project.offer_summary.get("apollo_filters", {})
+            if doc_filters:
+                # Locations from document OVERRIDE filter_mapper (which misparses segment names as locations)
+                if doc_filters.get("locations"):
+                    filters["organization_locations"] = doc_filters["locations"]
+                    logger.info(f"Document locations override: {doc_filters['locations']}")
+                # Funding — filter_mapper never extracts this
+                if doc_filters.get("funding_stages"):
+                    filters["organization_latest_funding_stage_cd"] = doc_filters["funding_stages"]
+                    if "mapping_details" not in filters:
+                        filters["mapping_details"] = {}
+                    filters["mapping_details"]["funding_stages"] = doc_filters["funding_stages"]
+                    logger.info(f"Document funding: {doc_filters['funding_stages']}")
+                # Employee range from document (if filter_mapper didn't set one)
+                if doc_filters.get("employee_range") and not filters.get("organization_num_employees_ranges"):
+                    filters["organization_num_employees_ranges"] = [doc_filters["employee_range"]]
+                    logger.info(f"Document employee range: {doc_filters['employee_range']}")
+
         # ── Auto-calculate pages from target_count BEFORE validation ──
         if "api" in source_type:
             target_count = args.get("target_people") or filters.pop("target_count", None)
@@ -1288,6 +1313,7 @@ Return ONLY valid JSON."""
                 "message": _build_strategy_message(
                     filters, keywords, locations, sizes, total_available,
                     target_people, max_ppc, cost_est, people_defaults,
+                    funding=filters.get("organization_latest_funding_stage_cd", []),
                 ) + keyword_warning
                 + (f"\n\nEmail accounts: {len(_existing_camp.email_account_ids)} selected" if _existing_camp and _existing_camp.email_account_ids else "")
                 + f"\nPipeline: {pipeline_link}",
@@ -2234,29 +2260,52 @@ Return ONLY valid JSON."""
                 "_instructions": "Show account count and ask: 'Confirm these {N} accounts?' ONE question.",
             }
 
-        # Confirm step — create mcp_draft campaign linked to PROJECT (run linked later)
+        # Confirm step — reuse existing mcp_draft campaign or create new one
         campaign_name = args.get("campaign_name") or f"{project.name} Campaign"
 
-        # Find primary sequence for this project (if document extracted one)
-        primary_seq_id = None
-        seq_result = await session.execute(
-            select(GeneratedSequence).where(GeneratedSequence.project_id == project.id).order_by(GeneratedSequence.id).limit(1)
+        # Check for existing mcp_draft campaign (created by create_project)
+        existing_camp_result = await session.execute(
+            select(Campaign).where(
+                Campaign.project_id == project.id,
+                Campaign.status == "mcp_draft",
+            ).order_by(Campaign.id.desc()).limit(1)
         )
-        primary_seq = seq_result.scalars().first()
-        if primary_seq:
-            primary_seq_id = primary_seq.id
+        campaign = existing_camp_result.scalars().first()
 
-        campaign = Campaign(
-            project_id=project.id,
-            company_id=project.company_id,
-            name=campaign_name,
-            platform="smartlead",
-            status="mcp_draft",
-            created_by="mcp",
-            email_account_ids=matched,
-            sequence_id=primary_seq_id,  # Link primary sequence
-        )
-        session.add(campaign)
+        if campaign:
+            # Reuse existing campaign — just add accounts
+            campaign.email_account_ids = matched
+            campaign.name = campaign_name
+            if not campaign.sequence_id:
+                seq_result = await session.execute(
+                    select(GeneratedSequence).where(GeneratedSequence.project_id == project.id).order_by(GeneratedSequence.id).limit(1)
+                )
+                primary_seq = seq_result.scalars().first()
+                if primary_seq:
+                    campaign.sequence_id = primary_seq.id
+            # Copy document settings if missing
+            if not campaign.config and project.offer_summary:
+                doc_settings = project.offer_summary.get("campaign_settings", {})
+                campaign.config = {"from_document": True, "settings": doc_settings}
+            logger.info(f"Reused existing campaign {campaign.id} — added {len(matched)} accounts")
+        else:
+            # No existing campaign — create new
+            primary_seq_id = None
+            seq_result = await session.execute(
+                select(GeneratedSequence).where(GeneratedSequence.project_id == project.id).order_by(GeneratedSequence.id).limit(1)
+            )
+            primary_seq = seq_result.scalars().first()
+            if primary_seq:
+                primary_seq_id = primary_seq.id
+            campaign = Campaign(
+                project_id=project.id, company_id=project.company_id,
+                name=campaign_name, platform="smartlead",
+                status="mcp_draft", created_by="mcp",
+                email_account_ids=matched, sequence_id=primary_seq_id,
+            )
+            session.add(campaign)
+            logger.info(f"Created new campaign for project {project.id}")
+
         await session.flush()
 
         # Link to run if it exists
