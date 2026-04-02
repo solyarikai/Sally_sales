@@ -598,7 +598,6 @@ export default function PipelinePage() {
             {(run.progress?.targets_found || run.targets_found || 0) > 0 && <span style={{ color: '#22c55e', fontWeight: 600 }}>{run.progress?.targets_found || run.targets_found} targets</span>}
             {totalContacts > 0 && runId && <Link to={`/crm?pipeline=${runId}`} style={{ color: '#22c55e', fontWeight: 500, textDecoration: 'underline' }}>{totalContacts} people</Link>}
             {(run.credits_used || 0) > 0 && <span style={{ color: '#f59e0b' }}>{run.credits_used} credits</span>}
-            {run?.campaign?.id && <Link to={`/campaigns/${run.campaign.id}`} style={{ color: '#6366f1', fontWeight: 500, textDecoration: 'underline' }}>Campaign</Link>}
             {run?.campaign?.smartlead_url && <a href={run.campaign.smartlead_url} target="_blank" rel="noopener noreferrer" style={{ color: '#818cf8', textDecoration: 'underline' }}>SmartLead</a>}
             {elapsed > 0 && (
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -729,6 +728,24 @@ export default function PipelinePage() {
                       </div>
                     )}
                   </div>
+                  {/* Cascade Level Stats */}
+                  {run.filters._level_stats && Object.keys(run.filters._level_stats).length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>CASCADE LEVELS</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {Object.entries(run.filters._level_stats).map(([label, stats]: [string, any]) => (
+                          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, padding: '4px 8px', borderRadius: 4, background: 'var(--bg)' }}>
+                            <span style={{ fontWeight: 600, color: label.startsWith('L0') ? '#f59e0b' : label.startsWith('L1') ? '#3b82f6' : '#a855f7', minWidth: 110 }}>{label}</span>
+                            <span>{stats.pages}/{stats.max_pages} pages</span>
+                            <span style={{ padding: '1px 6px', borderRadius: 3, fontSize: 10, fontWeight: 500,
+                              background: stats.exhausted ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+                              color: stats.exhausted ? '#ef4444' : '#22c55e',
+                            }}>{stats.exhausted ? 'exhausted' : 'active'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {/* Explanation at bottom (like People tab) */}
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '8px', background: 'var(--bg)', borderRadius: 4, lineHeight: 1.6 }}>
                     <strong>Why {run.filters.filter_strategy === 'industry_first' ? 'Industry First' : 'Keywords First'}?</strong>{' '}
