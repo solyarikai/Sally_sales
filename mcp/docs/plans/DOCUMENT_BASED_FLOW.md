@@ -101,31 +101,51 @@ Each verification logged in document_based_flow_results.md with:
 **4. Document extraction service (document_extractor.py)**
 Must be implemented before model comparison test can run.
 
-**5. Dynamic multi-segment classification prompt (NEVER hardcoded)**
+**5. Dynamic classification system (NEVER hardcode ANYTHING)**
 ```
-Classification prompt is DYNAMICALLY built from whatever segments 
-the document extractor found. NOT hardcoded "6 fintech segments".
+The ENTIRE classification system is dynamic — works for ANY document:
+  - outreach-plan-fintech.md → 8 fintech segments
+  - pavel_example_of_target_companies_description.md → whatever segments it has
+  - "fashion brands in Italy" → 1 segment
 
-If user's document has 3 segments → prompt lists 3.
-If user's document has 10 segments → prompt lists 10.
-If user provides no document (just "fashion brands in Italy") → 1 segment.
+THREE dynamic components:
 
-The classifier receives segments from:
-  1. document_extractor output → result["segments"]
-  2. Stored on project as project.target_segments (JSON with segment list)
-  3. Injected into streaming_pipeline classifier prompt at runtime
+A. Document Extractor (GPT agent #1):
+   Reads ANY document → extracts segments, roles, filters.
+   No hardcoded segment names. Output is purely from document context.
 
-Classification prompt template:
-  "Classify if this company is a target. If target, assign ONE segment:
-   {dynamically_joined_segment_names_from_project}"
+B. Classification Prompt Generator (GPT agent #2 — NEW):
+   Takes extracted segments + offer text → generates the PERFECT
+   classification prompt for the streaming pipeline.
+   Tests multiple prompt variations, picks highest accuracy.
+   This agent runs ONCE per project, before pipeline starts.
+   Output stored on project.offer_summary.classification_prompt
 
-Example for fintech doc:
-  "...assign ONE segment: PAYMENTS, LENDING, BAAS, REGTECH, WEALTHTECH, CRYPTO"
+C. Streaming Pipeline Classifier:
+   Reads classification_prompt from project (set by agent #2).
+   NEVER has hardcoded segments. Always dynamic from project context.
+   If no custom prompt → falls back to generic:
+     "Classify if this company is a target customer.
+      Offer: {offer_text}
+      Return JSON: {is_target, segment, reasoning}"
 
-Example for fashion (no doc):
-  "...assign ONE segment: FASHION_BRANDS"
+The system handles ANY document because:
+  - Agent #1 extracts whatever segments exist (0, 1, 6, 20)
+  - Agent #2 creates the optimal prompt for THOSE specific segments
+  - Pipeline uses that prompt — no hardcoding anywhere
 
-NEVER hardcode segment names. Always read from project context.
+Test on multiple documents to verify generality:
+  - outreach-plan-fintech.md (8 segments, B2B fintech)
+  - pavel_example_of_target_companies_description.md (different domain)
+  - simple "fashion brands in Italy" (1 implicit segment)
+```
+
+### API Keys for Testing
+```
+SmartLead: eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5
+Apollo: 9yIx2mZegixXHeDf6mWVqA
+OpenAI: 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
+Apify: apify_proxy_zZ12PNY7illL44MXT8Cf3vKetkI5I62Oupn2
 ```
 
 ---
