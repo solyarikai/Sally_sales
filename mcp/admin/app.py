@@ -1,4 +1,4 @@
-"""MCP Admin Panel — standalone FastAPI app with inline HTML templates.
+"""GTM MCP Admin Panel — standalone FastAPI app with inline HTML templates.
 Reads from MCP Postgres. Auth: ilovesally / qweqweqwe.
 """
 import os
@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request, Response, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 import asyncpg
 
-app = FastAPI(title="MCP Admin")
+app = FastAPI(title="GTM GTM MCP Admin", root_path="/admin")
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://mcp:mcp_secret@mcp-postgres:5432/mcp_leadgen")
 ADMIN_USER = "ilovesally"
@@ -43,7 +43,7 @@ async def shutdown():
 def check_auth(request: Request):
     token = request.cookies.get("admin_session")
     if token != SESSION_SECRET:
-        raise HTTPException(302, headers={"Location": "/login"})
+        raise HTTPException(302, headers={"Location": "/admin/login"})
 
 
 # ── Auth ──
@@ -56,14 +56,14 @@ async def login_page():
 async def login(request: Request):
     form = await request.form()
     if form.get("username") == ADMIN_USER and form.get("password") == ADMIN_PASS:
-        resp = RedirectResponse("/", status_code=302)
+        resp = RedirectResponse("/admin/", status_code=302)
         resp.set_cookie("admin_session", SESSION_SECRET, httponly=True, max_age=86400)
         return resp
     return HTMLResponse(_render(HTML_LOGIN, style=STYLE).replace("<!-- error -->", '<div style="color:#ef4444;margin-bottom:16px">Invalid credentials</div>'))
 
 @app.get("/logout")
 async def logout():
-    resp = RedirectResponse("/login", status_code=302)
+    resp = RedirectResponse("/admin/login", status_code=302)
     resp.delete_cookie("admin_session")
     return resp
 
@@ -113,14 +113,14 @@ async def dashboard(request: Request, date_from: str = "", date_to: str = ""):
         rows_html += f"""
         <tr>
             <td>{u['id']}</td>
-            <td><a href="/user/{u['id']}">{u['email']}</a></td>
+            <td><a href="/admin/user/{u['id']}">{u['email']}</a></td>
             <td>{u['name'] or '—'}</td>
             <td>{created}</td>
             <td>{u['projects']}</td>
             <td>{u['apollo_credits']} ({apollo_cost})</td>
             <td>{u['analysis_runs']} ({openai_cost})</td>
             <td>{u['tool_calls']}</td>
-            <td><a href="/user/{u['id']}/conversations">{u['conversations']}</a></td>
+            <td><a href="/admin/user/{u['id']}/conversations">{u['conversations']}</a></td>
         </tr>"""
 
     return _render(HTML_DASHBOARD, style=STYLE,
@@ -256,12 +256,12 @@ STYLE = """
 </style>
 """
 
-HTML_LOGIN = """<!DOCTYPE html><html><head><title>MCP Admin</title>%%style%%</head><body>
+HTML_LOGIN = """<!DOCTYPE html><html><head><title>GTM MCP Admin</title>%%style%%</head><body>
 <div style="min-height:100vh;display:flex;align-items:center;justify-content:center">
 <div class="card" style="width:360px">
-    <h1 style="text-align:center;margin-bottom:24px">MCP Admin</h1>
+    <h1 style="text-align:center;margin-bottom:24px">GTM MCP Admin</h1>
     <!-- error -->
-    <form method="post" action="/login" style="display:flex;flex-direction:column;gap:12px">
+    <form method="post" action="/admin/login" style="display:flex;flex-direction:column;gap:12px">
         <input type="text" name="username" placeholder="Username" required>
         <input type="password" name="password" placeholder="Password" required>
         <input type="submit" value="Login">
@@ -269,10 +269,10 @@ HTML_LOGIN = """<!DOCTYPE html><html><head><title>MCP Admin</title>%%style%%</he
 </div>
 </div></body></html>"""
 
-HTML_DASHBOARD = """<!DOCTYPE html><html><head><title>MCP Admin</title>%%style%%</head><body>
+HTML_DASHBOARD = """<!DOCTYPE html><html><head><title>GTM MCP Admin</title>%%style%%</head><body>
 <div class="nav">
-    <div><b>MCP Admin</b> <a href="/" style="margin-left:16px">Dashboard</a></div>
-    <a href="/logout">Logout</a>
+    <div><b>GTM GTM MCP Admin</b> <a href="/admin/" style="margin-left:16px">Dashboard</a></div>
+    <a href="/admin/logout">Logout</a>
 </div>
 <div class="container">
     <div class="stats">
@@ -283,7 +283,7 @@ HTML_DASHBOARD = """<!DOCTYPE html><html><head><title>MCP Admin</title>%%style%%
     </div>
 
     <div class="card">
-        <form method="get" action="/" style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+        <form method="get" action="/admin/" style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
             <input type="date" name="date_from" value="{%%date_from%%}">
             <span style="color:#888">to</span>
             <input type="date" name="date_to" value="{%%date_to%%}">
@@ -299,15 +299,15 @@ HTML_DASHBOARD = """<!DOCTYPE html><html><head><title>MCP Admin</title>%%style%%
     </div>
 </div></body></html>"""
 
-HTML_USER = """<!DOCTYPE html><html><head><title>User %%user_id%% — MCP Admin</title>%%style%%</head><body>
+HTML_USER = """<!DOCTYPE html><html><head><title>User %%user_id%% — GTM MCP Admin</title>%%style%%</head><body>
 <div class="nav">
-    <div><b>MCP Admin</b> <a href="/">Dashboard</a> → User #%%user_id%%</div>
-    <a href="/logout">Logout</a>
+    <div><b>GTM GTM MCP Admin</b> <a href="/admin/">Dashboard</a> → User #%%user_id%%</div>
+    <a href="/admin/logout">Logout</a>
 </div>
 <div class="container">
     <div class="card">
         <h1>%%email%%</h1>
-        <p style="color:#888">%%name%% · Created: %%created%% · <a href="/user/%%user_id%%/conversations">View conversations</a></p>
+        <p style="color:#888">%%name%% · Created: %%created%% · <a href="/admin/user/%%user_id%%/conversations">View conversations</a></p>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -336,10 +336,10 @@ HTML_USER = """<!DOCTYPE html><html><head><title>User %%user_id%% — MCP Admin<
     </div>
 </div></body></html>"""
 
-HTML_CONVERSATIONS = """<!DOCTYPE html><html><head><title>Conversations — %%email%% — MCP Admin</title>%%style%%</head><body>
+HTML_CONVERSATIONS = """<!DOCTYPE html><html><head><title>Conversations — %%email%% — GTM MCP Admin</title>%%style%%</head><body>
 <div class="nav">
-    <div><b>MCP Admin</b> <a href="/">Dashboard</a> → <a href="/user/%%user_id%%">%%email%%</a> → Conversations</div>
-    <a href="/logout">Logout</a>
+    <div><b>GTM GTM MCP Admin</b> <a href="/admin/">Dashboard</a> → <a href="/admin/user/%%user_id%%">%%email%%</a> → Conversations</div>
+    <a href="/admin/logout">Logout</a>
 </div>
 <div class="container">
     <div class="card">
