@@ -134,24 +134,24 @@ async def map_query_to_filters(
         if industries_clean:
             keyword_tags.insert(0, industries_clean[0])
 
-    # ── Step E: Look up industry_tag_ids from apollo_industry_map ──
+    # ── Step E: Look up industry_tag_ids from apollo_taxonomy ──
     industry_tag_ids = []
     try:
         from sqlalchemy import text as sa_text
         async with async_session_maker() as map_session:
             for ind_name in industries_clean:
                 row = await map_session.execute(
-                    sa_text("SELECT tag_id FROM apollo_industry_map WHERE LOWER(industry_name) = LOWER(:name)"),
+                    sa_text("SELECT tag_id FROM apollo_taxonomy WHERE term_type='industry' AND LOWER(term) = LOWER(:name) AND tag_id IS NOT NULL"),
                     {"name": ind_name},
                 )
                 tag = row.scalar_one_or_none()
                 if tag:
                     industry_tag_ids.append(tag)
-                    logger.info(f"Industry map hit: '{ind_name}' → {tag}")
+                    logger.info(f"Industry tag_id: '{ind_name}' → {tag}")
                 else:
-                    logger.info(f"Industry map miss: '{ind_name}' — will use keyword_tags fallback")
+                    logger.info(f"No tag_id for '{ind_name}' — will use keyword_tags fallback")
     except Exception as e:
-        logger.warning(f"Industry map lookup failed: {e}")
+        logger.warning(f"Industry tag_id lookup failed: {e}")
 
     # ── Step F: A11 — Classify if industries are SPECIFIC or BROAD for this query ──
     filter_strategy = "keywords_only"
