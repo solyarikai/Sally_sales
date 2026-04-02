@@ -677,6 +677,17 @@ export const telegramOutreachApi = {
   sendDialogMessage: async (dialogId: number, text: string, opts?: { parseMode?: string; replyTo?: number }) =>
     (await api.post(`${BASE}/inbox/dialogs/${dialogId}/send`, { text, parseMode: opts?.parseMode, replyTo: opts?.replyTo })).data,
 
+  sendDialogFile: async (dialogId: number, file: File, opts?: { caption?: string; parseMode?: string; replyTo?: number }) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('caption', opts?.caption || '');
+    formData.append('parse_mode', opts?.parseMode || '');
+    if (opts?.replyTo) formData.append('reply_to', String(opts.replyTo));
+    return (await api.post(`${BASE}/inbox/dialogs/${dialogId}/send-file`, formData, {
+      headers: { 'Content-Type': undefined as any },
+    })).data;
+  },
+
   deleteDialogMessage: async (dialogId: number, msgId: number, revoke: boolean = false) =>
     (await api.delete(`${BASE}/inbox/dialogs/${dialogId}/messages/${msgId}`, { params: { revoke } })).data,
 

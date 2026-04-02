@@ -6,7 +6,7 @@ import {
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
-  LayoutGrid, Bot, Phone, Settings, PanelLeft,
+  LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon, Mic,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -4011,6 +4011,8 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [deleteModal, setDeleteModal] = useState<any>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedMsgs, setSelectedMsgs] = useState<Set<number>>(new Set());
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [customTemplates, setCustomTemplates] = useState<{ label: string; text: string }[]>(() => {
     try { return JSON.parse(localStorage.getItem('inbox_custom_templates') || '[]'); } catch { return []; }
   });
@@ -4487,20 +4489,34 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
 
   // Send handler (supports reply_to + formatting)
   const handleSend = async () => {
-    if (!selectedDialog || !messageText.trim() || sending) return;
+    if (!selectedDialog || sending) return;
+    const hasText = messageText.trim().length > 0;
+    const hasFile = !!attachedFile;
+    if (!hasText && !hasFile) return;
     setSending(true);
     try {
       const editor = editorRef.current;
       let text = messageText.trim();
       let parseMode: string | undefined;
-      if (editor) {
+      if (editor && text) {
         const html = Array.from(editor.childNodes).map(editorToTelegramHtml).join('').replace(/^\n+|\n+$/g, '');
         if (html !== text) { text = html; parseMode = 'html'; }
       }
-      await telegramOutreachApi.sendDialogMessage(selectedDialog.id, text, {
-        parseMode,
-        replyTo: replyTo?.id,
-      });
+
+      if (hasFile) {
+        await telegramOutreachApi.sendDialogFile(selectedDialog.id, attachedFile!, {
+          caption: text || undefined,
+          parseMode,
+          replyTo: replyTo?.id,
+        });
+        setAttachedFile(null);
+      } else {
+        await telegramOutreachApi.sendDialogMessage(selectedDialog.id, text, {
+          parseMode,
+          replyTo: replyTo?.id,
+        });
+      }
+
       if (editor) editor.innerHTML = '';
       setMessageText('');
       setReplyTo(null);
@@ -4509,7 +4525,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
       setMessages(data.messages || data || []);
       editorRef.current?.focus();
     } catch (e: any) {
-      toast(e?.response?.data?.detail || 'Failed to send message', 'error');
+      toast(e?.response?.data?.detail || 'Failed to send', 'error');
     } finally {
       setSending(false);
     }
@@ -5027,7 +5043,18 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                                   <p className="truncate" style={{ color: A.text2 }}>{msg.reply_to.text || ''}</p>
                                 </div>
                               )}
-                              <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{msg.text || msg.rendered_text || msg.message_text || ''}</p>
+                              {/* Media indicator */}
+                              {msg.media && (
+                                <div className="flex items-center gap-1.5 mb-1 text-[12px] py-1 px-2 rounded-md" style={{ background: isOutbound ? 'rgba(79,107,240,0.08)' : 'rgba(0,0,0,0.04)' }}>
+                                  {msg.media.type === 'photo' && <><Image className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>Photo{msg.media.file_name ? ` — ${msg.media.file_name}` : ''}</span></>}
+                                  {msg.media.type === 'video' && <><Play className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>Video{msg.media.file_name ? ` — ${msg.media.file_name}` : ''}</span></>}
+                                  {msg.media.type === 'voice' && <><Mic className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>Voice message{msg.media.duration ? ` (${msg.media.duration}s)` : ''}</span></>}
+                                  {msg.media.type === 'video_note' && <><Play className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>Video message</span></>}
+                                  {msg.media.type === 'sticker' && <span style={{ color: A.text2 }}>Sticker</span>}
+                                  {msg.media.type === 'document' && <><FileIcon className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>{msg.media.file_name || 'File'}{msg.media.size ? ` (${(msg.media.size / 1024).toFixed(0)} KB)` : ''}</span></>}
+                                </div>
+                              )}
+                              {(msg.text || msg.rendered_text || msg.message_text) && <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{msg.text || msg.rendered_text || msg.message_text}</p>}
                               {/* Footer: reactions + time + read status — all inline */}
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap" style={{ justifyContent: isOutbound ? 'flex-end' : 'flex-start' }}>
                                 {msg.reactions && msg.reactions.length > 0 && msg.reactions.map((r: any, ri: number) => (
@@ -5334,8 +5361,29 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                     </div>
                   )}
 
-                  {/* Row 3: Editor + Send button */}
+                  {/* Attachment preview */}
+                  {attachedFile && (
+                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12px]" style={{ background: A.blueBg, color: A.text2 }}>
+                      {attachedFile.type.startsWith('image/') ? <Image className="w-3.5 h-3.5" style={{ color: A.blue }} /> : <FileIcon className="w-3.5 h-3.5" style={{ color: A.blue }} />}
+                      <span className="flex-1 truncate font-medium" style={{ color: A.text1 }}>{attachedFile.name}</span>
+                      <span style={{ color: A.text3 }}>{(attachedFile.size / 1024).toFixed(0)} KB</span>
+                      <button onClick={() => setAttachedFile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: A.text3, padding: 2 }}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Row 3: Editor + Attach + Send button */}
                   <div className="flex gap-2 items-end">
+                    <input ref={fileInputRef} type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setAttachedFile(f); e.target.value = ''; }} />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
+                      title="Attach file"
+                      style={{ background: 'transparent', border: `1px solid ${A.border}`, cursor: 'pointer' }}
+                    >
+                      <Paperclip className="w-4 h-4" style={{ color: A.text3 }} />
+                    </button>
                     <div
                       ref={editorRef}
                       contentEditable={!sending}
@@ -5349,11 +5397,11 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                     />
                     <button
                       onClick={handleSend}
-                      disabled={sending || !messageText.trim()}
+                      disabled={sending || (!messageText.trim() && !attachedFile)}
                       className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
                       style={{
-                        background: messageText.trim() ? A.blue : '#E5E7EB',
-                        cursor: messageText.trim() ? 'pointer' : 'default',
+                        background: (messageText.trim() || attachedFile) ? A.blue : '#E5E7EB',
+                        cursor: (messageText.trim() || attachedFile) ? 'pointer' : 'default',
                       }}
                     >
                       {sending
