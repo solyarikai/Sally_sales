@@ -2213,11 +2213,29 @@ Return ONLY valid JSON."""
                 await session.flush()
                 cache_count = len(all_accounts)
 
-        # NEVER dump all accounts. Return count + link.
+        # Also load saved lists for quick selection
+        lists_result = await session.execute(_st(
+            f"SELECT id, name, account_count FROM email_account_lists WHERE user_id={user.id} ORDER BY created_at DESC"
+        ))
+        saved_lists = [{"id": r[0], "name": r[1], "count": r[2]} for r in lists_result.fetchall()]
+
         return {
             "total": cache_count,
-            "message": f"{cache_count} email accounts available. Tell me a name/email pattern (e.g. 'all with rinat') and I'll find matching accounts.",
-            "accounts_link": f"https://gtm-mcp.com/campaigns/accounts",
+            "saved_lists": saved_lists,
+            "message": (
+                f"{cache_count} email accounts available."
+                + (" You have {} saved list(s): {}.".format(len(saved_lists), ", ".join(l["name"] + " (" + str(l["count"]) + ")" for l in saved_lists)) if saved_lists else "")
+                + "\n\nTwo ways to select accounts:"
+                + "\n1. Tell me a pattern (e.g. 'all accounts with petr', 'elnar accounts') — I'll filter instantly"
+                + "\n2. Browse & create saved lists at the link below, then tell me the list name"
+            ),
+            "accounts_page": "https://gtm-mcp.com/email-accounts",
+            "_instructions": (
+                "Present BOTH options to the user: "
+                "(1) they can say a name/email pattern in chat and you'll call align_email_accounts with account_filter, "
+                "OR (2) they can visit the Email Accounts page to browse, search, select, and save a list — then tell you the list name. "
+                "Show the link. Ask ONE question: 'Which accounts should we use?'"
+            ),
         }
 
     if tool_name == "align_email_accounts":
@@ -2263,9 +2281,23 @@ Return ONLY valid JSON."""
                 for a in all_accounts
             ]
 
-        # Filter by user query or explicit IDs
+        # Filter by user query, explicit IDs, or saved preset name
         account_ids = args.get("account_ids")
         account_filter = args.get("account_filter", "")
+        preset_name = args.get("preset_name", "")
+
+        # Resolve saved list by name
+        if preset_name and not account_ids:
+            from sqlalchemy import text as _st3
+            preset_result = await session.execute(_st3(
+                "SELECT account_ids FROM email_account_lists WHERE user_id = :uid AND LOWER(name) = LOWER(:name) LIMIT 1"
+            ), {"uid": user.id, "name": preset_name.strip()})
+            preset_row = preset_result.fetchone()
+            if preset_row and preset_row[0]:
+                account_ids = [a["id"] for a in preset_row[0] if isinstance(a, dict) and "id" in a]
+                if not account_ids:
+                    account_ids = preset_row[0]  # fallback: might be plain list of IDs
+
         if account_ids:
             matched = [a for a in accounts_list if a["id"] in account_ids]
         elif account_filter:

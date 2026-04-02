@@ -455,17 +455,20 @@ Call this BEFORE align_email_accounts to show available accounts.""",
         "name": "align_email_accounts",
         "description": """Select email accounts for the campaign. Called BEFORE tam_gather (no run exists yet).
 
-Loads ALL accounts from SmartLead, filters by user query (e.g. 'all with elnar in name').
-Creates draft campaign linked to the project. Run will be linked later when tam_gather creates it.
+Three ways to select:
+1. account_filter: natural language like 'all with elnar', 'petr accounts' — filters from cache
+2. preset_name: name of a saved list from the Email Accounts page (e.g. 'Elnar TFP accounts')
+3. account_ids: explicit SmartLead account IDs
 
-TWO-STEP: Call without confirm → preview matched accounts. Call with confirm=true → creates campaign.""",
+Creates draft campaign linked to project. TWO-STEP: without confirm → preview. With confirm=true → creates campaign.""",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "project_id": {"type": "integer", "description": "Project to link campaign to"},
                 "run_id": {"type": "integer", "description": "Gathering run (optional — may not exist yet)"},
-                "account_filter": {"type": "string", "description": "Filter: 'all with elnar', 'petr accounts', email/name substring"},
-                "account_ids": {"type": "array", "items": {"type": "integer"}, "description": "Explicit account IDs (overrides filter)"},
+                "account_filter": {"type": "string", "description": "Natural language: 'all with elnar', 'petr accounts'"},
+                "preset_name": {"type": "string", "description": "Saved list name from Email Accounts page"},
+                "account_ids": {"type": "array", "items": {"type": "integer"}, "description": "Explicit SmartLead account IDs"},
                 "campaign_name": {"type": "string", "description": "Campaign name override"},
                 "confirm": {"type": "boolean", "description": "Set true after user approves account selection"},
             },
