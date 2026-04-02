@@ -604,7 +604,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                       <span style={{ color: atLimit ? A.rose : A.text1, fontWeight: atLimit ? 600 : 400 }}>{acc.messages_sent_today}</span>
                       <span style={{ color: A.text3 }}>/{effLimit}</span>
                       {acc.skip_warmup ? <span style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} title="Warm-up skipped (manual override)">SKIP</span>
-                        : acc.warmup_day != null ? <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up day ${acc.warmup_day}`}>WU</span> : null}
+                        : acc.warmup_day != null ? <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
                       {!acc.skip_warmup && acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
                     </td>
                     <td className="px-1 py-2.5" onClick={e => e.stopPropagation()}>
@@ -1545,6 +1545,12 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('limit'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Daily Limit
               </button>
+              <div className="flex items-center gap-1 px-2 py-1">
+                <span className="text-[10px] font-medium" style={{ color: '#d97706' }}>WARM-UP</span>
+                <span title="Warm-up gradually increases daily sending limit for new accounts: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days are capped at 5 msgs/day. Disabling warm-up removes all limits — use with caution on new sessions.">
+                  <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
+                </span>
+              </div>
               <button onClick={() => { setShowActionsPopup(false); run('Warm-up skipped', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Skip Warm-up
               </button>
@@ -2114,9 +2120,14 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
               </div>
               <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: A.bg, border: `1px solid ${A.border}` }}>
                 <div>
-                  <label className="text-xs font-medium" style={{ color: A.text1 }}>Skip Warm-up</label>
+                  <div className="flex items-center gap-1">
+                    <label className="text-xs font-medium" style={{ color: A.text1 }}>Skip Warm-up</label>
+                    <span title="Gradually increases daily limit: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days capped at 5 msgs/day.">
+                      <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
+                    </span>
+                  </div>
                   <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {account.warmup_day != null ? `Warm-up day ${account.warmup_day}` : account.is_young_session ? 'Young session' : 'No warm-up active'}
+                    {account.warmup_day != null ? `Warm-up day ${account.warmup_day} · limit ${account.effective_daily_limit ?? '?'} msgs/day` : account.is_young_session ? 'Young session' : 'No warm-up active'}
                   </div>
                 </div>
                 <button
