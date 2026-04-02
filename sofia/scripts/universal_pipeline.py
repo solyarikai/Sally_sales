@@ -6,75 +6,104 @@ Universal Lead Generation Pipeline
 вся конфигурация (сегменты, тексты, аккаунты) загружается из базы данных.
 Ничего не захардкожено под конкретный проект.
 
-Как работает pipeline (простым языком):
+═══════════════════════════════════════════════════════════
+  ШАГ 0: ПОИСК КОМПАНИЙ (3 источника на выбор)
+═══════════════════════════════════════════════════════════
 
-  Шаг 0-2:  ПОИСК КОМПАНИЙ — ищем компании через Clay/Apollo по описанию
-            идеального клиента (ICP). Убираем дубли и тех, кому уже писали.
+  Источник A — Clay ICP (--mode structured / --mode natural)
+    AI (Gemini) конвертирует текстовое описание ICP в Clay фильтры.
+    Хорош для первого поиска, когда фильтры ещё не определены.
+    Менее предсказуем — AI сам решает какие keywords использовать.
+    Стоимость: ~$0.01/компания.
+
+  Источник B — Clay Keywords (--mode keywords)
+    Явный список description_keywords → напрямую в Clay UI (без AI).
+    Быстрее и точнее, чем ICP. Ключевые слова идут как есть.
+    Стоимость: ~$0.01/компания.
+
+  Источник C — Clay Lookalike (--mode lookalike)
+    Reverse-engineering фильтров по примерам доменов.
+    Анализирует компании-примеры и строит похожий поиск.
+    Стоимость: ~$0.01/компания.
+
+  Источник D — Apollo Internal API (--mode apollo)
+    Puppeteer логинится в Apollo, вызывает internal API
+    (POST /api/v1/mixed_companies/search) с q_organization_keyword_tags.
+    Точное совпадение по keyword tags компаний в Apollo.
+    Скрипт: scripts/sofia/onsocial_apollo_companies_search.js
+    Стоимость: БЕСПЛАТНО (0 credits).
+
+  Все четыре источника на выходе дают список доменов компаний,
+  который дальше идёт в единый pipeline (шаги 1-10).
+
+═══════════════════════════════════════════════════════════
+  ШАГИ 1-10: ЕДИНЫЙ PIPELINE (одинаковый для всех источников)
+═══════════════════════════════════════════════════════════
+
+  Шаг 1:    DEDUP — убираем компании, уже найденные в предыдущих запусках.
+  Шаг 2:    BLACKLIST — проверяем компании по чёрному списку проекта.
+            ★ CP1: "Правильный проект? Правильный scope?"
   Шаг 3-4:  ФИЛЬТРАЦИЯ И СКРЕЙПИНГ — убираем мусор (офлайн-бизнесы,
             мёртвые сайты). Скачиваем содержимое сайтов для анализа.
-  Шаг 5:    КЛАССИФИКАЦИЯ — GPT анализирует сайт каждой компании и решает:
-            это наш клиент или нет? Присваивает сегмент и оценку уверенности.
-  Шаг 6-8:  ВЕРИФИКАЦИЯ — подготовка к проверке email (оценка стоимости).
-  Шаг 9:    ЭКСПОРТ — выгружаем одобренные компании-таргеты из базы.
-  Шаг 10:   ПОИСК ЛЮДЕЙ — автоматически ищет контакты (ЛПР) в Apollo People UI
-            через Puppeteer (apollo_scraper.js). Батчит по 30 доменов, фильтрует
-            по seniority и titles из apollo-filters-v3. Fallback: --apollo-csv.
-  Шаг 11:   ПОИСК EMAIL — FindyMail ищет email по LinkedIn профилям.
-            Платим только за найденные email ($0.01/шт).
-  Шаг 12:   ЗАГРУЗКА В SMARTLEAD — создаём кампанию, привязываем почтовые
-            аккаунты, загружаем лиды, загружаем секвенсы (тексты писем),
-            устанавливаем расписание. Каждый подшаг требует подтверждения.
+  Шаг 5:    CLASSIFY (GPT-4o-mini) — AI классифицирует каждую компанию:
+            is_target? confidence? сегмент? reasoning? ~$0.01-0.05 за батч из 500.
+            ★ CP2: "Список компаний корректный?"
+  Шаг 6:    VERIFY — оператор с Claude проверяют таргеты GPT.
+  Шаг 7:    ADJUST PROMPT → повторить 5-6 если accuracy <90%.
+  Шаг 8:    ПОИСК ЛЮДЕЙ — Apollo People Search (auto или --apollo-csv).
+            ★ CP3: "Одобряете расходы на email enrichment?"
+  Шаг 9:    ПОИСК EMAIL — FindyMail ($0.01/найденный email).
+  Шаг 10:   ЗАГРУЗКА В SMARTLEAD — в существующие кампании.
+            Активация — НИКОГДА автоматически.
 
-  ★ Контрольные точки (Checkpoints):
-    CP1 — после blacklist: "Правильный проект? Правильный scope?"
-    CP2 — после классификации: "Список компаний корректный?"
-    CP3 — перед FindyMail: "Одобряете расходы?"
-    Активация — НИКОГДА не запускается автоматически.
+═══════════════════════════════════════════════════════════
+  GOOGLE SHEETS & DRIVE
+═══════════════════════════════════════════════════════════
 
-  ★ Google Sheets & Drive:
-    Все CSV автоматически дублируются в Google Sheets (аккаунт sofia@getsally.io).
-    OAuth credentials: ~/.claude/google-sheets/token.json (локально) или
-                       sofia/.google-sheets/token.json (Hetzner).
-    Sheets размещаются в папках Google Drive по TYPE из naming convention:
-      Leads → Onsocial/Leads/, Import → Onsocial/Import/, Targets → Onsocial/Target/,
-      Ops → Onsocial/Ops/, Analytics → Onsocial/Analytics/, Archive → Onsocial/Archive/.
-    Naming: [PROJECT] | [TYPE] | [SEGMENT] — [DATE]
-    Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
+  Все CSV дублируются в Google Sheets (аккаунт sofia@getsally.io).
+  OAuth: ~/.claude/google-sheets/token.json (локально) или
+         sofia/.google-sheets/token.json (Hetzner).
+  Naming: [PROJECT] | [TYPE] | [SEGMENT] — [DATE]
+  Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
 
-Pipeline flow (technical):
-  Steps 0-8:  Backend gathering API (Clay/Apollo → Dedup → Blacklist → Scrape → Classify)
-  Step 9:     Export targets from DB
-  Step 10:    Apollo People UI Search (auto via apollo_scraper.js) or CSV import (--apollo-csv fallback)
-  Step 11:    FindyMail email enrichment
-  Step 12:    SmartLead upload (with per-step checkpoints)
+═══════════════════════════════════════════════════════════
+  USAGE
+═══════════════════════════════════════════════════════════
 
-Input modes:
-  --mode natural    : Claude generates filters in conversation, passes as --filters JSON
-  --mode structured : Uses CLAY_FILTERS from project config (segment-based)
-  --mode lookalike  : Reverse-engineers filters from example company domains
-  --mode expand     : Clones a previous run with JSON overrides
-
-Usage:
-  # Full pipeline from gathering
+  # Clay ICP — AI маппит ICP → Clay фильтры
   python3 universal_pipeline.py --project-id 42 --mode structured --segment influencer_platforms
 
-  # Resume from people search (auto Apollo UI search)
-  python3 universal_pipeline.py --project-id 42 --from-step people
+  # Clay Keywords — явные keywords, без AI
+  python3 universal_pipeline.py --project-id 42 --mode keywords \\
+    --filters '{"description_keywords": ["influencer marketing platform", "creator analytics"],
+                "description_keywords_exclude": ["recruitment", "staffing"],
+                "industries": ["Computer Software", "Internet"],
+                "minimum_member_count": 5, "maximum_member_count": 5000,
+                "max_results": 5000}'
 
-  # Resume with manual CSV (fallback)
-  python3 universal_pipeline.py --project-id 42 --from-step people --apollo-csv export.csv
+  # Apollo Internal API — FREE, точные keyword_tags
+  python3 universal_pipeline.py --project-id 42 --mode apollo \\
+    --filters '{"keyword_tags": ["influencer marketing platform", "creator analytics"],
+                "locations": ["United Kingdom", "India", "France"],
+                "sizes": ["5,50", "51,200", "201,500", "501,1000", "1001,5000"],
+                "excluded_keywords": ["recruitment", "staffing"],
+                "max_pages": 25}'
 
-  # Lookalike search
+  # Lookalike — reverse-engineering фильтров по примерам
   python3 universal_pipeline.py --project-id 42 --mode lookalike --examples "impact.com,modash.io"
 
-  # Expand previous run to new geography
-  python3 universal_pipeline.py --project-id 42 --mode expand --base-run 198 \
+  # Expand — клон предыдущего рана с новыми параметрами
+  python3 universal_pipeline.py --project-id 42 --mode expand --base-run 198 \\
     --override '{"country_names": ["Singapore", "Thailand"]}'
 
-  # Dry run
+  # Resume — продолжить с любого шага
+  python3 universal_pipeline.py --project-id 42 --from-step people
+  python3 universal_pipeline.py --project-id 42 --from-step people --apollo-csv export.csv
+
+  # Dry run — напечатать параметры без API вызовов
   python3 universal_pipeline.py --project-id 42 --mode structured --segment agencies_mena --dry-run
 
-Env vars: APOLLO_API_KEY, FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
+Env vars: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
 Backend must be running on localhost:8000 (Hetzner)
 """
 
@@ -595,9 +624,6 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
     # Одобряем таргеты (CP2) — после classify все target компании утверждены
     approve_pending_gate(config, run_id)
 
-    # Добавляем утверждённые домены в blacklist — следующий ран не будет их обрабатывать повторно
-    blacklist_approved_targets(config, run_id)
-
 
 def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
     """Find and approve pending gate for this run."""
@@ -617,23 +643,55 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 0: ЗАПУСК ПОИСКА КОМПАНИЙ
-# Отправляем описание идеального клиента (ICP) в Clay или Apollo.
-# Система ищет компании по ключевым словам, индустрии, размеру, географии.
-# Результат: список доменов компаний (например thegoatagency.com, modash.io).
-# Стоимость: Clay ~$0.01/компания, Apollo бесплатно (через UI эмулятор).
+# ШАГ 0: ПОИСК КОМПАНИЙ (3 источника на выбор)
+#
+# Источник A — Clay ICP (--mode structured / --mode natural)
+#   AI (Gemini) маппит текст ICP → Clay фильтры. ~$0.01/компания.
+#
+# Источник B — Clay Keywords (--mode keywords)
+#   Явные description_keywords напрямую в Clay UI. ~$0.01/компания.
+#
+# Источник C — Clay Lookalike (--mode lookalike)
+#   Reverse-engineering фильтров по примерам доменов. ~$0.01/компания.
+#
+# Источник D — Apollo Internal API (--mode apollo)
+#   Puppeteer + internal API (q_organization_keyword_tags). БЕСПЛАТНО.
+#   Скрипт: scripts/sofia/onsocial_apollo_companies_search.js
+#
+# Clay (A, B, C) → step0_start() → backend API → run_id
+# Apollo (D) → step0_apollo_companies() → JS scraper → domains → create_batched_runs()
+#
+# Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-10).
 # ══════════════════════════════════════════════════════════════════════════════
 
 def step0_start(config: ProjectConfig, filters: dict, mode: str,
                 input_text: str = None, notes: str = "") -> int:
-    """Start Clay/Apollo gathering via backend API. Returns run_id."""
+    """Start Clay gathering via backend API (sources A and B). Returns run_id.
+
+    Filters can contain either:
+      - icp_text: natural language ICP -> AI maps to Clay filters (Gemini/GPT)
+      - description_keywords: explicit keyword list -> direct to Clay UI (no AI)
+    Both can include: industries, country_names, minimum/maximum_member_count, max_results.
+    """
+    has_keywords = bool(filters.get("description_keywords"))
+    has_icp = bool(filters.get("icp_text"))
+    search_mode = "description_keywords (direct)" if has_keywords else "icp_text (AI-mapped)" if has_icp else "unknown"
+
     print(f"\n{'='*60}")
     print(f"STEP 0: Start Gathering")
     print(f"  Project: {config.project_name} (ID {config.project_id})")
     print(f"  Mode: {mode}")
-    print(f"  Countries: {', '.join(filters.get('country_names', ['global']))}")
+    print(f"  Clay search: {search_mode}")
+    if has_keywords:
+        kw = filters["description_keywords"]
+        print(f"  Keywords: {len(kw)} description_keywords")
+        excl = filters.get("description_keywords_exclude", [])
+        if excl:
+            print(f"  Excluded: {len(excl)} keywords")
+    if has_icp:
+        print(f"  ICP: {filters['icp_text'][:100]}...")
+    print(f"  Countries: {', '.join(filters.get('country_names', ['ALL GEO']))}")
     print(f"  Max results: {filters.get('max_results', 5000)}")
-    print(f"  ICP: {filters.get('icp_text', '?')[:100]}...")
     print(f"{'='*60}")
 
     result = api("post", "/pipeline/gathering/start", json={
@@ -651,6 +709,155 @@ def step0_start(config: ProjectConfig, filters: dict, mode: str,
     print(f"  Status: {result['status']} / {result['current_phase']}")
     save_state(config.state_dir, run_id, "started", config_key=mode)
     return run_id
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ШАГ 0 (APOLLO): ПОИСК КОМПАНИЙ ЧЕРЕЗ APOLLO INTERNAL API
+# Вместо Clay — запускаем apollo_companies_search.js (Puppeteer + internal API).
+# Puppeteer логинится в Apollo, использует q_organization_keyword_tags для точного
+# поиска по keyword tags. Результат: JSON с компаниями → извлекаем домены →
+# скармливаем в backend как manual.companies.manual.
+# БЕСПЛАТНО — не тратит API credits.
+# ══════════════════════════════════════════════════════════════════════════════
+
+APOLLO_COMPANIES_SCRIPT = "scripts/apollo_companies_search.js"
+
+
+def step0_apollo_companies(config: ProjectConfig, filters: dict,
+                           apollo_profile: str = None) -> list[str]:
+    """Search companies via Apollo internal API. Returns list of domains.
+
+    Filters dict:
+        keyword_tags: list of Apollo keyword tags (required)
+        locations: list of country names (required)
+        sizes: list of employee ranges, e.g. ["5,50", "51,200"] (optional)
+        excluded_keywords: list of keywords to post-filter companies (optional)
+        max_pages: max pages per keyword (default 25)
+    """
+    keyword_tags = filters.get("keyword_tags", [])
+    locations = filters.get("locations", [])
+    sizes = filters.get("sizes", ["5,50", "51,200", "201,500", "501,1000", "1001,5000"])
+    excluded_keywords = filters.get("excluded_keywords", [])
+    max_pages = filters.get("max_pages", 25)
+
+    print(f"\n{'='*60}")
+    print(f"STEP 0: Apollo Companies Search (Internal API)")
+    print(f"  Project: {config.project_name} (ID {config.project_id})")
+    print(f"  Keyword tags: {len(keyword_tags)}")
+    print(f"  Locations: {len(locations)} ({', '.join(locations[:5])}{'...' if len(locations) > 5 else ''})")
+    print(f"  Sizes: {', '.join(sizes)}")
+    print(f"  Max pages/keyword: {max_pages}")
+    if excluded_keywords:
+        print(f"  Excluded keywords: {len(excluded_keywords)}")
+    print(f"{'='*60}")
+
+    # Find the script
+    repo_dir = SOFIA_DIR.parent
+    scraper_path = repo_dir / APOLLO_COMPANIES_SCRIPT
+    if not scraper_path.exists():
+        scraper_path = Path(".") / APOLLO_COMPANIES_SCRIPT
+    if not scraper_path.exists():
+        print(f"  ERROR: {APOLLO_COMPANIES_SCRIPT} not found")
+        print(f"  Tried: {repo_dir / APOLLO_COMPANIES_SCRIPT}")
+        sys.exit(1)
+
+    # Output file
+    output_file = config.state_dir / "apollo_companies_raw.json"
+
+    # Build command
+    cmd = [
+        "node", str(scraper_path),
+        "--keywords", ",".join(keyword_tags),
+        "--locations", ",".join(locations),
+        "--max-pages", str(max_pages),
+        "--output", str(output_file),
+    ]
+    for size in sizes:
+        cmd.extend(["--sizes", size])
+    if apollo_profile:
+        cmd.extend(["--profile", apollo_profile])
+
+    # Resume if partial results exist
+    if output_file.exists():
+        cmd.append("--resume")
+        existing = json.loads(output_file.read_text())
+        print(f"  Resuming: {len(existing)} companies from previous run")
+
+    print(f"  Running apollo_companies_search.js...")
+    print(f"  This may take 10-60 minutes for {len(keyword_tags)} keywords...")
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=7200,
+            cwd=str(scraper_path.parent.parent),
+        )
+        if result.returncode != 0:
+            err = result.stderr[-500:] if result.stderr else result.stdout[-500:]
+            print(f"  Scraper error (rc={result.returncode}): {err}")
+            # Try to load partial results
+            if output_file.exists():
+                print(f"  Loading partial results...")
+            else:
+                sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print(f"  Scraper timeout (2h). Loading partial results...")
+
+    if not output_file.exists():
+        print(f"  ERROR: No output file: {output_file}")
+        sys.exit(1)
+
+    companies = json.loads(output_file.read_text())
+    print(f"\n  Scraped: {len(companies)} companies (raw)")
+
+    # Post-filter: exclude companies matching excluded keywords
+    if excluded_keywords:
+        before = len(companies)
+        filtered = []
+        for c in companies:
+            desc = " ".join([
+                str(c.get("industry", "")),
+                " ".join(c.get("keywords", [])),
+                " ".join(c.get("industries", [])),
+            ]).lower()
+            excluded = False
+            for kw in excluded_keywords:
+                if kw.lower() in desc:
+                    excluded = True
+                    break
+            if not excluded:
+                filtered.append(c)
+        companies = filtered
+        removed = before - len(companies)
+        if removed:
+            print(f"  Post-filter: removed {removed} companies (excluded keywords)")
+
+    # Extract unique domains
+    domains = []
+    seen = set()
+    for c in companies:
+        d = _normalize_domain(c.get("domain", "") or "")
+        if d and d not in seen and "." in d:
+            seen.add(d)
+            domains.append(d)
+
+    print(f"  Unique domains: {len(domains)}")
+
+    # Save import CSV + sheet
+    today = tag()
+    import_rows = [{"domain": c.get("domain", ""), "name": c.get("name", ""),
+                     "country": c.get("country", ""), "employees": c.get("estimated_num_employees", ""),
+                     "industry": c.get("industry", "") or ", ".join(c.get("industries", [])),
+                     "keywords": ", ".join(c.get("keywords", []))}
+                    for c in companies if c.get("domain")]
+    if import_rows:
+        seg_code = config.segments.get(list(config.segments.keys())[0] if config.segments else "", {}).get("code", "")
+        sheet_name = f"{config.project_name[:2].upper()} | Import | {seg_code} Apollo Companies — {today}"
+        save_csv(config.csv_dir / "import.csv", import_rows, sheet_name=sheet_name)
+
+    return domains
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -771,36 +978,10 @@ def step5_reanalyze(config: ProjectConfig, run_id: int,
     return {"target_rate": target_rate, "targets_count": targets_count}
 
 
-def blacklist_approved_targets(config: ProjectConfig, run_id: int):
-    """Добавляет домены классифицированных компаний в project_blacklist.
-    Blacklist = все компании, которые уже прошли сбор и обработку (не только те, кому писали).
-    Следующий gathering run не будет тратить время на повторную обработку этих доменов."""
-    import subprocess
-    sql = (f"SELECT DISTINCT dc.domain FROM discovered_companies dc "
-           f"JOIN company_source_links csl ON csl.discovered_company_id = dc.id "
-           f"WHERE csl.gathering_run_id = {run_id} AND dc.is_target = true "
-           f"AND dc.domain IS NOT NULL AND dc.domain != ''")
-    r = subprocess.run(
-        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
-         "-d", "leadgen", "-t", "-A", "-c", sql],
-        capture_output=True, text=True, timeout=15,
-    )
-    domains = [d.strip() for d in r.stdout.strip().split("\n") if d.strip()]
-    if not domains:
-        return
-
-    values = ", ".join(
-        f"({config.project_id}, '{d}', 'target_approved_run_{run_id}', 'pipeline', now())"
-        for d in domains
-    )
-    insert_sql = (f"INSERT INTO project_blacklist (project_id, domain, reason, source, created_at) "
-                  f"VALUES {values} ON CONFLICT DO NOTHING")
-    subprocess.run(
-        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
-         "-d", "leadgen", "-c", insert_sql],
-        capture_output=True, text=True, timeout=30,
-    )
-    print(f"  Blacklist: +{len(domains)} target domains added (run #{run_id})")
+    # NOTE: blacklist_approved_targets removed.
+    # CRM sync (contacts table) already blocks companies in active campaigns.
+    # Blacklisting by domain was too aggressive — prevented finding new employees
+    # at already-targeted companies. See TAM_GATHERING_ARCHITECTURE.md.
 
 
 def step6_prepare_verify(run_id: int) -> dict:
@@ -1007,11 +1188,20 @@ def _build_apollo_people_url(domains: list[str], titles: list[str], seniorities:
 
 
 def _run_apollo_scraper(url: str, max_pages: int, output_path: str) -> list[dict]:
-    script = Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT
-    if not script.exists():
-        script = Path(".") / APOLLO_SCRAPER_SCRIPT
-    if not script.exists():
-        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found")
+    # Try multiple paths to find apollo_scraper.js
+    paths_to_try = [
+        Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT,
+        Path(".") / APOLLO_SCRAPER_SCRIPT,
+        Path("/home/leadokol/magnum-opus-project/repo") / APOLLO_SCRAPER_SCRIPT,  # Hetzner default
+        Path.home() / "magnum-opus-project/repo" / APOLLO_SCRAPER_SCRIPT,  # Home-based fallback
+    ]
+    script = None
+    for path in paths_to_try:
+        if path.exists():
+            script = path
+            break
+    if script is None:
+        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found in any location")
         return []
     args = ["node", str(script), "--url", url, "--max-pages", str(max_pages), "--output", output_path]
     try:
@@ -1261,6 +1451,7 @@ def export_getsales(config: ProjectConfig, without_email: list[dict], today: str
         gs["last_name"] = c.get("last_name", "")
         gs["position"] = c.get("title", "")
         gs["linkedin_nickname"] = _extract_linkedin_nickname(li_url)
+        gs["linkedin_id"] = _extract_linkedin_nickname(li_url)
         gs["linkedin_url"] = li_url
         gs["company_name"] = normalize_company(c.get("company_name", ""))
         gs["company_domain"] = c.get("domain", "")
@@ -1945,12 +2136,12 @@ def mode4_expand(base_run_id: int, overrides: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
-         "export", "people", "findymail", "upload"]
+         "people", "findymail", "upload"]
 
 def main():
     p = argparse.ArgumentParser(description="Universal Lead Generation Pipeline")
     p.add_argument("--project-id", type=int, required=True, help="Project ID from database")
-    p.add_argument("--mode", choices=["natural", "structured", "lookalike", "expand"],
+    p.add_argument("--mode", choices=["natural", "structured", "keywords", "apollo", "lookalike", "expand"],
                    default="structured", help="Input mode for filter generation")
     p.add_argument("--segment", help="Segment slug (for structured mode)")
     p.add_argument("--input", dest="input_text", help="Mode 1: natural language description")
@@ -1962,6 +2153,7 @@ def main():
     p.add_argument("--run-id", type=int, help="Resume existing run")
     p.add_argument("--apollo-csv", help="Apollo People CSV (platforms or single)")
     p.add_argument("--apollo-csv-agencies", help="Apollo People CSV for agencies segment")
+    p.add_argument("--apollo-profile", help="Puppeteer profile path for Apollo login (--mode apollo)")
     p.add_argument("--max-findymail", type=int, default=1500)
     p.add_argument("--prompt-file", help="Custom analysis prompt file")
     p.add_argument("--re-analyze", action="store_true")
@@ -2021,6 +2213,37 @@ def main():
         seg = config.get_segment(args.segment)
         # Build filters from segment data — or use provided ICP
         mode_config = {"segment": seg["name"], "filters": seg.get("default_filters", {})}
+    elif args.mode == "keywords":
+        if not args.filters:
+            print("ERROR: --filters JSON required for --mode keywords")
+            print('  Must contain "description_keywords" list.')
+            print('  Example: --filters \'{"description_keywords": ["influencer marketing platform", "creator analytics"], '
+                  '"industries": ["Computer Software"], "max_results": 5000}\'')
+            sys.exit(1)
+        if "description_keywords" not in args.filters:
+            print("ERROR: --filters must contain 'description_keywords' list for --mode keywords")
+            sys.exit(1)
+        segment = args.segment or "INFLUENCER_PLATFORMS"
+        if any(kw in json.dumps(args.filters).lower() for kw in ["agency", "agencies", "im_first"]):
+            segment = "IM_FIRST_AGENCIES"
+        mode_config = {"segment": segment, "filters": args.filters}
+    elif args.mode == "apollo":
+        if not args.filters:
+            print("ERROR: --filters JSON required for --mode apollo")
+            print('  Must contain "keyword_tags" and "locations" lists.')
+            print('  Example: --filters \'{"keyword_tags": ["influencer marketing platform"], '
+                  '"locations": ["United Kingdom", "India"], "max_pages": 25}\'')
+            sys.exit(1)
+        if "keyword_tags" not in args.filters:
+            print("ERROR: --filters must contain 'keyword_tags' list for --mode apollo")
+            sys.exit(1)
+        if "locations" not in args.filters:
+            print("ERROR: --filters must contain 'locations' list for --mode apollo")
+            sys.exit(1)
+        segment = args.segment or "INFLUENCER_PLATFORMS"
+        if any(kw in json.dumps(args.filters).lower() for kw in ["agency", "agencies", "im_first"]):
+            segment = "IM_FIRST_AGENCIES"
+        mode_config = {"segment": segment, "filters": args.filters}
     elif args.mode == "lookalike":
         if not args.examples:
             print("ERROR: --examples required for --mode lookalike")
@@ -2039,8 +2262,44 @@ def main():
         print(f"\n  DRY RUN — no API calls")
         print(f"  Mode: {args.mode}")
         print(f"  Segment: {mode_config.get('segment', '?') if mode_config else '?'}")
-        print(f"  Countries: {', '.join(filters.get('country_names', ['global']))}")
-        print(f"  ICP: {filters.get('icp_text', '?')[:120]}...")
+
+        if args.mode == "apollo":
+            kw_tags = filters.get("keyword_tags", [])
+            locs = filters.get("locations", [])
+            sizes = filters.get("sizes", ["5,50", "51,200", "201,500", "501,1000", "1001,5000"])
+            excl = filters.get("excluded_keywords", [])
+            print(f"  Search: Apollo internal API (q_organization_keyword_tags)")
+            print(f"  keyword_tags ({len(kw_tags)}):")
+            for k in kw_tags:
+                print(f"    - {k}")
+            print(f"  locations ({len(locs)}): {', '.join(locs)}")
+            print(f"  sizes: {', '.join(sizes)}")
+            if excl:
+                print(f"  excluded_keywords ({len(excl)}):")
+                for k in excl:
+                    print(f"    - {k}")
+            print(f"  max_pages: {filters.get('max_pages', 25)}")
+        else:
+            has_kw = bool(filters.get("description_keywords"))
+            has_icp = bool(filters.get("icp_text"))
+            print(f"  Clay search: {'description_keywords (direct)' if has_kw else 'icp_text (AI-mapped)' if has_icp else '?'}")
+            if has_kw:
+                kw = filters["description_keywords"]
+                print(f"  description_keywords ({len(kw)}):")
+                for k in kw:
+                    print(f"    - {k}")
+                excl = filters.get("description_keywords_exclude", [])
+                if excl:
+                    print(f"  description_keywords_exclude ({len(excl)}):")
+                    for k in excl:
+                        print(f"    - {k}")
+            if has_icp:
+                print(f"  ICP: {filters['icp_text'][:200]}...")
+            print(f"  Industries: {filters.get('industries', '?')}")
+            print(f"  Countries: {', '.join(filters.get('country_names', ['ALL GEO']))}")
+            print(f"  Employees: {filters.get('minimum_member_count', '?')}-{filters.get('maximum_member_count', '?')}")
+            print(f"  Max results: {filters.get('max_results', 5000)}")
+
         print(f"  Steps: {' → '.join(steps)}")
         return
 
@@ -2049,27 +2308,56 @@ def main():
         if not mode_config:
             print("ERROR: no filters resolved")
             sys.exit(1)
-        notes = f"{args.mode} — {args.input_text or args.segment or args.examples or f'expand#{args.base_run}'}"
-        run_id = step0_start(config, mode_config["filters"], args.mode, args.input_text, notes)
-        # Wait for Clay
-        print("\n  Waiting for gathering to complete...")
-        conn_errors = 0
-        while True:
-            time.sleep(15)
-            try:
-                r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
-                              headers=BACKEND_HEADERS, timeout=30)
-                phase = r.json().get("current_phase", "")
-                if phase != "gather":
-                    print(f"  Phase: {phase}")
-                    break
-                print("  ..gathering")
-            except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
-                conn_errors += 1
-                if conn_errors >= 10:
-                    print(f"  Too many errors. Resume: --from-step blacklist --run-id {run_id}")
-                    sys.exit(1)
+
+        if args.mode == "apollo":
+            # Apollo mode: scrape companies via Puppeteer → feed domains to backend
+            domains = step0_apollo_companies(config, mode_config["filters"],
+                                             apollo_profile=args.apollo_profile)
+            if not domains:
+                print("  ERROR: No domains from Apollo search")
+                sys.exit(1)
+
+            seg_name = mode_config.get("segment", "UNKNOWN")
+            notes_prefix = f"Apollo Companies API — {seg_name} {len(domains)} domains"
+            if not _checkpoint(f"Feed {len(domains)} Apollo domains into backend pipeline?"):
+                sys.exit(0)
+
+            run_ids = create_batched_runs(config, domains, "apollo", notes_prefix)
+            save_json(config.state_dir / "apollo_run_ids.json", run_ids)
+
+            # Process all runs through backend pipeline (dedup → blacklist → scrape → classify)
+            prompt_text_resolved = prompt_text or config.prompt_text
+            for i, rid in enumerate(run_ids):
+                print(f"\n  === Run {i+1}/{len(run_ids)} (#{rid}) ===")
+                process_run_pipeline(config, rid, prompt_text=prompt_text_resolved)
+
+            print(f"\n  All {len(run_ids)} runs processed.")
+            # Use last run_id for subsequent steps
+            run_id = run_ids[-1] if run_ids else None
+
+        else:
+            # Clay/other modes: send filters to backend API
+            notes = f"{args.mode} — {args.input_text or args.segment or args.examples or f'expand#{args.base_run}'}"
+            run_id = step0_start(config, mode_config["filters"], args.mode, args.input_text, notes)
+            # Wait for Clay
+            print("\n  Waiting for gathering to complete...")
+            conn_errors = 0
+            while True:
                 time.sleep(15)
+                try:
+                    r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                                  headers=BACKEND_HEADERS, timeout=30)
+                    phase = r.json().get("current_phase", "")
+                    if phase != "gather":
+                        print(f"  Phase: {phase}")
+                        break
+                    print("  ..gathering")
+                except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
+                    conn_errors += 1
+                    if conn_errors >= 10:
+                        print(f"  Too many errors. Resume: --from-step blacklist --run-id {run_id}")
+                        sys.exit(1)
+                    time.sleep(15)
 
     if "blacklist" in steps and run_id:
         run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
@@ -2097,30 +2385,28 @@ def main():
     if "analyze" in steps and run_id:
         cp2 = step5_analyze(config, run_id, prompt_text)
         if cp2.get("gate_id"):
-            print(f"  Pausing at CP2. Approve then: --from-step verify --run-id {run_id}")
+            print(f"\n  ★ PAUSING AT CP2.")
+            print(f"  Step 6: Verify targets with Claude Code in chat.")
+            print(f"  Step 7: If accuracy <90% → adjust prompt → re-analyze:")
+            print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
+            print(f"  When accuracy ≥90% → approve gate and resume:")
+            print(f"    --from-step verify --run-id {run_id}")
             return
 
     if "verify" in steps and run_id:
-        # После CP2 approve — добавляем таргеты в blacklist,
-        # чтобы следующий gathering run не подобрал те же компании.
-        blacklist_approved_targets(config, run_id)
-        cp3 = step6_prepare_verify(run_id)
-        if cp3.get("gate_id"):
-            print(f"  Pausing at CP3. Approve then: --from-step export --run-id {run_id}")
-            return
-
-    # ── Steps 9-12: Local execution ──
-    if "export" in steps:
+        # Step 6-7 done in chat. Now: approve CP2 gate + export targets.
+        # No blacklist_approved_targets — CRM sync handles this automatically.
+        approve_pending_gate(config, run_id)
         targets = step9_export_targets(config, force=args.force)
     else:
         targets = load_json(config.state_dir / "targets.json") or []
 
+    # ── Step 8: Apollo People Search ──
     if "people" in steps:
         if args.apollo_csv:
             all_contacts = []
             seg_override = None
             if args.apollo_csv_agencies:
-                # Two CSVs — platforms + agencies
                 for slug, seg_data in config.segments.items():
                     if "platform" in slug.lower():
                         seg_override = seg_data["name"]
@@ -2141,18 +2427,29 @@ def main():
                 print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
             contacts = all_contacts
         else:
-            # Default: automated Apollo People UI search
             contacts = step10_apollo_people_search(config, targets, force=args.force)
+
+        # CP3: approve FindyMail cost before proceeding
+        with_li = sum(1 for c in contacts if c.get("linkedin_url") and not c.get("email"))
+        cost_est = with_li * 0.01
+        print(f"\n  ★ CP3 — FindyMail cost estimate:")
+        print(f"  Contacts to enrich: {with_li}")
+        print(f"  Estimated cost: ${cost_est:.2f}")
+        print(f"  PAUSING. Approve cost, then resume:")
+        print(f"    --from-step findymail --run-id {run_id}")
+        return
     else:
         contacts = load_json(config.state_dir / "contacts.json") or \
                    load_json(config.state_dir / "enriched.json") or []
 
+    # ── Step 9: FindyMail email enrichment ──
     if "findymail" in steps:
         contacts = asyncio.run(step11_findymail(config, contacts,
                                                  max_contacts=args.max_findymail, force=args.force))
     else:
         contacts = load_json(config.state_dir / "enriched.json") or contacts
 
+    # ── Step 10: SmartLead upload ──
     if "upload" in steps:
         step12_upload(config, contacts)
 

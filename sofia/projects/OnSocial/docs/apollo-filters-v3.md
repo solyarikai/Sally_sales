@@ -60,7 +60,7 @@ Director of Engineering, Director of Product,
 Co-Founder, Founder, CEO, COO
 ```
 
-**Management Level:** C-Suite, VP, Director, Owner
+**Management Level:** c_suite, vp, director, owner, senior, head, partner, founder
 
 **Excluded Titles**
 ```

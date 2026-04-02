@@ -150,6 +150,7 @@ def export_getsales_csv(without_email: list[dict], seg_label: str, date_tag: str
         gs["last_name"] = last
         gs["position"] = r.get("Title", "").strip()
         gs["linkedin_nickname"] = _extract_linkedin_nickname(li_url)
+        gs["linkedin_id"] = _extract_linkedin_nickname(li_url)
         gs["linkedin_url"] = li_url
         gs["company_name"] = normalize_company(r.get("Company", ""))
         gs["cf_location"] = r.get("Location", "").strip()
