@@ -552,6 +552,9 @@ export const telegramOutreachApi = {
   getCrmContactHistory: async (id: number) =>
     (await api.get(`${BASE}/crm/contacts/${id}/history`)).data,
 
+  getCrmPipeline: async (params: { search?: string; limit_per_status?: number } = {}) =>
+    (await api.get(`${BASE}/crm/pipeline`, { params })).data,
+
   // Tools
   checkPhones: async (phones: string[], accountId: number) =>
     (await api.post(`${BASE}/tools/check-phones`, phones, { params: { account_id: accountId } })).data,
