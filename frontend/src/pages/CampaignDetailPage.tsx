@@ -17,7 +17,7 @@ import type {
   TgRecipient, TgCampaignStats, TgAccount,
 } from '../api/telegramOutreach';
 
-type Tab = 'settings' | 'sequence' | 'recipients' | 'timeline' | 'messages' | 'replies' | 'autoreply' | 'analytics' | 'preview';
+type Tab = 'recipients' | 'messages' | 'accounts' | 'review';
 
 // ── Design tokens (match TelegramOutreachPage) ──────────────────────
 const B = {
@@ -42,7 +42,7 @@ export function CampaignDetailPage() {
 
   const campaignId = Number(id);
   const [campaign, setCampaign] = useState<TgCampaign | null>(null);
-  const [tab, setTab] = useState<Tab>('settings');
+  const [tab, setTab] = useState<Tab>('recipients');
   const [loading, setLoading] = useState(true);
 
   const loadCampaign = useCallback(async () => {
@@ -80,16 +80,20 @@ export function CampaignDetailPage() {
     );
   }
 
-  const tabs: { key: Tab; label: string; icon: typeof Settings2 }[] = [
-    { key: 'settings', label: 'Settings', icon: Settings2 },
-    { key: 'recipients', label: 'Recipients', icon: Users },
-    { key: 'sequence', label: 'Sequence', icon: ListOrdered },
-    { key: 'timeline', label: 'Timeline', icon: Table2 },
-    { key: 'messages', label: 'Messages', icon: MessageSquare },
-    { key: 'replies', label: 'Replies', icon: Reply },
-    { key: 'autoreply', label: 'Auto-Reply', icon: Bot },
-    { key: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { key: 'preview', label: 'Preview', icon: Eye },
+  const isTabFilled = (key: Tab): boolean => {
+    switch (key) {
+      case 'recipients': return campaign.total_recipients > 0;
+      case 'messages': return true;
+      case 'accounts': return campaign.accounts_count > 0;
+      case 'review': return true;
+    }
+  };
+
+  const tabs: { key: Tab; label: string; icon: typeof Settings2; step: number }[] = [
+    { key: 'recipients', label: 'Recipients', icon: Users, step: 1 },
+    { key: 'messages', label: 'Messages', icon: MessageSquare, step: 2 },
+    { key: 'accounts', label: 'Accounts', icon: Settings2, step: 3 },
+    { key: 'review', label: 'Review', icon: Eye, step: 4 },
   ];
 
   return (
@@ -131,54 +135,76 @@ export function CampaignDetailPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mt-4">
-          {tabs.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={tab === key
-                ? { background: B.blueBg, color: B.blue }
-                : { color: B.text3 }}
-              onMouseEnter={e => { if (tab !== key) (e.currentTarget as HTMLElement).style.background = '#F5F5F0'; }}
-              onMouseLeave={e => { if (tab !== key) (e.currentTarget as HTMLElement).style.background = ''; }}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
-          ))}
+        <div className="flex items-center gap-1 mt-4">
+          {tabs.map(({ key, label, icon: Icon, step }, i) => {
+            const active = tab === key;
+            const filled = isTabFilled(key);
+            return (
+              <div key={key} className="flex items-center">
+                {i > 0 && <div className="w-6 h-px mx-0.5" style={{ background: B.border }} />}
+                <button
+                  onClick={() => setTab(key)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  style={active
+                    ? { background: B.blueBg, color: B.blue }
+                    : { color: B.text3 }}
+                  onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = '#F5F5F0'; }}
+                  onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = ''; }}
+                >
+                  <span className={cn(
+                    'flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold shrink-0',
+                    active ? 'bg-[#4F6BF0] text-white' :
+                    filled ? 'bg-emerald-100 text-emerald-600' :
+                    'bg-gray-200 text-gray-400'
+                  )}>
+                    {filled && !active ? <Check className="w-3 h-3" /> : step}
+                  </span>
+                  <Icon className="w-4 h-4" />
+                  {label}
+                  {!filled && key !== 'review' && !active && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* Tab Content */}
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-5xl mx-auto">
-          {tab === 'settings' && (
-            <SettingsTab campaign={campaign} onUpdate={loadCampaign} t={t} toast={toast} isDark={isDark} />
-          )}
-          {tab === 'sequence' && (
-            <SequenceTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
-          )}
           {tab === 'recipients' && (
             <RecipientsTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
           )}
-          {tab === 'timeline' && (
-            <TimelineTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
-          )}
           {tab === 'messages' && (
-            <MessagesTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
+            <div className="space-y-8">
+              <SequenceTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
+              <div className="border-t pt-8" style={{ borderColor: B.border }}>
+                <AutoReplyTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
+              </div>
+            </div>
           )}
-          {tab === 'replies' && (
-            <RepliesTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
+          {tab === 'accounts' && (
+            <SettingsTab campaign={campaign} onUpdate={loadCampaign} t={t} toast={toast} isDark={isDark} />
           )}
-          {tab === 'autoreply' && (
-            <AutoReplyTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
-          )}
-          {tab === 'analytics' && (
-            <AnalyticsTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
-          )}
-          {tab === 'preview' && (
-            <PreviewStatsTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
+          {tab === 'review' && (
+            <ReviewTab campaignId={campaignId} campaign={campaign} t={t} toast={toast} isDark={isDark} onStart={async () => {
+              const missing: string[] = [];
+              if (campaign.total_recipients === 0) missing.push('Recipients');
+              if (campaign.accounts_count === 0) missing.push('Accounts');
+              if (missing.length > 0) {
+                toast(`Please fill in: ${missing.join(', ')}`, 'error');
+                return;
+              }
+              try {
+                await telegramOutreachApi.startCampaign(campaignId);
+                toast('Campaign started!', 'success');
+                loadCampaign();
+              } catch (e: any) {
+                toast(e?.response?.data?.detail || 'Failed to start campaign', 'error');
+              }
+            }} />
           )}
         </div>
       </div>
@@ -2169,6 +2195,63 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Review Tab (Wizard Step 4)
+// ══════════════════════════════════════════════════════════════════════
+
+type ReviewSubTab = 'timeline' | 'analytics' | 'sent' | 'replies';
+
+function ReviewTab({ campaignId, campaign, t, toast, isDark, onStart }: TabProps & { campaignId: number; campaign: TgCampaign; onStart: () => void }) {
+  const [subTab, setSubTab] = useState<ReviewSubTab>('timeline');
+
+  const subTabs: { key: ReviewSubTab; label: string; icon: typeof Table2 }[] = [
+    { key: 'timeline', label: 'Timeline', icon: Table2 },
+    { key: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { key: 'sent', label: 'Sent Messages', icon: MessageSquare },
+    { key: 'replies', label: 'Replies', icon: Reply },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Start Campaign CTA */}
+      {(campaign.status === 'draft' || campaign.status === 'paused') && (
+        <div className="rounded-xl border-2 border-dashed p-6 text-center"
+             style={{ borderColor: '#c7d2fe', background: '#eef2ff' }}>
+          <h3 className="text-lg font-semibold mb-2" style={{ color: B.text1 }}>Ready to launch?</h3>
+          <p className="text-sm mb-4" style={{ color: B.text3 }}>
+            {campaign.total_recipients} recipients &middot; {campaign.accounts_count} accounts
+          </p>
+          <button onClick={onStart}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
+            <Play className="w-4 h-4" />
+            Start Campaign
+          </button>
+        </div>
+      )}
+
+      {/* Sub-tabs */}
+      <div className="flex gap-1 border-b" style={{ borderColor: B.border }}>
+        {subTabs.map(({ key, label, icon: Icon }) => (
+          <button key={key} onClick={() => setSubTab(key)}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors -mb-px"
+                  style={subTab === key
+                    ? { borderBottom: `2px solid ${B.blue}`, color: B.blue }
+                    : { borderBottom: '2px solid transparent', color: B.text3 }}>
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Sub-tab content */}
+      {subTab === 'timeline' && <TimelineTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />}
+      {subTab === 'analytics' && <AnalyticsTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />}
+      {subTab === 'sent' && <MessagesTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />}
+      {subTab === 'replies' && <RepliesTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />}
     </div>
   );
 }
