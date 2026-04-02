@@ -1526,6 +1526,348 @@ def _generate_username(first: str, last: str) -> str:
     return random.choice(patterns)
 
 
+# ══════════════════════════════════════════════════════════════════════
+# Staggered bulk operations — profile-changing ops with 30-120s delays
+# ══════════════════════════════════════════════════════════════════════
+
+import asyncio as _asyncio
+import uuid as _uuid
+
+_bulk_op_progress: dict[str, dict] = {}
+_STAGGER_MIN = 30   # seconds
+_STAGGER_MAX = 120  # seconds
+
+
+def _create_bulk_task(total: int, operation: str) -> str:
+    """Create a progress entry and return task_id."""
+    task_id = _uuid.uuid4().hex[:12]
+    _bulk_op_progress[task_id] = {
+        "task_id": task_id,
+        "status": "running",
+        "operation": operation,
+        "total": total,
+        "completed": 0,
+        "synced": 0,
+        "skipped": 0,
+        "errors": [],
+        "current_phone": None,
+        "next_delay": 0,
+        "started_at": _dt.utcnow().isoformat(),
+    }
+    return task_id
+
+
+async def _staggered_profile_sync(task_id: str, account_ids: list[int]):
+    """Background: sync profile (name/bio/username) to Telegram with staggered delays."""
+    import random
+    from app.db import async_session_maker
+
+    progress = _bulk_op_progress[task_id]
+    try:
+        async with async_session_maker() as session:
+            for i, aid in enumerate(account_ids):
+                account = await session.get(TgAccount, aid)
+                if not account or not account.api_id or not account.api_hash:
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+                if not telegram_engine.session_file_exists(account.phone):
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+
+                progress["current_phone"] = account.phone
+                try:
+                    kwargs = _account_connect_kwargs(account)
+                    await telegram_engine.connect(aid, **kwargs)
+                    await telegram_engine.update_profile(
+                        aid,
+                        first_name=account.first_name or "",
+                        last_name=account.last_name or "",
+                        about=account.bio or "",
+                        username=account.username or None,
+                    )
+                    await telegram_engine.disconnect(aid)
+                    progress["synced"] += 1
+                except Exception as e:
+                    progress["errors"].append(f"{account.phone}: {str(e)[:80]}")
+                    logger.warning(f"[STAGGERED] sync failed for {account.phone}: {e}")
+
+                progress["completed"] += 1
+
+                # Staggered delay between accounts
+                if i < len(account_ids) - 1:
+                    delay = random.uniform(_STAGGER_MIN, _STAGGER_MAX)
+                    progress["next_delay"] = round(delay)
+                    await _asyncio.sleep(delay)
+                    progress["next_delay"] = 0
+    except Exception as e:
+        logger.error(f"[STAGGERED] task {task_id} crashed: {e}")
+        progress["errors"].append(f"Task error: {str(e)[:120]}")
+    finally:
+        progress["status"] = "completed"
+        progress["current_phone"] = None
+        progress["next_delay"] = 0
+
+
+async def _staggered_photo_upload(task_id: str, account_ids: list[int], photo_map: dict[int, str]):
+    """Background: upload profile photos to Telegram with staggered delays."""
+    import random
+    from app.db import async_session_maker
+    from telethon.tl import functions as _fn, types as _tp
+
+    progress = _bulk_op_progress[task_id]
+    try:
+        async with async_session_maker() as session:
+            for i, aid in enumerate(account_ids):
+                account = await session.get(TgAccount, aid)
+                photo_path = photo_map.get(aid)
+                if not account or not photo_path:
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+                if not account.api_id or not account.api_hash or not telegram_engine.session_file_exists(account.phone):
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+
+                progress["current_phone"] = account.phone
+                try:
+                    proxy = None
+                    if account.assigned_proxy_id:
+                        _p_rec = await session.get(TgProxy, account.assigned_proxy_id)
+                        if _p_rec:
+                            proxy = {"host": _p_rec.host, "port": _p_rec.port, "username": _p_rec.username,
+                                     "password": _p_rec.password, "protocol": _p_rec.protocol.value if hasattr(_p_rec.protocol, 'value') else _p_rec.protocol}
+                    kwargs = _account_connect_kwargs(account, proxy)
+                    try:
+                        await telegram_engine.disconnect(aid)
+                    except Exception:
+                        pass
+                    _client = await telegram_engine.connect(aid, **kwargs)
+                    if await _client.is_user_authorized():
+                        # Delete old photos
+                        try:
+                            _photos = await _client(_fn.photos.GetUserPhotosRequest(user_id='me', offset=0, max_id=0, limit=100))
+                            if hasattr(_photos, 'photos'):
+                                for old_p in _photos.photos:
+                                    try:
+                                        await _client(_fn.photos.DeletePhotosRequest(id=[_tp.InputPhoto(id=old_p.id, access_hash=old_p.access_hash, file_reference=old_p.file_reference)]))
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
+                        # Upload new photo
+                        uploaded = await _client.upload_file(photo_path)
+                        await _client(_fn.photos.UploadProfilePhotoRequest(file=uploaded))
+                        progress["synced"] += 1
+                    await telegram_engine.disconnect(aid)
+                except Exception as e:
+                    progress["errors"].append(f"{account.phone}: {str(e)[:80]}")
+                    logger.warning(f"[STAGGERED] photo upload failed for {account.phone}: {e}")
+
+                progress["completed"] += 1
+
+                if i < len(account_ids) - 1:
+                    delay = random.uniform(_STAGGER_MIN, _STAGGER_MAX)
+                    progress["next_delay"] = round(delay)
+                    await _asyncio.sleep(delay)
+                    progress["next_delay"] = 0
+    except Exception as e:
+        logger.error(f"[STAGGERED] photo task {task_id} crashed: {e}")
+        progress["errors"].append(f"Task error: {str(e)[:120]}")
+    finally:
+        progress["status"] = "completed"
+        progress["current_phone"] = None
+        progress["next_delay"] = 0
+
+
+async def _staggered_2fa_change(task_id: str, account_ids: list[int], new_password: str, old_passwords: dict[int, str]):
+    """Background: change 2FA password on Telegram with staggered delays."""
+    import random
+    from app.db import async_session_maker
+
+    progress = _bulk_op_progress[task_id]
+    try:
+        async with async_session_maker() as session:
+            for i, aid in enumerate(account_ids):
+                account = await session.get(TgAccount, aid)
+                if not account or not account.api_id or not account.api_hash:
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+                if not telegram_engine.session_file_exists(account.phone):
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+
+                progress["current_phone"] = account.phone
+                try:
+                    kwargs = _account_connect_kwargs(account)
+                    await telegram_engine.connect(aid, **kwargs)
+                    client = telegram_engine.get_client(aid)
+                    if client and await client.is_user_authorized():
+                        old_pw = old_passwords.get(aid, '')
+                        await client.edit_2fa(current_password=old_pw, new_password=new_password)
+                        progress["synced"] += 1
+                    await telegram_engine.disconnect(aid)
+                except Exception as e:
+                    progress["errors"].append(f"{account.phone}: {str(e)[:80]}")
+                    logger.warning(f"[STAGGERED] 2FA change failed for {account.phone}: {e}")
+
+                progress["completed"] += 1
+
+                if i < len(account_ids) - 1:
+                    delay = random.uniform(_STAGGER_MIN, _STAGGER_MAX)
+                    progress["next_delay"] = round(delay)
+                    await _asyncio.sleep(delay)
+                    progress["next_delay"] = 0
+    except Exception as e:
+        logger.error(f"[STAGGERED] 2FA task {task_id} crashed: {e}")
+        progress["errors"].append(f"Task error: {str(e)[:120]}")
+    finally:
+        progress["status"] = "completed"
+        progress["current_phone"] = None
+        progress["next_delay"] = 0
+
+
+async def _staggered_privacy_update(task_id: str, account_ids: list[int], active_params: dict):
+    """Background: update privacy settings on Telegram with staggered delays."""
+    import random
+    from app.db import async_session_maker
+    from telethon import functions, types
+
+    PRIVACY_MAP = {
+        "everyone": [types.InputPrivacyValueAllowAll()],
+        "contacts": [types.InputPrivacyValueAllowContacts()],
+        "nobody": [types.InputPrivacyValueDisallowAll()],
+    }
+    KEY_MAP = {
+        "last_online": types.InputPrivacyKeyStatusTimestamp,
+        "phone_visibility": types.InputPrivacyKeyPhoneNumber,
+        "profile_pic_visibility": types.InputPrivacyKeyProfilePhoto,
+        "bio_visibility": types.InputPrivacyKeyAbout,
+        "forwards_visibility": types.InputPrivacyKeyForwards,
+        "calls": types.InputPrivacyKeyPhoneCall,
+        "private_messages": types.InputPrivacyKeyChatInvite,
+    }
+
+    progress = _bulk_op_progress[task_id]
+    try:
+        async with async_session_maker() as session:
+            for i, aid in enumerate(account_ids):
+                account = await session.get(TgAccount, aid)
+                if not account or not account.api_id or not telegram_engine.session_file_exists(account.phone):
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+
+                progress["current_phone"] = account.phone
+                try:
+                    kwargs = _account_connect_kwargs(account)
+                    await telegram_engine.connect(aid, **kwargs)
+                    client = telegram_engine.get_client(aid)
+                    if not client or not await client.is_user_authorized():
+                        progress["skipped"] += 1
+                        progress["completed"] += 1
+                        continue
+                    for key_name, value in active_params.items():
+                        if key_name in KEY_MAP:
+                            await client(functions.account.SetPrivacyRequest(
+                                key=KEY_MAP[key_name](), rules=PRIVACY_MAP[value]
+                            ))
+                    await telegram_engine.disconnect(aid)
+                    progress["synced"] += 1
+                except Exception as e:
+                    progress["errors"].append(f"{account.phone}: {str(e)[:80]}")
+
+                progress["completed"] += 1
+
+                if i < len(account_ids) - 1:
+                    delay = random.uniform(_STAGGER_MIN, _STAGGER_MAX)
+                    progress["next_delay"] = round(delay)
+                    await _asyncio.sleep(delay)
+                    progress["next_delay"] = 0
+    except Exception as e:
+        logger.error(f"[STAGGERED] privacy task {task_id} crashed: {e}")
+    finally:
+        progress["status"] = "completed"
+        progress["current_phone"] = None
+        progress["next_delay"] = 0
+
+
+async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
+    """Background: revoke other sessions with staggered delays between accounts."""
+    import random
+    from app.db import async_session_maker
+    from telethon import functions
+
+    progress = _bulk_op_progress[task_id]
+    progress["sessions_killed"] = 0
+    try:
+        async with async_session_maker() as session:
+            for i, aid in enumerate(account_ids):
+                account = await session.get(TgAccount, aid)
+                if not account or not account.api_id or not telegram_engine.session_file_exists(account.phone):
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+
+                progress["current_phone"] = account.phone
+                try:
+                    proxy = None
+                    if account.assigned_proxy_id:
+                        p = await session.get(TgProxy, account.assigned_proxy_id)
+                        if p:
+                            proxy = {"host": p.host, "port": p.port, "username": p.username,
+                                     "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
+                    kwargs = _account_connect_kwargs(account, proxy)
+                    await telegram_engine.connect(aid, **kwargs)
+                    client = telegram_engine.get_client(aid)
+                    if not client or not await client.is_user_authorized():
+                        progress["skipped"] += 1
+                        progress["completed"] += 1
+                        continue
+                    result = await client(functions.auth.GetAuthorizationsRequest())
+                    other_sessions = [a for a in result.authorizations if not a.current]
+                    killed = 0
+                    for auth in other_sessions:
+                        try:
+                            await client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
+                            killed += 1
+                        except Exception:
+                            pass
+                        await _asyncio.sleep(0.5)
+                    await telegram_engine.disconnect(aid)
+                    progress["sessions_killed"] = progress.get("sessions_killed", 0) + killed
+                    progress["synced"] += 1
+                except Exception as e:
+                    progress["errors"].append(f"{account.phone}: {str(e)[:80]}")
+
+                progress["completed"] += 1
+
+                if i < len(account_ids) - 1:
+                    delay = random.uniform(_STAGGER_MIN, _STAGGER_MAX)
+                    progress["next_delay"] = round(delay)
+                    await _asyncio.sleep(delay)
+                    progress["next_delay"] = 0
+    except Exception as e:
+        logger.error(f"[STAGGERED] revoke task {task_id} crashed: {e}")
+    finally:
+        progress["status"] = "completed"
+        progress["current_phone"] = None
+        progress["next_delay"] = 0
+
+
+@router.get("/accounts/bulk-op-progress/{task_id}")
+async def get_bulk_op_progress(task_id: str):
+    """Get progress of a staggered bulk operation."""
+    progress = _bulk_op_progress.get(task_id)
+    if not progress:
+        raise HTTPException(404, "Task not found")
+    return progress
+
+
 @router.post("/accounts/bulk-randomize-names")
 async def bulk_randomize_names(
     data: TgBulkAccountIds,
@@ -1551,8 +1893,11 @@ async def bulk_randomize_names(
         account.username = username
         updated.append({"id": aid, "first_name": first, "last_name": last, "username": username})
     await session.flush()
-    synced = await _auto_sync_accounts([u["id"] for u in updated], session)
-    return {"ok": True, "count": len(updated), "synced": synced, "updated": updated}
+    # Launch staggered TG sync in background (30-120s between accounts)
+    account_ids = [u["id"] for u in updated]
+    task_id = _create_bulk_task(len(account_ids), "sync_names")
+    _asyncio.get_event_loop().create_task(_staggered_profile_sync(task_id, account_ids))
+    return {"ok": True, "count": len(updated), "task_id": task_id, "updated": updated}
 
 
 @router.post("/accounts/bulk-set-photo")
@@ -1562,7 +1907,7 @@ async def bulk_set_photo(
     session: AsyncSession = Depends(get_session),
 ):
     """
-    Set profile photos for selected accounts.
+    Set profile photos — save locally (immediate) + staggered TG upload (background).
     - 1 photo uploaded → same photo for all accounts
     - N photos uploaded → randomly distributed across accounts
     """
@@ -1575,9 +1920,7 @@ async def bulk_set_photo(
         photo_contents.append((p.filename or "photo.jpg", content))
 
     updated = 0
-    tg_synced = 0
-    old_deleted = 0
-    errors = []
+    photo_map: dict[int, str] = {}  # account_id → photo_path (for staggered TG upload)
     photos_dir = "/app/tg_photos"
     os.makedirs(photos_dir, exist_ok=True)
 
@@ -1600,66 +1943,14 @@ async def bulk_set_photo(
         with open(photo_path, "wb") as f:
             f.write(content)
         account.profile_photo_path = photo_path
+        photo_map[aid] = photo_path
         updated += 1
 
-        # Upload to Telegram: delete old photos, set new one
-        if account.api_id and account.api_hash and telegram_engine.session_file_exists(account.phone):
-            try:
-                from telethon.tl import functions as _fn, types as _tp
-                from telethon.errors import FrozenMethodInvalidError
-                # Use engine with proper proxy + device fingerprint
-                proxy = None
-                if account.assigned_proxy_id:
-                    from app.models.telegram_outreach import TgProxy
-                    _p_rec = await session.get(TgProxy, account.assigned_proxy_id)
-                    if _p_rec:
-                        proxy = {"host": _p_rec.host, "port": _p_rec.port, "username": _p_rec.username,
-                                 "password": _p_rec.password, "protocol": _p_rec.protocol.value if hasattr(_p_rec.protocol, 'value') else _p_rec.protocol}
-                kwargs = _account_connect_kwargs(account, proxy)
-                # Disconnect stale cached client first, then reconnect fresh
-                try:
-                    await telegram_engine.disconnect(aid)
-                except Exception:
-                    pass
-                _client = await telegram_engine.connect(aid, **kwargs)
-                if await _client.is_user_authorized():
-                    # Delete ALL existing profile photos
-                    try:
-                        _photos = await _client(_fn.photos.GetUserPhotosRequest(user_id='me', offset=0, max_id=0, limit=100))
-                        for _p in (_photos.photos or []):
-                            try:
-                                await _client(_fn.photos.DeletePhotosRequest(id=[
-                                    _tp.InputPhoto(id=_p.id, access_hash=_p.access_hash, file_reference=_p.file_reference)
-                                ]))
-                                old_deleted += 1
-                            except Exception as de:
-                                logger.warning(f"Failed to delete photo {_p.id} for {account.phone}: {de}")
-                    except Exception as ge:
-                        logger.warning(f"Failed to get photos for {account.phone}: {ge}")
-                    # Upload new photo
-                    _up = await _client.upload_file(photo_path)
-                    await _client(_fn.photos.UploadProfilePhotoRequest(file=_up))
-                    tg_synced += 1
-                    logger.info(f"Photo set for {account.phone}: deleted old, uploaded new")
-                await telegram_engine.disconnect(aid)
-            except FrozenMethodInvalidError:
-                account.status = TgAccountStatus.FROZEN
-                errors.append(f"{account.phone}: account is FROZEN by Telegram")
-                logger.warning(f"Account {account.phone} is FROZEN — marked status")
-                try:
-                    await telegram_engine.disconnect(aid)
-                except Exception:
-                    pass
-            except Exception as e:
-                errors.append(f"{account.phone}: {str(e)[:80]}")
-                logger.warning(f"Photo upload failed for {account.phone}: {e}")
-                try:
-                    await telegram_engine.disconnect(aid)
-                except Exception:
-                    pass
-
     await session.commit()
-    return {"ok": True, "count": updated, "tg_synced": tg_synced, "old_deleted": old_deleted, "photos_uploaded": len(photo_contents), "errors": errors}
+    # Launch staggered TG photo upload in background
+    task_id = _create_bulk_task(updated, "set_photo")
+    _asyncio.get_event_loop().create_task(_staggered_photo_upload(task_id, account_ids, photo_map))
+    return {"ok": True, "count": updated, "task_id": task_id, "photos_uploaded": len(photo_contents)}
 
 
 async def _auto_sync_accounts(account_ids: list[int], session: AsyncSession):
@@ -1692,73 +1983,45 @@ async def _auto_sync_accounts(account_ids: list[int], session: AsyncSession):
 
 @router.post("/accounts/bulk-sync-profile")
 async def bulk_sync_profile(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
-    """Sync profile (name, bio, username) to Telegram for selected accounts."""
-    synced = 0
-    errors = []
-    for aid in data.account_ids:
-        account = await session.get(TgAccount, aid)
-        if not account or not account.api_id or not account.api_hash:
-            continue
-        if not telegram_engine.session_file_exists(account.phone):
-            continue
-        try:
-            kwargs = _account_connect_kwargs(account)
-            await telegram_engine.connect(aid, **kwargs)
-            await telegram_engine.update_profile(
-                aid,
-                first_name=account.first_name or "",
-                last_name=account.last_name or "",
-                about=account.bio or "",
-                username=account.username or None,
-            )
-            await telegram_engine.disconnect(aid)
-            synced += 1
-        except Exception as e:
-            errors.append(f"{account.phone}: {str(e)[:50]}")
-    return {"ok": True, "synced": synced, "errors": errors}
+    """Sync profile (name, bio, username) to Telegram — staggered with delays."""
+    task_id = _create_bulk_task(len(data.account_ids), "sync_profile")
+    _asyncio.get_event_loop().create_task(_staggered_profile_sync(task_id, data.account_ids))
+    return {"ok": True, "task_id": task_id, "count": len(data.account_ids)}
 
 
 @router.post("/accounts/bulk-set-bio")
 async def bulk_set_bio(data: TgBulkAccountIds, bio: str = Query(...),
                         session: AsyncSession = Depends(get_session)):
-    """Set bio for multiple accounts + auto-sync to Telegram."""
+    """Set bio for multiple accounts + staggered sync to Telegram."""
     for aid in data.account_ids:
         account = await session.get(TgAccount, aid)
         if account:
             account.bio = bio
     await session.flush()
-    synced = await _auto_sync_accounts(data.account_ids, session)
-    return {"ok": True, "count": len(data.account_ids), "synced": synced}
+    # Launch staggered TG sync in background
+    task_id = _create_bulk_task(len(data.account_ids), "sync_bio")
+    _asyncio.get_event_loop().create_task(_staggered_profile_sync(task_id, data.account_ids))
+    return {"ok": True, "count": len(data.account_ids), "task_id": task_id}
 
 
 @router.post("/accounts/bulk-set-2fa")
 async def bulk_set_2fa(data: TgBulkAccountIds, password: str = Query(...),
                         session: AsyncSession = Depends(get_session)):
-    """Set 2FA password for multiple accounts — both in DB and on Telegram."""
+    """Set 2FA password for multiple accounts — DB update immediate, TG change staggered."""
     updated = 0
-    tg_synced = 0
-    errors = []
+    old_passwords = {}
     for aid in data.account_ids:
         account = await session.get(TgAccount, aid)
         if not account:
             continue
-        old_password = account.two_fa_password
+        old_passwords[aid] = account.two_fa_password or ''
         account.two_fa_password = password
         updated += 1
-
-        # Try to change 2FA on Telegram if session exists
-        if account.api_id and account.api_hash and telegram_engine.session_file_exists(account.phone):
-            try:
-                kwargs = _account_connect_kwargs(account)
-                await telegram_engine.connect(aid, **kwargs)
-                client = telegram_engine.get_client(aid)
-                if client and await client.is_user_authorized():
-                    await client.edit_2fa(current_password=old_password or '', new_password=password)
-                    tg_synced += 1
-                await telegram_engine.disconnect(aid)
-            except Exception as e:
-                errors.append(f"{account.phone}: {str(e)[:50]}")
-    return {"ok": True, "updated": updated, "tg_synced": tg_synced, "errors": errors}
+    await session.flush()
+    # Launch staggered TG 2FA change in background
+    task_id = _create_bulk_task(updated, "set_2fa")
+    _asyncio.get_event_loop().create_task(_staggered_2fa_change(task_id, data.account_ids, password, old_passwords))
+    return {"ok": True, "updated": updated, "task_id": task_id}
 
 
 @router.post("/accounts/bulk-set-status")
@@ -1784,112 +2047,32 @@ async def bulk_update_privacy(
     private_messages: Optional[str] = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    """Update privacy settings for multiple accounts via Telethon."""
-    from telethon import functions, types
+    """Update privacy settings — staggered with delays between accounts."""
+    from telethon import types
 
-    PRIVACY_MAP = {
-        "everyone": [types.InputPrivacyValueAllowAll()],
-        "contacts": [types.InputPrivacyValueAllowContacts()],
-        "nobody": [types.InputPrivacyValueDisallowAll()],
-    }
-    KEY_MAP = {
-        "last_online": types.InputPrivacyKeyStatusTimestamp,
-        "phone_visibility": types.InputPrivacyKeyPhoneNumber,
-        "profile_pic_visibility": types.InputPrivacyKeyProfilePhoto,
-        "bio_visibility": types.InputPrivacyKeyAbout,
-        "forwards_visibility": types.InputPrivacyKeyForwards,
-        "calls": types.InputPrivacyKeyPhoneCall,
-        "private_messages": types.InputPrivacyKeyChatInvite,
-    }
-
+    PRIVACY_MAP_KEYS = {"everyone", "contacts", "nobody"}
     params = {
         "last_online": last_online, "phone_visibility": phone_visibility,
         "profile_pic_visibility": profile_pic_visibility, "bio_visibility": bio_visibility,
         "forwards_visibility": forwards_visibility, "calls": calls,
         "private_messages": private_messages,
     }
-    active_params = {k: v for k, v in params.items() if v and v in PRIVACY_MAP}
+    active_params = {k: v for k, v in params.items() if v and v in PRIVACY_MAP_KEYS}
 
     if not active_params:
         return {"ok": True, "message": "No privacy settings specified"}
 
-    updated = 0
-    errors = []
-    for aid in data.account_ids:
-        account = await session.get(TgAccount, aid)
-        if not account or not account.api_id or not telegram_engine.session_file_exists(account.phone):
-            continue
-        try:
-            kwargs = _account_connect_kwargs(account)
-            await telegram_engine.connect(aid, **kwargs)
-            client = telegram_engine.get_client(aid)
-            if not client or not await client.is_user_authorized():
-                continue
-            for key_name, value in active_params.items():
-                if key_name in KEY_MAP:
-                    await client(functions.account.SetPrivacyRequest(
-                        key=KEY_MAP[key_name](), rules=PRIVACY_MAP[value]
-                    ))
-            await telegram_engine.disconnect(aid)
-            updated += 1
-        except Exception as e:
-            errors.append(f"{account.phone}: {str(e)[:50]}")
-    return {"ok": True, "updated": updated, "errors": errors}
+    task_id = _create_bulk_task(len(data.account_ids), "privacy")
+    _asyncio.get_event_loop().create_task(_staggered_privacy_update(task_id, data.account_ids, active_params))
+    return {"ok": True, "task_id": task_id, "count": len(data.account_ids)}
 
 
 @router.post("/accounts/bulk-revoke-sessions")
 async def bulk_revoke_sessions(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
-    """Revoke all other sessions for selected accounts."""
-    import asyncio
-    from telethon import functions
-
-    revoked = 0
-    total_sessions_killed = 0
-    errors = []
-    for aid in data.account_ids:
-        account = await session.get(TgAccount, aid)
-        if not account or not account.api_id or not telegram_engine.session_file_exists(account.phone):
-            continue
-        try:
-            # Resolve proxy — must connect via the same proxy the account normally uses
-            proxy = None
-            if account.assigned_proxy_id:
-                p = await session.get(TgProxy, account.assigned_proxy_id)
-                if p:
-                    proxy = {"host": p.host, "port": p.port, "username": p.username,
-                             "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
-            kwargs = _account_connect_kwargs(account, proxy)
-            await telegram_engine.connect(aid, **kwargs)
-            client = telegram_engine.get_client(aid)
-            if not client or not await client.is_user_authorized():
-                errors.append(f"{account.phone}: not authorized")
-                continue
-            result = await client(functions.auth.GetAuthorizationsRequest())
-            other_sessions = [a for a in result.authorizations if not a.current]
-            logger.info(f"[REVOKE] {account.phone}: found {len(result.authorizations)} sessions "
-                        f"({len(other_sessions)} non-current)")
-            killed = 0
-            for auth in other_sessions:
-                try:
-                    await client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
-                    killed += 1
-                    logger.info(f"[REVOKE] {account.phone}: killed session "
-                                f"device={auth.device_model} platform={auth.platform} "
-                                f"app={auth.app_name} ip={auth.ip}")
-                except Exception as e:
-                    logger.warning(f"[REVOKE] {account.phone}: failed to kill session "
-                                   f"device={auth.device_model}: {e}")
-                    errors.append(f"{account.phone}: session {auth.device_model}: {str(e)[:80]}")
-                await asyncio.sleep(0.5)
-            await telegram_engine.disconnect(aid)
-            total_sessions_killed += killed
-            if killed > 0 or len(other_sessions) == 0:
-                revoked += 1
-            logger.info(f"[REVOKE] {account.phone}: done — killed {killed}/{len(other_sessions)} sessions")
-        except Exception as e:
-            logger.error(f"[REVOKE] {account.phone}: {e}")
-            errors.append(f"{account.phone}: {str(e)[:80]}")
-    return {"ok": True, "revoked": revoked, "sessions_killed": total_sessions_killed, "errors": errors}
+    """Revoke all other sessions — staggered with delays between accounts."""
+    task_id = _create_bulk_task(len(data.account_ids), "revoke_sessions")
+    _asyncio.get_event_loop().create_task(_staggered_revoke_sessions(task_id, data.account_ids))
+    return {"ok": True, "task_id": task_id, "count": len(data.account_ids)}
 
 
 @router.post("/accounts/bulk-audit-sessions")

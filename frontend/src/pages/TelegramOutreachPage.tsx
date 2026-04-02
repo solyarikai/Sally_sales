@@ -1681,8 +1681,14 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   const [nameCategory, setNameCategory] = useState('male_en');
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  // Staggered operation progress
+  const [staggeredTask, setStaggeredTask] = useState<{ taskId: string; operation: string; total: number; completed: number; synced: number; errors: string[]; status: string; currentPhone: string | null; nextDelay: number } | null>(null);
+  const staggeredPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const ids = Array.from(selectedIds);
+
+  // Cleanup poll on unmount
+  useEffect(() => { return () => { if (staggeredPollRef.current) clearInterval(staggeredPollRef.current); }; }, []);
 
   useEffect(() => {
     telegramOutreachApi.listProxyGroups().then(setProxyGroups).catch(() => {});
@@ -1695,6 +1701,48 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
       toast(`${label} — ${ids.length} accounts`, 'success');
       setActivePanel(null);
       onDone();
+    } catch { toast(`Failed: ${label}`, 'error'); }
+    finally { setLoading(false); }
+  };
+
+  const _STAGGER_AVG = 75; // avg delay seconds for time estimation
+
+  /** Run a profile-changing operation that returns task_id for staggered TG sync */
+  const runStaggered = async (label: string, fn: () => Promise<any>) => {
+    const estMinutes = Math.ceil(ids.length * (_STAGGER_AVG) / 60);
+    if (!window.confirm(
+      `⚠ Profile change: "${label}" for ${ids.length} accounts.\n\n` +
+      `To avoid bans, Telegram sync will run with 30-120s delays between accounts.\n` +
+      `Estimated time: ~${estMinutes} min.\n\nDB changes apply immediately. Continue?`
+    )) return;
+    setLoading(true);
+    try {
+      const res = await fn();
+      const taskId = res?.task_id;
+      if (taskId) {
+        setStaggeredTask({ taskId, operation: label, total: ids.length, completed: 0, synced: 0, errors: [], status: 'running', currentPhone: null, nextDelay: 0 });
+        setActivePanel(null);
+        // Start polling
+        if (staggeredPollRef.current) clearInterval(staggeredPollRef.current);
+        staggeredPollRef.current = setInterval(async () => {
+          try {
+            const p = await telegramOutreachApi.bulkOpProgress(taskId);
+            setStaggeredTask(prev => prev ? { ...prev, completed: p.completed, synced: p.synced, errors: p.errors || [], status: p.status, currentPhone: p.current_phone, nextDelay: p.next_delay || 0 } : null);
+            if (p.status === 'completed') {
+              if (staggeredPollRef.current) clearInterval(staggeredPollRef.current);
+              staggeredPollRef.current = null;
+              toast(`${label} — synced ${p.synced}/${p.total} to Telegram` + (p.errors?.length ? ` (${p.errors.length} errors)` : ''), p.errors?.length ? 'warning' : 'success');
+              setTimeout(() => setStaggeredTask(null), 5000);
+              onDone();
+            }
+          } catch { /* ignore poll errors */ }
+        }, 3000);
+        toast(`${label} — DB updated. TG sync running in background...`, 'info');
+      } else {
+        toast(`${label} — ${ids.length} accounts`, 'success');
+        setActivePanel(null);
+        onDone();
+      }
     } catch { toast(`Failed: ${label}`, 'error'); }
     finally { setLoading(false); }
   };
@@ -1840,7 +1888,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               <button onClick={() => { setShowActionsPopup(false); run('Re-authorized', () => telegramOutreachApi.bulkReauthorize(ids)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <RefreshCw className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Re-Authorize
               </button>
-              <button onClick={() => { setShowActionsPopup(false); run('Sessions revoked', () => telegramOutreachApi.bulkRevokeSessions(ids)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+              <button onClick={() => { setShowActionsPopup(false); runStaggered('Revoke Sessions', () => telegramOutreachApi.bulkRevokeSessions(ids)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <X className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Revoke Sessions
               </button>
               <button onClick={() => { setShowActionsPopup(false); run('Cleaned', () => telegramOutreachApi.bulkClean(ids, { delete_dialogs: true, delete_contacts: true })); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
@@ -1875,7 +1923,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
             <option value="male_ru">Male (Russian)</option>
             <option value="female_ru">Female (Russian)</option>
           </select>
-          <button onClick={() => run('Names randomized', () => telegramOutreachApi.bulkRandomizeNames(ids, nameCategory))}
+          <button onClick={() => runStaggered('Set Names', () => telegramOutreachApi.bulkRandomizeNames(ids, nameCategory))}
                   disabled={loading} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>
             {loading ? 'Working...' : `Apply to ${ids.length}`}
           </button>
@@ -1894,7 +1942,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           <span className={cn('text-xs', t.text3)}>Bio:</span>
           <input type="text" value={bioValue} onChange={e => setBioValue(e.target.value)}
                  placeholder="BDM at Company" className={cn(inputCls, 'flex-1')} />
-          <button onClick={() => run('Bio set', () => telegramOutreachApi.bulkSetBio(ids, bioValue))}
+          <button onClick={() => runStaggered('Set Bio', () => telegramOutreachApi.bulkSetBio(ids, bioValue))}
                   disabled={loading || !bioValue} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
         </div>
       )}
@@ -1903,7 +1951,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           <span className={cn('text-xs', t.text3)}>2FA password:</span>
           <input type="text" value={twoFaValue} onChange={e => setTwoFaValue(e.target.value)}
                  className={cn(inputCls, 'w-40')} />
-          <button onClick={() => run('2FA set', () => telegramOutreachApi.bulkSet2FA(ids, twoFaValue))}
+          <button onClick={() => runStaggered('Change 2FA', () => telegramOutreachApi.bulkSet2FA(ids, twoFaValue))}
                   disabled={loading || !twoFaValue} className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>Apply</button>
         </div>
       )}
@@ -1940,22 +1988,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                  onChange={e => { if (e.target.files) setPhotoFiles(prev => [...prev, ...Array.from(e.target.files!)]); e.target.value = ''; }} />
           {photoFiles.length > 0 && (
             <div className="flex items-center gap-2 mt-2">
-              <button onClick={async () => {
-                setLoading(true);
-                try {
-                  const res = await telegramOutreachApi.bulkSetPhoto(ids, photoFiles);
-                  const parts = [`Saved ${res.count} locally`];
-                  if (res.tg_synced > 0) parts.push(`${res.tg_synced} synced to TG`);
-                  if (res.errors?.length) parts.push(`${res.errors.length} failed`);
-                  const allFailed = res.tg_synced === 0 && res.count > 0 && res.errors?.length > 0;
-                  toast(
-                    allFailed ? `Photo upload failed: ${res.errors[0]}` : parts.join(', '),
-                    allFailed ? 'error' : res.errors?.length > 0 ? 'info' : 'success'
-                  );
-                  setPhotoFiles([]); setActivePanel(null); onDone();
-                } catch { toast('Failed to set photos', 'error'); }
-                finally { setLoading(false); }
-              }} disabled={loading} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white disabled:opacity-40" style={{ background: A.blue }}>
+              <button onClick={() => { runStaggered('Set Photo', () => telegramOutreachApi.bulkSetPhoto(ids, photoFiles).then(res => { setPhotoFiles([]); return res; })); }} disabled={loading} className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white disabled:opacity-40" style={{ background: A.blue }}>
                 {loading ? 'Uploading...' : `Apply ${photoFiles.length} photo(s)`}
               </button>
               <button onClick={() => setPhotoFiles([])} style={{ fontSize: 12, color: A.text3, background: 'none', border: 'none', cursor: 'pointer' }}>Clear</button>
@@ -2022,7 +2055,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                     className={cn(inputCls, 'w-auto')}
                     defaultValue=""
                     onChange={e => {
-                      if (e.target.value) run(`${p.label} updated`, () => telegramOutreachApi.bulkUpdatePrivacy(ids, { [p.key]: e.target.value }));
+                      if (e.target.value) runStaggered(`Privacy: ${p.label}`, () => telegramOutreachApi.bulkUpdatePrivacy(ids, { [p.key]: e.target.value }));
                     }}>
               <option value="">{p.label}</option>
               <option value="everyone">Everyone</option>
@@ -2033,6 +2066,37 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
         </div>
       )}
       {activePanel === 'warmup-channels' && <WarmupChannelsPanel />}
+
+      {/* Staggered operation progress banner */}
+      {staggeredTask && (
+        <div className="mt-2 rounded-lg px-4 py-2.5" style={{ background: staggeredTask.status === 'completed' ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${staggeredTask.status === 'completed' ? '#BBF7D0' : '#FDE68A'}` }}>
+          <div className="flex items-center gap-3">
+            {staggeredTask.status === 'running' && <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#D97706' }} />}
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-semibold" style={{ color: staggeredTask.status === 'completed' ? '#16A34A' : '#D97706' }}>
+                  {staggeredTask.status === 'completed' ? 'Completed' : 'Syncing to Telegram...'}: {staggeredTask.operation}
+                </span>
+                <span className="text-[11px]" style={{ color: A.text3 }}>
+                  {staggeredTask.completed}/{staggeredTask.total} accounts
+                  {staggeredTask.synced > 0 && ` (${staggeredTask.synced} synced)`}
+                  {staggeredTask.errors.length > 0 && ` · ${staggeredTask.errors.length} errors`}
+                </span>
+              </div>
+              {staggeredTask.status === 'running' && staggeredTask.currentPhone && (
+                <div className="text-[11px] mt-0.5" style={{ color: A.text3 }}>
+                  Current: {staggeredTask.currentPhone}
+                  {staggeredTask.nextDelay > 0 && ` · waiting ${staggeredTask.nextDelay}s before next...`}
+                </div>
+              )}
+            </div>
+            {/* Progress bar */}
+            <div className="w-24 h-1.5 rounded-full" style={{ background: A.border }}>
+              <div className="h-full rounded-full transition-all" style={{ width: `${staggeredTask.total > 0 ? (staggeredTask.completed / staggeredTask.total) * 100 : 0}%`, background: staggeredTask.status === 'completed' ? '#16A34A' : '#D97706' }} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
