@@ -4,6 +4,7 @@ import {
   ArrowLeft, Settings2, ListOrdered, Users, Eye, MessageSquare, Reply, Download, Bot,
   Plus, Trash2, Save, Upload, Loader2, Play, Pause,
   ChevronLeft, ChevronRight, RefreshCw, Type, BarChart3, X, Search, UserPlus, Check,
+  Table2,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -16,7 +17,7 @@ import type {
   TgRecipient, TgCampaignStats, TgAccount,
 } from '../api/telegramOutreach';
 
-type Tab = 'settings' | 'sequence' | 'recipients' | 'messages' | 'replies' | 'autoreply' | 'analytics' | 'preview';
+type Tab = 'settings' | 'sequence' | 'recipients' | 'timeline' | 'messages' | 'replies' | 'autoreply' | 'analytics' | 'preview';
 
 // ── Design tokens (match TelegramOutreachPage) ──────────────────────
 const B = {
@@ -83,6 +84,7 @@ export function CampaignDetailPage() {
     { key: 'settings', label: 'Settings', icon: Settings2 },
     { key: 'recipients', label: 'Recipients', icon: Users },
     { key: 'sequence', label: 'Sequence', icon: ListOrdered },
+    { key: 'timeline', label: 'Timeline', icon: Table2 },
     { key: 'messages', label: 'Messages', icon: MessageSquare },
     { key: 'replies', label: 'Replies', icon: Reply },
     { key: 'autoreply', label: 'Auto-Reply', icon: Bot },
@@ -159,6 +161,9 @@ export function CampaignDetailPage() {
           )}
           {tab === 'recipients' && (
             <RecipientsTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
+          )}
+          {tab === 'timeline' && (
+            <TimelineTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
           )}
           {tab === 'messages' && (
             <MessagesTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
@@ -1318,6 +1323,204 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
 // ══════════════════════════════════════════════════════════════════════
 // Analytics Tab
 // ══════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════
+// Timeline Tab
+// ══════════════════════════════════════════════════════════════════════
+
+type TimelineData = Awaited<ReturnType<typeof telegramOutreachApi.getCampaignTimeline>>;
+
+const TIMELINE_STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  replied: { bg: '#DCFCE7', text: '#166534', label: 'Replied' },
+  read: { bg: '#DBEAFE', text: '#1E40AF', label: 'Read' },
+  sent: { bg: '#F3F4F6', text: '#374151', label: 'Sent' },
+  scheduled: { bg: '#FEF9C3', text: '#854D0E', label: 'Scheduled' },
+  failed: { bg: '#FEE2E2', text: '#991B1B', label: 'Failed' },
+  spamblocked: { bg: '#FEE2E2', text: '#991B1B', label: 'Spamblock' },
+  pending: { bg: '#F9FAFB', text: '#9CA3AF', label: '—' },
+};
+
+function formatTimelineDate(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
+         d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function TimelineTab({ campaignId, t, toast }: TabProps & { campaignId: number }) {
+  const [data, setData] = useState<TimelineData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [sortBy, setSortBy] = useState('username');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const PAGE_SIZE = 50;
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const result = await telegramOutreachApi.getCampaignTimeline(campaignId, {
+        page, page_size: PAGE_SIZE, search: search || undefined, sort_by: sortBy, sort_dir: sortDir,
+      });
+      setData(result);
+    } catch (e: any) {
+      toast(e?.response?.data?.detail || 'Failed to load timeline', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [campaignId, page, search, sortBy, sortDir, toast]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => { setSearch(searchInput); setPage(1); }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const toggleSort = (col: string) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir('asc'); }
+    setPage(1);
+  };
+
+  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold" style={{ color: B.text1 }}>Campaign Timeline</h2>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: B.text3 }} />
+            <input
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="Search username..."
+              className="pl-9 pr-3 py-1.5 border rounded-lg text-sm w-56"
+              style={{ borderColor: B.border, background: B.surface, color: B.text1 }}
+            />
+          </div>
+          <button onClick={loadData}
+                  className="p-1.5 rounded-lg hover:bg-gray-100" style={{ color: B.text2 }}>
+            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+          </button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="border rounded-lg overflow-x-auto" style={{ borderColor: B.border, background: B.surface }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${B.border}`, background: B.bg }}>
+              <th className="px-3 py-2.5 text-left font-medium cursor-pointer select-none whitespace-nowrap"
+                  style={{ color: B.text2, minWidth: 140 }}
+                  onClick={() => toggleSort('username')}>
+                Lead {sortBy === 'username' && (sortDir === 'asc' ? '↑' : '↓')}
+              </th>
+              <th className="px-3 py-2.5 text-left font-medium whitespace-nowrap"
+                  style={{ color: B.text2, minWidth: 120 }}>
+                Account
+              </th>
+              <th className="px-3 py-2.5 text-left font-medium cursor-pointer select-none whitespace-nowrap"
+                  style={{ color: B.text2, minWidth: 80 }}
+                  onClick={() => toggleSort('status')}>
+                Status {sortBy === 'status' && (sortDir === 'asc' ? '↑' : '↓')}
+              </th>
+              {data?.steps.map(step => (
+                <th key={step.step_order}
+                    className="px-3 py-2.5 text-center font-medium whitespace-nowrap"
+                    style={{ color: B.text2, minWidth: 110 }}>
+                  {step.step_order === 1 ? 'Initial' : `Follow-up ${step.step_order - 1}`}
+                  {step.delay_days > 0 && <span className="text-xs font-normal ml-1" style={{ color: B.text3 }}>+{step.delay_days}d</span>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading && !data && (
+              <tr><td colSpan={3 + (data?.steps.length || 0)} className="py-12 text-center">
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" style={{ color: B.text3 }} />
+              </td></tr>
+            )}
+            {data && data.recipients.length === 0 && (
+              <tr><td colSpan={3 + data.steps.length} className="py-12 text-center" style={{ color: B.text3 }}>
+                {search ? 'No recipients match your search' : 'No recipients yet'}
+              </td></tr>
+            )}
+            {data?.recipients.map(r => (
+              <tr key={r.id} style={{ borderBottom: `1px solid ${B.border}` }}
+                  className="hover:bg-gray-50/50">
+                <td className="px-3 py-2" style={{ color: B.text1 }}>
+                  <div className="font-medium">@{r.username}</div>
+                  {r.first_name && <div className="text-xs" style={{ color: B.text3 }}>{r.first_name}</div>}
+                </td>
+                <td className="px-3 py-2 text-xs" style={{ color: B.text2 }}>
+                  {r.assigned_account_phone || '—'}
+                </td>
+                <td className="px-3 py-2">
+                  <span className="px-2 py-0.5 rounded text-xs font-medium"
+                        style={{
+                          background: TIMELINE_STATUS_STYLES[r.status]?.bg || '#F3F4F6',
+                          color: TIMELINE_STATUS_STYLES[r.status]?.text || '#374151',
+                        }}>
+                    {r.status}
+                  </span>
+                </td>
+                {data.steps.map(step => {
+                  const cell = r.steps[String(step.step_order)];
+                  if (!cell) return <td key={step.step_order} className="px-3 py-2 text-center text-xs" style={{ color: B.text3 }}>—</td>;
+                  const style = TIMELINE_STATUS_STYLES[cell.status] || TIMELINE_STATUS_STYLES.pending;
+                  return (
+                    <td key={step.step_order} className="px-3 py-2 text-center group relative">
+                      <span className="px-2 py-0.5 rounded text-xs font-medium inline-block"
+                            style={{ background: style.bg, color: style.text }}>
+                        {style.label}
+                      </span>
+                      {/* Tooltip */}
+                      {cell.status !== 'pending' && (
+                        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block">
+                          <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
+                            {cell.sent_at && <div>Sent: {formatTimelineDate(cell.sent_at)}</div>}
+                            {cell.read_at && <div>Read: {formatTimelineDate(cell.read_at)}</div>}
+                            {cell.replied_at && <div>Replied: {formatTimelineDate(cell.replied_at)}</div>}
+                            {cell.error_message && <div className="text-red-300">Error: {cell.error_message}</div>}
+                            {cell.status === 'scheduled' && cell.sent_at && <div>Scheduled: {formatTimelineDate(cell.sent_at)}</div>}
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm" style={{ color: B.text2 }}>
+          <span>{data?.total || 0} recipients total</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-40">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span>Page {page} of {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-40">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { campaignId: number }) { void _isDark;
   const [stats, setStats] = useState<TgCampaignStats | null>(null);
