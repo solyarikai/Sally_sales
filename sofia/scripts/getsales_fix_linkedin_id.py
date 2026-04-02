@@ -190,6 +190,10 @@ def main():
             if not list_uuid:
                 continue
 
+            # Фильтр по ONLY_LISTS
+            if ONLY_LISTS and not any(f.lower() in list_name.lower() for f in ONLY_LISTS):
+                continue
+
             print(f"📂 {list_name}")
             contacts = get_contacts_from_list(client, list_uuid)
             total_checked += len(contacts)
