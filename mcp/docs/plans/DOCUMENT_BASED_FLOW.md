@@ -639,6 +639,21 @@ Referenced from this document (DOCUMENT_BASED_FLOW.md).
 | Pipeline completes | No crash, no stuck | Always | Status = completed or insufficient, never running/failed |
 | No duplicate pipelines | Exactly 1 GatheringRun | Always | DB check after every run |
 | KPI hit | 100+ verified contacts | 80+ (if Apollo exhausted) | Pipeline result total_people |
+| **Generality test** | **Works with 3 different documents** | **All 3 pass** | **Run full pipeline with each, all hit quality targets** |
+
+#### Generality Test — MANDATORY before declaring "done":
+
+The system must be dynamic and NOT hardcoded to fintech. Test with ALL three documents:
+
+| # | Document | Domain | What it proves |
+|---|----------|--------|---------------|
+| 1 | `outreach-plan-fintech.md` | B2B fintech, 8 segments | Multi-segment extraction, industry-based filtering |
+| 2 | `pavel_example_of_target_companies_description.md` | Different domain entirely | Classification/roles/filters are dynamic, not fintech-specific |
+| 3 | Simple one-liner: "fashion brands in Italy" | Single implicit segment | Works with minimal input, no explicit segments |
+
+**If any document fails → the system is hardcoded, not dynamic. Fix it before shipping.**
+
+All classification prompts, role exclusions, segment labels, and filter strategies must come from the document extraction — never from Python constants.
 
 #### Iteration Protocol:
 ```
@@ -688,3 +703,227 @@ Log what changed and the impact on ALL metrics.
 - **Expected**: 1 campaign, 6 segment labels, Sequence A, 100+ people
 - **KPI**: default (100 people, 3/company)
 - **Time target**: <5 minutes per segment
+
+---
+
+## STUPID MISTAKES — NEVER REPEAT
+
+Hard-learned lessons from the April 2, 2026 testing disaster. Every single one of these wasted 20+ minutes of debugging time that could have been avoided.
+
+### 1. DEPLOYED TO WRONG CONTAINER (leadgen-backend instead of mcp-backend)
+
+**What happened**: Claude deployed code fixes (via negativa classification, EXCLUDE_ROLES filtering) to `leadgen-backend` instead of `mcp-backend`. Then couldn't figure out why nothing changed. Spent ages debugging "why doesn't the fix work" when the fix was sitting in the wrong container entirely.
+
+**Why it was stupid**: The MCP codebase is a SEPARATE application running in `mcp-backend`. It has its OWN code at `/app/app/` inside that container. `leadgen-backend` is the main app — completely unrelated to MCP pipeline execution.
+
+**The rule**:
+- MCP code lives in `mcp-backend` container. ALWAYS.
+- Deploy with: `docker cp file mcp-backend:/app/...` then `docker restart mcp-backend`
+- NEVER touch `leadgen-backend` for MCP work
+- If you catch yourself typing `leadgen-backend` during MCP work, STOP
+
+### 2. PATCHED FILES ONE-BY-ONE INSTEAD OF FULL DEPLOY
+
+**What happened**: Instead of doing a proper deploy, Claude was `scp`-ing individual `.py` files to the server, `docker cp`-ing them into the container. This led to mismatched code — some files updated, some not — and broken imports because the server had a different codebase version than local.
+
+**Why it was stupid**: The server code was out of sync with local. Different model locations (`contact.py` not `project.py`), different constructor signatures, missing modules. Patching individual files into a mismatched codebase is guaranteed to break.
+
+**The rule**:
+- Full deploy, not file patches: `docker restart mcp-backend` after copying ALL changed files
+- If the server code structure differs from local, you need to understand the SERVER's structure first
+- `docker exec mcp-backend ls /app/app/` to check what's actually there before deploying
+
+### 3. USED MAIN APP CODE INSTEAD OF MCP TOOLS
+
+**What happened**: Claude tried to import and run main app functions, hack scripts onto the main leadgen-backend, use main app service code — instead of just calling MCP tools through the SSE connection as intended.
+
+**Why it was stupid**: The entire point of MCP is that you test through MCP tools. The pipeline runs inside `mcp-backend`, triggered by MCP tool calls. Running scripts on `leadgen-backend` tests nothing relevant.
+
+**The rule**:
+- Test through MCP tools ONLY (create_project, run_full_pipeline, etc.)
+- Never import from the main app's codebase for MCP testing
+- If an MCP tool doesn't exist for what you need, that's a feature gap to discuss — not a reason to hack around it
+
+### 4. WRONG DATABASE NAME
+
+**What happened**: Tried `psql -U mcp -d mcp` — database "mcp" does not exist. The actual database is `mcp_leadgen`. Also tried ALTER TABLE on the nonexistent database.
+
+**Why it was stupid**: The DATABASE_URL is right there in the container's env vars: `postgresql+asyncpg://mcp:mcp_secret@mcp-postgres:5432/mcp_leadgen`. One `docker exec mcp-backend env | grep -i database` would have shown this.
+
+**The rule**:
+- MCP database: `mcp_leadgen` (NOT `mcp`)
+- MCP DB user: `mcp` with password `mcp_secret`
+- MCP DB container: `mcp-postgres`
+- Check env vars first: `docker exec mcp-backend env | grep DATABASE`
+
+### 5. ASSUMED SCHEMA WITHOUT CHECKING
+
+**What happened**: Wrote a test script that assumed `mcp_users` table has a `company_id` column. It doesn't — `company_id` is on the `projects` table. Script crashed with a SQL error.
+
+**Why it was stupid**: Takes 5 seconds to check: `SELECT column_name FROM information_schema.columns WHERE table_name='...'`
+
+**The rule**:
+- ALWAYS check actual schema before writing SQL or scripts
+- `docker exec mcp-postgres psql -U mcp -d mcp_leadgen -c "SELECT column_name FROM information_schema.columns WHERE table_name='TABLE_NAME'"`
+- Never assume column existence from memory or from the main app's schema — MCP has its OWN database with its OWN schema
+
+### 6. HAD TO REVERT DAMAGE TO PRODUCTION leadgen-backend
+
+**What happened**: After deploying wrong files to `leadgen-backend`, had to `git checkout` multiple files on the production server to undo the damage. This is a production system serving real users.
+
+**Why it was stupid**: Could have broken the live production app. The files that were modified (`gathering.py`, `apollo_service.py`, `doc...`) are actively used by the main application.
+
+**The rule**:
+- `leadgen-backend` is PRODUCTION. Never deploy experimental MCP code there.
+- If you accidentally modify production files, revert IMMEDIATELY with `git checkout -- <files>`
+- Triple-check the container name before every `docker cp` or `docker exec`
+
+### 7. MCP SSE SESSION BREAKS ON CONTAINER RESTART
+
+**What happened**: After restarting `mcp-backend` to apply fixes, the MCP SSE connection broke. Log showed: `Received request before initialization was complete`. The MCP tools stopped working mid-test.
+
+**Why it was stupid**: Of course the SSE connection breaks when you restart the server. The client needs to reconnect.
+
+**The rule**:
+- After `docker restart mcp-backend`, the SSE session is dead
+- Must re-authenticate with `get_context` using a fresh token
+- Plan for this: make your fixes, restart ONCE, reconnect, then test
+
+### 8. CONSTRUCTED RAW APOLLO FILTERS INSTEAD OF USING THE PIPELINE'S OWN FILTER SYSTEM
+
+**What happened**: Claude manually constructed `keyword_tags` and raw Apollo API filters in test scripts. The pipeline returned only 2 orgs from Apollo despite 50K+ total. Meanwhile, the previous successful run (iteration 3, run 450) used `filter_strategy: "keywords_first"` with `industry_tag_ids` AND `keywords_selected` — the pipeline's full filter mapper system via `_feed_apollo_pages`.
+
+**Why it was stupid**: The pipeline has a complete filter system that handles pagination, keyword expansion, industry mapping, and all Apollo API quirks. Bypassing it with hand-crafted filters means you get 2 results instead of thousands. The working run's filters were RIGHT THERE in the database — just query them.
+
+**The rule**:
+- NEVER construct raw Apollo filters manually — use the pipeline's filter system
+- Check what previous successful runs used: `SELECT substring(filters::text, 1, 500) FROM gathering_runs WHERE id=...`
+- The pipeline's `_feed_apollo_pages` handles pagination, the filter mapper handles keyword→industry translation
+- If a run gets suspiciously few results, the filters are wrong — check the working run's filters first
+
+### 9. KEYWORDS AND INDUSTRIES MUST NEVER BE SET TOGETHER IN APOLLO
+
+**What happened**: Claude set both `keyword_tags` AND `industry_tag_ids` in Apollo filters simultaneously. Apollo treats these as AND logic — "must match keyword AND industry" — which returns almost nothing because they're meant to be alternative ways to find companies.
+
+**Why it was stupid**: This is documented in pipeline_spec.md AND in the plan itself. Claude was told MULTIPLE TIMES to reread the docs. The pipeline spec explicitly says how to use Apollo filters. Setting both is guaranteed to return near-zero results.
+
+**The rule**:
+- Apollo `keyword_tags` and `industry_tag_ids` are MUTUALLY EXCLUSIVE — never set both
+- `filter_strategy: "keywords_first"` means: try keywords first, fall back to industries if needed
+- REREAD `pipeline_spec.md` and `DOCUMENT_BASED_FLOW.md` BEFORE touching Apollo filters
+- If you're unsure about filter behavior, check what a WORKING run used — don't guess
+
+### 10. GOING IN CIRCLES INSTEAD OF REUSING PROVEN DATA
+
+**What happened**: Via negativa classification and role filtering were working beautifully (correctly rejecting ecosystem builders, associations, media, consumer banks). But Claude kept re-running the full pipeline from scratch, fighting Apollo pagination, getting 14 orgs instead of thousands — when the SMART move was to reuse the 123 target companies from iteration 3 (run 450) and just re-test the classification + role filtering in isolation.
+
+**Why it was stupid**: Scientific method says change ONE variable at a time. If you want to test classification changes, don't also change the data source. Reuse the proven companies from the working run and test ONLY the new logic.
+
+**The rule**:
+- When testing a specific fix, isolate it — don't re-run the entire pipeline from scratch
+- Reuse data from successful runs: `SELECT target_people FROM gathering_runs WHERE id=450`
+- Change EXACTLY ONE thing per iteration, measure impact on ALL metrics
+- If you catch yourself debugging Apollo pagination when the task is "test via negativa" — STOP, you're going in circles
+
+### 11. NOT READING THE PLAN BEFORE IMPLEMENTING
+
+**What happened**: Claude was repeatedly told to REREAD the plan file. Multiple times. With increasing frustration. The answers to "how to use Apollo filters" and "how keywords work" were already written in the document. Claude kept guessing instead of reading.
+
+**Why it was stupid**: The plan exists specifically so you don't have to guess. It has the filter strategy, the pipeline architecture, the correct approach. Ignoring it and improvising is the fastest way to waste hours.
+
+**The rule**:
+- BEFORE touching any pipeline code: read `DOCUMENT_BASED_FLOW.md` and `pipeline_spec.md`
+- BEFORE constructing filters: read the filter section of the spec
+- If the user says "REREAD THE FILE" — stop everything, read the file, acknowledge what you missed
+- Never claim "I know how this works" without having read the current spec in this session
+
+### Summary Checklist — Before ANY MCP Deployment
+
+```
+[ ] Am I targeting mcp-backend (NOT leadgen-backend)?
+[ ] Am I using database mcp_leadgen (NOT mcp)?
+[ ] Did I check the actual schema before writing queries?
+[ ] Am I testing through MCP tools (NOT main app scripts)?
+[ ] Did I check server code structure matches what I'm deploying?
+[ ] Will I need to restart? Plan for SSE reconnection.
+```
+
+### 12. CHOSE keywords_first STRATEGY FOR FINTECH WHEN industry_tag_ids WAS OBVIOUSLY BETTER
+
+**What happened**: The AI classifier (GPT) picked `filter_strategy: "keywords_first"` for a fintech pipeline. With keywords, Apollo returned 100-300 companies per keyword page — needed to scan through massive result sets to hit 100 people KPI. Meanwhile, the working run 450 already had `industry_tag_ids: ["5567cdd67369643e64020000"]` (financial services) which maps perfectly to fintech and gives a 90% target rate — need only ~40 companies to hit 100 people.
+
+**Why it was stupid**: `industry_tag_ids` = 90% target rate, best Apollo pagination. `keywords` = 10-40% target rate, slower, noisier. For a well-defined vertical like "fintech" where Apollo has a direct industry tag, industry-first is obviously superior. The classifier should have picked it. The fact that run 450 used `keywords_first` was itself a bug.
+
+**The rule**:
+- From pipeline_spec.md: **Industry IDs** = 90% target rate, best pagination. **Keywords** = 10-40%, more flexible
+- For well-defined verticals (fintech, healthcare, etc.) with direct Apollo industry tags → use `industry_tag_ids`
+- Keywords are for niche/emerging categories that don't have Apollo industry tags
+- Test BOTH strategies' speed to KPI fulfillment — don't just default to keywords
+- The AI classifier decides strategy per query, but verify its choice makes sense for the vertical
+
+### 13. APOLLO FILTER COMBINATION RULES — WHAT CAN AND CANNOT BE COMBINED
+
+**What happened**: Claude repeatedly combined filters incorrectly because it didn't internalize the combination rules that are explicitly documented in the spec.
+
+**The actual rules** (from pipeline_spec.md):
+
+**CAN combine (work together):**
+- keywords + funding_stage (Level 0 priority)
+- keywords + employee_ranges
+- keywords + locations
+- industry_tag_ids + employee_ranges
+- industry_tag_ids + locations
+
+**NEVER combine:**
+- keywords + industry_tag_ids (AND logic kills results)
+
+**How the pipeline handles this correctly:**
+- `_make_keywords_filters()` drops industry IDs
+- `_make_industry_filters()` drops keywords
+- The adapter enforces it too
+
+**The rule**:
+- These combination rules are ALREADY IMPLEMENTED in the pipeline code — trust it
+- If you're constructing filters manually (which you shouldn't — see mistake #8), follow these rules
+- If results look wrong, check whether forbidden combinations leaked through
+
+### 14. HARDCODED CLASSIFICATION RULES AND ROLE EXCLUSIONS INSTEAD OF MAKING THEM CONFIGURABLE
+
+**What happened**: Claude hardcoded business-specific classification logic directly into `streaming_pipeline.py` and `apollo_service.py`:
+- Classification prompt: hardcoded "SELLS TO CONSUMERS (B2C): consumer apps, personal finance, consumer lending, consumer wallets" and 8 specific exclusion categories
+- `EXCLUDE_SUBSTRINGS` in `apollo_service.py`: hardcoded list of role substrings like "engineering", "delivery", "operations director", "general counsel", "data science", "ux", "ui"
+- Then kept patching the hardcoded list — first added "engineering" (too broad, would exclude "GTM Engineer" and "Sales Engineer"), then narrowed to "of engineering", "software engineer", "senior engineer"
+
+**Why it was stupid**: Every project has different target roles and different exclusion criteria. A fintech project excluding "engineering" roles is completely different from a dev tools project where engineers ARE the targets. Hardcoding this means:
+- Every new project requires code changes
+- Every prompt tweak requires redeployment
+- Classification rules can't be A/B tested or tuned per project
+- The exclusion list grows into an unmaintainable mess of edge cases
+
+**It kept happening AGAIN — even after being told**:
+- GPT role selection prompt: hardcoded "These functions are NEVER target roles: Engineering/DevOps/SRE, Finance/CFO, Operations/COO, Product, HR/People, Legal/Compliance, Data/Analytics, Design/UX, Customer Success/Support, Account Management, Project Management, Delivery"
+- For Pavel's iGaming case, CTO IS a target role. The hardcoded "NEVER target" list killed valid leads.
+- Classification prompt: hardcoded "LAYER 1 BLOCKCHAIN PROTOCOLS: infrastructure chains are NOT fintech products" — true for fintech, completely wrong for other verticals
+- Kept adding more hardcoded exclusion categories (IT OUTSOURCING specifics, TRADITIONAL INSTITUTIONS) that only make sense for fintech
+
+**The rule**:
+- Classification categories, exclusion rules, and target roles come from the PROJECT CONFIGURATION — not from code
+- The document extraction already pulls target roles and segments — USE THEM as the classification source
+- `EXCLUDE_ROLES` / `EXCLUDE_SUBSTRINGS` should be project-level settings, not hardcoded constants
+- The GPT role selection prompt gets its "NEVER target" list FROM THE DOCUMENT's target roles — inverted. If CTO is a target role, it's a target. Period.
+- If you're editing a Python list of strings to fix accuracy — you're doing it wrong. That data belongs in the database.
+- **ZERO hardcoded role/function names in prompts.** The only input is: target_titles from document extraction. Everything else is derived.
+- Act as GOD (configurable system), not as a hardcoding bitch
+
+### Summary Checklist — Before ANY Pipeline Test
+
+```
+[ ] Did I read DOCUMENT_BASED_FLOW.md and pipeline_spec.md FIRST?
+[ ] Am I using the pipeline's own filter system (NOT raw Apollo filters)?
+[ ] Are keywords and industries NOT set together?
+[ ] Is the filter strategy appropriate for the vertical? (industry-first for known verticals)
+[ ] Am I changing exactly ONE thing vs the last working run?
+[ ] Can I reuse data from a previous successful run instead of re-running everything?
+[ ] Did I check what filters the last working run used?
+[ ] Are classification rules and role exclusions configurable (NOT hardcoded)?
+```

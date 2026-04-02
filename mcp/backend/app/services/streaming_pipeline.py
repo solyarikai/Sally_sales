@@ -25,7 +25,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.gathering import GatheringRun, CompanySourceLink
 from app.models.pipeline import DiscoveredCompany, ExtractedContact
-from app.models.project import Project
+try:
+    from app.models.project import Project
+except ImportError:
+    from app.models.contact import Project
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,9 @@ class StreamingPipeline:
         self.run = run
         self.openai_key = openai_key
         self.apollo = apollo_service
+        # Pass OpenAI key to Apollo for GPT-powered role filtering
+        if apollo_service and openai_key:
+            apollo_service._openai_key = openai_key
         self.apify_proxy = apify_proxy
 
         # KPI
@@ -77,21 +83,110 @@ class StreamingPipeline:
         """Initialize shared services once. Own session — no shared state."""
         from app.services.scraper_service import ScraperService
         from app.db import async_session_maker
-        self._scraper = ScraperService(apify_proxy_password=self.apify_proxy)
+        try:
+            self._scraper = ScraperService(apify_proxy_password=self.apify_proxy)
+        except TypeError:
+            self._scraper = ScraperService()  # Server version takes no args
 
         async with async_session_maker() as ws:
             project = await ws.get(Project, self.run.project_id)
             self._offer_text = project.target_segments if project else ""
-            # Extract segments for DYNAMIC classification (from document or user input)
             self._segments = []
+            self._person_titles = None
+            self._person_exclude_titles = None
+
             if project and project.offer_summary and isinstance(project.offer_summary, dict):
-                target_roles = project.offer_summary.get("target_roles", {})
+                offer = project.offer_summary
+                target_roles = offer.get("target_roles", {})
                 if target_roles.get("titles"):
                     self._person_titles = target_roles["titles"]
+                # Negative role list from document or defaults
+                if target_roles.get("exclude_titles"):
+                    self._person_exclude_titles = target_roles["exclude_titles"]
                 # Segments from document extraction
-                segments = project.offer_summary.get("segments", [])
+                segments = offer.get("segments", [])
                 if segments:
                     self._segments = [s.get("name", "") for s in segments if s.get("name")]
+                # Use stored classification prompt if available
+                if offer.get("classification_prompt"):
+                    self._classification_prompt = offer["classification_prompt"]
+
+            # Generate classification prompt dynamically if not stored
+            if not getattr(self, "_classification_prompt", None):
+                # Try Agent #2 (GPT generates optimal prompt from context)
+                try:
+                    self._classification_prompt = await self._generate_classification_prompt()
+                except Exception:
+                    self._classification_prompt = self._build_via_negativa_prompt()
+
+    def _build_via_negativa_prompt(self) -> str:
+        """Build via negativa classification prompt — DYNAMIC, no hardcoded exclusions.
+
+        Uses GPT to generate exclusion rules from the offer/segments context.
+        Falls back to a minimal generic prompt if no context available.
+        """
+        segments_line = ""
+        if self._segments:
+            segments_line = (
+                f"\nTARGET SEGMENTS: {', '.join(self._segments)}\n"
+                f"If target, assign ONE of these segments.\n"
+            )
+
+        # Minimal prompt — NO hardcoded exclusion categories.
+        # The offer text itself tells GPT what's relevant and what's not.
+        return (
+            f"You classify companies as potential customers using VIA NEGATIVA.\n\n"
+            f"WE SELL: {self._offer_text}\n"
+            f"{segments_line}\n"
+            f"EXCLUDE (is_target=false) if the company is clearly NOT a potential buyer of what we sell.\n"
+            f"Ask: 'Would this company realistically BUY or BENEFIT from our product/service?'\n"
+            f"- If NO reasonable path to becoming a customer → exclude.\n"
+            f"- If they COULD be a customer (even indirectly) → include.\n\n"
+            f"INCLUDE (is_target=true) if the company operates in the target space and could benefit.\n"
+            f"- Companies with both consumer AND B2B arms: include if they have a B2B product division.\n"
+            f"- WHEN IN DOUBT: include (false positives are cheaper than missing real targets).\n\n"
+            f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
+        )
+
+    async def _generate_classification_prompt(self) -> str:
+        """Agent #2: Generate optimal classification prompt from project context.
+
+        Reads offer, segments, and target audience → generates exclusion rules
+        specific to THIS campaign. No hardcoded categories.
+        """
+        import httpx, json
+
+        meta_prompt = (
+            f"Generate a classification prompt for filtering companies in a lead generation pipeline.\n\n"
+            f"CONTEXT:\n"
+            f"We sell: {self._offer_text}\n"
+            f"Target segments: {', '.join(self._segments) if self._segments else 'general'}\n\n"
+            f"Generate a VIA NEGATIVA classification prompt that:\n"
+            f"1. Lists 5-8 EXCLUSION rules specific to this campaign (what types of companies are NOT potential buyers)\n"
+            f"2. Lists 3-4 INCLUSION rules (what makes a company a good target)\n"
+            f"3. Uses the offer context to derive exclusions — don't use generic rules\n"
+            f"4. Ends with: Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}\n\n"
+            f"Return ONLY the prompt text, no explanation."
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {self.openai_key}", "Content-Type": "application/json"},
+                    json={"model": "gpt-4.1-mini", "messages": [{"role": "user", "content": meta_prompt}],
+                          "max_tokens": 1000, "temperature": 0.3},
+                )
+                data = resp.json()
+                generated = data["choices"][0]["message"]["content"].strip()
+                if generated.startswith("```"):
+                    generated = generated.split("\n", 1)[1].rsplit("```", 1)[0]
+                logger.info(f"Agent #2 generated classification prompt: {len(generated)} chars")
+                return generated
+        except Exception as e:
+            logger.warning(f"Agent #2 prompt generation failed: {e}")
+            return self._build_via_negativa_prompt()
+
 
     async def run_until_kpi(self, filters: Dict) -> Dict:
         """Main entry — SINGLE STREAMING MODE for everything.
@@ -564,11 +659,7 @@ class StreamingPipeline:
 
         # Log the classification prompt ONCE so Prompts page can display it
         try:
-            system_prompt = (
-                f"Classify if this company is a target customer.\n"
-                f"Offer: {self._offer_text}\n"
-                f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
-            )
+            system_prompt = self._classification_prompt
             user_id_str = self.run.triggered_by.split(":")[-1] if self.run.triggered_by else "0"
             try:
                 uid = int(user_id_str)
@@ -599,17 +690,10 @@ class StreamingPipeline:
                         json={
                             "model": "gpt-4o-mini",
                             "messages": [
-                                {"role": "system", "content": (
-                                    f"Classify if this company is a target customer.\n"
-                                    f"Offer: {self._offer_text}\n"
-                                    + (f"Target segments: {', '.join(self._segments)}\n"
-                                       f"If target, assign ONE of these segments.\n"
-                                       if self._segments else "")
-                                    + f"Return JSON: {{\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\"}}"
-                                )},
+                                {"role": "system", "content": self._classification_prompt},
                                 {"role": "user", "content": company_text},
                             ],
-                            "max_tokens": 150, "temperature": 0.1,
+                            "max_tokens": 200, "temperature": 0.1,
                         },
                     )
                     data = resp.json()
