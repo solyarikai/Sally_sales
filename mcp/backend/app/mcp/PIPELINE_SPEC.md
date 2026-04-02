@@ -20,11 +20,11 @@ offer_summary = {
     ...  // 8-10 keywords per segment
   ],
   "apollo_filters": {
-    "combined_keywords": [...],  // all segment keywords merged (60-80)
+    "combined_keywords": [...],  // all segment keywords merged
     "locations": ["United States", "United Kingdom"],
     "employee_range": "20,500",
     "industries": ["financial services"],
-    "funding_stages": ["series_a", "series_b"]
+    "funding_stages": ["series_a", "series_b"]  // prioritization filter
   },
   "target_roles": {
     "titles": ["VP Sales", "CRO", "CMO", ...],
@@ -56,82 +56,75 @@ offer_summary = {
 **Method**: Fetches all SmartLead accounts, filters by substring match
 **Output**: Draft `Campaign` record linked to project with selected account IDs
 
-## 5. KEYWORD GENERATION (tam_gather → filter_mapper)
+## 5. FILTER GENERATION (tam_gather → filter_mapper)
 
-### Step A: Taxonomy Embedding Search
-**File**: `services/taxonomy_service.py:get_keyword_shortlist()`
-**Model**: `text-embedding-3-small` (OpenAI embeddings)
-**Input**: User query (e.g., "fintech companies in US")
-**Method**: 
-1. Embed query using OpenAI embeddings API
-2. pgvector cosine similarity search on `apollo_taxonomy` table (2,356 known keywords)
-3. Return top 50 most semantically similar keywords
-**Output**: `keyword_shortlist` — 50 Apollo keywords ranked by relevance
+### Filter Classification
 
-### Step A2: Seed Keyword Injection
-**File**: `services/filter_mapper.py` (inline in `map_query_to_filters()`)
-**Input**: Document-extracted segment keywords (if project created from document)
-**Method**: Merge seed keywords into shortlist, deduplicate, seeds placed first for priority
-**Output**: Enriched shortlist (50 taxonomy + N document seeds)
+**Mandatory** (MCP must have before pipeline starts, asks user if missing):
+- **Geo** (locations) — from user query or document
+- **Segments** (query describing target companies) — from user query or document
 
-### Step B1: Industry Selection
+**Inferred** (GPT derives automatically, no need to ask user):
+- **Size** (employee range) — GPT infers from offer context
+- **Industries** (Apollo industry names) — GPT picks 2-3 from 84 real Apollo industries
+- **Keywords** (free-text search terms) — GPT generates 20-30 freely
+
+**Prioritization** (nice-to-have, graceful degradation):
+- **Funding** (series_a, series_b) — from document. Applied when Apollo has data, silently dropped when exhausted. Unfunded streams continue in parallel.
+
+### Step A: Industry Selection
 **File**: `services/filter_mapper.py:_pick_industries()`
 **Model**: `gpt-4.1-mini` (fallback: `gpt-4o-mini`)
-**Prompt**: `"[query]" — 2-3 matching industries. [full industry list] JSON: {"industries": ["exact name"]}`
-**Output**: 2-3 Apollo industry names
+**Input**: User query + 84 real Apollo industry names (from `apollo_taxonomy` table, all with tag_ids)
+**Prompt**: `"[query]" — pick 2-3 matching Apollo industries. [84 industries] JSON: {"industries": ["exact name"]}`
+**Output**: 2-3 industry names → direct tag_id lookup (no separate map table)
 
-### Step B2: Keyword + Employee Size Selection
-**File**: `services/filter_mapper.py:_gpt_pick_filters()`
+### Step B: Keyword + Employee Size Generation
+**File**: `services/filter_mapper.py:_generate_keywords()`
 **Model**: `gpt-4.1-mini` (fallback: `gpt-4o-mini`)
-**Prompt**: 
+**Input**: User query + offer description + seed keywords (from document, if available)
+**Prompt**:
 ```
-You map business queries to Apollo.io search filters.
-Select ONLY from the lists provided. Never invent.
+Generate Apollo.io search keywords for finding B2B companies.
 
 User's segment: {query}
 User's product: {offer}
 
-SEED KEYWORDS (from user's strategy document — PRIORITIZE these):
-[document keywords if available]
+SEED KEYWORDS (from user's strategy document):
+[document keywords if available — used as starting point]
 
-KEYWORDS
-Filtering Apollo for "{query}" — pick 20-30 keywords...
-[enriched shortlist: taxonomy matches + document seeds]
+Generate 20-30 keywords that target companies would have on their Apollo profiles.
+Include: industry terms, product/service names, technology names, synonyms,
+adjacent niches, specific sub-sectors, business model descriptors.
 
 EMPLOYEE SIZE
 Pick 1-3 ranges that match the typical BUYER...
 ```
-**Output**: `{keywords: [...], unverified_keywords: [...], employee_ranges: [...]}`
+**Output**: `{keywords: [...], employee_ranges: [...]}`
 
-### Step C: Industry Specificity Classification
-**File**: `services/industry_classifier.py:classify_industry_specificity()`
-**Model**: `gpt-4.1-mini`
-**Input**: Query + selected industries
-**Output**: Strategy recommendation: `industry_first` | `keywords_first` | `keywords_only`
+**Note**: Apollo accepts ANY free-text in `q_organization_keyword_tags`. No predefined keyword list or validation needed. GPT generates freely.
 
-### Step D: Location Extraction
+### Step C: Location Extraction
 **File**: `services/filter_mapper.py:_extract_locations()`
 **Method**: Regex parsing (no GPT) — extracts "in Miami", "in US and UK"
 **Note**: Document locations override this if available
 
-### Step E: Document Structural Overrides
+### Step D: Document Structural Overrides
 **File**: `mcp/dispatcher.py` (inline in tam_gather handler)
 **Applied from document if available**:
 - Locations (override filter_mapper's regex)
-- Funding stages (filter_mapper never extracts this)
-- Employee range (if filter_mapper didn't set one)
-- Keywords are NOT overridden — they're seeded into filter_mapper instead
+- Funding stages (prioritization filter — applied to funded streams)
+- Employee range (if GPT didn't set one)
 
 ### Final Filter Assembly
 ```
 {
-  "q_organization_keyword_tags": [industries + verified_keywords + unverified_to_fill],
-  "organization_industry_tag_ids": [specific_tag_ids if industry_first strategy],
+  "q_organization_keyword_tags": [industry_names + generated_keywords],
+  "organization_industry_tag_ids": [tag_ids from industry lookup],
   "organization_locations": ["Country1", "Country2"],
   "organization_num_employees_ranges": ["20,500"],
-  "organization_latest_funding_stage_cd": ["series_a"],  // from document only
-  "filter_strategy": "industry_first | keywords_first | keywords_only",
-  "mapping_details": {full audit trail}
+  "organization_latest_funding_stage_cd": ["series_a"],  // prioritization, from document
+  "mapping_details": {industries, keywords, tag_ids, model_used, seed_count}
 }
 ```
 
@@ -143,24 +136,52 @@ Pick 1-3 ranges that match the typical BUYER...
 
 ## 7. PIPELINE PREVIEW → USER APPROVAL
 **File**: `mcp/dispatcher.py` (tam_gather PREVIEW mode)
-**Shows user**: All keywords, strategy reasoning, cost estimate, KPIs, pipeline link
+**Shows user**: All keywords, industries, tag_ids, cost estimate, KPIs, pipeline link
 **Waits for**: User says "Proceed?" → `tam_gather(confirm_filters=true)`
 
+**MCP agent behavior**:
+- User provides query + geo → show preview, ask only "Proceed?"
+- User provides query without geo → ask "Which location?"
+- User provides only website → after project creation, ask "What companies and where?"
+- Document provides everything → show preview, ask only "Proceed?"
+
 ## 8. AUTONOMOUS PIPELINE
-**File**: `services/pipeline_orchestrator.py`
+**File**: `services/streaming_pipeline.py`
 **Runs in background after user confirms**
 
+### Parallel Streams (all launched simultaneously)
+```
+streams = []
+
+# Prioritization: funded streams (if funding filter provided)
+if has_funding:
+    L0_kw_funded   → keywords + funding + geo + size    (best: funded + relevant)
+    L0_ind_funded  → industry_tag_ids + funding + geo + size  (best: funded + broad)
+
+# Mandatory: always run
+L1_keywords    → keywords + geo + size              (broad coverage)
+L1_industry    → industry_tag_ids + geo + size       (precise, good pagination)
+
+# All run via asyncio.gather — pipeline deduplicates by domain
+# KPI flag stops ALL streams when target reached
+```
+
+**Apollo rule**: `industry_tag_ids` and `keywords` are NEVER combined in the same API call (they AND together = near-zero results). Each stream uses one or the other.
+
 ### Phase 1: Gather
-- Apollo API pages (25 companies/page, 4 concurrent pages)
+- Apollo API pages (100 companies/page, parallel batches)
+- ~56-85 unique companies per page (Apollo pagination is inconsistent with keywords)
+- ~100 unique companies per page with industry_tag_ids (consistent)
 - Stores as `DiscoveredCompany` records
+- Cross-page dedup by domain (~5% duplicates)
 
 ### Phase 2: Scrape
-- Website content via Apify residential proxy
+- Website content via Apify residential proxy (50 concurrent)
 - BeautifulSoup HTML → clean text
 - Stored as `CompanyScrape` records
 
 ### Phase 3: Classify (via negativa)
-**Model**: `gpt-4o-mini`
+**Model**: `gpt-4o-mini` (50 concurrent)
 **Prompt**: Analyzes scraped website content against project's ICP
 **Method**: Via negativa — focuses on EXCLUDING non-matches
 **Output per company**:
@@ -169,20 +190,39 @@ Pick 1-3 ranges that match the typical BUYER...
 - `segment`: CAPS_LOCKED label (PAYMENTS, LENDING, etc.)
 - `reasoning`: Why target/not-target
 
+**Cost**: ~$0.003 per company ($0.07 per 300 companies)
+
 ### Phase 4: Extract People
 **Method**: Apollo `/mixed_people/api_search` (FREE, no credits)
-**Config**: 3 contacts per target company
-**Roles**: Auto-adjusted based on project's offer (payroll→HR, SaaS→CTO, fashion→CMO)
+**Config**: 3 contacts per target company (20 concurrent)
+**Roles**: Auto-adjusted based on project's offer:
+- Payroll offer → VP HR, CHRO, Head of People
+- SaaS offer → CTO, VP Engineering
+- Fashion offer → Brand Director, CMO
+**Priority**: owner/founder > c_suite > vp > head > director
 
 ### Phase 5: Auto-Push to SmartLead
 **Trigger**: When KPI met (default: 100 people, 3/company)
 **Creates**: SmartLead DRAFT campaign with:
 - Generated email sequence (4-5 steps)
 - Selected sending accounts
-- Uploaded target contacts
-- Test email sent to user
+- Uploaded target contacts with normalized company names + segment as custom fields
+- Test email sent to user's email
+- Campaign settings: plain text, no tracking, stop on reply, Mon-Fri 9-18 target timezone
+
+### Phase 6: Keyword Regeneration (if KPI not met)
+**File**: `services/streaming_pipeline.py:_regenerate_keywords()`
+**Model**: `gpt-4.1-mini`
+**Trigger**: After all initial streams exhausted, KPI not reached
+**Method**: GPT generates new keywords based on which target companies were found
+**Runs**: Up to 3 regeneration cycles
 
 **Default KPIs**: `target_people=100`, `max_people_per_company=3`
+
+**Typical results** (from testing):
+- Fashion Italy: 102 targets, 131 people, 59s, $0.17
+- Video London: 81 targets, 134 people, 55s, $0.19
+- IT Miami: 18 targets, 39 people, 27s, $0.04
 
 ## 9. REPLY MONITORING
 **File**: `services/reply_monitor.py`
