@@ -5823,6 +5823,7 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const loadPipeline = useCallback(async () => {
@@ -5893,10 +5894,15 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
 
   const openContact = async (c: any) => {
     setSelectedContact(c);
+    setCampaignProgress([]);
     try {
-      const h = await telegramOutreachApi.getCrmContactHistory(c.id);
+      const [h, cp] = await Promise.all([
+        telegramOutreachApi.getCrmContactHistory(c.id),
+        telegramOutreachApi.getCrmContactCampaigns(c.id),
+      ]);
       setHistory(h.history);
-    } catch { setHistory([]); }
+      setCampaignProgress(cp.campaigns || []);
+    } catch { setHistory([]); setCampaignProgress([]); }
   };
 
   const updateStatus = async (id: number, status: string) => {
@@ -6079,6 +6085,66 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
                   <div className="text-[10px]" style={{ color: A.text3 }}>Last Contact</div>
                 </div>
               </div>
+              {/* Campaign Sequence Progress */}
+              {campaignProgress.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Campaign Progress</h3>
+                  <div className="space-y-2">
+                    {campaignProgress.map((cp: any) => (
+                      <div key={cp.campaign_id} className="rounded-lg border p-3" style={{ borderColor: A.border }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium" style={{ color: A.text1 }}>{cp.campaign_name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                              background: cp.campaign_status === 'active' ? '#ECFDF5' : cp.campaign_status === 'paused' ? '#FEF3C7' : '#F3F4F6',
+                              color: cp.campaign_status === 'active' ? '#059669' : cp.campaign_status === 'paused' ? '#D97706' : '#6B7280',
+                            }}>{cp.campaign_status}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                              background: cp.recipient_status === 'replied' ? '#ECFDF5' : cp.recipient_status === 'completed' ? '#F0F9FF' : cp.recipient_status === 'failed' ? '#FFF1F2' : '#F9F9F7',
+                              color: cp.recipient_status === 'replied' ? '#059669' : cp.recipient_status === 'completed' ? '#0284C7' : cp.recipient_status === 'failed' ? '#E11D48' : A.text3,
+                            }}>{cp.recipient_status}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {cp.steps.map((step: any, si: number) => {
+                            const color = step.status === 'sent' ? '#9CA3AF' : step.status === 'read' ? '#3B82F6'
+                              : step.status === 'replied' ? '#10B981' : step.status === 'failed' || step.status === 'spamblocked' ? '#EF4444'
+                              : step.status === 'scheduled' ? '#F59E0B' : '#E5E7EB';
+                            return (
+                              <div key={si} className="flex items-center" title={
+                                `${step.label}${step.sent_at ? `\nSent: ${new Date(step.sent_at).toLocaleString()}` : ''}${step.read_at ? `\nRead: ${new Date(step.read_at).toLocaleString()}` : ''}`
+                              }>
+                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: color }}>
+                                  {si + 1}
+                                </div>
+                                {si < cp.steps.length - 1 && (
+                                  <div className="w-4 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />
+                                )}
+                              </div>
+                            );
+                          })}
+                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>
+                            {cp.current_step}/{cp.total_steps}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 text-[11px]" style={{ color: A.text3 }}>
+                          {cp.recipient_status === 'replied' ? (
+                            <>Replied after {cp.steps.find((s: any) => s.status === 'replied')?.label || `step ${cp.current_step}`}</>
+                          ) : cp.recipient_status === 'completed' ? (
+                            <>Completed all {cp.total_steps} steps</>
+                          ) : cp.current_step > 0 ? (
+                            <>Sent {cp.steps[cp.current_step - 1]?.label || `step ${cp.current_step}`}{cp.steps[cp.current_step]
+                              ? `, next: ${cp.steps[cp.current_step]?.label} (+${cp.steps[cp.current_step]?.delay_days}d)`
+                              : ''}</>
+                          ) : (
+                            <>Pending — not yet sent</>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {history.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>History</h3>
@@ -6119,6 +6185,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [stats, setStats] = useState<Record<string, number>>({});
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [crmDeleteConfirm, setCrmDeleteConfirm] = useState<string | null>(null);
 
@@ -6144,10 +6211,15 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
 
   const openContact = async (c: any) => {
     setSelectedContact(c);
+    setCampaignProgress([]);
     try {
-      const h = await telegramOutreachApi.getCrmContactHistory(c.id);
+      const [h, cp] = await Promise.all([
+        telegramOutreachApi.getCrmContactHistory(c.id),
+        telegramOutreachApi.getCrmContactCampaigns(c.id),
+      ]);
       setHistory(h.history);
-    } catch { setHistory([]); }
+      setCampaignProgress(cp.campaigns || []);
+    } catch { setHistory([]); setCampaignProgress([]); }
   };
 
   const updateStatus = async (id: number, status: string) => {
@@ -6354,6 +6426,68 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                   <div className="text-[10px]" style={{ color: A.text3 }}>Last Reply</div>
                 </div>
               </div>
+              {/* Campaign Sequence Progress */}
+              {campaignProgress.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Campaign Progress</h3>
+                  <div className="space-y-2">
+                    {campaignProgress.map((cp: any) => (
+                      <div key={cp.campaign_id} className="rounded-lg border p-3" style={{ borderColor: A.border }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium" style={{ color: A.text1 }}>{cp.campaign_name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                              background: cp.campaign_status === 'active' ? '#ECFDF5' : cp.campaign_status === 'paused' ? '#FEF3C7' : '#F3F4F6',
+                              color: cp.campaign_status === 'active' ? '#059669' : cp.campaign_status === 'paused' ? '#D97706' : '#6B7280',
+                            }}>{cp.campaign_status}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                              background: cp.recipient_status === 'replied' ? '#ECFDF5' : cp.recipient_status === 'completed' ? '#F0F9FF' : cp.recipient_status === 'failed' ? '#FFF1F2' : '#F9F9F7',
+                              color: cp.recipient_status === 'replied' ? '#059669' : cp.recipient_status === 'completed' ? '#0284C7' : cp.recipient_status === 'failed' ? '#E11D48' : A.text3,
+                            }}>{cp.recipient_status}</span>
+                          </div>
+                        </div>
+                        {/* Step indicators */}
+                        <div className="flex items-center gap-1">
+                          {cp.steps.map((step: any, si: number) => {
+                            const color = step.status === 'sent' ? '#9CA3AF' : step.status === 'read' ? '#3B82F6'
+                              : step.status === 'replied' ? '#10B981' : step.status === 'failed' || step.status === 'spamblocked' ? '#EF4444'
+                              : step.status === 'scheduled' ? '#F59E0B' : '#E5E7EB';
+                            return (
+                              <div key={si} className="flex items-center" title={
+                                `${step.label}${step.sent_at ? `\nSent: ${new Date(step.sent_at).toLocaleString()}` : ''}${step.read_at ? `\nRead: ${new Date(step.read_at).toLocaleString()}` : ''}`
+                              }>
+                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: color }}>
+                                  {si + 1}
+                                </div>
+                                {si < cp.steps.length - 1 && (
+                                  <div className="w-4 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />
+                                )}
+                              </div>
+                            );
+                          })}
+                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>
+                            {cp.current_step}/{cp.total_steps}
+                          </span>
+                        </div>
+                        {/* Current step text summary */}
+                        <div className="mt-1.5 text-[11px]" style={{ color: A.text3 }}>
+                          {cp.recipient_status === 'replied' ? (
+                            <>Replied after {cp.steps.find((s: any) => s.status === 'replied')?.label || `step ${cp.current_step}`}</>
+                          ) : cp.recipient_status === 'completed' ? (
+                            <>Completed all {cp.total_steps} steps</>
+                          ) : cp.current_step > 0 ? (
+                            <>Sent {cp.steps[cp.current_step - 1]?.label || `step ${cp.current_step}`}{cp.steps[cp.current_step]
+                              ? `, next: ${cp.steps[cp.current_step]?.label} (+${cp.steps[cp.current_step]?.delay_days}d)`
+                              : ''}</>
+                          ) : (
+                            <>Pending — not yet sent</>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>History</h3>
                 {history.length === 0 ? (
