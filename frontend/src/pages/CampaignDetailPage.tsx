@@ -4,7 +4,7 @@ import {
   ArrowLeft, Settings2, ListOrdered, Users, Eye, MessageSquare, Reply, Download,
   Plus, Trash2, Save, Upload, Loader2, Play, Pause,
   ChevronLeft, ChevronRight, RefreshCw, Type, BarChart3, X, Search, UserPlus, Check,
-  Table2,
+  Table2, AlertTriangle,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -777,6 +777,16 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Cross-campaign duplicate check
+  const [crossDupes, setCrossDupes] = useState<{
+    duplicates_count: number;
+    duplicates: Array<{
+      username: string; campaign_id: number; campaign_name: string;
+      campaign_status: string; current_step: number; recipient_status: string;
+      assigned_account: string | null;
+    }>;
+  } | null>(null);
+
   const loadRecipients = useCallback(async () => {
     setLoading(true);
     try {
@@ -819,7 +829,8 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
       const res = await telegramOutreachApi.addRecipientsFromCrm(campaignId, Array.from(crmSelected));
       const blMsg = res.blacklisted ? `, ${res.blacklisted} blacklisted` : '';
       const skipMsg = res.skipped ? `, ${res.skipped} duplicates skipped` : '';
-      toast(`${res.added} recipients added${skipMsg}${blMsg}`, 'success');
+      const crossMsg = res.cross_duplicates ? ` (${res.cross_duplicates} already in other campaigns)` : '';
+      toast(`${res.added} recipients added${skipMsg}${blMsg}${crossMsg}`, 'success');
       setCrmOpen(false);
       setCrmSelected(new Set());
       loadRecipients();
@@ -855,7 +866,14 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
     try {
       const res = await telegramOutreachApi.uploadRecipientsText(campaignId, textInput);
       const blMsg = res.blacklisted ? `, ${res.blacklisted} blacklisted removed` : '';
-      toast(`${res.added} recipients added (${res.total} total${blMsg})`, 'success');
+      const crossMsg = res.cross_duplicates ? ` (${res.cross_duplicates} already in other campaigns)` : '';
+      toast(`${res.added} recipients added (${res.total} total${blMsg})${crossMsg}`, 'success');
+      // If cross-campaign duplicates found, fetch details
+      if (res.cross_duplicates > 0) {
+        const usernames = textInput.trim().split('\n').map((l: string) => l.trim().replace(/^@/, '')).filter(Boolean);
+        const dupeRes = await telegramOutreachApi.checkDuplicates(campaignId, usernames);
+        if (dupeRes.duplicates_count > 0) setCrossDupes(dupeRes);
+      }
       setTextInput('');
       setUploadMode('none');
       loadRecipients();
@@ -922,7 +940,18 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
         custom_columns: customCols,
       });
       const blMsg = res.blacklisted ? `, ${res.blacklisted} blacklisted removed` : '';
-      toast(`${res.added} recipients imported${blMsg}`, 'success');
+      const crossMsg = res.cross_duplicates ? ` (${res.cross_duplicates} already in other campaigns)` : '';
+      toast(`${res.added} recipients imported${blMsg}${crossMsg}`, 'success');
+      // If cross-campaign duplicates, fetch details for the preview rows
+      if (res.cross_duplicates > 0) {
+        const usernames = csvPreview.map(r => (r[usernameCol!] || '').replace(/^@/, '')).filter(Boolean);
+        // Re-read CSV for full usernames list would be complex; use the count warning
+        // The check-duplicates endpoint is also available for a dedicated pre-import check
+        try {
+          const dupeRes = await telegramOutreachApi.checkDuplicates(campaignId, usernames);
+          if (dupeRes.duplicates_count > 0) setCrossDupes(dupeRes);
+        } catch { /* best effort */ }
+      }
       setCsvColumns([]);
       setCsvPreview([]);
       setCsvFile(null);
@@ -995,6 +1024,50 @@ function RecipientsTab({ campaignId, t, toast, isDark }: TabProps & { campaignId
                  }} />
         </div>
       </div>
+
+      {/* Cross-campaign duplicates warning */}
+      {crossDupes && crossDupes.duplicates_count > 0 && (
+        <div className="rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                {crossDupes.duplicates_count} lead{crossDupes.duplicates_count !== 1 ? 's' : ''} already contacted in other campaigns
+              </p>
+              <div className="mt-2 max-h-48 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-amber-700 dark:text-amber-400 border-b border-amber-200 dark:border-amber-700">
+                      <th className="pb-1 pr-3">Username</th>
+                      <th className="pb-1 pr-3">Campaign</th>
+                      <th className="pb-1 pr-3">Status</th>
+                      <th className="pb-1 pr-3">Step</th>
+                      <th className="pb-1">Account</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-amber-800 dark:text-amber-300">
+                    {crossDupes.duplicates.map((d, i) => (
+                      <tr key={i} className="border-b border-amber-100 dark:border-amber-800/50">
+                        <td className="py-1 pr-3 font-mono">@{d.username}</td>
+                        <td className="py-1 pr-3">{d.campaign_name}</td>
+                        <td className="py-1 pr-3">{d.recipient_status}</td>
+                        <td className="py-1 pr-3">{d.current_step}</td>
+                        <td className="py-1">{d.assigned_account || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                These leads were already added. Review to avoid duplicate outreach.
+              </p>
+            </div>
+            <button onClick={() => setCrossDupes(null)} className="text-amber-500 hover:text-amber-700 dark:hover:text-amber-300">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Upload text panel */}
       {uploadMode === 'text' && (
