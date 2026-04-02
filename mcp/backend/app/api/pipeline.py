@@ -174,12 +174,28 @@ async def list_projects(
         return []
     query = select(Project).where(Project.is_active == True, Project.user_id == user.id)
     result = await session.execute(query)
-    return [{"id": p.id, "name": p.name, "website": getattr(p, 'website', None),
+    projects = []
+    for p in result.scalars().all():
+        offer = p.offer_summary if isinstance(p.offer_summary, dict) and p.offer_summary.get("primary_offer") else None
+        # Inject sequences from generated_sequences table if not in offer_summary
+        if offer and not offer.get("sequences"):
+            from app.models.campaign import GeneratedSequence
+            seq_result = await session.execute(
+                select(GeneratedSequence).where(GeneratedSequence.project_id == p.id).order_by(GeneratedSequence.id)
+            )
+            seqs = seq_result.scalars().all()
+            if seqs:
+                offer["sequences"] = [
+                    {"name": s.campaign_name, "steps": s.sequence_steps.get("steps", s.sequence_steps) if isinstance(s.sequence_steps, dict) else s.sequence_steps}
+                    for s in seqs
+                ]
+        projects.append({"id": p.id, "name": p.name, "website": getattr(p, 'website', None),
              "target_segments": p.target_segments,
-             "offer_summary": p.offer_summary if isinstance(p.offer_summary, dict) and p.offer_summary.get("primary_offer") else None,
+             "offer_summary": offer,
              "offer_approved": getattr(p, 'offer_approved', False),
              "sender_name": p.sender_name, "sender_company": p.sender_company,
-             "campaign_filters": p.campaign_filters or []} for p in result.scalars().all()]
+             "campaign_filters": p.campaign_filters or []})
+    return projects
 
 
 # ── Read-only endpoints (no auth required — shared via links) ──
