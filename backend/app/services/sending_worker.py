@@ -428,16 +428,24 @@ class SendingWorker:
                 logger.info(f"{cname} @{recipient.username} completed (no more steps)")
                 continue
 
-            # Pick account: follow-ups use same account
+            # Pick account: follow-ups are bound to their assigned account (rules 3-5)
             account = None
             proxy_dict = None
             if recipient.assigned_account_id and recipient.current_step > 0:
                 account = await session.get(TgAccount, recipient.assigned_account_id)
-                if account and (
+                if not account:
+                    # Account deleted from DB — lead stays stuck (rule 4)
+                    logger.warning(f"{cname} @{recipient.username} follow-up bound to missing account_id={recipient.assigned_account_id} — skipping")
+                    skipped_recipient_ids.add(recipient.id)
+                    continue
+                if (
                     account.status != TgAccountStatus.ACTIVE
                     or account.messages_sent_today + account_pending.get(account.id, 0) >= get_effective_daily_limit(account)
                 ):
-                    account = None
+                    # Bound account unavailable — do NOT reassign (rules 3-5)
+                    logger.info(f"{cname} @{recipient.username} follow-up bound to {account.phone} but unavailable — skipping, will retry later")
+                    skipped_recipient_ids.add(recipient.id)
+                    continue
 
             if not account:
                 # Round-robin, skip accounts at limit + failed for this recipient
@@ -660,23 +668,28 @@ class SendingWorker:
                     else:
                         logger.warning(f"{cname} {account.phone} PeerFloodError "
                                        f"({errors_count}/{threshold}) — below threshold")
-                    # Smart cascade: reassign recipient to another account
-                    failed_ids = (recipient.custom_variables or {}).get("_failed_account_ids", [])
-                    failed_ids.append(account.id)
-                    if not recipient.custom_variables:
-                        recipient.custom_variables = {}
-                    recipient.custom_variables = {**recipient.custom_variables, "_failed_account_ids": failed_ids}
-                    total_accs_r = await session.execute(select(func.count(TgCampaignAccount.id)).where(
-                        TgCampaignAccount.campaign_id == campaign.id))
-                    total_campaign_accounts = total_accs_r.scalar() or 0
-                    if len(failed_ids) >= total_campaign_accounts:
-                        recipient.status = TgRecipientStatus.FAILED
-                        recipient.next_message_at = None
-                        logger.info(f"All accounts spamblocked for @{recipient.username} — FAILED")
+                    if recipient.current_step == 0:
+                        # First message: cascade to another account
+                        failed_ids = (recipient.custom_variables or {}).get("_failed_account_ids", [])
+                        failed_ids.append(account.id)
+                        if not recipient.custom_variables:
+                            recipient.custom_variables = {}
+                        recipient.custom_variables = {**recipient.custom_variables, "_failed_account_ids": failed_ids}
+                        total_accs_r = await session.execute(select(func.count(TgCampaignAccount.id)).where(
+                            TgCampaignAccount.campaign_id == campaign.id))
+                        total_campaign_accounts = total_accs_r.scalar() or 0
+                        if len(failed_ids) >= total_campaign_accounts:
+                            recipient.status = TgRecipientStatus.FAILED
+                            recipient.next_message_at = None
+                            logger.info(f"All accounts spamblocked for @{recipient.username} — FAILED")
+                        else:
+                            recipient.status = TgRecipientStatus.PENDING
+                            recipient.assigned_account_id = None
+                            logger.info(f"Spamblock cascade @{recipient.username} via {account.phone} ({len(failed_ids)}/{total_campaign_accounts})")
                     else:
-                        recipient.status = TgRecipientStatus.PENDING
-                        recipient.assigned_account_id = None
-                        logger.info(f"Spamblock cascade @{recipient.username} via {account.phone} ({len(failed_ids)}/{total_campaign_accounts})")
+                        # Follow-up: lead stays bound to this account (rules 3-5)
+                        recipient.next_message_at = datetime.utcnow() + timedelta(hours=1)
+                        logger.info(f"{cname} @{recipient.username} follow-up spamblocked via {account.phone} — retry in 1h (bound)")
                     # Emergency stop check
                     self._consecutive_global_spamblocks += 1
                     if self._consecutive_global_spamblocks >= self._EMERGENCY_THRESHOLD:
@@ -698,8 +711,28 @@ class SendingWorker:
                 else:
                     if ca_link:
                         ca_link.consecutive_spamblock_errors = 0
-                    recipient.status = TgRecipientStatus.FAILED
-                    recipient.next_message_at = None
+                    if recipient.current_step == 0:
+                        # First message: cascade to another account (rule 1)
+                        failed_ids = (recipient.custom_variables or {}).get("_failed_account_ids", [])
+                        failed_ids.append(account.id)
+                        if not recipient.custom_variables:
+                            recipient.custom_variables = {}
+                        recipient.custom_variables = {**recipient.custom_variables, "_failed_account_ids": failed_ids}
+                        total_accs_r = await session.execute(select(func.count(TgCampaignAccount.id)).where(
+                            TgCampaignAccount.campaign_id == campaign.id))
+                        total_campaign_accounts = total_accs_r.scalar() or 0
+                        if len(failed_ids) >= total_campaign_accounts:
+                            recipient.status = TgRecipientStatus.FAILED
+                            recipient.next_message_at = None
+                            logger.info(f"{cname} All accounts failed for @{recipient.username} — FAILED")
+                        else:
+                            recipient.status = TgRecipientStatus.PENDING
+                            recipient.assigned_account_id = None
+                            logger.info(f"{cname} Error cascade @{recipient.username} via {account.phone} ({len(failed_ids)}/{total_campaign_accounts})")
+                    else:
+                        # Follow-up: keep bound, retry later (rules 3-5)
+                        recipient.next_message_at = datetime.utcnow() + timedelta(hours=1)
+                        logger.info(f"{cname} @{recipient.username} follow-up failed via {account.phone} — retry in 1h (bound)")
             except Exception as e:
                 logger.error(f"{cname} Unhandled error in _send_one for @{recipient.username}: {e}", exc_info=True)
                 _reset_recipient()
