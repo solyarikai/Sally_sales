@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request, Response, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 import asyncpg
 
-app = FastAPI(title="GTM GTM MCP Admin", root_path="/admin")
+app = FastAPI(title="GTM MCP Admin", root_path="/admin")
 
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://mcp:mcp_secret@mcp-postgres:5432/mcp_leadgen")
 ADMIN_USER = "ilovesally"
@@ -279,22 +279,22 @@ HTML_LOGIN = """<!DOCTYPE html><html><head><title>GTM MCP Admin</title>%%style%%
 
 HTML_DASHBOARD = """<!DOCTYPE html><html><head><title>GTM MCP Admin</title>%%style%%</head><body>
 <div class="nav">
-    <div><b>GTM GTM MCP Admin</b> <a href="/admin/" style="margin-left:16px">Dashboard</a></div>
+    <div><b>GTM MCP Admin</b> <a href="/admin/" style="margin-left:16px">Dashboard</a></div>
     <a href="/admin/logout">Logout</a>
 </div>
 <div class="container">
     <div class="stats">
-        <div class="stat"><div class="num">{%%total_users%%}</div><div class="label">Users</div></div>
-        <div class="stat"><div class="num">{%%total_apollo%%}</div><div class="label">Apollo Credits</div></div>
-        <div class="stat"><div class="num">{%%total_tool_calls%%}</div><div class="label">Tool Calls</div></div>
-        <div class="stat"><div class="num">{%%total_conversations%%}</div><div class="label">Messages</div></div>
+        <div class="stat"><div class="num">%%total_users%%</div><div class="label">Users</div></div>
+        <div class="stat"><div class="num">%%total_apollo%%</div><div class="label">Apollo Credits</div></div>
+        <div class="stat"><div class="num">%%total_tool_calls%%</div><div class="label">Tool Calls</div></div>
+        <div class="stat"><div class="num">%%total_conversations%%</div><div class="label">Messages</div></div>
     </div>
 
     <div class="card">
         <form method="get" action="/admin/" style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
-            <input type="date" name="date_from" value="{%%date_from%%}">
+            <input type="date" name="date_from" value="%%date_from%%">
             <span style="color:#888">to</span>
-            <input type="date" name="date_to" value="{%%date_to%%}">
+            <input type="date" name="date_to" value="%%date_to%%">
             <button type="submit">Filter</button>
         </form>
         <table>
@@ -302,14 +302,14 @@ HTML_DASHBOARD = """<!DOCTYPE html><html><head><title>GTM MCP Admin</title>%%sty
                 <th>ID</th><th>Email</th><th>Name</th><th>Created</th><th>Projects</th>
                 <th>Apollo</th><th>OpenAI</th><th>Tool Calls</th><th>Conversations</th><th></th>
             </tr></thead>
-            <tbody>{%%rows%%}</tbody>
+            <tbody>%%rows%%</tbody>
         </table>
     </div>
 </div></body></html>"""
 
 HTML_USER = """<!DOCTYPE html><html><head><title>User %%user_id%% — GTM MCP Admin</title>%%style%%</head><body>
 <div class="nav">
-    <div><b>GTM GTM MCP Admin</b> <a href="/admin/">Dashboard</a> → User #%%user_id%%</div>
+    <div><b>GTM MCP Admin</b> <a href="/admin/">Dashboard</a> → User #%%user_id%%</div>
     <a href="/admin/logout">Logout</a>
 </div>
 <div class="container">
@@ -349,7 +349,7 @@ HTML_USER = """<!DOCTYPE html><html><head><title>User %%user_id%% — GTM MCP Ad
 
 HTML_CONVERSATIONS = """<!DOCTYPE html><html><head><title>Conversations — %%email%% — GTM MCP Admin</title>%%style%%</head><body>
 <div class="nav">
-    <div><b>GTM GTM MCP Admin</b> <a href="/admin/">Dashboard</a> → <a href="/admin/user/%%user_id%%">%%email%%</a> → Conversations</div>
+    <div><b>GTM MCP Admin</b> <a href="/admin/">Dashboard</a> → <a href="/admin/user/%%user_id%%">%%email%%</a> → Conversations</div>
     <a href="/admin/logout">Logout</a>
 </div>
 <div class="container">
@@ -360,7 +360,7 @@ HTML_CONVERSATIONS = """<!DOCTYPE html><html><head><title>Conversations — %%em
     <div class="card" style="overflow-x:auto">
         <table>
             <thead><tr><th>Time</th><th>Dir</th><th>Session</th><th>Method</th><th>Summary</th><th>Raw</th></tr></thead>
-            <tbody>{%%rows%%}</tbody>
+            <tbody>%%rows%%</tbody>
         </table>
     </div>
 </div></body></html>"""

@@ -36,7 +36,21 @@ async def signup(req: SignupRequest, session: AsyncSession = Depends(get_session
     existing = await session.execute(
         select(MCPUser).where(MCPUser.email == req.email)
     )
-    if existing.scalar_one_or_none():
+    existing_user = existing.scalar_one_or_none()
+    if existing_user:
+        if not existing_user.is_active:
+            # Re-activate deactivated account
+            existing_user.is_active = True
+            import bcrypt
+            existing_user.password_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+            if req.name:
+                existing_user.name = req.name
+            await session.flush()
+            raw_token, prefix, hashed = generate_api_token()
+            token = MCPApiToken(user_id=existing_user.id, token_prefix=prefix, token_hash=hashed, name="default")
+            session.add(token)
+            await session.commit()
+            return SignupResponse(token=raw_token, user_id=existing_user.id, email=existing_user.email)
         raise HTTPException(status_code=409, detail="Email already registered")
 
     # Hash password
