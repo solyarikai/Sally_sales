@@ -9,7 +9,7 @@ import re as _re
 from datetime import datetime as _dt, timedelta as _td
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
-from sqlalchemy import select, func, desc, asc, delete as sa_delete, insert as sa_insert
+from sqlalchemy import select, func, desc, asc, delete as sa_delete, insert as sa_insert, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
@@ -2716,6 +2716,100 @@ async def get_campaign_stats(campaign_id: int, session: AsyncSession = Depends(g
         total_messages_sent=campaign.total_messages_sent,
         messages_sent_today=campaign.messages_sent_today,
     )
+
+
+@router.get("/campaigns/{campaign_id}/step-stats")
+async def get_campaign_step_stats(campaign_id: int, session: AsyncSession = Depends(get_session)):
+    """Per-step analytics: sent, read, replied counts for each sequence step."""
+    campaign = await session.get(TgCampaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    # Get sequence steps ordered
+    seq_q = await session.execute(
+        select(TgSequence).where(TgSequence.campaign_id == campaign_id)
+    )
+    sequence = seq_q.scalar()
+    if not sequence:
+        return {"steps": [], "totals": {"sent": 0, "read": 0, "replied": 0}}
+
+    steps_q = await session.execute(
+        select(TgSequenceStep)
+        .where(TgSequenceStep.sequence_id == sequence.id)
+        .order_by(TgSequenceStep.step_order)
+    )
+    steps = steps_q.scalars().all()
+
+    # Per-step sent & read counts from outreach messages
+    from sqlalchemy import case
+    msg_stats_q = await session.execute(
+        select(
+            TgOutreachMessage.step_id,
+            func.count(TgOutreachMessage.id).label("sent"),
+            func.count(TgOutreachMessage.read_at).label("read"),
+        )
+        .where(
+            TgOutreachMessage.campaign_id == campaign_id,
+            TgOutreachMessage.status == TgMessageStatus.SENT,
+        )
+        .group_by(TgOutreachMessage.step_id)
+    )
+    msg_stats = {row.step_id: {"sent": row.sent, "read": row.read} for row in msg_stats_q}
+
+    # Per-step replied: for each recipient who replied, attribute to the latest step they received
+    latest_step_sub = (
+        select(
+            TgOutreachMessage.recipient_id,
+            func.max(TgOutreachMessage.step_id).label("last_step_id"),
+        )
+        .where(
+            TgOutreachMessage.campaign_id == campaign_id,
+            TgOutreachMessage.status == TgMessageStatus.SENT,
+        )
+        .group_by(TgOutreachMessage.recipient_id)
+        .subquery()
+    )
+    reply_correct_q = await session.execute(
+        select(
+            latest_step_sub.c.last_step_id,
+            func.count(func.distinct(TgIncomingReply.recipient_id)).label("replied"),
+        )
+        .select_from(TgIncomingReply)
+        .join(latest_step_sub, TgIncomingReply.recipient_id == latest_step_sub.c.recipient_id)
+        .where(TgIncomingReply.campaign_id == campaign_id)
+        .group_by(latest_step_sub.c.last_step_id)
+    )
+    reply_by_step = {row.last_step_id: row.replied for row in reply_correct_q}
+
+    total_sent = 0
+    total_read = 0
+    total_replied = 0
+
+    result_steps = []
+    for step in steps:
+        s = msg_stats.get(step.id, {"sent": 0, "read": 0})
+        r = reply_by_step.get(step.id, 0)
+        total_sent += s["sent"]
+        total_read += s["read"]
+        total_replied += r
+        result_steps.append({
+            "step_order": step.step_order,
+            "step_id": step.id,
+            "delay_days": step.delay_days,
+            "sent": s["sent"],
+            "read": s["read"],
+            "replied": r,
+        })
+
+    return {
+        "steps": result_steps,
+        "totals": {
+            "sent": total_sent,
+            "read": total_read,
+            "replied": total_replied,
+            "total_recipients": campaign.total_recipients,
+        },
+    }
 
 
 # ── Campaign Accounts ──────────────────────────────────────────────────

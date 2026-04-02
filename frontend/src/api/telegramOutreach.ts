@@ -413,6 +413,12 @@ export const telegramOutreachApi = {
   getCampaignStats: async (id: number) =>
     (await api.get<TgCampaignStats>(`${BASE}/campaigns/${id}/stats`)).data,
 
+  getCampaignStepStats: async (id: number) =>
+    (await api.get(`${BASE}/campaigns/${id}/step-stats`)).data as {
+      steps: { step_order: number; step_id: number; delay_days: number; sent: number; read: number; replied: number }[];
+      totals: { sent: number; read: number; replied: number; total_recipients: number };
+    },
+
   getCampaignAccounts: async (id: number) =>
     (await api.get(`${BASE}/campaigns/${id}/accounts`)).data,
 
