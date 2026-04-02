@@ -1,4 +1,4 @@
-# MCP LeadGen — Performance Metrics
+# GTM MCP — Performance Metrics
 
 ## API Response Times (Target)
 

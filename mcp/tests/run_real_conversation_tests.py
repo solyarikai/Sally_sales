@@ -58,7 +58,7 @@ def build_conversation_prompt(tests: list, email: str) -> str:
     The agent then DECIDES which MCP tools to call — that's the real test.
     """
     lines = [
-        f"You are testing the MCP LeadGen system as user {email}.",
+        f"You are testing the GTM MCP system as user {email}.",
         f"You have access to the MCP server '{MCP_SERVER_NAME}' with 50+ tools.",
         "",
         "RULES:",

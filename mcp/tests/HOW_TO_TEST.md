@@ -20,7 +20,7 @@ A real Claude agent connects to MCP, receives natural language prompts, and DECI
 claude mcp add --transport sse magnum-opus-test http://46.62.210.24:8002/mcp/sse
 
 # 2. Launch Agent 1 (pn@getsally.io) — full conversation test
-echo 'You are testing the MCP LeadGen system as user pn@getsally.io.
+echo 'You are testing the GTM MCP system as user pn@getsally.io.
 Login with token: {TOKEN}. Then:
 1. Call get_context to see your state
 2. Create project EasyStaff-Global with website easystaff.io
@@ -34,7 +34,7 @@ Login with token: {TOKEN}. Then:
 Report every tool call result.' | claude --print
 
 # 3. Launch Agent 2 (services@getsally.io) — in parallel
-echo 'You are testing the MCP LeadGen system as user services@getsally.io.
+echo 'You are testing the GTM MCP system as user services@getsally.io.
 Login with token: {TOKEN}. Then:
 1. Create project Result targeting LATAM fashion brands
 2. Gather from CSV: /path/to/test_csv_source.csv

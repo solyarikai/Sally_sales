@@ -1,4 +1,4 @@
-# MCP LeadGen — Getting Started
+# GTM MCP — Getting Started
 
 ## 1. Sign up
 

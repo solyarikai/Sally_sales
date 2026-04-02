@@ -36,16 +36,16 @@ export function getToken() { return localStorage.getItem('mcp_token') || '' }
 export function authHeaders() { return { 'X-MCP-Token': getToken(), 'Content-Type': 'application/json' } }
 
 const ROUTE_TITLES: Record<string, string> = {
-  '/': 'Pipeline — MCP LeadGen',
-  '/setup': 'Setup — MCP LeadGen',
-  '/pipeline': 'Pipeline — MCP LeadGen',
-  '/campaigns': 'Campaigns — MCP LeadGen',
-  '/crm': 'CRM — MCP LeadGen',
-  '/tasks': 'Tasks — MCP LeadGen',
-  '/projects': 'Projects — MCP LeadGen',
-  '/learning': 'Learning — MCP LeadGen',
-  '/conversations': 'Logs — MCP LeadGen',
-  '/account': 'Account — MCP LeadGen',
+  '/': 'Pipeline — GTM MCP',
+  '/setup': 'Setup — GTM MCP',
+  '/pipeline': 'Pipeline — GTM MCP',
+  '/campaigns': 'Campaigns — GTM MCP',
+  '/crm': 'CRM — GTM MCP',
+  '/tasks': 'Tasks — GTM MCP',
+  '/projects': 'Projects — GTM MCP',
+  '/learning': 'Learning — GTM MCP',
+  '/conversations': 'Logs — GTM MCP',
+  '/account': 'Account — GTM MCP',
 }
 
 function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
@@ -65,7 +65,7 @@ function PageTitle() {
   const loc = useLocation()
   useEffect(() => {
     const base = '/' + loc.pathname.split('/')[1]
-    document.title = ROUTE_TITLES[base] || 'MCP LeadGen'
+    document.title = ROUTE_TITLES[base] || 'GTM MCP'
   }, [loc.pathname])
   return null
 }

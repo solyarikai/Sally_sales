@@ -1,4 +1,4 @@
-# MCP LeadGen — Claude Code Guide
+# GTM MCP — Claude Code Guide
 
 ## 1. Setup (30 seconds)
 

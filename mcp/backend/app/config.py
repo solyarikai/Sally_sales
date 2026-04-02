@@ -6,7 +6,7 @@ import os
 
 class MCPSettings(BaseSettings):
     # App
-    APP_NAME: str = "MCP LeadGen"
+    APP_NAME: str = "GTM MCP"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     MCP_MODE: bool = True
 
