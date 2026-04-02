@@ -333,7 +333,7 @@ class WarmupWorker:
                     TgWarmupLog.success == True,
                 )
             )
-            reacted_msg_ids = {r[0].split(":")[-1] for r in reacted_q.all()}
+            reacted_msg_ids = {r[0].split(":")[1] for r in reacted_q.all() if ":" in r[0]}
 
             # Pick a message we haven't reacted to
             eligible = [m for m in messages if m.text and str(m.id) not in reacted_msg_ids]
@@ -364,7 +364,14 @@ class WarmupWorker:
             await telegram_engine.disconnect(account.id)
 
     async def _send_warmup_message(self, account: TgAccount, session: AsyncSession):
-        """Exchange a warm-up message with one of the oldest accounts (warm buddies)."""
+        """Exchange multi-turn warm-up dialog with one of the oldest accounts (warm buddies).
+
+        Simulates a realistic conversation: 2-4 messages alternating between
+        the warming-up account and a buddy, with optional reactions.
+        """
+        if not account.telegram_user_id:
+            return
+
         # Find warm buddy: one of the 5 oldest active accounts (not self)
         buddies_q = await session.execute(
             select(TgAccount).where(
@@ -378,30 +385,84 @@ class WarmupWorker:
             return
 
         buddy = random.choice(buddies)
-        if not buddy.telegram_user_id:
-            return
 
-        client = await self._get_client(account, session)
-        if not client:
-            return
+        # Plan dialog: 1-2 exchanges = 2-4 messages total
+        num_exchanges = random.randint(1, 2)
 
-        try:
-            # Pick a random warmup message (question for openers, answer for replies)
-            message = random.choice(ALL_QUESTIONS)
-            entity = await client.get_entity(buddy.telegram_user_id)
-            await client.send_message(entity, message)
-            await asyncio.sleep(random.uniform(2, 5))
+        for exchange_idx in range(num_exchanges):
+            # ── Sender sends a question ──
+            sender_client = await self._get_client(account, session)
+            if not sender_client:
+                return
+            try:
+                buddy_entity = await sender_client.get_entity(buddy.telegram_user_id)
+                question = random.choice(ALL_QUESTIONS)
+                await sender_client.send_message(buddy_entity, question)
+                await asyncio.sleep(random.uniform(1, 3))
+                await self._log_action(
+                    session, account.id, TgWarmupActionType.CONVERSATION,
+                    f"to:{buddy.phone}:{question[:50]}",
+                )
+                logger.info(f"Warm-up conv: {account.phone} → {buddy.phone}: {question[:30]}")
+            except Exception as e:
+                await self._log_action(
+                    session, account.id, TgWarmupActionType.CONVERSATION,
+                    f"to:{buddy.phone}", success=False, error=str(e)[:200],
+                )
+                logger.warning(f"Warm-up conversation send failed for {account.phone}: {e}")
+                return
+            finally:
+                await telegram_engine.disconnect(account.id)
 
-            detail = f"to:{buddy.phone}:{message[:50]}"
-            await self._log_action(session, account.id, TgWarmupActionType.CONVERSATION, detail)
-            logger.info(f"Warm-up: {account.phone} messaged {buddy.phone}")
-        except Exception as e:
-            error_msg = str(e)[:200]
-            await self._log_action(session, account.id, TgWarmupActionType.CONVERSATION,
-                                   f"to:{buddy.phone}", success=False, error=error_msg)
-            logger.warning(f"Warm-up conversation failed for {account.phone}: {e}")
-        finally:
-            await telegram_engine.disconnect(account.id)
+            # Human-like pause before buddy replies
+            await asyncio.sleep(random.uniform(15, 45))
+
+            # ── Buddy replies ──
+            buddy_client = await self._get_client(buddy, session)
+            if not buddy_client:
+                return  # Can't reply — dialog ends here
+            try:
+                sender_entity = await buddy_client.get_entity(account.telegram_user_id)
+                answer = random.choice(ALL_ANSWERS)
+                await buddy_client.send_message(sender_entity, answer)
+                await asyncio.sleep(random.uniform(1, 3))
+                await self._log_action(
+                    session, buddy.id, TgWarmupActionType.CONVERSATION,
+                    f"to:{account.phone}:{answer[:50]}",
+                )
+                logger.info(f"Warm-up conv: {buddy.phone} → {account.phone}: {answer[:30]}")
+
+                # 30% chance: buddy reacts to sender's message
+                if random.random() < 0.3:
+                    try:
+                        from telethon.tl.functions.messages import SendReactionRequest
+                        from telethon.tl.types import ReactionEmoji
+
+                        msgs = await buddy_client.get_messages(sender_entity, limit=5)
+                        sender_msgs = [m for m in msgs if not m.out and m.text]
+                        if sender_msgs:
+                            target = random.choice(sender_msgs)
+                            emoji = random.choice(REACTION_EMOJIS)
+                            await buddy_client(SendReactionRequest(
+                                peer=sender_entity,
+                                msg_id=target.id,
+                                reaction=[ReactionEmoji(emoticon=emoji)],
+                            ))
+                    except Exception:
+                        pass  # Reaction is optional — don't fail the dialog
+            except Exception as e:
+                await self._log_action(
+                    session, buddy.id, TgWarmupActionType.CONVERSATION,
+                    f"to:{account.phone}", success=False, error=str(e)[:200],
+                )
+                logger.warning(f"Warm-up conversation reply failed for {buddy.phone}: {e}")
+                return
+            finally:
+                await telegram_engine.disconnect(buddy.id)
+
+            # Pause between exchanges
+            if exchange_idx < num_exchanges - 1:
+                await asyncio.sleep(random.uniform(20, 60))
 
 
 
