@@ -299,6 +299,8 @@ class ApolloService:
                 phone = match["phone_numbers"][0].get("sanitized_number")
             # Extract organization data (comes free with bulk_match)
             org = match.get("organization", {})
+            # Auto-extend industry taxonomy from people enrichment data
+            await self._extend_industry_map(org)
             results.append({
                 "email": match.get("email"),
                 "first_name": match.get("first_name"),
