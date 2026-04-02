@@ -643,6 +643,9 @@ textarea:focus {
 .inbox-editor blockquote {
   border-left: 3px solid #4F6BF0; padding-left: 8px; margin: 2px 0; color: #6B7280;
 }
+.inbox-editor a {
+  color: #4F6BF0; text-decoration: underline; cursor: text;
+}
 /* Formatting toolbar buttons */
 .fmt-btn {
   width: 22px; height: 20px; display: flex; align-items: center; justify-content: center;

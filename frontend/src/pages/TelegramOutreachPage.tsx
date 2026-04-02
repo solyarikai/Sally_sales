@@ -5,7 +5,7 @@ import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
-  MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert,
+  MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -3083,6 +3083,8 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const editorRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const templateRef = useRef<HTMLDivElement>(null);
+  const [linkPopup, setLinkPopup] = useState<{ url: string } | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
 
   const saveCustomTemplate = (label: string, text: string) => {
     const updated = [...customTemplates, { label, text }];
@@ -3306,6 +3308,25 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
     const range = sel.getRangeAt(0);
     if (!editorRef.current?.contains(range.commonAncestorContainer)) return;
+    // Toggle off: if already inside this tag, unwrap it
+    let node: Node | null = range.commonAncestorContainer;
+    while (node && node !== editorRef.current) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const wrap = node as HTMLElement;
+        if (wrap.tagName.toLowerCase() === tag.toLowerCase()) {
+          if (tag === 'span' && attrs?.class && !wrap.classList.contains(attrs.class)) {
+            node = node.parentNode;
+            continue;
+          }
+          const parent = wrap.parentNode!;
+          while (wrap.firstChild) parent.insertBefore(wrap.firstChild, wrap);
+          parent.removeChild(wrap);
+          return;
+        }
+      }
+      node = node.parentNode;
+    }
+    // Wrap
     const el = document.createElement(tag);
     if (attrs) Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
     try { range.surroundContents(el); } catch {
@@ -3315,13 +3336,35 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     const nr = document.createRange(); nr.selectNodeContents(el); sel.addRange(nr);
   };
 
+  const showLinkPopup = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+      setLinkPopup({ url: '' });
+    }
+  };
+
+  const applyLink = (url: string) => {
+    if (!url || !savedRangeRef.current) { setLinkPopup(null); return; }
+    editorRef.current?.focus();
+    const sel = window.getSelection();
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+      document.execCommand('createLink', false, url);
+    }
+    savedRangeRef.current = null;
+    setLinkPopup(null);
+    setMessageText(editorRef.current?.textContent || '');
+  };
+
   const applyFormat = (fmt: string, attrs?: Record<string, string>) => {
     editorRef.current?.focus();
     if (['bold', 'italic', 'underline', 'strikeThrough'].includes(fmt)) {
       document.execCommand(fmt);
     } else if (fmt === 'createLink') {
-      const url = window.prompt('Enter URL:');
-      if (url) document.execCommand('createLink', false, url);
+      showLinkPopup();
+      return;
     } else {
       wrapSelectionWith(fmt, attrs);
     }
@@ -3343,7 +3386,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
           case 'b': e.preventDefault(); document.execCommand('bold'); break;
           case 'i': e.preventDefault(); document.execCommand('italic'); break;
           case 'u': e.preventDefault(); document.execCommand('underline'); break;
-          case 'k': e.preventDefault(); { const url = window.prompt('Enter URL:'); if (url) document.execCommand('createLink', false, url); } break;
+          case 'k': e.preventDefault(); showLinkPopup(); break;
         }
       }
     }
@@ -4073,7 +4116,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                         style={{ borderColor: A.border, color: A.text1, background: '#F9FAFB' }}
                       />
                       {/* Formatting toolbar */}
-                      <div className="flex items-center gap-0.5 px-1 pt-1">
+                      <div className="relative flex items-center gap-0.5 px-1 pt-1">
                         {([
                           ['bold', 'B', 'Bold · Ctrl+B', 'font-bold'],
                           ['italic', 'I', 'Italic · Ctrl+I', 'italic'],
@@ -4082,7 +4125,6 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                           ['code', '</>', 'Code · Ctrl+Shift+M', ''],
                           ['span:tg-spoiler', '◉', 'Spoiler · Ctrl+Shift+P', ''],
                           ['blockquote', '❝', 'Quote · Ctrl+Shift+.', ''],
-                          ['createLink', '🔗', 'Link · Ctrl+K', ''],
                         ] as [string, string, string, string][]).map(([fmt, label, title, cls]) => (
                           <button
                             key={fmt}
@@ -4095,6 +4137,40 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                             className={`fmt-btn ${cls}`}
                           >{label}</button>
                         ))}
+                        <button
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => applyFormat('createLink')}
+                          title="Link · Ctrl+K"
+                          className="fmt-btn"
+                        ><Link2 className="w-3 h-3" /></button>
+                        {/* Link URL popup */}
+                        {linkPopup && (
+                          <div className="absolute bottom-full left-0 mb-1 flex items-center gap-1 p-2 rounded-lg shadow-lg border"
+                               style={{ background: A.surface, borderColor: A.border, zIndex: 10 }}>
+                            <input
+                              type="url"
+                              value={linkPopup.url}
+                              onChange={e => setLinkPopup({ url: e.target.value })}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') { e.preventDefault(); applyLink(linkPopup.url); }
+                                if (e.key === 'Escape') { setLinkPopup(null); editorRef.current?.focus(); }
+                              }}
+                              placeholder="https://..."
+                              autoFocus
+                              className="h-7 px-2 text-xs rounded border outline-none"
+                              style={{ borderColor: A.border, color: A.text1, width: 220 }}
+                            />
+                            <button onClick={() => applyLink(linkPopup.url)}
+                                    className="h-7 px-2.5 text-xs rounded text-white font-medium"
+                                    style={{ background: A.blue }}>
+                              OK
+                            </button>
+                            <button onClick={() => { setLinkPopup(null); editorRef.current?.focus(); }}
+                                    className="fmt-btn" style={{ color: A.text3 }}>
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
