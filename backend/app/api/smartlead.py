@@ -318,7 +318,14 @@ async def receive_webhook(
     
     # 1c. Only create ContactActivity for reply events (conversation history loaded on demand)
     is_reply = actual_event_type in REPLY_EVENT_TYPES
-    
+
+    # LEAD_CATEGORY_UPDATED with reply body = treat as reply
+    # SmartLead often sends ONLY this event (no paired EMAIL_REPLY) when auto-categorizing
+    if not is_reply and actual_event_type == "LEAD_CATEGORY_UPDATED":
+        reply_text = _extract_reply_text(data)
+        if reply_text and len(reply_text.strip()) > 10:
+            is_reply = True
+
     # Parse event timestamp
     event_time = datetime.utcnow()
     for ts_field in ("event_timestamp", "time_replied", "timestamp"):
@@ -389,8 +396,9 @@ async def _process_reply_safe(event_id: int, payload: dict):
             else:
                 logger.warning(f"[WEBHOOK] process_reply_webhook returned None for event {event_id}")
     except Exception as e:
-        # Duplicate replies (uq_processed_reply_content) are not errors — mark as processed
-        if "uq_processed_reply_content" in str(e):
+        # Duplicate replies are not errors — mark as processed
+        err_str = str(e)
+        if "uq_processed_reply_content" in err_str or "uq_reply_dedup" in err_str:
             logger.info(f"[WEBHOOK] Duplicate reply for event {event_id} — marking as processed")
             try:
                 async with async_session_maker() as dup_session:
