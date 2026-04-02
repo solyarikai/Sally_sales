@@ -3112,6 +3112,9 @@ function DialogAvatar({ name, peerId, accountId }: { name: string; peerId: numbe
   );
 }
 
+const DRAFT_PREFIX = 'inbox_draft_';
+const DRAFT_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
 function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
   const [dialogs, setDialogs] = useState<any[]>([]);
   const [selectedDialog, setSelectedDialog] = useState<any>(null);
@@ -3157,6 +3160,60 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const templateRef = useRef<HTMLDivElement>(null);
   const [linkPopup, setLinkPopup] = useState<{ url: string } | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
+
+  // Drafts: per-dialog text saved in localStorage with 24h TTL
+  const [drafts, setDrafts] = useState<Record<number, string>>(() => {
+    const d: Record<number, string> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(DRAFT_PREFIX)) {
+        try {
+          const val = JSON.parse(localStorage.getItem(key) || '');
+          if (Date.now() - val.ts <= DRAFT_TTL) {
+            d[Number(key.slice(DRAFT_PREFIX.length))] = val.text;
+          } else {
+            localStorage.removeItem(key);
+          }
+        } catch {}
+      }
+    }
+    return d;
+  });
+
+  const saveDraft = (dialogId: number) => {
+    const text = editorRef.current?.textContent || '';
+    const html = editorRef.current?.innerHTML || '';
+    if (!text.trim()) {
+      localStorage.removeItem(`${DRAFT_PREFIX}${dialogId}`);
+      setDrafts(prev => { const n = { ...prev }; delete n[dialogId]; return n; });
+      return;
+    }
+    localStorage.setItem(`${DRAFT_PREFIX}${dialogId}`, JSON.stringify({ text, html, ts: Date.now() }));
+    setDrafts(prev => ({ ...prev, [dialogId]: text }));
+  };
+
+  const restoreDraft = (dialogId: number) => {
+    try {
+      const raw = localStorage.getItem(`${DRAFT_PREFIX}${dialogId}`);
+      if (!raw) { setMessageText(''); if (editorRef.current) editorRef.current.innerHTML = ''; return; }
+      const d = JSON.parse(raw);
+      if (Date.now() - d.ts > DRAFT_TTL) {
+        localStorage.removeItem(`${DRAFT_PREFIX}${dialogId}`);
+        setDrafts(prev => { const n = { ...prev }; delete n[dialogId]; return n; });
+        setMessageText(''); if (editorRef.current) editorRef.current.innerHTML = '';
+        return;
+      }
+      setMessageText(d.text);
+      if (editorRef.current) editorRef.current.innerHTML = d.html;
+    } catch {
+      setMessageText(''); if (editorRef.current) editorRef.current.innerHTML = '';
+    }
+  };
+
+  const clearDraft = (dialogId: number) => {
+    localStorage.removeItem(`${DRAFT_PREFIX}${dialogId}`);
+    setDrafts(prev => { const n = { ...prev }; delete n[dialogId]; return n; });
+  };
 
   const saveCustomTemplate = (label: string, text: string) => {
     const updated = [...customTemplates, { label, text }];
@@ -3351,6 +3408,16 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Restore draft when switching dialogs
+  const prevDialogIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!selectedDialog) { prevDialogIdRef.current = null; return; }
+    if (prevDialogIdRef.current === selectedDialog.id) return;
+    prevDialogIdRef.current = selectedDialog.id;
+    // Small delay to ensure editor is mounted
+    requestAnimationFrame(() => restoreDraft(selectedDialog.id));
+  }, [selectedDialog]);
+
   // ---- Rich-text editor helpers ----
   const editorToTelegramHtml = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -3493,6 +3560,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
       if (editor) editor.innerHTML = '';
       setMessageText('');
       setReplyTo(null);
+      clearDraft(selectedDialog.id);
       const data = await telegramOutreachApi.getDialogMessages(selectedDialog.id, 30);
       setMessages(data.messages || data || []);
       editorRef.current?.focus();
@@ -3690,6 +3758,10 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 <div
                   key={dialog.id}
                   onClick={() => {
+                    // Save draft for current dialog before switching
+                    if (selectedDialog && selectedDialog.id !== dialog.id) {
+                      saveDraft(selectedDialog.id);
+                    }
                     setSelectedDialog(dialog);
                     exitSelectMode();
                     // Clear unread dot locally + persist to DB
@@ -3727,7 +3799,10 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                     )}
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-xs truncate flex-1" style={{ color: A.text2, lineHeight: '1.4' }}>
-                        {dialog.last_message_outbound ? <><span style={{ color: A.text3 }}>You: </span></> : ''}{dialog.last_message_preview || dialog.last_message || dialog.last_message_text || 'No messages'}
+                        {drafts[dialog.id]
+                          ? <><span style={{ color: '#EF4444', fontWeight: 500 }}>Черновик: </span>{drafts[dialog.id]}</>
+                          : <>{dialog.last_message_outbound ? <span style={{ color: A.text3 }}>You: </span> : ''}{dialog.last_message_preview || dialog.last_message || dialog.last_message_text || 'No messages'}</>
+                        }
                       </p>
                       {tagInfo && (
                         <span
