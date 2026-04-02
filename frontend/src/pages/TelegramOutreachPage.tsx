@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -3137,6 +3137,8 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [peerStatus, setPeerStatus] = useState<any>(null);
   const [filterLeadStatus, setFilterLeadStatus] = useState<string>('');
   const [campaignTags, setCampaignTags] = useState<string[]>([]);
+  const [accountTags, setAccountTags] = useState<{ id: number; name: string }[]>([]);
+  const [filterAccountTag, setFilterAccountTag] = useState<string>('');
   const [showTemplates, setShowTemplates] = useState(false);
   // Context menu, reply, selection
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; msg: any } | null>(null);
@@ -3272,21 +3274,36 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     return () => document.removeEventListener('mousedown', handler);
   }, [showTemplates]);
 
-  // Load campaigns & accounts & campaign tags on mount
+  // Load campaigns & accounts & campaign tags & account tags on mount
   useEffect(() => {
     (async () => {
       try {
-        const [cRes, aRes, tags] = await Promise.all([
+        const [cRes, aRes, tags, aTags] = await Promise.all([
           telegramOutreachApi.listCampaigns(),
           telegramOutreachApi.listInboxAccounts(),
           telegramOutreachApi.listCampaignTags().catch(() => []),
+          telegramOutreachApi.listTags().catch(() => []),
         ]);
         setCampaigns(cRes.items || []);
         setAccounts(aRes || []);
         setCampaignTags(tags || []);
+        setAccountTags(aTags || []);
       } catch { /* ignore */ }
     })();
   }, []);
+
+  // Filter accounts by selected campaign and account tag
+  const filteredAccounts = useMemo(() => {
+    let list = accounts;
+    if (filterCampaign) {
+      const cid = Number(filterCampaign);
+      list = list.filter((a: any) => a.campaign_ids?.includes(cid));
+    }
+    if (filterAccountTag) {
+      list = list.filter((a: any) => a.tag_names?.includes(filterAccountTag));
+    }
+    return list;
+  }, [accounts, filterCampaign, filterAccountTag]);
 
   // Apply handler — loads dialogs
   const handleApply = useCallback(async () => {
@@ -3647,20 +3664,32 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
 
         {/* Filters */}
         <div className="px-3 pb-3 flex flex-col gap-1.5" style={{ borderBottom: `1px solid ${A.border}` }}>
-          {/* Row 1: Account dropdown */}
+          {/* Row 1: Account dropdown (filtered by campaign & account tag) */}
           <StyledSelect
             value={filterAccount}
             onChange={setFilterAccount}
             placeholder="Account"
-            options={accounts.map((a: any) => ({ value: String(a.id), label: `${a.phone}${a.username ? ` @${a.username}` : ''}` }))}
+            options={filteredAccounts.map((a: any) => ({ value: String(a.id), label: `${a.phone}${a.username ? ` @${a.username}` : ''}` }))}
           />
-          {/* Row 2: Campaign dropdown */}
-          <StyledSelect
-            value={filterCampaign}
-            onChange={setFilterCampaign}
-            placeholder="Campaign"
-            options={campaigns.map((c: any) => ({ value: String(c.id), label: c.name }))}
-          />
+          {/* Row 2: Campaign + Account Tag */}
+          <div className="flex gap-1.5">
+            <StyledSelect
+              value={filterCampaign}
+              onChange={(v) => { setFilterCampaign(v); setFilterAccount(''); }}
+              placeholder="Campaign"
+              className="flex-1 min-w-0"
+              options={campaigns.map((c: any) => ({ value: String(c.id), label: c.name }))}
+            />
+            {accountTags.length > 0 && (
+              <StyledSelect
+                value={filterAccountTag}
+                onChange={(v) => { setFilterAccountTag(v); setFilterAccount(''); }}
+                placeholder="Account Tag"
+                className="flex-1 min-w-0"
+                options={accountTags.map(t => ({ value: t.name, label: t.name }))}
+              />
+            )}
+          </div>
           {/* Row 3: Lead Status + Campaign Tag */}
           <div className="flex gap-1.5">
             <StyledSelect

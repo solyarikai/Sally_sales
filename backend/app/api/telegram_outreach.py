@@ -4556,14 +4556,46 @@ from app.models.telegram_dm import TelegramDMAccount
 
 @router.get("/inbox/accounts")
 async def list_inbox_accounts(session: AsyncSession = Depends(get_session)):
-    """List telegram_dm_accounts available for inbox."""
+    """List telegram_dm_accounts available for inbox (active sessions only)."""
     result = await session.execute(
         select(TelegramDMAccount).where(
-            TelegramDMAccount.string_session.isnot(None)
+            TelegramDMAccount.string_session.isnot(None),
+            TelegramDMAccount.auth_status == "active",
         ).order_by(TelegramDMAccount.id)
     )
-    accounts = result.scalars().all()
-    return [{"id": a.id, "phone": a.phone, "username": a.username, "first_name": a.first_name, "is_connected": a.is_connected, "auth_status": a.auth_status} for a in accounts]
+    dm_accounts = result.scalars().all()
+
+    # Batch-load matching TgAccounts to get campaign/tag info & filter deleted
+    phones = [a.phone for a in dm_accounts if a.phone]
+    tg_map: dict = {}
+    if phones:
+        tg_result = await session.execute(
+            select(TgAccount)
+            .where(TgAccount.phone.in_(phones))
+            .options(selectinload(TgAccount.campaign_links), selectinload(TgAccount.tags))
+        )
+        for tg in tg_result.scalars().all():
+            tg_map[tg.phone] = tg
+
+    response = []
+    for a in dm_accounts:
+        tg = tg_map.get(a.phone)
+        # Skip accounts whose TgAccount is dead or banned
+        if tg and tg.status in (TgAccountStatus.DEAD, TgAccountStatus.BANNED):
+            continue
+        campaign_ids = [cl.campaign_id for cl in tg.campaign_links] if tg else []
+        tag_names = [t.name for t in tg.tags] if tg else []
+        response.append({
+            "id": a.id,
+            "phone": a.phone,
+            "username": a.username,
+            "first_name": a.first_name,
+            "is_connected": a.is_connected,
+            "auth_status": a.auth_status,
+            "campaign_ids": campaign_ids,
+            "tag_names": tag_names,
+        })
+    return response
 
 
 @router.get("/inbox/dialogs")
