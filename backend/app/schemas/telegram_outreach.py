@@ -90,6 +90,7 @@ class TgAccountBase(BaseModel):
     lang_code: Optional[str] = "en"
     system_lang_code: Optional[str] = "en-US"
     two_fa_password: Optional[str] = None
+    is_premium: bool = False
 
 
 class TgAccountCreate(TgAccountBase):
@@ -110,6 +111,7 @@ class TgAccountUpdate(BaseModel):
     system_lang_code: Optional[str] = None
     two_fa_password: Optional[str] = None
     daily_message_limit: Optional[int] = None
+    is_premium: Optional[bool] = None
     status: Optional[str] = None
     proxy_group_id: Optional[int] = None
     assigned_proxy_id: Optional[int] = None
@@ -131,7 +133,8 @@ class TgAccountResponse(BaseModel):
     status: str = "active"
     spamblock_type: str = "none"
     spamblock_end: Optional[datetime] = None
-    daily_message_limit: int = 10
+    daily_message_limit: int = 5
+    is_premium: bool = False
     effective_daily_limit: Optional[int] = None
     warmup_day: Optional[int] = None
     is_young_session: bool = False

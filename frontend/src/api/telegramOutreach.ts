@@ -24,6 +24,7 @@ export interface TgAccount {
   spamblock_type: string;
   spamblock_end?: string;
   daily_message_limit: number;
+  is_premium?: boolean;
   effective_daily_limit?: number;
   warmup_day?: number | null;
   is_young_session?: boolean;

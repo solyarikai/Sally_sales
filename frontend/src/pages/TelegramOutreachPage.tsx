@@ -610,6 +610,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap tabular-nums">
                       <span style={{ color: atLimit ? A.rose : A.text1, fontWeight: atLimit ? 600 : 400 }}>{acc.messages_sent_today}</span>
                       <span style={{ color: A.text3 }}>/{effLimit}</span>
+                      {acc.is_premium && <span style={{ color: '#7C3AED', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Premium account — higher daily limits">⭐PRO</span>}
                       {acc.skip_warmup ? <span style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} title="Warm-up skipped (manual override)">SKIP</span>
                         : acc.warmup_day != null ? <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
                       {!acc.skip_warmup && acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
@@ -1953,7 +1954,7 @@ function AddAccountModal({ t, toast, isDark, onClose, onSaved }: {
     phone: '', username: '', first_name: '', last_name: '', bio: '',
     api_id: '', api_hash: '', device_model: 'Samsung SM-G998B', system_version: 'SDK 33',
     app_version: '10.6.2', lang_code: 'en', system_lang_code: 'en-US',
-    two_fa_password: '', daily_message_limit: '10',
+    two_fa_password: '', daily_message_limit: '5', is_premium: false,
   });
   const [saving, setSaving] = useState(false);
 
@@ -1967,7 +1968,7 @@ function AddAccountModal({ t, toast, isDark, onClose, onSaved }: {
     try {
       const data: Record<string, any> = { ...form };
       data.api_id = data.api_id ? Number(data.api_id) : null;
-      data.daily_message_limit = Number(data.daily_message_limit) || 10;
+      data.daily_message_limit = Number(data.daily_message_limit) || (data.is_premium ? 10 : 5);
       // Remove empty optional fields
       for (const k of ['username', 'first_name', 'last_name', 'bio', 'api_hash', 'two_fa_password']) {
         if (!data[k]) data[k] = null;
@@ -2019,6 +2020,28 @@ function AddAccountModal({ t, toast, isDark, onClose, onSaved }: {
               <label className={labelCls}>Daily Message Limit</label>
               <input type="number" value={form.daily_message_limit}
                      onChange={e => set('daily_message_limit', e.target.value)} className={inputCls} />
+            </div>
+            <div className="col-span-2 flex items-center justify-between rounded-lg px-3 py-2 border" style={{ borderColor: form.is_premium ? '#8B5CF6' : undefined }}>
+              <div>
+                <label className="text-xs font-medium" style={{ color: form.is_premium ? '#7C3AED' : undefined }}>
+                  ⭐ Premium Account
+                </label>
+                <div className="text-[10px]" style={{ color: '#9CA3AF' }}>
+                  Premium: limit 10 msgs/day. Standard: 5 msgs/day
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !form.is_premium;
+                  setForm(f => ({ ...f, is_premium: next, daily_message_limit: next ? '10' : '5' }));
+                }}
+                className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                style={{ background: form.is_premium ? '#7C3AED' : '#D1D5DB' }}
+              >
+                <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
+                      style={{ transform: form.is_premium ? 'translateX(17px)' : 'translateX(3px)' }} />
+              </button>
             </div>
           </div>
 
@@ -2104,6 +2127,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     bio: account.bio || '',
     status: account.status,
     daily_message_limit: String(account.daily_message_limit),
+    is_premium: account.is_premium ? 'true' : 'false',
     device_model: account.device_model || '',
     system_version: account.system_version || '',
     app_version: account.app_version || '',
@@ -2175,7 +2199,8 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     setSaving(true);
     try {
       const data: Record<string, any> = { ...form, ...overrides };
-      data.daily_message_limit = Number(data.daily_message_limit) || 10;
+      data.daily_message_limit = Number(data.daily_message_limit) || (data.is_premium === 'true' ? 10 : 5);
+      data.is_premium = data.is_premium === 'true';
       data.skip_warmup = data.skip_warmup === 'true';
       for (const k of ['username', 'first_name', 'last_name', 'bio']) {
         if (!data[k]) data[k] = null;
@@ -2322,6 +2347,28 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                        onChange={e => set('daily_message_limit', e.target.value)}
                        className={panelInputCls}
                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
+              </div>
+              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: form.is_premium === 'true' ? '#F5F3FF' : A.bg, border: `1px solid ${form.is_premium === 'true' ? '#C4B5FD' : A.border}` }}>
+                <div>
+                  <label className="text-xs font-medium" style={{ color: form.is_premium === 'true' ? '#7C3AED' : A.text1 }}>
+                    ⭐ Premium Account
+                  </label>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>
+                    {form.is_premium === 'true' ? 'Higher limits: 10 msgs/day, young cap 10' : 'Standard: 5 msgs/day, young cap 5'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = form.is_premium !== 'true';
+                    setForm(f => ({ ...f, is_premium: next ? 'true' : 'false', daily_message_limit: next ? '10' : '5' }));
+                  }}
+                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                  style={{ background: form.is_premium === 'true' ? '#7C3AED' : A.border }}
+                >
+                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
+                        style={{ transform: form.is_premium === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
+                </button>
               </div>
               <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: A.bg, border: `1px solid ${A.border}` }}>
                 <div>
