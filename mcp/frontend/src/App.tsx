@@ -11,6 +11,7 @@ import ConversationsPage from './pages/ConversationsPage'
 import CampaignsPage from './pages/CampaignsPage'
 import CampaignDetailPage from './pages/CampaignDetailPage'
 import EmailAccountsPage from './pages/EmailAccountsPage'
+import CRMReasoningPanel from './pages/CRMReasoningPanel'
 
 // REUSED from main app via @main alias — fix once, fixed everywhere
 import { ContactsPage as CRMPage } from '@main/pages/ContactsPage'
@@ -211,7 +212,7 @@ export default function App() {
                 <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
                 <Route path="/campaigns" element={<CampaignsPage />} />
                 <Route path="/email-accounts" element={<EmailAccountsPage />} />
-                <Route path="/crm" element={<CRMPage />} />
+                <Route path="/crm" element={<><CRMPage /><CRMReasoningPanel /></>} />
                 <Route path="/tasks" element={<TasksPage />} />
                 <Route path="/tasks/:tab" element={<TasksPage />} />
                 <Route path="/projects" element={<ProjectsPage />} />
