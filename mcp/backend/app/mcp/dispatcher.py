@@ -1108,9 +1108,10 @@ Return ONLY valid JSON."""
                             filters.setdefault("q_organization_keyword_tags", mapped.get("q_organization_keyword_tags"))
                             filters.setdefault("organization_locations", mapped.get("organization_locations"))
                             filters.setdefault("organization_num_employees_ranges", mapped.get("organization_num_employees_ranges"))
-                            # CRITICAL: copy industry_tag_ids + strategy from filter_mapper
-                            if mapped.get("organization_industry_tag_ids"):
-                                filters["organization_industry_tag_ids"] = mapped["organization_industry_tag_ids"]
+                            # Always copy industry_tag_ids for parallel stream — even if classifier said "too broad"
+                            ind_ids = mapped.get("organization_industry_tag_ids") or mapped.get("mapping_details", {}).get("industry_tag_ids")
+                            if ind_ids:
+                                filters["organization_industry_tag_ids"] = ind_ids
                             filters["filter_strategy"] = mapped.get("filter_strategy", "keywords_only")
                             filters["industries"] = mapped.get("industries", [])
                             logger.info(f"Filter mapper: {len(mapped.get('organization_industry_tag_ids') or [])} industry_tag_ids, "
@@ -1153,6 +1154,10 @@ Return ONLY valid JSON."""
                 if doc_filters.get("employee_range") and not filters.get("organization_num_employees_ranges"):
                     filters["organization_num_employees_ranges"] = [doc_filters["employee_range"]]
                     logger.info(f"Document employee range: {doc_filters['employee_range']}")
+                # Use document's specific keywords (more precise than filter_mapper)
+                if doc_filters.get("combined_keywords"):
+                    filters["q_organization_keyword_tags"] = doc_filters["combined_keywords"]
+                    logger.info(f"Document keywords override: {len(doc_filters['combined_keywords'])} specific keywords")
 
         # ── Auto-calculate pages from target_count BEFORE validation ──
         if "api" in source_type:
