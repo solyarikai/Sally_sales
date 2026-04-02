@@ -312,12 +312,12 @@ class StreamingPipeline:
 
     # ── Apollo page fetching + streaming workers ──
 
-    # Per-strategy page limits (from pipeline_spec.md)
-    PAGES_PER_STRATEGY = 25       # Level 1 + Level 2: 25 pages each
-    PAGES_PER_REGEN_CYCLE = 20    # Level 3: 20 pages per regeneration cycle
-    MAX_KEYWORD_REGENERATIONS = 5  # 5 regen cycles × 20 pages = 100 max
-    EXHAUSTION_THRESHOLD = 20     # 20 consecutive empty pages = strategy exhausted (Apollo pagination is sparse)
-    MAX_TOTAL_PAGES = 150         # Absolute safety cap: 25 + 25 + 100 = 150
+    # Per-strategy page limits — aggressive to hit 100 people KPI
+    PAGES_PER_STRATEGY = 50       # L0/L1: 50 pages per stream (parallel = 100 total)
+    PAGES_PER_REGEN_CYCLE = 25    # L2: 25 pages per regen cycle
+    MAX_KEYWORD_REGENERATIONS = 10 # 10 regen cycles with different angles
+    EXHAUSTION_THRESHOLD = 20     # 20 consecutive empty pages = strategy exhausted
+    MAX_TOTAL_PAGES = 500         # Need 300-500 companies for KPI, ~5/page sparse
 
     async def _feed_apollo_pages(self, filters: Dict):
         """3-level strategy cascade per pipeline_spec.md.
@@ -371,11 +371,11 @@ class StreamingPipeline:
             if kw_filters:
                 kw_funded = dict(kw_filters)
                 kw_funded["organization_latest_funding_stage_cd"] = funding_stages
-                l0_streams.append(self._run_level(kw_funded, per_page, "L0_kw_funded", max_pages=15, start_page=1))
+                l0_streams.append(self._run_level(kw_funded, per_page, "L0_kw_funded", max_pages=25, start_page=1))
             if ind_filters:
                 ind_funded = dict(ind_filters)
                 ind_funded["organization_latest_funding_stage_cd"] = funding_stages
-                l0_streams.append(self._run_level(ind_funded, per_page, "L0_ind_funded", max_pages=15, start_page=1))
+                l0_streams.append(self._run_level(ind_funded, per_page, "L0_ind_funded", max_pages=25, start_page=1))
 
             if l0_streams:
                 logger.info(f"L0: {len(l0_streams)} parallel funded streams")
@@ -406,7 +406,7 @@ class StreamingPipeline:
                 if self._kpi_met or self._stop:
                     break
                 regen_base = kw_filters or filters
-                new_kw = await self._regenerate_keywords(regen_base, all_tried_keywords)
+                new_kw = await self._regenerate_keywords(regen_base, all_tried_keywords, cycle_num=regen_num)
                 if not new_kw:
                     logger.info(f"Regen #{regen_num}: no new keywords.")
                     break
@@ -555,12 +555,17 @@ class StreamingPipeline:
         await asyncio.gather(*tasks)
         return sorted(results_list, key=lambda x: x[0])
 
-    async def _regenerate_keywords(self, current_filters: Dict, all_tried: Set[str]) -> Optional[list]:
-        """Generate fresh keywords when current ones are exhausted.
+    async def _regenerate_keywords(self, current_filters: Dict, all_tried: Set[str],
+                                    cycle_num: int = 1) -> Optional[list]:
+        """Generate fresh keywords using DIFFERENT ANGLES per cycle.
 
-        Args:
-            current_filters: Current strategy filters
-            all_tried: ALL keywords tried across ALL strategies and regenerations (lowercase)
+        Each cycle attacks from a different direction — not just synonyms:
+          1: Specific product/platform names in the space
+          2: Technology stack terms and standards
+          3: Use cases and problems solved
+          4: Buyer search language
+          5: Adjacent niches and verticals
+          6-10: Creative combinations of above
         """
         try:
             from app.db import async_session_maker
@@ -569,7 +574,7 @@ class StreamingPipeline:
                 if not project:
                     return None
                 query = project.target_segments or ", ".join(list(all_tried)[:5])
-                offer = project.sender_company or ""
+                offer = self._offer_text or project.sender_company or ""
 
                 from app.services.user_context import UserServiceContext
                 user_id_str = self.run.triggered_by.split(":")[-1] if self.run.triggered_by else "0"
@@ -578,24 +583,51 @@ class StreamingPipeline:
                 except ValueError:
                     user_id_int = 0
                 ctx = UserServiceContext(user_id_int, ws)
-                openai_key = await ctx.get_key("openai")
+                openai_key = await ctx.get_key("openai") or self.openai_key
 
             old_keywords = list(all_tried)
             if not openai_key:
                 return None
 
+            # Different expansion angle per cycle
+            ANGLES = [
+                "Generate SPECIFIC PRODUCT and PLATFORM NAMES that exist in this space. "
+                "Think of real companies' product names, API names, platform brands.",
+                "Generate TECHNOLOGY STACK terms — protocols, standards, certifications, "
+                "technical specifications that companies in this space use on their websites.",
+                "Generate USE CASE phrases — what problems do these companies solve? "
+                "What do their customers search for when looking for solutions?",
+                "Generate BUYER SEARCH LANGUAGE — how do procurement teams and CTOs "
+                "search for vendors in this space? Think RFP language, comparison terms.",
+                "Generate ADJACENT NICHE terms — related verticals, emerging sub-categories, "
+                "crossover markets that overlap with this space.",
+                "Generate INDUSTRY JARGON — insider terminology, acronyms, regulatory terms "
+                "that ONLY companies in this space would use on their websites.",
+                "Generate COMPETITOR and ALTERNATIVE keywords — terms like 'alternative to X', "
+                "'X competitor', category leaders that define the space.",
+                "Generate JOB POSTING keywords — what do companies in this space write in "
+                "their job descriptions? Technical skills, team names, role-specific terms.",
+                "Generate INVESTOR and FUNDING keywords — terms from pitch decks, "
+                "funding announcements, market maps used by VCs in this space.",
+                "Generate CONFERENCE and EVENT keywords — names of industry events, "
+                "awards, publications, associations specific to this space.",
+            ]
+
+            angle_idx = (cycle_num - 1) % len(ANGLES)
+            angle = ANGLES[angle_idx]
+
             import httpx, json
             prompt = (
-                f"I'm searching Apollo.io for: {query}\n"
-                f"Our product: {offer}\n\n"
-                f"ALL these keywords have been tried and exhausted ({len(old_keywords)} total):\n"
-                f"{json.dumps(old_keywords[:100])}\n\n"
-                f"Generate 20-30 COMPLETELY NEW keyword variations.\n"
-                f"Think creatively: synonyms, adjacent niches, specific product/service names,\n"
-                f"alternate phrasings, industry jargon, related technologies.\n"
-                f"Do NOT repeat ANY of the exhausted keywords above.\n\n"
-                f"Return ONLY a JSON array of strings: [\"keyword1\", \"keyword2\", ...]"
+                f"I'm searching Apollo.io for companies matching: {query}\n"
+                f"We sell: {offer}\n\n"
+                f"EXHAUSTED keywords ({len(old_keywords)} tried, DO NOT repeat ANY):\n"
+                f"{json.dumps(old_keywords[:150])}\n\n"
+                f"EXPANSION ANGLE for this cycle:\n{angle}\n\n"
+                f"Generate 30-40 COMPLETELY NEW keywords from this angle.\n"
+                f"Each keyword should be 2-4 words, specific enough to find relevant companies.\n"
+                f"Return ONLY a JSON array: [\"keyword1\", \"keyword2\", ...]"
             )
+            logger.info(f"Regen cycle {cycle_num} angle: {ANGLES[angle_idx][:60]}...")
             async with httpx.AsyncClient(timeout=20) as client:
                 resp = await client.post(
                     "https://api.openai.com/v1/chat/completions",
