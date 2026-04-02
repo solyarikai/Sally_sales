@@ -158,7 +158,8 @@ class TgAccount(Base, TimestampMixin):
     )
 
     # Limits & counters
-    daily_message_limit = Column(Integer, nullable=False, default=10)
+    is_premium = Column(Boolean, nullable=False, default=False, server_default="false")
+    daily_message_limit = Column(Integer, nullable=False, default=5)
     messages_sent_today = Column(Integer, nullable=False, default=0)
     total_messages_sent = Column(Integer, nullable=False, default=0)
 

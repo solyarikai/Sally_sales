@@ -39,7 +39,8 @@ logger = logging.getLogger(__name__)
 
 WARMUP_MSGS_PER_DAY = 2   # +2 messages per warm-up day
 YOUNG_SESSION_DAYS = 7     # sessions < 7 days old get extra restrictions
-YOUNG_SESSION_MAX_MSGS = 5 # hard cap for young sessions regardless of base limit
+YOUNG_SESSION_MAX_MSGS = 5         # hard cap for young non-premium sessions
+YOUNG_SESSION_MAX_MSGS_PREMIUM = 10  # hard cap for young premium sessions
 YOUNG_SESSION_DELAY_MULT = 1.8  # delay multiplier for young sessions
 
 # ── Hardcoded sending parameters (not user-configurable) ────────────
@@ -69,10 +70,11 @@ def get_effective_daily_limit(account) -> int:
 
     New/reactivated accounts ramp gradually:
       day 1 → 2 msgs, day 2 → 4, day 3 → 6, … until full daily_message_limit.
-    Sessions < 7 days: hard cap at YOUNG_SESSION_MAX_MSGS (extra safety).
+    Sessions < 7 days: hard cap at 5 (non-premium) or 10 (premium).
     Accounts without session_created_at are treated as mature (full limit).
     """
-    base_limit = account.daily_message_limit or 10
+    premium = getattr(account, "is_premium", False)
+    base_limit = account.daily_message_limit or (10 if premium else 5)
 
     if getattr(account, "skip_warmup", False):
         return base_limit
@@ -83,9 +85,10 @@ def get_effective_daily_limit(account) -> int:
     session_age_days = get_session_age_days(account)
     warmup_limit = WARMUP_MSGS_PER_DAY * (session_age_days + 1)
 
-    # Young session hard cap: even if warmup_limit is higher, clamp it
+    # Young session hard cap: premium gets higher ceiling
+    young_cap = YOUNG_SESSION_MAX_MSGS_PREMIUM if premium else YOUNG_SESSION_MAX_MSGS
     if session_age_days < YOUNG_SESSION_DAYS:
-        warmup_limit = min(warmup_limit, YOUNG_SESSION_MAX_MSGS)
+        warmup_limit = min(warmup_limit, young_cap)
 
     if warmup_limit >= base_limit:
         return base_limit
