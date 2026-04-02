@@ -3996,7 +3996,6 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [filterTag, setFilterTag] = useState<string>('');
   const [search, setSearch] = useState('');
   const [applied, setApplied] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [showCrmInfo, setShowCrmInfo] = useState(false);
   const [crmData, setCrmData] = useState<any>(null);
   const [crmLoading, setCrmLoading] = useState(false);
@@ -4222,7 +4221,25 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
 
   const statusColors: Record<string, string> = { active: '#22c55e', paused: '#f59e0b', spamblocked: '#ef4444', frozen: '#3b82f6', banned: '#dc2626', dead: '#6b7280' };
 
-  // Apply handler — loads dialogs
+  // Build filter params helper
+  const buildFilterParams = useCallback(() => {
+    const params: any = { page: 1, page_size: 100 };
+    if (filterAccount) params.account_id = Number(filterAccount);
+    if (filterCampaign) params.campaign_id = Number(filterCampaign);
+    if (filterTag) params.campaign_tag = filterTag;
+    if (filterLeadStatus) params.lead_status = filterLeadStatus;
+    return params;
+  }, [filterAccount, filterCampaign, filterTag, filterLeadStatus]);
+
+  // Silent refresh — re-fetch dialogs without loading spinner (for auto-polling)
+  const silentRefresh = useCallback(async () => {
+    try {
+      const data = await telegramOutreachApi.listInboxDialogs(buildFilterParams());
+      setDialogs(data.items || data || []);
+    } catch { /* silent */ }
+  }, [buildFilterParams]);
+
+  // Apply handler — syncs from Telegram + loads dialogs
   const handleApply = useCallback(async () => {
     const hasFilter = filterAccount || filterCampaign || filterTag || filterLeadStatus;
     if (!hasFilter) {
@@ -4232,35 +4249,28 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     setApplied(true);
     setLoading(true);
     try {
-      const params: any = { page: 1, page_size: 100 };
-      if (filterAccount) params.account_id = Number(filterAccount);
-      if (filterCampaign) params.campaign_id = Number(filterCampaign);
-      if (filterTag) params.campaign_tag = filterTag;
-      if (filterLeadStatus) params.lead_status = filterLeadStatus;
-      const data = await telegramOutreachApi.listInboxDialogs(params);
+      // Trigger sync in background (don't block on it)
+      const aid = filterAccount ? Number(filterAccount) : undefined;
+      telegramOutreachApi.triggerInboxSync(aid).then(() => {
+        // After sync completes, silently refresh dialog list
+        silentRefresh();
+      }).catch(() => { /* sync failure is non-critical */ });
+      // Immediately load cached dialogs
+      const data = await telegramOutreachApi.listInboxDialogs(buildFilterParams());
       setDialogs(data.items || data || []);
     } catch {
       toast('Failed to load conversations', 'error');
     } finally {
       setLoading(false);
     }
-  }, [filterAccount, filterCampaign, filterTag, filterLeadStatus, toast]);
+  }, [filterAccount, filterCampaign, filterTag, filterLeadStatus, toast, buildFilterParams, silentRefresh]);
 
-  // Sync handler
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const aid = filterAccount ? Number(filterAccount) : undefined;
-      const res = await telegramOutreachApi.triggerInboxSync(aid);
-      const count = res?.synced_count ?? res?.count ?? res?.dialogs_synced ?? null;
-      toast(count != null ? `Synced ${count} dialogs` : 'Sync complete', 'success');
-      if (applied) await handleApply();
-    } catch {
-      toast('Sync failed', 'error');
-    } finally {
-      setSyncing(false);
-    }
-  };
+  // Auto-poll: refresh dialogs every 30s when filters are applied
+  useEffect(() => {
+    if (!applied) return;
+    const interval = setInterval(silentRefresh, 30000);
+    return () => clearInterval(interval);
+  }, [applied, silentRefresh]);
 
   // New Chat handler
   const handleNewChat = async () => {
@@ -4663,7 +4673,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
               />
             )}
           </div>
-          {/* Row 4: Apply + Sync */}
+          {/* Row 4: Apply */}
           <div className="flex gap-1.5">
             <button
               onClick={handleApply}
@@ -4674,19 +4684,6 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
               onMouseLeave={e => { e.currentTarget.style.background = A.blue; }}
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Apply'}
-            </button>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              title="Sync from Telegram"
-              className="h-8 w-8 rounded-lg flex items-center justify-center border transition-colors flex-shrink-0"
-              style={{ borderColor: A.border, background: A.surface, cursor: syncing ? 'wait' : 'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = A.surface; }}
-            >
-              {syncing
-                ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: A.text2 }} />
-                : <RefreshCw className="w-3.5 h-3.5" style={{ color: A.text2 }} />}
             </button>
             {filterAccount && (
               <button
