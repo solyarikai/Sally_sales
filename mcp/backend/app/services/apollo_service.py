@@ -422,26 +422,35 @@ class ApolloService:
         return results
 
     async def _extend_industry_map(self, org: Dict):
-        """Auto-extend apollo_industry_map table with any new industry discovered."""
+        """Auto-update tag_id in apollo_taxonomy when a new industry is discovered."""
         tag_id = org.get("industry_tag_id")
         industry = org.get("industry")
-        domain = org.get("primary_domain") or ""
         if not tag_id or not industry:
             return
         try:
             from app.db import async_session_maker
             async with async_session_maker() as session:
-                await session.execute(
+                # Update tag_id on existing taxonomy entry
+                result = await session.execute(
                     sa_text(
-                        "INSERT INTO apollo_industry_map (tag_id, industry_name, sample_domain) "
-                        "VALUES (:tid, :name, :domain) "
-                        "ON CONFLICT (tag_id) DO UPDATE SET updated_at = now()"
+                        "UPDATE apollo_taxonomy SET tag_id = :tid, updated_at = now() "
+                        "WHERE term_type = 'industry' AND LOWER(term) = LOWER(:name) AND (tag_id IS NULL OR tag_id != :tid)"
                     ),
-                    {"tid": tag_id, "name": industry, "domain": domain},
+                    {"tid": tag_id, "name": industry},
                 )
+                if result.rowcount == 0:
+                    # Industry not in taxonomy yet — insert it
+                    await session.execute(
+                        sa_text(
+                            "INSERT INTO apollo_taxonomy (term, term_type, source, tag_id, seen_count) "
+                            "VALUES (:name, 'industry', 'enrichment', :tid, 1) "
+                            "ON CONFLICT DO NOTHING"
+                        ),
+                        {"name": industry.lower(), "tid": tag_id},
+                    )
                 await session.commit()
         except Exception as e:
-            logger.debug(f"Industry map extend failed: {e}")
+            logger.debug(f"Industry taxonomy extend failed: {e}")
 
     async def test_connection(self) -> bool:
         if not self.api_key:
