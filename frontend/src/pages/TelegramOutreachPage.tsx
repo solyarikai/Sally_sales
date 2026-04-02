@@ -1584,7 +1584,14 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                 setLoading(true);
                 try {
                   const res = await telegramOutreachApi.bulkSetPhoto(ids, photoFiles);
-                  toast(`Photos set for ${res.count} accounts (${res.photos_uploaded} photos)`, 'success');
+                  const parts = [`Saved ${res.count} locally`];
+                  if (res.tg_synced > 0) parts.push(`${res.tg_synced} synced to TG`);
+                  if (res.errors?.length) parts.push(`${res.errors.length} failed`);
+                  const allFailed = res.tg_synced === 0 && res.count > 0 && res.errors?.length > 0;
+                  toast(
+                    allFailed ? `Photo upload failed: ${res.errors[0]}` : parts.join(', '),
+                    allFailed ? 'error' : res.errors?.length > 0 ? 'info' : 'success'
+                  );
                   setPhotoFiles([]); setActivePanel(null); onDone();
                 } catch { toast('Failed to set photos', 'error'); }
                 finally { setLoading(false); }
