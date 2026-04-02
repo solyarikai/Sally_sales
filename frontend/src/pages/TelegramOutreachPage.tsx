@@ -6,6 +6,7 @@ import {
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
+  LayoutGrid, Bot, Phone, Settings, PanelLeft,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -203,68 +204,167 @@ export function TelegramOutreachPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const tabs: { key: Tab; label: string; icon: typeof Users }[] = [
-    { key: 'accounts', label: 'Accounts', icon: Users },
-    { key: 'campaigns', label: 'Campaigns', icon: Send },
-    { key: 'proxies', label: 'Proxies', icon: Shield },
-    { key: 'parser', label: 'Parser', icon: Search },
-    { key: 'crm', label: 'CRM', icon: Users },
-    { key: 'blacklist', label: 'Blacklist', icon: ShieldAlert },
-    { key: 'inbox', label: 'Inbox', icon: MessageCircle },
-    { key: 'info', label: 'Info', icon: BookOpen },
+  // ── Sidebar state ──────────────────────────────────────────────────
+  const [collapsed, setCollapsed] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    leads: true, outreach: true, tools: true,
+  });
+  const toggleSection = (key: string) =>
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+  type SItem = { key: Tab | null; label: string; icon: typeof Users; disabled?: boolean };
+  const sections: { key: string; label: string; icon: typeof Users; items: SItem[] }[] = [
+    {
+      key: 'leads', label: 'Leads', icon: Users,
+      items: [
+        { key: 'crm', label: 'All Leads', icon: Users },
+        { key: null, label: 'Pipeline', icon: LayoutGrid, disabled: true },
+      ],
+    },
+    {
+      key: 'outreach', label: 'Outreach', icon: Send,
+      items: [
+        { key: 'inbox', label: 'Inbox', icon: MessageCircle },
+        { key: 'campaigns', label: 'Campaigns', icon: Send },
+        { key: 'accounts', label: 'Accounts', icon: Users },
+        { key: null, label: 'AI Bot', icon: Bot, disabled: true },
+      ],
+    },
+    {
+      key: 'tools', label: 'Tools', icon: Search,
+      items: [
+        { key: 'parser', label: 'Group Parser', icon: Search },
+        { key: 'proxies', label: 'Proxies', icon: Shield },
+        { key: 'blacklist', label: 'Blacklist', icon: ShieldAlert },
+        { key: null, label: 'Phone Converter', icon: Phone, disabled: true },
+      ],
+    },
   ];
 
   return (
-    <div className="flex flex-col h-full" style={{ background: A.bg }}>
-      {/* Header */}
-      <div className="px-6 py-4" style={{ background: A.surface, borderBottom: `1px solid ${A.border}` }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold" style={{ color: A.text1 }}>Telegram Outreach</h1>
-            <p className="text-sm mt-1" style={{ color: A.text3 }}>
-              Manage accounts, campaigns, and proxies for Telegram outreach
-            </p>
-          </div>
-
-          {/* Worker status */}
-          <span className={cn('flex items-center gap-1.5 text-xs font-medium',
-            workerRunning ? 'text-green-600' : 'text-red-500')}>
-            <span className={cn('w-2 h-2 rounded-full',
-              workerRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500')} />
-            {workerRunning ? 'Worker Active' : 'Worker Offline'}
-          </span>
+    <div className="flex h-full" style={{ background: A.bg }}>
+      {/* ── Sidebar ─────────────────────────────────────────────────── */}
+      <aside
+        className="flex flex-col h-full shrink-0 transition-[width] duration-200 select-none"
+        style={{ width: collapsed ? 56 : 220, background: A.surface, borderRight: `1px solid ${A.border}` }}
+      >
+        {/* Header */}
+        <div className="flex items-center h-12 px-3 gap-2" style={{ borderBottom: `1px solid ${A.border}` }}>
+          {!collapsed && (
+            <span className="text-sm font-semibold truncate flex-1" style={{ color: A.text1 }}>TG Outreach</span>
+          )}
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            className="p-1.5 rounded-md transition-colors shrink-0"
+            style={{ color: A.text3 }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#F3F3F1')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <PanelLeft className="w-4 h-4" style={collapsed ? { transform: 'scaleX(-1)' } : undefined} />
+          </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mt-4">
-          {tabs.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={tab === key
-                ? { background: A.blueBg, color: A.blue }
-                : { color: A.text3 }}
-              onMouseEnter={e => { if (tab !== key) (e.currentTarget.style.background = '#F3F3F1'); }}
-              onMouseLeave={e => { if (tab !== key) (e.currentTarget.style.background = 'transparent'); }}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
+        {/* Sections */}
+        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-1">
+          {sections.map((sec, si) => (
+            <div key={sec.key}>
+              {collapsed && si > 0 && <div className="my-2 mx-1" style={{ borderTop: `1px solid ${A.border}` }} />}
+
+              {!collapsed && (
+                <button
+                  onClick={() => toggleSection(sec.key)}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ color: A.text3 }}
+                >
+                  <ChevronDown
+                    className="w-3 h-3 transition-transform duration-150"
+                    style={{ transform: openSections[sec.key] ? undefined : 'rotate(-90deg)' }}
+                  />
+                  <span>{sec.label}</span>
+                </button>
+              )}
+
+              {(collapsed || openSections[sec.key]) && sec.items.map(item => {
+                const active = tab === item.key;
+                return (
+                  <button
+                    key={item.label}
+                    onClick={() => item.key && !item.disabled && setTab(item.key)}
+                    disabled={item.disabled || !item.key}
+                    className={cn(
+                      'w-full flex items-center gap-2.5 rounded-md text-[13px] transition-colors',
+                      collapsed ? 'justify-center px-0 py-2' : 'px-3 py-1.5',
+                    )}
+                    style={{
+                      color: item.disabled ? A.text3 : active ? A.blue : A.text2,
+                      background: active ? A.blueBg : 'transparent',
+                      cursor: item.disabled ? 'default' : 'pointer',
+                      opacity: item.disabled ? 0.5 : 1,
+                    }}
+                    onMouseEnter={e => { if (!item.disabled && !active) e.currentTarget.style.background = '#F3F3F1'; }}
+                    onMouseLeave={e => { if (!item.disabled && !active) e.currentTarget.style.background = 'transparent'; }}
+                    title={collapsed ? item.label : item.disabled ? 'Coming soon' : undefined}
+                  >
+                    <item.icon className="w-4 h-4 shrink-0" />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && item.disabled && (
+                      <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full"
+                        style={{ background: '#F3F4F6', color: A.text3 }}>Soon</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           ))}
-        </div>
-      </div>
+        </nav>
 
-      {/* Tab Content */}
-      <div className="flex-1 overflow-auto p-6">
-        {tab === 'accounts' && <AccountsTab t={t} toast={toast} />}
-        {tab === 'campaigns' && <CampaignsTab t={t} toast={toast} />}
-        {tab === 'proxies' && <ProxiesTab t={t} toast={toast} />}
-        {tab === 'parser' && <ParserTab t={t} toast={toast} />}
-        {tab === 'crm' && <CrmTab t={t} toast={toast} />}
-        {tab === 'blacklist' && <BlacklistTab toast={toast} />}
-        {tab === 'inbox' && <InboxTab toast={toast} />}
-        {tab === 'info' && <InfoTab t={t} />}
+        {/* Bottom: Settings + Worker */}
+        <div className="px-2 py-2" style={{ borderTop: `1px solid ${A.border}` }}>
+          <button
+            onClick={() => setTab('info')}
+            className={cn(
+              'w-full flex items-center gap-2.5 rounded-md text-[13px] transition-colors',
+              collapsed ? 'justify-center px-0 py-2' : 'px-3 py-1.5',
+            )}
+            style={{
+              color: tab === 'info' ? A.blue : A.text2,
+              background: tab === 'info' ? A.blueBg : 'transparent',
+            }}
+            onMouseEnter={e => { if (tab !== 'info') e.currentTarget.style.background = '#F3F3F1'; }}
+            onMouseLeave={e => { if (tab !== 'info') e.currentTarget.style.background = 'transparent'; }}
+            title={collapsed ? 'Settings' : undefined}
+          >
+            <Settings className="w-4 h-4 shrink-0" />
+            {!collapsed && <span>Settings</span>}
+          </button>
+
+          <div className="flex items-center gap-2 px-3 py-1.5 mt-1"
+            title={workerRunning ? 'Worker Active' : 'Worker Offline'}>
+            <span className={cn('w-2 h-2 rounded-full shrink-0',
+              workerRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500')} />
+            {!collapsed && (
+              <span className={cn('text-[11px] font-medium',
+                workerRunning ? 'text-green-600' : 'text-red-500')}>
+                {workerRunning ? 'Worker Active' : 'Worker Offline'}
+              </span>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main content ────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 overflow-auto p-6">
+          {tab === 'accounts' && <AccountsTab t={t} toast={toast} />}
+          {tab === 'campaigns' && <CampaignsTab t={t} toast={toast} />}
+          {tab === 'proxies' && <ProxiesTab t={t} toast={toast} />}
+          {tab === 'parser' && <ParserTab t={t} toast={toast} />}
+          {tab === 'crm' && <CrmTab t={t} toast={toast} />}
+          {tab === 'blacklist' && <BlacklistTab toast={toast} />}
+          {tab === 'inbox' && <InboxTab toast={toast} />}
+          {tab === 'info' && <InfoTab t={t} />}
+        </div>
       </div>
     </div>
   );
