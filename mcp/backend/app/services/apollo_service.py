@@ -247,17 +247,40 @@ class ApolloService:
 
         prioritized = sorted(with_email, key=rank_person)
 
-        # Step 4: Take top `limit`
-        selected = prioritized[:limit]
+        # Step 4-6: Enrich in rounds until `limit` verified emails or candidates exhausted
+        enriched_all = []
+        tried_ids = set()
+        remaining = list(prioritized)  # Full ranked candidate list
+        max_rounds = 3  # Max retry rounds to avoid excessive credit spend
 
-        # Step 5: bulk_match ONLY the selected (limit credits — typically 3)
-        people_ids = [p["id"] for p in selected if p.get("id")]
-        if not people_ids:
-            return []
+        for round_num in range(max_rounds):
+            if len(enriched_all) >= limit:
+                break
 
-        enriched = await self.enrich_people_emails(people_ids)
-        logger.info(f"People enrichment {domain}: {len(enriched)} emails (from {len(with_email)} candidates, {limit} enriched)")
-        return enriched
+            # Pick next batch of candidates (skip already tried)
+            batch = []
+            for p in remaining:
+                if p.get("id") and p["id"] not in tried_ids:
+                    # Only enrich people matching target roles (prioritized list already ranked)
+                    batch.append(p)
+                    tried_ids.add(p["id"])
+                    if len(batch) >= limit - len(enriched_all):
+                        break
+
+            if not batch:
+                break  # No more candidates
+
+            people_ids = [p["id"] for p in batch]
+            enriched = await self.enrich_people_emails(people_ids)
+            enriched_all.extend(enriched)
+
+            if round_num > 0:
+                logger.info(f"People retry round {round_num + 1} for {domain}: "
+                           f"+{len(enriched)} verified (total: {len(enriched_all)}/{limit})")
+
+        logger.info(f"People enrichment {domain}: {len(enriched_all)} verified emails "
+                    f"(from {len(with_email)} candidates, {len(tried_ids)} enriched)")
+        return enriched_all[:limit]
 
     async def enrich_people_emails(self, people_ids: List[str]) -> List[Dict[str, Any]]:
         """Enrich people with emails via bulk_match (1 credit per person)."""
