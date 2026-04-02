@@ -1,9 +1,17 @@
 # Magnum Opus — Lead Generation Platform
 
+## STRICT DEPLOYMENT RULES
+- **MCP production (gtm-mcp.com)**: Deploy ONLY to `magnum@46.62.202.160` (SSH alias `hetnzer_mcp`). NEVER deploy MCP to the main server.
+- **Main app**: Deploy to `46.62.210.24` (SSH alias `hetzner`). This is the leadgen main app, NOT MCP.
+- MCP repo path on production: `~/magnum-opus/mcp/`
+- MCP deploy: `scp <files> hetnzer_mcp:~/magnum-opus/mcp/... && ssh hetnzer_mcp "cd ~/magnum-opus/mcp && docker compose -f docker-compose.mcp.yml build mcp-backend && docker compose -f docker-compose.mcp.yml up -d --force-recreate mcp-backend"`
+- Sudo password for hetnzer_mcp: `LgMzQOWfacbM0AavKgD`
+
 ## Quick Reference
 - **Stack**: FastAPI + SQLAlchemy (async) + React 19 + TypeScript + Tailwind + AG Grid
-- **Server**: `46.62.210.24` (SSH alias `hetzner`, user `root`)
-- **Deploy**: `ssh hetzner 'bash ~/magnum-opus-project/repo/scripts/deploy.sh'`
+- **Server (main app)**: `46.62.210.24` (SSH alias `hetzner`, user `root`)
+- **Server (MCP/gtm-mcp.com)**: `46.62.202.160` (SSH alias `hetnzer_mcp`, user `magnum`)
+- **Deploy (main)**: `ssh hetzner 'bash ~/magnum-opus-project/repo/scripts/deploy.sh'`
 - **Containers**: leadgen-frontend(:80), leadgen-backend(:8000), leadgen-postgres(:5432), leadgen-redis(:6379), n8n(:5678)
 - **DB**: `postgresql+asyncpg://leadgen:...@localhost:5432/leadgen`
 - **Google credentials**: `/app/google-credentials.json` (inside backend container)
