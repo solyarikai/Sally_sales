@@ -4233,12 +4233,19 @@ async def list_inbox_dialogs(
         count_q = count_q.where((TgInboxDialog.last_message_outbound == True) | (TgInboxDialog.last_message_outbound.is_(None)))
     if lead_status:
         # Match CRM contact status OR dialog inbox_tag (set via tag buttons in chat)
-        from sqlalchemy import or_
-        contact_sub = select(TgContact.username).where(TgContact.status == lead_status).subquery()
-        status_filter = or_(
-            TgInboxDialog.peer_username.in_(select(contact_sub)),
-            TgInboxDialog.inbox_tag == lead_status,
-        )
+        from sqlalchemy import or_, cast
+        from sqlalchemy import String as SAString
+        # Check if lead_status is a valid CRM enum value before querying
+        valid_crm_statuses = {s.value for s in TgContactStatus}
+        if lead_status in valid_crm_statuses:
+            contact_sub = select(TgContact.username).where(TgContact.status == lead_status).subquery()
+            status_filter = or_(
+                TgInboxDialog.peer_username.in_(select(contact_sub)),
+                TgInboxDialog.inbox_tag == lead_status,
+            )
+        else:
+            # Not a valid CRM status — only match by inbox_tag
+            status_filter = TgInboxDialog.inbox_tag == lead_status
         query = query.where(status_filter)
         count_q = count_q.where(status_filter)
 
