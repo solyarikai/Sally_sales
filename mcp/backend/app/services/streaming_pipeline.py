@@ -338,24 +338,38 @@ class StreamingPipeline:
         per_page = filters.get("per_page", 100)
         all_tried_keywords = set(k.lower() for k in (filters.get("q_organization_keyword_tags") or []))
 
-        # Build strategy cascade based on A11 classifier decision
+        # Build strategy cascade — funding as Level 0 priority (soft filter)
+        # Funding prioritizes but doesn't exclude: funded first → all → regen → industry
         strategy = filters.get("filter_strategy", "keywords_only")
         has_industry = bool(filters.get("organization_industry_tag_ids"))
         has_keywords = bool(filters.get("q_organization_keyword_tags"))
+        has_funding = bool(filters.get("organization_latest_funding_stage_cd") or
+                          filters.get("mapping_details", {}).get("funding_stages"))
 
+        # Extract funding stages from filters
+        funding_stages = (filters.get("organization_latest_funding_stage_cd") or
+                         filters.get("mapping_details", {}).get("funding_stages"))
+
+        levels = []
+
+        # Level 0: Funding + primary strategy (highest quality — funded companies first)
+        if has_funding and funding_stages:
+            if strategy == "industry_first" and has_industry:
+                l0_filters = self._make_industry_filters(filters)
+            else:
+                l0_filters = self._make_keywords_filters(filters)
+            l0_filters["organization_latest_funding_stage_cd"] = funding_stages
+            levels.append(("L0_funded", l0_filters, self.PAGES_PER_STRATEGY))
+
+        # Levels 1+: Same strategy WITHOUT funding (broader pool)
         if strategy == "industry_first" and has_industry:
-            # L1: industry only, L2: keywords only, L3: regen keywords
-            levels = [
+            levels.extend([
                 ("L1_industry", self._make_industry_filters(filters), self.PAGES_PER_STRATEGY),
                 ("L2_keywords", self._make_keywords_filters(filters), self.PAGES_PER_STRATEGY),
-            ]
+            ])
         else:
-            # L1: keywords only, L2: regen (added dynamically), L3: industry
-            levels = [
-                ("L1_keywords", self._make_keywords_filters(filters), self.PAGES_PER_STRATEGY),
-            ]
+            levels.append(("L1_keywords", self._make_keywords_filters(filters), self.PAGES_PER_STRATEGY))
             if has_industry:
-                # Industry as LAST resort after all regen cycles
                 levels.append(("L3_industry", self._make_industry_filters(filters), self.PAGES_PER_STRATEGY))
 
         total_pages = 0
