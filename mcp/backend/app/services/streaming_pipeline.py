@@ -316,7 +316,7 @@ class StreamingPipeline:
     PAGES_PER_STRATEGY = 25       # Level 1 + Level 2: 25 pages each
     PAGES_PER_REGEN_CYCLE = 20    # Level 3: 20 pages per regeneration cycle
     MAX_KEYWORD_REGENERATIONS = 5  # 5 regen cycles × 20 pages = 100 max
-    EXHAUSTION_THRESHOLD = 10     # 10 consecutive empty pages = strategy exhausted
+    EXHAUSTION_THRESHOLD = 20     # 20 consecutive empty pages = strategy exhausted (Apollo pagination is sparse)
     MAX_TOTAL_PAGES = 150         # Absolute safety cap: 25 + 25 + 100 = 150
 
     async def _feed_apollo_pages(self, filters: Dict):
@@ -352,8 +352,10 @@ class StreamingPipeline:
 
         # PARALLEL STREAMS — keywords + industry simultaneously
         # Both feed same scrape_queue, dedup by self._domains_seen
-        has_industry = bool(filters.get("organization_industry_tag_ids"))
-        has_keywords = bool(filters.get("q_organization_keyword_tags"))
+        has_industry = bool(filters.get("organization_industry_tag_ids") or
+                           filters.get("mapping_details", {}).get("industry_tag_ids"))
+        has_keywords = bool(filters.get("q_organization_keyword_tags") or
+                           filters.get("mapping_details", {}).get("keywords_selected"))
         has_funding = bool(filters.get("organization_latest_funding_stage_cd") or
                           filters.get("mapping_details", {}).get("funding_stages"))
 
@@ -469,16 +471,26 @@ class StreamingPipeline:
         return pages_this_level >= max_pages  # Hit page limit = exhausted
 
     def _make_industry_filters(self, base: Dict) -> Dict:
-        """Industry-only filters (drop keywords)."""
+        """Industry-only filters (drop keywords). Pulls industry_tag_ids from mapping_details if needed."""
         f = dict(base)
         f.pop("q_organization_keyword_tags", None)
+        # Ensure industry_tag_ids is at top level (might be in mapping_details)
+        if not f.get("organization_industry_tag_ids"):
+            md_ids = f.get("mapping_details", {}).get("industry_tag_ids")
+            if md_ids:
+                f["organization_industry_tag_ids"] = md_ids if isinstance(md_ids, list) else [md_ids]
         f["filter_strategy"] = "industry_first"
         return f
 
     def _make_keywords_filters(self, base: Dict) -> Dict:
-        """Keywords-only filters (drop industry)."""
+        """Keywords-only filters (drop industry). Pulls keywords from mapping_details if needed."""
         f = dict(base)
         f.pop("organization_industry_tag_ids", None)
+        # Ensure keywords at top level (might be in mapping_details)
+        if not f.get("q_organization_keyword_tags"):
+            md_kw = f.get("mapping_details", {}).get("keywords_selected")
+            if md_kw:
+                f["q_organization_keyword_tags"] = md_kw
         f["filter_strategy"] = "keywords_first"
         return f
 
