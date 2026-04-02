@@ -2906,7 +2906,6 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
             authorized = await client.is_user_authorized()
 
             if authorized:
-                account.status = TgAccountStatus.ACTIVE if account.spamblock_type == TgSpamblockType.NONE else account.status
                 account.last_connected_at = func.now()
                 # Fetch tgid + estimate account age
                 try:
@@ -2920,7 +2919,46 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                             account.telegram_created_at = _dt.fromisoformat(est)
                 except Exception:
                     pass
-                results.append({"account_id": aid, "phone": account.phone, "alive": True})
+
+                # ── Self-message test: detect frozen / banned ────────
+                frozen = False
+                banned = False
+                ban_reason = None
+                try:
+                    from telethon import errors as _terr
+                    msg = await client.send_message("me", ".")
+                    try:
+                        await msg.delete()
+                    except Exception:
+                        pass
+                except _terr.UserDeactivatedBanError:
+                    banned = True
+                    ban_reason = "user_deactivated"
+                except (_terr.AuthKeyUnregisteredError, _terr.UserDeactivatedError):
+                    banned = True
+                    ban_reason = "send_failed"
+                except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
+                    frozen = True
+                except _terr.FloodWaitError:
+                    pass  # not a ban
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "deactivated" in err_str or "banned" in err_str:
+                        banned = True
+                        ban_reason = "send_failed"
+                    elif "restricted" in err_str or "forbidden" in err_str:
+                        frozen = True
+
+                if banned:
+                    account.status = TgAccountStatus.BANNED
+                    results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": ban_reason or "banned"})
+                elif frozen:
+                    account.status = TgAccountStatus.FROZEN
+                    account.spamblock_type = TgSpamblockType.TEMPORARY
+                    results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "frozen"})
+                else:
+                    account.status = TgAccountStatus.ACTIVE if account.spamblock_type == TgSpamblockType.NONE else account.status
+                    results.append({"account_id": aid, "phone": account.phone, "alive": True})
             else:
                 account.status = TgAccountStatus.DEAD
                 results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "not_authorized"})
@@ -2930,7 +2968,10 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
             results.append({"account_id": aid, "error": str(e)[:80]})
 
     alive_count = sum(1 for r in results if r.get("alive"))
-    return {"total": len(results), "alive": alive_count, "results": results}
+    frozen_count = sum(1 for r in results if r.get("reason") == "frozen")
+    banned_count = sum(1 for r in results if r.get("reason") in ("banned", "user_deactivated", "send_failed"))
+    dead_count = sum(1 for r in results if r.get("reason") == "not_authorized")
+    return {"total": len(results), "alive": alive_count, "frozen": frozen_count, "banned": banned_count, "dead": dead_count, "results": results}
 
 
 # ── Profile update ────────────────────────────────────────────────────

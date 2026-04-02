@@ -1387,7 +1387,19 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
         <div className="flex-1" />
 
         {/* Alive + Spam quick buttons */}
-        <button onClick={() => run('Alive check done', () => telegramOutreachApi.bulkCheckAlive(ids))}
+        <button onClick={async () => {
+          setLoading(true);
+          try {
+            const res = await telegramOutreachApi.bulkCheckAlive(ids);
+            const parts = [`✓ ${res.alive ?? 0} alive`];
+            if (res.frozen) parts.push(`⚠ ${res.frozen} frozen`);
+            if (res.banned) parts.push(`✕ ${res.banned} banned`);
+            if (res.dead) parts.push(`☠ ${res.dead} dead`);
+            toast(parts.join(' · '), res.alive === res.total ? 'success' : 'warning');
+            onDone();
+          } catch { toast('Alive check failed', 'error'); }
+          finally { setLoading(false); }
+        }}
                 disabled={loading} className={btnCls} style={{ ...btnStyle, color: A.teal, borderColor: A.teal + '40' }}>
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />} Alive?
         </button>
