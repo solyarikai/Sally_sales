@@ -1347,7 +1347,7 @@ function formatTimelineDate(iso: string | null): string {
          d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function TimelineTab({ campaignId, t, toast }: TabProps & { campaignId: number }) {
+function TimelineTab({ campaignId, t: _t, toast }: TabProps & { campaignId: number }) { void _t;
   const [data, setData] = useState<TimelineData | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -1441,7 +1441,7 @@ function TimelineTab({ campaignId, t, toast }: TabProps & { campaignId: number }
           </thead>
           <tbody>
             {loading && !data && (
-              <tr><td colSpan={3 + (data?.steps.length || 0)} className="py-12 text-center">
+              <tr><td colSpan={99} className="py-12 text-center">
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" style={{ color: B.text3 }} />
               </td></tr>
             )}
