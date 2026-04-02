@@ -20,11 +20,21 @@ total = None
 t_start = time.time()
 
 while True:
-    r = client.get(
-        "https://amazing.getsales.io/leads/api/leads",
-        params={"limit": limit, "offset": offset}
-    )
-    data = r.json()
+    for attempt in range(5):
+        try:
+            r = client.get(
+                "https://amazing.getsales.io/leads/api/leads",
+                params={"limit": limit, "offset": offset}
+            )
+            data = r.json()
+            break
+        except Exception as e:
+            print(f"  Retry {attempt+1}/5 at offset {offset}: {e}")
+            time.sleep(3 * (attempt + 1))
+    else:
+        print(f"  Skipping offset {offset} after 5 failures")
+        offset += limit
+        continue
     if total is None:
         total = data["total"]
         print(f"Total in GetSales: {total}")
