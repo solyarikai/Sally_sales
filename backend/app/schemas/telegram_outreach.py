@@ -84,9 +84,9 @@ class TgAccountBase(BaseModel):
     bio: Optional[str] = None
     api_id: Optional[int] = None
     api_hash: Optional[str] = None
-    device_model: Optional[str] = "Samsung SM-G998B"
-    system_version: Optional[str] = "SDK 33"
-    app_version: Optional[str] = "10.6.2"
+    device_model: Optional[str] = "PC 64bit"
+    system_version: Optional[str] = "Windows 10"
+    app_version: Optional[str] = "6.5.1 x64"
     lang_code: Optional[str] = "en"
     system_lang_code: Optional[str] = "en-US"
     two_fa_password: Optional[str] = None
