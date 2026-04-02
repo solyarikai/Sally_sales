@@ -1035,16 +1035,25 @@ class StreamingPipeline:
                                 break
                         # Store org data from bulk_match back to company (free with enrichment)
                         org_data = people[0] if people else {}
-                        if org_data.get("org_country"):
+                        if org_data.get("org_country") or org_data.get("org_funding"):
                             from sqlalchemy import update
-                            await ws.execute(
-                                update(DiscoveredCompany).where(DiscoveredCompany.id == dc.id).values(
-                                    country=org_data.get("org_country"),
-                                    city=org_data.get("org_city"),
-                                    industry=org_data.get("org_industry"),
-                                    employee_count=org_data.get("org_employee_count"),
+                            update_vals = {}
+                            if org_data.get("org_country"):
+                                update_vals["country"] = org_data["org_country"]
+                            if org_data.get("org_city"):
+                                update_vals["city"] = org_data["org_city"]
+                            if org_data.get("org_industry"):
+                                update_vals["industry"] = org_data["org_industry"]
+                            if org_data.get("org_employee_count"):
+                                update_vals["employee_count"] = org_data["org_employee_count"]
+                            if org_data.get("org_funding"):
+                                update_vals["funding_stage"] = org_data["org_funding"]
+                            if org_data.get("org_funding_amount"):
+                                update_vals["funding_amount"] = org_data["org_funding_amount"]
+                            if update_vals:
+                                await ws.execute(
+                                    update(DiscoveredCompany).where(DiscoveredCompany.id == dc.id).values(**update_vals)
                                 )
-                            )
                         await ws.commit()
                     # Update progress with own session
                     self.run.credits_used = (self.run.credits_used or 0) + len(people)

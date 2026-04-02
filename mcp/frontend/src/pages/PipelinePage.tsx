@@ -523,6 +523,7 @@ export default function PipelinePage() {
     { key: 'employee_count', label: 'Size', filterType: 'text' as const },
     { key: 'country', label: 'Country', filterType: 'dropdown' as const },
     { key: 'city', label: 'City', filterType: 'text' as const },
+    { key: 'funding_stage', label: 'Funding', filterType: 'dropdown' as const },
     { key: 'analysis_reasoning', label: 'Analysis', filterType: 'text' as const },
     { key: 'contacts_count', label: 'People', filterType: 'dropdown' as const },
     { key: 'scrape_text_preview', label: 'Scraped', filterType: 'text' as const },

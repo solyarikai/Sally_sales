@@ -881,6 +881,7 @@ def _company_to_dict(c, scrape=None, truncate_reasoning=False, contacts_count=0)
         "is_target": c.is_target,
         "analysis_confidence": c.analysis_confidence,
         "analysis_segment": c.analysis_segment,
+        "funding_stage": getattr(c, 'funding_stage', None),
         "is_enriched": c.is_enriched,
         "enrichment_source": c.enrichment_source,
         # Contacts/people status
