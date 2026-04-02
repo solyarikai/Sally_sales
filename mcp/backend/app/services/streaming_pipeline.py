@@ -107,6 +107,10 @@ class StreamingPipeline:
                 segments = offer.get("segments", [])
                 if segments:
                     self._segments = [s.get("name", "") for s in segments if s.get("name")]
+                # Load geo filters from document extraction (ALWAYS applied, never dropped)
+                apollo_filters = offer.get("apollo_filters", {})
+                self._project_locations = apollo_filters.get("locations", [])
+                self._project_employee_range = apollo_filters.get("employee_range")
                 # Load exclusion list from document for Agent #2
                 if offer.get("exclusion_list"):
                     self._exclusion_list = offer["exclusion_list"]
@@ -336,6 +340,15 @@ class StreamingPipeline:
 
         per_page = filters.get("per_page", 100)
         all_tried_keywords = set(k.lower() for k in (filters.get("q_organization_keyword_tags") or []))
+
+        # HARD FILTERS from project — ALWAYS applied, never dropped
+        # Inject project locations if not already in filters
+        if not filters.get("organization_locations") and getattr(self, '_project_locations', None):
+            filters["organization_locations"] = self._project_locations
+            logger.info(f"Injected project locations: {self._project_locations}")
+        # Inject project employee range if not already in filters
+        if not filters.get("organization_num_employees_ranges") and getattr(self, '_project_employee_range', None):
+            filters["organization_num_employees_ranges"] = [self._project_employee_range]
 
         # Build strategy cascade — funding as Level 0 priority (soft filter)
         # Funding prioritizes but doesn't exclude: funded first → all → regen → industry
