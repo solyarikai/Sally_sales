@@ -57,89 +57,26 @@ def read_xlsx(path: str) -> list[dict]:
     return result
 
 
-def download_existing_linkedin_nicknames() -> set[str]:
-    """Download linkedin nicknames from GetSales for dedup.
-    Uses smaller batches and longer pauses to handle 278K+ contacts.
-    Falls back to /tmp cache if available."""
-    import os
-
-    cache_path = "/tmp/gs_linkedin_set.json"
-    if os.path.exists(cache_path):
-        data = json.load(open(cache_path))
-        nicknames = set(n.lower() for n in data.get("linkedin", []))
-        print(f"Loaded {len(nicknames)} nicknames from cache {cache_path}", flush=True)
-        return nicknames
-
-    client = httpx.Client(headers=HEADERS, timeout=60)
-    nicknames = set()
-    offset = 0
-    limit = 500  # smaller batches for stability
-    total = None
-    t0 = time.time()
-    consecutive_failures = 0
-
-    print("Downloading existing GetSales contacts for dedup...", flush=True)
-
-    while consecutive_failures < 10:
-        success = False
-        for attempt in range(8):
-            try:
-                r = client.get(f"{BASE}/leads", params={"limit": limit, "offset": offset})
-                if r.status_code == 429:
-                    print(f"  Rate limited at offset {offset}, waiting 20s...", flush=True)
-                    time.sleep(20)
-                    continue
-                if not r.text.strip():
-                    time.sleep(3 * (attempt + 1))
-                    continue
-                data = r.json()
-                success = True
-                break
-            except Exception as e:
-                wait = 3 * (attempt + 1)
-                print(f"  Retry {attempt+1}/8 at offset {offset}: {e} (wait {wait}s)", flush=True)
-                time.sleep(wait)
-
-        if not success:
-            consecutive_failures += 1
-            offset += limit
+def dedup_within_files(all_rows: list[dict]) -> list[dict]:
+    """Dedup rows by linkedin_nickname within a batch of files.
+    GetSales API auto-deduplicates by linkedin against existing contacts,
+    so we only need to dedup between the files we're uploading."""
+    seen = set()
+    result = []
+    skipped = 0
+    for row in all_rows:
+        nick = (row.get("linkedin_nickname") or "").strip().lower()
+        if not nick:
+            result.append(row)
             continue
-
-        consecutive_failures = 0
-
-        if total is None:
-            total = data.get("total", 0)
-            print(f"  Total contacts in GetSales: {total}", flush=True)
-
-        batch = data.get("data", [])
-        if not batch:
-            break
-
-        for item in batch:
-            lead = item.get("lead", item)
-            li = (lead.get("linkedin") or "").strip().lower()
-            if li:
-                nicknames.add(li)
-
-        offset += len(batch)
-        if offset % 5000 == 0:
-            print(f"  {offset}/{total} ({time.time()-t0:.0f}s) [{len(nicknames)} nicknames]...", flush=True)
-
-        if not data.get("has_more"):
-            break
-
-        time.sleep(0.3)
-
-    elapsed = time.time() - t0
-    print(f"  Done: {len(nicknames)} unique LinkedIn nicknames in {elapsed:.0f}s\n", flush=True)
-
-    # Cache for reuse
-    with open(cache_path, "w") as f:
-        json.dump({"linkedin": list(nicknames)}, f)
-    print(f"  Cached to {cache_path}", flush=True)
-
-    client.close()
-    return nicknames
+        if nick in seen:
+            skipped += 1
+            continue
+        seen.add(nick)
+        result.append(row)
+    if skipped:
+        print(f"  Dedup between files: skipped {skipped} duplicates", flush=True)
+    return result
 
 
 def xlsx_row_to_gs_lead(row: dict) -> dict:
