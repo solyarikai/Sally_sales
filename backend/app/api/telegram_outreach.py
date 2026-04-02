@@ -77,6 +77,7 @@ from app.schemas.telegram_outreach import (
     TgCampaignStatsResponse,
     TgRecipientResponse, TgRecipientListResponse,
     TgRecipientUploadText, TgRecipientUploadCSVMapping,
+    TgCheckDuplicatesRequest, TgCheckDuplicatesResponse, TgDuplicateDetail,
     TgSequenceSchema, TgSequenceStepSchema, TgStepVariantSchema,
     TgSequencePreviewRequest, TgSequencePreviewResponse,
     TgOutreachMessageResponse, TgOutreachMessageListResponse,
@@ -3089,6 +3090,7 @@ async def upload_recipients_text(campaign_id: int, data: TgRecipientUploadText,
 
     added = 0
     blacklisted_count = 0
+    added_usernames = []
     for line in data.raw_text.strip().splitlines():
         username = line.strip().lstrip("@")
         if not username:
@@ -3107,6 +3109,7 @@ async def upload_recipients_text(campaign_id: int, data: TgRecipientUploadText,
             continue
         session.add(TgRecipient(campaign_id=campaign_id, username=username))
         added += 1
+        added_usernames.append(username.lower())
         try:
             crm_q = await session.execute(select(TgContact).where(TgContact.username == username))
             if not crm_q.scalar():
@@ -3115,11 +3118,24 @@ async def upload_recipients_text(campaign_id: int, data: TgRecipientUploadText,
         except Exception:
             pass
 
+    # Count cross-campaign duplicates among added usernames
+    cross_dupes = 0
+    if added_usernames:
+        from sqlalchemy import func as sa_func
+        cross_q = await session.execute(
+            select(sa_func.count(sa_func.distinct(sa_func.lower(TgRecipient.username)))).where(
+                TgRecipient.campaign_id != campaign_id,
+                sa_func.lower(TgRecipient.username).in_(added_usernames),
+            )
+        )
+        cross_dupes = cross_q.scalar() or 0
+
     campaign.total_recipients = (await session.execute(
         select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
     )).scalar() or 0
 
-    return {"ok": True, "added": added, "total": campaign.total_recipients, "blacklisted": blacklisted_count}
+    return {"ok": True, "added": added, "total": campaign.total_recipients,
+            "blacklisted": blacklisted_count, "cross_duplicates": cross_dupes}
 
 
 @router.post("/campaigns/{campaign_id}/recipients/add-from-crm")
@@ -3147,6 +3163,7 @@ async def add_recipients_from_crm(campaign_id: int, data: dict,
     added = 0
     blacklisted_count = 0
     skipped = 0
+    added_usernames = []
     for contact in contacts:
         username = contact.username
         if not username:
@@ -3170,12 +3187,26 @@ async def add_recipients_from_crm(campaign_id: int, data: dict,
             company_name=contact.company_name,
         ))
         added += 1
+        added_usernames.append(username.lower())
+
+    # Count cross-campaign duplicates
+    cross_dupes = 0
+    if added_usernames:
+        from sqlalchemy import func as sa_func
+        cross_q = await session.execute(
+            select(sa_func.count(sa_func.distinct(sa_func.lower(TgRecipient.username)))).where(
+                TgRecipient.campaign_id != campaign_id,
+                sa_func.lower(TgRecipient.username).in_(added_usernames),
+            )
+        )
+        cross_dupes = cross_q.scalar() or 0
 
     campaign.total_recipients = (await session.execute(
         select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
     )).scalar() or 0
 
-    return {"ok": True, "added": added, "skipped": skipped, "total": campaign.total_recipients, "blacklisted": blacklisted_count}
+    return {"ok": True, "added": added, "skipped": skipped, "total": campaign.total_recipients,
+            "blacklisted": blacklisted_count, "cross_duplicates": cross_dupes}
 
 
 @router.post("/campaigns/{campaign_id}/recipients/upload-csv")
@@ -3224,6 +3255,7 @@ async def map_csv_columns(campaign_id: int,
 
     added = 0
     blacklisted_count = 0
+    added_usernames = []
     for row in reader:
         username = row.get(mapping.username_column, "").strip().lstrip("@")
         if not username:
@@ -3257,12 +3289,26 @@ async def map_csv_columns(campaign_id: int,
             custom_variables=custom_vars,
         ))
         added += 1
+        added_usernames.append(username.lower())
+
+    # Count cross-campaign duplicates
+    cross_dupes = 0
+    if added_usernames:
+        from sqlalchemy import func as sa_func
+        cross_q = await session.execute(
+            select(sa_func.count(sa_func.distinct(sa_func.lower(TgRecipient.username)))).where(
+                TgRecipient.campaign_id != campaign_id,
+                sa_func.lower(TgRecipient.username).in_(added_usernames),
+            )
+        )
+        cross_dupes = cross_q.scalar() or 0
 
     campaign.total_recipients = (await session.execute(
         select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
     )).scalar() or 0
 
-    return {"ok": True, "added": added, "total": campaign.total_recipients, "blacklisted": blacklisted_count}
+    return {"ok": True, "added": added, "total": campaign.total_recipients,
+            "blacklisted": blacklisted_count, "cross_duplicates": cross_dupes}
 
 
 @router.delete("/campaigns/{campaign_id}/recipients/{recipient_id}")
@@ -3272,6 +3318,69 @@ async def delete_recipient(campaign_id: int, recipient_id: int, session: AsyncSe
         raise HTTPException(404, "Recipient not found")
     await session.delete(recipient)
     return {"ok": True}
+
+
+@router.post("/campaigns/{campaign_id}/recipients/check-duplicates", response_model=TgCheckDuplicatesResponse)
+async def check_cross_campaign_duplicates(campaign_id: int, data: TgCheckDuplicatesRequest,
+                                           session: AsyncSession = Depends(get_session)):
+    """Check if any usernames already exist as recipients in OTHER campaigns."""
+    if not data.usernames:
+        return TgCheckDuplicatesResponse(total_checked=0, duplicates_count=0, duplicates=[])
+
+    # Normalize usernames
+    clean = [u.strip().lstrip("@").lower() for u in data.usernames if u.strip()]
+    if not clean:
+        return TgCheckDuplicatesResponse(total_checked=0, duplicates_count=0, duplicates=[])
+
+    # Find recipients with matching usernames in OTHER campaigns
+    from sqlalchemy import func as sa_func
+    result = await session.execute(
+        select(
+            TgRecipient.username,
+            TgRecipient.current_step,
+            TgRecipient.status,
+            TgRecipient.assigned_account_id,
+            TgCampaign.id.label("cid"),
+            TgCampaign.name.label("cname"),
+            TgCampaign.status.label("cstatus"),
+        )
+        .join(TgCampaign, TgRecipient.campaign_id == TgCampaign.id)
+        .where(
+            TgRecipient.campaign_id != campaign_id,
+            sa_func.lower(TgRecipient.username).in_(clean),
+        )
+    )
+    rows = result.all()
+
+    # Resolve account usernames for display
+    account_ids = {r.assigned_account_id for r in rows if r.assigned_account_id}
+    acc_map = {}
+    if account_ids:
+        acc_rows = await session.execute(
+            select(TgAccount.id, TgAccount.username, TgAccount.first_name)
+            .where(TgAccount.id.in_(account_ids))
+        )
+        for a in acc_rows.all():
+            acc_map[a.id] = a.username or a.first_name or f"Account #{a.id}"
+
+    duplicates = []
+    for r in rows:
+        duplicates.append(TgDuplicateDetail(
+            username=r.username,
+            campaign_id=r.cid,
+            campaign_name=r.cname,
+            campaign_status=r.cstatus.value if hasattr(r.cstatus, 'value') else str(r.cstatus),
+            current_step=r.current_step,
+            recipient_status=r.status.value if hasattr(r.status, 'value') else str(r.status),
+            assigned_account=acc_map.get(r.assigned_account_id),
+        ))
+
+    unique_usernames = {d.username.lower() for d in duplicates}
+    return TgCheckDuplicatesResponse(
+        total_checked=len(clean),
+        duplicates_count=len(unique_usernames),
+        duplicates=duplicates,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════

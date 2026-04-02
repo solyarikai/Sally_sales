@@ -267,6 +267,27 @@ class TgRecipientUploadCSVMapping(BaseModel):
     custom_columns: dict[str, str] = {}  # csv_column -> variable_name
 
 
+class TgCheckDuplicatesRequest(BaseModel):
+    """Check usernames for cross-campaign duplicates."""
+    usernames: list[str]
+
+
+class TgDuplicateDetail(BaseModel):
+    username: str
+    campaign_id: int
+    campaign_name: str
+    campaign_status: str
+    current_step: int
+    recipient_status: str
+    assigned_account: Optional[str] = None
+
+
+class TgCheckDuplicatesResponse(BaseModel):
+    total_checked: int
+    duplicates_count: int
+    duplicates: list[TgDuplicateDetail]
+
+
 # ── Sequence ───────────────────────────────────────────────────────────
 
 class TgStepVariantSchema(BaseModel):

@@ -477,6 +477,21 @@ export const telegramOutreachApi = {
   deleteRecipient: async (campaignId: number, recipientId: number) =>
     (await api.delete(`${BASE}/campaigns/${campaignId}/recipients/${recipientId}`)).data,
 
+  checkDuplicates: async (campaignId: number, usernames: string[]): Promise<{
+    total_checked: number;
+    duplicates_count: number;
+    duplicates: Array<{
+      username: string;
+      campaign_id: number;
+      campaign_name: string;
+      campaign_status: string;
+      current_step: number;
+      recipient_status: string;
+      assigned_account: string | null;
+    }>;
+  }> =>
+    (await api.post(`${BASE}/campaigns/${campaignId}/recipients/check-duplicates`, { usernames })).data,
+
   // Sequences
   getSequence: async (campaignId: number) =>
     (await api.get<TgSequence>(`${BASE}/campaigns/${campaignId}/sequence`)).data,
