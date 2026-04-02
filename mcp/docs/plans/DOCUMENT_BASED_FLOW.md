@@ -970,6 +970,26 @@ Hard-learned lessons from the April 2, 2026 testing disaster. Every single one o
 - If auto-push didn't fire, check: was the orchestrator used? are there import errors? did `_auto_generate_campaign` get called?
 - **The test is not done until the SmartLead campaign exists with correct leads and sequence**
 
+### 18. SEQUENCE HAD UNFILLABLE VARIABLES — {{hiring_role_or_signal}}, {{estimated_acv}}, {{calendly_link}}
+
+**What happened**: The document's sequence contained custom variables like `{{hiring_role_or_signal}}`, `{{estimated_acv}}`, `{{calendly_link}}` that Apollo/SmartLead cannot fill. The extractor was supposed to catch these but didn't. These would render as empty/broken in SmartLead emails — recipients would see blank spaces or literal `{{variable}}` tags.
+
+**Standard SmartLead variables** (these work): `{{company}}`, `{{firstName}}`, `{{lastName}}`, `{{email}}`, `{{city}}`, `{{signature}}`
+
+**Everything else is unfillable** and must be replaced with natural text derived from the offer context:
+- `{{hiring_role_or_signal}}` → "a sales leader" (from document's target roles)
+- `{{estimated_acv}}` → "significant" (generic but natural)
+- `{{calendly_link}}` → "a quick call" (no calendly integration)
+
+**Why it was stupid**: Sending emails with broken variables is worse than not sending at all. It looks unprofessional and kills deliverability. The system should match user expectations — if a variable can't be filled, replace it with a sensible default from the offer context, don't leave it broken or empty.
+
+**The rule**:
+- Document extractor MUST validate all variables in sequences against the standard variable list
+- Any non-standard variable → replace with contextual natural text from the offer/document
+- NEVER leave unfillable custom variables in sequences — they WILL render broken
+- Post-processing step after extraction: scan all sequence bodies for `{{...}}` patterns, replace non-standard ones
+- The sequence MUST work as-is with only standard SmartLead variables filled
+
 ### Summary Checklist — Before ANY Pipeline Test
 
 ```
