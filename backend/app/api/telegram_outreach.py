@@ -43,6 +43,12 @@ from app.schemas.telegram_outreach import (
 
 router = APIRouter(prefix="/telegram-outreach", tags=["Telegram Outreach"])
 
+# Official Telegram Desktop (tdesktop) credentials — using these makes the
+# connection look like a legitimate Desktop client and avoids api_id ↔ fingerprint
+# mismatch that Telegram uses to detect automation.
+TDESKTOP_API_ID = 2040
+TDESKTOP_API_HASH = "b18441a1ff607e10a989891a5462e627"
+
 
 def _warmup_info(acc) -> dict:
     """Compute effective_daily_limit, warmup_day, and is_young_session for an account."""
@@ -1072,6 +1078,34 @@ async def bulk_randomize_device(data: TgBulkAccountIds, session: AsyncSession = 
     return {"ok": True, "count": len(updated), "updated": updated}
 
 
+@router.post("/accounts/bulk-switch-to-tdesktop")
+async def bulk_switch_to_tdesktop(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
+    """Switch selected accounts to official Telegram Desktop api_id/api_hash.
+
+    This ensures fingerprint ↔ api_id consistency: the Desktop-style device
+    fingerprints (PC models, Windows, app version "x.x.x x64") match the
+    official tdesktop api_id, preventing Telegram from detecting automation.
+
+    WARNING: Accounts must be re-authorized after switching api_id (new session required).
+    """
+    switched = []
+    for aid in data.account_ids:
+        account = await session.get(TgAccount, aid)
+        if not account:
+            continue
+        old_api_id = account.api_id
+        account.api_id = TDESKTOP_API_ID
+        account.api_hash = TDESKTOP_API_HASH
+        switched.append({"id": aid, "phone": account.phone,
+                         "old_api_id": old_api_id, "new_api_id": TDESKTOP_API_ID})
+    return {
+        "ok": True,
+        "count": len(switched),
+        "switched": switched,
+        "note": "Accounts must be re-authorized (new session) after switching api_id.",
+    }
+
+
 # Known default fingerprints that indicate no randomization was applied
 _DEFAULT_FINGERPRINTS = {"PC 64bit", "Samsung SM-G998B"}
 
@@ -1526,6 +1560,103 @@ async def bulk_revoke_sessions(data: TgBulkAccountIds, session: AsyncSession = D
             logger.error(f"[REVOKE] {account.phone}: {e}")
             errors.append(f"{account.phone}: {str(e)[:80]}")
     return {"ok": True, "revoked": revoked, "sessions_killed": total_sessions_killed, "errors": errors}
+
+
+@router.post("/accounts/bulk-audit-sessions")
+async def bulk_audit_sessions(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
+    """Audit sessions for selected accounts.
+
+    Detects:
+    - Concurrent sessions from other clients (Desktop, mobile) with different api_id
+    - Fingerprint ↔ api_id mismatch (Desktop fingerprint but non-official api_id)
+    - Total active sessions count
+    """
+    import asyncio
+    from telethon import functions
+
+    results = []
+    for aid in data.account_ids:
+        account = await session.get(TgAccount, aid)
+        if not account or not account.api_id or not telegram_engine.session_file_exists(account.phone):
+            continue
+
+        entry = {
+            "account_id": aid,
+            "phone": account.phone,
+            "api_id": account.api_id,
+            "warnings": [],
+            "sessions": [],
+            "fingerprint_match": True,
+        }
+
+        # Check fingerprint ↔ api_id consistency
+        is_desktop_fp = (
+            account.app_version and "x64" in (account.app_version or "")
+            and account.system_version in ("Windows 10", "Windows 11", "macOS 12.6", "macOS 13.4", "macOS 14.2")
+        )
+        if is_desktop_fp and account.api_id != TDESKTOP_API_ID:
+            entry["fingerprint_match"] = False
+            entry["warnings"].append(
+                f"Desktop fingerprint (device={account.device_model}, os={account.system_version}, "
+                f"app={account.app_version}) but api_id={account.api_id} ≠ official tdesktop ({TDESKTOP_API_ID}). "
+                f"Telegram may detect this mismatch."
+            )
+
+        # Connect and check active sessions
+        try:
+            proxy = None
+            if account.assigned_proxy_id:
+                p = await session.get(TgProxy, account.assigned_proxy_id)
+                if p:
+                    proxy = {"host": p.host, "port": p.port, "username": p.username,
+                             "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
+            kwargs = _account_connect_kwargs(account, proxy)
+            await telegram_engine.connect(aid, **kwargs)
+            client = telegram_engine.get_client(aid)
+            if not client or not await client.is_user_authorized():
+                entry["warnings"].append("Not authorized — cannot audit sessions")
+                results.append(entry)
+                continue
+
+            result = await client(functions.auth.GetAuthorizationsRequest())
+            for auth in result.authorizations:
+                sess_info = {
+                    "current": auth.current,
+                    "device_model": auth.device_model,
+                    "platform": auth.platform,
+                    "app_name": auth.app_name,
+                    "app_version": auth.app_version,
+                    "api_id": auth.api_id,
+                    "ip": auth.ip,
+                    "country": auth.country,
+                    "date_active": str(auth.date_active) if auth.date_active else None,
+                }
+                entry["sessions"].append(sess_info)
+
+                # Warn about non-current sessions with different api_id
+                if not auth.current and auth.api_id != account.api_id:
+                    entry["warnings"].append(
+                        f"Concurrent session: {auth.app_name} {auth.app_version} on {auth.device_model} "
+                        f"(api_id={auth.api_id}, ip={auth.ip}). Different api_id from ours ({account.api_id}). "
+                        f"Telegram may flag this as account compromise."
+                    )
+
+            entry["total_sessions"] = len(result.authorizations)
+            await telegram_engine.disconnect(aid)
+            await asyncio.sleep(0.5)
+
+        except Exception as e:
+            entry["warnings"].append(f"Audit failed: {str(e)[:120]}")
+
+        results.append(entry)
+
+    accounts_with_warnings = [r for r in results if r["warnings"]]
+    return {
+        "ok": True,
+        "total_audited": len(results),
+        "accounts_with_warnings": len(accounts_with_warnings),
+        "results": results,
+    }
 
 
 @router.post("/accounts/bulk-reauthorize")
