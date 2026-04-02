@@ -531,7 +531,9 @@ async def run_pipeline_background(run_id: int, filters: dict, user_id: int):
 
             # Mark complete
             if run.status != "paused":
-                run.status = "completed" if result.get("kpi_met") else "insufficient"
+                kpi_met = result.get("kpi_met")
+                run.status = "completed" if kpi_met else "insufficient"
+                run.current_phase = "kpi_met" if kpi_met else "exhausted"
                 run.completed_at = datetime.now(timezone.utc)
                 elapsed = (run.completed_at - run.started_at).total_seconds() if run.started_at else None
                 if elapsed:
@@ -680,6 +682,21 @@ async def _auto_generate_campaign(session, run, user_id: int, openai_key: str):
         if not campaign or not campaign.email_account_ids:
             logger.info(f"Campaign {run.campaign_id} has no pre-selected accounts — sequence stays as draft")
             return
+
+        # Ensure sequence is linked to the campaign
+        if not campaign.sequence_id:
+            campaign.sequence_id = seq.id
+            logger.info(f"Linked sequence {seq.id} to campaign {campaign.id}")
+        # Copy document settings to campaign if missing
+        if not campaign.config or not campaign.config.get("settings"):
+            doc_settings = (project.offer_summary or {}).get("campaign_settings", {})
+            campaign.config = campaign.config or {}
+            campaign.config["settings"] = doc_settings
+            campaign.config["from_document"] = True
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(campaign, "config")
+            logger.info(f"Copied document settings to campaign {campaign.id}")
+        await session.flush()
 
         # Auto-approve sequence
         from datetime import datetime
