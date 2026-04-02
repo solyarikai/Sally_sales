@@ -605,6 +605,9 @@ export const telegramOutreachApi = {
   getAccountAnalytics: async (accountId: number) =>
     (await api.get(`${BASE}/accounts/${accountId}/analytics`)).data,
 
+  getAccountsAnalyticsOverview: async () =>
+    (await api.get(`${BASE}/accounts/analytics/overview`)).data,
+
   bulkClean: async (accountIds: number[], params: { delete_dialogs?: boolean; delete_contacts?: boolean }) =>
     (await api.post(`${BASE}/accounts/bulk-clean`, { account_ids: accountIds }, { params })).data,
 
