@@ -1,21 +1,27 @@
 """
-GetSales — заполнить linkedin_id из linkedin_url для контактов, у которых ln_id пустой.
+GetSales — заполнить поле `linkedin` (nickname) для контактов, у которых оно пустое.
 
 Логика:
-  1. Получить все списки
-  2. Для каждого списка — все контакты (пагинация по 100)
-  3. Найти контакты: ln_id пустой + linkedin URL есть
-  4. Извлечь nickname из URL: linkedin.com/in/john-doe → john-doe
-  5. Обновить через POST /leads/api/leads (upsert по uuid)
+  1. Загрузить все CSV из sofia/get_sales_hub/ → dict {email: linkedin_url}
+  2. Для каждого GetSales списка → получить все контакты (пагинация)
+  3. Для контактов без `linkedin`:
+     - Матч по work_email → linkedin_url из CSV
+     - Извлечь slug: linkedin.com/in/john-doe → john-doe
+     - Обновить через PUT /leads/api/leads/{uuid}
+  4. Итоговый отчёт
 
 Запуск локально:
+    cd ~/sales_engineer
     python3.11 sofia/scripts/getsales_fix_linkedin_id.py
 """
 
-import json
+import csv
+import glob
 import re
 import time
 import httpx
+from pathlib import Path
+from urllib.parse import unquote
 
 API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vYW1hemluZy5nZXRzYWxlcy5pby9hcGkvand0LXRva2Vucy9jcmVhdGUtYXBpLWtleSIsImlhdCI6MTc3NDQ1NzU0MywiZXhwIjoxODY5MDY1NTQzLCJuYmYiOjE3NzQ0NTc1NDMsImp0aSI6ImNWOEJDVmprV08yeGdLdEIiLCJzdWIiOiI3OTg4IiwidXNyIjp7ImlkIjo3OTg4LCJ1dWlkIjoiZTBiZDgzMTgtNGEwZC0xMWYwLThiYWItYThhMTU5YzBiZmJjIiwiZmlyc3RfbmFtZSI6IlNlcmdlIiwibGFzdF9uYW1lIjoiS3V6bmV0c292IiwiZW1haWwiOiJzZXJnZUBpbnh5ZGlnaXRhbC5jb20iLCJnYV90cmFja2luZ19pZCI6IjQ1OTY0OTcyMS4xNzQyNTY1Mzc4LiIsImZiX2NsaWNrX2lkIjpudWxsLCJmYl9icm93c2VyX2lkIjoiZmIuMS4xNzQyNTY1Mzc4NjIxLjI4ODI0NDQ5MjUzMzQ2NTgwNSIsIndoaXRlbGFiZWxfdXVpZCI6bnVsbCwiY3JlYXRlZF9hdCI6IjIwMjUtMDMtMjFUMTM6NTY6NTkuMDAwMDAwWiJ9LCJzcGVjaWZpY190ZWFtX2lkIjo3NDMwLCJ1c2VyX3RlYW1zIjp7Ijc0MzAiOjN9LCJ0b2tlbl90eXBlIjoiYXBpIn0.2dDmw7L-ZWNd4RJWL0XOSlP2qq1PjZtS1QSJr3pe0Vw"
 
@@ -24,52 +30,96 @@ HEADERS = {
     "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json",
 }
-DELAY = 0.2  # сек между запросами
-DRY_RUN = False  # True = только показать, не обновлять
+DELAY = 0.2
+DRY_RUN = False
+
+# Папка с CSV источниками (относительно рабочей директории)
+HUB_DIR = Path("sofia/get_sales_hub")
 
 
-def extract_linkedin_id(url: str) -> str | None:
-    """Извлечь nickname из LinkedIn URL.
+# ── Утилиты ────────────────────────────────────────────────────────────────────
 
-    linkedin.com/in/john-doe        → john-doe
-    linkedin.com/in/john-doe/       → john-doe
-    https://www.linkedin.com/in/ab  → ab
-    """
+def extract_slug(url: str) -> str | None:
+    """linkedin.com/in/john-doe-123 → john-doe-123"""
     if not url:
         return None
     url = url.strip().rstrip("/")
     m = re.search(r"linkedin\.com/in/([^/?#]+)", url, re.IGNORECASE)
     if m:
-        return m.group(1).strip()
+        slug = unquote(m.group(1)).strip()
+        return slug if slug else None
     return None
 
+
+def build_email_to_slug() -> dict[str, str]:
+    """Читает все CSV в get_sales_hub и строит {email.lower(): linkedin_slug}."""
+    mapping: dict[str, str] = {}
+
+    for csv_path in HUB_DIR.rglob("*.csv"):
+        try:
+            with open(csv_path, encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+        except Exception:
+            continue
+
+        if not rows:
+            continue
+
+        cols = list(rows[0].keys())
+
+        # Найти колонки
+        email_col = next(
+            (c for c in cols if c.lower() in ("work_email", "email", "work email")), None
+        )
+        url_col = next(
+            (c for c in cols if c.lower() in ("linkedin_url", "linkedin url")), None
+        )
+        nick_col = next(
+            (c for c in cols if c.lower() in ("linkedin_nickname", "linkedin nickname")), None
+        )
+
+        if not email_col:
+            continue
+
+        for row in rows:
+            email = row.get(email_col, "").strip().lower()
+            if not email:
+                continue
+
+            # Предпочитаем nickname, fallback — извлечь из URL
+            slug = None
+            if nick_col:
+                slug = row.get(nick_col, "").strip() or None
+            if not slug and url_col:
+                slug = extract_slug(row.get(url_col, ""))
+
+            if slug and email not in mapping:
+                mapping[email] = slug
+
+    return mapping
+
+
+# ── GetSales API ────────────────────────────────────────────────────────────────
 
 def get_all_lists(client: httpx.Client) -> list:
     resp = client.get(f"{BASE_URL}/leads/api/lists", headers=HEADERS)
     resp.raise_for_status()
-    data = resp.json()
-    return data.get("data", [])
+    return resp.json().get("data", [])
 
 
 def get_contacts_from_list(client: httpx.Client, list_uuid: str) -> list:
-    """Получить все контакты из списка (пагинация по 100)."""
     contacts = []
     offset = 0
     page_size = 100
 
     while True:
-        payload = {
-            "filter": {"list_uuid": list_uuid},
-            "limit": page_size,
-            "offset": offset,
-        }
         resp = client.post(
             f"{BASE_URL}/leads/api/leads/search",
             headers=HEADERS,
-            json=payload,
+            json={"filter": {"list_uuid": list_uuid}, "limit": page_size, "offset": offset},
         )
         if resp.status_code != 200:
-            print(f"    ⚠️  search error {resp.status_code}: {resp.text[:200]}")
+            print(f"    ⚠️  {resp.status_code}: {resp.text[:150]}")
             break
 
         data = resp.json()
@@ -90,103 +140,102 @@ def get_contacts_from_list(client: httpx.Client, list_uuid: str) -> list:
     return contacts
 
 
-def update_lead_linkedin_id(client: httpx.Client, list_uuid: str, lead_uuid: str, linkedin_id: str) -> bool:
-    """Обновить ln_id у контакта через upsert."""
-    payload = {
-        "list_uuid": list_uuid,
-        "leads": [{"uuid": lead_uuid, "ln_id": linkedin_id}],
-    }
-    resp = client.post(f"{BASE_URL}/leads/api/leads", headers=HEADERS, json=payload)
+def update_linkedin(client: httpx.Client, lead_uuid: str, slug: str) -> bool:
+    resp = client.put(
+        f"{BASE_URL}/leads/api/leads/{lead_uuid}",
+        headers=HEADERS,
+        json={"linkedin": slug},
+    )
     return resp.status_code in (200, 201)
 
 
+# ── Main ────────────────────────────────────────────────────────────────────────
+
 def main():
+    print("📂 Загружаю CSV источники...")
+    email_to_slug = build_email_to_slug()
+    print(f"   Email→slug маппингов: {len(email_to_slug)}\n")
+
     total_checked = 0
+    total_already_ok = 0
     total_missing = 0
-    total_has_url = 0
     total_updated = 0
+    total_no_data = 0
     total_failed = 0
 
     with httpx.Client(timeout=60) as client:
         print("📋 Получаю списки из GetSales...")
         lists = get_all_lists(client)
-        print(f"   Найдено списков: {len(lists)}\n")
+        print(f"   Списков: {len(lists)}\n")
 
         for lst in lists:
             list_uuid = lst.get("uuid") or lst.get("id")
             list_name = lst.get("name", "?")
-
             if not list_uuid:
                 continue
 
-            print(f"📂 Список: {list_name} ({list_uuid})")
+            print(f"📂 {list_name}")
             contacts = get_contacts_from_list(client, list_uuid)
-            print(f"   Контактов: {len(contacts)}")
+            total_checked += len(contacts)
 
-            list_missing = 0
-            list_updated = 0
-            list_failed = 0
-            list_no_url = 0
+            updated = failed = no_data = 0
 
             for item in contacts:
                 lead = item.get("lead", {})
                 lead_uuid = lead.get("uuid")
-                ln_id = lead.get("ln_id") or lead.get("linkedin_id")
-                linkedin_url = lead.get("linkedin")
-                name = f"{lead.get('first_name','')} {lead.get('last_name','')}".strip()
+                current_linkedin = lead.get("linkedin")
 
-                total_checked += 1
-
-                if ln_id:
-                    continue  # уже есть
+                if current_linkedin:
+                    total_already_ok += 1
+                    continue
 
                 total_missing += 1
-                list_missing += 1
 
-                if not linkedin_url:
-                    list_no_url += 1
+                # Матч по email
+                email = (lead.get("work_email") or lead.get("personal_email") or "").strip().lower()
+                slug = email_to_slug.get(email) if email else None
+
+                # Fallback: slug прямо из поля linkedin если там URL (не slug)
+                if not slug:
+                    no_data += 1
+                    total_no_data += 1
                     continue
-
-                extracted = extract_linkedin_id(linkedin_url)
-                if not extracted:
-                    list_no_url += 1
-                    continue
-
-                total_has_url += 1
 
                 if DRY_RUN:
-                    print(f"   [DRY] {name} → {extracted}")
-                    list_updated += 1
+                    name = f"{lead.get('first_name','')} {lead.get('last_name','')}".strip()
+                    print(f"  [DRY] {name} ({email}) → {slug}")
+                    updated += 1
                     total_updated += 1
                     continue
 
-                success = update_lead_linkedin_id(client, list_uuid, lead_uuid, extracted)
-                if success:
-                    list_updated += 1
+                if update_linkedin(client, lead_uuid, slug):
+                    updated += 1
                     total_updated += 1
                 else:
-                    list_failed += 1
+                    failed += 1
                     total_failed += 1
-                    print(f"   ✗ Не удалось обновить: {name} ({lead_uuid})")
+                    name = f"{lead.get('first_name','')} {lead.get('last_name','')}".strip()
+                    print(f"  ✗ {name} ({lead_uuid})")
 
                 time.sleep(DELAY)
 
-            if list_missing > 0:
-                print(f"   → Без ln_id: {list_missing} | Обновлено: {list_updated} | Нет URL: {list_no_url} | Ошибок: {list_failed}")
+            missing_in_list = updated + failed + no_data
+            if missing_in_list > 0:
+                print(f"   Без linkedin: {missing_in_list} | Обновлено: {updated} | Нет данных: {no_data} | Ошибок: {failed}")
             else:
-                print(f"   → Все контакты имеют ln_id ✓")
+                print(f"   Все OK ✓")
             print()
 
     print("=" * 60)
-    print(f"ИТОГО:")
-    print(f"  Проверено:    {total_checked}")
-    print(f"  Без ln_id:    {total_missing}")
-    print(f"  Был URL:      {total_has_url}")
-    print(f"  Обновлено:    {total_updated}")
-    print(f"  Ошибок:       {total_failed}")
-    print(f"  Без URL:      {total_missing - total_has_url}")
+    print("ИТОГО:")
+    print(f"  Проверено:       {total_checked}")
+    print(f"  Уже OK:          {total_already_ok}")
+    print(f"  Без linkedin:    {total_missing}")
+    print(f"  Обновлено:       {total_updated}")
+    print(f"  Нет данных:      {total_no_data}")
+    print(f"  Ошибок API:      {total_failed}")
     if DRY_RUN:
-        print("\n  [DRY RUN — реальных изменений не было]")
+        print("\n  [DRY RUN — изменений не было]")
 
 
 if __name__ == "__main__":
