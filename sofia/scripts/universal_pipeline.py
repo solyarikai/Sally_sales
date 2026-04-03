@@ -997,7 +997,7 @@ def step5_classify(config: ProjectConfig, run_id: int, prompt_text: str = None) 
     return {"targets_found": targets, "total_analyzed": total}
 
 
-def step5_reanalyze(config: ProjectConfig, run_id: int,
+def step5_reclassify(config: ProjectConfig, run_id: int,
                      prompt_text: str = None, model: str = "gpt-4o-mini") -> dict:
     """Re-run analysis with different prompt (no re-scrape needed)."""
     print(f"\n{'='*60}")
