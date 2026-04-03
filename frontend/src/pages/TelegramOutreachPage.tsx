@@ -6833,7 +6833,6 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [selectedContact, setSelectedContact] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
   const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [crmDeleteConfirm, setCrmDeleteConfirm] = useState<string | null>(null);
@@ -6876,13 +6875,11 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
     setChatMessages([]);
     setNotes([]);
     try {
-      const [h, cp, dialogRes, notesRes] = await Promise.all([
-        telegramOutreachApi.getCrmContactHistory(c.id),
+      const [cp, dialogRes, notesRes] = await Promise.all([
         telegramOutreachApi.getCrmContactCampaigns(c.id),
         telegramOutreachApi.getCrmContactDialog(c.id),
         telegramOutreachApi.getCrmContactNotes(c.id),
       ]);
-      setHistory(h.history);
       setCampaignProgress(cp.campaigns || []);
       setNotes(notesRes.notes || []);
       const dialogs = dialogRes.dialogs || [];
@@ -6890,7 +6887,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
         setDialogInfo(dialogs[0]);
         loadChatMessages(dialogs[0].id);
       }
-    } catch { setHistory([]); setCampaignProgress([]); }
+    } catch { setCampaignProgress([]); }
   };
 
   const loadChatMessages = async (dialogId: number) => {
