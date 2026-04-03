@@ -1621,7 +1621,8 @@ async def _staggered_photo_upload(task_id: str, account_ids: list[int], photo_ma
     """Background: upload profile photos to Telegram with staggered delays."""
     import random
     from app.db import async_session_maker
-    from telethon.tl import functions as _fn, types as _tp
+    from telethon.tl.functions.photos import GetUserPhotosRequest, DeletePhotosRequest, UploadProfilePhotoRequest
+    from telethon.tl.types import InputPhoto, InputUserSelf
 
     progress = _bulk_op_progress[task_id]
     try:
@@ -1651,22 +1652,33 @@ async def _staggered_photo_upload(task_id: str, account_ids: list[int], photo_ma
                         await telegram_engine.disconnect(aid)
                     except Exception:
                         pass
-                    _client = await telegram_engine.connect(aid, **kwargs)
+                    # Try with proxy first; fall back to direct if proxy fails
+                    try:
+                        _client = await telegram_engine.connect(aid, **kwargs)
+                    except Exception as conn_err:
+                        logger.warning(f"[STAGGERED] {account.phone} proxy connect failed: {conn_err}, retrying direct")
+                        try:
+                            await telegram_engine.disconnect(aid)
+                        except Exception:
+                            pass
+                        kwargs_direct = _account_connect_kwargs(account, None)
+                        _client = await telegram_engine.connect(aid, **kwargs_direct)
                     if await _client.is_user_authorized():
+                        me_user = InputUserSelf()
                         # Delete old photos
                         try:
-                            _photos = await _client(_fn.photos.GetUserPhotosRequest(user_id='me', offset=0, max_id=0, limit=100))
+                            _photos = await _client(GetUserPhotosRequest(user_id=me_user, offset=0, max_id=0, limit=100))
                             if hasattr(_photos, 'photos'):
                                 for old_p in _photos.photos:
                                     try:
-                                        await _client(_fn.photos.DeletePhotosRequest(id=[_tp.InputPhoto(id=old_p.id, access_hash=old_p.access_hash, file_reference=old_p.file_reference)]))
+                                        await _client(DeletePhotosRequest(id=[InputPhoto(id=old_p.id, access_hash=old_p.access_hash, file_reference=old_p.file_reference)]))
                                     except Exception:
                                         pass
                         except Exception:
                             pass
                         # Upload new photo
                         uploaded = await _client.upload_file(photo_path)
-                        await _client(_fn.photos.UploadProfilePhotoRequest(file=uploaded))
+                        await _client(UploadProfilePhotoRequest(file=uploaded))
                         progress["synced"] += 1
                     await telegram_engine.disconnect(aid)
                 except Exception as e:
