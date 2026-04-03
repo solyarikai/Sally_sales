@@ -2050,7 +2050,7 @@ def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
         else:
             print("  ⚠ No sequences — add manually in SmartLead UI.")
 
-        # ── 12e: Set schedule ──
+        # ── Set schedule ──
         if config.schedule:
             if not _checkpoint(f"Set schedule for '{campaign_name}'?"):
                 print("  Skipping schedule.")
