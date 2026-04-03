@@ -1034,7 +1034,7 @@ def step5_reclassify(config: ProjectConfig, run_id: int,
 
 def step6_verify(run_id: int) -> dict:
     """Prepare FindyMail verification → creates CP3 with cost estimate."""
-    print(f"\n  Step 6: Prepare Verification (run #{run_id})")
+    print(f"\n  STEP 6: VERIFY (run #{run_id})")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/prepare-verification")
     gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
     pending = [g for g in gates if g["status"] == "pending"]
