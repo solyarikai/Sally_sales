@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-03-23T16:47:37.042876+00:00",
+  "targets": 719,
+  "rejects": 14181,
+  "total_classified": 14900,
+  "segments": {
+    "IM_FIRST_AGENCIES": 353,
+    "OTHER": 14181,
+    "INFLUENCER_PLATFORMS": 216,
+    "AFFILIATE_PERFORMANCE": 144,
+    "NEW:CATEGORY_NAME": 4,
+    "NEW:SOCIAL_COMMERCE_TOOLS": 1,
+    "NEW: SOCIAL_COMMERCE_TOOLS": 1
+  }
+}

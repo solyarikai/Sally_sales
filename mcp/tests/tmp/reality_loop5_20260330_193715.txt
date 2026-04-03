@@ -1,0 +1,23 @@
+S13 PASS. Here's the full results table:
+
+| Step | Tool | Result | Detail |
+|------|------|--------|--------|
+| S1 | login | **PASS** | user_id=22, logged in as Petr |
+| S2 | configure_integration (smartlead) | **PASS** | 1986 campaigns found |
+| S3 | configure_integration (apollo) | **PASS** | Connected |
+| S4 | configure_integration (openai) | **PASS** | Key saved |
+| S5 | create_project | **PASS** | project_id=241, website scraped |
+| S6 | tam_gather | **PASS** | run_id=248, 26 companies gathered |
+| S7 | tam_blacklist_check + approve | **PASS** | gate_id=295, 26 passed, 0 rejected |
+| S8 | tam_pre_filter + tam_scrape | **PASS** | 26 passed filter, 19/26 scraped (7 errors) |
+| **S9** | **tam_analyze** | **FAIL** | **0 targets (0% rate) — WORSE than loop 3 (1 target, ~5%). Required >20%. Via negativa rules rejected everything.** |
+| S10 | generate_sequence + approve | **PASS** | sequence_id=71, 4-step sequence |
+| S11 | smartlead_push_campaign | **PASS** | campaign_id=3104837, 3 accounts, 2 leads uploaded |
+| S12 | activate_campaign | **PASS** | Campaign ACTIVE, monitoring ON |
+| S13 | replies_summary + get_context | **PASS** | 0 replies (expected for new campaign), context shows 1 project + 1 run |
+
+**S9 CRITICAL FAILURE ANALYSIS:**
+- Loop 3: 1 target out of ~19 analyzed = ~5% target rate
+- **Loop 5: 0 targets out of 19 analyzed = 0% target rate**
+- Target rate went **DOWN**, not up. The simplified via negativa rules are **more aggressive**, rejecting all IT consulting/management consulting firms in Miami as non-targets for EasyStaff's payroll/contractor payment offer.
+- Root cause likely: the generic via negativa prompt rejects companies that don't explicitly show international freelancer/contractor payment needs on their website — which most local Miami consultancies won't mention.

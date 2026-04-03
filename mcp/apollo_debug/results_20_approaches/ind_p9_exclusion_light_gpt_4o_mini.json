@@ -1,0 +1,58 @@
+{
+  "type": "ind",
+  "prompt": "p9_exclusion_light",
+  "model": "gpt-4o-mini",
+  "avg": 0.6,
+  "details": [
+    {
+      "seg": "it_miami",
+      "inds": [
+        "information technology & services",
+        "financial services",
+        "telecommunications",
+        "computer software"
+      ],
+      "score": -1
+    },
+    {
+      "seg": "video_london",
+      "inds": [
+        "entertainment",
+        "marketing & advertising",
+        "media production",
+        "performing arts"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "fashion_italy",
+      "inds": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "textiles",
+        "retail"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "inds": [
+        "marketing & advertising",
+        "apparel & fashion",
+        "entertainment",
+        "online media"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "inds": [
+        "apparel & fashion",
+        "entertainment",
+        "luxury goods & jewelry",
+        "food & beverages"
+      ],
+      "score": 0
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "segment": "OnSocial Creator UK",
+  "size": {
+    "min_employees": 10,
+    "max_employees": 200,
+    "apollo_range": "10,200",
+    "reasoning": "SMBs in this range are likely to leverage influencer marketing but may not have the resources for a dedicated internal team, making OnSocial's services particularly valuable."
+  },
+  "total": 5859,
+  "results": [
+    {
+      "domain": "thenewgen.com",
+      "is_target": false,
+      "segment": "Creative Agency",
+      "reasoning": "NewGen is a creative agency that connects brands with creators, which makes them a competitor rather than a potential buyer of OnSocial's services."
+    },
+    {
+      "domain": "found.co.uk",
+      "is_target": false,
+      "segment": "Digital Marketing Agency",
+      "reasoning": "Found is a digital marketing agency that focuses on various marketing strategies, but they do not appear to be specifically looking for influencer marketing platforms, making them an unrelated industry."
+    },
+    {
+      "domain": "genflow.com",
+      "is_target": false,
+      "segment": "Creator Management",
+      "reasoning": "Genflow focuses on helping creators manage and monetize their content, which positions them as a competitor rather than a potential buyer of influencer marketing services."
+    },
+    {
+      "domain": "seenconnects.com",
+      "is_target": true,
+      "segment": "Influencer & Social Marketing Agency",
+      "reasoning": "SEEN Connects is an influencer and social marketing agency that would benefit from OnSocial's platform to manage and pay influencers more efficiently."
+    },
+    {
+      "domain": "jadedldn.com",
+      "is_target": false,
+      "segment": "E-commerce",
+      "reasoning": "Jaded London is primarily an e-commerce brand and does not fit the criteria of a company that would buy influencer marketing services."
+    }
+  ]
+}

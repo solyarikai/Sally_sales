@@ -1,0 +1,5 @@
+Add a follow-up tab next to replies in tasks page, between replies and meetings. And follow-ups should be exactly the same as replies, but there should be contacts that we need to follow up. Like in replies, there are contacts that need to be replied to, like the latest reply is from the contact, not from operator. But on follow-up tab, the latest reply is from operator. But not only, like, of course, if, like, operator replies, via a system, you know about it. But sometimes operator replies via smartlead or GetSales directly. So, suggest the best approach for now, only for EasyStaff group project, only, like, prioritize most recent campaigns for EasyStaff group projects. And, like, add this follow-up tab. Also, like, follow-up suggestions must be generated also this calendar selection must be present. For instance, if for follow-up, if operator wants to generate a message with slots, check in UI, act as architecture and UX guide, iterate until done
+
+
+
+make set via project page the numbers of days to consider as "need followup", by defalt 2  

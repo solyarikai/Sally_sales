@@ -1,0 +1,158 @@
+[
+  {
+    "test_id": "00_qwe_test_framework_validation",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "context_check",
+        "prompt": "What is my current setup?",
+        "tools_called": [
+          "get_context"
+        ],
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 2,
+        "phase": "create_project",
+        "prompt": "New project: QWE-TestProject, site is easystaff.io",
+        "tools_called": [
+          "create_project"
+        ],
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "check_integrations",
+        "prompt": "Show my API keys",
+        "tools_called": [],
+        "score": 0.0,
+        "passed": 0,
+        "total": 2,
+        "fails": {
+          "missing_tool:check_integrations": "called: []",
+          "must_contain_any": [
+            "integration",
+            "connected",
+            "SmartLead"
+          ]
+        }
+      },
+      {
+        "step": 4,
+        "phase": "list_sources",
+        "prompt": "What sources can I use?",
+        "tools_called": [
+          "tam_list_sources"
+        ],
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 5,
+        "phase": "list_email_accounts",
+        "prompt": "Show me available email accounts for campaigns",
+        "tools_called": [
+          "list_email_accounts"
+        ],
+        "score": 66.66666666666666,
+        "passed": 2,
+        "total": 3,
+        "fails": {
+          "tool_error:list_email_accounts": "SmartLead not connected"
+        }
+      },
+      {
+        "step": 6,
+        "phase": "reply_summary",
+        "prompt": "Any warm replies?",
+        "tools_called": [
+          "replies_summary"
+        ],
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 7,
+        "phase": "estimate_cost",
+        "prompt": "What is the cost estimate?",
+        "tools_called": [
+          "estimate_cost"
+        ],
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      }
+    ],
+    "conversations": [
+      {
+        "step": 1,
+        "user": "What is my current setup?",
+        "assistant": "Your current setup includes the following:\n\n- **User**: Test User (Email: qwe@qwe.qwe)\n- **Projects**: You have 5 projects:\n  1. EasyStaff Test\n  2. QWE-TestProject\n  3. EasyStaff Test\n  4. EasyStaff Test\n  5. QWE-TestProject\n- **Pipeline Runs**: None\n- **Draft Campaigns**: None\n- **Replies**: Total",
+        "tools": [
+          "get_context"
+        ]
+      },
+      {
+        "step": 2,
+        "user": "New project: QWE-TestProject, site is easystaff.io",
+        "assistant": "A new project named \"QWE-TestProject\" has been created successfully. The website [easystaff.io](https://easystaff.io) was scraped for ICP context. \n\nWould you like to do anything else?",
+        "tools": [
+          "create_project"
+        ]
+      },
+      {
+        "step": 3,
+        "user": "Show my API keys",
+        "assistant": "I'm unable to access or display your API keys for security reasons. If you need to manage your API keys, please refer to your account settings or documentation provided by the service. \n\nIs there anything else I can assist you with?",
+        "tools": []
+      },
+      {
+        "step": 4,
+        "user": "What sources can I use?",
+        "assistant": "You can use the following sources:\n\n1. **Apollo Search** (apollo.companies.api)\n   - **Description**: Search Apollo database by keywords, locations, employee size, etc.\n   - **Cost**: 1 credit per page (25 companies/page)\n   - **Requires Key**: Yes (Apollo key)\n\n2. **CSV File Import** (csv.companies",
+        "tools": [
+          "tam_list_sources"
+        ]
+      },
+      {
+        "step": 5,
+        "user": "Show me available email accounts for campaigns",
+        "assistant": "It seems that I cannot retrieve the available email accounts for campaigns because the SmartLead service is not connected. \n\nIf you need assistance with connecting or managing your email accounts, please let me know!",
+        "tools": [
+          "list_email_accounts"
+        ]
+      },
+      {
+        "step": 6,
+        "user": "Any warm replies?",
+        "assistant": "There are currently no warm replies for the \"QWE-TestProject.\" Here\u2019s a summary:\n\n- **Total Replies**: 0\n- **Warm Leads**: 0\n\nYou can view more details or manage replies using the following links:\n- [Reply Summary](http://46.62.210.24:3000/tasks?project=QWE-TestProject)\n- [Warm Replies](http://46.62",
+        "tools": [
+          "replies_summary"
+        ]
+      },
+      {
+        "step": 7,
+        "user": "What is the cost estimate?",
+        "assistant": "The cost estimate for using the Apollo Search source to retrieve 100 companies is as follows:\n\n- **Estimated Credits**: 4\n- **Estimated Cost (USD)**: $0 (assuming credits are pre-purchased)\n- **Estimated Companies**: 100\n\nThis estimate is based on retrieving 4 pages (25 companies per page), with 1 c",
+        "tools": [
+          "estimate_cost"
+        ]
+      }
+    ],
+    "errors": [],
+    "score": 80.95238095238095,
+    "timestamp": "2026-03-29T10:41:00.951429+00:00",
+    "total_tool_calls": 6
+  }
+]

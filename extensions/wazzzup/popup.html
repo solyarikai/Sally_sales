@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wazzzup</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header>
+      <div class="logo">
+        <span class="logo-icon">W</span>
+        <div>
+          <h1>Wazzzup</h1>
+          <p class="subtitle">Bulk WhatsApp Sender</p>
+        </div>
+      </div>
+      <div id="wa-status" class="status status--disconnected">
+        <span class="status-dot"></span>
+        <span class="status-text">Not on WhatsApp</span>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="compose">Compose</button>
+      <button class="tab" data-tab="contacts">Contacts</button>
+      <button class="tab" data-tab="send">Send</button>
+      <button class="tab" data-tab="log">Log</button>
+    </nav>
+
+    <!-- COMPOSE TAB -->
+    <section id="tab-compose" class="tab-content active">
+      <div class="section">
+        <label class="label">
+          Message Template
+          <span class="hint">Use <code>{name}</code> or <code>{{name}}</code></span>
+        </label>
+        <div id="var-chips" class="template-toolbar">
+          <button class="chip" data-var="{{name}}">+ name</button>
+          <button class="chip" data-var="{{company}}">+ company</button>
+          <button class="chip" data-var="{{custom1}}">+ custom1</button>
+        </div>
+        <textarea id="template" rows="5" placeholder="Hi {{name}}, just wanted to reach out about..."></textarea>
+        <div class="char-count"><span id="char-count">0</span> chars</div>
+      </div>
+
+      <div class="section">
+        <label class="label">Saved Templates</label>
+        <div id="saved-templates" class="saved-list"></div>
+        <div class="row">
+          <input id="template-name" type="text" placeholder="Template name..." class="input-sm">
+          <button id="save-template" class="btn btn--ghost btn--sm">Save</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <label class="label">Preview</label>
+        <div id="preview" class="preview-bubble">
+          <span class="preview-placeholder">Type a message above to see preview</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTACTS TAB -->
+    <section id="tab-contacts" class="tab-content">
+      <div class="section">
+        <label class="label">
+          Phone Numbers
+          <span class="hint">One per line: <code>+1234567890</code> or <code>+1234567890,John,Acme</code></span>
+        </label>
+        <textarea id="numbers" rows="8" placeholder="+1234567890,John,Acme Inc&#10;+0987654321,Sarah,Beta Corp&#10;+1122334455"></textarea>
+        <div class="row mt-8">
+          <span id="contact-count" class="badge">0 contacts</span>
+          <div class="row">
+            <button id="paste-clipboard" class="btn btn--ghost btn--sm">Paste</button>
+            <button id="clear-numbers" class="btn btn--ghost btn--sm btn--danger">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <label class="label">Import from CSV / TXT</label>
+        <div id="drop-zone" class="drop-zone">
+          <input type="file" id="file-input" accept=".csv,.txt,.tsv" hidden>
+          <p>Drop file here or <button id="browse-btn" class="link-btn">browse</button></p>
+          <p class="hint">CSV with header row (Phone, Name, ...) — any columns become variables</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <label class="label">Parsed Contacts</label>
+        <div id="contacts-table-wrap" class="table-wrap">
+          <table id="contacts-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="select-all" checked></th>
+                <th>Phone</th>
+                <th>Name</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="contacts-body"></tbody>
+          </table>
+          <p id="no-contacts" class="empty-state">No contacts added yet</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEND TAB -->
+    <section id="tab-send" class="tab-content">
+      <div class="section">
+        <div class="summary-cards">
+          <div class="summary-card">
+            <span class="summary-value" id="summary-contacts">0</span>
+            <span class="summary-label">Contacts</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value" id="summary-template">--</span>
+            <span class="summary-label">Template</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Message Delay -->
+      <div class="section">
+        <label class="label">Delay Between Messages</label>
+        <div class="range-inputs">
+          <div class="range-field">
+            <label class="hint">Min</label>
+            <div class="input-with-unit">
+              <input type="number" id="delay-min" value="4" min="1" max="60" class="input-num">
+              <span class="unit">min</span>
+            </div>
+          </div>
+          <span class="range-dash">—</span>
+          <div class="range-field">
+            <label class="hint">Max</label>
+            <div class="input-with-unit">
+              <input type="number" id="delay-max" value="7" min="1" max="60" class="input-num">
+              <span class="unit">min</span>
+            </div>
+          </div>
+        </div>
+        <p class="hint mt-4">Random delay in this range for each message</p>
+      </div>
+
+      <!-- Batch Settings -->
+      <div class="section">
+        <label class="label">Batch Size & Break</label>
+        <div class="range-inputs">
+          <div class="range-field">
+            <label class="hint">Messages per batch</label>
+            <div class="input-with-unit">
+              <input type="number" id="batch-size" value="3" min="1" max="20" class="input-num">
+              <span class="unit">msg</span>
+            </div>
+          </div>
+          <span class="range-dash"></span>
+          <div class="range-field">
+            <label class="hint">Break after batch</label>
+            <div class="input-with-unit">
+              <input type="number" id="batch-break" value="60" min="5" max="180" class="input-num">
+              <span class="unit">min</span>
+            </div>
+          </div>
+        </div>
+        <p class="hint mt-4">Send 3, pause ~1h, repeat — mimics human pattern</p>
+      </div>
+
+      <!-- Daily Limit -->
+      <div class="section">
+        <label class="label">Daily Limit</label>
+        <div class="range-inputs">
+          <div class="range-field">
+            <label class="hint">Max messages/day</label>
+            <div class="input-with-unit">
+              <input type="number" id="daily-limit" value="12" min="1" max="50" class="input-num">
+              <span class="unit">msg</span>
+            </div>
+          </div>
+          <span class="range-dash"></span>
+          <div class="range-field">
+            <label class="hint">Sent today</label>
+            <div class="input-with-unit">
+              <span id="daily-sent" class="daily-counter">0</span>
+              <span class="unit">/ <span id="daily-limit-display">12</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Working Hours -->
+      <div class="section">
+        <label class="label">Working Hours</label>
+        <div class="range-inputs">
+          <div class="range-field">
+            <label class="hint">Start</label>
+            <div class="input-with-unit">
+              <input type="number" id="work-start" value="9" min="0" max="23" class="input-num">
+              <span class="unit">:00</span>
+            </div>
+          </div>
+          <span class="range-dash">—</span>
+          <div class="range-field">
+            <label class="hint">End</label>
+            <div class="input-with-unit">
+              <input type="number" id="work-end" value="17" min="0" max="23" class="input-num">
+              <span class="unit">:00</span>
+            </div>
+          </div>
+        </div>
+        <div class="row mt-4">
+          <label class="toggle">
+            <input type="checkbox" id="respect-hours" checked>
+            <span class="toggle-track"></span>
+          </label>
+          <span class="hint">Only send during working hours (pauses & resumes automatically)</span>
+        </div>
+      </div>
+
+      <!-- Schedule Preview -->
+      <div class="section">
+        <label class="label">Estimated Schedule</label>
+        <div id="schedule-preview" class="schedule-preview">
+          <p class="empty-state">Configure settings above to see schedule</p>
+        </div>
+      </div>
+
+      <div id="progress-section" class="section" style="display:none">
+        <label class="label">Progress</label>
+        <div class="progress-bar-wrap">
+          <div id="progress-bar" class="progress-bar" style="width:0%"></div>
+        </div>
+        <div class="row mt-8">
+          <span id="progress-text">0 / 0</span>
+          <span id="progress-eta" class="hint"></span>
+        </div>
+        <div id="next-action" class="next-action" style="display:none"></div>
+      </div>
+
+      <div class="section">
+        <button id="start-btn" class="btn btn--primary btn--full" disabled>
+          Open WhatsApp Web to Start
+        </button>
+        <button id="stop-btn" class="btn btn--danger btn--full" style="display:none">
+          Stop Sending
+        </button>
+        <button id="pause-btn" class="btn btn--ghost btn--full" style="display:none">
+          Pause
+        </button>
+      </div>
+    </section>
+
+    <!-- LOG TAB -->
+    <section id="tab-log" class="tab-content">
+      <div class="section">
+        <div class="row">
+          <label class="label">Send Log</label>
+          <div class="row">
+            <button id="export-log" class="btn btn--ghost btn--sm">Export CSV</button>
+            <button id="clear-log" class="btn btn--ghost btn--sm btn--danger">Clear</button>
+          </div>
+        </div>
+        <div id="log-list" class="log-list">
+          <p class="empty-state">No messages sent yet</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="stats-row">
+          <div class="stat">
+            <span class="stat-value" id="stat-sent">0</span>
+            <span class="stat-label">Sent</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value stat--success" id="stat-success">0</span>
+            <span class="stat-label">Success</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value stat--fail" id="stat-failed">0</span>
+            <span class="stat-label">Failed</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

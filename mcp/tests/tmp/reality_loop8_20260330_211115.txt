@@ -1,0 +1,19 @@
+All steps complete. Here's the scorecard:
+
+| Step | Tool | Result | Detail |
+|------|------|--------|--------|
+| 1 | `login` | **PASS** | Token accepted, logged in as Petr |
+| 2 | `configure_integration` (smartlead) | **PASS** | 1987 campaigns found |
+| 3 | `configure_integration` (apollo) | **PASS** | Connected |
+| 4 | `configure_integration` (openai) | **PASS** | Key saved |
+| 5 | `create_project` | **PASS** | ES-L8 created (id=247), **asks about previous campaigns** ✓ |
+| 6 | `tam_gather` (no confirm) | **PASS** | Preview returned: total_available=**3,394** ✓, cost breakdown shows default (4 credits/~35 targets) + full run (136 credits/3,394) ✓, asks to confirm ✓, **NO results returned** ✓ |
+| 7 | `tam_gather` (confirm=true) | **PASS** | credits_spent=**2** ✓, next_question about email accounts ✓ |
+| 8 | `tam_blacklist_check` | **PASS** | 48 passed, 1 rejected, gate_id=303 |
+| 9 | `tam_approve_checkpoint` (CP1) | **PASS** | Gate 303 approved |
+| 10 | `tam_pre_filter` | **PASS** | 48 passed, 0 filtered |
+| 11a | `tam_scrape` | **PASS** | 37/48 scraped |
+| 11b | `tam_analyze` | **PASS** | **targets=2 > 0** ✓ (5% rate, 2 IT_CONSULTING) |
+| 12 | `get_context` | **PASS** | Shows ES-L8 project, run 253 awaiting CP2 approval |
+
+**Loop 8: 12/12 PASS.** `suggest_apollo_filters` confirmed removed — no filter suggestion appeared. Filter preview works correctly with real total_available and cost breakdown before gathering.

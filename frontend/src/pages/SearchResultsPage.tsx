@@ -1,0 +1,1738 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import {
+  Target, Download, FileSpreadsheet, ArrowLeft,
+  Loader2, AlertCircle, CheckCircle2, XCircle,
+  ChevronDown, ChevronRight, ExternalLink, DollarSign,
+  BarChart3, Globe, Mail, MessageSquare,
+  Send, Building2, Play, Square, TrendingUp, Filter, X, BookOpen,
+} from 'lucide-react';
+import { cn } from '../lib/utils';
+import { useAppStore } from '../store/appStore';
+import {
+  projectSearchApi,
+  type SearchJobFullDetail,
+  type SearchHistoryItem,
+  type SearchResultItem,
+  type QueryItem,
+  type QuerySegmentGroup,
+  type DomainCampaignsMap,
+  type DomainCampaignInfo,
+  type ProjectPipelineSummary,
+} from '../api/dataSearch';
+import { pipelineApi, type FullPipelineStatus } from '../api/pipeline';
+import { CampaignPushRules } from '../components/CampaignPushRules';
+import { TargetCompaniesViewer } from '../components/TargetCompaniesViewer';
+import { PushTracker } from '../components/PushTracker';
+
+const statusColors: Record<string, string> = {
+  completed: 'bg-green-100 text-green-800',
+  running: 'bg-blue-100 text-blue-800',
+  pending: 'bg-yellow-100 text-yellow-800',
+  failed: 'bg-red-100 text-red-800',
+  cancelled: 'bg-gray-100 text-gray-800',
+};
+
+export function SearchResultsPage() {
+  const { jobId } = useParams<{ jobId: string }>();
+
+  if (jobId) {
+    return <JobDetailView jobId={parseInt(jobId)} />;
+  }
+
+  return <JobHistoryView />;
+}
+
+// ============ Job History List View ============
+
+type TabId = 'jobs' | 'targets' | 'push-rules' | 'push-tracker';
+
+function JobHistoryView() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { currentCompany, currentProject, projects, setCurrentProject } = useAppStore();
+  const selectedProject = currentProject?.id ?? undefined;
+
+  // Sync project from URL param on mount
+  useEffect(() => {
+    const projectParam = searchParams.get('project');
+    if (projectParam) {
+      const pid = parseInt(projectParam, 10);
+      if (pid && pid !== currentProject?.id && projects.length > 0) {
+        const found = projects.find(p => p.id === pid);
+        if (found) setCurrentProject(found);
+      }
+    }
+  }, [searchParams, projects]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update URL when project changes
+  useEffect(() => {
+    if (selectedProject) {
+      const currentParam = searchParams.get('project');
+      if (currentParam !== String(selectedProject)) {
+        setSearchParams({ project: String(selectedProject) }, { replace: true });
+      }
+    }
+  }, [selectedProject]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<{ items: SearchHistoryItem[]; total: number } | null>(null);
+  const [page, setPage] = useState(1);
+  const [exportingTargets, setExportingTargets] = useState(false);
+  const [summary, setSummary] = useState<ProjectPipelineSummary | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>('jobs');
+  const [pipelineStatus, setPipelineStatus] = useState<FullPipelineStatus | null>(null);
+  const [startingPipeline, setStartingPipeline] = useState(false);
+  const [stoppingPipeline, setStoppingPipeline] = useState(false);
+
+  const handleExportTargets = async () => {
+    const projectId = selectedProject || data?.items?.[0]?.project_id;
+    if (!projectId) return;
+    setExportingTargets(true);
+    try {
+      const { sheet_url } = await projectSearchApi.exportToGoogleSheet(projectId, {
+        targets_only: true,
+        exclude_contacted: true,
+      });
+      window.open(sheet_url, '_blank');
+    } catch (err: any) {
+      alert(err.userMessage || 'Export failed');
+    } finally {
+      setExportingTargets(false);
+    }
+  };
+
+  const load = useCallback(async () => {
+    if (!currentCompany) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await projectSearchApi.getSearchHistory(page, 20, selectedProject);
+      setData(result);
+      // Load pipeline summary for the selected or first project
+      const projectId = selectedProject || result.items?.[0]?.project_id;
+      if (projectId) {
+        try {
+          const s = await projectSearchApi.getProjectPipelineSummary(projectId);
+          setSummary(s);
+        } catch { /* ignore */ }
+      } else {
+        setSummary(null);
+      }
+    } catch (err: any) {
+      setError(err.userMessage || 'Failed to load search history');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, currentCompany, selectedProject]);
+
+  // Load full pipeline status
+  const loadPipelineStatus = useCallback(async () => {
+    if (!selectedProject) return;
+    try {
+      const status = await pipelineApi.getFullPipelineStatus(selectedProject);
+      setPipelineStatus(status);
+    } catch {
+      setPipelineStatus(null);
+    }
+  }, [selectedProject]);
+
+  // Auto-refresh every 30s when pipeline is running
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadPipelineStatus(); }, [loadPipelineStatus]);
+  useEffect(() => {
+    if (!summary?.pipeline?.running && !pipelineStatus?.running) return;
+    const interval = setInterval(() => { load(); loadPipelineStatus(); }, 15000);
+    return () => clearInterval(interval);
+  }, [summary?.pipeline?.running, pipelineStatus?.running, load, loadPipelineStatus]);
+
+  const handleStartPipeline = async () => {
+    const pid = selectedProject;
+    if (!pid) return;
+    setStartingPipeline(true);
+    try {
+      await pipelineApi.startFullPipeline(pid, {
+        use_segment_search: true,  // Template-based segment search
+        skip_google: true,          // Yandex only for cost control
+        skip_smartlead_push: true,
+      });
+      await loadPipelineStatus();
+    } catch (err: any) {
+      alert(err.userMessage || 'Failed to start pipeline');
+    } finally {
+      setStartingPipeline(false);
+    }
+  };
+
+  const handleStopPipeline = async () => {
+    const pid = selectedProject;
+    if (!pid) return;
+    setStoppingPipeline(true);
+    try {
+      await pipelineApi.stopFullPipeline(pid);
+      await loadPipelineStatus();
+    } catch (err: any) {
+      alert(err.userMessage || 'Failed to stop pipeline');
+    } finally {
+      setStoppingPipeline(false);
+    }
+  };
+
+  if (!currentCompany) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-blue-700 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          Select a company to view search results
+        </div>
+      </div>
+    );
+  }
+
+  const allItems = data?.items || [];
+  const total = data?.total || 0;
+
+  // Jobs list filters
+  const [jobSegmentFilter, setJobSegmentFilter] = useState<string | null>(null);
+  const [jobGeoFilter, setJobGeoFilter] = useState<string | null>(null);
+  const [jobStatusFilter, setJobStatusFilter] = useState<string | null>(null);
+  const [jobOpenDropdown, setJobOpenDropdown] = useState<'segment' | 'geo' | 'status' | null>(null);
+  const jobFilterRef = useRef<HTMLTableSectionElement>(null);
+
+  // Click-outside to close job filter dropdowns
+  useEffect(() => {
+    if (!jobOpenDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (jobFilterRef.current && !jobFilterRef.current.contains(e.target as Node)) {
+        setJobOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [jobOpenDropdown]);
+
+  // Client-side filtering
+  const items = allItems.filter(j => {
+    if (jobSegmentFilter && j.segment !== jobSegmentFilter) return false;
+    if (jobGeoFilter && j.geo !== jobGeoFilter) return false;
+    if (jobStatusFilter && j.status !== jobStatusFilter) return false;
+    return true;
+  });
+
+  // Unique filter values from all items (not filtered)
+  const jobSegments = [...new Set(allItems.map(j => j.segment).filter(Boolean))] as string[];
+  const jobGeos = [...new Set(
+    (jobSegmentFilter ? allItems.filter(j => j.segment === jobSegmentFilter) : allItems)
+      .map(j => j.geo).filter(Boolean)
+  )] as string[];
+  const jobStatuses = [...new Set(allItems.map(j => j.status).filter(Boolean))] as string[];
+  const hasJobFilters = !!jobSegmentFilter || !!jobGeoFilter || !!jobStatusFilter;
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
+      </div>
+    );
+  }
+
+  const tabs = [
+    { id: 'jobs' as TabId, label: 'Search Jobs', icon: BarChart3 },
+    { id: 'targets' as TabId, label: 'Target Companies', icon: Building2 },
+    { id: 'push-rules' as TabId, label: 'SmartLead Push', icon: Send },
+    { id: 'push-tracker' as TabId, label: 'Push Tracker', icon: TrendingUp },
+  ];
+
+  const effectiveProjectId = selectedProject;
+
+  return (
+    <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-neutral-900">Pipeline Dashboard</h1>
+            <p className="text-neutral-500 text-sm mt-1">
+              {currentProject ? currentProject.name : 'Select a project in the top-left to filter'}
+            </p>
+          </div>
+          {effectiveProjectId && (
+            <Link
+              to={`/projects/${effectiveProjectId}/knowledge`}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition-colors"
+            >
+              <BookOpen className="w-4 h-4" />
+              Knowledge
+            </Link>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Pipeline control buttons */}
+          {effectiveProjectId && (
+            <>
+              {pipelineStatus?.running ? (
+                <button
+                  onClick={handleStopPipeline}
+                  disabled={stoppingPipeline}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {stoppingPipeline ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
+                  Stop Pipeline
+                </button>
+              ) : (
+                <button
+                  onClick={handleStartPipeline}
+                  disabled={startingPipeline}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {startingPipeline ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  Start Pipeline
+                </button>
+              )}
+            </>
+          )}
+          {(selectedProject || data?.items?.[0]?.project_id) && (
+            <button
+              onClick={handleExportTargets}
+              disabled={exportingTargets}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {exportingTargets ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+              Export
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" /> {error}
+        </div>
+      )}
+
+      {/* Pipeline status banner — multi-phase */}
+      {(pipelineStatus?.running || summary?.pipeline?.running) && (
+        <PipelineStatusBanner status={pipelineStatus} summary={summary} />
+      )}
+
+      {/* Stats cards — real aggregated numbers from DB */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <StatCard icon={Globe} label="Discovered" value={summary?.total_discovered ?? 0} />
+        <StatCard icon={Target} label="Targets" value={summary?.total_targets ?? 0} color="green" />
+        <StatCard icon={Mail} label="With Email" value={summary?.contacts_with_email ?? 0} color="blue" />
+        <StatCard icon={Send} label="In SmartLead" value={summary?.in_smartlead ?? 0} color="purple" />
+        <StatCard icon={CheckCircle2} label="New (ready to push)" value={summary?.new_emails_not_in_campaigns ?? 0} color="green" />
+        <StatCard icon={BarChart3} label="Search Jobs" value={summary?.total_search_jobs ?? total} />
+        <StatCard icon={DollarSign} label="Total Spent" value={summary?.spending ? `$${summary.spending.total.toFixed(0)}` : `${summary?.apollo_credits_used ?? 0} cr`} />
+      </div>
+
+      {/* Spending breakdown */}
+      {summary?.spending && (
+        <div className="bg-white rounded-xl border border-neutral-200 px-4 py-3">
+          <div className="flex items-center gap-6 text-xs">
+            <span className="text-neutral-400 font-medium">Spending:</span>
+            <span className="text-neutral-600">Yandex <span className="font-medium text-neutral-900">${summary.spending.yandex_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-600">Google <span className="font-medium text-neutral-900">${summary.spending.google_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-600">Crona <span className="font-medium text-neutral-900">${summary.spending.crona_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-600">AI <span className="font-medium text-neutral-900">${summary.spending.ai_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-600">Apollo <span className="font-medium text-neutral-900">${summary.spending.apollo_cost.toFixed(1)}</span></span>
+            <span className="text-neutral-700 font-semibold">Total: ${summary.spending.total.toFixed(1)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Segment stats breakdown */}
+      {summary?.segment_stats && Object.keys(summary.segment_stats).length > 0 && (
+        <div className="bg-white rounded-xl border border-neutral-200 px-4 py-3">
+          <div className="text-xs text-neutral-400 font-medium mb-2">Segments:</div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(summary.segment_stats)
+              .sort(([, a], [, b]) => (b.targets ?? 0) - (a.targets ?? 0))
+              .map(([segKey, seg]) => (
+                <div
+                  key={segKey}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs border transition-colors",
+                    seg.targets > 0
+                      ? "border-green-200 bg-green-50 text-green-800"
+                      : "border-neutral-200 bg-neutral-50 text-neutral-600"
+                  )}
+                >
+                  <span className="font-medium">{segKey.replace(/_/g, ' ')}</span>
+                  <span className="text-[10px] opacity-70">
+                    {seg.queries ?? 0}q / {seg.total_analyzed}a / <span className="font-semibold">{seg.targets}t</span>
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="border-b border-neutral-200">
+        <nav className="flex gap-6" aria-label="Tabs">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-2 py-3 px-1 text-sm font-medium border-b-2 transition-colors",
+                activeTab === tab.id
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300"
+              )}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'targets' && effectiveProjectId ? (
+        <TargetCompaniesViewer projectId={effectiveProjectId} />
+      ) : activeTab === 'push-rules' && effectiveProjectId ? (
+        <CampaignPushRules projectId={effectiveProjectId} />
+      ) : activeTab === 'push-tracker' && effectiveProjectId ? (
+        <PushTracker projectId={effectiveProjectId} />
+      ) : (
+        <>
+          {/* Jobs table */}
+          <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+            <table className="w-full">
+              <thead ref={jobFilterRef}>
+                <tr className="border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  {/* Status filter */}
+                  <th className="px-4 py-3 relative">
+                    <button
+                      onClick={() => setJobOpenDropdown(jobOpenDropdown === 'status' ? null : 'status')}
+                      className={cn(
+                        'flex items-center gap-1 hover:text-neutral-800 transition-colors',
+                        jobStatusFilter ? 'text-indigo-600 font-semibold' : ''
+                      )}
+                    >
+                      Status
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {jobOpenDropdown === 'status' && (
+                      <div className="absolute top-full left-2 z-50 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                        <button
+                          onClick={() => { setJobStatusFilter(null); setJobOpenDropdown(null); }}
+                          className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', !jobStatusFilter && 'bg-neutral-100 font-medium')}
+                        >All statuses</button>
+                        {jobStatuses.map(s => (
+                          <button
+                            key={s}
+                            onClick={() => { setJobStatusFilter(s); setJobOpenDropdown(null); }}
+                            className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', jobStatusFilter === s && 'bg-indigo-50 text-indigo-700 font-medium')}
+                          >{s}</button>
+                        ))}
+                      </div>
+                    )}
+                  </th>
+                  <th className="px-4 py-3">Project</th>
+                  {/* Segment filter */}
+                  <th className="px-4 py-3 relative">
+                    <button
+                      onClick={() => setJobOpenDropdown(jobOpenDropdown === 'segment' ? null : 'segment')}
+                      className={cn(
+                        'flex items-center gap-1 hover:text-neutral-800 transition-colors',
+                        jobSegmentFilter ? 'text-indigo-600 font-semibold' : ''
+                      )}
+                    >
+                      Segment
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {jobOpenDropdown === 'segment' && (
+                      <div className="absolute top-full left-2 z-50 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 min-w-[180px] max-h-60 overflow-y-auto">
+                        <button
+                          onClick={() => { setJobSegmentFilter(null); setJobGeoFilter(null); setJobOpenDropdown(null); }}
+                          className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', !jobSegmentFilter && 'bg-neutral-100 font-medium')}
+                        >All segments</button>
+                        {jobSegments.map(s => (
+                          <button
+                            key={s}
+                            onClick={() => { setJobSegmentFilter(s); setJobGeoFilter(null); setJobOpenDropdown(null); }}
+                            className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', jobSegmentFilter === s && 'bg-indigo-50 text-indigo-700 font-medium')}
+                          >{s.replace(/_/g, ' ')}</button>
+                        ))}
+                      </div>
+                    )}
+                  </th>
+                  {/* Geo filter */}
+                  <th className="px-4 py-3 relative">
+                    <button
+                      onClick={() => setJobOpenDropdown(jobOpenDropdown === 'geo' ? null : 'geo')}
+                      className={cn(
+                        'flex items-center gap-1 hover:text-neutral-800 transition-colors',
+                        jobGeoFilter ? 'text-indigo-600 font-semibold' : ''
+                      )}
+                    >
+                      Geo
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {jobOpenDropdown === 'geo' && (
+                      <div className="absolute top-full left-2 z-50 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 min-w-[160px] max-h-60 overflow-y-auto">
+                        <button
+                          onClick={() => { setJobGeoFilter(null); setJobOpenDropdown(null); }}
+                          className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', !jobGeoFilter && 'bg-neutral-100 font-medium')}
+                        >All geos</button>
+                        {jobGeos.map(g => (
+                          <button
+                            key={g}
+                            onClick={() => { setJobGeoFilter(g); setJobOpenDropdown(null); }}
+                            className={cn('w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50', jobGeoFilter === g && 'bg-indigo-50 text-indigo-700 font-medium')}
+                          >{g}</button>
+                        ))}
+                      </div>
+                    )}
+                  </th>
+                  <th className="px-4 py-3">Engine</th>
+                  <th className="px-4 py-3 text-right">Queries</th>
+                  <th className="px-4 py-3 text-right">Domains</th>
+                  <th className="px-4 py-3 text-right">Targets</th>
+                  <th className="px-4 py-3 text-right">Cost</th>
+                  <th className="px-4 py-3">Date</th>
+                </tr>
+                {/* Active filters indicator */}
+                {hasJobFilters && (
+                  <tr className="bg-indigo-50/60 border-b border-indigo-100">
+                    <td colSpan={10} className="px-4 py-1.5 text-xs text-indigo-600 flex items-center gap-2">
+                      <Filter className="w-3 h-3" />
+                      Showing {items.length} of {allItems.length} jobs
+                      {jobSegmentFilter && <span className="bg-indigo-100 px-1.5 py-0.5 rounded">{jobSegmentFilter.replace(/_/g, ' ')}</span>}
+                      {jobGeoFilter && <span className="bg-indigo-100 px-1.5 py-0.5 rounded">{jobGeoFilter}</span>}
+                      {jobStatusFilter && <span className="bg-indigo-100 px-1.5 py-0.5 rounded">{jobStatusFilter}</span>}
+                      <button onClick={() => { setJobSegmentFilter(null); setJobGeoFilter(null); setJobStatusFilter(null); }} className="ml-1 hover:text-indigo-800"><X className="w-3 h-3" /></button>
+                    </td>
+                  </tr>
+                )}
+              </thead>
+              <tbody>
+                {items.map((job) => (
+                  <tr
+                    key={job.id}
+                    onClick={() => navigate(`/search-results/${job.id}`)}
+                    className="border-b border-neutral-50 hover:bg-neutral-50 cursor-pointer transition-colors"
+              >
+                <td className="px-4 py-3">
+                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[job.status] || 'bg-gray-100 text-gray-700')}>
+                    {job.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-neutral-900 font-medium">
+                  {job.project_name || '-'}
+                </td>
+                <td className="px-4 py-3">
+                  {job.segment ? (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 w-fit">
+                      {job.segment.replace(/_/g, ' ')}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-neutral-300">-</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {job.geo ? (
+                    <span className="text-xs text-neutral-600">{job.geo.replace(/_/g, ' ')}</span>
+                  ) : (
+                    <span className="text-[10px] text-neutral-300">-</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-sm text-neutral-600">
+                  {job.search_engine === 'yandex_api' ? 'Yandex' : 'Google'}
+                </td>
+                <td className="px-4 py-3 text-sm text-neutral-600 text-right">
+                  {job.queries_completed}/{job.queries_total}
+                </td>
+                <td className="px-4 py-3 text-sm text-neutral-600 text-right">
+                  {job.domains_found}
+                  {job.domains_new > 0 && <span className="text-green-600 ml-1">(+{job.domains_new})</span>}
+                </td>
+                <td className="px-4 py-3 text-sm text-right">
+                  <span className={job.targets_found > 0 ? 'text-green-700 font-medium' : 'text-neutral-400'}>
+                    {job.targets_found}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-right">
+                  {job.total_cost != null && job.total_cost > 0 ? (
+                    <span className="font-medium text-neutral-700">${job.total_cost.toFixed(4)}</span>
+                  ) : (
+                    <span className="text-neutral-300">-</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-sm text-neutral-500">
+                  {job.created_at ? new Date(job.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={10} className="px-4 py-12 text-center text-neutral-400">
+                  No search jobs found. Run a project search from the Data Search page.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {total > 20 && (
+        <div className="flex justify-center gap-2">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 disabled:opacity-40 hover:bg-neutral-50"
+          >
+            Previous
+          </button>
+          <span className="px-3 py-1.5 text-sm text-neutral-500">
+            Page {page} of {Math.ceil(total / 20)}
+          </span>
+          <button
+            onClick={() => setPage(p => p + 1)}
+            disabled={page >= Math.ceil(total / 20)}
+            className="px-3 py-1.5 text-sm rounded-lg border border-neutral-200 disabled:opacity-40 hover:bg-neutral-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============ Job Detail View (virtualized) ============
+
+const RESULTS_PAGE_SIZE = 100;
+const QUERIES_PAGE_SIZE = 100;
+
+function JobDetailView({ jobId }: { jobId: number }) {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [job, setJob] = useState<SearchJobFullDetail | null>(null);
+  const [tab, setTab] = useState<'results' | 'queries'>('results');
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [exportingSheet, setExportingSheet] = useState(false);
+  const [downloadingCsv, setDownloadingCsv] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Results page cache
+  const [resultPages, setResultPages] = useState<Map<number, SearchResultItem[]>>(new Map());
+  const [totalResults, setTotalResults] = useState(0);
+  const [loadingResultPages, setLoadingResultPages] = useState<Set<number>>(new Set());
+
+  // Queries page cache
+  const [queryPages, setQueryPages] = useState<Map<number, QueryItem[]>>(new Map());
+  const [totalQueries, setTotalQueries] = useState(0);
+  const [loadingQueryPages, setLoadingQueryPages] = useState<Set<number>>(new Set());
+  const [segmentGroups, setSegmentGroups] = useState<QuerySegmentGroup[]>([]);
+  const [querySegmentFilter, setQuerySegmentFilter] = useState<string | null>(null);
+  const [queryGeoFilter, setQueryGeoFilter] = useState<string | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<'segment' | 'geo' | 'status' | null>(null);
+  const queryFilterRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside to close query filter dropdowns
+  useEffect(() => {
+    if (!openDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (queryFilterRef.current && !queryFilterRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openDropdown]);
+
+  // Domain campaigns — loaded progressively
+  const [domainCampaigns, setDomainCampaigns] = useState<DomainCampaignsMap>({});
+  const campaignFetchedRef = useRef<Set<string>>(new Set());
+  const campaignTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Virtual scroll refs
+  const resultsParentRef = useRef<HTMLDivElement>(null);
+  const queriesParentRef = useRef<HTMLDivElement>(null);
+
+  // Resolve a result by absolute index from page cache
+  const getResultByIndex = useCallback((index: number): SearchResultItem | null => {
+    const pageNum = Math.floor(index / RESULTS_PAGE_SIZE) + 1;
+    const pageItems = resultPages.get(pageNum);
+    if (!pageItems) return null;
+    return pageItems[index % RESULTS_PAGE_SIZE] ?? null;
+  }, [resultPages]);
+
+  // Resolve a query by absolute index from page cache
+  const getQueryByIndex = useCallback((index: number): QueryItem | null => {
+    const pageNum = Math.floor(index / QUERIES_PAGE_SIZE) + 1;
+    const pageItems = queryPages.get(pageNum);
+    if (!pageItems) return null;
+    return pageItems[index % QUERIES_PAGE_SIZE] ?? null;
+  }, [queryPages]);
+
+  // Fetch a results page if not cached
+  const fetchResultPage = useCallback(async (pageNum: number, projectId: number) => {
+    if (resultPages.has(pageNum) || loadingResultPages.has(pageNum)) return;
+    setLoadingResultPages(prev => new Set(prev).add(pageNum));
+    try {
+      const data = await projectSearchApi.getProjectResults(projectId, {
+        jobId: jobId,
+        page: pageNum,
+        pageSize: RESULTS_PAGE_SIZE,
+      });
+      setResultPages(prev => new Map(prev).set(pageNum, data.items));
+      setTotalResults(data.total);
+    } catch (err) {
+      console.error(`Failed to load results page ${pageNum}:`, err);
+    } finally {
+      setLoadingResultPages(prev => {
+        const s = new Set(prev);
+        s.delete(pageNum);
+        return s;
+      });
+    }
+  }, [resultPages, loadingResultPages, jobId]);
+
+  // Fetch a queries page if not cached
+  const fetchQueryPage = useCallback(async (pageNum: number) => {
+    if (queryPages.has(pageNum) || loadingQueryPages.has(pageNum)) return;
+    setLoadingQueryPages(prev => new Set(prev).add(pageNum));
+    try {
+      const data = await projectSearchApi.getJobQueries(
+        jobId, pageNum, QUERIES_PAGE_SIZE, undefined,
+        querySegmentFilter ?? undefined, queryGeoFilter ?? undefined,
+      );
+      setQueryPages(prev => new Map(prev).set(pageNum, data.items));
+      setTotalQueries(data.total);
+      if (data.segment_groups && pageNum === 1) {
+        setSegmentGroups(data.segment_groups);
+      }
+    } catch (err) {
+      console.error(`Failed to load queries page ${pageNum}:`, err);
+    } finally {
+      setLoadingQueryPages(prev => {
+        const s = new Set(prev);
+        s.delete(pageNum);
+        return s;
+      });
+    }
+  }, [queryPages, loadingQueryPages, jobId, querySegmentFilter, queryGeoFilter]);
+
+  // Reset query page cache when segment/geo filter changes
+  useEffect(() => {
+    setQueryPages(new Map());
+    setTotalQueries(0);
+  }, [querySegmentFilter, queryGeoFilter]);
+
+  // Results virtualizer
+  const resultsVirtualizer = useVirtualizer({
+    count: totalResults,
+    getScrollElement: () => resultsParentRef.current,
+    estimateSize: () => 44,
+    overscan: 20,
+  });
+
+  // Queries virtualizer
+  const queriesVirtualizer = useVirtualizer({
+    count: totalQueries,
+    getScrollElement: () => queriesParentRef.current,
+    estimateSize: () => 40,
+    overscan: 20,
+  });
+
+  // Load job + stats + first page on mount
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      setResultPages(new Map());
+      setQueryPages(new Map());
+      setDomainCampaigns({});
+      campaignFetchedRef.current = new Set();
+      try {
+        // Parallel: job full + stats (if project-based we'll get stats)
+        const jobData = await projectSearchApi.getJobFull(jobId);
+        if (cancelled) return;
+        setJob(jobData);
+
+        // Load first page of results and queries in parallel
+        const promises: Promise<void>[] = [];
+        if (jobData.project_id) {
+          promises.push(
+            projectSearchApi.getProjectResults(jobData.project_id, {
+              jobId: jobId,
+              page: 1,
+              pageSize: RESULTS_PAGE_SIZE,
+            }).then(data => {
+              if (cancelled) return;
+              setResultPages(new Map([[1, data.items]]));
+              setTotalResults(data.total);
+            })
+          );
+        }
+        promises.push(
+          projectSearchApi.getJobQueries(jobId, 1, QUERIES_PAGE_SIZE).then(data => {
+            if (cancelled) return;
+            setQueryPages(new Map([[1, data.items]]));
+            setTotalQueries(data.total);
+            if (data.segment_groups) setSegmentGroups(data.segment_groups);
+          })
+        );
+        await Promise.all(promises);
+      } catch (err: any) {
+        if (!cancelled) setError(err.userMessage || 'Failed to load job details');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [jobId]);
+
+  // Fetch results pages for visible virtual items
+  useEffect(() => {
+    if (!job?.project_id || totalResults === 0) return;
+    const visibleItems = resultsVirtualizer.getVirtualItems();
+    if (visibleItems.length === 0) return;
+
+    const neededPages = new Set<number>();
+    for (const item of visibleItems) {
+      neededPages.add(Math.floor(item.index / RESULTS_PAGE_SIZE) + 1);
+    }
+    for (const pageNum of neededPages) {
+      fetchResultPage(pageNum, job.project_id);
+    }
+  }, [resultsVirtualizer.getVirtualItems(), job?.project_id, totalResults, fetchResultPage]);
+
+  // Fetch query pages for visible virtual items
+  useEffect(() => {
+    if (totalQueries === 0) return;
+    const visibleItems = queriesVirtualizer.getVirtualItems();
+    if (visibleItems.length === 0) return;
+
+    const neededPages = new Set<number>();
+    for (const item of visibleItems) {
+      neededPages.add(Math.floor(item.index / QUERIES_PAGE_SIZE) + 1);
+    }
+    for (const pageNum of neededPages) {
+      fetchQueryPage(pageNum);
+    }
+  }, [queriesVirtualizer.getVirtualItems(), totalQueries, fetchQueryPage]);
+
+  // Viewport-driven domain campaign loading (debounced 200ms)
+  useEffect(() => {
+    if (tab !== 'results' || totalResults === 0) return;
+    if (campaignTimerRef.current) clearTimeout(campaignTimerRef.current);
+
+    campaignTimerRef.current = setTimeout(() => {
+      const visibleItems = resultsVirtualizer.getVirtualItems();
+      const domainsToFetch: string[] = [];
+
+      for (const vItem of visibleItems) {
+        const r = getResultByIndex(vItem.index);
+        if (!r?.domain) continue;
+        const d = r.domain.toLowerCase();
+        if (!campaignFetchedRef.current.has(d)) {
+          domainsToFetch.push(d);
+          campaignFetchedRef.current.add(d);
+        }
+      }
+
+      if (domainsToFetch.length > 0) {
+        projectSearchApi.getDomainCampaigns(domainsToFetch).then(campaigns => {
+          setDomainCampaigns(prev => ({ ...prev, ...campaigns }));
+        }).catch(err => {
+          console.error('Failed to load domain campaigns:', err);
+          // Remove from fetched so they can be retried
+          for (const d of domainsToFetch) campaignFetchedRef.current.delete(d);
+        });
+      }
+    }, 200);
+
+    return () => {
+      if (campaignTimerRef.current) clearTimeout(campaignTimerRef.current);
+    };
+  }, [resultsVirtualizer.getVirtualItems(), tab, totalResults, getResultByIndex]);
+
+  // Recalculate virtual sizes when expanded rows change
+  useEffect(() => {
+    resultsVirtualizer.measure();
+  }, [expandedRows]);
+
+  const handleExportSheet = async (options?: { targets_only?: boolean; exclude_contacted?: boolean }) => {
+    if (!job?.project_id) return;
+    setExportingSheet(true);
+    setShowExportMenu(false);
+    try {
+      const { sheet_url } = await projectSearchApi.exportToGoogleSheet(job.project_id, options);
+      window.open(sheet_url, '_blank');
+    } catch (err: any) {
+      alert(err.userMessage || 'Export failed');
+    } finally {
+      setExportingSheet(false);
+    }
+  };
+
+  const handleDownloadCsv = async () => {
+    setDownloadingCsv(true);
+    try {
+      const blob = await projectSearchApi.downloadJobCsv(jobId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `search_job_${jobId}_results.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.userMessage || 'Download failed');
+    } finally {
+      setDownloadingCsv(false);
+    }
+  };
+
+  const toggleRow = (id: number) => {
+    setExpandedRows(prev => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  };
+
+  if (loading && !job) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
+      </div>
+    );
+  }
+
+  if (error && !job) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" /> {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!job) return null;
+
+  const duration = job.started_at && job.completed_at
+    ? Math.round((new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()) / 1000)
+    : null;
+
+  return (
+    <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
+      {/* Back + Header */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate('/search-results')} className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors">
+          <ArrowLeft className="w-5 h-5 text-neutral-600" />
+        </button>
+        <div className="flex-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-neutral-900">Job #{job.id}</h1>
+            <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[job.status] || 'bg-gray-100 text-gray-700')}>
+              {job.status}
+            </span>
+          </div>
+          <p className="text-neutral-500 text-sm mt-0.5">
+            {job.project_name && <span className="font-medium text-neutral-700">{job.project_name}</span>}
+            {job.created_at && <span> &middot; {new Date(job.created_at).toLocaleString('ru-RU')}</span>}
+            {duration && <span> &middot; {formatDuration(duration)}</span>}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(v => !v)}
+              disabled={exportingSheet || !job.project_id}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-40"
+            >
+              {exportingSheet ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+              Google Sheet
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-50">
+                <button onClick={() => handleExportSheet()} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50">
+                  All Results
+                </button>
+                <button onClick={() => handleExportSheet({ targets_only: true })} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50">
+                  <span className="flex items-center gap-2"><Target className="w-3.5 h-3.5 text-green-600" /> Targets Only</span>
+                </button>
+                <button onClick={() => handleExportSheet({ targets_only: true, exclude_contacted: true })} className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50 font-medium text-green-700">
+                  <span className="flex items-center gap-2"><Target className="w-3.5 h-3.5" /> Fresh Targets (no overlap)</span>
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={handleDownloadCsv}
+            disabled={downloadingCsv}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-neutral-200 hover:bg-neutral-50 disabled:opacity-40"
+          >
+            {downloadingCsv ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Stats bar */}
+      <div className="grid grid-cols-6 gap-3">
+        <MiniStat label="Queries" value={`${job.queries_completed}/${job.queries_total}`} />
+        <MiniStat label="Domains Found" value={job.domains_found} />
+        <MiniStat label="New Domains" value={job.domains_new} color="green" />
+        <MiniStat label="Targets" value={job.targets_found} color="green" />
+        <MiniStat label="Analyzed" value={job.results_total} />
+        <MiniStat label="Avg Confidence" value={job.avg_confidence ? `${(job.avg_confidence * 100).toFixed(0)}%` : '-'} />
+      </div>
+
+      {/* Spending panel */}
+      <div className="bg-white rounded-xl border border-neutral-200 p-4">
+        <h3 className="text-sm font-medium text-neutral-700 mb-3 flex items-center gap-2">
+          <DollarSign className="w-4 h-4" /> Resource Spending
+        </h3>
+        <div className="grid grid-cols-4 gap-6">
+          <div>
+            <div className="text-xs text-neutral-500">{job.search_engine === 'google_serp' ? 'Google SERP' : 'Yandex API'}</div>
+            <div className="text-lg font-semibold text-neutral-900">${job.yandex_cost.toFixed(4)}</div>
+            <div className="text-xs text-neutral-400">{(job.queries_total || 0) * 3} requests</div>
+          </div>
+          <div>
+            <div className="text-xs text-neutral-500">OpenAI (GPT-4o-mini)</div>
+            <div className="text-lg font-semibold text-neutral-900">${job.openai_cost_estimate.toFixed(4)}</div>
+            <div className="text-xs text-neutral-400">{(job.openai_tokens_used || 0).toLocaleString()} tokens</div>
+          </div>
+          <div>
+            <div className="text-xs text-neutral-500">Crona (Scraping)</div>
+            <div className="text-lg font-semibold text-neutral-900">${(job.crona_cost || 0).toFixed(4)}</div>
+            <div className="text-xs text-neutral-400">{(job.crona_credits_used || 0).toLocaleString()} credits</div>
+          </div>
+          <div>
+            <div className="text-xs text-neutral-500">Total Estimate</div>
+            <div className="text-lg font-bold text-neutral-900">${job.total_cost_estimate.toFixed(4)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-neutral-200">
+        <button
+          onClick={() => setTab('results')}
+          className={cn(
+            'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+            tab === 'results' ? 'border-black text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
+          )}
+        >
+          Results ({totalResults.toLocaleString()})
+        </button>
+        <button
+          onClick={() => setTab('queries')}
+          className={cn(
+            'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+            tab === 'queries' ? 'border-black text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-700'
+          )}
+        >
+          Queries ({totalQueries.toLocaleString()})
+        </button>
+      </div>
+
+      {/* Results tab — virtual scroll */}
+      {tab === 'results' && (
+        <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+          {/* Fixed header — must use same flex layout as body rows */}
+          <div className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+            <div className="px-4 py-3 w-8 flex-shrink-0"></div>
+            <div className="px-4 py-3 flex-1 min-w-0">Domain</div>
+            <div className="px-4 py-3 w-[140px] flex-shrink-0">Company</div>
+            <div className="px-4 py-3 w-[70px] flex-shrink-0 text-center">Target</div>
+            <div className="px-4 py-3 w-[90px] flex-shrink-0 text-right">Confidence</div>
+            <div className="px-4 py-3 w-[200px] flex-shrink-0">Outreach</div>
+            <div className="px-4 py-3 w-[120px] flex-shrink-0">Industry</div>
+            <div className="px-4 py-3 w-[200px] flex-shrink-0">Source Query</div>
+          </div>
+          {/* Scrollable virtual body */}
+          <div
+            ref={resultsParentRef}
+            className="overflow-auto"
+            style={{ maxHeight: 'calc(100vh - 480px)', minHeight: '300px' }}
+          >
+            <div style={{ height: `${resultsVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+              {resultsVirtualizer.getVirtualItems().map((virtualRow) => {
+                const r = getResultByIndex(virtualRow.index);
+                if (!r) {
+                  // Skeleton row
+                  return (
+                    <div
+                      key={`skeleton-${virtualRow.index}`}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '44px',
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                      className="flex items-center px-4 border-b border-neutral-50"
+                    >
+                      <div className="w-full flex gap-4">
+                        <div className="h-3 w-6 bg-neutral-100 rounded animate-pulse" />
+                        <div className="h-3 w-32 bg-neutral-100 rounded animate-pulse" />
+                        <div className="h-3 w-24 bg-neutral-100 rounded animate-pulse" />
+                        <div className="h-3 w-8 bg-neutral-100 rounded animate-pulse" />
+                        <div className="h-3 w-12 bg-neutral-100 rounded animate-pulse" />
+                      </div>
+                    </div>
+                  );
+                }
+
+                const isExpanded = expandedRows.has(r.id);
+                const info = r.company_info || {};
+                const campaign = domainCampaigns[r.domain?.toLowerCase()];
+
+                return (
+                  <div
+                    key={r.id}
+                    data-index={virtualRow.index}
+                    ref={resultsVirtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    {/* Main row */}
+                    <div
+                      onClick={() => toggleRow(r.id)}
+                      className={cn(
+                        'flex items-center border-b border-neutral-50 cursor-pointer transition-colors',
+                        r.is_target ? 'bg-green-50/50 hover:bg-green-50' : 'hover:bg-neutral-50'
+                      )}
+                      style={{ minHeight: '44px' }}
+                    >
+                      <div className="px-4 py-2.5 w-8 flex-shrink-0">
+                        {isExpanded ? <ChevronDown className="w-4 h-4 text-neutral-400" /> : <ChevronRight className="w-4 h-4 text-neutral-400" />}
+                      </div>
+                      <div className="px-4 py-2.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-neutral-900 truncate">{r.domain}</span>
+                          {r.matched_segment && (() => {
+                            const isOther = r.source_query_segment && r.matched_segment !== 'not_target' && r.matched_segment !== r.source_query_segment;
+                            return (
+                              <span className={cn(
+                                "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",
+                                r.matched_segment === 'not_target'
+                                  ? "bg-neutral-100 text-neutral-500"
+                                  : isOther
+                                    ? "bg-purple-100 text-purple-700"
+                                    : r.is_target
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-amber-100 text-amber-700"
+                              )}>
+                                {r.matched_segment === 'not_target'
+                                  ? 'N/A'
+                                  : isOther
+                                    ? `other: ${r.matched_segment.replace(/_/g, ' ')}`
+                                    : r.matched_segment.replace(/_/g, ' ')}
+                              </span>
+                            );
+                          })()}
+                          {r.url && (
+                            <a href={r.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                              <ExternalLink className="w-3.5 h-3.5 text-neutral-400 hover:text-blue-500 flex-shrink-0" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      <div className="px-4 py-2.5 w-[140px] flex-shrink-0 text-sm text-neutral-600 truncate">{info.name || '-'}</div>
+                      <div className="px-4 py-2.5 w-[70px] flex-shrink-0 text-center">
+                        {r.is_target ? (
+                          <CheckCircle2 className="w-4 h-4 text-green-600 mx-auto" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-neutral-300 mx-auto" />
+                        )}
+                      </div>
+                      <div className="px-4 py-2.5 w-[90px] flex-shrink-0 text-sm text-right">
+                        <span className={cn(
+                          'font-medium',
+                          (r.confidence || 0) >= 0.8 ? 'text-green-700' :
+                          (r.confidence || 0) >= 0.5 ? 'text-yellow-700' : 'text-neutral-400'
+                        )}>
+                          {r.confidence ? `${(r.confidence * 100).toFixed(0)}%` : '-'}
+                        </span>
+                      </div>
+                      <div className="px-4 py-2.5 w-[200px] flex-shrink-0">
+                        {campaign ? (
+                          <CampaignBadge campaign={campaign} />
+                        ) : r.is_target ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border border-blue-200 bg-blue-50 text-blue-700">
+                            <Mail className="w-3 h-3" /> Ready to push
+                          </span>
+                        ) : (
+                          <span className="text-xs text-neutral-300">-</span>
+                        )}
+                      </div>
+                      <div className="px-4 py-2.5 w-[120px] flex-shrink-0 text-sm text-neutral-500 truncate">{info.industry || '-'}</div>
+                      <div className="px-4 py-2.5 w-[200px] flex-shrink-0 text-sm text-neutral-400 truncate" title={r.source_query_text || ''}>
+                        {r.source_query_text
+                          ? (r.source_query_text.length > 50 ? r.source_query_text.slice(0, 48) + '...' : r.source_query_text)
+                          : '-'}
+                      </div>
+                    </div>
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="border-b border-neutral-100 bg-neutral-50/50 px-8 py-4">
+                        <div className="space-y-3 text-sm">
+                          {r.reasoning && (
+                            <div><span className="font-medium text-neutral-700">Reasoning:</span> <span className="text-neutral-600">{r.reasoning}</span></div>
+                          )}
+                          {info.description && (
+                            <div><span className="font-medium text-neutral-700">Description:</span> <span className="text-neutral-600">{info.description}</span></div>
+                          )}
+                          {info.services && info.services.length > 0 && (
+                            <div>
+                              <span className="font-medium text-neutral-700">Services:</span>{' '}
+                              {info.services.map((s, i) => (
+                                <span key={i} className="inline-block px-2 py-0.5 bg-neutral-100 rounded text-xs mr-1 mb-1">{s}</span>
+                              ))}
+                            </div>
+                          )}
+                          {info.location && (
+                            <div><span className="font-medium text-neutral-700">Location:</span> <span className="text-neutral-600">{info.location}</span></div>
+                          )}
+                          {r.source_query_text && (
+                            <div><span className="font-medium text-neutral-700">Source Query:</span> <span className="text-neutral-600 italic">{r.source_query_text}</span></div>
+                          )}
+                          {campaign && <OutreachDetail campaign={campaign} />}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {totalResults === 0 && !loading && (
+              <div className="px-4 py-12 text-center text-neutral-400">
+                No results yet
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Queries tab — progress bars + filtered virtual scroll */}
+      {tab === 'queries' && (() => {
+        // Aggregate segment groups for progress bars
+        const segAgg = segmentGroups.reduce<Record<string, { queries: number; domains: number; done: number; geos: QuerySegmentGroup[] }>>((acc, g) => {
+          if (!acc[g.segment]) acc[g.segment] = { queries: 0, domains: 0, done: 0, geos: [] };
+          acc[g.segment].queries += g.queries;
+          acc[g.segment].domains += g.domains;
+          acc[g.segment].done += g.done;
+          acc[g.segment].geos.push(g);
+          return acc;
+        }, {});
+        const uniqueSegments = Object.keys(segAgg);
+        const uniqueGeos = querySegmentFilter && segAgg[querySegmentFilter]
+          ? segAgg[querySegmentFilter].geos.map(g => g.geo)
+          : [...new Set(segmentGroups.map(g => g.geo))];
+        const totalAll = segmentGroups.reduce((s, g) => s + g.queries, 0);
+        const doneAll = segmentGroups.reduce((s, g) => s + g.done, 0);
+        const domainsAll = segmentGroups.reduce((s, g) => s + g.domains, 0);
+        const hasFilters = !!querySegmentFilter || !!queryGeoFilter;
+
+        return (
+          <div className="space-y-3">
+            {/* Segment progress bars */}
+            {segmentGroups.length > 0 && (
+              <div className="bg-white rounded-xl border border-neutral-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs text-neutral-400 font-medium">
+                    Progress by Segment
+                    <span className="ml-2 text-neutral-600">{doneAll}/{totalAll} queries, {domainsAll} domains</span>
+                  </div>
+                  {hasFilters && (
+                    <button
+                      onClick={() => { setQuerySegmentFilter(null); setQueryGeoFilter(null); }}
+                      className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-700"
+                    >
+                      <X className="w-3 h-3" /> Clear filters
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {Object.entries(segAgg).map(([seg, data]) => {
+                    const pct = data.queries > 0 ? Math.round((data.done / data.queries) * 100) : 0;
+                    const isActive = querySegmentFilter === seg;
+                    return (
+                      <button
+                        key={seg}
+                        onClick={() => {
+                          if (isActive) { setQuerySegmentFilter(null); setQueryGeoFilter(null); }
+                          else { setQuerySegmentFilter(seg); setQueryGeoFilter(null); }
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-lg border transition-colors",
+                          isActive ? "border-blue-300 bg-blue-50/50" : "border-neutral-100 hover:bg-neutral-50"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-neutral-700">{seg.replace(/_/g, ' ')}</span>
+                          <span className="text-[10px] text-neutral-500">
+                            {data.done}/{data.queries} queries &middot; {data.domains} domains &middot; {pct}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-neutral-100 rounded-full h-1.5">
+                          <div
+                            className={cn("h-1.5 rounded-full transition-all", pct === 100 ? "bg-green-500" : "bg-blue-500")}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        {/* Geo sub-bars when segment is active */}
+                        {isActive && data.geos.length > 1 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {data.geos.map(g => {
+                              const gPct = g.queries > 0 ? Math.round((g.done / g.queries) * 100) : 0;
+                              const isGeoActive = queryGeoFilter === g.geo;
+                              return (
+                                <button
+                                  key={g.geo}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isGeoActive) setQueryGeoFilter(null);
+                                    else setQueryGeoFilter(g.geo);
+                                  }}
+                                  className={cn(
+                                    "px-2 py-0.5 rounded text-[10px] border transition-colors",
+                                    isGeoActive
+                                      ? "border-blue-300 bg-blue-100 text-blue-800 font-semibold"
+                                      : "border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
+                                  )}
+                                >
+                                  {g.geo} {g.done}/{g.queries} ({gPct}%) &middot; {g.domains}d
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Queries table with column-embedded filters */}
+            <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+              <div ref={queryFilterRef} className="flex items-center border-b border-neutral-100 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                <div className="px-4 py-3 flex-1">Query</div>
+                {/* Segment column with embedded filter */}
+                <div className="px-4 py-3 w-[140px] flex-shrink-0 relative">
+                  <button
+                    onClick={() => setOpenDropdown(openDropdown === 'segment' ? null : 'segment')}
+                    className={cn(
+                      "flex items-center gap-1 transition-colors",
+                      querySegmentFilter ? "text-blue-700 font-semibold" : "hover:text-neutral-700"
+                    )}
+                  >
+                    Segment
+                    {querySegmentFilter && (
+                      <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px]">
+                        {querySegmentFilter.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                    <Filter className="w-3 h-3" />
+                  </button>
+                  {openDropdown === 'segment' && (
+                    <div className="absolute top-full left-0 mt-1 w-52 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-50">
+                      <button
+                        onClick={() => { setQuerySegmentFilter(null); setQueryGeoFilter(null); setOpenDropdown(null); }}
+                        className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50", !querySegmentFilter && "bg-blue-50 text-blue-700 font-semibold")}
+                      >
+                        All segments ({totalAll})
+                      </button>
+                      {uniqueSegments.map(seg => (
+                        <button
+                          key={seg}
+                          onClick={() => { setQuerySegmentFilter(seg); setQueryGeoFilter(null); setOpenDropdown(null); }}
+                          className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50", querySegmentFilter === seg && "bg-blue-50 text-blue-700 font-semibold")}
+                        >
+                          {seg.replace(/_/g, ' ')}
+                          <span className="ml-1 text-neutral-400">{segAgg[seg].done}/{segAgg[seg].queries}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Geo column with embedded filter */}
+                <div className="px-4 py-3 w-[100px] flex-shrink-0 relative">
+                  <button
+                    onClick={() => setOpenDropdown(openDropdown === 'geo' ? null : 'geo')}
+                    className={cn(
+                      "flex items-center gap-1 transition-colors",
+                      queryGeoFilter ? "text-blue-700 font-semibold" : "hover:text-neutral-700"
+                    )}
+                  >
+                    Geo
+                    {queryGeoFilter && (
+                      <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px]">{queryGeoFilter}</span>
+                    )}
+                    <Filter className="w-3 h-3" />
+                  </button>
+                  {openDropdown === 'geo' && (
+                    <div className="absolute top-full left-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-50 max-h-60 overflow-auto">
+                      <button
+                        onClick={() => { setQueryGeoFilter(null); setOpenDropdown(null); }}
+                        className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50", !queryGeoFilter && "bg-blue-50 text-blue-700 font-semibold")}
+                      >
+                        All geos
+                      </button>
+                      {uniqueGeos.map(geo => (
+                        <button
+                          key={geo}
+                          onClick={() => { setQueryGeoFilter(geo); setOpenDropdown(null); }}
+                          className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-50", queryGeoFilter === geo && "bg-blue-50 text-blue-700 font-semibold")}
+                        >
+                          {geo}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="px-4 py-3 w-[80px] flex-shrink-0 text-center">Status</div>
+                <div className="px-4 py-3 w-[100px] flex-shrink-0 text-right">Domains</div>
+              </div>
+              <div
+                ref={queriesParentRef}
+                className="overflow-auto"
+                style={{ maxHeight: 'calc(100vh - 540px)', minHeight: '300px' }}
+              >
+                <div style={{ height: `${queriesVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                  {queriesVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const q = getQueryByIndex(virtualRow.index);
+                    if (!q) {
+                      return (
+                        <div
+                          key={`qskel-${virtualRow.index}`}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '40px',
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                          className="flex items-center px-4 border-b border-neutral-50"
+                        >
+                          <div className="h-3 w-64 bg-neutral-100 rounded animate-pulse" />
+                        </div>
+                      );
+                    }
+                    return (
+                      <div
+                        key={q.id}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '40px',
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                        className="flex items-center border-b border-neutral-50"
+                      >
+                        <div className="px-4 py-2.5 flex-1 text-sm text-neutral-900 truncate">
+                          {q.language && (
+                            <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-neutral-100 text-neutral-500 mr-1.5">
+                              {q.language}
+                            </span>
+                          )}
+                          {q.query_text}
+                        </div>
+                        <div className="px-4 py-2.5 w-[140px] flex-shrink-0">
+                          {q.segment ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 truncate max-w-[130px]">
+                              {q.segment.replace(/_/g, ' ')}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-neutral-300">-</span>
+                          )}
+                        </div>
+                        <div className="px-4 py-2.5 w-[100px] flex-shrink-0">
+                          {q.geo ? (
+                            <span className="text-[10px] text-neutral-500">{q.geo}</span>
+                          ) : (
+                            <span className="text-[10px] text-neutral-300">-</span>
+                          )}
+                        </div>
+                        <div className="px-4 py-2.5 w-[80px] text-center">
+                          <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusColors[q.status] || 'bg-gray-100 text-gray-700')}>
+                            {q.status}
+                          </span>
+                        </div>
+                        <div className="px-4 py-2.5 w-[100px] text-sm text-neutral-600 text-right">{q.domains_found}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {totalQueries === 0 && !loading && (
+                  <div className="px-4 py-12 text-center text-neutral-400">
+                    No queries{querySegmentFilter ? ` for segment "${querySegmentFilter.replace(/_/g, ' ')}"` : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ============ Campaign Badge + Outreach Detail ============
+
+function CampaignBadge({ campaign }: { campaign: DomainCampaignInfo }) {
+  const mainCampaign = campaign.campaigns[0];
+  const label = mainCampaign?.name
+    ? (mainCampaign.name.length > 20 ? mainCampaign.name.slice(0, 18) + '...' : mainCampaign.name)
+    : 'Contacted';
+  const isEmailMatch = campaign.match_type === 'email_domain';
+
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium max-w-[200px] truncate',
+      campaign.has_replies
+        ? 'bg-green-100 text-green-700 ring-1 ring-green-300 animate-pulse'
+        : 'bg-orange-100 text-orange-700'
+    )}>
+      {isEmailMatch
+        ? <Mail className="w-3 h-3 flex-shrink-0" />
+        : <Globe className="w-3 h-3 flex-shrink-0" />
+      }
+      <span className="truncate">{label}</span>
+      {campaign.contacts_count > 1 && (
+        <span className="text-[10px] opacity-70">({campaign.contacts_count})</span>
+      )}
+      <span className={cn(
+        'px-1 py-px rounded text-[9px] font-bold uppercase flex-shrink-0',
+        isEmailMatch ? 'bg-orange-200/60 text-orange-800' : 'bg-blue-200/60 text-blue-800'
+      )}>
+        {isEmailMatch ? '@' : 'www'}
+      </span>
+    </span>
+  );
+}
+
+function OutreachDetail({ campaign }: { campaign: DomainCampaignInfo }) {
+  const isEmailMatch = campaign.match_type === 'email_domain';
+
+  return (
+    <div className={cn(
+      'mt-2 p-3 border rounded-lg',
+      isEmailMatch ? 'bg-orange-50/50 border-orange-100' : 'bg-blue-50/50 border-blue-100'
+    )}>
+      <div className="flex items-center gap-2 mb-2">
+        <MessageSquare className="w-4 h-4 text-orange-600" />
+        <span className="font-medium text-neutral-700">Outreach Status</span>
+        <span className={cn(
+          'px-1.5 py-0.5 rounded text-[10px] font-semibold',
+          isEmailMatch ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+        )}>
+          {isEmailMatch ? '@ email domain match' : 'www website domain match'}
+        </span>
+        {campaign.has_replies && (
+          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-semibold">HAS REPLIES</span>
+        )}
+      </div>
+
+      {/* Campaigns */}
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {campaign.campaigns.map((c, i) => (
+          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-neutral-200 rounded text-xs">
+            {c.source === 'getsales' ? 'LI' : <Mail className="w-3 h-3" />}
+            <span className="font-medium">{c.name}</span>
+            {c.status && <span className="text-neutral-400">{c.status}</span>}
+          </span>
+        ))}
+      </div>
+
+      {/* First contacted */}
+      {campaign.first_contacted_at && (
+        <div className="text-xs text-neutral-500 mb-2">
+          First contacted: {new Date(campaign.first_contacted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </div>
+      )}
+
+      {/* Contact list */}
+      <div className="space-y-1">
+        {campaign.contacts.map((c) => (
+          <div key={c.id} className="flex items-center gap-2 text-xs">
+            <Link
+              to={`/contacts/${c.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+            >
+              {c.name || c.email || `Contact #${c.id}`}
+            </Link>
+            {c.email && <span className="text-neutral-400">{c.email}</span>}
+            {c.match_type && (
+              <span className={cn(
+                'px-1 py-px rounded text-[9px] font-bold',
+                c.match_type === 'email_domain' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
+              )}>
+                {c.match_type === 'email_domain' ? '@' : 'www'}
+              </span>
+            )}
+            <span className={cn(
+              'px-1.5 py-0.5 rounded text-[10px] font-medium',
+              c.has_replied ? 'bg-green-100 text-green-700' : 'bg-neutral-100 text-neutral-500'
+            )}>
+              {c.last_reply_at ? 'replied' : c.status}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============ Pipeline Status Banner ============
+
+function PipelineStatusBanner({ status, summary }: { status: FullPipelineStatus | null; summary: ProjectPipelineSummary | null }) {
+  const phases = [
+    { key: 'search', label: 'Search', statKey: 'search_results' },
+    { key: 'extraction', label: 'Extraction', statKey: 'extraction_stats' },
+    { key: 'enrichment', label: 'Apollo Enrichment', statKey: 'enrichment_stats' },
+    { key: 'smartlead_push', label: 'SmartLead Push', statKey: 'smartlead_push_stats' },
+  ];
+
+  const currentPhase = status?.phase || summary?.pipeline?.phase || '';
+  const isRunning = status?.running || summary?.pipeline?.running;
+
+  return (
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-blue-800">
+          {isRunning && <Loader2 className="w-4 h-4 animate-spin" />}
+          Pipeline {isRunning ? 'Running' : currentPhase === 'completed' ? 'Completed' : currentPhase === 'error' ? 'Error' : 'Idle'}
+          {status?.started_at && (
+            <span className="text-blue-500 font-normal ml-2">
+              started {new Date(status.started_at).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+        {status?.config?.target_goal && (
+          <span className="text-xs text-blue-600">Goal: {status.config.target_goal} targets</span>
+        )}
+      </div>
+
+      {/* Phase progress */}
+      <div className="grid grid-cols-4 gap-2">
+        {phases.map(phase => {
+          const isActive = currentPhase === phase.key;
+          const isDone = phases.findIndex(p => p.key === currentPhase) > phases.findIndex(p => p.key === phase.key);
+          const stats = status?.[phase.statKey as keyof FullPipelineStatus] as Record<string, any> | undefined;
+
+          return (
+            <div
+              key={phase.key}
+              className={cn(
+                "rounded-lg px-3 py-2 text-xs",
+                isActive ? "bg-blue-100 border border-blue-300 text-blue-800" :
+                isDone ? "bg-green-50 border border-green-200 text-green-700" :
+                "bg-white/60 border border-neutral-200 text-neutral-400"
+              )}
+            >
+              <div className="flex items-center gap-1.5 font-medium">
+                {isActive && <Loader2 className="w-3 h-3 animate-spin" />}
+                {isDone && <CheckCircle2 className="w-3 h-3" />}
+                {phase.label}
+              </div>
+              {stats && typeof stats === 'object' && (
+                <div className="mt-1 text-[10px] opacity-80">
+                  {Object.entries(stats).slice(0, 3).map(([k, v]) => (
+                    <span key={k} className="mr-2">{k}: {typeof v === 'number' ? v : String(v)}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Segment search progress (when using template-based search) */}
+      {status?.segment_search && (
+        <div className="bg-white/60 rounded-lg px-3 py-2 border border-blue-200">
+          <div className="flex items-center gap-3 text-xs text-blue-700">
+            <span className="font-medium">Segment Search:</span>
+            {status.segment_search.current_segment && (
+              <span>
+                {status.segment_search.current_segment.replace(/_/g, ' ')}
+                {status.segment_search.current_geo && ` / ${status.segment_search.current_geo}`}
+              </span>
+            )}
+            <span className="opacity-70">
+              {(status.segment_search.segments_completed || []).length} / {(status.segment_search.segments_planned || []).length} segments
+            </span>
+            {status.segment_search.finished && <CheckCircle2 className="w-3 h-3 text-green-600" />}
+          </div>
+          {status.segment_search.segment_stats && Object.keys(status.segment_search.segment_stats).length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {Object.entries(status.segment_search.segment_stats as Record<string, any>).map(([seg, st]: [string, any]) => (
+                <span key={seg} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-600 border border-blue-100">
+                  {seg.replace(/_/g, ' ')}: {st.total_queries || 0}q {st.total_targets || 0}t
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============ Helper Components ============
+
+function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number | string; color?: string }) {
+  const iconColor = color === 'green' ? 'text-green-600' : color === 'blue' ? 'text-blue-600' : color === 'purple' ? 'text-purple-600' : 'text-neutral-400';
+  const valueColor = color === 'green' ? 'text-green-700' : color === 'blue' ? 'text-blue-700' : color === 'purple' ? 'text-purple-700' : 'text-neutral-900';
+  return (
+    <div className="bg-white rounded-xl border border-neutral-200 p-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className={cn('w-4 h-4', iconColor)} />
+        <span className="text-xs text-neutral-500">{label}</span>
+      </div>
+      <div className={cn('text-2xl font-bold', valueColor)}>
+        {typeof value === 'number' ? value.toLocaleString() : value}
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, color }: { label: string; value: number | string; color?: string }) {
+  return (
+    <div className="bg-white rounded-lg border border-neutral-200 p-3">
+      <div className="text-xs text-neutral-500 mb-0.5">{label}</div>
+      <div className={cn('text-lg font-semibold', color === 'green' ? 'text-green-700' : 'text-neutral-900')}>
+        {typeof value === 'number' ? value.toLocaleString() : value}
+      </div>
+    </div>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins < 60) return `${mins}m ${secs}s`;
+  const hours = Math.floor(mins / 60);
+  return `${hours}h ${mins % 60}m`;
+}

@@ -1,0 +1,515 @@
+{
+  "timestamp": "20260330_072223",
+  "ground_truth": {
+    "EasyStaff IT consulting Miami": {
+      "synergybc.com": true,
+      "smxusa.com": true,
+      "koombea.com": true,
+      "flatiron.software": true,
+      "therocketcode.com": true,
+      "avalith.net": true,
+      "bluecoding.com": true,
+      "shokworks.io": true
+    },
+    "TFP Fashion brands Italy": {
+      "trussardi.com": true,
+      "marni.com": true,
+      "elisabettafranchi.com": true,
+      "ermannoscervino.com": true,
+      "patriziapepe.com": true,
+      "kiton.com": true,
+      "herno.com": true,
+      "soeur.fr": false,
+      "fabianafilippi.com": true,
+      "giuseppezanotti.com": true
+    },
+    "OnSocial Creator platforms UK": {
+      "thenewgen.com": true,
+      "sixteenth.com": true,
+      "seenconnects.com": true,
+      "found.co.uk": false,
+      "musetheagency.com": true,
+      "unravelapp.com": false,
+      "inthestyle.com": true,
+      "dexerto.media": false,
+      "majorplayers.co.uk": false,
+      "lindafarrow.com": false
+    }
+  },
+  "results": [
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v6_two_step_structured",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.7,
+          "correct": 7,
+          "total": 10,
+          "false_positives": [
+            "found.co.uk",
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v7_ecosystem_buyer",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 0.9,
+          "correct": 9,
+          "total": 10,
+          "false_positives": [
+            "soeur.fr"
+          ],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.8,
+          "correct": 8,
+          "total": 10,
+          "false_positives": [
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v8_pain_point",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.7,
+          "correct": 7,
+          "total": 10,
+          "false_positives": [
+            "dexerto.media",
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v9_negativa_refined",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 9,
+          "total": 9,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.9,
+          "correct": 9,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v10_minimal_precise",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.9,
+          "correct": 9,
+          "total": 10,
+          "false_positives": [
+            "dexerto.media"
+          ],
+          "false_negatives": []
+        }
+      }
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v6_two_step_structured",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.7,
+          "correct": 7,
+          "total": 10,
+          "false_positives": [
+            "found.co.uk",
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v7_ecosystem_buyer",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.7,
+          "correct": 7,
+          "total": 10,
+          "false_positives": [
+            "found.co.uk",
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v8_pain_point",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.8,
+          "correct": 8,
+          "total": 10,
+          "false_positives": [
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v9_negativa_refined",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 0.875,
+          "correct": 7,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": [
+            "synergybc.com"
+          ]
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.8,
+          "correct": 8,
+          "total": 10,
+          "false_positives": [
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v10_minimal_precise",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.8,
+          "correct": 8,
+          "total": 10,
+          "false_positives": [
+            "dexerto.media",
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": []
+        }
+      }
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v6_two_step_structured",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.7,
+          "correct": 7,
+          "total": 10,
+          "false_positives": [
+            "found.co.uk",
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v7_ecosystem_buyer",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 0.9,
+          "correct": 9,
+          "total": 10,
+          "false_positives": [
+            "soeur.fr"
+          ],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.7,
+          "correct": 7,
+          "total": 10,
+          "false_positives": [
+            "found.co.uk",
+            "majorplayers.co.uk"
+          ],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v8_pain_point",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 0.375,
+          "correct": 3,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": [
+            "smxusa.com",
+            "koombea.com",
+            "flatiron.software",
+            "therocketcode.com",
+            "shokworks.io"
+          ]
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.9,
+          "correct": 9,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v9_negativa_refined",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.9,
+          "correct": 9,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v10_minimal_precise",
+      "scores": {
+        "EasyStaff IT consulting Miami": {
+          "accuracy": 1.0,
+          "correct": 8,
+          "total": 8,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "TFP Fashion brands Italy": {
+          "accuracy": 1.0,
+          "correct": 10,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": []
+        },
+        "OnSocial Creator platforms UK": {
+          "accuracy": 0.9,
+          "correct": 9,
+          "total": 10,
+          "false_positives": [],
+          "false_negatives": [
+            "inthestyle.com"
+          ]
+        }
+      }
+    }
+  ],
+  "best_setup": "gpt-4o-mini \u00d7 v9_negativa_refined",
+  "best_accuracy": 0.9666666666666667
+}

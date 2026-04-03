@@ -1,0 +1,884 @@
+{
+  "name": "Rizzult GetSales",
+  "nodes": [
+    {
+      "parameters": {
+        "dataToSave": {
+          "values": [
+            {
+              "key": "target_lead_linkedin",
+              "value": "={{ $json.body.contact.linkedin_url }}"
+            },
+            {
+              "key": "campaign",
+              "value": "={{ $json.body.automation.name }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executionData",
+      "typeVersion": 1.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "284cb6aa-c8f3-4544-b8a4-bf92e634aa6f",
+      "name": "Execution Data"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C09VB1QATCM",
+          "mode": "id"
+        },
+        "text": "=🎯 *New LinkedIn Reply from GetSales!*\n\n💬 *Message:*\n{{ $('Webhook').item.json.body.linkedin_message.text }}\n\n━━━━━━━━━━━━━━━\n\n👤 *Contact:* {{ $('Webhook').item.json.body.contact.first_name }} {{ $('Webhook').item.json.body.contact.last_name }}\n*Position:* {{ $('Webhook').item.json.body.contact.position }}\n*Company:* {{ $('Webhook').item.json.body.account.name }}\n*Location:* {{ $('Webhook').item.json.body.account.hq_location.city }}, {{ $('Webhook').item.json.body.account.hq_location.country }}\n*Employees:* {{ $('Webhook').item.json.body.account.employees_range }}\n*Website:* {{ $('Webhook').item.json.body.account.website }}\n*LinkedIn:* {{ $('Webhook').item.json.body.contact.linkedin_url }}\n*Email:* {{ $('Webhook').item.json.body.contact.work_email }}\n*Campaign:* {{ $('Webhook').item.json.body.automation.name }}\n*Time:* {{ $('Webhook').item.json.body.linkedin_message.sent_at }}\n*Stage:* {{ $('Webhook').item.json.body.contact.pipeline_stage_name }}\n\n<{{ $('Webhook').item.json.body.contact.getsales_url }}|🔗 Open in GetSales →>\n\nREPLY\n\n{{ $json.content[0].text }}\n",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "af122ae3-0b4f-4e5b-ad1d-1598c7c1e1ae",
+      "name": "Send to Slack",
+      "webhookId": "50b45c50-9489-435d-8634-6e36add8e460",
+      "credentials": {
+        "slackApi": {
+          "id": "AEyNvRi00jjjDWQS",
+          "name": "Slack account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "edf3d34c-e182-4836-9a09-4ac045f5809f",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9e9cacf4-94bc-44c7-9f8a-7de1d7825dd4",
+      "name": "Webhook",
+      "webhookId": "edf3d34c-e182-4836-9a09-4ac045f5809f"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1Zg-ER4ZlhlHuLFWya_ROi5VuMJ6ld_ERh3ONcB2sJ3s/edit?pli=1&gid=1599376288#gid=1599376288",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1158205948,
+          "mode": "list",
+          "cachedResultName": "Replies LI",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Zg-ER4ZlhlHuLFWya_ROi5VuMJ6ld_ERh3ONcB2sJ3s/edit#gid=1158205948"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Linkedin": "={{ $json.body.contact.linkedin_url }}",
+            "first name": "={{ $json.body.contact.first_name }}",
+            "last name": "={{ $json.body.contact.last_name }}",
+            "Position": "={{ $json.body.contact.position }}",
+            "target_lead_email": "={{ $json.body.contact.work_email }}",
+            "Company ": "={{ $json.body.account.name }}",
+            "Website": "={{ $json.body.account.website }}",
+            "Company Location": "={{ $json.body.contact.location.country }}",
+            "text": "={{ $json.body.linkedin_message.text }}",
+            "time": "={{ $json.body.linkedin_message.sent_at }}",
+            "campaign": "={{ $json.body.automation.name }}"
+          },
+          "matchingColumns": [
+            "Linkedin"
+          ],
+          "schema": [
+            {
+              "id": "first name",
+              "displayName": "first name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "last name",
+              "displayName": "last name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Position",
+              "displayName": "Position",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Linkedin",
+              "displayName": "Linkedin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "target_lead_email",
+              "displayName": "target_lead_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company ",
+              "displayName": "Company ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Website",
+              "displayName": "Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company Location",
+              "displayName": "Company Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Employees",
+              "displayName": "Employees",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "campaign",
+              "displayName": "campaign",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "campaign_id",
+              "displayName": "campaign_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "from_email",
+              "displayName": "from_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "to_email",
+              "displayName": "to_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created time",
+              "displayName": "created time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1040,
+        -384
+      ],
+      "id": "cc08ec72-d11d-4528-9a69-f34658c6a34d",
+      "name": "Append or update row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GL3PZ96M2DdUGDWe",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-sonnet-4-20250514",
+          "mode": "list",
+          "cachedResultName": "claude-sonnet-4-20250514"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Your Role\nYou are an AI email agent for Rizzult, an AI-powered influencer marketing platform. Your task is to write a response to the incoming email or message provided by the user.\nAnalyze the incoming message, determine the appropriate response type, and write a reply following the guidelines below.\n\nPart 1: Personalized Communication Style\nLANGUAGE & TONE:\n\nLanguage: Spanish (LATAM)\nFormality: Informal \"tú\" form (not \"usted\"), but professional\nTone: Direct, friendly, confident — like a peer, not a salesperson\nLength: Short paragraphs, max 5-7 sentences per response\n\nFORMATTING RULES:\nDO:\n\nStart with \"Hola {{first_name}},\" or \"Hola {{first_name}}, ¿cómo estás?\"\nUse line breaks between paragraphs\nKeep sentences short and scannable\nEnd with clear CTA (call to action) when appropriate\nInclude signature block\n\nDON'T:\n\nUse bullet points unless necessary\nWrite walls of text\nUse formal phrases like \"Estimado/a\", \"De antemano le agradezco\"\nOver-explain the product\nUse emojis\n\nSIGNATURE BLOCK (Standard):\nSaludos,\nPablo, cofundador de Rizzult\nNos confían KFC México, Colombia y Argentina\nSIGNATURE BLOCK (Short for quick replies):\nSaludos,\nPablo\n\nPart 2: Context & Business Logic\nWHAT IS RIZZULT:\nRizzult is an AI-powered influencer marketing platform that works on a CPA (Cost Per Action) model. Clients only pay for confirmed conversions (app installs, orders, account openings, etc.), not for posts or impressions.\nVALUE PROPOSITION:\n\"Con Rizzult pagas solo por conversiones; la plataforma impulsada por IA selecciona a los creadores con la audiencia ideal para tu negocio.\"\nCASE STUDIES BY SEGMENT:\nFINTECH:\n\nStori — 1,080 tarjetas aprobadas, CAC -22%\nConversions: Cuentas abiertas, tarjetas emitidas, solicitudes\n\nQSR:\n\nKFC MX/CO/AR — 55,000 usuarios de app en 6 meses\nConversions: Instalación de app, nuevo pedido\n\nFOODTECH / SUPERAPPS:\n\nYango Comida Bolivia — 141,000 nuevos clientes, CAC -25%\nConversions: Instalación de app, nuevo pedido\n\nMOBILITY:\n\nYango Comida Bolivia — 141,000 nuevos clientes, CAC -25%\nConversions: Descargas de app, primeros viajes\n\nSHOPPING APPS:\n\nAliExpress, Temu (mention without numbers)\nConversions: Instalación de app, nuevo pedido, primera compra\n\nAGENCIES:\n\n$1M+ USD managed by partner agencies in 2025\nClients: KFC, Samsung, AliExpress, Stori, Yango Play, Finamex\n\nCALENDLY LINK:\nhttps://calendly.com/pavel-rizzult/pablo-from-rizzult-latam\n\nPart 3: Response Classification & Templates\nAnalyze the incoming message and classify it into one of these categories, then respond accordingly:\n\nCATEGORY 1: INTERESTED / WANTS TO TALK\nSignals: \"me interesa\", \"cuéntame más\", \"hablemos\", \"sí\", \"ok\", \"sounds good\", positive response\nResponse template:\n\"Hola [Name], ¡Gracias por tu interés! ¿Te queda bien agendar un horario en mi Calendly? [link] Saludos, Pablo\"\n\nCATEGORY 2: ASKS FOR MORE INFO / SEND MATERIALS\nSignals: \"mándame info\", \"envíame detalles\", \"quiero ver ejemplos\", \"tienes un deck?\", \"tienes un pitch?\", \"compartir presentación\"\nResponse template:\n\"Hola [Name], ¡Claro! Te comparto nuestro caso de éxito con [relevant case study for their segment]: [link] Si después de verlo te interesa explorar cómo aplicaría para [company], con gusto agendamos una llamada. Saludos, Pablo\"\nCase study links:\n\nFintech: https://rizzult.ai/blog/stori-case-study-es\nFoodtech/Mobility/Shopping: https://rizzult.ai/blog/yango-comida-case-study-es\n\n\nCATEGORY 3: ASKS ABOUT PRICING / COSTS / HOW CPA WORKS\nSignals: \"cuánto cuesta\", \"pricing\", \"presupuesto\", \"tarifas\", \"qué CPA manejan\", \"cómo funciona el pago\"\nResponse template:\n\"Hola [Name], El CPA depende de tu caso específico, volúmenes y tipo de conversión. Con gusto te doy números exactos en una llamada corta cuando conozca más sobre tus necesidades. ¿Te funciona agendar aquí? [Calendly link] Saludos, Pablo\"\n\nCATEGORY 4A: GIVES OWN EMAIL (asks to send info TO THEM)\nSignals:\n\n\"mándame a [email]\"\n\"me queres mandar a [email]\"\n\"envíame a [email]\"\n\"mi correo es [email]\"\n\"te dejo mi correo\"\n\"escríbeme a [email]\"\nEmail address contains sender's name (e.g. Leonardo → leonardo.salani@...)\nUses \"me\" / \"mi\" when referring to the email\n\nResponse template:\n\"Hola [Name], ¡Perfecto! Te envío la propuesta a [email]. También te comparto nuestro caso de éxito con [relevant case study]: [link] Cuando lo revises, con gusto organizamos una reunión. Saludos, Pablo\"\n\nCATEGORY 4B: REFERS TO SOMEONE ELSE (third party)\nSignals:\n\n\"habla con X\"\n\"te paso con X\"\n\"la persona encargada es X\"\n\"no soy la persona adecuada, contacta a X\"\n\"pregunta a X\"\n\"busca a X\"\nEmail address does NOT contain sender's name\nMentions someone else's role: \"la encargada\", \"el responsable\", \"mi jefa\"\n\nResponse template:\n\"Hola [Name], Gracias por la orientación. ¿Te molestaría pasarme el correo de [Referral Name]? ¡Gracias!\"\nIf they already gave the email:\n\"Hola [Name], Gracias por la orientación. Le escribo a [Referral Name] directamente. ¡Que tengas excelente día!\"\n\nCATEGORY 5: ALREADY HAVE INTERNAL TEAM / ALREADY WORK WITH INFLUENCERS\nSignals: \"ya tenemos equipo\", \"ya trabajamos con influencers\", \"lo manejamos internamente\", \"tenemos proceso con nuestra agencia\"\nResponse template:\n\"Hola [Name], Entiendo perfectamente. Rizzult no reemplaza tu equipo — es un canal adicional de adquisición. La diferencia es el modelo: en vez de tarifas fijas, pagas solo por conversiones confirmadas (CPA). Muchos clientes como KFC lo usan junto a sus canales existentes. ¿Te interesaría una llamada corta para ver cómo se integra? Saludos, Pablo\"\n\nCATEGORY 6: NO BUDGET / NOT NOW / END OF YEAR BUSY\nSignals: \"no tenemos presupuesto\", \"ahora no\", \"más adelante\", \"en otro momento\", \"cierre de año\", \"ya estamos jugados\"\nResponse template:\n\"Hola [Name], Entiendo perfectamente. ¿Qué te parece si lo retomamos en enero cuando arranque el nuevo año? Saludos, Pablo\"\n\nCATEGORY 7: WANTS FREE TEST / PILOT\nSignals: \"test gratuito\", \"prueba\", \"piloto sin costo\", \"validar primero\", \"100% free\"\nResponse template:\n\"Hola [Name], Entiendo la inquietud. El modelo CPA ya es de bajo riesgo — no hay fees fijos y solo pagas por resultados. Si el usuario no realiza la acción, no pagas. El costo por acción lo acordamos de antemano. En vez de un test gratuito, te propongo una llamada donde te comparto benchmarks reales de campañas similares y vemos si tiene sentido para ti. ¿Qué dices? Saludos, Pablo\"\n\nCATEGORY 8: NOT INTERESTED / REJECTION\nSignals: \"no me interesa\", \"no gracias\", \"no estamos interesados\", \"paso\", \"unsubscribe\"\nResponse template:\n\"Hola [Name], Entendido, gracias por tu tiempo. Si en el futuro buscan diversificar canales de adquisición, aquí estaré. ¡Éxito!\"\n\nCATEGORY 9: MEETING BOOKED / CONFIRMED\nSignals: \"listo\", \"agendado\", \"confirmado\", \"ya reservé\", \"nos vemos\"\nResponse template:\n\"¡Perfecto! Quedamos para la reunión. ¡Hasta pronto!\"\n\nCATEGORY 10: MEETING CANCELLED / RESCHEDULE\nSignals: \"cancelo\", \"no puedo\", \"tengo que mover\", meeting was cancelled\nResponse template:\n\"Hola [Name], Vi que se canceló la reunión. ¿Todo bien? Si hay algún horario que te funcione mejor, con gusto la reagendamos. Saludos\"\n\nCATEGORY 11: PROPOSES SPECIFIC DATE/TIME\nSignals: mentions specific day, time, or date range; \"mañana\", \"el lunes\", \"esta semana\", \"te dejo opciones\", \"tengo disponibilidad\"\nResponse template:\n\"Hola [Name], ¡Perfecto! Te envío el invite para [confirm their proposed time]. ¡Gracias!\"\nOr if multiple options:\n\"Hola [Name], ¡Genial! Me funciona [pick one of their options]. Te envío el invite. Saludos, Pablo\"\nOr if no specific time given:\n\"Hola [Name], ¡Perfecto! Puedes elegir el horario que mejor te funcione aquí: [Calendly link] Saludos, Pablo\"\n\nCATEGORY 12: ASKS WHAT TIMEZONE / LANGUAGE\nSignals: \"what's your timezone\", \"qué zona horaria\", \"hablas inglés\", \"speaks English\"\nResponse template (timezone):\n\"Hola [Name], Estoy en horario GMT-3 (Argentina), pero me adapto sin problema a tu horario. ¿Te funciona agendar aquí? [Calendly link] Saludos, Pablo\"\nResponse template (language):\n\"Hi [Name], Yes, we can have the call in English, no problem. Feel free to book a time here: [Calendly link] Best, Pablo\"\n\nCATEGORY 13: FORWARDS TO COLLEAGUE / CC'S SOMEONE\nSignals: \"sumo a\", \"te presento a\", \"copio a\", \"agrego a\", \"reenvío a\", mentions @name in email\nResponse template:\n\"Hola [Original Name], ¡Gracias por la conexión! Hola [New Person Name], mucho gusto. Quedamos atentos para coordinar una llamada cuando te funcione. Puedes agendar aquí: [Calendly link] Saludos, Pablo\"\n\nCATEGORY 14: ASKS IF IT WORKS FOR B2B / SPECIFIC VERTICAL\nSignals: \"funciona para B2B?\", \"tienen experiencia en [vertical]?\", \"sirve para ecommerce?\", \"gambling\", \"gobierno\"\nResponse template:\n\"Hola [Name], Buena pregunta. [Answer based on context — if yes, mention relevant case; if unsure, suggest call to discuss specifics]. ¿Te funciona una llamada corta para ver tu caso específico? Saludos, Pablo\"\nFor B2B:\n\"Hola [Name], Rizzult está enfocado principalmente en B2C (apps, fintech, delivery, etc). Para B2B el modelo CPA es más complejo, pero podemos verlo en una llamada. ¿Te interesa? Saludos, Pablo\"\nFor gambling:\n\"Hola [Name], Sí, tenemos experiencia en gambling. Con gusto te cuento más en una llamada. ¿Cuándo te funciona? Saludos, Pablo\"\n\nCATEGORY 15: CONFUSED / DOESN'T UNDERSTAND\nSignals: \"no entiendo\", \"de qué se trata\", \"qué están ofreciendo\", \"explícame\"\nResponse template:\n\"Hola [Name], ¡Claro! Rizzult es una plataforma de marketing con influencers donde solo pagas por resultados (CPA). Por ejemplo, si quieres más descargas de tu app, solo pagas por cada descarga confirmada — no por posts ni impresiones. Trabajamos con KFC, Stori, Yango y otros en LATAM. ¿Te interesa una llamada de 15 min para ver si aplica para [company]? Saludos, Pablo\"\n\nCATEGORY 16: GIVES PHONE NUMBER / WHATSAPP\nSignals: \"mi cel es\", \"WhatsApp\", phone number in message\nResponse template:\n\"Hola [Name], ¡Gracias! Te escribo por WhatsApp para coordinar. Saludos, Pablo\"\n\nCATEGORY 17: HOLIDAY SCHEDULING\nSignals: before/after holidays, December, January, end of year, \"enero\", \"después de fiestas\"\nResponse template:\n\"Hola [Name], ¡Perfecto! ¿Te funciona la primera semana de enero? Puedes agendar aquí: [Calendly link] ¡Que pases muy bien las fiestas! Saludos, Pablo\"\n\nCATEGORY 18: THANK YOU / WILL REVIEW\nSignals: \"gracias por la información\", \"lo revisamos\", \"lo tendremos en cuenta\", \"le comento al equipo\"\nResponse template:\n\"Hola [Name], ¡Gracias a ti! Quedo atento por si surge alguna duda. Saludos, Pablo\"\n\nCATEGORY 19: PROVIDES LINKEDIN PROFILE\nSignals: LinkedIn URL in message\nResponse template:\n\"Hola [Name], ¡Gracias! Le envío mensaje por LinkedIn. Saludos, Pablo\"\n\nDo Not Reply (skip these messages)\n\nAuto-replies / Out of Office\n\"Ya no trabajo en esta empresa\"\nDelivery failure notifications\nUnsubscribe confirmations\n\n\nInstructions for Response\n\nRead the incoming message carefully\nIdentify the sender's name and company (if available)\nCheck if message is in \"Do Not Reply\" list — if yes, output \"NO_REPLY\"\nClassify the message into one of the categories above\nAdapt the template to the specific context\nUse the appropriate case study if their segment is known\nKeep the response concise (max 5-7 sentences)\nInclude signature block\nOutput ONLY the response text, no explanations\n\n\n\n---\n\n# Input\n\nSender name: {{ $json.body.contact.name }}\nCompany: {{ $json.body.contact.company_name }}\nSegment (parse from automation name): {{ $json.body.automation.name }}\nmessage to reply: {{ $json.body.linkedin_message.text }}\n---\n\n## Output\n\nWrite the response"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        624,
+        0
+      ],
+      "id": "0cc7aca7-8b34-41e0-a3a5-95536ef5b28d",
+      "name": "Message a model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "QxTCo6YfDhdioSL0",
+          "name": "Rizzult"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "getsally.app.n8n.cloud",
+            "user-agent": "GuzzleHttp/7",
+            "content-length": "9513",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "2a01:4f8:2191:3548::2",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "DE",
+            "cf-ray": "96ed992e167b3f0f-FRA",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-forwarded-for": "2a01:4f8:2191:3548::2, 172.70.248.200",
+            "x-forwarded-host": "getsally.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-41-785c66d969-7lscl",
+            "x-is-trusted": "yes",
+            "x-real-ip": "2a01:4f8:2191:3548::2"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "contact": {
+              "uuid": "00000000-0000-0000-0000-000000000001",
+              "team_id": 12345678,
+              "getsales_url": "https://amazing.getsales.io/leads/people/00000000-0000-0000-0000-000000000001",
+              "list_uuid": "00000000-0000-0000-0000-000000000001",
+              "list_name": "Example List",
+              "pipeline_stage_uuid": "00000000-0000-0000-0000-000000000001",
+              "pipeline_stage_name": "Opportunity",
+              "name": "Example Name",
+              "first_name": "Andrew",
+              "last_name": "Li",
+              "position": "ExamplePosition",
+              "headline": "ExampleHeadline",
+              "about": "This is an example about the lead.",
+              "company_uuid": "00000000-0000-0000-0000-000000000001",
+              "company_name": "ExampleCompanyName",
+              "company_ln_id": "example-ln-id",
+              "ln_id": "example-ln-id",
+              "sn_id": "example-sn-id",
+              "linkedin": "https://www.linkedin.com/in/example",
+              "linkedin_url": "https://www.linkedin.com/in/example-mock",
+              "sales_navigator_url": "https://linkedin.com/sales/lead/example",
+              "facebook": "https://www.facebook.com/example",
+              "facebook_url": "https://www.facebook.com/example-mock",
+              "twitter": "https://twitter.com/example",
+              "twitter_url": "https://twitter.com/example-mock",
+              "work_email": "work@example.com",
+              "personal_email": "personal@example.com",
+              "work_phone_number": "123-456-7890",
+              "personal_phone_number": "098-765-4321",
+              "connections_number": 100,
+              "followers_number": 200,
+              "primary_language": "en",
+              "supported_languages": [
+                "en",
+                "de"
+              ],
+              "has_open_profile": 1,
+              "has_verified_profile": 1,
+              "has_premium": 0,
+              "experience": [
+                {
+                  "company_name": "Experience Company",
+                  "position": "CEO",
+                  "profile_id": "1",
+                  "company_nickname": "ExpCo",
+                  "employment_type": "Full-time",
+                  "location": "Example City, Example Country",
+                  "start_date": "2020-01-01T00:00:00.000000Z",
+                  "end_date": "2021-01-01T00:00:00.000000Z",
+                  "description": "Worked as a big boss."
+                }
+              ],
+              "posts": [
+                {
+                  "action_type": "posted",
+                  "text": "Hello, world!",
+                  "posted_at": "2023-01-01T12:00:00.000000Z",
+                  "reactions_number": 10,
+                  "comments_number": 5
+                }
+              ],
+              "educations": [
+                {
+                  "school_name": "Example University",
+                  "field_of_study": "Computer Science",
+                  "profile_id": "1",
+                  "degree": "Bachelor",
+                  "start_date": "2015-09-01T00:00:00.000000Z",
+                  "end_date": "2019-06-01T00:00:00.000000Z",
+                  "description": "Studied computer science."
+                }
+              ],
+              "skills": [
+                "PHP",
+                "Laravel",
+                "JavaScript"
+              ],
+              "top_voices": [
+                {
+                  "nickname": "TopVoice",
+                  "ln_id": "tv-ln-id",
+                  "name": "Top Voice Name",
+                  "headline": "Inspiring Leader"
+                }
+              ],
+              "raw_address": "123 Example St, Example City, EC 12345",
+              "location": {
+                "country": "ExampleCountry",
+                "region": "ExampleRegion",
+                "city": "ExampleCity",
+                "zip": "12345",
+                "timezone": "UTC",
+                "address_string": "123 Example St, Example City, EC 12345"
+              },
+              "tags": "ExampleTag1, ExampleTag2",
+              "last_enrich_at": "2024-01-01 00:00:00",
+              "status": "ok",
+              "linkedin_status": "ok",
+              "email_status": "ok",
+              "custom_fields": {
+                "custom_field_1": "Value 1",
+                "custom_field_2": "Value 2"
+              },
+              "last_stop_on_reply_at": null,
+              "created_at": "2024-01-01 00:00:00"
+            },
+            "account": {
+              "uuid": "00000000-0000-0000-0000-000000000001",
+              "team_id": 12345678,
+              "getsales_url": "https://amazing.getsales.io/leads/companies/00000000-0000-0000-0000-000000000001",
+              "pipeline_stage_uuid": "00000000-0000-0000-0000-000000000001",
+              "pipeline_stage_name": "Opportunity",
+              "deal_size": 3500,
+              "name": "Example Company Name",
+              "domain": "example.com",
+              "website": "https://www.example.com",
+              "ln_id": 43283657,
+              "linkedin": "example-company",
+              "linkedin_url": "https://www.linkedin.com/company/example-company",
+              "sales_navigator_url": "https://www.linkedin.com/sales/company/43283657",
+              "facebook": "example_company",
+              "facebook_url": "https://www.facebook.com/example_company",
+              "twitter": "example_company",
+              "twitter_url": "https://twitter.com/example_company",
+              "phone": "123-456-7890",
+              "hq_raw_address": "123 Example St, Example City, EC 12345",
+              "hq_location": {
+                "country": "ExampleCountry",
+                "region": "ExampleRegion",
+                "city": "ExampleCity",
+                "zip": "12345",
+                "timezone": "UTC",
+                "address_string": "123 Example St, Example City, EC 12345"
+              },
+              "industry": "Example Industry",
+              "employees_range": "201-500",
+              "followers": 12345678,
+              "employees_on_linkedin": 12345678,
+              "year_established": 1990,
+              "tagline": "Example Tagline Here",
+              "about": "Example about text for the company.",
+              "network_type": "NETWORK_TYPE_BUSINESS",
+              "specialities": "ExampleSpeciality1, ExampleSpeciality2",
+              "hashtags": "#ExampleHashtag1, #ExampleHashtag2",
+              "lists": "ExampleList1, ExampleList2",
+              "tags": "ExampleTag1, ExampleTag2",
+              "status": "ok",
+              "linkedin_status": "ok",
+              "custom_fields": [],
+              "created_at": "2024-01-01 00:00:00"
+            },
+            "contact_markers": {
+              "linkedin_last_connection_sent_at": "2024-01-01 10:00:00",
+              "linkedin_last_connection_accepted_at": "2024-01-01 10:05:00",
+              "linkedin_last_connection_lost_at": "2024-01-01 10:10:00",
+              "linkedin_first_message_sent_at": "2024-01-01 11:00:00",
+              "linkedin_last_message_sent_at": "2024-01-01 11:30:00",
+              "linkedin_messages_sent_count": 5,
+              "linkedin_messages_inbox_count": 3,
+              "linkedin_read_count": 4,
+              "linkedin_click_count": 2,
+              "email_first_message_sent_at": "2024-01-01 12:00:00",
+              "email_last_message_sent_at": "2024-01-01 12:30:00",
+              "email_sent_count": 10,
+              "email_inbox_count": 8,
+              "email_read_count": 7,
+              "email_click_count": 3,
+              "email_last_unsubscribed_at": "2024-01-01 13:00:00",
+              "last_message_type": "inbox",
+              "last_messaging_activity_at": "2024-01-01 14:00:00"
+            },
+            "sender_profile": {
+              "uuid": "00000000-0000-0000-0000-000000000001",
+              "team_id": 12345678,
+              "assignee_user_id": 12345678,
+              "first_name": "ExampleFirstName",
+              "last_name": "ExampleLastName",
+              "label": "Example-Label",
+              "created_at": "2024-01-01 00:00:00"
+            },
+            "automation": {
+              "uuid": "00000000-0000-0000-0000-000000000001",
+              "team_id": 12345678,
+              "name": "Example Flow",
+              "description": "This is an example automation flow description.",
+              "priority": 5,
+              "status": "on",
+              "created_at": "2024-01-01 00:00:00"
+            },
+            "linkedin_message": {
+              "subject": "Example subject.",
+              "text": "TEST MESSAGE Hola Lisa. Yo creo que tu mejor contacto puede ser Juana Vergara para hablar de este tema",
+              "custom_content": "This message contains LinkedIn custom content, view on LinkedIn.",
+              "attachments": "example.pdf, example2.pdf",
+              "type": "inbox",
+              "automation": "synced",
+              "linkedin_type": "message",
+              "status": "done",
+              "fail_reason": null,
+              "read_at": "2024-01-01 00:00:00",
+              "sent_at": "2024-01-01 00:00:00"
+            },
+            "latest_linkedin_conversation_thread": {
+              "channel": "linkedin",
+              "last_message_type": "inbox",
+              "messaging_thread": "On 9 Apr 2025, at 11:32, by Jake Turner via LinkedIn Message\nAbsolutely – dropping my calendar link here. Looking forward!\n\n> On 9 Apr 2025, at 11:30, by Sarah Smith via LinkedIn Message\n> Okay, I’m intrigued. Free for a call tomorrow afternoon?\n\n>> On 9 Apr 2025, at 11:22, by Jake Turner via LinkedIn Message\n>> Usually 2–3 days.\n>> We just need a quick call to align on goals and ICP – then we build and launch.\n\n>>> On 9 Apr 2025, at 11:20, by Sarah Smith via LinkedIn Message\n>>> And how long does it usually take to get live?\n\n>>>> On 9 Apr 2025, at 11:10, by Jake Turner via LinkedIn Message\n>>>> Totally hear you. That’s exactly why we started doing this hands-on.\n>>>> We set everything up: messaging, targeting, warm-up, replies – even A/B test the sequences.\n\n>>>>> On 8 Apr 2025, at 11:02, by Sarah Smith via LinkedIn Message\n>>>>> Sounds useful, honestly. Most tools we’ve tried felt either too clunky or too hands-off.\n\n>>>>>> On 7 Apr 2025, at 10:30, by Jake Turner via LinkedIn Message\n>>>>>> Got it – that’s super common.\n>>>>>> We work with early-stage teams to build simple LinkedIn + email flows that book real sales calls without needing to hire more SDRs.\n\n>>>>>>> On 7 Apr 2025, at 10:15, by Sarah Smith via LinkedIn Message\n>>>>>>> Thanks Jake! Appreciate you reaching out.\n>>>>>>> We’ve dabbled a bit but haven’t gone deep into automation yet.\n\n>>>>>>>> On 6 Apr 2024, at 09:00, by Jake Turner via LinkedIn Message\n>>>>>>>> Hey Sarah, came across your profile – really liked what you’re doing at BrightForge.\n>>>>>>>> Are you currently exploring anything around automated outbound?"
+            },
+            "latest_email_conversation_thread": {
+              "channel": "linkedin",
+              "last_message_type": "inbox",
+              "messaging_thread": "On 9 Apr 2025, at 11:46, by Jake Turner via Email\nGreat, just sent over my calendar link – looking forward to chatting!\n\nBest regards,\nJake Turner\nGrowth Strategist | Outboundly\njake@outboundly.io\nwww.outboundly.io\n\n> On 9 Apr 2025, at 11:40, by Sarah Smith via Email\n> That sounds solid. Let’s do it – you free tomorrow afternoon?\n\n>> On 9 Apr 2025, at 11:22, by Jake Turner via Email\n>> We usually go from kickoff to live in under 3 days.\n>> Once we align on targeting and messaging, our team handles everything end-to-end.\n>> You just show up to close deals.\n\n>> Best,\n>> Jake\n\n>>> On 9 Apr 2025, at 11:14, by Sarah Smith via Email\n>>> Interesting. How long does setup usually take?\n\n>>>> On 8 Apr 2025, at 17:30, by Jake Turner via Email\n>>>> Absolutely – we’ve helped several SaaS teams get 20–30 qualified conversations a month through LinkedIn + email, all automated.\n>>>> I’d be happy to walk you through what that looks like for BrightForge.\n>>>> Let me know if you’re open to a quick call.\n\n>>>> Cheers,\n>>>> Jake\n\n>>>>> On 8 Apr 2025, at 14:18, by Sarah Smith via Email\n>>>>> Appreciate you reaching out. We’ve tried a few things internally, but nothing really stuck.\n>>>>> Curious to hear what your approach is.\n\n>>>>>> On 8 Apr 2025, at 09:05, by Jake Turner via Email\n>>>>>> Hi Sarah,\n>>>>>>\n>>>>>> Just came across BrightForge — really impressed with what you’re building.\n>>>>>> Quick question: are you currently doing anything on the outbound side to consistently generate leads?\n>>>>>>\n>>>>>> Best regards,\n>>>>>> Jake Turner\n>>>>>> Growth Strategist | Outboundly\n>>>>>> jake@outboundly.io\n>>>>>> www.outboundly.io"
+            }
+          },
+          "webhookUrl": "https://getsally.app.n8n.cloud/webhook-test/b8764f4e-c49d-4961-a33d-6b678552c467/linkedin",
+          "executionMode": "test"
+        }
+      }
+    ],
+    "Execution Data": [
+      {
+        "json": {
+          "headers": {
+            "host": "getsally.app.n8n.cloud",
+            "user-agent": "GuzzleHttp/7",
+            "content-length": "9513",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "2a01:4f8:2191:3548::2",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "DE",
+            "cf-ray": "96ed992e167b3f0f-FRA",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-forwarded-for": "2a01:4f8:2191:3548::2, 172.70.248.200",
+            "x-forwarded-host": "getsally.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-41-785c66d969-7lscl",
+            "x-is-trusted": "yes",
+            "x-real-ip": "2a01:4f8:2191:3548::2"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "contact": {
+              "uuid": "00000000-0000-0000-0000-000000000001",
+              "team_id": 12345678,
+              "getsales_url": "https://amazing.getsales.io/leads/people/00000000-0000-0000-0000-000000000001",
+              "list_uuid": "00000000-0000-0000-0000-000000000001",
+              "list_name": "Example List",
+              "pipeline_stage_uuid": "00000000-0000-0000-0000-000000000001",
+              "pipeline_stage_name": "Opportunity",
+              "name": "Example Name",
+              "first_name": "Andrew",
+              "last_name": "Li",
+              "position": "ExamplePosition",
+              "headline": "ExampleHeadline",
+              "about": "This is an example about the lead.",
+              "company_uuid": "00000000-0000-0000-0000-000000000001",
+              "company_name": "ExampleCompanyName",
+              "company_ln_id": "example-ln-id",
+              "ln_id": "example-ln-id",
+              "sn_id": "example-sn-id",
+              "linkedin": "https://www.linkedin.com/in/example",
+              "linkedin_url": "https://www.linkedin.com/in/example-mock",
+              "sales_navigator_url": "https://linkedin.com/sales/lead/example",
+              "facebook": "https://www.facebook.com/example",
+              "facebook_url": "https://www.facebook.com/example-mock",
+              "twitter": "https://twitter.com/example",
+              "twitter_url": "https://twitter.com/example-mock",
+              "work_email": "work@example.com",
+              "personal_email": "personal@example.com",
+              "work_phone_number": "123-456-7890",
+              "personal_phone_number": "098-765-4321",
+              "connections_number": 100,
+              "followers_number": 200,
+              "primary_language": "en",
+              "supported_languages": [
+                "en",
+                "de"
+              ],
+              "has_open_profile": 1,
+              "has_verified_profile": 1,
+              "has_premium": 0,
+              "experience": [
+                {
+                  "company_name": "Experience Company",
+                  "position": "CEO",
+                  "profile_id": "1",
+                  "company_nickname": "ExpCo",
+                  "employment_type": "Full-time",
+                  "location": "Example City, Example Country",
+                  "start_date": "2020-01-01T00:00:00.000000Z",
+                  "end_date": "2021-01-01T00:00:00.000000Z",
+                  "description": "Worked as a big boss."
+                }
+              ],
+              "posts": [
+                {
+                  "action_type": "posted",
+                  "text": "Hello, world!",
+                  "posted_at": "2023-01-01T12:00:00.000000Z",
+                  "reactions_number": 10,
+                  "comments_number": 5
+                }
+              ],
+              "educations": [
+                {
+                  "school_name": "Example University",
+                  "field_of_study": "Computer Science",
+                  "profile_id": "1",
+                  "degree": "Bachelor",
+                  "start_date": "2015-09-01T00:00:00.000000Z",
+                  "end_date": "2019-06-01T00:00:00.000000Z",
+                  "description": "Studied computer science."
+                }
+              ],
+              "skills": [
+                "PHP",
+                "Laravel",
+                "JavaScript"
+              ],
+              "top_voices": [
+                {
+                  "nickname": "TopVoice",
+                  "ln_id": "tv-ln-id",
+                  "name": "Top Voice Name",
+                  "headline": "Inspiring Leader"
+                }
+              ],
+              "raw_address": "123 Example St, Example City, EC 12345",
+              "location": {
+                "country": "ExampleCountry",
+                "region": "ExampleRegion",
+                "city": "ExampleCity",
+                "zip": "12345",
+                "timezone": "UTC",
+                "address_string": "123 Example St, Example City, EC 12345"
+              },
+              "tags": "ExampleTag1, ExampleTag2",
+              "last_enrich_at": "2024-01-01 00:00:00",
+              "status": "ok",
+              "linkedin_status": "ok",
+              "email_status": "ok",
+              "custom_fields": {
+                "custom_field_1": "Value 1",
+                "custom_field_2": "Value 2"
+              },
+              "last_stop_on_reply_at": null,
+              "created_at": "2024-01-01 00:00:00"
+            },
+            "account": {
+              "uuid": "00000000-0000-0000-0000-000000000001",
+              "team_id": 12345678,
+              "getsales_url": "https://amazing.getsales.io/leads/companies/00000000-0000-0000-0000-000000000001",
+              "pipeline_stage_uuid": "00000000-0000-0000-0000-000000000001",
+              "pipeline_stage_name": "Opportunity",
+              "deal_size": 3500,
+              "name": "Example Company Name",
+              "domain": "example.com",
+              "website": "https://www.example.com",
+              "ln_id": 43283657,
+              "linkedin": "example-company",
+              "linkedin_url": "https://www.linkedin.com/company/example-company",
+              "sales_navigator_url": "https://www.linkedin.com/sales/company/43283657",
+              "facebook": "example_company",
+              "facebook_url": "https://www.facebook.com/example_company",
+              "twitter": "example_company",
+              "twitter_url": "https://twitter.com/example_company",
+              "phone": "123-456-7890",
+              "hq_raw_address": "123 Example St, Example City, EC 12345",
+              "hq_location": {
+                "country": "ExampleCountry",
+                "region": "ExampleRegion",
+                "city": "ExampleCity",
+                "zip": "12345",
+                "timezone": "UTC",
+                "address_string": "123 Example St, Example City, EC 12345"
+              },
+              "industry": "Example Industry",
+              "employees_range": "201-500",
+              "followers": 12345678,
+              "employees_on_linkedin": 12345678,
+              "year_established": 1990,
+              "tagline": "Example Tagline Here",
+              "about": "Example about text for the company.",
+              "network_type": "NETWORK_TYPE_BUSINESS",
+              "specialities": "ExampleSpeciality1, ExampleSpeciality2",
+              "hashtags": "#ExampleHashtag1, #ExampleHashtag2",
+              "lists": "ExampleList1, ExampleList2",
+              "tags": "ExampleTag1, ExampleTag2",
+              "status": "ok",
+              "linkedin_status": "ok",
+              "custom_fields": [],
+              "created_at": "2024-01-01 00:00:00"
+            },
+            "contact_markers": {
+              "linkedin_last_connection_sent_at": "2024-01-01 10:00:00",
+              "linkedin_last_connection_accepted_at": "2024-01-01 10:05:00",
+              "linkedin_last_connection_lost_at": "2024-01-01 10:10:00",
+              "linkedin_first_message_sent_at": "2024-01-01 11:00:00",
+              "linkedin_last_message_sent_at": "2024-01-01 11:30:00",
+              "linkedin_messages_sent_count": 5,
+              "linkedin_messages_inbox_count": 3,
+              "linkedin_read_count": 4,
+              "linkedin_click_count": 2,
+              "email_first_message_sent_at": "2024-01-01 12:00:00",
+              "email_last_message_sent_at": "2024-01-01 12:30:00",
+              "email_sent_count": 10,
+              "email_inbox_count": 8,
+              "email_read_count": 7,
+              "email_click_count": 3,
+              "email_last_unsubscribed_at": "2024-01-01 13:00:00",
+              "last_message_type": "inbox",
+              "last_messaging_activity_at": "2024-01-01 14:00:00"
+            },
+            "sender_profile": {
+              "uuid": "00000000-0000-0000-0000-000000000001",
+              "team_id": 12345678,
+              "assignee_user_id": 12345678,
+              "first_name": "ExampleFirstName",
+              "last_name": "ExampleLastName",
+              "label": "Example-Label",
+              "created_at": "2024-01-01 00:00:00"
+            },
+            "automation": {
+              "uuid": "00000000-0000-0000-0000-000000000001",
+              "team_id": 12345678,
+              "name": "Example Flow",
+              "description": "This is an example automation flow description.",
+              "priority": 5,
+              "status": "on",
+              "created_at": "2024-01-01 00:00:00"
+            },
+            "linkedin_message": {
+              "subject": "Example subject.",
+              "text": "TEST MESSAGE:Hola Lisa. Yo creo que tu mejor contacto puede ser Juana Vergara para hablar de este tema.",
+              "custom_content": "This message contains LinkedIn custom content, view on LinkedIn.",
+              "attachments": "example.pdf, example2.pdf",
+              "type": "inbox",
+              "automation": "synced",
+              "linkedin_type": "message",
+              "status": "done",
+              "fail_reason": null,
+              "read_at": "2024-01-01 00:00:00",
+              "sent_at": "2024-01-01 00:00:00"
+            },
+            "latest_linkedin_conversation_thread": {
+              "channel": "linkedin",
+              "last_message_type": "inbox",
+              "messaging_thread": "On 9 Apr 2025, at 11:32, by Jake Turner via LinkedIn Message\nAbsolutely – dropping my calendar link here. Looking forward!\n\n> On 9 Apr 2025, at 11:30, by Sarah Smith via LinkedIn Message\n> Okay, I’m intrigued. Free for a call tomorrow afternoon?\n\n>> On 9 Apr 2025, at 11:22, by Jake Turner via LinkedIn Message\n>> Usually 2–3 days.\n>> We just need a quick call to align on goals and ICP – then we build and launch.\n\n>>> On 9 Apr 2025, at 11:20, by Sarah Smith via LinkedIn Message\n>>> And how long does it usually take to get live?\n\n>>>> On 9 Apr 2025, at 11:10, by Jake Turner via LinkedIn Message\n>>>> Totally hear you. That’s exactly why we started doing this hands-on.\n>>>> We set everything up: messaging, targeting, warm-up, replies – even A/B test the sequences.\n\n>>>>> On 8 Apr 2025, at 11:02, by Sarah Smith via LinkedIn Message\n>>>>> Sounds useful, honestly. Most tools we’ve tried felt either too clunky or too hands-off.\n\n>>>>>> On 7 Apr 2025, at 10:30, by Jake Turner via LinkedIn Message\n>>>>>> Got it – that’s super common.\n>>>>>> We work with early-stage teams to build simple LinkedIn + email flows that book real sales calls without needing to hire more SDRs.\n\n>>>>>>> On 7 Apr 2025, at 10:15, by Sarah Smith via LinkedIn Message\n>>>>>>> Thanks Jake! Appreciate you reaching out.\n>>>>>>> We’ve dabbled a bit but haven’t gone deep into automation yet.\n\n>>>>>>>> On 6 Apr 2024, at 09:00, by Jake Turner via LinkedIn Message\n>>>>>>>> Hey Sarah, came across your profile – really liked what you’re doing at BrightForge.\n>>>>>>>> Are you currently exploring anything around automated outbound?"
+            },
+            "latest_email_conversation_thread": {
+              "channel": "linkedin",
+              "last_message_type": "inbox",
+              "messaging_thread": "On 9 Apr 2025, at 11:46, by Jake Turner via Email\nGreat, just sent over my calendar link – looking forward to chatting!\n\nBest regards,\nJake Turner\nGrowth Strategist | Outboundly\njake@outboundly.io\nwww.outboundly.io\n\n> On 9 Apr 2025, at 11:40, by Sarah Smith via Email\n> That sounds solid. Let’s do it – you free tomorrow afternoon?\n\n>> On 9 Apr 2025, at 11:22, by Jake Turner via Email\n>> We usually go from kickoff to live in under 3 days.\n>> Once we align on targeting and messaging, our team handles everything end-to-end.\n>> You just show up to close deals.\n\n>> Best,\n>> Jake\n\n>>> On 9 Apr 2025, at 11:14, by Sarah Smith via Email\n>>> Interesting. How long does setup usually take?\n\n>>>> On 8 Apr 2025, at 17:30, by Jake Turner via Email\n>>>> Absolutely – we’ve helped several SaaS teams get 20–30 qualified conversations a month through LinkedIn + email, all automated.\n>>>> I’d be happy to walk you through what that looks like for BrightForge.\n>>>> Let me know if you’re open to a quick call.\n\n>>>> Cheers,\n>>>> Jake\n\n>>>>> On 8 Apr 2025, at 14:18, by Sarah Smith via Email\n>>>>> Appreciate you reaching out. We’ve tried a few things internally, but nothing really stuck.\n>>>>> Curious to hear what your approach is.\n\n>>>>>> On 8 Apr 2025, at 09:05, by Jake Turner via Email\n>>>>>> Hi Sarah,\n>>>>>>\n>>>>>> Just came across BrightForge — really impressed with what you’re building.\n>>>>>> Quick question: are you currently doing anything on the outbound side to consistently generate leads?\n>>>>>>\n>>>>>> Best regards,\n>>>>>> Jake Turner\n>>>>>> Growth Strategist | Outboundly\n>>>>>> jake@outboundly.io\n>>>>>> www.outboundly.io"
+            }
+          },
+          "webhookUrl": "https://getsally.app.n8n.cloud/webhook-test/b8764f4e-c49d-4961-a33d-6b678552c467/linkedin",
+          "executionMode": "test"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Execution Data": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Execution Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Send to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "98e3ba9e-8fe1-4612-8a72-a0d1b87ad918",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "20fe66f5309446fa764b12af171bce6280580269eb5061301aed4d30f1fcafbd"
+  },
+  "id": "SthRcgp7EO6MueBg",
+  "tags": []
+}

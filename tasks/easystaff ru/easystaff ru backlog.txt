@@ -1,0 +1,13 @@
+1. update info on lead on connected google sheet, 
+easystaff ru google sheet example is below
+
+each warm lead should appear in table in this table format, research it first
+
+make smart ai system with gemijni2.5 pro in core that sees google sheet, analusis coliumn approach, provide its' ai core with interface of scripts , functions and column opearationsto build mapping of fields in the connected sheet to real data in our database, architecture as gd, amake flexbile
+
+
+https://docs.google.com/spreadsheets/d/1RdWkaJKMhZDiCP-M4rfjUYvSga_hOilv7QYsx9JFNy0/edit?gid=1916568474#gid=1916568474
+
+
+
+faef

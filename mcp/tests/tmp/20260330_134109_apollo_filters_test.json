@@ -1,0 +1,998 @@
+{
+  "ts": "20260330_134109",
+  "tests": [
+    {
+      "name": "1_kw_only_IT consulting Miami",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "IT consulting"
+        ],
+        "organization_locations": [
+          "Miami, Florida, United States"
+        ]
+      },
+      "total": 2063,
+      "sample": [
+        {
+          "name": "Cirion",
+          "domain": "ciriontechnologies.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Synergy Business Consulting, Inc.",
+          "domain": "synergybc.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Cipher | A Prosegur company",
+          "domain": "cipher.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "NEORIS",
+          "domain": "neoris.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Axur",
+          "domain": "axur.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "1_kw_only_IT consulting Miami 3kw",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "IT consulting",
+          "technology consulting",
+          "IT services"
+        ],
+        "organization_locations": [
+          "Miami, Florida, United States"
+        ]
+      },
+      "total": 2390,
+      "sample": [
+        {
+          "name": "Cirion",
+          "domain": "ciriontechnologies.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Synergy Business Consulting, Inc.",
+          "domain": "synergybc.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Cipher | A Prosegur company",
+          "domain": "cipher.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Coderio",
+          "domain": "coderio.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "NEORIS",
+          "domain": "neoris.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "1_kw_only_Fashion Italy",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "fashion"
+        ],
+        "organization_locations": [
+          "Italy"
+        ]
+      },
+      "total": 19829,
+      "sample": [
+        {
+          "name": "Gucci",
+          "domain": "gucci.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "dolce & gabbana",
+          "domain": "dolcegabbana.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Bvlgari",
+          "domain": "bulgari.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Maxima Fashion",
+          "domain": "maxmarafashiongroup.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Fendi",
+          "domain": "fendi.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "1_kw_only_Fashion Italy 3kw",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "fashion brand",
+          "apparel",
+          "clothing"
+        ],
+        "organization_locations": [
+          "Italy"
+        ]
+      },
+      "total": 16972,
+      "sample": [
+        {
+          "name": "Gucci",
+          "domain": "gucci.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "dolce & gabbana",
+          "domain": "dolcegabbana.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Fendi",
+          "domain": "fendi.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "valentino garavani",
+          "domain": "valentino.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "TWINSET",
+          "domain": "twinset.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "1_kw_only_Influencer UK",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "influencer marketing"
+        ],
+        "organization_locations": [
+          "United Kingdom"
+        ]
+      },
+      "total": 6928,
+      "sample": [
+        {
+          "name": "Gymshark",
+          "domain": "gymshark.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Jimmy Choo",
+          "domain": "jimmychoo.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Brandwatch",
+          "domain": "brandwatch.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "FARFETCH",
+          "domain": "farfetch.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Boohoo Group PLC",
+          "domain": "boohooplc.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "1_kw_only_Influencer UK 3kw",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "influencer marketing",
+          "creator economy",
+          "influencer platform"
+        ],
+        "organization_locations": [
+          "United Kingdom"
+        ]
+      },
+      "total": 7069,
+      "sample": [
+        {
+          "name": "Gymshark",
+          "domain": "gymshark.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Jimmy Choo",
+          "domain": "jimmychoo.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "The Digital Dept.",
+          "domain": "besocialpr.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Brandwatch",
+          "domain": "brandwatch.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Sumo",
+          "domain": "sumo.london",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "2_industry_as_kw_IT as industry name",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "information technology & services"
+        ],
+        "organization_locations": [
+          "Miami, Florida, United States"
+        ]
+      },
+      "total": 17617,
+      "sample": [
+        {
+          "name": "Burger King",
+          "domain": "bk.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "CITADEL ENTERPRISE AMERICAS LLC",
+          "domain": "citadel.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Royal Caribbean Group",
+          "domain": "royalcaribbean.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "The Community",
+          "domain": "thecommunityagency.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Coderio",
+          "domain": "coderio.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "2_industry_as_kw_Fashion as industry name",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "apparel & fashion"
+        ],
+        "organization_locations": [
+          "Italy"
+        ]
+      },
+      "total": 15182,
+      "sample": [
+        {
+          "name": "Gucci",
+          "domain": "gucci.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Bvlgari",
+          "domain": "bulgari.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "dolce & gabbana",
+          "domain": "dolcegabbana.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "valentino garavani",
+          "domain": "valentino.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Fendi",
+          "domain": "fendi.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "2_industry_as_kw_Marketing as industry name",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "marketing & advertising"
+        ],
+        "organization_locations": [
+          "United Kingdom"
+        ]
+      },
+      "total": 117337,
+      "sample": [
+        {
+          "name": "Chanel",
+          "domain": "chanel.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "PwC Colombia",
+          "domain": "pwc.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Kantar",
+          "domain": "kantar.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Gymshark",
+          "domain": "gymshark.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "burberry",
+          "domain": "burberry.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "4_try_organization_industry_tag_ids",
+      "filters": {
+        "organization_industry_tag_ids": [
+          "information technology & services"
+        ],
+        "organization_locations": [
+          "United States"
+        ]
+      },
+      "total": 0
+    },
+    {
+      "name": "4_try_q_organization_industry_tag_ids",
+      "filters": {
+        "q_organization_industry_tag_ids": [
+          "information technology & services"
+        ],
+        "organization_locations": [
+          "United States"
+        ]
+      },
+      "total": 8286840,
+      "sample": [
+        {
+          "name": "IBM",
+          "domain": "ibm.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Netflix",
+          "domain": "netflix.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Intel",
+          "domain": null,
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "McDonald's",
+          "domain": "mcdonalds.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Purity Media",
+          "domain": "google.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "4_try_industry_tag_ids",
+      "filters": {
+        "industry_tag_ids": [
+          "information technology & services"
+        ],
+        "organization_locations": [
+          "United States"
+        ]
+      },
+      "total": 8286840,
+      "sample": [
+        {
+          "name": "IBM",
+          "domain": "ibm.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Netflix",
+          "domain": "netflix.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Intel",
+          "domain": null,
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "McDonald's",
+          "domain": "mcdonalds.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Purity Media",
+          "domain": "google.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "5_location_UK",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "marketing"
+        ],
+        "organization_locations": [
+          "UK"
+        ]
+      },
+      "total": 150816,
+      "sample": [
+        {
+          "name": "Chanel",
+          "domain": "chanel.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "PwC Colombia",
+          "domain": "pwc.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Kantar",
+          "domain": "kantar.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Shell",
+          "domain": "shell.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "YouGov",
+          "domain": "yougov.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "5_location_United Kingdom",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "marketing"
+        ],
+        "organization_locations": [
+          "United Kingdom"
+        ]
+      },
+      "total": 150816,
+      "sample": [
+        {
+          "name": "Chanel",
+          "domain": "chanel.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "PwC Colombia",
+          "domain": "pwc.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Kantar",
+          "domain": "kantar.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Shell",
+          "domain": "shell.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "YouGov",
+          "domain": "yougov.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "5_location_London",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "marketing"
+        ],
+        "organization_locations": [
+          "London"
+        ]
+      },
+      "total": 50275,
+      "sample": [
+        {
+          "name": "Chanel",
+          "domain": "chanel.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "PwC Colombia",
+          "domain": "pwc.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Kantar",
+          "domain": "kantar.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Shell",
+          "domain": "shell.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "MiQ LatAm",
+          "domain": "wearemiq.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "5_location_London, United Kingdom",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "marketing"
+        ],
+        "organization_locations": [
+          "London, United Kingdom"
+        ]
+      },
+      "total": 50275,
+      "sample": [
+        {
+          "name": "Chanel",
+          "domain": "chanel.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "PwC Colombia",
+          "domain": "pwc.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Kantar",
+          "domain": "kantar.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Shell",
+          "domain": "shell.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "MiQ LatAm",
+          "domain": "wearemiq.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "5_location_London, England, United Kingdom",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "marketing"
+        ],
+        "organization_locations": [
+          "London, England, United Kingdom"
+        ]
+      },
+      "total": 50275,
+      "sample": [
+        {
+          "name": "Chanel",
+          "domain": "chanel.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "PwC Colombia",
+          "domain": "pwc.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Kantar",
+          "domain": "kantar.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Shell",
+          "domain": "shell.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "MiQ LatAm",
+          "domain": "wearemiq.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "6_no_size",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "IT consulting"
+        ],
+        "organization_locations": [
+          "United States"
+        ]
+      },
+      "total": 172869,
+      "sample": [
+        {
+          "name": "IBM",
+          "domain": "ibm.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Manager, VCA",
+          "domain": "visa.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Lumen Technologies",
+          "domain": "lumen.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Oracle",
+          "domain": "oracle.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Sutherland",
+          "domain": "sutherlandglobal.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "6_size_11_50",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "IT consulting"
+        ],
+        "organization_locations": [
+          "United States"
+        ],
+        "organization_num_employees_ranges": [
+          "11,50"
+        ]
+      },
+      "total": 24318,
+      "sample": [
+        {
+          "name": "The Dignify Solutions, LLC",
+          "domain": "thedignify.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Tech Army, LLC",
+          "domain": "techarmy.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "HIR******",
+          "domain": "hireclout.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Agile Tech Labs",
+          "domain": "agile-techlabs.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Vimerse InfoTech Inc",
+          "domain": "vimerseit.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "6_size_11_200",
+      "filters": {
+        "q_organization_keyword_tags": [
+          "IT consulting"
+        ],
+        "organization_locations": [
+          "United States"
+        ],
+        "organization_num_employees_ranges": [
+          "11,50",
+          "51,200"
+        ]
+      },
+      "total": 31318,
+      "sample": [
+        {
+          "name": "Cortex Consultants LLC",
+          "domain": "cortexconsultants.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Stellar Consulting Solutions, LLC",
+          "domain": "stellarconsulting.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Prodware Solutions",
+          "domain": "prodwaresol.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "BigRio",
+          "domain": "bigr.io",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Hyq**",
+          "domain": "hyqoo.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "8_vocab_IT Miami",
+      "filters": {
+        "kw": [
+          "IT consulting"
+        ],
+        "loc": [
+          "Miami, Florida, United States"
+        ]
+      },
+      "total": 2063,
+      "sample": [
+        {
+          "name": "Cirion",
+          "domain": "ciriontechnologies.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Synergy Business Consulting, Inc.",
+          "domain": "synergybc.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Cipher | A Prosegur company",
+          "domain": "cipher.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "NEORIS",
+          "domain": "neoris.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Axur",
+          "domain": "axur.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "8_vocab_Fashion Italy",
+      "filters": {
+        "kw": [
+          "fashion"
+        ],
+        "loc": [
+          "Italy"
+        ]
+      },
+      "total": 19829,
+      "sample": [
+        {
+          "name": "Gucci",
+          "domain": "gucci.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "dolce & gabbana",
+          "domain": "dolcegabbana.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Bvlgari",
+          "domain": "bulgari.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Maxima Fashion",
+          "domain": "maxmarafashiongroup.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Fendi",
+          "domain": "fendi.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "name": "8_vocab_Influencer UK",
+      "filters": {
+        "kw": [
+          "influencer marketing"
+        ],
+        "loc": [
+          "United Kingdom"
+        ]
+      },
+      "total": 6928,
+      "sample": [
+        {
+          "name": "Gymshark",
+          "domain": "gymshark.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Jimmy Choo",
+          "domain": "jimmychoo.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Brandwatch",
+          "domain": "brandwatch.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "FARFETCH",
+          "domain": "farfetch.com",
+          "industry": null,
+          "keywords": []
+        },
+        {
+          "name": "Boohoo Group PLC",
+          "domain": "boohooplc.com",
+          "industry": null,
+          "keywords": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "model": "gpt-4.1-mini",
+  "test_date": "2026-04-01",
+  "document": "outreach-plan-fintech.md",
+  "status": "completed",
+  "score": 12,
+  "max_score": 13,
+  "error": null
+}

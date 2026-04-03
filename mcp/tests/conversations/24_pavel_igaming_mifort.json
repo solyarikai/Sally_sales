@@ -1,0 +1,91 @@
+{
+  "id": "24_pavel_igaming_mifort",
+  "description": "Pavel's real flow: Mifort (IT outsourcing) gathering iGaming technology providers. Tests offer/competitor distinction, filter preview, exploration.",
+  "user_email": "pavel.l@getsally.io",
+  "project_name": "Mifort",
+
+  "steps": [
+    {
+      "step": 1,
+      "phase": "project_setup",
+      "user_prompt": "Create project Mifort, website mifort.org",
+      "expected_tool_calls": ["create_project"],
+      "expected_behavior": {
+        "project_created": true,
+        "website_scraped": true,
+        "asks_about_previous_campaigns": true,
+        "response_must_contain_any": ["campaign", "blacklist", "previous"]
+      }
+    },
+    {
+      "step": 2,
+      "phase": "gather_request",
+      "user_prompt": "Gather iGaming technology providers globally",
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "returns_filter_preview": true,
+        "shows_total_available": true,
+        "shows_cost_breakdown": true,
+        "does_NOT_auto_gather": true,
+        "response_must_contain": ["total", "credit", "Proceed"],
+        "response_must_not_contain": ["error"]
+      },
+      "critical_requirement": "MCP MUST show filter preview with Apollo total + cost BEFORE gathering. Must NOT auto-launch."
+    },
+    {
+      "step": 3,
+      "phase": "confirm_and_gather",
+      "user_prompt": "Yes, proceed",
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "credits_spent_shown": true,
+        "companies_gathered": true,
+        "asks_about_email_accounts": true,
+        "response_must_contain": ["credit", "companies"]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "pipeline_processing",
+      "description": "Blacklist + scrape + analyze",
+      "expected_tool_calls": ["tam_blacklist_check", "tam_approve_checkpoint", "tam_pre_filter", "tam_scrape", "tam_analyze"],
+      "expected_behavior": {
+        "targets_found": true,
+        "segments_meaningful": true,
+        "not_confuse_operators_with_providers": true,
+        "response_must_not_contain": ["YOU_ARE_CLASSIFYING"],
+        "critical_check": "iGaming OPERATORS (casinos) must be NOT_A_MATCH. iGaming PROVIDERS (platform builders) must be targets."
+      }
+    },
+    {
+      "step": 5,
+      "phase": "feedback_loop",
+      "user_prompt": "Roobet and Betfirst are casino operators, not tech providers. Exclude operators.",
+      "expected_tool_calls": ["provide_feedback"],
+      "expected_behavior": {
+        "feedback_stored": true
+      }
+    },
+    {
+      "step": 6,
+      "phase": "re_analyze",
+      "user_prompt": "Re-analyze with the feedback",
+      "expected_tool_calls": ["tam_re_analyze"],
+      "expected_behavior": {
+        "targets_improved": true,
+        "new_iteration_created": true,
+        "operators_excluded": true
+      }
+    }
+  ],
+
+  "final_verification": {
+    "db_checks": [
+      "Project has target_segments with mifort.org offer context",
+      "Gathering run has Apollo filters with iGaming keywords",
+      "Classification correctly distinguishes operators from providers",
+      "pipeline_iterations table has records for each re-analysis",
+      "Credits tracked in gathering_run"
+    ]
+  }
+}

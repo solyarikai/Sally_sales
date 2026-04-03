@@ -1,0 +1,87 @@
+{
+  "id": "25_user_controls",
+  "description": "User control flows: target count, continue gathering, change roles, change contacts per company, provide sequence, cost transparency",
+  "user_email": "test_controls@getsally.io",
+  "user_password": "testtest123",
+  "project_name": "EasyStaff",
+  "steps": [
+    {
+      "step": 1,
+      "phase": "login",
+      "user_prompt": "TOKEN_PLACEHOLDER",
+      "expected_tool_calls": ["login"]
+    },
+    {
+      "step": 2,
+      "phase": "create_project",
+      "user_prompt": "easystaff.io",
+      "expected_tool_calls": ["create_project"]
+    },
+    {
+      "step": 3,
+      "phase": "set_high_target",
+      "user_prompt": "Find IT consulting companies in Miami, I want 500 contacts",
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "response_must_contain_any": ["500", "credit", "cost", "page", "proceed"]
+      },
+      "critical_requirement": "MCP shows cost estimate for 500 contacts BEFORE spending credits"
+    },
+    {
+      "step": 4,
+      "phase": "change_roles",
+      "user_prompt": "Change roles to VP Marketing and CMO instead of technical",
+      "expected_tool_calls": ["provide_feedback"],
+      "expected_behavior": {
+        "response_must_contain_any": ["VP Marketing", "CMO", "role", "updated"]
+      },
+      "critical_requirement": "People filters updated. No credits spent for role change."
+    },
+    {
+      "step": 5,
+      "phase": "change_contacts_per_company",
+      "user_prompt": "5 contacts per company, not 3",
+      "expected_behavior": {
+        "response_must_contain_any": ["5", "contacts", "per company", "updated"]
+      }
+    },
+    {
+      "step": 6,
+      "phase": "confirm_and_gather",
+      "user_prompt": "OK proceed with gathering",
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "response_must_contain_any": ["run_id", "gathering", "companies", "credit"]
+      },
+      "critical_requirement": "tam_gather with confirm_filters=true. Credits shown."
+    },
+    {
+      "step": 7,
+      "phase": "continue_gathering",
+      "user_prompt": "Find more, I need 1000 contacts total",
+      "expected_tool_calls": ["tam_gather"],
+      "expected_behavior": {
+        "response_must_contain_any": ["current", "more", "credit", "proceed"]
+      },
+      "critical_requirement": "Shows current count + cost for next batch. Uses reuse_run_id."
+    },
+    {
+      "step": 8,
+      "phase": "provide_sequence_file",
+      "user_prompt": "Use this approach for emails: short, direct, no fluff. Hook with a case study, follow up with pricing, close with channel switch.",
+      "expected_tool_calls": ["provide_feedback"],
+      "expected_behavior": {
+        "response_must_contain_any": ["sequence", "approach", "saved", "stored"]
+      }
+    },
+    {
+      "step": 9,
+      "phase": "check_costs",
+      "user_prompt": "How much have I spent?",
+      "expected_behavior": {
+        "response_must_contain_any": ["credit", "cost", "$", "apollo"]
+      },
+      "critical_requirement": "Shows total credits + dollars spent"
+    }
+  ]
+}

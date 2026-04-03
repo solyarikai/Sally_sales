@@ -1,0 +1,81 @@
+{
+  "query": "IT consulting companies in Miami, 10-200 employees",
+  "offer": "EasyStaff \u2014 payroll, contractor management, invoice processing",
+  "targets": [
+    {
+      "domain": "smxusa.com",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "SMX Services & Consulting provides IT solutions and engineering staffing, indicating a focus on IT consulting and staffing.",
+      "website_snippet": "TITLE: SMX Services &#038; Consulting USA - I.T. Solutions Provider\nDESCRIPTION: When it comes to IT solutions &#038; engineering staffing, we give you the world. Get local expertise and international reach with a staffing partner who breaks down talent barriers to deliver high-caliber resources + highly targeted services. IT Staffing Specialized staff augmentation with a technical focus - SMX Services &#038; Consulting USA\nTEXT: SMX Services &#038; Consulting USA - I.T. Solutions Provider var m"
+    },
+    {
+      "domain": "koombea.com",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Koombea offers software development services, positioning itself as a software development agency.",
+      "website_snippet": "TITLE: Software Development Services To Drive Your Digital Disruption\nDESCRIPTION: Koombea is your leading software development services provider for start-ups, enterprises, and midsize businesses. Click here now!\nTEXT: Software Development Services To Drive Your Digital Disruption @font-face{font-display:swap;font-family:GT Walsheim;font-style:normal;font-weight:700;src:local(\"GT Walsheim Bold\"),local(\"GTWalsheimBold\"),url(/wp-content/themes/koombea/dist/fonts/GTWalsheimBold-62830fc1271470e6fd4"
+    },
+    {
+      "domain": "flatiron.software",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Flatiron Software specializes in custom software development services.",
+      "website_snippet": "TITLE: Flatiron Software | Custom Software Development Services\nTEXT: Flatiron Software | Custom Software Development Services Close Cookie Popup Cookie settings By clicking &quot;Accept all cookies&quot;, you agree to storing cookies on your device to enhance site navigation, analyze site usage and assist in our marketing efforts as outlined in our privacy policy . Accept all cookies Cookie settings Close Cookie Preference Manager Cookie settings By clicking &#x27;Accept all cookies&#x27;, you "
+    },
+    {
+      "domain": "therocketcode.com",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Rocket Code offers AI software development and custom solutions, indicating a software development agency.",
+      "website_snippet": "TITLE: Leading AI Software and Solutions development\nDESCRIPTION: rocket code offers top-tier AI software development and custom solutions. Partner with the leading software development company today!\nTEXT: Leading AI Software and Solutions development .jhVcUr{width:100%;border-radius:0px 0px 50px 50px;background-color:#050e2a;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:10px;font-size:14px;color:#fff;position:relative;height:100dvh;max-height:1500px;padding-bottom:4"
+    },
+    {
+      "domain": "avalith.net",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Avalith provides expert software services, indicating a focus on software development.",
+      "website_snippet": "TITLE: Home Page | Avalith\nDESCRIPTION: Our expert software services can help you reach your goals. Discover how we can optimize your workflow and accelerate your timeline today!\nTEXT: Home Page | Avalith <link rel=\"preload\" as=\"image\" imageSrcSet=\"/"
+    },
+    {
+      "domain": "bluecoding.com",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Blue Coding specializes in nearshore staffing, specifically hiring top LATAM developers.",
+      "website_snippet": "TITLE: Hire Top LATAM Developers | Blue Coding Nearshore Staffing\nTEXT: Hire Top LATAM Developers | Blue Coding Nearshore Staffing About Us Services Staff Augmentation Build, Operate, Transfer (BOT) Custom Digital Solutions Blog Resources Careers Contact US Tech Apply for Jobs Start Hiring About us Services Staff Augmentation Build, Operate, Transfer (BOT) <a href=\"/services/custom-digital-sol"
+    },
+    {
+      "domain": "venon.solutions",
+      "name": "?",
+      "gpt_confidence": "?",
+      "gpt_reasoning": "Venon Solutions specializes in building dedicated nearshore teams of IT professionals.",
+      "website_snippet": "TITLE: Venon Solutions - Nearshoring From Latin America\nDESCRIPTION: Nearshoring from Latin America. We specialize in building dedicated nearshore teams of IT professionals in Latin America\nTEXT: Venon Solutions - Nearshoring From Latin America img.wp-smiley, img.emoji { display: inline !important; border: none !important; box-shadow: none !important; height: 1em !important; width: 1em !importa"
+    }
+  ],
+  "non_targets": [
+    {
+      "domain": "synergybc.com",
+      "gpt_reasoning": "Insufficient data to determine what the company does."
+    },
+    {
+      "domain": "nybblegroup.com",
+      "gpt_reasoning": "The company is described as a digital transformation company without clear evidence of contractor staffing."
+    },
+    {
+      "domain": "xpoint.tech",
+      "gpt_reasoning": "Insufficient data to determine what the company does."
+    },
+    {
+      "domain": "shokworks.io",
+      "gpt_reasoning": "The company focuses on AI-native transformation without clear evidence of contractor staffing."
+    },
+    {
+      "domain": "kenility.com",
+      "gpt_reasoning": "Insufficient data to determine what the company does."
+    },
+    {
+      "domain": "cladirect.com",
+      "gpt_reasoning": "The company provides network connectivity and optimization services without clear evidence of contractor staffing."
+    }
+  ]
+}

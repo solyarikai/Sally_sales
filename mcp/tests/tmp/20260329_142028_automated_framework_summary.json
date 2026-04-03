@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-03-29T11:20:28.384357+00:00",
+  "source": "automated_framework",
+  "engine": "Claude (Anthropic API) \u2192 MCP SSE",
+  "server": "http://46.62.210.24:8002/mcp/sse",
+  "results": [
+    {
+      "test_id": "error_qwe@qwe.qwe",
+      "score": 0,
+      "error": "name 'time' is not defined"
+    },
+    {
+      "test_id": "error_pn@getsally.io",
+      "score": 0,
+      "error": "name 'time' is not defined"
+    },
+    {
+      "test_id": "error_services@getsally.io",
+      "score": 0,
+      "error": "name 'time' is not defined"
+    }
+  ],
+  "average": 0.0
+}

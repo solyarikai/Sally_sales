@@ -1,0 +1,20 @@
+{
+  "test_date": "2026-04-02",
+  "document": "outreach-plan-fintech.md",
+  "sequence_name": "Fintech Pipeline Pain (Sequence A)",
+  "verification_method": "Opus agent word-by-word comparison",
+  "results": {
+    "emails_total": 4,
+    "matching": 4,
+    "issues": []
+  },
+  "email_details": [
+    {"email": 1, "day": 1, "subject_match": true, "body_match": true, "variables_preserved": true},
+    {"email": 2, "day": 3, "subject_match": true, "body_match": true, "variables_preserved": true},
+    {"email": 3, "day": 7, "subject_match": true, "body_match": true, "variables_preserved": true},
+    {"email": 4, "day": 14, "subject_match": true, "body_match": true, "variables_preserved": true}
+  ],
+  "variables_found": ["{{company}}", "{{firstName}}", "{{hiring_role_or_signal}}", "{{estimated_acv}}", "{{calendly_link}}", "{{signature}}"],
+  "additional_sequences_extracted": ["Fresh Funding (3 emails)", "Competitor Conquest (2 emails)"],
+  "accuracy": "100%"
+}

@@ -1,0 +1,218 @@
+{
+  "ts": "20260330_132315",
+  "results": [
+    {
+      "segment": "EasyStaff IT consulting Miami",
+      "strategies": [
+        {
+          "name": "A: keywords only",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "IT consulting",
+              "technology consulting",
+              "IT services",
+              "software consulting",
+              "technology solutions"
+            ],
+            "organization_locations": [
+              "Miami, Florida, United States"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "total_available": 0,
+          "returned": 0
+        },
+        {
+          "name": "B: keywords + industries",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "IT consulting",
+              "technology consulting",
+              "IT services",
+              "software consulting",
+              "technology solutions",
+              "information technology & services",
+              "computer software",
+              "management consulting",
+              "computer networking"
+            ],
+            "organization_locations": [
+              "Miami, Florida, United States"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "total_available": 0,
+          "returned": 0
+        },
+        {
+          "name": "C: industries only",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "information technology & services",
+              "computer software",
+              "management consulting",
+              "computer networking"
+            ],
+            "organization_locations": [
+              "Miami, Florida, United States"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "total_available": 0,
+          "returned": 0
+        }
+      ]
+    },
+    {
+      "segment": "TFP Fashion brands Italy",
+      "strategies": [
+        {
+          "name": "A: keywords only",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "fashion brand",
+              "apparel",
+              "clothing",
+              "fashion label",
+              "designer fashion"
+            ],
+            "organization_locations": [
+              "Italy"
+            ],
+            "organization_num_employees_ranges": [
+              "51,200",
+              "201,500"
+            ]
+          },
+          "total_available": 0,
+          "returned": 0
+        },
+        {
+          "name": "B: keywords + industries",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "fashion brand",
+              "apparel",
+              "clothing",
+              "fashion label",
+              "designer fashion",
+              "apparel & fashion",
+              "textiles",
+              "luxury goods & jewelry",
+              "retail",
+              "wholesale"
+            ],
+            "organization_locations": [
+              "Italy"
+            ],
+            "organization_num_employees_ranges": [
+              "51,200",
+              "201,500"
+            ]
+          },
+          "total_available": 0,
+          "returned": 0
+        },
+        {
+          "name": "C: industries only",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "apparel & fashion",
+              "textiles",
+              "luxury goods & jewelry",
+              "retail",
+              "wholesale"
+            ],
+            "organization_locations": [
+              "Italy"
+            ],
+            "organization_num_employees_ranges": [
+              "51,200",
+              "201,500"
+            ]
+          },
+          "total_available": 0,
+          "returned": 0
+        }
+      ]
+    },
+    {
+      "segment": "OnSocial Creator platforms UK",
+      "strategies": [
+        {
+          "name": "A: keywords only",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "influencer marketing",
+              "creator economy",
+              "influencer platform",
+              "creator platform"
+            ],
+            "organization_locations": [
+              "United Kingdom"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "total_available": 0,
+          "returned": 0
+        },
+        {
+          "name": "B: keywords + industries",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "influencer marketing",
+              "creator economy",
+              "influencer platform",
+              "creator platform",
+              "marketing & advertising",
+              "internet",
+              "online media",
+              "media production"
+            ],
+            "organization_locations": [
+              "United Kingdom"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "total_available": 0,
+          "returned": 0
+        },
+        {
+          "name": "C: industries only",
+          "filters": {
+            "q_organization_keyword_tags": [
+              "marketing & advertising",
+              "internet",
+              "online media",
+              "media production"
+            ],
+            "organization_locations": [
+              "United Kingdom"
+            ],
+            "organization_num_employees_ranges": [
+              "11,50",
+              "51,200"
+            ]
+          },
+          "total_available": 0,
+          "returned": 0
+        }
+      ]
+    }
+  ]
+}

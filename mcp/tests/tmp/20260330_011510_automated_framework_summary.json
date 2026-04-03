@@ -1,0 +1,245 @@
+{
+  "timestamp": "2026-03-29T22:15:10.522414+00:00",
+  "source": "automated_framework",
+  "engine": "Claude (Anthropic API) \u2192 MCP SSE",
+  "server": "http://46.62.210.24:8002/mcp/sse",
+  "results": [
+    {
+      "test_id": "01_default_smartlead_flow",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "greeting_no_token",
+          "prompt": "Hi there",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 4.56,
+          "error_source": null,
+          "score": 0.0,
+          "passed": 0,
+          "total": 1,
+          "fails": {
+            "must_contain_any": [
+              "sign up",
+              "token",
+              "mcp_"
+            ]
+          }
+        },
+        {
+          "step": 2,
+          "phase": "login",
+          "prompt": "Here is my token: TOKEN_PLACEHOLDER",
+          "tools_called": [
+            "login"
+          ],
+          "duration_s": 3.25,
+          "error_source": "gpt",
+          "score": 33.33333333333333,
+          "passed": 1,
+          "total": 3,
+          "fails": {
+            "missing_tool:check_integrations": "called:['login'] (acceptable: ['check_integrations', 'get_context'])",
+            "must_contain_any": [
+              "apollo",
+              "smartlead",
+              "openai"
+            ]
+          }
+        },
+        {
+          "step": 3,
+          "phase": "keys_setup",
+          "prompt": "Keys are configured now",
+          "tools_called": [
+            "check_integrations"
+          ],
+          "duration_s": 2.8,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 4,
+          "phase": "segments_request",
+          "prompt": "Two segments: IT consulting Miami, video production London",
+          "tools_called": [
+            "list_projects"
+          ],
+          "duration_s": 2.9,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 5,
+          "phase": "offer_from_website",
+          "prompt": "Our website is easystaff.io",
+          "tools_called": [
+            "login"
+          ],
+          "duration_s": 3.13,
+          "error_source": "gpt",
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing_tool:create_project": "called:['login'] (acceptable: ['create_project', 'get_context'])"
+          }
+        },
+        {
+          "step": 6,
+          "phase": "previous_campaigns",
+          "prompt": "Campaigns including petr",
+          "tools_called": [
+            "list_smartlead_campaigns"
+          ],
+          "duration_s": 3.94,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 7,
+          "phase": "filter_alignment",
+          "prompt": "Go ahead, what are the filters?",
+          "tools_called": [
+            "tam_list_sources"
+          ],
+          "duration_s": 3.04,
+          "error_source": "gpt",
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing_tool:parse_gathering_intent": "called:['tam_list_sources'] (acceptable: ['parse_gathering_intent', 'tam_gather', 'suggest_apollo_filters', 'get_context'])"
+          }
+        },
+        {
+          "step": 8,
+          "phase": "pipeline_launch",
+          "prompt": "Start gathering",
+          "tools_called": [
+            "list_projects"
+          ],
+          "duration_s": 3.16,
+          "error_source": "gpt",
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing_tool:tam_gather": "called:['list_projects'] (acceptable: ['tam_gather', 'parse_gathering_intent', 'suggest_apollo_filters', 'get_context'])"
+          }
+        },
+        {
+          "step": 9,
+          "phase": "email_accounts",
+          "prompt": "Use Eleonora accounts from the petr campaigns for both",
+          "tools_called": [
+            "list_email_accounts",
+            "list_smartlead_campaigns"
+          ],
+          "duration_s": 13.69,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 10,
+          "phase": "pipeline_stats",
+          "prompt": "Pipeline status?",
+          "tools_called": [
+            "pipeline_status"
+          ],
+          "duration_s": 2.25,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 11,
+          "phase": "campaign_creation",
+          "prompt": "Push to SmartLead",
+          "tools_called": [
+            "check_destination"
+          ],
+          "duration_s": 2.91,
+          "error_source": "gpt",
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing_tool:smartlead_push_campaign": "called:['check_destination'] (acceptable: ['smartlead_push_campaign', 'get_context', 'smartlead_generate_sequence'])"
+          }
+        },
+        {
+          "step": 12,
+          "phase": "approve_launch",
+          "prompt": "Approved, activate",
+          "tools_called": [
+            "tam_approve_checkpoint"
+          ],
+          "duration_s": 2.77,
+          "error_source": "mcp",
+          "score": 0.0,
+          "passed": 0,
+          "total": 3,
+          "fails": {
+            "missing_tool:activate_campaign": "called:['tam_approve_checkpoint'] (acceptable: ['activate_campaign', 'list_smartlead_campaigns', 'get_context'])",
+            "must_contain_any": [
+              "activated",
+              "launched",
+              "monitoring"
+            ],
+            "tool_error:tam_approve_checkpoint": "Gate not found"
+          }
+        },
+        {
+          "step": 13,
+          "phase": "reply_intelligence",
+          "prompt": "Any warm replies? Which leads need follow-ups?",
+          "tools_called": [
+            "replies_list",
+            "replies_followups"
+          ],
+          "duration_s": 5.64,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 14,
+          "phase": "crm_link",
+          "prompt": "Show me contacts in CRM",
+          "tools_called": [
+            "query_contacts"
+          ],
+          "duration_s": 2.81,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 66.66666666666667,
+      "timestamp": "2026-03-29T22:15:10.499986+00:00"
+    }
+  ],
+  "average": 66.66666666666667
+}

@@ -1,0 +1,116 @@
+[
+  {
+    "test_id": "16_campaign_lifecycle",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "email_account_selection",
+        "prompt": "Use the eleonora email accounts from the petr campaigns",
+        "tools_called": [
+          "list_smartlead_campaigns"
+        ],
+        "duration_s": 4.7,
+        "error_source": "gpt",
+        "score": 66.66666666666666,
+        "passed": 2,
+        "total": 3,
+        "fails": {
+          "missing_tool:list_email_accounts": "called:['list_smartlead_campaigns'] (acceptable: ['list_email_accounts'])"
+        }
+      },
+      {
+        "step": 2,
+        "phase": "sequence_generation",
+        "prompt": "Build the email sequence based on our best practices",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 19.59,
+        "error_source": "gpt",
+        "score": 100.0,
+        "passed": 2,
+        "total": 2,
+        "fails": {}
+      },
+      {
+        "step": 3,
+        "phase": "sequence_approval",
+        "prompt": "Looks good, approve the sequence",
+        "tools_called": [],
+        "duration_s": 90.85,
+        "error_source": null,
+        "score": 0.0,
+        "passed": 0,
+        "total": 3,
+        "fails": {
+          "missing_tool:smartlead_approve_sequence": "called:[] (acceptable: ['smartlead_approve_sequence', 'get_context'])",
+          "unexpected:error": true,
+          "must_contain_any": [
+            "approved",
+            "ready"
+          ]
+        }
+      },
+      {
+        "step": 4,
+        "phase": "smartlead_push",
+        "prompt": "Let's create the campaign in SmartLead",
+        "tools_called": [],
+        "duration_s": 90.93,
+        "error_source": null,
+        "score": 25.0,
+        "passed": 1,
+        "total": 4,
+        "fails": {
+          "missing_tool:smartlead_push_campaign": "called:[] (acceptable: ['smartlead_push_campaign', 'get_context', 'smartlead_generate_sequence'])",
+          "missing_words": "found 0/4: ['DRAFT', 'campaign', 'SmartLead']",
+          "unexpected:error": true
+        }
+      },
+      {
+        "step": 5,
+        "phase": "test_email_verification",
+        "prompt": "Test email received, sequence looks great",
+        "tools_called": [
+          "smartlead_approve_sequence"
+        ],
+        "duration_s": 4.59,
+        "error_source": null,
+        "score": 0.0,
+        "passed": 0,
+        "total": 1,
+        "fails": {
+          "must_contain_any": [
+            "activate",
+            "launch",
+            "ready"
+          ]
+        }
+      },
+      {
+        "step": 6,
+        "phase": "campaign_activation",
+        "prompt": "Activate",
+        "tools_called": [
+          "get_context"
+        ],
+        "duration_s": 49.25,
+        "error_source": "gpt",
+        "score": 100.0,
+        "passed": 3,
+        "total": 3,
+        "fails": {}
+      },
+      {
+        "step": 7,
+        "phase": "monitoring_confirmation",
+        "score": 100,
+        "skipped": true
+      }
+    ],
+    "errors": [],
+    "source": "automated_framework",
+    "score": 55.95238095238095,
+    "timestamp": "2026-03-30T18:54:25.044399+00:00"
+  }
+]

@@ -1,0 +1,4097 @@
+{
+  "timestamp": "20260330_070800",
+  "models": [
+    "gpt-4o-mini",
+    "gpt-4o",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano"
+  ],
+  "prompts": [
+    "v1_simple_buyer_seller",
+    "v2_chain_of_thought",
+    "v3_via_negativa_strict",
+    "v4_role_play_sales",
+    "v5_explicit_examples"
+  ],
+  "segments": [
+    "EasyStaff IT consulting Miami",
+    "TFP Fashion brands Italy",
+    "OnSocial Creator platforms UK"
+  ],
+  "results": [
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a managed IT staffing service, they likely hire contractors and would benefit from a payroll and payment management solution."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As an IT solutions provider, they likely engage contractors and would benefit from payroll and payment management services."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a software development service, they likely hire contractors and would benefit from a payroll and payment management platform."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a custom software development service, they likely hire contractors and would benefit from payroll and payment management solutions."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a consulting firm in AI technology implementation, they likely hire contractors and would benefit from payroll and payment management services."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a software consulting partner that hires developers, they would benefit from a payroll and payment management platform."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a nearshore staffing service, they hire developers and would benefit from payroll and payment management solutions."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a company focused on scalable solutions, they likely hire contractors and would benefit from payroll and payment management services."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 10,
+      "total": 10,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Trussardi is a fashion brand that could benefit from a resale platform to monetize old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Marni is a fashion brand that would benefit from selling pre-owned items and managing returns through a resale platform."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Elisabetta Franchi is a fashion brand that could utilize a resale platform to generate revenue from unsold stock and returns."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Ermanno Scervino is a fashion brand that would benefit from a resale platform to turn old stock and returns into revenue."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Patrizia Pepe is a fashion brand that could leverage a resale platform to monetize pre-owned items and manage returns."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Kiton is a fashion brand that would benefit from a resale platform to sell old stock and returns."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Herno is a fashion brand that could utilize a resale platform to generate revenue from unsold stock and returns."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Soeur is a fashion brand that would benefit from a resale platform to turn old stock and returns into revenue."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Fabiana Filippi is a fashion brand that could leverage a resale platform to monetize pre-owned items and manage returns."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Giuseppe Zanotti is a fashion brand that would benefit from a resale platform to sell old stock and returns."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 6,
+      "total": 10,
+      "target_rate": 60.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "CREATIVE AGENCY",
+          "reasoning": "As a creative and creator agency, NewGen would benefit from our AI-powered creator data solution to enhance their influencer marketing strategies."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR TALENT MANAGEMENT",
+          "reasoning": "Sixteenth, being a leading creator talent management company, would find value in our creator analytics and discovery tools to optimize their influencer campaigns."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER AGENCY",
+          "reasoning": "SEEN Connects operates as an influencer and social marketing agency, making them a potential buyer for our data solutions to improve their influencer strategies."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": true,
+          "segment": "DIGITAL MARKETING AGENCY",
+          "reasoning": "Found, as a digital marketing agency, would benefit from our creator data solutions to enhance their influencer marketing performance."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING AGENCY",
+          "reasoning": "MUSE is a talent-first influencer marketing agency that would benefit from our creator analytics and discovery tools to manage their talent effectively."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL BOOKING",
+          "reasoning": "Unravel focuses on travel booking experiences, which is unrelated to influencer marketing and creator data."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "E-COMMERCE FASHION",
+          "reasoning": "In The Style is an e-commerce fashion retailer and does not primarily engage in influencer marketing as a service provider."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "GAMING & POP CULTURE",
+          "reasoning": "Dexerto is a media hub focused on gaming and pop culture, which does not align with our target audience for influencer marketing data solutions."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "TALENT AGENCY",
+          "reasoning": "Major Players is a talent agency for marketing and creative sectors, making them a suitable target for our creator data solutions to enhance their influencer marketing efforts."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "E-COMMERCE FASHION",
+          "reasoning": "Linda Farrow is an eyewear retailer and does not engage in influencer marketing as a service provider."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v2_chain_of_thought",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Synergy Business Consulting provides managed IT staffing services and IT staff augmentation.",
+          "reasoning": "As an IT consulting company, they may need to hire and pay contractors globally, making them a potential customer for EasyStaff."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "SMX Services & Consulting offers IT solutions and consulting services.",
+          "reasoning": "They operate in IT consulting and may require a platform for managing payments to contractors, positioning them as a potential customer."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Koombea provides software development services and partners with businesses to drive digital transformation.",
+          "reasoning": "As a software development company, they may hire contractors and need a solution for payroll and payments, making them a potential customer."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Flatiron Software specializes in custom software development with a focus on AI-enabled products.",
+          "reasoning": "They may require a platform for managing payments to contractors, thus they could be a customer of EasyStaff."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Rocket Code develops AI software solutions and provides consulting for AI technology implementation.",
+          "reasoning": "As a consulting firm, they may need to hire contractors and manage payments, making them a potential customer."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Avalith offers software consulting and development services, helping companies bring their digital product ideas to life.",
+          "reasoning": "They may hire contractors for development projects and need a solution for payroll and payments, positioning them as a potential customer."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Blue Coding specializes in hiring top LATAM developers and providing nearshore staffing solutions.",
+          "reasoning": "As a staffing company, they may need to manage payments for contractors, making them a potential customer for EasyStaff."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Shokworks focuses on AI native transformation and scalable solutions for modern enterprises.",
+          "reasoning": "They may require a platform for managing payments to contractors, thus they could be a customer of EasyStaff."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v2_chain_of_thought",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Trussardi is an Italian fashion brand known for its luxury leather goods, apparel, and accessories.",
+          "reasoning": "As a fashion brand, Trussardi would benefit from a resale platform to manage old stock and returns, making them a potential customer."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Marni is an Italian luxury fashion brand that offers a range of clothing, accessories, and footwear.",
+          "reasoning": "Marni, being a fashion brand, would likely use a resale platform to monetize unsold inventory and returns, positioning them as a potential customer."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Elisabetta Franchi is an Italian fashion brand specializing in women's clothing and accessories.",
+          "reasoning": "As a fashion brand, Elisabetta Franchi would find value in a resale platform to handle excess stock and returns, making them a potential customer."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Ermanno Scervino is an Italian luxury fashion brand known for its high-quality clothing and craftsmanship.",
+          "reasoning": "Ermanno Scervino, as a fashion brand, would benefit from a resale platform to manage returns and unsold inventory, making them a potential customer."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Patrizia Pepe is an Italian fashion brand that offers a variety of apparel and accessories for men and women.",
+          "reasoning": "As a fashion brand, Patrizia Pepe would likely utilize a resale platform to address issues with old stock and returns, positioning them as a potential customer."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Kiton is an Italian luxury fashion brand known for its high-end tailored clothing and artisanal craftsmanship.",
+          "reasoning": "Kiton, being a fashion brand, would find a resale platform useful for managing excess inventory and returns, making them a potential customer."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Herno is an Italian fashion brand specializing in outerwear and luxury clothing for men, women, and children.",
+          "reasoning": "As a fashion brand, Herno would benefit from a resale platform to handle returns and unsold stock, making them a potential customer."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Soeur is a French fashion brand that offers chic women's clothing and accessories.",
+          "reasoning": "While Soeur operates in the fashion space, they are a French brand and may not be a direct target for an Italian-focused resale platform."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Fabiana Filippi is an Italian luxury fashion brand known for its elegant women's clothing.",
+          "reasoning": "As a fashion brand, Fabiana Filippi would likely utilize a resale platform to manage returns and excess inventory, making them a potential customer."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Giuseppe Zanotti is an Italian luxury footwear and accessories brand.",
+          "reasoning": "As a fashion brand, Giuseppe Zanotti would benefit from a resale platform to handle returns and unsold stock, making them a potential customer."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v2_chain_of_thought",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 6,
+      "total": 10,
+      "target_rate": 60.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "what_they_do": "NewGen is a creative agency that connects brands, creators, and audiences through innovative influencer marketing strategies.",
+          "reasoning": "They operate in the influencer marketing space and would benefit from data solutions to enhance their campaigns."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR_TALENT_MANAGEMENT",
+          "what_they_do": "Sixteenth is a global creator talent management company that focuses on influencer marketing and brand partnerships.",
+          "reasoning": "As a talent management agency in the influencer space, they would likely use our data solutions for better insights and analytics."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "what_they_do": "SEEN Connects is an influencer and social marketing agency that specializes in connecting brands with influencers.",
+          "reasoning": "They are directly involved in influencer marketing and would find value in our creator data solutions."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "DIGITAL_MARKETING_AGENCY",
+          "what_they_do": "Found is a digital marketing agency that focuses on performance marketing across various platforms using data and AI.",
+          "reasoning": "While they use data for marketing, they are not specifically focused on influencer marketing, making them unrelated."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "what_they_do": "MUSE is a talent-first influencer marketing agency that connects brands with a diverse roster of influencers globally.",
+          "reasoning": "They operate in the influencer marketing space and would benefit from our data solutions for campaign effectiveness."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL_TECH",
+          "what_they_do": "Unravel provides an immersive travel booking experience for users looking to enhance their travel planning.",
+          "reasoning": "They are in the travel industry and have no direct need for influencer marketing data solutions."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "FASHION_RETAIL",
+          "what_they_do": "In The Style is an online fashion retailer specializing in women's clothing and accessories.",
+          "reasoning": "They are primarily a retail company and do not focus on influencer marketing as their core business."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": true,
+          "segment": "GAMING_AND_POP_CULTURE_MEDIA",
+          "what_they_do": "Dexerto is a media hub focused on gaming and pop culture, providing brand engagement opportunities.",
+          "reasoning": "They engage with influencers in the gaming space and could utilize our data solutions for influencer marketing."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "TALENT_AGENCY",
+          "what_they_do": "Major Players is a talent agency that specializes in marketing and creative talent for businesses.",
+          "reasoning": "They operate in the talent space and may require data solutions for influencer marketing strategies."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "EYEWEAR_RETAIL",
+          "what_they_do": "Linda Farrow is a luxury eyewear brand known for its innovative designs and high-quality products.",
+          "reasoning": "They are in the fashion retail industry and do not have a direct need for influencer marketing data solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Synergy Business Consulting provides managed IT staffing services, which aligns with the needs of companies hiring contractors."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "SMX Services & Consulting offers IT solutions, making them a potential buyer for payroll and payment solutions."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Koombea provides software development services, which could benefit from streamlined contractor payments."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Flatiron Software specializes in custom software development, making them a plausible buyer for contractor management solutions."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Rocket Code focuses on AI software development, which may require efficient payment solutions for contractors."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Avalith offers software consulting and development services, indicating a need for contractor payment solutions."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Blue Coding specializes in hiring developers, making them a potential buyer for payroll and payment management."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Shokworks focuses on scalable solutions for enterprises, which could benefit from efficient contractor payment systems."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Trussardi is a fashion brand that could benefit from a resale platform for their old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Marni operates in the fashion segment and may find value in monetizing their pre-owned and returned items."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Elisabetta Franchi is a fashion brand that could utilize a resale platform for their unsold and returned inventory."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Ermanno Scervino is a fashion brand that may benefit from selling their old stock and returns through a resale platform."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Patrizia Pepe is a fashion brand that could leverage a resale platform for their excess inventory and returns."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Kiton operates in the fashion industry and could benefit from a platform that helps monetize their old stock."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Herno is a fashion brand that may find value in a resale platform for their pre-owned and returned items."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Fabiana Filippi is a luxury fashion brand that could utilize a resale platform for their old stock and returns."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION",
+          "reasoning": "Giuseppe Zanotti is a fashion brand that may benefit from a resale platform for their excess inventory and returns."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "FASHION",
+          "reasoning": "Soeur is a French brand and not directly part of the Italian fashion segment."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 7,
+      "total": 10,
+      "target_rate": 70.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "CREATOR AGENCY",
+          "reasoning": "NewGen is a creative and creator agency that connects brands with creators, making them a potential buyer for our data solutions."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR TALENT MANAGEMENT",
+          "reasoning": "Sixteenth is a creator talent management company that could benefit from insights and analytics about creators."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER AGENCY",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency that would find value in data about creators for their campaigns."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": true,
+          "segment": "DIGITAL MARKETING AGENCY",
+          "reasoning": "Found is a digital marketing agency that utilizes data and AI, indicating they could benefit from our creator data solutions."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING AGENCY",
+          "reasoning": "MUSE is a talent-first influencer marketing agency that connects brands with creators, making them a relevant target for our products."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL BOOKING",
+          "reasoning": "Unravel is focused on travel booking and has no connection to influencer marketing or creator data."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "FASHION RETAIL",
+          "reasoning": "In The Style is a fashion retail company with no direct connection to influencer marketing platforms or creator data."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": true,
+          "segment": "GAMING & POP CULTURE",
+          "reasoning": "Dexerto is a hub for gaming and pop culture, which often intersects with influencer marketing, making them a potential buyer."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "TALENT AGENCY",
+          "reasoning": "Major Players is a talent agency for marketing and creative sectors, indicating they could benefit from insights on creators."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "EYEWEAR RETAIL",
+          "reasoning": "Linda Farrow is an eyewear retailer with no relevance to influencer marketing or creator data."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v4_role_play_sales",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Synergy Business Consulting hires IT staff and would benefit from streamlined payroll and payment solutions for their contractors."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "SMX Services & Consulting provides IT solutions and likely hires contractors, making them a potential user of payroll and payment management services."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "SOFTWARE DEVELOPMENT",
+          "reasoning": "Koombea offers software development services and would benefit from efficient payroll and payment solutions for their freelance developers."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "SOFTWARE DEVELOPMENT",
+          "reasoning": "Flatiron Software hires teams for custom software development, which involves managing payments for contractors and freelancers."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "SOFTWARE DEVELOPMENT",
+          "reasoning": "Rocket Code provides AI software solutions and likely hires contractors, making them a candidate for payroll and payment management services."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "SOFTWARE DEVELOPMENT",
+          "reasoning": "Avalith hires full-time developers and remote teams, which creates a need for effective payroll and payment solutions."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT STAFFING",
+          "reasoning": "Blue Coding specializes in hiring developers and would benefit from a platform that simplifies payroll and payments for their contractors."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Shokworks, Inc. provides scalable solutions and likely hires contractors, making them a potential user of payroll and payment management services."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v4_role_play_sales",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Trussardi has inventory that could be turned into revenue through resale, addressing potential pain points related to unsold stock."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Marni can benefit from converting excess inventory and returns into revenue, making them a suitable target."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Elisabetta Franchi has inventory that could be effectively managed through a resale platform, addressing their potential overstock issues."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Ermanno Scervino can utilize a resale platform to monetize unsold inventory, which is a common challenge in the fashion industry."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Patrizia Pepe would benefit from a resale platform to manage excess inventory and returns, enhancing their revenue streams."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Kiton can leverage a resale platform to address inventory management issues, turning unsold stock into revenue."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Herno has inventory that could be effectively resold, providing a solution for managing excess stock."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Soeur operates in a similar market but is not a direct competitor; however, they may not have the same level of inventory challenges as larger brands."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Fabiana Filippi can benefit from a resale platform to manage and monetize their inventory effectively."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Giuseppe Zanotti has inventory that could be turned into revenue through resale, addressing potential pain points related to unsold stock."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v4_role_play_sales",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 7,
+      "total": 10,
+      "target_rate": 70.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "CREATOR AGENCY",
+          "reasoning": "NewGen connects brands and creators, making them a potential buyer for data solutions to enhance their influencer marketing strategies."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR AGENCY",
+          "reasoning": "As a talent management company, Sixteenth would benefit from data insights to optimize their influencer partnerships and campaigns."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER AGENCY",
+          "reasoning": "SEEN Connects operates as an influencer marketing agency and would require data tools to improve their campaign effectiveness and insights."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": true,
+          "segment": "DIGITAL MARKETING AGENCY",
+          "reasoning": "Found's focus on data-driven digital marketing makes them a suitable target for our client's data solutions to enhance their influencer marketing efforts."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "TALENT MANAGEMENT AGENCY",
+          "reasoning": "MUSE's role in connecting brands with influencers means they would benefit from enhanced data insights to improve their marketing strategies."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL APP",
+          "reasoning": "Unravel focuses on travel booking experiences and has no relevance to influencer marketing or creator data solutions."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "E-COMMERCE FASHION",
+          "reasoning": "In The Style is primarily a fashion retailer and does not operate in the influencer marketing data space."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": true,
+          "segment": "MEDIA & ENGAGEMENT",
+          "reasoning": "Dexerto engages with brands in the gaming and pop culture sectors, making them a potential buyer for data solutions to enhance their influencer marketing strategies."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "TALENT AGENCY",
+          "reasoning": "Major Players, as a talent agency, would benefit from data insights to better match talent with brands and improve their marketing strategies."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "E-COMMERCE FASHION",
+          "reasoning": "Linda Farrow is an eyewear retailer and does not have relevance to influencer marketing or creator data solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v5_explicit_examples",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a managed IT staffing service, they likely hire contractors and need a solution for payroll and payments."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As an IT solutions provider, they likely engage contractors and require a platform for payroll and freelance payments."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "They provide software development services and likely hire contractors, necessitating payroll and payment solutions."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a custom software development service, they likely work with contractors and need payroll management."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "They provide AI software solutions and likely hire contractors, creating a need for payroll and payment management."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a software consulting partner that hires developers, they would benefit from a payroll and payment platform."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "They specialize in hiring developers and would require a solution for managing payroll and payments for contractors."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "As a company focused on scalable solutions, they likely hire contractors and need payroll and payment management."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v5_explicit_examples",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Trussardi is a fashion brand with old stock and returns that could benefit from a resale platform."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Marni is a fashion brand that likely has old stock and returns, making them a potential buyer of a resale platform."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Elisabetta Franchi is a fashion brand that can monetize old stock and returns through a resale platform."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Ermanno Scervino is a fashion brand that may have old stock and returns, making them a suitable buyer for a resale platform."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Patrizia Pepe is a fashion brand that could utilize a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Kiton is a luxury fashion brand that may have pre-owned items and old stock to monetize through a resale platform."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Herno is a fashion brand that could benefit from a resale platform to handle old stock and returns."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Soeur is a fashion brand but is based in France, which may not align with the target market of Italian brands."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Fabiana Filippi is a fashion brand that can leverage a resale platform for old stock and returns."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS",
+          "reasoning": "Giuseppe Zanotti is a fashion brand that likely has old stock and returns, making them a potential buyer for a resale platform."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "prompt": "v5_explicit_examples",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 6,
+      "total": 10,
+      "target_rate": 60.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "As a creative and creator agency, NewGen connects brands and creators, indicating a need for data on influencers to enhance their marketing strategies."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR_TALENT_MANAGEMENT",
+          "reasoning": "Sixteenth is a creator talent management company, which suggests they require data insights on creators to optimize their talent offerings and marketing efforts."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "SEEN Connects operates as an influencer and social marketing agency, indicating a strong need for data to manage and analyze influencer campaigns."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": true,
+          "segment": "DIGITAL_MARKETING_AGENCY",
+          "reasoning": "Found is a digital marketing agency that utilizes data and AI for performance, suggesting they would benefit from creator data to enhance their influencer marketing strategies."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "MUSE is a talent management agency focused on influencer marketing, which implies a need for data on creators to effectively manage and promote their talents."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL_TECH",
+          "reasoning": "Unravel focuses on travel booking experiences, which is unrelated to influencer marketing and creator data needs."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "E_COMMERCE_FASHION",
+          "reasoning": "In The Style is an e-commerce fashion retailer, which does not directly engage in influencer marketing data needs."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "MEDIA_AND_ENTERTAINMENT",
+          "reasoning": "Dexerto is a media hub focused on gaming and pop culture, which does not align with the specific needs for influencer marketing data."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "TALENT_AGENCY",
+          "reasoning": "Major Players is a talent agency for marketing and creative sectors, indicating a need for data on influencers to support their talent management and marketing efforts."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "E_COMMERCE_FASHION",
+          "reasoning": "Linda Farrow is an eyewear retailer, which does not have a direct need for influencer marketing data."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 4,
+      "total": 8,
+      "target_rate": 50.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Synergy Business Consulting provides IT staff augmentation and nearshore IT staffing, indicating they hire contractors and would benefit from EasyStaff for payroll and contractor payments."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "SMX Services & Consulting is an IT solutions provider, likely hiring contractors for various projects, making them a potential buyer for EasyStaff's payroll and payment solutions."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": false,
+          "segment": "SOFTWARE DEVELOPMENT",
+          "reasoning": "Koombea focuses on software development and digital transformation, with no clear indication of hiring contractors, making it unrelated to EasyStaff's services."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": false,
+          "segment": "SOFTWARE DEVELOPMENT",
+          "reasoning": "Flatiron Software specializes in custom software development with AI, without specific mention of hiring contractors, thus unrelated to EasyStaff's offerings."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": false,
+          "segment": "AI CONSULTING",
+          "reasoning": "Rocket Code provides AI software and solutions development, with no explicit focus on hiring contractors, making it unrelated to EasyStaff's product."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Avalith offers remote development teams and outsourcing, indicating they hire contractors, making them a suitable target for EasyStaff's payroll and payment solutions."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Blue Coding specializes in nearshore staffing and hiring developers, suggesting they hire contractors and would benefit from EasyStaff's payroll and payment platform."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": false,
+          "segment": "AI CONSULTING",
+          "reasoning": "Shokworks focuses on AI transformation and scalable solutions without specific mention of hiring contractors, making it unrelated to EasyStaff's services."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Trussardi is an Italian fashion brand that could benefit from a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Marni is an Italian fashion brand that could utilize a resale platform to handle pre-owned items and returns."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Elisabetta Franchi is an Italian fashion brand that could benefit from a resale platform to manage excess inventory and returns."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Ermanno Scervino is an Italian fashion brand that could use a resale platform to turn old stock and returns into revenue."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Patrizia Pepe is an Italian fashion brand that could benefit from a resale platform to manage pre-owned items and returns."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Kiton is an Italian fashion brand that could utilize a resale platform to handle old stock and returns."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Herno is an Italian fashion brand that could benefit from a resale platform to manage excess inventory and returns."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Soeur is a French fashion brand, not Italian, and thus does not match the target market criteria."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Fabiana Filippi is an Italian fashion brand that could use a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Giuseppe Zanotti is an Italian fashion brand that could benefit from a resale platform to handle pre-owned items and returns."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 3,
+      "total": 10,
+      "target_rate": 30.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "CREATIVE_AGENCY",
+          "reasoning": "NewGen is a creative and creator agency involved in creator marketing, making them a potential buyer for influencer data solutions."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": false,
+          "segment": "TALENT_MANAGEMENT",
+          "reasoning": "Sixteenth is a creator talent management company, which may not directly benefit from buying influencer data solutions."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER_AGENCY",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency, indicating a need for data solutions to enhance their services."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "DIGITAL_MARKETING",
+          "reasoning": "Found is a digital marketing agency focused on PPC, SEO, and paid social, which may not directly align with the need for influencer data solutions."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "TALENT_MANAGEMENT",
+          "reasoning": "Muse is an influencer marketing agency with a focus on talent management, suggesting a potential need for creator data solutions."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL_TECH",
+          "reasoning": "Unravel is a travel booking platform, unrelated to influencer marketing or creator data solutions."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "FASHION_RETAIL",
+          "reasoning": "In The Style is a fashion retailer, not directly involved in influencer marketing or requiring creator data solutions."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "MEDIA_HUB",
+          "reasoning": "Dexerto is a gaming and pop culture media hub, which may not directly benefit from buying influencer data solutions."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": false,
+          "segment": "TALENT_AGENCY",
+          "reasoning": "Major Players is a talent agency for marketing and creative sectors, not directly involved in influencer marketing."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Linda Farrow is a fashion eyewear brand, unrelated to influencer marketing or creator data solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v2_chain_of_thought",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Synergy Business Consulting provides managed IT staffing services, including IT staff augmentation and nearshore IT staffing.",
+          "reasoning": "As an IT consulting company offering staffing services, they may need a platform like EasyStaff to manage payroll and payments for contractors and freelancers they hire globally."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "SMX Services & Consulting provides IT solutions and consulting services.",
+          "reasoning": "Being an IT consulting company, they could benefit from EasyStaff to handle payments and invoicing for their freelance and contractor workforce."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Koombea offers software development services, focusing on transforming mobile and web app ideas into innovative solutions.",
+          "reasoning": "As a software development company, Koombea might hire contractors and freelancers, making them a potential buyer for EasyStaff to manage payments and invoicing."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Flatiron Software provides custom software development services with a focus on AI-enabled products.",
+          "reasoning": "Flatiron Software, being in the software development industry, likely hires contractors and freelancers, making them a potential buyer for EasyStaff's payroll and payment solutions."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Rocket Code specializes in AI software and solutions development, offering consulting in AI technology implementation.",
+          "reasoning": "As a company involved in AI software development, they may require a platform like EasyStaff to manage payments for their freelance and contractor workforce."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Avalith provides software consulting services, helping companies develop digital products through remote development teams.",
+          "reasoning": "Avalith, being a software consulting firm, likely hires contractors and freelancers, making them a potential buyer for EasyStaff's payroll and payment management solutions."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Blue Coding offers nearshore staffing services, specializing in hiring top software developers from Latin America.",
+          "reasoning": "As a company providing nearshore staffing, Blue Coding would benefit from EasyStaff to manage payments and invoicing for their contractors and freelancers."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Shokworks provides scalable AI transformation solutions for modern enterprises.",
+          "reasoning": "Shokworks, being involved in AI transformation, likely hires contractors and freelancers, making them a potential buyer for EasyStaff's payroll and payment solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v2_chain_of_thought",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Trussardi is an Italian fashion brand offering clothing and accessories.",
+          "reasoning": "Trussardi is a fashion brand based in Italy, making them a potential buyer for a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Marni is an Italian fashion brand known for its clothing and accessories for men and women.",
+          "reasoning": "Marni, being an Italian fashion brand, could benefit from a resale platform to handle pre-owned items and returns."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Elisabetta Franchi is an Italian fashion brand offering a wide range of women's clothing and accessories.",
+          "reasoning": "As an Italian fashion brand, Elisabetta Franchi could use a resale platform to monetize old stock and returns."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Ermanno Scervino is an Italian fashion brand specializing in high-end clothing and accessories.",
+          "reasoning": "Ermanno Scervino, being a high-end Italian fashion brand, might find value in a resale platform for managing returns and pre-owned items."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Patrizia Pepe is an Italian fashion brand offering apparel and accessories for women and men.",
+          "reasoning": "Patrizia Pepe, as an Italian fashion brand, could utilize a resale platform to handle old stock and returns efficiently."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Kiton is an Italian luxury fashion brand known for its artisanal tailoring and high-quality clothing.",
+          "reasoning": "Kiton, being a luxury Italian fashion brand, could benefit from a resale platform to manage pre-owned items and returns."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Herno is an Italian brand specializing in clothing for women, men, and kids.",
+          "reasoning": "Herno, as an Italian clothing brand, could use a resale platform to turn old stock and returns into revenue."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Soeur is a French fashion brand offering chic women's clothing.",
+          "reasoning": "Soeur is a French brand, not Italian, and thus not a target for a platform focused on Italian fashion brands."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Fabiana Filippi is an Italian luxury fashion brand for women.",
+          "reasoning": "Fabiana Filippi, as an Italian luxury fashion brand, could benefit from a resale platform to manage returns and pre-owned items."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Giuseppe Zanotti is an Italian luxury brand known for its designer shoes and accessories.",
+          "reasoning": "Giuseppe Zanotti, being an Italian luxury brand, could use a resale platform to handle old stock and returns."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v2_chain_of_thought",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 4,
+      "total": 10,
+      "target_rate": 40.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "NewGen is a creative and creator agency that connects brands, creators, and audiences through creator marketing and creative content.",
+          "reasoning": "NewGen operates in the influencer marketing space, making them a potential buyer for OnSocial's AI-powered creator data solutions to enhance their creator marketing efforts."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Sixteenth is a global creator talent management company that focuses on managing and promoting creators.",
+          "reasoning": "As a talent management company in the creator economy, Sixteenth could benefit from OnSocial's tools for discovering and analyzing creators, making them a potential buyer."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "SEEN Connects is an influencer and social marketing agency that focuses on connecting brands with influencers.",
+          "reasoning": "SEEN Connects operates in the influencer marketing space, making them a potential buyer for OnSocial's data solutions to enhance their influencer marketing strategies."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Found is a digital marketing agency that specializes in PPC, SEO, and paid social strategies.",
+          "reasoning": "While Found is a digital marketing agency, their focus is not specifically on influencer marketing or the creator economy, making them unrelated to OnSocial's target market."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Muse is a talent management agency that connects brands with influencers globally, focusing on content campaigns.",
+          "reasoning": "Muse operates in the influencer marketing space, making them a potential buyer for OnSocial's creator data solutions to enhance their talent management and campaign strategies."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Unravel provides an immersive travel booking experience for apps.",
+          "reasoning": "Unravel operates in the travel industry, which is unrelated to influencer marketing or the creator economy, making them unrelated to OnSocial's target market."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "In The Style is a fashion retailer specializing in women's clothing.",
+          "reasoning": "In The Style is a fashion retailer and does not operate in the influencer marketing or creator economy space, making them unrelated to OnSocial's target market."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Dexerto is a gaming and pop culture hub focused on brand engagement.",
+          "reasoning": "Dexerto focuses on gaming and pop culture content, which is not directly related to influencer marketing or the creator economy, making them unrelated to OnSocial's target market."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Major Players is a talent agency for marketing and creative industries.",
+          "reasoning": "While Major Players is a talent agency, their focus is on marketing and creative industries broadly, not specifically on influencer marketing or the creator economy, making them unrelated to OnSocial's target market."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Linda Farrow is a luxury eyewear brand.",
+          "reasoning": "Linda Farrow is a luxury eyewear brand and does not operate in the influencer marketing or creator economy space, making them unrelated to OnSocial's target market."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Synergy Business Consulting provides IT staffing services, which aligns with our target segment of IT consulting companies."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "SMX Services & Consulting is an IT solutions provider, making them a potential buyer in the IT consulting segment."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "SOFTWARE DEVELOPMENT",
+          "reasoning": "Koombea offers software development services, which is adjacent to IT consulting and could benefit from our payroll and payment solutions."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "SOFTWARE DEVELOPMENT",
+          "reasoning": "Flatiron Software provides custom software development services, aligning with companies that could use our platform for contractor payments."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "AI CONSULTING",
+          "reasoning": "Rocket Code offers AI consulting services, which is related to IT consulting and could benefit from our payment solutions."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "SOFTWARE CONSULTING",
+          "reasoning": "Avalith provides software consulting services, making them a potential buyer for our platform in the IT consulting ecosystem."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "NEARSHORE STAFFING",
+          "reasoning": "Blue Coding specializes in nearshore staffing, which is relevant to IT consulting and could use our platform for managing contractor payments."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "AI TRANSFORMATION",
+          "reasoning": "Shokworks offers scalable AI solutions, which is adjacent to IT consulting and could benefit from our payroll and payment services."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Trussardi is an Italian fashion brand that could benefit from a branded resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Marni is an Italian fashion brand that could leverage a resale platform to handle pre-owned items and returns."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Elisabetta Franchi is an Italian fashion brand that could use a resale platform to monetize old stock and returns."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Ermanno Scervino is an Italian fashion brand that could benefit from a resale platform for managing old stock and returns."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Patrizia Pepe is an Italian fashion brand that could utilize a resale platform to handle pre-owned items and returns."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Kiton is an Italian fashion brand that could benefit from a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Herno is an Italian fashion brand that could leverage a resale platform to handle pre-owned items and returns."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Soeur is a French brand, not directly related to the Italian fashion market."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Fabiana Filippi is an Italian fashion brand that could benefit from a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Giuseppe Zanotti is an Italian fashion brand that could utilize a resale platform to handle pre-owned items and returns."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 7,
+      "total": 10,
+      "target_rate": 70.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "CREATOR_AGENCY",
+          "reasoning": "NewGen is a creative and creator agency that connects brands and creators, aligning with our target segment."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR_TALENT_MANAGEMENT",
+          "reasoning": "Sixteenth is a creator talent management company, which could benefit from our creator data solutions."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER_AGENCY",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency, making them a potential buyer for our products."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": true,
+          "segment": "DIGITAL_MARKETING_AGENCY",
+          "reasoning": "Found is a digital marketing agency using data and AI, which aligns with our product offerings."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "TALENT_MANAGEMENT",
+          "reasoning": "MUSE is a talent management agency in influencer marketing, fitting our target market."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL_TECH",
+          "reasoning": "Unravel is focused on travel booking experiences, unrelated to influencer marketing."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "FASHION_RETAIL",
+          "reasoning": "In The Style is a fashion retailer with no direct connection to influencer marketing data needs."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": true,
+          "segment": "GAMING_MEDIA",
+          "reasoning": "Dexerto is a gaming and pop culture hub, potentially interested in influencer data for brand engagement."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "TALENT_AGENCY",
+          "reasoning": "Major Players is a talent agency for marketing and creative sectors, aligning with our target market."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "EYEWEAR_RETAIL",
+          "reasoning": "Linda Farrow is an eyewear retailer, unrelated to influencer marketing or creator data solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v4_role_play_sales",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT_STAFFING",
+          "reasoning": "Synergy Business Consulting provides IT staff augmentation and nearshore staffing services, which means they hire contractors and could benefit from EasyStaff's payroll and freelance payment solutions."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT_SOLUTIONS",
+          "reasoning": "SMX Services & Consulting is an IT solutions provider, likely hiring contractors for various projects, making them a potential buyer for EasyStaff's payroll and payment management services."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "SOFTWARE_DEVELOPMENT",
+          "reasoning": "Koombea offers software development services and likely hires contractors for their projects, making them a suitable target for EasyStaff's payroll and contractor payment solutions."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "SOFTWARE_DEVELOPMENT",
+          "reasoning": "Flatiron Software provides custom software development services and likely employs contractors, which aligns with the benefits offered by EasyStaff's platform."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "AI_SOFTWARE",
+          "reasoning": "Rocket Code specializes in AI software and solutions development, likely requiring contractor services, making them a potential client for EasyStaff's payroll and payment solutions."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "SOFTWARE_CONSULTING",
+          "reasoning": "Avalith provides remote development teams and software consulting, indicating they hire contractors, which aligns with the services offered by EasyStaff."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "NEARSHORE_STAFFING",
+          "reasoning": "Blue Coding specializes in nearshore staffing and hiring developers, making them a prime candidate for EasyStaff's payroll and freelance payment solutions."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "AI_TRANSFORMATION",
+          "reasoning": "Shokworks offers scalable AI solutions and likely hires contractors for their projects, making them a suitable target for EasyStaff's payroll and payment management services."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v4_role_play_sales",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Trussardi is an Italian fashion brand with inventory that could benefit from a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Marni is a fashion brand with inventory that could utilize a resale platform to turn old stock and returns into revenue."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Elisabetta Franchi is a fashion brand with inventory that could benefit from a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Ermanno Scervino is a fashion brand with inventory that could utilize a resale platform to turn old stock and returns into revenue."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Patrizia Pepe is a fashion brand with inventory that could benefit from a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Kiton is a fashion brand with inventory that could utilize a resale platform to turn old stock and returns into revenue."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Herno is a fashion brand with inventory that could benefit from a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "NON_TARGET",
+          "reasoning": "Soeur is a French brand, not Italian, and may not align with the target market focus on Italy."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Fabiana Filippi is an Italian fashion brand with inventory that could utilize a resale platform to turn old stock and returns into revenue."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Giuseppe Zanotti is an Italian fashion brand with inventory that could benefit from a resale platform to manage old stock and returns."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v4_role_play_sales",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 5,
+      "total": 10,
+      "target_rate": 50.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "CREATIVE_AGENCY",
+          "reasoning": "NewGen is a creative and creator agency that connects brands and creators, making them a potential buyer for AI-powered creator data solutions to enhance their influencer marketing strategies."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": false,
+          "segment": "TALENT_MANAGEMENT",
+          "reasoning": "Sixteenth is a creator talent management company, which may not directly benefit from creator data solutions as they focus on talent management rather than data-driven influencer marketing."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER_AGENCY",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency that could benefit from enhanced data solutions to optimize their influencer marketing campaigns."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": true,
+          "segment": "DIGITAL_MARKETING",
+          "reasoning": "Found is a digital marketing agency that uses data and AI, making them a potential buyer for AI-powered creator data solutions to improve their influencer marketing efforts."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "TALENT_MANAGEMENT",
+          "reasoning": "Muse is a talent management agency involved in influencer marketing, which could benefit from data solutions to enhance their campaign strategies and audience insights."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL_TECH",
+          "reasoning": "Unravel is focused on travel booking experiences and does not align with the influencer marketing or creator economy sectors."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "FASHION_RETAIL",
+          "reasoning": "In The Style is a fashion retailer and does not directly engage in influencer marketing or require creator data solutions."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": true,
+          "segment": "MEDIA_HUB",
+          "reasoning": "Dexerto is a gaming and pop culture hub that engages in brand engagement, potentially benefiting from creator data solutions to enhance their influencer marketing strategies."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": false,
+          "segment": "TALENT_AGENCY",
+          "reasoning": "Major Players is a talent agency for marketing and creative roles, focusing on talent placement rather than influencer marketing data solutions."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "EYEWEAR_RETAIL",
+          "reasoning": "Linda Farrow is an eyewear retailer and does not engage in influencer marketing or require creator data solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v5_explicit_examples",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Synergy Business Consulting provides IT staff augmentation and nearshore staffing services, indicating a need for payroll and contractor payment solutions."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "SMX Services & Consulting is an IT solutions provider, likely hiring contractors and needing payroll management."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Koombea offers software development services, suggesting they hire contractors and could benefit from payroll and payment solutions."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Flatiron Software provides custom software development services, indicating a potential need for contractor payment solutions."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Rocket Code offers AI software and solutions development, likely requiring payroll services for contractors."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Avalith provides remote development teams and outsourcing, indicating a need for payroll and contractor payment solutions."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Blue Coding specializes in nearshore staffing, suggesting a need for payroll and contractor payment solutions."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Shokworks offers scalable solutions for enterprises, likely involving contractor hiring and needing payroll management."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v5_explicit_examples",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 10,
+      "total": 10,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Trussardi is a fashion brand with e-commerce operations, making it a potential buyer for a resale platform to monetize old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Marni is a fashion brand with an online store, indicating a need to manage old stock and returns, making it a target for a resale platform."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Elisabetta Franchi is a fashion brand with e-commerce, which could benefit from a resale platform to handle old stock and returns."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Ermanno Scervino is a fashion brand with an online presence, making it a potential buyer for a resale platform to monetize old stock and returns."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Patrizia Pepe is a fashion brand with e-commerce operations, indicating a need for a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Kiton is a luxury fashion brand with an online store, making it a potential buyer for a resale platform to monetize pre-owned items."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Herno is a fashion brand with e-commerce operations, which could benefit from a resale platform to handle old stock and returns."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Soeur is a fashion brand with an online presence, making it a potential buyer for a resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Fabiana Filippi is a luxury fashion brand with e-commerce, indicating a need for a resale platform to monetize old stock and returns."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION BRAND",
+          "reasoning": "Giuseppe Zanotti is a fashion brand with an online store, making it a potential buyer for a resale platform to handle old stock and returns."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4o",
+      "prompt": "v5_explicit_examples",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 5,
+      "total": 10,
+      "target_rate": 50.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "CREATOR AGENCY",
+          "reasoning": "NewGen is a creative and creator agency that connects brands and creators, making them a potential buyer for influencer data solutions."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR MANAGEMENT",
+          "reasoning": "Sixteenth is a creator talent management company, likely needing data solutions for managing and analyzing creator performance."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER AGENCY",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency, which would benefit from data solutions for influencer discovery and analytics."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "DIGITAL MARKETING",
+          "reasoning": "Found is a digital marketing agency focused on PPC, SEO, and paid social, not specifically on influencer marketing or creator data."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "TALENT MANAGEMENT",
+          "reasoning": "Muse is a talent management agency with a focus on influencer marketing, making them a potential buyer for creator data solutions."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL TECH",
+          "reasoning": "Unravel is focused on travel booking experiences, unrelated to influencer marketing or creator data."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "FASHION RETAIL",
+          "reasoning": "In The Style is a fashion retail company, not directly involved in influencer marketing or creator data solutions."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": true,
+          "segment": "MEDIA & ENTERTAINMENT",
+          "reasoning": "Dexerto is a gaming and pop culture hub that engages with brands, likely needing influencer data for brand engagement strategies."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": false,
+          "segment": "TALENT AGENCY",
+          "reasoning": "Major Players is a talent agency for marketing and creative roles, not specifically focused on influencer marketing or creator data."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "FASHION RETAIL",
+          "reasoning": "Linda Farrow is an eyewear brand, unrelated to influencer marketing or creator data solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Synergy Business Consulting provides IT staffing and professional services, indicating they hire contractors and would benefit from a global payroll and freelance payment platform."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "SMX Services & Consulting is an IT solutions provider likely employing contractors, making them a potential buyer of EasyStaff."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Koombea offers software development and consulting services, likely hiring contractors globally, so they would benefit from EasyStaff."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Flatiron Software provides custom software development and AI-enabled product teams, indicating use of contractors and need for payroll management."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Rocket Code offers AI software development and consulting, likely hiring contractors worldwide, making them a good fit for EasyStaff."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Avalith provides remote development teams and software consulting, indicating they hire contractors and would benefit from EasyStaff."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Blue Coding specializes in nearshore staffing and hiring developers, making them a buyer for a global payroll and freelance payment platform."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Shokworks offers AI native transformation and scalable solutions, likely employing contractors and benefiting from EasyStaff."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Trussardi is an Italian fashion brand that would benefit from a resale platform to monetize old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Marni is an Italian fashion brand likely to benefit from a branded resale platform for old stock and pre-owned items."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Elisabetta Franchi is an Italian fashion brand that fits the target profile for resale platform adoption."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Ermanno Scervino is an Italian fashion brand that would benefit from turning old stock and returns into revenue."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Patrizia Pepe is an Italian fashion brand suitable for a branded resale platform to increase revenue from old stock."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Kiton is an Italian fashion brand that would benefit from a resale platform for old stock and pre-owned items."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Herno is an Italian fashion brand that fits the target profile for using a branded resale platform."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Soeur is a French fashion brand, not Italian, and thus outside the target geography."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Fabiana Filippi is an Italian fashion brand that would benefit from a resale platform to monetize old stock and returns."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Giuseppe Zanotti is an Italian fashion brand that fits the target profile for resale platform adoption."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 5,
+      "total": 10,
+      "target_rate": 50.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "NewGen is a creative and creator agency focused on influencer marketing, making them a buyer who would benefit from AI-powered creator data."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR_TALENT_MANAGEMENT",
+          "reasoning": "Sixteenth is a global creator talent management company involved in influencer marketing, so they would benefit from creator data solutions."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency, making them a target buyer for influencer creator data products."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "DIGITAL_MARKETING_AGENCY",
+          "reasoning": "Found is a digital marketing agency focused on PPC, SEO, and paid social but does not specialize in influencer marketing or creator data."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "Muse is a talent-first influencer marketing agency managing creators and campaigns, so they would benefit from AI-powered creator data."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL_TECH",
+          "reasoning": "Unravel is a travel booking app and unrelated to influencer marketing or creator data."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "RETAIL_FASHION",
+          "reasoning": "In The Style is a fashion retailer and does not operate in influencer marketing or creator data."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "MEDIA_PUBLISHER",
+          "reasoning": "Dexerto is a gaming and pop culture media hub, not an influencer marketing platform or creator data user."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "TALENT_AGENCY_MARKETING",
+          "reasoning": "Major Players is a talent agency focused on marketing and creative talent, likely benefiting from influencer creator data."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "RETAIL_FASHION",
+          "reasoning": "Linda Farrow is a luxury eyewear retailer unrelated to influencer marketing or creator data."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v2_chain_of_thought",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "what_they_do": "Synergy Business Consulting provides managed IT staffing services, IT staff augmentation, and professional IT consulting solutions.",
+          "reasoning": "They are an IT consulting and staffing company in Miami, which fits the target market and would likely use EasyStaff to manage payroll and payments for contractors."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "what_they_do": "SMX Services & Consulting is an IT solutions provider offering consulting and technology services.",
+          "reasoning": "As an IT consulting company in Miami, they would be a buyer of EasyStaff to streamline payments and payroll for their contractors."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "what_they_do": "Koombea offers custom software development and IT consulting services, leveraging Agile and AI technologies.",
+          "reasoning": "They are an IT consulting and software development company likely to hire and pay contractors globally, making them a buyer of EasyStaff."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "what_they_do": "Flatiron Software provides custom software development with a focus on AI-enabled products and global scaling.",
+          "reasoning": "As an IT consulting and software development firm, they fit the target market and would benefit from EasyStaff for contractor payments."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "what_they_do": "Rocket Code offers AI software development and consulting services to implement AI technologies.",
+          "reasoning": "They are an IT consulting company focused on AI solutions, likely hiring contractors worldwide, making them a buyer of EasyStaff."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "what_they_do": "Avalith provides remote software development teams and IT consulting to help companies build digital products.",
+          "reasoning": "As a software consulting and remote staffing company, they would use EasyStaff to manage global contractor payments."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "what_they_do": "Blue Coding specializes in nearshore IT staffing and outsourcing, helping companies build remote development teams.",
+          "reasoning": "They are an IT consulting and staffing company that would benefit from EasyStaff for payroll and freelance payments."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "what_they_do": "Shokworks provides AI-native transformation and scalable IT solutions for enterprises.",
+          "reasoning": "As an IT consulting company focused on AI and enterprise solutions, they fit the target market and would use EasyStaff."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v2_chain_of_thought",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Trussardi is an Italian fashion brand specializing in leather goods, apparel, and accessories.",
+          "reasoning": "They are a fashion brand based in Italy and would benefit from a resale platform to monetize old stock, returns, and pre-owned items."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Marni is an Italian luxury fashion brand offering clothing, shoes, and accessories for men and women.",
+          "reasoning": "As an Italian fashion brand, Marni fits the target market and could use the resale platform to generate additional revenue from unsold or returned inventory."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Elisabetta Franchi is an Italian fashion brand focused on women's clothing, accessories, and footwear.",
+          "reasoning": "They are a fashion brand operating in Italy and would likely be interested in a branded resale platform to manage old stock and returns."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Ermanno Scervino is an Italian luxury fashion house producing high-end apparel and accessories.",
+          "reasoning": "As a luxury Italian fashion brand, they are a potential customer for a resale platform to optimize revenue from pre-owned and returned items."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Patrizia Pepe is an Italian fashion brand offering apparel and accessories for men and women.",
+          "reasoning": "They fit the target profile as an Italian fashion brand that could leverage a resale platform to monetize excess inventory and returns."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Kiton is an Italian luxury menswear brand known for artisanal tailoring and high-end clothing.",
+          "reasoning": "As a premium Italian fashion brand, Kiton could benefit from a resale platform to generate revenue from old stock and pre-owned items."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Herno is an Italian fashion brand specializing in outerwear and clothing for women, men, and children.",
+          "reasoning": "They are an Italian fashion brand and potential customer for a resale platform to manage returns and unsold inventory."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Soeur is a French women's fashion brand offering chic apparel and accessories.",
+          "reasoning": "Although a fashion brand, Soeur is based in France, not Italy, so they are outside the target market."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Fabiana Filippi is an Italian luxury fashion brand specializing in women's clothing and accessories.",
+          "reasoning": "They are an Italian fashion brand and would be a suitable customer for a branded resale platform."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Giuseppe Zanotti is an Italian luxury fashion brand known for footwear and accessories.",
+          "reasoning": "As an Italian fashion brand, they fit the target market and could use the resale platform to monetize returns and pre-owned products."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v2_chain_of_thought",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 6,
+      "total": 10,
+      "target_rate": 60.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "NewGen is a creative and creator agency that connects brands with creators and audiences, specializing in creator marketing and social content.",
+          "reasoning": "They operate in influencer marketing and creator economy space in the UK, making them a potential buyer who would use OnSocial's creator data solutions."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Sixteenth is a global 360\u00b0 creator talent management company focused on managing and promoting influencers and creators.",
+          "reasoning": "As a creator economy company involved in influencer talent management, they fit the target market and would benefit from OnSocial's data products."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "SEEN Connects is an influencer and social marketing agency that connects brands with influencers and manages social campaigns.",
+          "reasoning": "They operate in influencer marketing in the UK and would likely use OnSocial's creator discovery and analytics tools."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Found is a digital marketing agency specializing in PPC, SEO, paid social, and creative content using AI-driven strategies.",
+          "reasoning": "While they do digital marketing, they do not focus on influencer marketing or creator economy platforms, so they are unrelated to OnSocial's target market."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Muse is a talent-first influencer marketing agency connecting brands with influencers globally and managing content campaigns.",
+          "reasoning": "As an influencer marketing agency operating in the UK and creator economy space, they would be a buyer of OnSocial's data solutions."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Unravel provides an immersive travel booking experience with travel-related app integrations.",
+          "reasoning": "They operate in travel tech, unrelated to influencer marketing or creator economy, so they are not a buyer."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "In The Style is a UK-based women's fashion retailer selling clothing and accessories online.",
+          "reasoning": "As a fashion retailer, they are not an influencer marketing platform or creator economy company, so unrelated."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Dexerto is a leading gaming and pop culture media hub that engages brands through influencer and content marketing.",
+          "reasoning": "They operate in influencer marketing and brand engagement in the UK, making them a potential buyer of OnSocial's creator data solutions."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "BUYER",
+          "what_they_do": "Major Players is a talent agency specializing in marketing and creative talent, supporting influencer and marketing campaigns.",
+          "reasoning": "They operate in the influencer marketing and creator economy space in the UK, so they would be a buyer of OnSocial's products."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Linda Farrow is a luxury eyewear brand designing and selling high-end sunglasses and optical frames.",
+          "reasoning": "As a luxury fashion brand, they are unrelated to influencer marketing platforms or creator economy companies and thus not a buyer."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Synergy Business Consulting provides IT staffing and professional services, making them part of the IT consulting ecosystem that could benefit from EasyStaff."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "SMX Services & Consulting is an IT solutions provider, aligning with the IT consulting segment and likely to benefit from payroll and contractor payment solutions."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Koombea offers software development and strategic IT consulting services, fitting the target segment and potential users of EasyStaff."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Flatiron Software provides custom software development and AI-enabled product teams, operating within IT consulting and likely to use contractor payment platforms."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Rocket Code offers AI software development and consulting, placing them in the IT consulting ecosystem and potential EasyStaff users."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Avalith provides remote development teams and software consulting, fitting the IT consulting segment and a plausible beneficiary of EasyStaff."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Blue Coding specializes in nearshore IT staffing and developer hiring, directly related to IT consulting and likely to benefit from payroll and contractor payment solutions."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT CONSULTING",
+          "reasoning": "Shokworks offers AI native transformation and scalable IT solutions, aligning with IT consulting and potential users of EasyStaff."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Trussardi is an Italian fashion brand selling apparel and accessories, fitting the target segment and likely to benefit from resale of old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Marni is an Italian fashion brand offering clothing and accessories, making it a relevant target for branded resale solutions."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Elisabetta Franchi is an Italian fashion brand with apparel and accessories, suitable for resale platform benefits."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Ermanno Scervino is an Italian fashion brand producing apparel, fitting the target segment for resale opportunities."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Patrizia Pepe is an Italian fashion brand offering apparel and accessories, relevant for branded resale platform."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Kiton is an Italian luxury fashion brand, a potential buyer for resale of old stock and pre-owned items."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Herno is an Italian fashion brand selling clothing for multiple demographics, fitting the target segment."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "COMPLETELY_UNRELATED",
+          "reasoning": "Soeur is a French brand with no clear connection to the Italian fashion market, outside the target segment."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Fabiana Filippi is an Italian luxury fashion brand, relevant for resale of old stock and returns."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Giuseppe Zanotti is an Italian fashion brand specializing in footwear and accessories, fitting the target segment."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 7,
+      "total": 10,
+      "target_rate": 70.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "NewGen is a creative and creator agency focused on creator marketing and social content, making them a potential buyer in the influencer marketing ecosystem."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR_TALENT_MANAGEMENT",
+          "reasoning": "Sixteenth is a global creator talent management company, directly involved in influencer marketing and likely to benefit from creator data solutions."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency working with brands and creators, fitting the target segment for influencer data products."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": true,
+          "segment": "DIGITAL_MARKETING_AGENCY",
+          "reasoning": "Found is an AI-first digital marketing agency using data and AI for marketing performance, likely to benefit from enhanced creator data for influencer marketing."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "Muse is a talent-first influencer marketing agency with a global creator roster, making them a direct potential buyer of creator data solutions."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Unravel is a travel booking experience app with no connection to influencer marketing or creator data."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "In The Style is a women's fashion retailer with no direct involvement in influencer marketing platforms or creator data."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": true,
+          "segment": "MEDIA_PLATFORM",
+          "reasoning": "Dexerto is a leading gaming and pop culture media hub that engages brands, likely using influencer marketing and benefiting from creator data."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "TALENT_AGENCY",
+          "reasoning": "Major Players is a marketing and creative talent agency, part of the influencer marketing ecosystem and a potential buyer of creator data."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Linda Farrow is a luxury eyewear brand with no direct connection to influencer marketing platforms or creator data."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v4_role_play_sales",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Synergy Business Consulting provides IT staffing and professional services, indicating they hire contractors and would benefit from a global payroll and freelance payment platform."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "SMX Services & Consulting is an IT solutions provider likely hiring contractors or freelancers, making them a good fit for EasyStaff's payroll and payment services."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Koombea offers software development and consulting services, likely employing global contractors, so they would benefit from EasyStaff's platform."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Flatiron Software provides custom software development and AI-enabled product teams, indicating they hire contractors and need global payroll solutions."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Rocket Code offers AI software development and consulting, likely engaging contractors worldwide, making EasyStaff relevant for their payment needs."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Avalith hires full-time developers and remote teams, indicating a need for managing payroll and payments for global contractors."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Blue Coding specializes in nearshore staffing and outsourcing, making them a prime candidate for EasyStaff's global payroll and freelance payment platform."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Shokworks provides AI native transformation and scalable solutions, likely hiring contractors and benefiting from EasyStaff's services."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v4_role_play_sales",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Trussardi is an Italian fashion brand with inventory that could benefit from resale solutions to monetize old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Marni is a fashion brand likely holding inventory and returns, making them a good candidate for a resale platform."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Elisabetta Franchi is an Italian fashion brand with products that could be resold to generate additional revenue."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Ermanno Scervino is a fashion brand with inventory that could benefit from turning old stock and returns into revenue."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Patrizia Pepe is an Italian fashion brand likely to have inventory and returns suitable for resale platforms."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Kiton is a luxury fashion brand with inventory that could benefit from resale solutions to monetize unsold stock."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Herno is a fashion brand with inventory and returns that could be monetized through a resale platform."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "NON_ITALIAN_BRAND",
+          "reasoning": "Soeur is a French brand, not Italian, so less relevant for targeting Italian fashion brands."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Fabiana Filippi is an Italian fashion brand with inventory that could benefit from resale solutions."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION_BRAND",
+          "reasoning": "Giuseppe Zanotti is an Italian fashion brand likely to have inventory and returns suitable for resale."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v4_role_play_sales",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 7,
+      "total": 10,
+      "target_rate": 70.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "NewGen is a creator and influencer marketing agency that would benefit from AI-powered creator data to improve campaign targeting and insights."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR_TALENT_MANAGEMENT",
+          "reasoning": "Sixteenth is a global creator talent management company likely to need deep creator analytics and discovery tools to manage and grow their talent effectively."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency that would benefit from data-driven creator discovery and analytics to optimize influencer campaigns."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": true,
+          "segment": "DIGITAL_MARKETING_AGENCY",
+          "reasoning": "Found is an AI-first digital marketing agency that likely runs influencer marketing campaigns and would benefit from enhanced creator data and analytics."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER_MARKETING_AGENCY",
+          "reasoning": "Muse is a talent-first influencer marketing agency that would benefit from AI-powered creator discovery and analytics to improve campaign performance."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL_TECH",
+          "reasoning": "Unravel is a travel booking app with no relevance to influencer marketing data or creator analytics."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "RETAIL_BRAND",
+          "reasoning": "In The Style is a fashion retail brand and not a platform or agency involved in influencer marketing data or creator analytics."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": true,
+          "segment": "MEDIA_PLATFORM",
+          "reasoning": "Dexerto is a gaming and pop culture media hub likely engaged in influencer marketing and would benefit from creator data and analytics."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "TALENT_AGENCY",
+          "reasoning": "Major Players is a marketing and creative talent agency that would benefit from AI-powered creator discovery and analytics to support talent management."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "RETAIL_BRAND",
+          "reasoning": "Linda Farrow is a luxury eyewear brand with no direct involvement in influencer marketing platforms or data solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v5_explicit_examples",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 8,
+      "total": 8,
+      "target_rate": 100.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Synergy Business Consulting provides IT staffing and professional services, indicating they hire contractors and would need payroll and freelance payment solutions."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "SMX Services & Consulting is an IT solutions provider likely hiring contractors and needing payroll and invoice management."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Koombea offers software development and acts as a strategic business partner, likely hiring contractors globally and needing payroll solutions."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Flatiron Software provides custom software development and global scaling, indicating a need for managing freelance payments and payroll."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Rocket Code offers AI software and consulting services, likely hiring contractors worldwide and needing payroll and invoice management."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Avalith hires full-time developers and remote teams, indicating a need for global payroll and contractor payment solutions."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Blue Coding specializes in nearshore staffing and hiring developers, making them a target for payroll and freelance payment platforms."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": true,
+          "segment": "IT_CONSULTING",
+          "reasoning": "Shokworks provides AI native transformation and scalable solutions, likely employing contractors and needing payroll and invoice management."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v5_explicit_examples",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 9,
+      "total": 10,
+      "target_rate": 90.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Trussardi is an Italian fashion brand with e-commerce, likely holding old stock and returns that can be monetized via a resale platform."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Marni is a well-known Italian fashion brand with online sales, fitting the profile of a target customer needing to monetize old stock and pre-owned items."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Elisabetta Franchi is an Italian fashion brand with e-commerce, likely to benefit from a resale platform for old stock and returns."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Ermanno Scervino is an Italian fashion brand with online presence, making it a potential buyer for a branded resale platform."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Patrizia Pepe is an Italian fashion brand with e-commerce, likely to have inventory and returns suitable for resale monetization."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Kiton is a luxury Italian fashion brand with online sales, fitting the target profile for resale platform adoption."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Herno is an Italian fashion brand with e-commerce, making it a potential buyer for a resale platform to monetize old stock and returns."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Soeur is a French fashion brand, not Italian, thus outside the target segment."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Fabiana Filippi is an Italian luxury fashion brand with e-commerce, likely to benefit from a resale platform."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION_BRANDS_ITALY",
+          "reasoning": "Giuseppe Zanotti is an Italian fashion brand with online sales, fitting the target profile for resale platform adoption."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "prompt": "v5_explicit_examples",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 5,
+      "total": 10,
+      "target_rate": 50.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING PLATFORMS",
+          "reasoning": "NewGen is a creative & creator agency focused on creator marketing and social content, indicating a need for influencer data solutions."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING PLATFORMS",
+          "reasoning": "Sixteenth is a global 360\u00b0 creator talent management company, likely requiring deep creator analytics and discovery tools."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING PLATFORMS",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency, which would benefit from AI-powered creator data for campaign insights."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Found is a digital marketing agency focused on PPC, SEO, and paid social but does not specialize in influencer marketing or creator data."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING PLATFORMS",
+          "reasoning": "Muse is a talent-first influencer marketing agency managing creators and campaigns, fitting the target profile for creator data solutions."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Unravel is a travel booking experience app, unrelated to influencer marketing or creator data."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "In The Style is a women's fashion e-commerce brand, unrelated to influencer marketing platforms or creator data solutions."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Dexerto is a gaming and pop culture media hub, not a platform or agency focused on influencer marketing or creator data."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING PLATFORMS",
+          "reasoning": "Major Players is a talent agency for marketing and creative sectors, likely managing creators and needing influencer data."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Linda Farrow is a luxury eyewear brand, unrelated to influencer marketing platforms or creator data solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 0,
+      "total": 8,
+      "target_rate": 0.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": false,
+          "segment": "COMPETITOR",
+          "reasoning": "They provide IT staffing and professional services, not a platform for payroll or invoice management."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "They are an IT solutions provider, not a platform for payroll or freelance payments."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "They focus on custom software development and digital transformation, not payroll or contractor payment platforms."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "They develop AI-enabled software solutions, not a platform for managing payroll or freelance payments."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "They focus on AI software development, not payroll or invoice management services."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "They provide software development outsourcing and consulting, not a platform for payroll or contractor payments."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "They offer nearshore staffing and software development services, not a payroll platform."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "They focus on AI transformation and scalable solutions, not payroll or freelance payment management."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 3,
+      "total": 10,
+      "target_rate": 30.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Trussardi is an Italian fashion brand that could benefit from reselling old stock and pre-owned items, aligning with our platform's service."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Marni is a high-end fashion brand that likely manages its own inventory and resale channels, making them less likely to need our resale platform."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Elisabetta Franchi is an Italian fashion brand that could utilize our platform to turn unsold or returned stock into revenue."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Ermanno Scervino is a luxury brand that likely handles its own inventory and resale, making them less relevant as a buyer for our service."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Patrizia Pepe is an Italian fashion brand that could benefit from reselling returns and pre-owned stock through our platform."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Kiton is a luxury tailoring brand that likely manages its own inventory and does not typically sell pre-owned or excess stock via resale platforms."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Herno is a well-established outerwear brand that probably handles its inventory internally and is not a typical buyer for resale services."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN FRANCE",
+          "reasoning": "Soeur is a French brand, not Italian, and may not be the primary target for our Italy-focused platform."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Fabiana Filippi is a luxury Italian brand that likely manages its own inventory and resale channels, making them less likely to need our platform."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Giuseppe Zanotti is a luxury footwear brand that probably handles its own stock and does not typically sell through resale platforms."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v1_simple_buyer_seller",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 2,
+      "total": 10,
+      "target_rate": 20.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": false,
+          "segment": "CREATOR AGENCY",
+          "reasoning": "NewGen is a creative and creator agency that offers marketing and content services, not a platform or company that benefits from influencer data solutions."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": false,
+          "segment": "CREATOR TALENT MANAGEMENT",
+          "reasoning": "Sixteenth manages influencer talent but does not appear to be a platform or company that would purchase data solutions for influencer marketing activities."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": false,
+          "segment": "INFLUENCER & SOCIAL MARKETING AGENCY",
+          "reasoning": "SEEN Connects is an influencer and social marketing agency, likely a competitor or service provider rather than a buyer of data solutions."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "DIGITAL MARKETING AGENCY",
+          "reasoning": "Found is a digital marketing agency offering SEO, PPC, and creative services; they are not a creator platform or influencer marketing platform that would need creator data."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING PLATFORM",
+          "reasoning": "MUSE is a talent management and influencer marketing agency with a global roster, likely to benefit from creator data solutions for campaign planning and analytics."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL APP",
+          "reasoning": "Unravel is a travel booking app, unrelated to influencer marketing or creator data needs."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "FASHION RETAILER",
+          "reasoning": "In The Style is a fashion retailer, not an influencer platform or agency that would purchase creator data solutions."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "GAMING & POP CULTURE MEDIA",
+          "reasoning": "Dexerto is a media outlet focused on gaming and pop culture, not a platform or agency that would buy influencer data solutions."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "INFLUENCER & TALENT AGENCY",
+          "reasoning": "Major Players is a talent agency for marketing and creative talent, likely to benefit from influencer data solutions for campaign management and influencer identification."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "FASHION RETAILER",
+          "reasoning": "Linda Farrow is a fashion eyewear brand, unrelated to influencer marketing platforms or creator data needs."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v2_chain_of_thought",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 0,
+      "total": 8,
+      "target_rate": 0.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": false,
+          "segment": "IT STAFF AUGMENTATION SERVICES",
+          "what_they_do": "Provides managed IT staffing, consulting, and professional services, including nearshore IT staffing solutions.",
+          "reasoning": "They are an IT staffing and consulting firm, not a provider of payroll or freelance payment platforms, so they are unrelated."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": false,
+          "segment": "IT SOLUTIONS PROVIDER",
+          "what_they_do": "Offers IT solutions and consulting services to businesses, including technology implementation and support.",
+          "reasoning": "They are an IT solutions provider, not a platform for payroll or freelance payments, so they are unrelated."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": false,
+          "segment": "CUSTOM SOFTWARE DEVELOPMENT",
+          "what_they_do": "Provides custom software development and digital transformation services for enterprises and startups.",
+          "reasoning": "They develop software solutions but do not focus on payroll or freelance payment platforms, so they are unrelated."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": false,
+          "segment": "AI SOFTWARE DEVELOPMENT",
+          "what_they_do": "Builds AI-enabled software products, focusing on AI infrastructure, features, and scaling.",
+          "reasoning": "Their focus is on AI product development, not payroll or freelance payment platforms, so they are unrelated."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": false,
+          "segment": "AI SOLUTIONS DEVELOPMENT",
+          "what_they_do": "Provides AI software development and solutions for various industries, including AI technology implementation.",
+          "reasoning": "They develop AI solutions, not payroll or freelance payment platforms, so they are unrelated."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": false,
+          "segment": "SOFTWARE DEVELOPMENT SERVICES",
+          "what_they_do": "Offers software consulting, development, and outsourcing services to help companies build digital products.",
+          "reasoning": "They are a software development partner, not a payroll or freelance payment platform, so they are unrelated."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": false,
+          "segment": "NEARSHORE STAFFING",
+          "what_they_do": "Provides nearshore IT staffing services, helping companies build software teams in Latin America.",
+          "reasoning": "They focus on staffing and outsourcing, not on payroll or freelance payment platforms, so they are unrelated."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": false,
+          "segment": "AI TRANSFORMATION SOLUTIONS",
+          "what_they_do": "Offers AI-native transformation and scalable AI solutions for enterprises.",
+          "reasoning": "Their focus is on AI transformation, not payroll or freelance payment management, so they are unrelated."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v2_chain_of_thought",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 0,
+      "total": 10,
+      "target_rate": 0.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Trussardi designs and sells Italian fashion and accessories, including clothing, bags, and footwear.",
+          "reasoning": "They are a fashion brand selling their own products, not a resale platform or service provider for brands' excess stock."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Marni is an Italian luxury fashion brand offering clothing, accessories, and footwear.",
+          "reasoning": "They are a fashion brand selling their own collections, not a resale or platform service for other brands' stock."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Elisabetta Franchi is an Italian fashion brand selling women's clothing, accessories, and footwear.",
+          "reasoning": "They are a brand retailer, not a resale platform or service provider for other brands' excess inventory."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Ermanno Scervino designs and sells luxury Italian fashion, including clothing and accessories.",
+          "reasoning": "They are a fashion brand, not a resale platform or service for brands' stock management."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Patrizia Pepe offers women's and men's apparel and accessories, focusing on fashion collections.",
+          "reasoning": "They are a fashion retailer, not a resale or stock management platform."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Kiton specializes in high-end tailored clothing and luxury fashion for men and women.",
+          "reasoning": "They are a luxury fashion brand, not a resale platform or service for excess stock."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Herno produces high-quality outerwear and clothing for women, men, and kids.",
+          "reasoning": "They are a clothing manufacturer and retailer, not a resale platform or service for brands' stock."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Soeur offers chic women's fashion, including clothing and accessories, with a focus on urban style.",
+          "reasoning": "They are a fashion retailer, not a resale platform or service for brands' excess stock."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Fabiana Filippi designs and sells luxury Italian women's fashion and accessories.",
+          "reasoning": "They are a fashion brand, not a resale platform or service for other brands' stock management."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "Giuseppe Zanotti designs and sells luxury footwear, bags, and accessories.",
+          "reasoning": "They are a fashion brand, not a resale platform or service provider for brands' excess stock."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v2_chain_of_thought",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 3,
+      "total": 10,
+      "target_rate": 30.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "A creative and creator agency connecting brands, creators, and audiences through social content and marketing.",
+          "reasoning": "They are a creative agency focusing on content creation and brand connections, not influencer marketing platforms or data solutions."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "A global talent management company representing creators and influencers, focusing on managing and promoting influencer careers.",
+          "reasoning": "They are a talent management company, not a platform providing influencer data or analytics solutions."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING PLATFORM",
+          "what_they_do": "An influencer and social media marketing agency that manages influencer campaigns and connections for brands.",
+          "reasoning": "They operate in influencer marketing and could benefit from influencer data solutions to optimize their campaigns."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "A digital marketing agency specializing in SEO, PPC, and paid social using data and AI for digital performance.",
+          "reasoning": "While they use data and AI, they are a digital marketing agency, not an influencer marketing platform or creator data provider."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING PLATFORM",
+          "what_they_do": "A talent management and influencer marketing agency connecting brands with talents globally for content campaigns.",
+          "reasoning": "They operate in influencer marketing and would likely use creator data solutions for campaign planning and analytics."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "A travel booking app providing immersive travel experiences.",
+          "reasoning": "Their business is travel technology, unrelated to influencer marketing or creator data solutions."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "An online fashion retailer selling women's clothing and accessories.",
+          "reasoning": "They are a fashion retailer, not involved in influencer marketing or creator data services."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "A media platform focused on gaming and pop culture content.",
+          "reasoning": "They are a media outlet, not an influencer marketing platform or creator data provider."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING PLATFORM",
+          "what_they_do": "A talent agency for marketing and creative talent, supporting brands with influencer campaigns.",
+          "reasoning": "They operate in influencer marketing and could utilize creator data solutions for campaign management and talent selection."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "what_they_do": "A luxury eyewear brand selling designer glasses and sunglasses.",
+          "reasoning": "Their business is fashion retail, unrelated to influencer marketing platforms or creator data solutions."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 0,
+      "total": 8,
+      "target_rate": 0.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": false,
+          "segment": "IT STAFFING SERVICES",
+          "reasoning": "Provides IT staffing and consulting services, not a platform for payroll or freelance payments, and likely not a direct buyer of our product."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": false,
+          "segment": "IT SOLUTIONS PROVIDER",
+          "reasoning": "Offers IT solutions and consulting, not a payroll or freelance payment platform, and not directly aligned with our target segment."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": false,
+          "segment": "SOFTWARE DEVELOPMENT SERVICES",
+          "reasoning": "Provides custom software development and digital transformation services, not a platform for payroll or freelance payments, and unlikely to be a direct buyer."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": false,
+          "segment": "CUSTOM SOFTWARE DEVELOPMENT",
+          "reasoning": "Focuses on building AI-enabled software solutions, not a platform for payroll or freelance payments, and not directly relevant as a target."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": false,
+          "segment": "AI SOFTWARE & SOLUTIONS",
+          "reasoning": "Specializes in AI software development, not a platform for payroll or freelance payments, and unlikely to be a target customer."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": false,
+          "segment": "SOFTWARE DEVELOPMENT PARTNER",
+          "reasoning": "Provides software development outsourcing and consulting, not a platform for payroll or freelance payments, and not a direct target."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": false,
+          "segment": "NEARSHORE STAFFING",
+          "reasoning": "Offers nearshore staffing services, not a platform for payroll or freelance payments, and unlikely to be a direct buyer."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": false,
+          "segment": "AI TRANSFORMATION SOLUTIONS",
+          "reasoning": "Focuses on AI transformation and scalable solutions, not a platform for payroll or freelance payments, and not a target segment."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 8,
+      "total": 10,
+      "target_rate": 80.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Trussardi is an Italian fashion brand that could benefit from resale platform services to manage old stock and returns."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Marni is an Italian luxury fashion brand that may utilize resale solutions for excess inventory and pre-owned items."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Elisabetta Franchi is an Italian fashion label that could leverage resale platforms to monetize unsold stock."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Ermanno Scervino is an Italian luxury brand that might benefit from resale channels for excess or returned inventory."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Patrizia Pepe is an Italian fashion brand that could use resale platforms to manage surplus stock and returns."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Kiton is an Italian luxury tailoring brand that may benefit from resale solutions for pre-owned or unsold items."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Herno primarily sells outerwear and does not appear to focus on fashion resale or pre-owned markets."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "UNRELATED",
+          "reasoning": "Soeur is a French brand, not Italian, and focuses on women's fashion, which is outside the target segment."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Fabiana Filippi is an Italian luxury fashion brand that could benefit from resale platforms for excess or pre-owned stock."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Giuseppe Zanotti is an Italian luxury footwear brand that may utilize resale platforms for unsold or pre-owned shoes."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v3_via_negativa_strict",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 3,
+      "total": 10,
+      "target_rate": 30.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": false,
+          "segment": "CREATOR AGENCY",
+          "reasoning": "It is a creative and creator agency, not a platform, service provider, or ecosystem participant in influencer marketing."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": false,
+          "segment": "CREATOR TALENT MANAGEMENT",
+          "reasoning": "A talent management company, not a platform or service that provides data or tools for influencer marketing campaigns."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER & SOCIAL MARKETING AGENCY",
+          "reasoning": "An influencer and social marketing agency that could benefit from creator data solutions to enhance their campaigns."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "DIGITAL MARKETING AGENCY",
+          "reasoning": "A digital marketing agency focusing on SEO, PPC, and paid social, not directly involved in influencer marketing or creator data services."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING AGENCY",
+          "reasoning": "A talent management and influencer marketing agency that could utilize creator data for campaign planning and analytics."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL APP/TECH",
+          "reasoning": "A travel app company unrelated to influencer marketing or creator data solutions."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "FASHION RETAIL",
+          "reasoning": "A fashion retailer, not a platform or agency involved in influencer marketing or creator data."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "GAMING & ENTERTAINMENT MEDIA",
+          "reasoning": "Media outlet focused on gaming and pop culture, not a service provider or platform in influencer marketing."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "INFLUENCER & CREATOR TALENT AGENCY",
+          "reasoning": "A talent agency for marketing and creative talent, likely to benefit from creator data solutions."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "FASHION RETAIL",
+          "reasoning": "A fashion eyewear brand, not involved in influencer marketing platforms or data services."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v4_role_play_sales",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 0,
+      "total": 8,
+      "target_rate": 0.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": false,
+          "segment": "COMPETITOR",
+          "reasoning": "They provide managed IT staffing and professional services, not payroll or freelance payment platforms."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": false,
+          "segment": "RELEVANT",
+          "reasoning": "They are an IT solutions provider, which may involve staffing but do not directly focus on payroll or freelance payments."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": false,
+          "segment": "RELEVANT",
+          "reasoning": "They offer software development services, not a platform for payroll or contractor payments."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": false,
+          "segment": "RELEVANT",
+          "reasoning": "They build AI-enabled software solutions, not a payroll or freelance payment platform."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": false,
+          "segment": "RELEVANT",
+          "reasoning": "They focus on AI software development, not on payroll or contractor payment services."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": false,
+          "segment": "RELEVANT",
+          "reasoning": "They provide software development teams and consulting, not payroll or freelance payment solutions."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": false,
+          "segment": "RELEVANT",
+          "reasoning": "They offer nearshore staffing and software development, not a platform for managing freelance payments."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": false,
+          "segment": "RELEVANT",
+          "reasoning": "They focus on AI transformation solutions, not payroll or freelance payment services."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v4_role_play_sales",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 1,
+      "total": 10,
+      "target_rate": 10.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "As a fashion brand with inventory, Trussardi could benefit from turning old stock and returns into revenue via resale."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": false,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "Marni is a fashion brand primarily selling new collections, not a resale platform or marketplace."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": false,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "Elisabetta Franchi is a fashion brand focusing on new collections, not a resale platform."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": false,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "Ermanno Scervino is a designer brand selling new collections, not a resale platform."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": false,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "Patrizia Pepe is a fashion brand with new collections, not a resale platform."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": false,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "Kiton is a luxury brand focusing on new high-end collections, not resale."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": false,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "Herno is a brand selling new outerwear and apparel, not a resale platform."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "Soeur is a fashion brand with new collections, not a resale platform."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": false,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "Fabiana Filippi is a luxury brand selling new collections, not resale."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": false,
+          "segment": "BRANDS WITH INVENTORY",
+          "reasoning": "Giuseppe Zanotti is a footwear and accessories brand focusing on new products, not resale."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v4_role_play_sales",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 5,
+      "total": 10,
+      "target_rate": 50.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "CREATOR AGENCIES & INFLUENCER MARKETING PLATFORMS",
+          "reasoning": "As a creator & influencer agency, they likely need data tools to discover and analyze creators effectively."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "CREATOR TALENT MANAGEMENT & INFLUENCER PLATFORMS",
+          "reasoning": "They manage creator talent and would benefit from data solutions to identify and evaluate influencers."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "INFLUENCER & SOCIAL MARKETING AGENCIES",
+          "reasoning": "They are an influencer & social marketing agency, which would benefit from creator data and analytics tools."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "DIGITAL MARKETING AGENCIES",
+          "reasoning": "While they are a digital marketing agency, their focus is on SEO, PPC, and paid social, not influencer data tools; they are not direct buyers."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "INFLUENCER MARKETING & TALENT AGENCIES",
+          "reasoning": "As a talent management agency with a focus on influencer marketing, they would benefit from creator discovery and analytics data."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "TRAVEL TECH & APP SOLUTIONS",
+          "reasoning": "Unravel is focused on travel booking technology, unrelated to influencer marketing or creator data."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "FASHION RETAILERS",
+          "reasoning": "They are a fashion retailer; unless they run their own influencer campaigns at scale, they are not primary buyers of creator data tools."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "GAMING & POP CULTURE MEDIA",
+          "reasoning": "Dexerto is a media outlet focused on gaming and pop culture, not an influencer marketing platform or agency."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "MARKETING & CREATIVE TALENT AGENCIES",
+          "reasoning": "They are a talent agency for marketing and creative talent, likely to use data tools for influencer discovery and analytics."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "FASHION RETAIL & EYEWEAR BRANDS",
+          "reasoning": "They are a fashion and eyewear brand retailer, not an influencer platform or agency; unlikely to be a direct buyer."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v5_explicit_examples",
+      "segment": "EasyStaff IT consulting Miami",
+      "targets": 0,
+      "total": 8,
+      "target_rate": 0.0,
+      "classifications": [
+        {
+          "domain": "synergybc.com",
+          "is_target": false,
+          "segment": "IT consulting companies in Miami",
+          "reasoning": "Provides IT staffing and professional services, not a direct buyer of payroll or freelance payment platform."
+        },
+        {
+          "domain": "smxusa.com",
+          "is_target": false,
+          "segment": "IT consulting companies in Miami",
+          "reasoning": "IT solutions provider, likely a competitor or unrelated, not a company that would need our platform."
+        },
+        {
+          "domain": "koombea.com",
+          "is_target": false,
+          "segment": "IT consulting companies in Miami",
+          "reasoning": "Software development services; they are a service provider, not a company hiring contractors externally."
+        },
+        {
+          "domain": "flatiron.software",
+          "is_target": false,
+          "segment": "IT consulting companies in Miami",
+          "reasoning": "Custom software development with AI focus; not a company hiring contractors or needing payroll services."
+        },
+        {
+          "domain": "therocketcode.com",
+          "is_target": false,
+          "segment": "IT consulting companies in Miami",
+          "reasoning": "AI software development firm, not a client hiring external contractors for payroll or payments."
+        },
+        {
+          "domain": "avalith.net",
+          "is_target": false,
+          "segment": "IT consulting companies in Miami",
+          "reasoning": "Software consulting and development outsourcing; not a company that would buy our platform for hiring or paying contractors."
+        },
+        {
+          "domain": "bluecoding.com",
+          "is_target": false,
+          "segment": "IT consulting companies in Miami",
+          "reasoning": "Nearshore staffing and software development services; they are a service provider, not a client needing contractor payment solutions."
+        },
+        {
+          "domain": "shokworks.io",
+          "is_target": false,
+          "segment": "IT consulting companies in Miami",
+          "reasoning": "AI transformation and solutions provider; not a company hiring contractors externally or needing payroll services."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v5_explicit_examples",
+      "segment": "TFP Fashion brands Italy",
+      "targets": 6,
+      "total": 10,
+      "target_rate": 60.0,
+      "classifications": [
+        {
+          "domain": "trussardi.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Trussardi is a fashion brand with a retail presence that could benefit from monetizing old stock, returns, or pre-owned items through resale."
+        },
+        {
+          "domain": "marni.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Marni is a luxury fashion brand that can leverage resale to monetize unsold or pre-owned items, aligning with our product offering."
+        },
+        {
+          "domain": "elisabettafranchi.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Elisabetta Franchi is a fashion brand with a retail and online presence that could utilize resale platforms to generate revenue from excess stock."
+        },
+        {
+          "domain": "ermannoscervino.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Ermanno Scervino is a luxury fashion brand that can monetize returns or pre-owned items via resale channels."
+        },
+        {
+          "domain": "patriziapepe.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Patrizia Pepe is a fashion brand with a retail presence that could benefit from turning unsold or returned stock into revenue through resale."
+        },
+        {
+          "domain": "kiton.com",
+          "is_target": true,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Kiton, as a luxury tailoring brand, can monetize pre-owned or excess stock via resale platforms."
+        },
+        {
+          "domain": "herno.com",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Herno is a clothing brand but not necessarily focused on resale or pre-owned monetization; more likely a competitor or unrelated."
+        },
+        {
+          "domain": "soeur.fr",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Soeur is a French fashion brand, not Italian, and not specifically positioned as a resale platform or needing resale services."
+        },
+        {
+          "domain": "fabianafilippi.com",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Fabiana Filippi is a luxury fashion brand, but the listing suggests a focus on new collections rather than resale or monetizing old stock."
+        },
+        {
+          "domain": "giuseppezanotti.com",
+          "is_target": false,
+          "segment": "FASHION BRANDS IN ITALY",
+          "reasoning": "Giuseppe Zanotti is a footwear brand, not necessarily a target for resale monetization unless they are actively involved in pre-owned markets, which is not indicated."
+        }
+      ]
+    },
+    {
+      "model": "gpt-4.1-nano",
+      "prompt": "v5_explicit_examples",
+      "segment": "OnSocial Creator platforms UK",
+      "targets": 5,
+      "total": 10,
+      "target_rate": 50.0,
+      "classifications": [
+        {
+          "domain": "thenewgen.com",
+          "is_target": true,
+          "segment": "Influencer marketing platforms and creator economy companies in UK",
+          "reasoning": "As a creative and creator agency focused on connecting brands, creators, and audiences, they likely need data about creators for influencer marketing campaigns."
+        },
+        {
+          "domain": "sixteenth.com",
+          "is_target": true,
+          "segment": "Influencer marketing platforms and creator economy companies in UK",
+          "reasoning": "A talent management company for creators and influencers would benefit from creator data and analytics to manage and grow their talent roster."
+        },
+        {
+          "domain": "seenconnects.com",
+          "is_target": true,
+          "segment": "Influencer marketing platforms and creator economy companies in UK",
+          "reasoning": "An influencer & social marketing agency would require data and analytics about creators to plan and execute campaigns effectively."
+        },
+        {
+          "domain": "found.co.uk",
+          "is_target": false,
+          "segment": "Competitor",
+          "reasoning": "Found is a digital marketing agency that uses AI and data for digital strategies, but they are not a creator data platform; they are a service provider, not a buyer of creator data."
+        },
+        {
+          "domain": "musetheagency.com",
+          "is_target": true,
+          "segment": "Influencer marketing platforms and creator economy companies in UK",
+          "reasoning": "A talent management agency with a large creator roster would need data and insights about creators for campaign planning and management."
+        },
+        {
+          "domain": "unravelapp.com",
+          "is_target": false,
+          "segment": "Unrelated",
+          "reasoning": "Unravel is a travel app platform, unrelated to influencer marketing or creator data."
+        },
+        {
+          "domain": "inthestyle.com",
+          "is_target": false,
+          "segment": "Unrelated",
+          "reasoning": "In The Style is a fashion retailer, not involved in influencer marketing or creator data services."
+        },
+        {
+          "domain": "dexerto.media",
+          "is_target": false,
+          "segment": "Unrelated",
+          "reasoning": "Dexerto is a gaming and pop culture media hub, not a creator platform or influencer marketing company."
+        },
+        {
+          "domain": "majorplayers.co.uk",
+          "is_target": true,
+          "segment": "Influencer marketing platforms and creator economy companies in UK",
+          "reasoning": "A talent agency for marketing and creative talent would need creator data and insights to connect brands with suitable creators."
+        },
+        {
+          "domain": "lindafarrow.com",
+          "is_target": false,
+          "segment": "Unrelated",
+          "reasoning": "Lindafarrow is a fashion eyewear retailer, unrelated to influencer marketing or creator data."
+        }
+      ]
+    }
+  ],
+  "best_setup": "gpt-4o-mini \u00d7 v1_simple_buyer_seller",
+  "best_score": 86.66666666666667
+}

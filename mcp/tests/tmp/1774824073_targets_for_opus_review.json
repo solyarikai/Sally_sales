@@ -1,0 +1,87 @@
+{
+  "query": "IT consulting companies in Miami, 10-200 employees",
+  "offer": "EasyStaff \u2014 payroll, contractor management, invoice processing",
+  "targets": [
+    {
+      "domain": "smxusa.com",
+      "name": "?",
+      "gpt_confidence": 0.9,
+      "gpt_reasoning": "Clearly states they provide IT solutions and staffing services, indicating they hire contractors.",
+      "website_snippet": "TITLE: SMX Services &#038; Consulting USA - I.T. Solutions Provider\nDESCRIPTION: When it comes to IT solutions &#038; engineering staffing, we give you the world. Get local expertise and international reach with a staffing partner who breaks down talent barriers to deliver high-caliber resources + highly targeted services. IT Staffing Specialized staff augmentation with a technical focus - SMX Services &#038; Consulting USA\nTEXT: SMX Services &#038; Consulting USA - I.T. Solutions Provider var m"
+    },
+    {
+      "domain": "koombea.com",
+      "name": "?",
+      "gpt_confidence": 0.9,
+      "gpt_reasoning": "Describes itself as a software development services provider, indicating they likely use freelancers.",
+      "website_snippet": "TITLE: Software Development Services To Drive Your Digital Disruption\nDESCRIPTION: Koombea is your leading software development services provider for start-ups, enterprises, and midsize businesses. Click here now!\nTEXT: Software Development Services To Drive Your Digital Disruption @font-face{font-display:swap;font-family:GT Walsheim;font-style:normal;font-weight:700;src:local(\"GT Walsheim Bold\"),local(\"GTWalsheimBold\"),url(/wp-content/themes/koombea/dist/fonts/GTWalsheimBold-62830fc1271470e6fd4"
+    },
+    {
+      "domain": "flatiron.software",
+      "name": "?",
+      "gpt_confidence": 0.9,
+      "gpt_reasoning": "Clearly states they provide custom software development services, indicating they likely use freelancers.",
+      "website_snippet": "TITLE: Flatiron Software | Custom Software Development Services\nTEXT: Flatiron Software | Custom Software Development Services Close Cookie Popup Cookie settings By clicking &quot;Accept all cookies&quot;, you agree to storing cookies on your device to enhance site navigation, analyze site usage and assist in our marketing efforts as outlined in our privacy policy . Accept all cookies Cookie settings Close Cookie Preference Manager Cookie settings By clicking &#x27;Accept all cookies&#x27;, you "
+    },
+    {
+      "domain": "nybblegroup.com",
+      "name": "?",
+      "gpt_confidence": 0.8,
+      "gpt_reasoning": "Describes itself as a digital transformation company offering consulting services, likely involving contractors.",
+      "website_snippet": "TITLE: Innovation that transforms\nDESCRIPTION: Nybble Group is a Digital Transformation Company that offers integrated consulting services and technology solutions designed to drive growth through innovation.\nH1: Creating The Future\nH1: We Humanize Digital Transformation\nTEXT: Innovation that transforms Skip to main content Main navigation Who we are What we do Our Work People Let\u2019s connect English Espa\u00f1ol Let\u2019s connect English Espa\u00f1ol Homepage Creating The Future We are a Digital Transformation"
+    },
+    {
+      "domain": "therocketcode.com",
+      "name": "?",
+      "gpt_confidence": 0.9,
+      "gpt_reasoning": "Clearly states they offer AI software development and custom solutions, indicating they likely use freelancers.",
+      "website_snippet": "TITLE: Leading AI Software and Solutions development\nDESCRIPTION: rocket code offers top-tier AI software development and custom solutions. Partner with the leading software development company today!\nTEXT: Leading AI Software and Solutions development .jhVcUr{width:100%;border-radius:0px 0px 50px 50px;background-color:#050e2a;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:10px;font-size:14px;color:#fff;position:relative;height:100dvh;max-height:1500px;padding-bottom:4"
+    },
+    {
+      "domain": "avalith.net",
+      "name": "?",
+      "gpt_confidence": 0.8,
+      "gpt_reasoning": "Describes providing expert software services, indicating they likely use freelancers.",
+      "website_snippet": "TITLE: Home Page | Avalith\nDESCRIPTION: Our expert software services can help you reach your goals. Discover how we can optimize your workflow and accelerate your timeline today!\nTEXT: Home Page | Avalith <link rel=\"preload\" as=\"image\" imageSrcSet=\"/"
+    },
+    {
+      "domain": "bluecoding.com",
+      "name": "?",
+      "gpt_confidence": 0.9,
+      "gpt_reasoning": "Clearly states they provide nearshore staffing and hire developers, indicating they manage contractors.",
+      "website_snippet": "TITLE: Hire Top LATAM Developers | Blue Coding Nearshore Staffing\nTEXT: Hire Top LATAM Developers | Blue Coding Nearshore Staffing About Us Services Staff Augmentation Build, Operate, Transfer (BOT) Custom Digital Solutions Blog Resources Careers Contact US Tech Apply for Jobs Start Hiring About us Services Staff Augmentation Build, Operate, Transfer (BOT) <a href=\"/services/custom-digital-sol"
+    },
+    {
+      "domain": "shokworks.io",
+      "name": "?",
+      "gpt_confidence": 0.8,
+      "gpt_reasoning": "Describes providing scalable solutions for enterprises, likely involving contractors.",
+      "website_snippet": "TITLE: AI Native Transformation | Scalable Solutions for Modern Enterprises\nDESCRIPTION: Accelerate growth with AI-native systems, agentic automation, and real-time data platforms. Shokworks helps you scale faster, smarter, and leaner.\nTEXT: AI Native Transformation | Scalable Solutions for Modern Enterprises Static = window.Static || {}; Static.SQUARESPACE_CONTEXT = {\"betaFeatureFlags\":[\"campaigns_merch_state\",\"enable_form_submission_trigger\",\"modernized-pdp-m2-enabled\",\"new_stacked_index\",\"ena"
+    },
+    {
+      "domain": "venon.solutions",
+      "name": "?",
+      "gpt_confidence": 0.9,
+      "gpt_reasoning": "Clearly states they specialize in building dedicated nearshore teams of IT professionals, indicating they manage contractors.",
+      "website_snippet": "TITLE: Venon Solutions - Nearshoring From Latin America\nDESCRIPTION: Nearshoring from Latin America. We specialize in building dedicated nearshore teams of IT professionals in Latin America\nTEXT: Venon Solutions - Nearshoring From Latin America img.wp-smiley, img.emoji { display: inline !important; border: none !important; box-shadow: none !important; height: 1em !important; width: 1em !importa"
+    }
+  ],
+  "non_targets": [
+    {
+      "domain": "synergybc.com",
+      "gpt_reasoning": "Insufficient website content to determine the company's focus."
+    },
+    {
+      "domain": "xpoint.tech",
+      "gpt_reasoning": "Insufficient website content to determine the company's focus."
+    },
+    {
+      "domain": "kenility.com",
+      "gpt_reasoning": "Insufficient website content to determine the company's focus."
+    },
+    {
+      "domain": "cladirect.com",
+      "gpt_reasoning": "Insufficient website content to determine the company's focus."
+    }
+  ]
+}

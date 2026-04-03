@@ -1,0 +1,22 @@
+{
+  "url": "https://thefashionpeople.com/",
+  "company_name": "The Fashion People",
+  "core_offer": "Branded resale platform that turns old stock, returns and pre-owned into revenue for fashion brands",
+  "products": [
+    "Branded P2P resale storefront — built and configured for each brand",
+    "Delivery/logistics — cross-border delivery flows across 20+ European countries",
+    "Payments — store credits, payouts, multi-currency support",
+    "Authentication — user and transaction verification"
+  ],
+  "target_audience": "Fashion brands (e-commerce) that want to monetize returns, old stock, and pre-owned items",
+  "value_proposition": "Monetize returns and old stock without extra workload, launch in 2 weeks",
+  "key_metrics": {
+    "ltv_increase": "2.5x higher LTV with store credits",
+    "new_customers": "40% new customers via resale",
+    "launch_time": "10 days to launch",
+    "countries": "20+ countries covered in Europe"
+  },
+  "pricing_model": "Platform fee on resale GMV (ROI calculator on site)",
+  "competitors": ["Reflaunt", "Trove", "Archive"],
+  "NOT": ["fashion staffing", "recruitment", "payroll", "clothing brand"]
+}

@@ -1,0 +1,2334 @@
+{
+  "companies": [
+    {
+      "domain": "aper.com",
+      "name": "Aper",
+      "is_target": true,
+      "segment": "EMBEDDED FINANCE",
+      "reasoning": "Aper provides a cloud commerce platform for banks, enabling them to create marketplaces, which aligns with embedded finance solutions."
+    },
+    {
+      "domain": "pelican.ai",
+      "name": "Pelican.ai",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Pelican.ai offers AI-powered payments and compliance solutions, targeting B2B fintech needs."
+    },
+    {
+      "domain": "paymentology.com",
+      "name": "Paymentology",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Paymentology provides B2B payment processing solutions, making it a fit for lead generation services."
+    },
+    {
+      "domain": "ecospend.com",
+      "name": "Ecospend, a Trustly Company",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Ecospend provides B2B open finance solutions, indicating a focus on the payments segment."
+    },
+    {
+      "domain": "tell.money",
+      "name": "tell.money",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "tell.money provides APIs for open banking compliance and verification services, targeting fintechs and payment providers."
+    },
+    {
+      "domain": "abc-techgroup.com",
+      "name": "ABC TECH",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "ABC Tech provides core banking solutions and digital channels, indicating a B2B fintech product offering."
+    },
+    {
+      "domain": "txend.com",
+      "name": "Txend Inc",
+      "is_target": true,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Txend offers blockchain and cryptocurrency services, indicating a focus on B2B fintech solutions."
+    },
+    {
+      "domain": "n5now.com",
+      "name": "N5 Now",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "N5 Now offers a platform that helps financial institutions transition to fintech solutions, indicating a B2B focus."
+    },
+    {
+      "domain": "integrated.finance",
+      "name": "Integrated Finance",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Integrated Finance provides APIs and services for building financial infrastructure, targeting B2B fintech needs."
+    },
+    {
+      "domain": "unitedfintech.com",
+      "name": "United Fintech",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "United Fintech provides B2B fintech solutions for capital markets and banking operations, making it a suitable target."
+    },
+    {
+      "domain": "unit.co",
+      "name": "Unit",
+      "is_target": true,
+      "segment": "EMBEDDED FINANCE",
+      "reasoning": "Unit provides embedded finance solutions for businesses, making it a B2B fintech service."
+    },
+    {
+      "domain": "zemplerbank.com",
+      "name": "Zempler Bank",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Zempler Bank offers business banking services tailored for micro-businesses, indicating a B2B focus."
+    },
+    {
+      "domain": "ccbx.com",
+      "name": "Coastal",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Coastal provides modern banking infrastructure and APIs for fintechs, focusing on B2B solutions."
+    },
+    {
+      "domain": "tribepayments.com",
+      "name": "Tribe Payments",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Tribe Payments provides payments technology specifically for fintechs, banks, and acquirers, indicating a strong B2B focus."
+    },
+    {
+      "domain": "lhv.com",
+      "name": "LHV Bank",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "LHV Bank offers an Open Banking API, indicating a B2B service in the banking sector."
+    },
+    {
+      "domain": "bellabank.us",
+      "name": "BELLA",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "BELLA provides an end-to-end banking platform for entrepreneurs and institutions, fitting the BaaS segment."
+    },
+    {
+      "domain": "joineei.com",
+      "name": "Enterprise Engineering Inc. (EEI)",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "EEI provides open banking services and compliance solutions for financial institutions, indicating a focus on B2B fintech."
+    },
+    {
+      "domain": "herondata.io",
+      "name": "Heron Data",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Heron Data provides document automation solutions that streamline workflows for finance and insurance sectors, making it relevant for B2B fintech."
+    },
+    {
+      "domain": "fintech-farm.com",
+      "name": "Fintech Farm",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Fintech Farm provides a tech stack and services to create and run digital banks, targeting B2B clients."
+    },
+    {
+      "domain": "10xbanking.com",
+      "name": "10x Banking",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "10x Banking provides a core banking platform aimed at B2B clients, making it a suitable target for lead generation."
+    },
+    {
+      "domain": "merge.money",
+      "name": "Merge",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Merge provides stablecoin payment infrastructure and APIs for enterprise payments, targeting B2B clients."
+    },
+    {
+      "domain": "meniga.com",
+      "name": "Meniga",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Meniga provides digital banking solutions and insights for financial institutions, indicating a strong B2B focus."
+    },
+    {
+      "domain": "yapily.com",
+      "name": "Yapily",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Yapily provides open banking APIs for payments and financial data, targeting B2B clients."
+    },
+    {
+      "domain": "truelayer.com",
+      "name": "TrueLayer",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "TrueLayer operates as an open banking platform providing B2B payment solutions."
+    },
+    {
+      "domain": "finwise.bank",
+      "name": "FinWise Bank",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "FinWise Bank provides a suite of banking and payment solutions specifically designed for fintechs, including lending and payments services."
+    },
+    {
+      "domain": "liberis.com",
+      "name": "Liberis",
+      "is_target": true,
+      "segment": "EMBEDDED FINANCE",
+      "reasoning": "Liberis provides embedded finance solutions specifically designed for B2B partnerships, focusing on funding for SMBs."
+    },
+    {
+      "domain": "token.io",
+      "name": "Token.io",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Token.io provides a B2B payments infrastructure focused on A2A payments, making it a suitable target for lead generation."
+    },
+    {
+      "domain": "baanx.com",
+      "name": "Baanx Group Ltd",
+      "is_target": true,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Baanx Group Ltd provides B2B crypto solutions including lending and payment services, making it a fit for lead generation."
+    },
+    {
+      "domain": "bkn301.com",
+      "name": "BKN301",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "BKN301 provides a Financial Operating System with a unified API layer for core banking and payment processing, targeting fintechs and banks."
+    },
+    {
+      "domain": "mmfintech.io",
+      "name": "M&M Fintech Limited",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "M&M Fintech operates proprietary fintech services including open banking and payment platforms, indicating a strong B2B focus."
+    },
+    {
+      "domain": "modulrfinance.com",
+      "name": "Modulr",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Modulr provides a B2B payments automation platform that enhances financial operations for businesses."
+    },
+    {
+      "domain": "checkboard.com",
+      "name": "Checkboard",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "[2-pass] Checkboard provides a client onboarding solution, likely targeting compliance and regulatory needs."
+    },
+    {
+      "domain": "ecommpay.com",
+      "name": "Ecommpay",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Ecommpay provides bespoke online payment solutions and services, making it a B2B fintech company in the payments segment."
+    },
+    {
+      "domain": "moorwand.com",
+      "name": "Moorwand",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Moorwand provides B2B payment solutions including BIN sponsorship and digital banking services."
+    },
+    {
+      "domain": "openpayd.com",
+      "name": "OpenPayd",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "OpenPayd provides a B2B financial services infrastructure focused on payments and accounts, suitable for businesses seeking to embed financial services."
+    },
+    {
+      "domain": "paynearme.com",
+      "name": "PayNearMe",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "PayNearMe provides a B2B payment platform focused on enhancing the payment experience for businesses."
+    },
+    {
+      "domain": "interface.ai",
+      "name": "interface.ai",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Offers AI solutions specifically for credit unions and community banks, indicating a B2B focus."
+    },
+    {
+      "domain": "railsr.com",
+      "name": "Railsr",
+      "is_target": true,
+      "segment": "EMBEDDED FINANCE",
+      "reasoning": "Railsr provides a B2B embedded finance platform that enables companies to integrate financial services into their customer experiences."
+    },
+    {
+      "domain": "novopayment.com",
+      "name": "NovoPayment",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "NovoPayment provides a B2B payment processing platform with scalable solutions and APIs for financial services."
+    },
+    {
+      "domain": "1kosmos.com",
+      "name": "1Kosmos",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "1Kosmos provides identity verification solutions that are essential for compliance and security in fintech."
+    },
+    {
+      "domain": "fundingoptions.com",
+      "name": "Funding Options by Tide",
+      "is_target": true,
+      "segment": "LENDING",
+      "reasoning": "Funding Options by Tide operates as a commercial finance broker connecting businesses with lenders, providing a B2B lending service."
+    },
+    {
+      "domain": "goabaca.com",
+      "name": "Abaca",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Abaca provides banking and financial services specifically tailored for the cannabis industry, including compliant banking and lending solutions."
+    },
+    {
+      "domain": "hyperverge.co",
+      "name": "HyperVerge",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "HyperVerge provides digital KYC solutions that enhance onboarding processes for various industries, making it a B2B fintech service."
+    },
+    {
+      "domain": "alpaca.markets",
+      "name": "Alpaca",
+      "is_target": true,
+      "segment": "WEALTHTECH",
+      "reasoning": "Alpaca provides a developer-first API for trading and investment services, targeting B2B fintech clients."
+    },
+    {
+      "domain": "veriff.com",
+      "name": "Veriff",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Veriff provides identity verification solutions for businesses, making it a B2B service in the RegTech segment."
+    },
+    {
+      "domain": "turnkey-lender.com",
+      "name": "TurnKey Lender",
+      "is_target": true,
+      "segment": "LENDING",
+      "reasoning": "TurnKey Lender provides a comprehensive B2B loan management software solution for various lending needs."
+    },
+    {
+      "domain": "keyless.io",
+      "name": "Keyless",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Keyless provides biometric authentication solutions that are relevant for B2B fintech applications, particularly in compliance and identity verification."
+    },
+    {
+      "domain": "callsign.com",
+      "name": "Callsign",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Callsign provides B2B fraud prevention and authentication solutions, making it relevant to the RegTech segment."
+    },
+    {
+      "domain": "copper.co",
+      "name": "Copper.co",
+      "is_target": true,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Copper.co provides institutional custody and prime services for digital assets, targeting B2B clients in the crypto space."
+    },
+    {
+      "domain": "workfusion.com",
+      "name": "WorkFusion",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "WorkFusion provides AI solutions for financial crime compliance, targeting B2B fintech needs."
+    },
+    {
+      "domain": "daon.com",
+      "name": "Daon",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Daon provides identity verification solutions that are essential for KYC compliance in the fintech sector."
+    },
+    {
+      "domain": "complyadvantage.com",
+      "name": "ComplyAdvantage",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "ComplyAdvantage provides a B2B SaaS platform for financial crime risk management and AML compliance, making it a fit for the RegTech segment."
+    },
+    {
+      "domain": "bvnk.com",
+      "name": "BVNK",
+      "is_target": true,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "BVNK provides enterprise-grade payments infrastructure for stablecoins, targeting B2B clients with a focus on compliance and payment execution."
+    },
+    {
+      "domain": "brightwell.com",
+      "name": "Brightwell",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Brightwell provides customizable cross-border payment solutions for financial institutions, indicating a strong B2B focus."
+    },
+    {
+      "domain": "bitgo.com",
+      "name": "BitGo",
+      "is_target": true,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "BitGo provides B2B digital asset infrastructure and services, including custody and crypto-as-a-service, making it a fit for lead generation."
+    },
+    {
+      "domain": "thincats.com",
+      "name": "ThinCats",
+      "is_target": true,
+      "segment": "LENDING",
+      "reasoning": "ThinCats provides bespoke funding solutions for mid-sized businesses, indicating a focus on B2B lending."
+    },
+    {
+      "domain": "paxos.com",
+      "name": "Paxos",
+      "is_target": true,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Paxos provides regulated blockchain infrastructure and stablecoin solutions for enterprises, targeting B2B clients."
+    },
+    {
+      "domain": "entersekt.com",
+      "name": "Entersekt",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Entersekt provides authentication solutions that enhance security and compliance for financial institutions, fitting within the RegTech segment."
+    },
+    {
+      "domain": "recurly.com",
+      "name": "Recurly",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Recurly provides a subscription management and recurring billing platform, which is a B2B service in the payments segment."
+    },
+    {
+      "domain": "jumio.com",
+      "name": "Jumio",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Jumio provides identity verification solutions that are essential for compliance in financial services, making it a B2B fintech product."
+    },
+    {
+      "domain": "moov.io",
+      "name": "Moov",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Moov provides a flexible payment infrastructure designed for B2B use, making it a suitable target for lead generation."
+    },
+    {
+      "domain": "iuvity.com",
+      "name": "iuvity",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "iuvity provides digital solutions for financial institutions, focusing on enhancing customer experience and offering flexible, secure services."
+    },
+    {
+      "domain": "unlimit.com",
+      "name": "Unlimit",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Unlimit offers a cross-border payment solution, indicating a B2B fintech service."
+    },
+    {
+      "domain": "discoverglobalnetwork.com",
+      "name": "Discover Network",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Discover Network operates a B2B payments network and offers services to businesses for payment processing."
+    },
+    {
+      "domain": "wink.cloud",
+      "name": "Wink",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Wink provides a modular platform for biometric payments and fraud prevention, targeting B2B clients."
+    },
+    {
+      "domain": "napier.ai",
+      "name": "Napier AI",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Napier AI provides a B2B anti-money laundering compliance platform, targeting financial institutions."
+    },
+    {
+      "domain": "bureau.id",
+      "name": "Bureau",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Bureau provides a unified risk decisioning platform that addresses compliance, credit, fraud, and transaction risks, making it a B2B fintech service."
+    },
+    {
+      "domain": "affinipay.com",
+      "name": "AffiniPay",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "AffiniPay provides payment solutions specifically designed for law firms, indicating a B2B focus in the payments segment."
+    },
+    {
+      "domain": "deuna.com",
+      "name": "Deuna",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Deuna provides a B2B payments infrastructure and solutions, making it a suitable target for lead generation."
+    },
+    {
+      "domain": "secureauth.com",
+      "name": "SecureAuth",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "SecureAuth provides identity and risk management solutions that are essential for regulatory compliance in fintech."
+    },
+    {
+      "domain": "tifin.com",
+      "name": "TIFIN",
+      "is_target": true,
+      "segment": "WEALTHTECH",
+      "reasoning": "TIFIN provides AI-driven solutions for wealth management, targeting B2B financial institutions."
+    },
+    {
+      "domain": "instabase.com",
+      "name": "Instabase",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "Instabase provides AI-driven solutions for automating complex document workflows, which is relevant for regulatory compliance in fintech."
+    },
+    {
+      "domain": "tabapay.com",
+      "name": "TabaPay",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "TabaPay provides a dedicated B2B payment platform for fintech innovators, facilitating instant money movement and various payment solutions."
+    },
+    {
+      "domain": "ycharts.com",
+      "name": "YCharts",
+      "is_target": true,
+      "segment": "WEALTHTECH",
+      "reasoning": "YCharts provides B2B financial research and proposal tools for advisors and asset managers, fitting the wealthtech segment."
+    },
+    {
+      "domain": "onbe.com",
+      "name": "Onbe",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Onbe provides a B2B payouts platform that integrates with businesses to manage digital payouts, making it a suitable target for lead generation."
+    },
+    {
+      "domain": "synctera.com",
+      "name": "Synctera",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Synctera provides a comprehensive banking platform with APIs for building banking and payments products, targeting B2B fintech."
+    },
+    {
+      "domain": "alkymi.io",
+      "name": "Alkymi",
+      "is_target": true,
+      "segment": "WEALTHTECH",
+      "reasoning": "Alkymi provides AI-powered automation for private markets data, targeting asset allocators and investment firms, which aligns with the wealthtech segment."
+    },
+    {
+      "domain": "lightspark.com",
+      "name": "Lightspark",
+      "is_target": true,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Lightspark provides APIs for instant Bitcoin and fiat transfers, targeting B2B clients in the payments space."
+    },
+    {
+      "domain": "zerohash.com",
+      "name": "zerohash",
+      "is_target": true,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Zerohash provides a B2B platform for crypto trading, stablecoin payments, and tokenization, targeting banks and fintechs."
+    },
+    {
+      "domain": "spreedly.com",
+      "name": "Spreedly",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Spreedly offers a payments orchestration platform with B2B services aimed at optimizing payment processes for businesses."
+    },
+    {
+      "domain": "fimple.co.uk",
+      "name": "Fimple",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Fimple offers a cloud-native core platform with a focus on Banking-as-a-Service and various B2B financial solutions."
+    },
+    {
+      "domain": "waza.co",
+      "name": "Waza (YC W23)",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Waza provides a B2B payment solution with multi-currency support and APIs for fintechs, making it a suitable target for lead generation."
+    },
+    {
+      "domain": "au10tix.com",
+      "name": "AU10TIX",
+      "is_target": true,
+      "segment": "REGTECH",
+      "reasoning": "AU10TIX provides identity verification solutions that are essential for compliance in regulated industries, making it a fit for B2B fintech."
+    },
+    {
+      "domain": "ingomoney.com",
+      "name": "Ingo Payments",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Ingo Payments provides a full-service embedded banking solution with a focus on payments and financial services for B2B clients."
+    },
+    {
+      "domain": "treasuryprime.com",
+      "name": "Treasury Prime",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Treasury Prime provides a B2B embedded banking platform that enables fintechs to integrate banking services directly into their offerings."
+    },
+    {
+      "domain": "libernetix.com",
+      "name": "LIBERNETIX",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Libernetix offers B2B payment processing solutions and services, indicating a focus on the payments segment."
+    },
+    {
+      "domain": "remotepass.com",
+      "name": "RemotePass",
+      "is_target": true,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "RemotePass provides a platform for managing payroll and HR, which aligns with B2B fintech services."
+    },
+    {
+      "domain": "blockstream.com",
+      "name": "Blockstream",
+      "is_target": true,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "[2-pass] Blockstream provides B2B solutions for Bitcoin custody, treasury, and tokenization, fitting the CRYPTO/DEFI segment."
+    },
+    {
+      "domain": "banked.com",
+      "name": "Banked :",
+      "is_target": true,
+      "segment": "PAYMENTS",
+      "reasoning": "Banked provides a B2B payments solution focused on real-time payments for businesses and banks."
+    },
+    {
+      "domain": "weareneem.com",
+      "name": "Neem",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "Neem primarily offers consulting and development services without a dedicated B2B fintech product."
+    },
+    {
+      "domain": "monese.com",
+      "name": "Monese",
+      "is_target": false,
+      "segment": "PAYMENTS",
+      "reasoning": "Monese primarily operates as a B2C consumer app offering personal finance services, not a dedicated B2B fintech product."
+    },
+    {
+      "domain": "rfi.global",
+      "name": "RFI Global",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "RFI Global provides data and insights but does not operate as a fintech product company."
+    },
+    {
+      "domain": "augmentum.vc",
+      "name": "Augmentum Fintech",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "Augmentum Fintech is a VC fund and does not sell fintech products or services."
+    },
+    {
+      "domain": "fintech.io",
+      "name": "FinTech Collective",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "FinTech Collective is a venture capital firm and does not sell fintech products or services."
+    },
+    {
+      "domain": "quontic.com",
+      "name": "Quontic",
+      "is_target": false,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Quontic primarily offers consumer banking products and does not have a dedicated B2B fintech product or service."
+    },
+    {
+      "domain": "algbra.com",
+      "name": "Algbra",
+      "is_target": false,
+      "segment": "PAYMENTS",
+      "reasoning": "Algbra primarily offers consumer-focused financial products and services, not dedicated B2B fintech solutions."
+    },
+    {
+      "domain": "gravitasgroup.com",
+      "name": "Gravitas Recruitment Group (Global) Ltd",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "Gravitas Recruitment Group is a recruitment agency and does not build fintech products."
+    },
+    {
+      "domain": "financialit.net",
+      "name": "Financial IT",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "Financial IT is a media and publication entity covering fintech news and trends, not a B2B fintech product company."
+    },
+    {
+      "domain": "acemoneytransfer.com",
+      "name": "ACE Money Transfer",
+      "is_target": false,
+      "segment": "PAYMENTS",
+      "reasoning": "ACE Money Transfer primarily operates as a B2C consumer remittance service, not a B2B fintech product."
+    },
+    {
+      "domain": "americanbanker.com",
+      "name": "American Banker",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "American Banker is a media publication covering the fintech industry and does not operate in it."
+    },
+    {
+      "domain": "qawn.com",
+      "name": "Qawn",
+      "is_target": false,
+      "segment": "PAYMENTS",
+      "reasoning": "Qawn primarily operates as a B2C consumer app focused on social digital banking, not a B2B fintech product."
+    },
+    {
+      "domain": "ftpartners.com",
+      "name": "Financial Technology Partners / FT Partners",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "FT Partners is an investment banking firm focused on fintech advisory services, not a B2B fintech product or service provider."
+    },
+    {
+      "domain": "updraft.com",
+      "name": "Updraft",
+      "is_target": false,
+      "segment": "LENDING",
+      "reasoning": "Updraft primarily offers consumer debt consolidation loans, which falls under B2C rather than B2B services."
+    },
+    {
+      "domain": "truenorth.co",
+      "name": "TrueNorth",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "TrueNorth is a professional services boutique that provides advisory and implementation services rather than a dedicated B2B fintech product."
+    },
+    {
+      "domain": "cbcal.com",
+      "name": "Commercial Bank of California",
+      "is_target": false,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Commercial Bank of California primarily serves consumers and does not have a dedicated B2B fintech product or service."
+    },
+    {
+      "domain": "w1tty.com",
+      "name": "W1TTY",
+      "is_target": false,
+      "segment": "PAYMENTS",
+      "reasoning": "W1TTY primarily operates as a B2C consumer app focused on personal finance management and payment solutions, not a dedicated B2B fintech product."
+    },
+    {
+      "domain": "womensworldbanking.org",
+      "name": "Women's World Banking",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "Focuses on financial inclusion and empowerment rather than providing B2B fintech products or services."
+    },
+    {
+      "domain": "tscbank.com",
+      "name": "TriState Capital Bank",
+      "is_target": false,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "TriState Capital Bank primarily operates as a traditional bank without a dedicated BaaS/API product arm."
+    },
+    {
+      "domain": "treasury.worldbank.org",
+      "name": "The World Bank Group Treasury (IBRD\u2022IDA\u2022IFC)",
+      "is_target": false,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "The World Bank Group Treasury primarily focuses on public sector financing and development rather than providing B2B fintech products or services."
+    },
+    {
+      "domain": "regent.bank",
+      "name": "Regent Bank",
+      "is_target": false,
+      "segment": "BANKING-AS-A-SERVICE",
+      "reasoning": "Regent Bank primarily offers traditional banking services and is not focused on B2B fintech products or services."
+    },
+    {
+      "domain": "napster.ai",
+      "name": "Infinite Reality",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "The company focuses on AI tools and immersive experiences rather than a dedicated B2B fintech product."
+    },
+    {
+      "domain": "cointelegraph.com",
+      "name": "Cointelegraph",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "Cointelegraph is a media publication covering crypto news and does not operate in the fintech product space."
+    },
+    {
+      "domain": "foundry.com",
+      "name": "Foundry",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "Foundry operates in visual effects and animation, not in the B2B fintech segments."
+    },
+    {
+      "domain": "solofunds.com",
+      "name": "SoLo Funds",
+      "is_target": false,
+      "segment": "LENDING",
+      "reasoning": "SoLo Funds primarily operates as a B2C platform facilitating peer-to-peer lending, not a B2B fintech service."
+    },
+    {
+      "domain": "nala.com",
+      "name": "NALA",
+      "is_target": false,
+      "segment": "PAYMENTS",
+      "reasoning": "NALA primarily operates as a B2C consumer app for international money transfers, not a B2B service."
+    },
+    {
+      "domain": "clarifai.com",
+      "name": "Clarifai",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "Clarifai primarily provides AI inference services and does not operate in the specified B2B fintech segments."
+    },
+    {
+      "domain": "brave.com",
+      "name": "Basic Attention Token",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "Brave primarily operates as a consumer-focused web browser and does not have a dedicated B2B fintech product or service."
+    },
+    {
+      "domain": "11fs.com",
+      "name": "11:FS",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "11:FS is primarily a consultancy and does not sell B2B fintech products."
+    },
+    {
+      "domain": "mythicalgames.com",
+      "name": "Pudgy Party",
+      "is_target": false,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Mythical Games focuses on gaming and in-game economies rather than B2B fintech products."
+    },
+    {
+      "domain": "bankmobileadminsupport.com",
+      "name": "BM Technologies, Inc. (BMTX) f/k/a BankMobile",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "[2-pass] Appears to be a consumer banking service without clear B2B fintech product focus."
+    },
+    {
+      "domain": "xtxmarkets.com",
+      "name": "XTX Markets",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "[2-pass] XTX Markets is primarily an algorithmic trading firm, not a B2B fintech product company."
+    },
+    {
+      "domain": "dashdevs.com",
+      "name": "DashDevs",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "DashDevs is a development agency that builds fintech products for others, not a B2B fintech product company."
+    },
+    {
+      "domain": "hirschsecure.com",
+      "name": "Hirsch",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "Hirsch focuses on security solutions rather than B2B fintech products or services."
+    },
+    {
+      "domain": "hedera.com",
+      "name": "Hedera",
+      "is_target": false,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Hedera primarily operates as a public network and does not offer a dedicated B2B fintech product or service."
+    },
+    {
+      "domain": "taptapsend.com",
+      "name": "Taptap Send",
+      "is_target": false,
+      "segment": "PAYMENTS",
+      "reasoning": "Taptap Send is a B2C consumer app focused on remittances, not a B2B fintech product."
+    },
+    {
+      "domain": "digiscorp.com",
+      "name": "Digiscorp",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "Digiscorp is a software development and staffing company, not a B2B fintech product provider."
+    },
+    {
+      "domain": "technologent.com",
+      "name": "Technologent",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "Technologent primarily offers IT services and consulting rather than dedicated B2B fintech products."
+    },
+    {
+      "domain": "apollo.engineer",
+      "name": "Apollo",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "Apollo operates in energy consultancy and engineering, not in fintech."
+    },
+    {
+      "domain": "toolsforhumanity.com",
+      "name": "Tools for Humanity",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "The company focuses on AI and does not operate primarily in the specified B2B fintech segments."
+    },
+    {
+      "domain": "ice.io",
+      "name": "Ice Open Network",
+      "is_target": false,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Ice Open Network is a Layer-1 blockchain protocol focused on decentralization, not a B2B fintech product."
+    },
+    {
+      "domain": "supra.com",
+      "name": "Supra",
+      "is_target": false,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Supra operates primarily as a blockchain protocol and does not offer a dedicated B2B fintech product or service."
+    },
+    {
+      "domain": "seclore.com",
+      "name": "Seclore",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "The company appears to be focused on document security and data protection rather than a specific B2B fintech product or service."
+    },
+    {
+      "domain": "alcatraz.ai",
+      "name": "Alcatraz",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "Alcatraz focuses on access control and security solutions rather than B2B fintech products or services."
+    },
+    {
+      "domain": "aprimo.com",
+      "name": "Aprimo",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "Aprimo focuses on digital asset management and marketing work management, which does not align with the specified B2B fintech segments."
+    },
+    {
+      "domain": "exodus.com",
+      "name": "Exodus",
+      "is_target": false,
+      "segment": "CRYPTO/DEFI",
+      "reasoning": "Exodus primarily operates as a consumer crypto wallet, focusing on B2C services rather than B2B fintech products."
+    },
+    {
+      "domain": "armadalabs.com",
+      "name": "Armada Labs",
+      "is_target": false,
+      "segment": "N/A",
+      "reasoning": "Armada Labs is primarily a development agency providing services rather than a B2B fintech product company."
+    },
+    {
+      "domain": "systellartechnologies.com",
+      "name": "Systellar Technologies",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "[2-pass] Systellar Technologies primarily offers IT solutions and services, not a dedicated B2B fintech product."
+    },
+    {
+      "domain": "aware.com",
+      "name": "Aware, Inc",
+      "is_target": false,
+      "segment": "",
+      "reasoning": "[2-pass] Unable to determine the company's segment due to corrupted website data."
+    }
+  ],
+  "people": [
+    {
+      "first_name": "Rajesh",
+      "last_name": "Sonar",
+      "email": "rsonar@pelican.ai",
+      "job_title": "Head PSG",
+      "domain": "pelican.ai",
+      "company_name": "Pelican.ai",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Greta",
+      "last_name": "Akintoye",
+      "email": "greta.akintoye@ecospend.com",
+      "job_title": "Head of Public Sector",
+      "domain": "ecospend.com",
+      "company_name": "Ecospend, a Trustly Company",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "William",
+      "last_name": "Robertson",
+      "email": "william.robertson@ecospend.com",
+      "job_title": "Head of Account Management",
+      "domain": "ecospend.com",
+      "company_name": "Ecospend, a Trustly Company",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Serkan",
+      "last_name": "Basdemir",
+      "email": "serkan.basdemir@ecospend.com",
+      "job_title": "Head of DevOps & SRE",
+      "domain": "ecospend.com",
+      "company_name": "Ecospend, a Trustly Company",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Ignacio",
+      "last_name": "Gironella Merino",
+      "email": "ignacio.gironella@paymentology.com",
+      "job_title": "Head of Sales Europe",
+      "domain": "paymentology.com",
+      "company_name": "Paymentology",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Julie",
+      "last_name": "Sutton",
+      "email": "julie.sutton@paymentology.com",
+      "job_title": "Head of Growth, Europe",
+      "domain": "paymentology.com",
+      "company_name": "Paymentology",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Anna",
+      "last_name": "Porra",
+      "email": "anna.porra@paymentology.com",
+      "job_title": "Chief Revenue Officer (CRO)",
+      "domain": "paymentology.com",
+      "company_name": "Paymentology",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Rob",
+      "last_name": "France",
+      "email": "rob@tell.money",
+      "job_title": "Chief Commercial Officer",
+      "domain": "tell.money",
+      "company_name": "tell.money",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "David",
+      "last_name": "Monty",
+      "email": "david@tell.money",
+      "job_title": "Director",
+      "domain": "tell.money",
+      "company_name": "tell.money",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Emma",
+      "last_name": "Stephens",
+      "email": "emma@tell.money",
+      "job_title": "Operations Director",
+      "domain": "tell.money",
+      "company_name": "tell.money",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Florencia",
+      "last_name": "Trotta",
+      "email": "ftrotta@aper.com",
+      "job_title": "Head of Marketing",
+      "domain": "aper.com",
+      "company_name": "Aper",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Hernan",
+      "last_name": "Marino",
+      "email": "hernan@aper.com",
+      "job_title": "CEO",
+      "domain": "aper.com",
+      "company_name": "Aper",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Fernando",
+      "last_name": "Diaz Baylon",
+      "email": "fdiaz@aper.com",
+      "job_title": "Co-Founder - BoD | Partnership & Alliances Director",
+      "domain": "aper.com",
+      "company_name": "Aper",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Igor",
+      "last_name": "Vukovic",
+      "email": "igor.vukovic@abc-techgroup.com",
+      "job_title": "Head of Digital",
+      "domain": "abc-techgroup.com",
+      "company_name": "ABC TECH",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Goran",
+      "last_name": "Novotny",
+      "email": "goran.novotni@abc-techgroup.com",
+      "job_title": "Director of DevOps",
+      "domain": "abc-techgroup.com",
+      "company_name": "ABC TECH",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Omer",
+      "last_name": "Khawaja",
+      "email": "omer@txend.com",
+      "job_title": "Founder",
+      "domain": "txend.com",
+      "company_name": "Txend Inc",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Alistair",
+      "last_name": "Cotton",
+      "email": "alistair.cotton@integrated.finance",
+      "job_title": "Co-Founder",
+      "domain": "integrated.finance",
+      "company_name": "Integrated Finance",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Julian",
+      "last_name": "Colombo",
+      "email": "julian.colombo@n5now.com",
+      "job_title": "CEO",
+      "domain": "n5now.com",
+      "company_name": "N5 Now",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Hugo",
+      "last_name": "Espinoza",
+      "email": "hugo.espinoza@n5now.com",
+      "job_title": "Chief Revenue Officer (CRO)",
+      "domain": "n5now.com",
+      "company_name": "N5 Now",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Adelia",
+      "last_name": "Lerias",
+      "email": "adelia.lerias@n5now.com",
+      "job_title": "Head of Global Marketing",
+      "domain": "n5now.com",
+      "company_name": "N5 Now",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Christian",
+      "last_name": "Frahm",
+      "email": "cfrahm@unitedfintech.com",
+      "job_title": "Founder & CEO",
+      "domain": "unitedfintech.com",
+      "company_name": "United Fintech",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Mitch",
+      "last_name": "Vine",
+      "email": "mitch@unitedfintech.com",
+      "job_title": "Head of New Business, Wealth & Asset Management",
+      "domain": "unitedfintech.com",
+      "company_name": "United Fintech",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "George",
+      "last_name": "Govier-Rosenvold",
+      "email": "george@unitedfintech.com",
+      "job_title": "Chief Commercial Officer (CCO), Netdania",
+      "domain": "unitedfintech.com",
+      "company_name": "United Fintech",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Shalom",
+      "last_name": "Joseph",
+      "email": "shalom.joseph@unit.co",
+      "job_title": "VP of Marketing",
+      "domain": "unit.co",
+      "company_name": "Unit",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Doron",
+      "last_name": "Somech",
+      "email": "doron@unit.co",
+      "job_title": "Co-Founder & CTO",
+      "domain": "unit.co",
+      "company_name": "Unit",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Adam",
+      "last_name": "Luckwell",
+      "email": "adam.luckwell@unit.tv",
+      "job_title": "Owner",
+      "domain": "unit.co",
+      "company_name": "Unit",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Dusty",
+      "last_name": "Miller",
+      "email": "dmi@tribepayments.com",
+      "job_title": "Head of European Sales",
+      "domain": "tribepayments.com",
+      "company_name": "Tribe Payments",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Blayne",
+      "last_name": "Pereira",
+      "email": "bp@tribepayments.com",
+      "job_title": "Head of Marketing",
+      "domain": "tribepayments.com",
+      "company_name": "Tribe Payments",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Andrew",
+      "last_name": "Hocking",
+      "email": "ah@tribepayments.com",
+      "job_title": "Chief Executive Officer",
+      "domain": "tribepayments.com",
+      "company_name": "Tribe Payments",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Vahur",
+      "last_name": "Vallistu",
+      "email": "vahur.vallistu@lhv.ee",
+      "job_title": "Chief Executive Officer",
+      "domain": "lhv.com",
+      "company_name": "LHV Bank",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Nick",
+      "last_name": "Biggam",
+      "email": "nick.biggam@zemplerbank.com",
+      "job_title": "Commercial Director",
+      "domain": "zemplerbank.com",
+      "company_name": "Zempler Bank",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Patrick",
+      "last_name": "Herrlinger",
+      "email": "patrick.herrlinger@zemplerbank.com",
+      "job_title": "Head of Partnership Development",
+      "domain": "zemplerbank.com",
+      "company_name": "Zempler Bank",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Dominika",
+      "last_name": "Alzapiedi",
+      "email": "dominika.alzapiedi@zemplerbank.com",
+      "job_title": "Chief People Officer",
+      "domain": "zemplerbank.com",
+      "company_name": "Zempler Bank",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Eric",
+      "last_name": "Sprink",
+      "email": "esprink@coastalbank.com",
+      "job_title": "Chief Executive Officer",
+      "domain": "ccbx.com",
+      "company_name": "Coastal",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Almitra",
+      "last_name": "Inocencio",
+      "email": "ainocencio@coastalbank.com",
+      "job_title": "VP, Marketing & Design",
+      "domain": "ccbx.com",
+      "company_name": "Coastal",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Brian",
+      "last_name": "Hamilton",
+      "email": "bhamilton@coastalbank.com",
+      "job_title": "President - CCBX",
+      "domain": "ccbx.com",
+      "company_name": "Coastal",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Dmytro",
+      "last_name": "Dubilet",
+      "email": "d@fintech-farm.com",
+      "job_title": "Co-Founder",
+      "domain": "fintech-farm.com",
+      "company_name": "Fintech Farm",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Nick",
+      "last_name": "Bezkrovnyy",
+      "email": "n@fintech-farm.com",
+      "job_title": "Co-Founder & co-CEO",
+      "domain": "fintech-farm.com",
+      "company_name": "Fintech Farm",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "William",
+      "last_name": "Trapani",
+      "email": "billt@joineei.com",
+      "job_title": "President at Enterprise Engineering, Inc",
+      "domain": "joineei.com",
+      "company_name": "Enterprise Engineering Inc. (EEI)",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Jamie",
+      "last_name": "Parker",
+      "email": "jamie@herondata.io",
+      "job_title": "Co-Founder & CRO",
+      "domain": "herondata.io",
+      "company_name": "Heron Data",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Johannes",
+      "last_name": "Jaeckle",
+      "email": "johannes@herondata.io",
+      "job_title": "Co-Founder & CEO",
+      "domain": "herondata.io",
+      "company_name": "Heron Data",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Ivo",
+      "last_name": "Duran",
+      "email": "ivo@herondata.io",
+      "job_title": "Founder Associate",
+      "domain": "herondata.io",
+      "company_name": "Heron Data",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Corstiaan",
+      "last_name": "Kuijvenhoven",
+      "email": "corstiaan@meniga.com",
+      "job_title": "Regional Sales Director",
+      "domain": "meniga.com",
+      "company_name": "Meniga",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Arturo",
+      "last_name": "Rivasainz",
+      "email": "arturo.rivasainz@meniga.com",
+      "job_title": "Chief Product Officer",
+      "domain": "meniga.com",
+      "company_name": "Meniga",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Krzysztof",
+      "last_name": "Piernicki",
+      "email": "krzysztof.piernicki@meniga.com",
+      "job_title": "Finance Director",
+      "domain": "meniga.com",
+      "company_name": "Meniga",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Tom",
+      "last_name": "Bentley",
+      "email": "tom.bentley@10xbanking.com",
+      "job_title": "Chief Revenue Officer (CRO)",
+      "domain": "10xbanking.com",
+      "company_name": "10x Banking",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Antony",
+      "last_name": "Cbe",
+      "email": "antony@10xbanking.com",
+      "job_title": "Founder, Chair & CEO",
+      "domain": "10xbanking.com",
+      "company_name": "10x Banking",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Craig",
+      "last_name": "Anderson",
+      "email": "craig.anderson@10xbanking.com",
+      "job_title": null,
+      "domain": "10xbanking.com",
+      "company_name": "10x Banking",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Stefano",
+      "last_name": "Vaccino",
+      "email": "stefano@yapily.com",
+      "job_title": "Founder and CEO",
+      "domain": "yapily.com",
+      "company_name": "Yapily",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Irene",
+      "last_name": "Brime",
+      "email": "irene.brime@yapily.com",
+      "job_title": "Director of Sales, EU",
+      "domain": "yapily.com",
+      "company_name": "Yapily",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Gregory",
+      "last_name": "Aubert",
+      "email": "gregory.aubert@yapily.com",
+      "job_title": "Head of Marketing",
+      "domain": "yapily.com",
+      "company_name": "Yapily",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Francesco",
+      "last_name": "Simoneschi",
+      "email": "francesco@truelayer.com",
+      "job_title": "Co-Founder and CEO",
+      "domain": "truelayer.com",
+      "company_name": "TrueLayer",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Jack",
+      "last_name": "Wilson",
+      "email": "jack.wilson@truelayer.com",
+      "job_title": "VP Policy & Research",
+      "domain": "truelayer.com",
+      "company_name": "TrueLayer",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Elizabeth",
+      "last_name": "Glover",
+      "email": "elizabeth.glover@truelayer.com",
+      "job_title": "VP of Marketing",
+      "domain": "truelayer.com",
+      "company_name": "TrueLayer",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "James",
+      "last_name": "Noone",
+      "email": "jnoone@finwisebank.com",
+      "job_title": "President and CEO",
+      "domain": "finwise.bank",
+      "company_name": "FinWise Bank",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Kent",
+      "last_name": "Landvatter",
+      "email": "klandvatter@finwisebank.com",
+      "job_title": "CEO/President",
+      "domain": "finwise.bank",
+      "company_name": "FinWise Bank",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Andrew",
+      "last_name": "Stines",
+      "email": "astines@finwisebank.com",
+      "job_title": "EVP CRO / CCO",
+      "domain": "finwise.bank",
+      "company_name": "FinWise Bank",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Rob",
+      "last_name": "Fairfield",
+      "email": "rob.fairfield@liberis.com",
+      "job_title": "Chief Executive Officer",
+      "domain": "liberis.com",
+      "company_name": "Liberis",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Matthew",
+      "last_name": "Barton",
+      "email": "matt.barton@liberis.com",
+      "job_title": "Head of Sales - UK & Europe",
+      "domain": "liberis.com",
+      "company_name": "Liberis",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Leanne",
+      "last_name": "Mills",
+      "email": "leanne.mills@liberis.com",
+      "job_title": "Performance & Operations Director",
+      "domain": "liberis.com",
+      "company_name": "Liberis",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Daniel",
+      "last_name": "Jones",
+      "email": "daniel.jones@baanx.com",
+      "job_title": "Chief Executive Officer",
+      "domain": "baanx.com",
+      "company_name": "Baanx Group Ltd",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Mark",
+      "last_name": "Evans",
+      "email": "mark.evans@baanx.com",
+      "job_title": "Co-Founder, Director, CRO and CFO",
+      "domain": "baanx.com",
+      "company_name": "Baanx Group Ltd",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Todd",
+      "last_name": "Clyde",
+      "email": "todd.clyde@token.io",
+      "job_title": "CEO",
+      "domain": "token.io",
+      "company_name": "Token.io",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Trevor",
+      "last_name": "Bowcher",
+      "email": "trevor.bowcher@token.io",
+      "job_title": "VP Sales and Business Development",
+      "domain": "token.io",
+      "company_name": "Token.io",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Enea",
+      "last_name": "Stucchi",
+      "email": "enea.stucchi@bkn301.com",
+      "job_title": "Head of Growth, EMEA",
+      "domain": "bkn301.com",
+      "company_name": "BKN301",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Francesco",
+      "last_name": "Nespola",
+      "email": "f.nespola@planky.com",
+      "job_title": "Chief Sales Officer (CSO)",
+      "domain": "bkn301.com",
+      "company_name": "BKN301",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Luca",
+      "last_name": "Bertozzi",
+      "email": "l.bertozzi@planky.com",
+      "job_title": "Founder & CFO",
+      "domain": "bkn301.com",
+      "company_name": "BKN301",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Svilen",
+      "last_name": "Stoyanov",
+      "email": "svilen@mmfintech.io",
+      "job_title": "Chief Technology Officer and Co-Founder",
+      "domain": "mmfintech.io",
+      "company_name": "M&M Fintech Limited",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "James",
+      "last_name": "Owusu",
+      "email": "james@checkboard.com",
+      "job_title": "Founder",
+      "domain": "checkboard.com",
+      "company_name": "Checkboard",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Adelaide",
+      "last_name": "Carleton",
+      "email": "adelaide@checkboard.com",
+      "job_title": "Head of Marketing and Partnerships",
+      "domain": "checkboard.com",
+      "company_name": "Checkboard",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Roy",
+      "last_name": "Blokker",
+      "email": "rblokker@ecommpay.com",
+      "job_title": "Head of Commercial",
+      "domain": "ecommpay.com",
+      "company_name": "Ecommpay",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Alina",
+      "last_name": "Kolesnik",
+      "email": "alina.kolesnik@ecommpay.com",
+      "job_title": "Sales Director",
+      "domain": "ecommpay.com",
+      "company_name": "Ecommpay",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Maria",
+      "last_name": "Nekrasova",
+      "email": "mnekrasova@ecommpay.com",
+      "job_title": "Sales Director",
+      "domain": "ecommpay.com",
+      "company_name": "Ecommpay",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Jodie",
+      "last_name": "Taylor",
+      "email": "jt@moorwand.com",
+      "job_title": "VP of Marketing",
+      "domain": "moorwand.com",
+      "company_name": "Moorwand",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Luc",
+      "last_name": "Gueriane",
+      "email": "lg@moorwand.com",
+      "job_title": "Chief Executive Officer",
+      "domain": "moorwand.com",
+      "company_name": "Moorwand",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Neil",
+      "last_name": "Costa",
+      "email": "ndc@moorwand.com",
+      "job_title": "Head of Sales",
+      "domain": "moorwand.com",
+      "company_name": "Moorwand",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Myles",
+      "last_name": "Stephenson",
+      "email": "myles.stephenson@modulrfinance.com",
+      "job_title": "Founder & Chief Executive",
+      "domain": "modulrfinance.com",
+      "company_name": "Modulr",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Ecem",
+      "last_name": "Gelal",
+      "email": "ecem.gelal@modulrfinance.com",
+      "job_title": "GTM Engineer @Modulr | 1x Founder",
+      "domain": "modulrfinance.com",
+      "company_name": "Modulr",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Jody",
+      "last_name": "Clark",
+      "email": "jody.clark@modulrfinance.com",
+      "job_title": "VP Enterprise Sales",
+      "domain": "modulrfinance.com",
+      "company_name": "Modulr",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Ozan",
+      "last_name": "Ozerk",
+      "email": "ozan.ozerk@openpayd.com",
+      "job_title": "Founder",
+      "domain": "openpayd.com",
+      "company_name": "OpenPayd",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Basel",
+      "last_name": "Eltell",
+      "email": "basel.eltell@openpayd.com",
+      "job_title": "CEO - North America & New Markets MSB USA - Openpayd",
+      "domain": "openpayd.com",
+      "company_name": "OpenPayd",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Ben",
+      "last_name": "Mason",
+      "email": "ben.mason@openpayd.com",
+      "job_title": "Head of Sales",
+      "domain": "openpayd.com",
+      "company_name": "OpenPayd",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Danny",
+      "last_name": "Shader",
+      "email": "danny@paynearme.com",
+      "job_title": "Founder and CEO",
+      "domain": "paynearme.com",
+      "company_name": "PayNearMe",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Michael",
+      "last_name": "Kaplan",
+      "email": "michael.kaplan@paynearme.com",
+      "job_title": "CRO @ PayNearMe | Driving Revenue Growth With Innovative Payment Solutions",
+      "domain": "paynearme.com",
+      "company_name": "PayNearMe",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Anne",
+      "last_name": "Hay",
+      "email": "anne.hay@paynearme.com",
+      "job_title": "EVP, Chief Marketing Officer",
+      "domain": "paynearme.com",
+      "company_name": "PayNearMe",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Srinivas",
+      "last_name": "Njay",
+      "email": "srinivas@interface.ai",
+      "job_title": "Founder + CEO",
+      "domain": "interface.ai",
+      "company_name": "interface.ai",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Jack",
+      "last_name": "Chawla",
+      "email": "jack.chawla@interface.ai",
+      "job_title": "VP, Marketing",
+      "domain": "interface.ai",
+      "company_name": "interface.ai",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Amber",
+      "last_name": "McCollum",
+      "email": "amber.mccollum@interface.ai",
+      "job_title": "VP Sales/ VP Client Sales",
+      "domain": "interface.ai",
+      "company_name": "interface.ai",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Louisa",
+      "last_name": "Murray",
+      "email": "louisa@railsr.com",
+      "job_title": "Chief Sales Officer (CSO)",
+      "domain": "railsr.com",
+      "company_name": "Railsr",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Monika",
+      "last_name": "Dudkiewicz-Gaeta",
+      "email": "monika.dudkiewicz-gaeta@railsr.com",
+      "job_title": "Head of Revenue and Reconciliation",
+      "domain": "railsr.com",
+      "company_name": "Railsr",
+      "segment": "EMBEDDED FINANCE"
+    },
+    {
+      "first_name": "Raul",
+      "last_name": "Toribio",
+      "email": "rtoribio@novopayment.com",
+      "job_title": "Vice President of Business Development",
+      "domain": "novopayment.com",
+      "company_name": "NovoPayment",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Jose",
+      "last_name": "Olarte Giugni",
+      "email": "jlolarte@novopayment.com",
+      "job_title": "Regional Senior Business Development VP",
+      "domain": "novopayment.com",
+      "company_name": "NovoPayment",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Carolina",
+      "last_name": "Mejia Villa",
+      "email": "cmejia@novopayment.com",
+      "job_title": "Director Regional Account Management - Head Comercial",
+      "domain": "novopayment.com",
+      "company_name": "NovoPayment",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Dev",
+      "last_name": "Singh",
+      "email": "dev.singh@1kosmos.com",
+      "job_title": "Head of Sales - Asean & ANZ",
+      "domain": "1kosmos.com",
+      "company_name": "1Kosmos",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Siddharth",
+      "last_name": "Gandhi",
+      "email": "siddharth@1kosmos.com",
+      "job_title": "Co-Founder & Chief Operating Officer - APAC",
+      "domain": "1kosmos.com",
+      "company_name": "1Kosmos",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Huzefa",
+      "last_name": "Olia",
+      "email": "huzefa@1kosmos.com",
+      "job_title": "Chief Operating Officer /Co-founder",
+      "domain": "1kosmos.com",
+      "company_name": "1Kosmos",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Stuart",
+      "last_name": "Lawson",
+      "email": "stuart.lawson@fundingoptions.com",
+      "job_title": "Chief Commercial Officer",
+      "domain": "fundingoptions.com",
+      "company_name": "Funding Options by Tide",
+      "segment": "LENDING"
+    },
+    {
+      "first_name": "Bill",
+      "last_name": "Hyatt",
+      "email": "billhyatt@mendent.com",
+      "job_title": "President",
+      "domain": "goabaca.com",
+      "company_name": "Abaca",
+      "segment": "BANKING-AS-A-SERVICE"
+    },
+    {
+      "first_name": "Kishore",
+      "last_name": "Natarajan",
+      "email": "kishore@hyperverge.co",
+      "job_title": "Co-Founder",
+      "domain": "hyperverge.co",
+      "company_name": "HyperVerge",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Kedar",
+      "last_name": "Kulkarni",
+      "email": "kedar@hyperverge.co",
+      "job_title": "Co-founder and CEO",
+      "domain": "hyperverge.co",
+      "company_name": "HyperVerge",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Shaiju",
+      "last_name": "Thomas",
+      "email": "shaiju.t@hyperverge.co",
+      "job_title": "VP Global GTM",
+      "domain": "hyperverge.co",
+      "company_name": "HyperVerge",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Yoshi",
+      "last_name": "Yokokawa",
+      "email": "yoshi@alpaca.markets",
+      "job_title": "Co Founder & CEO",
+      "domain": "alpaca.markets",
+      "company_name": "Alpaca",
+      "segment": "WEALTHTECH"
+    },
+    {
+      "first_name": "Hitoshi",
+      "last_name": "Harada",
+      "email": "hitoshi@alpaca.markets",
+      "job_title": "Co-Founder",
+      "domain": "alpaca.markets",
+      "company_name": "Alpaca",
+      "segment": "WEALTHTECH"
+    },
+    {
+      "first_name": "Dave",
+      "last_name": "Dusseault",
+      "email": "david.dusseault@alpaca.markets",
+      "job_title": "President and COO Alpaca Securities",
+      "domain": "alpaca.markets",
+      "company_name": "Alpaca",
+      "segment": "WEALTHTECH"
+    },
+    {
+      "first_name": "Carly",
+      "last_name": "Brantz",
+      "email": "carly.brantz@veriff.net",
+      "job_title": "Chief Marketing Officer",
+      "domain": "veriff.com",
+      "company_name": "Veriff",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Tim",
+      "last_name": "Gray",
+      "email": "tim.gray@veriff.net",
+      "job_title": "Global Field & Events Director",
+      "domain": "veriff.com",
+      "company_name": "Veriff",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "John",
+      "last_name": "Mitzel",
+      "email": "john.mitzel@veriff.net",
+      "job_title": "Head of Marketing",
+      "domain": "veriff.com",
+      "company_name": "Veriff",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Elena",
+      "last_name": "Ionenko",
+      "email": "eionenko@turnkey-lender.com",
+      "job_title": "Co-Founder, COO",
+      "domain": "turnkey-lender.com",
+      "company_name": "TurnKey Lender",
+      "segment": "LENDING"
+    },
+    {
+      "first_name": "Dmytro",
+      "last_name": "Voronenko",
+      "email": "dvoronenko@turnkey-lender.com",
+      "job_title": "Co-Founder",
+      "domain": "turnkey-lender.com",
+      "company_name": "TurnKey Lender",
+      "segment": "LENDING"
+    },
+    {
+      "first_name": "David",
+      "last_name": "Lintz",
+      "email": "dlintz@turnkey-lender.com",
+      "job_title": "Chief Executive Officer",
+      "domain": "turnkey-lender.com",
+      "company_name": "TurnKey Lender",
+      "segment": "LENDING"
+    },
+    {
+      "first_name": "Andrea",
+      "last_name": "Carmignani",
+      "email": "andrea@keyless.io",
+      "job_title": "Co-Founder & CEO",
+      "domain": "keyless.io",
+      "company_name": "Keyless",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Ali",
+      "last_name": "Nazem",
+      "email": "ali.nazem@keyless.io",
+      "job_title": "Head of North America Sales",
+      "domain": "keyless.io",
+      "company_name": "Keyless",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Gian",
+      "last_name": "Casarola",
+      "email": "gianmario.casarola@keyless.io",
+      "job_title": "VP Sales",
+      "domain": "keyless.io",
+      "company_name": "Keyless",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Maria",
+      "last_name": "Anselm",
+      "email": "maria.aquilla@callsign.com",
+      "job_title": "Commercial Director MENA",
+      "domain": "callsign.com",
+      "company_name": "Callsign",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Ryan",
+      "last_name": "Gosling",
+      "email": "ryan.gosling@callsign.com",
+      "job_title": "Commercial Director - UK & MENA",
+      "domain": "callsign.com",
+      "company_name": "Callsign",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Andreas",
+      "last_name": "Eliasson",
+      "email": "andreas.eliasson@callsign.com",
+      "job_title": "Commercial Director",
+      "domain": "callsign.com",
+      "company_name": "Callsign",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Adam",
+      "last_name": "Vandenboogaard",
+      "email": "adam.vandenboogaard@copper.co",
+      "job_title": "Head of Revenue - Americas",
+      "domain": "copper.co",
+      "company_name": "Copper.co",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Adam",
+      "last_name": "Groom",
+      "email": "adam.groom@copper.co",
+      "job_title": "EMEA Head of Revenue & Head of Exchanges",
+      "domain": "copper.co",
+      "company_name": "Copper.co",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Kate",
+      "last_name": "Light",
+      "email": "kate.light@copper.co",
+      "job_title": "Global Head of Marketing and Executive Committee Member",
+      "domain": "copper.co",
+      "company_name": "Copper.co",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Adam",
+      "last_name": "Famularo",
+      "email": "adam@workfusion.com",
+      "job_title": "CEO",
+      "domain": "workfusion.com",
+      "company_name": "WorkFusion",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Ashok",
+      "last_name": "Acharya",
+      "email": "aashok@workfusion.com",
+      "job_title": "Regional Sales Director- Asia Pacific",
+      "domain": "workfusion.com",
+      "company_name": "WorkFusion",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Teri",
+      "last_name": "Cappadoro",
+      "email": "tcappadoro@workfusion.com",
+      "job_title": "Vice President, Banking Sales and Customer Satisfaction",
+      "domain": "workfusion.com",
+      "company_name": "WorkFusion",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Bogdan",
+      "last_name": "Grudnicki",
+      "email": "bgrudnicki@daon.com",
+      "job_title": "Director of Sales in SEE Region",
+      "domain": "daon.com",
+      "company_name": "Daon",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Craig",
+      "last_name": "Katz",
+      "email": "ckatz@daon.com",
+      "job_title": "Vice President of Sales Related to Search Terms in Your Query, Marketing & Partnerships",
+      "domain": "daon.com",
+      "company_name": "Daon",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Alex",
+      "last_name": "Ruschin",
+      "email": "aruschin@daon.com",
+      "job_title": "Vice President of Sales, West Region",
+      "domain": "daon.com",
+      "company_name": "Daon",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Charles",
+      "last_name": "Delingpole",
+      "email": "charlie@complyadvantage.com",
+      "job_title": "Founder and Executive Chairman",
+      "domain": "complyadvantage.com",
+      "company_name": "ComplyAdvantage",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Paul",
+      "last_name": "Kizakevich",
+      "email": "paul.kizakevich@complyadvantage.com",
+      "job_title": "President, GTM",
+      "domain": "complyadvantage.com",
+      "company_name": "ComplyAdvantage",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Vatsa",
+      "last_name": "Narasimha",
+      "email": "vatsa@complyadvantage.com",
+      "job_title": "Chief Executive Officer",
+      "domain": "complyadvantage.com",
+      "company_name": "ComplyAdvantage",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Ross",
+      "last_name": "McFerrin",
+      "email": "rmcferrin@brightwell.com",
+      "job_title": "Chief Revenue Officer",
+      "domain": "brightwell.com",
+      "company_name": "Brightwell",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Larry",
+      "last_name": "Hipp",
+      "email": "lhipp@brightwell.com",
+      "job_title": "Chief Executive Officer",
+      "domain": "brightwell.com",
+      "company_name": "Brightwell",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Evan",
+      "last_name": "Goldstein",
+      "email": "egoldstein@brightwell.com",
+      "job_title": "SVP of Sales",
+      "domain": "brightwell.com",
+      "company_name": "Brightwell",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Jesse",
+      "last_name": "Hemson-Struthers",
+      "email": "jesse.hemson-struthers@bvnk.com",
+      "job_title": "Co-Founder / CEO",
+      "domain": "bvnk.com",
+      "company_name": "BVNK",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Chris",
+      "last_name": "Harmse",
+      "email": "chris.harmse@bvnk.com",
+      "job_title": "Co-Founder | Chief Business Officer",
+      "domain": "bvnk.com",
+      "company_name": "BVNK",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Benjamin",
+      "last_name": "Spirowski",
+      "email": "benjamin.spirowski@bvnk.com",
+      "job_title": "VP of Sales (Europe)",
+      "domain": "bvnk.com",
+      "company_name": "BVNK",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Dave",
+      "last_name": "Sherrington",
+      "email": "dave.sherrington@thincats.com",
+      "job_title": "Managing Director",
+      "domain": "thincats.com",
+      "company_name": "ThinCats",
+      "segment": "LENDING"
+    },
+    {
+      "first_name": "Mike",
+      "last_name": "Hackett",
+      "email": "mike.hackett@thincats.com",
+      "job_title": "Chief Commercial Officer (CCO)",
+      "domain": "thincats.com",
+      "company_name": "ThinCats",
+      "segment": "LENDING"
+    },
+    {
+      "first_name": "Diana",
+      "last_name": "Portman",
+      "email": "diana.portman@thincats.com",
+      "job_title": "Head of Marketing",
+      "domain": "thincats.com",
+      "company_name": "ThinCats",
+      "segment": "LENDING"
+    },
+    {
+      "first_name": "Jacob",
+      "last_name": "O",
+      "email": "jake@bitgo.com",
+      "job_title": "Managing Director, Head of Ecosystem",
+      "domain": "bitgo.com",
+      "company_name": "BitGo",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Charles",
+      "last_name": "Cascarilla",
+      "email": "ccascarilla@paxos.com",
+      "job_title": "CEO and Co-Founder",
+      "domain": "paxos.com",
+      "company_name": "Paxos",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Rich",
+      "last_name": "Teo",
+      "email": "rteo@itbit.com",
+      "job_title": "Co-Founder, CEO Asia",
+      "domain": "paxos.com",
+      "company_name": "Paxos",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Amanda",
+      "last_name": "Ganske",
+      "email": "amanda.ganske@paxos.com",
+      "job_title": "Head of Marketing",
+      "domain": "paxos.com",
+      "company_name": "Paxos",
+      "segment": "CRYPTO/DEFI"
+    },
+    {
+      "first_name": "Schalk",
+      "last_name": "Nolte",
+      "email": "schalk@entersekt.com",
+      "job_title": "CEO",
+      "domain": "entersekt.com",
+      "company_name": "Entersekt",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Tim",
+      "last_name": "Sadler",
+      "email": "tim@entersekt.com",
+      "job_title": "Chief Revenue Officer (CRO)",
+      "domain": "entersekt.com",
+      "company_name": "Entersekt",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Frank",
+      "last_name": "Moreno",
+      "email": "frank@entersekt.com",
+      "job_title": "Chief Marketing Officer",
+      "domain": "entersekt.com",
+      "company_name": "Entersekt",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Matt",
+      "last_name": "Schurk",
+      "email": "matt@recurly.com",
+      "job_title": "Chief Revenue Officer",
+      "domain": "recurly.com",
+      "company_name": "Recurly",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Taylor",
+      "last_name": "Levos",
+      "email": "tlevos@recurly.com",
+      "job_title": "VP of Sales",
+      "domain": "recurly.com",
+      "company_name": "Recurly",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Suzin",
+      "last_name": "Wold",
+      "email": "suzin@recurly.com",
+      "job_title": "Chief Marketing Officer (CMO)",
+      "domain": "recurly.com",
+      "company_name": "Recurly",
+      "segment": "PAYMENTS"
+    },
+    {
+      "first_name": "Bala",
+      "last_name": "Kumar",
+      "email": "bala@jumio.com",
+      "job_title": "President & Interim CEO",
+      "domain": "jumio.com",
+      "company_name": "Jumio",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Simon",
+      "last_name": "Winchester",
+      "email": "simon.winchester@jumio.com",
+      "job_title": "SVP, Sales",
+      "domain": "jumio.com",
+      "company_name": "Jumio",
+      "segment": "REGTECH"
+    },
+    {
+      "first_name": "Samer",
+      "last_name": "Atassi",
+      "email": "samer.atassi@jumio.com",
+      "job_title": "VP, Latin America & Caribbean",
+      "domain": "jumio.com",
+      "company_name": "Jumio",
+      "segment": "REGTECH"
+    }
+  ],
+  "target_titles": [
+    "VP Sales",
+    "Head of Sales",
+    "CRO",
+    "Head of Growth",
+    "VP Marketing",
+    "CMO",
+    "CEO",
+    "Co-founder",
+    "Founder"
+  ],
+  "classification_prompt": "Classify companies for Sally\u2019s done-for-you lead generation service targeting B2B fintech segments: PAYMENTS, LENDING, BANKING-AS-A-SERVICE, REGTECH, INSURTECH, WEALTHTECH, CRYPTO/DEFI, EMBEDDED FINANCE.\n\nExclude companies that are:  \n- B2C consumer apps (e.g., consumer banking apps, personal finance, consumer wallets, consumer remittance)  \n- VC/PE funds and investors (invest in fintech but do not buy lead gen services)  \n- Media and publications (fintech news, magazines covering industry but not operating in it)  \n- Recruitment agencies (place people in fintech but do not build fintech products)  \n- Traditional banks without BaaS/API product arms (consumer-only banks)  \n- Dev agencies and IT outsourcing firms (build fintech for others but have no own B2B product)  \n- L1 blockchain protocols (infrastructure chains/DeFi protocols, not B2B fintech product companies)  \n- Consulting and advisory firms (advise on fintech but do not sell fintech products)\n\nInclude companies that:  \n- Operate primarily in the target segments listed above  \n- Have a dedicated B2B fintech product or service (including companies with both consumer and B2B arms if they have a B2B product division)  \n- Are actively seeking or likely to benefit from qualified appointment setting and omnichannel, signal-driven outreach\n\nWhen in doubt, include the company (false positives are cheaper than missing targets).\n\nReturn JSON: {\"is_target\": true/false, \"segment\": \"CAPS_LABEL\", \"reasoning\": \"1 line\", \"confidence\": \"high\"/\"medium\"/\"low\"}"
+}

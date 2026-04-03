@@ -1,0 +1,25 @@
+MCP LIVE TEST — 20260331_014611
+Token: mcp_005b360645fafbca...
+================================================================================
+Connected: 54 tools
+1. Login: PASS — Logged in as LiveTest. All tools ready.
+2. Integrations: PASS — missing: ['apollo', 'smartlead', 'openai', 'apify']
+3. Create project: PASS — id=262, scraped=True
+   next_question: Have you launched campaigns for this project before? If yes, tell me the campaign name pattern (e.g.
+4. Filter preview: PASS
+   total_available: 4,231
+   cost: 9 credits ($0.09)
+   keywords: ['it services & it consulting', 'information technology & services', 'aws', 'it consulting', 'information technology']
+   has_next_action: True
+5. Get context: PASS — projects=1
+6. Replies: PASS — 0 replies
+7. Email accounts: PASS — 20 accounts
+
+RESULT: 7/7 PASS
+  ✅ login
+  ✅ integrations
+  ✅ create_project
+  ✅ filter_preview
+  ✅ get_context
+  ✅ replies
+  ✅ email_accounts

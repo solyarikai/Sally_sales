@@ -1,0 +1,73 @@
+{
+  "type": "kw",
+  "prompt": "k6_specificity",
+  "model": "gpt-4o-mini",
+  "avg": 0.6,
+  "details": [
+    {
+      "seg": "it_miami",
+      "kws": [
+        "it consulting companies in Miami",
+        "it consulting firm in Miami",
+        "it consulting services in Miami",
+        "it project consulting in Miami",
+        "it staffing solutions in Miami",
+        "technology consulting in Miami",
+        "it compliance consulting in Miami"
+      ],
+      "score": 0
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "video production companies in London",
+        "tv commercial production",
+        "content creation studio",
+        "high-quality content production",
+        "studio production",
+        "creative agency",
+        "digital content creation"
+      ],
+      "score": 0
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "italian haute couture",
+        "italian luxury brands",
+        "luxury fashion milan",
+        "fashion brand florence",
+        "made in italy fashion",
+        "luxury fashion brands",
+        "luxury fashion house"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "social media influencer agencies in UK",
+        "social media influencer management",
+        "social media influencer outreach",
+        "social media influencer collaborations",
+        "social media influencer campaigns",
+        "influencer marketing agency",
+        "digital influencer agency"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [
+        "social media influencer platforms in UK",
+        "social media influencer outreach tools",
+        "social media influencer management tools",
+        "influencer marketing platforms",
+        "influencer collaboration platforms",
+        "social media influencer campaigns",
+        "influencer marketing agency"
+      ],
+      "score": 1
+    }
+  ]
+}

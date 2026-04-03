@@ -1,0 +1,22 @@
+{
+  "ts": "20260331_122159",
+  "results": {
+    "1.2_login": true,
+    "1.3_keys": true,
+    "2.1_project": true,
+    "2.1_asks_campaigns": true,
+    "2.2_campaigns": true,
+    "3.1_preview": true,
+    "3.2_gather": true,
+    "3.3_accounts": true,
+    "4.1_blacklist": true,
+    "4.2_approve": true,
+    "4.3_status": false,
+    "4.4_explore": false,
+    "5.1_sequence": false,
+    "6.1_replies": false,
+    "6.3_context": false
+  },
+  "passes": 10,
+  "total": 15
+}

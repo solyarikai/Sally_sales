@@ -1,0 +1,20 @@
+## Subtask: Cache pip dependencies layer
+
+### Status: VERIFIED - Already Implemented
+
+### Analysis:
+The backend Dockerfile already implements proper pip dependency caching using Docker best practices:
+
+1. **Multi-stage build**: Uses a builder stage (python:3.11-slim) to install dependencies
+2. **Proper layer ordering**:
+   - Line 17: `COPY requirements.txt .` - copies only requirements file first
+   - Line 18: `RUN pip install --no-cache-dir -r requirements.txt` - installs dependencies
+   - Line 35: `COPY . .` - copies application code AFTER dependencies
+
+This pattern ensures:
+- The pip install layer is cached by Docker
+- Cache is only invalidated when requirements.txt changes
+- Application code changes don't trigger dependency reinstallation
+
+### No changes needed
+The Dockerfile already follows the optimal pattern for pip dependency caching. The layer containing pip dependencies will be reused from cache on subsequent builds unless requirements.txt is modified.

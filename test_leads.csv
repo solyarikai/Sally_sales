@@ -1,0 +1,11 @@
+name,email,company_name,job_title,linkedin_url
+JOHN SMITH,john.smith@acme.com,Acme Corporation,Chief Executive Officer,https://linkedin.com/in/johnsmith
+jane DOE,jane.doe@techstartup.io,TechStartup Inc,VP of Engineering,https://linkedin.com/in/janedoe
+ROBERT JOHNSON,robert.j@bigcorp.com,BigCorp Industries,Director of Sales,https://linkedin.com/in/robertjohnson
+Maria Garcia,maria.g@innovate.co,Innovate Labs,Product Manager,https://linkedin.com/in/mariagarcia
+DAVID LEE,david.lee@growth.io,GrowthHackers,Marketing Director,https://linkedin.com/in/davidlee
+Sarah Wilson,sarah.w@finance.com,FinanceFirst,CFO,https://linkedin.com/in/sarahwilson
+MICHAEL BROWN,m.brown@retail.net,RetailGiant,Operations Manager,https://linkedin.com/in/michaelbrown
+Emily Davis,emily.d@health.org,HealthTech Solutions,CTO,https://linkedin.com/in/emilydavis
+CHRISTOPHER MILLER,chris.m@energy.com,EnergyPlus,Business Development,https://linkedin.com/in/chrismiller
+Amanda Taylor,amanda.t@media.co,MediaWorks,Content Director,https://linkedin.com/in/amandataylor

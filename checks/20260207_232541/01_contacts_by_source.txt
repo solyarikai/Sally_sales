@@ -1,0 +1,10 @@
+
+── 1. CONTACTS BY SOURCE ──
+  (What: counts of contacts grouped by source system, with reply breakdown)
+  (Where: DB contacts table)
+
+  smartlead                       total=46657  replied= 772  not_replied=45885
+  getsales                        total= 6149  replied= 293  not_replied= 5856
+  getsales+smartlead              total= 1853  replied= 282  not_replied= 1571
+  smartlead+getsales              total=    3  replied=   1  not_replied=    2
+  TOTAL                           total=54662

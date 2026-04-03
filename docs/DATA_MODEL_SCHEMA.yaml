@@ -1,0 +1,862 @@
+openapi: 3.0.3
+info:
+  title: CRM Data Model - Smartlead + GetSales Integration
+  version: 2.0.0
+  description: |
+    ## Complete API Endpoints for Raw Data Collection
+    
+    ### SMARTLEAD API (Base: https://server.smartlead.ai/api/v1)
+    
+    | # | Endpoint | Method | Purpose | Key Response Fields |
+    |---|----------|--------|---------|---------------------|
+    | 1 | `/leads/?email={email}` | GET | Find lead by email | lead_id, status, reply_count, click_count |
+    | 2 | `/leads/{lead_id}/campaigns` | GET | All campaigns for lead | campaign_id, campaign_name, status |
+    | 3 | `/campaigns/{cid}/leads/{lid}/message-history` | GET | Full email conversation | history[]: type, body, time, from/to |
+    | 4 | `/leads/fetch-categories` | GET | Category ID mapping | categories[]: id, name, sentiment |
+    | 5 | `/campaigns/{cid}/leads?lead_category_id=9` | GET | Get replied leads | leads with category=replied |
+    | 6 | `/campaigns/{cid}/leads/{lid}/category` | POST | Update lead category | {"category_id": 1, "pause_lead": false} |
+    
+    **Example: Fetch complete data for a contact**
+    ```python
+    # Step 1: Find lead by email
+    lead = GET /leads/?email=john@example.com
+    lead_id = lead['id']
+    
+    # Step 2: Get all campaigns
+    campaigns = GET /leads/{lead_id}/campaigns
+    
+    # Step 3: For each campaign, get message history
+    for campaign in campaigns:
+        history = GET /campaigns/{campaign['id']}/leads/{lead_id}/message-history
+        # Contains all sent emails and replies
+    
+    # Store in contacts.smartlead_raw
+    smartlead_raw = {
+        "lead": lead,
+        "campaigns": campaigns,
+        "conversations": {campaign_id: history for each campaign}
+    }
+    ```
+    
+    ### GETSALES API (Base: https://amazing.getsales.io)
+    
+    | # | Endpoint | Method | Purpose | Key Response Fields |
+    |---|----------|--------|---------|---------------------|
+    | 1 | `/leads/api/leads/lookup-one` | POST | Find contact by email/linkedin | uuid, pipeline_stage_uuid |
+    | 2 | `/leads/api/leads/{uuid}` | GET | Full contact profile | All contact fields + status |
+    | 3 | `/flows/api/linkedin-messages` | GET | LinkedIn conversations | messages[]: text, sent_at, direction |
+    | 4 | `/flows/api/flows` | GET | List automations | flows[]: uuid, name, status |
+    | 5 | `/leads/api/leads/{uuid}` | PUT | Update contact | (pipeline_stage NOT writable) |
+    
+    **Example: Fetch complete data for a contact**
+    ```python
+    # Step 1: Find contact by email
+    contact = POST /leads/api/leads/lookup-one
+               body: {"email": "john@example.com"}
+    uuid = contact['uuid']
+    
+    # Step 2: Get full profile
+    profile = GET /leads/api/leads/{uuid}
+    
+    # Step 3: Get LinkedIn messages
+    messages = GET /flows/api/linkedin-messages?filter[lead_uuid]={uuid}
+    
+    # Step 4: Get automation info
+    automations = GET /flows/api/flows
+    
+    # Store in contacts.getsales_raw
+    getsales_raw = {
+        "profile": profile,
+        "messages": messages,
+        "automations": [a for a in automations if contact in a]
+    }
+    ```
+    
+    ---
+    
+    Complete data model for outbound sales CRM integrating Smartlead (email) and GetSales (LinkedIn).
+    
+    ## System Overview
+    ```
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                           EXTERNAL PLATFORMS                             │
+    ├────────────────────────────────┬────────────────────────────────────────┤
+    │         SMARTLEAD              │              GETSALES                  │
+    │   (Email Campaigns)            │        (LinkedIn Automation)           │
+    │                                │                                        │
+    │ Statuses:                      │ Pipeline Stages:                       │
+    │ - INPROGRESS (sending)         │ - ok (new)                             │
+    │ - STARTED                      │ - Approaching (contacted)              │
+    │ - COMPLETED (finished)         │ - Engaging (in conversation)           │
+    │ - BLOCKED (bounced/rejected)   │ - Replied (got response)               │
+    │ - PAUSED                       │ - Opportunity (qualified)              │
+    │ - STOPPED                      │                                        │
+    │                                │                                        │
+    │ Lead Categories:               │ Lead UUIDs:                            │
+    │ - ID 0: Not replied            │ - Unique per contact                   │
+    │ - ID 9: Replied                │ - Used for API calls                   │
+    └────────────────────────────────┴────────────────────────────────────────┘
+                    │                                    │
+                    │ Webhooks + API Polling             │ Webhooks + API Polling
+                    ▼                                    ▼
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                           OUR CRM DATABASE                               │
+    ├─────────────────────────────────────────────────────────────────────────┤
+    │                                                                          │
+    │  projects ──────────── campaigns (first-class registry)                 │
+    │      │                     ├ platform (smartlead/getsales)              │
+    │      │                     └ channel_accounts (sender identities)       │
+    │      │                                                                  │
+    │      └── contacts ───────┐                                              │
+    │          (single pool)   ├── contact_activities (all touches)           │
+    │                          ├── processed_replies (emails)                 │
+    │                          │                                              │
+    │  Contact fields:         │                                              │
+    │    status (13-state)     │                                              │
+    │    provenance (JSON)     │  how contact was gathered                    │
+    │    platform_state (JSON) │  per-platform data                          │
+    │    last_reply_at         │  canonical reply check                      │
+    │                                                                          │
+    │  Status Flow:                                                            │
+    │  to_be_sent → sent → interested → negotiating_meeting → scheduled      │
+    │         → meeting_held → qualified/not_qualified                        │
+    │                                                                          │
+    └─────────────────────────────────────────────────────────────────────────┘
+    ```
+
+components:
+  schemas:
+    
+    # ========================================
+    # CRM CONTACT (Our unified model)
+    # ========================================
+    Contact:
+      type: object
+      description: |
+        Unified contact from Smartlead and/or GetSales.
+        Single pool — one row per person, platform data consolidated into platform_state JSON.
+      properties:
+        # Identity
+        id:
+          type: integer
+          description: Internal CRM ID
+        email:
+          type: string
+          format: email
+          description: Primary identifier for merging
+        first_name:
+          type: string
+        last_name:
+          type: string
+        company_name:
+          type: string
+        domain:
+          type: string
+        job_title:
+          type: string
+        linkedin_url:
+          type: string
+          format: uri
+        phone:
+          type: string
+        location:
+          type: string
+
+        # Classification
+        segment:
+          type: string
+          description: Business segment (iGaming, B2B SaaS, etc.)
+        geo:
+          type: string
+          description: Geographic region code (RU, US, etc.)
+        source:
+          type: string
+          enum: [smartlead, getsales, both, manual, pipeline]
+          description: Where this contact came from
+        source_id:
+          type: string
+
+        # Platform lookup IDs (indexed for webhook matching)
+        smartlead_id:
+          type: string
+          description: Lead ID in Smartlead (null if only in GetSales)
+        getsales_id:
+          type: string
+          description: Lead UUID in GetSales (null if only in Smartlead)
+
+        # ── CANONICAL FIELDS (use these in new code) ──
+
+        status:
+          type: string
+          enum: [lead, to_be_sent, sent, interested, negotiating_meeting, scheduled, meeting_held, qualified, not_qualified, not_interested, out_of_office, wrong_person, other]
+          description: |
+            13-status funnel machine (single source of truth):
+            - lead: New, not yet outreached
+            - to_be_sent: Queued for campaign
+            - sent: Outreach sent, awaiting reply
+            - interested: Positive reply
+            - negotiating_meeting: Working toward meeting
+            - scheduled: Meeting booked
+            - meeting_held: Meeting completed
+            - qualified/not_qualified: Post-meeting outcome
+            - not_interested/out_of_office/wrong_person/other: Negative outcomes
+        last_reply_at:
+          type: string
+          format: date-time
+          description: "Canonical reply check: IS NOT NULL = has replied"
+        provenance:
+          type: object
+          description: |
+            How this contact was gathered (pipeline story). NULL for manual/CSV imports.
+            Schema: {gathered_at, source, extracted_contact_id, discovered_company_id,
+                     domain, company_name, confidence, search_job_id, query,
+                     search_engine, segment, geo, description}
+        platform_state:
+          type: object
+          description: |
+            Per-platform consolidated data, keyed by platform name.
+            Schema: {
+              "smartlead": {"status": "...", "category": 1, "last_synced": "...", "campaigns": [...], "raw": {...}},
+              "getsales": {"status": "...", "flow_name": "...", "last_synced": "...", "raw": {...}}
+            }
+        email_verification_result:
+          type: string
+          enum: [valid, invalid, unknown, catch_all]
+          description: Result from email verification service
+
+        # Client-facing sync
+        sheet_qualification:
+          type: string
+        sheet_client_comment:
+          type: string
+        sheet_row:
+          type: integer
+        notes:
+          type: string
+
+        # Meeting tracking (on OperatorTask)
+        scheduled_at:
+          type: string
+          format: date-time
+          description: Meeting date/time
+        meeting_held_at:
+          type: string
+          format: date-time
+        qualified_at:
+          type: string
+          format: date-time
+        disqualified_at:
+          type: string
+          format: date-time
+
+        # Timestamps
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+        # ── DEPRECATED FIELDS (kept for backward compat) ──
+        has_replied:
+          type: boolean
+          description: "DEPRECATED → use last_reply_at IS NOT NULL"
+        reply_channel:
+          type: string
+          description: "DEPRECATED → use latest ContactActivity.channel"
+        reply_category:
+          type: string
+          description: "DEPRECATED → use ProcessedReply.category"
+        reply_sentiment:
+          type: string
+          description: "DEPRECATED → use status funnel"
+        funnel_stage:
+          type: string
+          description: "DEPRECATED → use status"
+        smartlead_status:
+          type: string
+          description: "DEPRECATED → use platform_state.smartlead.status"
+        getsales_status:
+          type: string
+          description: "DEPRECATED → use platform_state.getsales.status"
+        last_synced_at:
+          type: string
+          format: date-time
+          description: "DEPRECATED → use platform_state[p].last_synced"
+        gathering_details:
+          type: object
+          description: "DEPRECATED → use provenance (renamed)"
+    
+    # ========================================
+    # CAMPAIGN (first-class registry)
+    # ========================================
+    Campaign:
+      type: object
+      description: |
+        First-class registry of outreach campaigns per project.
+        Replaces the old Project.campaign_filters JSON list with proper FK relationships.
+        Each campaign maps to an external campaign/flow in SmartLead or GetSales.
+      properties:
+        id:
+          type: integer
+        company_id:
+          type: integer
+        project_id:
+          type: integer
+          description: FK to projects table (nullable)
+        platform:
+          type: string
+          enum: [smartlead, getsales]
+        channel:
+          type: string
+          enum: [email, linkedin]
+        external_id:
+          type: string
+          description: Platform-specific campaign/flow ID
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, completed, archived]
+        push_rule_id:
+          type: integer
+          description: FK to campaign_push_rules for auto-push config
+        leads_count:
+          type: integer
+        replied_count:
+          type: integer
+        config:
+          type: object
+          description: Platform-specific config (schedule, limits, etc.)
+    
+    # ========================================
+    # CHANNEL ACCOUNT (sender identities)
+    # ========================================
+    ChannelAccount:
+      type: object
+      description: |
+        Sender identities per platform per project.
+        Tracks GetSales sender profiles (Алекс, Катя) and SmartLead email accounts.
+      properties:
+        id:
+          type: integer
+        company_id:
+          type: integer
+        project_id:
+          type: integer
+        platform:
+          type: string
+          enum: [smartlead, getsales]
+        channel:
+          type: string
+          enum: [email, linkedin]
+        external_id:
+          type: string
+        display_name:
+          type: string
+        email:
+          type: string
+        profile_url:
+          type: string
+        is_active:
+          type: boolean
+    
+    # ========================================
+    # CAMPAIGN INFO
+    # ========================================
+    CampaignInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Campaign ID (Smartlead) or Flow UUID (GetSales)
+        name:
+          type: string
+        source:
+          type: string
+          enum: [smartlead, getsales]
+        status:
+          type: string
+          description: Campaign status (ACTIVE, PAUSED, etc.)
+        channel:
+          type: string
+          enum: [email, linkedin]
+    
+    # ========================================
+    # TOUCH (Activity record)
+    # ========================================
+    Touch:
+      type: object
+      description: Single outreach touch (sent message or reply)
+      properties:
+        at:
+          type: string
+          format: date-time
+        campaign:
+          type: string
+          description: Campaign/flow name
+        campaign_id:
+          type: string
+        source:
+          type: string
+          enum: [smartlead, getsales]
+        channel:
+          type: string
+          enum: [email, linkedin]
+        type:
+          type: string
+          enum: [sent, reply]
+        category:
+          type: string
+          description: Reply category (if type=reply)
+        message:
+          type: string
+          description: First 100 chars of message
+    
+    # ========================================
+    # CONTACT ACTIVITY
+    # ========================================
+    ContactActivity:
+      type: object
+      description: Detailed activity record (message sent or received)
+      properties:
+        id:
+          type: integer
+        contact_id:
+          type: integer
+        activity_type:
+          type: string
+          enum: [email_sent, email_replied, linkedin_sent, linkedin_replied]
+        channel:
+          type: string
+          enum: [email, linkedin]
+        direction:
+          type: string
+          enum: [inbound, outbound]
+        source:
+          type: string
+          enum: [smartlead, getsales]
+        source_id:
+          type: string
+          description: External message ID
+        subject:
+          type: string
+        body:
+          type: string
+          description: Full message content
+        snippet:
+          type: string
+          description: First 500 chars
+        extra_data:
+          type: object
+          properties:
+            category:
+              type: string
+              description: AI-classified category
+            campaign_name:
+              type: string
+            automation_uuid:
+              type: string
+        activity_at:
+          type: string
+          format: date-time
+    
+    # ========================================
+    # PROCESSED REPLY (Smartlead email replies)
+    # ========================================
+    ProcessedReply:
+      type: object
+      description: Smartlead email reply with AI classification
+      properties:
+        id:
+          type: integer
+        campaign_id:
+          type: string
+        campaign_name:
+          type: string
+        lead_email:
+          type: string
+          format: email
+        lead_first_name:
+          type: string
+        lead_last_name:
+          type: string
+        lead_company:
+          type: string
+        email_subject:
+          type: string
+        email_body:
+          type: string
+          description: Original email we sent
+        reply_text:
+          type: string
+          description: Their reply
+        received_at:
+          type: string
+          format: date-time
+        category:
+          type: string
+          enum: [interested, meeting_request, question, not_interested, out_of_office, wrong_person, unsubscribe, other]
+        category_confidence:
+          type: string
+          enum: [high, medium, low]
+        classification_reasoning:
+          type: string
+          description: AI explanation
+        draft_reply:
+          type: string
+          description: AI-generated reply draft
+        raw_webhook_data:
+          type: object
+          description: Original Smartlead webhook payload
+
+    # ========================================
+    # STATUS MAPPING & EXTERNAL APIs
+    # ========================================
+    StatusMapping:
+      type: object
+      description: |
+        ## How Data Flows Between Systems
+        
+        ```
+        ┌────────────────────────────────────────────────────────────────────────┐
+        │                    DATA INGESTION (External → CRM)                      │
+        ├────────────────────────────────────────────────────────────────────────┤
+        │                                                                         │
+        │  SMARTLEAD                           GETSALES                          │
+        │  ─────────                           ────────                          │
+        │  Webhook (real-time)                 Webhook (real-time)               │
+        │  ├─ EMAIL_REPLY event                ├─ contact.updated event          │
+        │  ├─ EMAIL_SENT event                 ├─ linkedin message received      │
+        │  └─ LEAD_CATEGORY_UPDATED            └─ automation status change       │
+        │      ↓                                   ↓                             │
+        │  Stored in:                          Stored in:                        │
+        │  ├─ processed_replies.raw_webhook    ├─ contact_activities.extra_data │
+        │  └─ contacts.smartlead_raw           └─ contacts.getsales_raw          │
+        │                                                                         │
+        │  API Polling (backup)                API Polling (backup)              │
+        │  ├─ GET /campaigns/{id}/leads        ├─ GET /flows/api/linkedin-msgs   │
+        │  │   ?lead_category_id=9             │   ?sort[created_at]=desc        │
+        │  └─ Detects replied leads            └─ Fetches inbox messages         │
+        │      (no message content)                (has message content)         │
+        │                                                                         │
+        └────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+        ┌────────────────────────────────────────────────────────────────────────┐
+        │                    STATUS SYNC (CRM → External)                         │
+        ├────────────────────────────────────────────────────────────────────────┤
+        │                                                                         │
+        │  SMARTLEAD                           GETSALES                          │
+        │  ─────────                           ────────                          │
+        │  CAN UPDATE via API:                 CANNOT UPDATE via API:            │
+        │  POST /campaigns/{cid}/leads/{lid}/category                            │
+        │  {                                   pipeline_stage_uuid is            │
+        │    "category_id": 143,               READ-ONLY in their API            │
+        │    "pause_lead": false                                                 │
+        │  }                                   → Track locally only              │
+        │                                                                         │
+        └────────────────────────────────────────────────────────────────────────┘
+        ```
+        
+        ## Smartlead Lead Categories (Your Account)
+        
+        | Category ID | Name | CRM Status Mapping |
+        |-------------|------|-------------------|
+        | 1 | Interested | warm |
+        | 2 | Meeting Request | warm |
+        | 3 | Not Interested | not_interested |
+        | 4 | Do Not Contact | not_interested |
+        | 5 | Information Request | warm |
+        | 6 | Out Of Office | out_of_office |
+        | 7 | Wrong Person | wrong_person |
+        | 8 | Uncategorizable by Ai | other |
+        | 9 | Sender Originated Bounce | wrong_person |
+        | 77593 | Positive Reply | warm |
+        | 77594 | Negative Reply | not_interested |
+        | 77597 | Qualified | qualified |
+        | **77598** | **Meeting Booked** | **scheduled** |
+        | 78986 | Not Now | not_interested |
+        | 78987 | Not Qualified | not_qualified |
+        
+        ## GetSales Pipeline Stages
+        
+        | Stage | UUID | CRM Status Mapping |
+        |-------|------|-------------------|
+        | ok | (varies) | touched |
+        | Approaching | (varies) | touched |
+        | Engaging | (varies) | touched |
+        | Replied | (varies) | warm/not_interested/etc |
+        | Opportunity | (varies) | scheduled/qualified |
+        
+        Note: GetSales pipeline stages are managed within GetSales UI.
+        Our CRM tracks status locally but does NOT sync back to GetSales.
+        
+      properties:
+        crm_status:
+          type: string
+        smartlead_category_id:
+          type: integer
+          description: Smartlead category ID for API update
+        smartlead_pause:
+          type: boolean
+          description: Whether to pause the lead in campaign
+        getsales_sync:
+          type: boolean
+          description: Always false - GetSales doesn't support status update via API
+      example:
+        - crm_status: touched
+          smartlead_category_id: null
+          smartlead_pause: false
+          getsales_sync: false
+        - crm_status: warm
+          smartlead_category_id: 1  # Interested
+          smartlead_pause: false
+          getsales_sync: false
+        - crm_status: scheduled
+          smartlead_category_id: 77598  # Meeting Booked
+          smartlead_pause: true
+          getsales_sync: false
+        - crm_status: qualified
+          smartlead_category_id: 77597  # Qualified
+          smartlead_pause: true
+          getsales_sync: false
+        - crm_status: not_qualified
+          smartlead_category_id: 78987  # Not Qualified
+          smartlead_pause: true
+          getsales_sync: false
+        - crm_status: not_interested
+          smartlead_category_id: 3  # Not Interested
+          smartlead_pause: true
+          getsales_sync: false
+        - crm_status: wrong_person
+          smartlead_category_id: 7  # Wrong Person
+          smartlead_pause: true
+          getsales_sync: false
+        - crm_status: out_of_office
+          smartlead_category_id: 6  # Out Of Office
+          smartlead_pause: false
+          getsales_sync: false
+        - crm_status: other
+          smartlead_category_id: null
+          smartlead_pause: false
+          getsales_sync: false
+
+    # ========================================
+    # PROJECT (Campaign group)
+    # ========================================
+    Project:
+      type: object
+      description: Group of campaigns from Smartlead and/or GetSales
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: "EasyStaff - Russian Market"
+        description:
+          type: string
+        campaigns:
+          type: array
+          items:
+            type: object
+            properties:
+              campaign_type:
+                type: string
+                enum: [smartlead, getsales]
+              campaign_id:
+                type: string
+              campaign_name:
+                type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ========================================
+    # OPERATOR TASK
+    # ========================================
+    OperatorTask:
+      type: object
+      description: Task for operator (e.g., ping lead before meeting)
+      properties:
+        id:
+          type: integer
+        project_id:
+          type: integer
+        contact_id:
+          type: integer
+        contact:
+          $ref: '#/components/schemas/Contact'
+        task_type:
+          type: string
+          enum: [morning_ping, day_before_ping, follow_up, custom]
+          description: |
+            - morning_ping: Send message morning of meeting day
+            - day_before_ping: Send message 24h before meeting
+            - follow_up: Generic follow-up
+            - custom: Operator-created task
+        title:
+          type: string
+          example: "Ping Иван Петров - meeting at 14:00"
+        description:
+          type: string
+        due_date:
+          type: string
+          format: date
+        due_time:
+          type: string
+          format: time
+        status:
+          type: string
+          enum: [pending, completed, cancelled]
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 5
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+  # ========================================
+  # API ENDPOINTS
+  # ========================================
+paths:
+  /api/contacts:
+    get:
+      summary: List contacts with filters
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: has_replied
+          in: query
+          schema:
+            type: boolean
+        - name: source
+          in: query
+          schema:
+            type: string
+            enum: [smartlead, getsales]
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of contacts
+          
+  /api/contacts/{id}/status:
+    patch:
+      summary: Update contact status (syncs to Smartlead/GetSales)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [touched, warm, not_interested, out_of_office, wrong_person, scheduled, qualified, not_qualified]
+                scheduled_at:
+                  type: string
+                  format: date-time
+                  description: Required if status=scheduled
+                sync_to_sources:
+                  type: boolean
+                  default: true
+                  description: Whether to update Smartlead/GetSales
+      responses:
+        '200':
+          description: Status updated, tasks created if scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contact:
+                    $ref: '#/components/schemas/Contact'
+                  tasks_created:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OperatorTask'
+                  synced_to:
+                    type: object
+                    properties:
+                      smartlead:
+                        type: boolean
+                      getsales:
+                        type: boolean
+
+  /api/projects:
+    get:
+      summary: List projects
+    post:
+      summary: Create project
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                campaigns:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      campaign_type:
+                        type: string
+                      campaign_id:
+                        type: string
+
+  /api/projects/{id}/tasks:
+    get:
+      summary: Get tasks for project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, completed, cancelled]
+
+  /api/tasks/{id}:
+    patch:
+      summary: Update task (mark complete, add notes)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                notes:
+                  type: string

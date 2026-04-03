@@ -1,0 +1,64 @@
+{
+  "type": "ind",
+  "prompt": "p1_score",
+  "model": "gpt-4o-mini",
+  "avg": 0.0,
+  "details": [
+    {
+      "seg": "it_miami",
+      "inds": [
+        "information technology & services",
+        "management consulting",
+        "computer software",
+        "computer networking",
+        "computer hardware",
+        "computer & network security",
+        "telecommunications",
+        "outsourcing/offshoring",
+        "professional training & coaching",
+        "market research",
+        "internet",
+        "information services",
+        "financial services",
+        "venture capital & private equity"
+      ],
+      "score": -4
+    },
+    {
+      "seg": "video_london",
+      "inds": [
+        "entertainment",
+        "media production",
+        "motion pictures & film",
+        "marketing & advertising",
+        "events services",
+        "photography",
+        "graphic design",
+        "online media"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "fashion_italy",
+      "inds": [
+        "apparel & fashion",
+        "luxury goods & jewelry",
+        "textiles",
+        "retail",
+        "consumer goods",
+        "marketing & advertising",
+        "design",
+        "hospitality"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "err": "json_err"
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "err": "json_err"
+    }
+  ]
+}

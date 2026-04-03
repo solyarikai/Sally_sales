@@ -1,0 +1,6218 @@
+[
+  {
+    "domain": "tiktal.co",
+    "company_name": "TIKTAL",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mertmedia.com.tr",
+    "company_name": "Mert Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "equinoxmg.com",
+    "company_name": "Equinox Management Group LLP",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "nanoinflu.com",
+    "company_name": "NanoInflu",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "tenlive.net",
+    "company_name": "tenlive digital",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "tellinfluence.com",
+    "company_name": "Tell Influence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "influencermatchmaker.co.uk",
+    "company_name": "Influencer Matchmaker",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "londoninfluenceragency.co.uk",
+    "company_name": "London Influencer Agency",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influicity.com",
+    "company_name": "Influicity",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "findyourinfluencer.co.uk",
+    "company_name": "Find Your Influencer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "persketing.com",
+    "company_name": "Persketing",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "kenziesocial.com",
+    "company_name": "Kenzie Social",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "onlypersketing.com",
+    "company_name": "Only Persketing",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "maroccain-influencer-agency.com",
+    "company_name": "Maroccain Influencer Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "boostmakers.agency",
+    "company_name": "Boostmakers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "nalagency.es",
+    "company_name": "Nala Agency",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "influenter.pl",
+    "company_name": "Influenter",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "roiinfluencer.com",
+    "company_name": "ROI Influencer",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "globalugcagency.com",
+    "company_name": "Global UGC Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "goglobal.agency",
+    "company_name": "Go Global Agency",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "bullaco.com",
+    "company_name": "Bulla Co",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "yamammi.com",
+    "company_name": "Yamammi",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "underonemarketing.com",
+    "company_name": "Under One",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "ugclatam.io",
+    "company_name": "UGC LATAM",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "dutch-influencer-agency.nl",
+    "company_name": "Dutch Influencer Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "allstars.id",
+    "company_name": "Allstars Indonesia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "2ta.io",
+    "company_name": "2TA.IO",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "avatars.international",
+    "company_name": "Avatars International",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "kulturepanel.com",
+    "company_name": "Kulture Panel",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "poptrek.com",
+    "company_name": "Poptrek",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "socialplayground.io",
+    "company_name": "Social Playground",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "strimki.agency",
+    "company_name": "Strimki",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "museagency.ch",
+    "company_name": "MUSE MEDIA",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "shinetalentgroup.com",
+    "company_name": "Shine Talent Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "m1rai.com",
+    "company_name": "MIRAI by Streams Charts",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "stride-social.com",
+    "company_name": "Stride Social",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "sobirds.com",
+    "company_name": "SoBirds",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "talentvillage.com",
+    "company_name": "Talent Village",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "rebelbuzz.com",
+    "company_name": "Rebelbuzz",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "musefind.com",
+    "company_name": "MuseFind",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "rizzo.media",
+    "company_name": "Rizzo Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "kalucreative.com",
+    "company_name": "KALU Creative",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "surgemedia.co.in",
+    "company_name": "Surge Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "athios.ai",
+    "company_name": "Athios",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "peronmedya.com",
+    "company_name": "Peron Medya",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "lever.io",
+    "company_name": "Lever - Marketplace for Companies and Web3 KOLs",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "alfaleadsgroup.com",
+    "company_name": "Alfaleads Group",
+    "segment": "AFFILIATE_PERFORMANCE",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "allersparks.com",
+    "company_name": "Sparks by Aller Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "moxymgt.com",
+    "company_name": "Moxy Management",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "digitalminds.com",
+    "company_name": "Digital Minds Ltd",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "gladucame.in",
+    "company_name": "GLAD U CAME PVT LTD.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "limelighthq.com",
+    "company_name": "Limelight",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "mfield.com.br",
+    "company_name": "MField",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "influencer-impact.com",
+    "company_name": "Influencer Impact",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "masterhooks.com",
+    "company_name": "Master Hooks",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "kinc.com",
+    "company_name": "Kinc",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "influee.co",
+    "company_name": "Influee",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "wi-influencer.de",
+    "company_name": "wi-influencer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "efluenz.eu",
+    "company_name": "efluenz",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "departd.de",
+    "company_name": "DEPARTD",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "q.digital",
+    "company_name": "Q.Digital",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "kreatornow.com",
+    "company_name": "Kreatornow INC.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "silo.asia",
+    "company_name": "SILO",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "vp-digital.com",
+    "company_name": "VP Digital Agency",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "lab543.com",
+    "company_name": "JIWOO COMPANY",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "mbltechnologies.in",
+    "company_name": "MBL Technologies",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "madify.in",
+    "company_name": "Madify",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "ybragency.es",
+    "company_name": "YBR Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "thedigibee.in",
+    "company_name": "The DigiBee Network",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "hawkvuestudios.com",
+    "company_name": "Hawkvue Studios",
+    "segment": "OTHER",
+    "confidence": "0.65"
+  },
+  {
+    "domain": "socialsoup.com",
+    "company_name": "Social Soup (Australia & NZ)",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "rzr.com",
+    "company_name": "Aarki",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "getmerank.com",
+    "company_name": "Get Me Rank - 360° Digital Marketing Agency",
+    "segment": "OTHER",
+    "confidence": "0.65"
+  },
+  {
+    "domain": "cleveradvertising.com",
+    "company_name": "Clever Advertising",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "digitalexchange.com.tr",
+    "company_name": "Digital Exchange",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "ogilvy.africa",
+    "company_name": "Ogilvy Africa Network",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "devoutgrowth.com",
+    "company_name": "Devout Growth",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "gamesight.io",
+    "company_name": "Gamesight",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "dreamizegroup.com",
+    "company_name": "Dreamize Digital Marketing Agency",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "aaa.agency",
+    "company_name": "AAA Agency",
+    "segment": "influencer marketing & special projects",
+    "confidence": "IM_FIRST_AGENCIES"
+  },
+  {
+    "domain": "nanobuzz.agency",
+    "company_name": "Nanobuzz",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "socialstudies.io",
+    "company_name": "Social Studies",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "pop-star.me",
+    "company_name": "PopStar",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "risealiveinfluencermarketing.com",
+    "company_name": "RiseAlive Infotech",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "totem-experience.com",
+    "company_name": "TOTEM EXPERIENCE",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "denaromedia.in",
+    "company_name": "Denaro Media",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "ignition.agency",
+    "company_name": "Ignition Key Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "thecatalyst.gg",
+    "company_name": "The Catalyst Agency",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "digitaladarsh.com",
+    "company_name": "Digital Adarsh",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "anycolor.co.jp",
+    "company_name": "ANYCOLOR Inc.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "clksdigital.com",
+    "company_name": "CLKS Digital",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "socializr.be",
+    "company_name": "Socializr",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "vogz.io",
+    "company_name": "Vogz",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "tikit.ae",
+    "company_name": "Tikit",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "glistenmgmt.com",
+    "company_name": "glisten mgmt",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "lightricks.com",
+    "company_name": "Lightricks",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "grynstamedia.com",
+    "company_name": "Grynsta Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "thepeoplebrandingcompany.com",
+    "company_name": "The People Branding Company",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "socialchain.com",
+    "company_name": "Social Chain",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "socialand.com.tr",
+    "company_name": "Socialand",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "rossmanmedia.com",
+    "company_name": "Rossman Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "famous.club",
+    "company_name": "One Impression",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "artisancouncil.com",
+    "company_name": "Artisan Council",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "pontefirm.com",
+    "company_name": "Ponte Firm",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "frontstage.gr",
+    "company_name": "Frontstage Entertainment",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "castimages.com",
+    "company_name": "Cast Images Model & Talent Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "sociohub.media",
+    "company_name": "Sociohub Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "mgcglobalgroup.com",
+    "company_name": "MGC Global Group",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "c-k.com",
+    "company_name": "Cramer-Krasselt",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "theechohouse.com",
+    "company_name": "EchoHouse Africa",
+    "segment": "OTHER",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "nasmedia.co.kr",
+    "company_name": "Nasmedia",
+    "segment": "OTHER",
+    "confidence": "0.65"
+  },
+  {
+    "domain": "goto.game",
+    "company_name": "goto.game",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "createdbyhypr.com",
+    "company_name": "HYPR",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "codtechitsolutions.com",
+    "company_name": "CODTECH IT SOLUTIONS",
+    "segment": "OTHER",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "seekmedia.io",
+    "company_name": "Seekmedia Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "thinkora.ae",
+    "company_name": "Thinkora media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "siblingsmediasea.com",
+    "company_name": "Siblings Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "incrementa.la",
+    "company_name": "Incrementa",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "futursquad.com",
+    "company_name": "Futur Squad",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "hellofranses.com",
+    "company_name": "HelloFranses!",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "shout.market",
+    "company_name": "SHOUT.GROUP",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "instajet.io",
+    "company_name": "InstaJet.io",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "zoolaraads.com",
+    "company_name": "ZoolaraAds",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "infinite-creative.co",
+    "company_name": "Infinite Creative",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "creatorsagency.co",
+    "company_name": "Creators Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "nearcreative.co",
+    "company_name": "Near Creative",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "matamko.com",
+    "company_name": "matamko",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "theagency.com",
+    "company_name": "theAGENCYdotcom",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "sociata.com",
+    "company_name": "Sociata",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "acceso.com",
+    "company_name": "Acceso",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "audiense.com",
+    "company_name": "Audiense",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "groupm.com",
+    "company_name": "GroupM Spain",
+    "segment": "OTHER",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "fiftyandfive.com",
+    "company_name": "fifty & five",
+    "segment": "OTHER",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "hlxusa.com",
+    "company_name": "HLX",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "shishamdigital.com",
+    "company_name": "Shisham Digital",
+    "segment": "OTHER",
+    "confidence": "0.6"
+  },
+  {
+    "domain": "vhub.ai",
+    "company_name": "vHub.ai",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "bamboo.app",
+    "company_name": "Bamboo",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "spiketrap.io",
+    "company_name": "Spiketrap",
+    "segment": "OTHER",
+    "confidence": "0.65"
+  },
+  {
+    "domain": "amiloai.com",
+    "company_name": "Amilo AI Pvt Ltd.",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "starbuzz.ai",
+    "company_name": "Starbuzz.ai",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "usemake.com",
+    "company_name": "MAKE - Banking for creators",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "sharksfluence.com",
+    "company_name": "Sharksfluence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "hypefy.ai",
+    "company_name": "Hypefy",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "evolusen.com",
+    "company_name": "Evolusen",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "prprophet.ai",
+    "company_name": "PRophet North America",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "themarketingman.in",
+    "company_name": "THE MARKETING MAN",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "bulba.app",
+    "company_name": "Bulba",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "twiva.com",
+    "company_name": "Twiva",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "clevergroup.vn",
+    "company_name": "CleverGroup Corp",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "sehloiro.com",
+    "company_name": "Grupo Sehloiro",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "localaway.com",
+    "company_name": "LocalAway",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "anheuser-busch.com",
+    "company_name": "draftLine USA",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "breakmkt.com",
+    "company_name": "BREAK",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "popfablab.com",
+    "company_name": "PopFabLab",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "gethookd.io",
+    "company_name": "hookd",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "poqet.in",
+    "company_name": "Poqet",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "realchemistry.com",
+    "company_name": "Real Chemistry",
+    "segment": "OTHER",
+    "confidence": "0.65"
+  },
+  {
+    "domain": "kolplanet.com",
+    "company_name": "KOLPlanet",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "znap.link",
+    "company_name": "Della Nesta",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "rizersocial.io",
+    "company_name": "Rizer Social AI",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "livemercial.com",
+    "company_name": "Livemercial: The NEW AS Seen ON TV!",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "nocage.in",
+    "company_name": "Nocage(formerly BridgeIn)",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "tychon.app",
+    "company_name": "tychon",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "metapic.com",
+    "company_name": "Metapic",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "buddinginfluencers.com",
+    "company_name": "Budding Influencers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "lolly.com",
+    "company_name": "Lolly.com",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "pickmyad.com",
+    "company_name": "PickMyAd",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "youzz.net",
+    "company_name": "youzz",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "famosos.com",
+    "company_name": "FAMOSOS.COM",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "feels.com",
+    "company_name": "Feels",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "atisfyreach.com",
+    "company_name": "AtisfyReach",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "mogul.fr",
+    "company_name": "65dB by Mogul",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "we-are-lure.com",
+    "company_name": "Lure Agency",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "creatorsnest.in",
+    "company_name": "Creators Nest",
+    "segment": "Content / Influencers Marketing",
+    "confidence": "IM_FIRST_AGENCIES"
+  },
+  {
+    "domain": "tistmedia.in",
+    "company_name": "TIST Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "noisemediagroup.co.uk",
+    "company_name": "Noise Media Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "bazzaal.com",
+    "company_name": "BAZZAAL",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "marquetingventures.com",
+    "company_name": "Marqueting Ventures",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "gallerymediagroup.com",
+    "company_name": "Gallery Media Group",
+    "segment": "OTHER",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "magnamena.com",
+    "company_name": "Magna MENA",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "livewire.group",
+    "company_name": "Livewire",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "newrich.com",
+    "company_name": "NewRich Network",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "rankpillar.com",
+    "company_name": "rankpillar",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "pendulumintel.com",
+    "company_name": "Pendulum",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "mantappu.com",
+    "company_name": "Mantappu Corp.",
+    "segment": "OTHER",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "favored.live",
+    "company_name": "Favored",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "wonderl.ink",
+    "company_name": "teufels",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "getramped.com",
+    "company_name": "Get Ramped",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "tower21.digital",
+    "company_name": "Tower 21",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "dialedmedia.com",
+    "company_name": "Dialed Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "thesocmedcompany.com",
+    "company_name": "The Socmed Company",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "iamvirale.com",
+    "company_name": "Virale",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "sponsogram.in",
+    "company_name": "Sponsogram",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "xley.ai",
+    "company_name": "Xley AI",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "frogge.gg",
+    "company_name": "Frogge",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "influencom.cz",
+    "company_name": "Influencom by CreatiCom",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "regionalinfluencers.in",
+    "company_name": "Regional Influencers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "16thsports.com",
+    "company_name": "16th Sports",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "all-in.social",
+    "company_name": "ALL IN -Artist Management",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "epidemic.co",
+    "company_name": "EPIDEMIC",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "videofy.in",
+    "company_name": "Videofy",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "authentic-commerce.com",
+    "company_name": "authentic.commerce",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "stagwellmarketingcloud.com",
+    "company_name": "CUE",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "collabzi.ai",
+    "company_name": "Global Passage",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "pincfluence.com",
+    "company_name": "People's Inc. Influence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "socialstar.ch",
+    "company_name": "Socialstar",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "kmfmedia.com",
+    "company_name": "KMF Media Pvt ltd",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "smart-section.com",
+    "company_name": "Smart Section",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "distinctiontalent.com",
+    "company_name": "Distinction Talent",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "sankmo.in",
+    "company_name": "Sankmo",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "lvl-up.ru",
+    "company_name": "LVL UP",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "afiniadigital.com",
+    "company_name": "Afinia Digital",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "theboredmonkey.com",
+    "company_name": "TheBoredMonkey",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "rewiredtalent.com",
+    "company_name": "Rewired Talent Management",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "2ndwave.rocks",
+    "company_name": "2nd Wave GmbH",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "younetmedia.com",
+    "company_name": "YouNet Media",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "pulr.co",
+    "company_name": "PULR",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "whalargroup.com",
+    "company_name": "Whalar Group",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "thisisodd.es",
+    "company_name": "This is Odd",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "elife.com.br",
+    "company_name": "Elife",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "buzzmonitor.com",
+    "company_name": "Buzzmonitor",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "youtubeasaservice.com",
+    "company_name": "YAAS!",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "ingame.global",
+    "company_name": "InGame Esports",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "kyberplay.com",
+    "company_name": "KyberPlay",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "spoutnik-agency.com",
+    "company_name": "Spoutnik Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "clementinegroup.co",
+    "company_name": "The Clementine Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "shoplooks.com",
+    "company_name": "Shoplooks",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "slsvideo.com",
+    "company_name": "Shadow Light Studios",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "betandeal.com",
+    "company_name": "BETANDEAL",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "certoagency.com",
+    "company_name": "CERTO",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "pimbell.com",
+    "company_name": "Pimbell",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "firefliesme.com",
+    "company_name": "Fireflies",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "influenceable.io",
+    "company_name": "Influenceable",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "clipster.gg",
+    "company_name": "Clipster",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "flutch.in",
+    "company_name": "Flutch",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "hypebox.me",
+    "company_name": "Hypebox",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "showreelmediagroup.it",
+    "company_name": "Show Reel Media Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "athletiverse.io",
+    "company_name": "Athletiverse",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "limitlessbydesignmedia.co.za",
+    "company_name": "Limitless By Design",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "muta.to",
+    "company_name": "Mutato",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "easygo.io",
+    "company_name": "Easygo",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "rickhousemedia.com",
+    "company_name": "Rickhouse",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "thedigitalfairy.co.uk",
+    "company_name": "THE DIGI FAIRY",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "popsww.com",
+    "company_name": "POPS",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "rategainsoho.com",
+    "company_name": "BCV",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "sbmediagroup.com",
+    "company_name": "SB Media Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "thinktreemedia.in",
+    "company_name": "Think Tree Media House",
+    "segment": "OTHER",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "gummy.digital",
+    "company_name": "Gummy",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "communiqueindia.com",
+    "company_name": "Communique India",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "eplusagency.com",
+    "company_name": "E Plus",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "powerreviews.com",
+    "company_name": "PowerReviews, by Syndigo",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "sparkleagency.it",
+    "company_name": "Sparkle Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "shiftactivemedia.com",
+    "company_name": "SHIFT Active Media",
+    "segment": "OTHER",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "hashtag.com.pk",
+    "company_name": "HASHTAG",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "miqtech.com",
+    "company_name": "杭州网络科技有限公司",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "themetub.com",
+    "company_name": "The Metub Company",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "uppercasebrands.com",
+    "company_name": "Uppercase Brands",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "forsit.co.kr",
+    "company_name": "Forsit",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "atta-agence.com",
+    "company_name": "Atta",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "ttsmedia.de",
+    "company_name": "TTSMedia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "resilienceesports.com",
+    "company_name": "Resilience Media and Tech",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "xiletisim.com",
+    "company_name": "X İletişim",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "sharks.agency",
+    "company_name": "Shark Talent",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "thecrumb.co",
+    "company_name": "18startup community",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "livespins.com",
+    "company_name": "Livespins",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "macroactive.com",
+    "company_name": "MacroActive",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "listheagency.com",
+    "company_name": "LIS the agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "provoke.nl",
+    "company_name": "Provoke",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "thelastlayer.co",
+    "company_name": "The Last Layer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "antisocialsolutions.com",
+    "company_name": "AntiSocial. A Thinkingbox company.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "huqiaogames.com",
+    "company_name": "Huqiao Games",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "cousinlabs.com",
+    "company_name": "Cousin Labs",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "summerymedia.nl",
+    "company_name": "Summerymedia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "eyc-ltd.com",
+    "company_name": "EYC LTD",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "goadgo.app",
+    "company_name": "goadgo",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "bravebison.com",
+    "company_name": "Greenlight",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "epicdigitais.com.br",
+    "company_name": "EPIC Digitais",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "streamloots.com",
+    "company_name": "Streamloots",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "likeshop.me",
+    "company_name": "ELECTRIC",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "smileconseil.com",
+    "company_name": "Smile Conseil",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "creatordeck.com",
+    "company_name": "Creator Deck",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "collabx.in",
+    "company_name": "CollabX Entertainment",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "whim.sg",
+    "company_name": "WHIM",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "hype.co",
+    "company_name": "Hype",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "appbranded.com",
+    "company_name": "Branded",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "lunda-mgmt.de",
+    "company_name": "Lunda Management",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "agy-ncy.com",
+    "company_name": "AGY-NCY",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "blazingfastmedia.com",
+    "company_name": "Blazing Fast Media LLC",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "re6l.com",
+    "company_name": "re6l",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "parlorandmainmgmt.com",
+    "company_name": "Parlor & Main Management",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "settetheagency.com",
+    "company_name": "Sette",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "creativjungle.com",
+    "company_name": "Creativ Jungle",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "mindsetlab.it",
+    "company_name": "Mindset LAB",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "realz.tech",
+    "company_name": "Realz Tech",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "elevateagency.com",
+    "company_name": "Elevate Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "atomical.it",
+    "company_name": "Atomical By CreationDose",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "behaveagency.com",
+    "company_name": "Behave Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "holc-media.de",
+    "company_name": "Holczinger Media GmbH",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "socialfriendz.com",
+    "company_name": "Social Friendz B.V.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "verifiedworks.com",
+    "company_name": "VerifiedWorks",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "thesocialsynergists.com",
+    "company_name": "The Social Synergists",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "josa-mgmt.de",
+    "company_name": "JoSa Management",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "infinitefriend.co",
+    "company_name": "Infinite Friend",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "monsieurdarmon.com",
+    "company_name": "Monsieur Darmon",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "ota.network",
+    "company_name": "OTA Network",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "fnewmedia.com",
+    "company_name": "Founder New Media Ltd",
+    "segment": "OTHER",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "finnetmedia.com",
+    "company_name": "Finnet Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "thinketers.com",
+    "company_name": "thinketers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "iplix.in",
+    "company_name": "IPLIX Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "rhei.com",
+    "company_name": "RHEI",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "wooskill.com",
+    "company_name": "Wooskill",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "joinkoala.co",
+    "company_name": "Koala",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "culturex.ai",
+    "company_name": "CultureX",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "thenow.agency",
+    "company_name": "The Now Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "mightyjoy.com",
+    "company_name": "Mighty Joy",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "tr.ee",
+    "company_name": "GMED",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "dragonfruitmedia.co",
+    "company_name": "Dragonfruit",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.98"
+  },
+  {
+    "domain": "wldd.in",
+    "company_name": "WLDD Private Limited",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "elev-c.com",
+    "company_name": "ELEV-C",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "attn.sg",
+    "company_name": "ATTN",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "noodle.cx",
+    "company_name": "noodle",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "slice.id",
+    "company_name": "Slice Group",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "nossacomu.com.br",
+    "company_name": "Comu",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "zencontent.com",
+    "company_name": "ZenContent (acquired by IZEA)",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "booknerds.co",
+    "company_name": "Booknerds",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "mediacube.io",
+    "company_name": "Mediacube",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "archi-prod.fr",
+    "company_name": "Archi Prod",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "hypecollective.co.uk",
+    "company_name": "Hype Collective",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "mavemark.com",
+    "company_name": "Mavemark",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "14ballers.com",
+    "company_name": "14BALLERS GmbH",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "biltsocial.media",
+    "company_name": "Bilt",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.65"
+  },
+  {
+    "domain": "franklyagency.at",
+    "company_name": "FRANKLY AGENCY",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "bermvda.de",
+    "company_name": "BERMVDA GmbH",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "helloconvo.com",
+    "company_name": "HelloConvo",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "getroeme.com",
+    "company_name": "Roeme",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "kudosnarratives.com",
+    "company_name": "Kudos Narratives",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "boxxmedia.in",
+    "company_name": "Boxx Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "campsite.bio",
+    "company_name": "Marketing Weekly",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "wavetheagency.com",
+    "company_name": "Wave The Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "socialpruf.com",
+    "company_name": "Socialpruf",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "treasurehunter.co.kr",
+    "company_name": "Treasure Hunter",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "thecovenantcreative.com",
+    "company_name": "Covenant Creative LLC",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "challengersmgmt.com",
+    "company_name": "Challengers Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "legatussignum.com",
+    "company_name": "Legatus Signum",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "theredbrand.com",
+    "company_name": "The REd Brand",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "whoppl.com",
+    "company_name": "Whoppl.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "everythingbagel.com",
+    "company_name": "Everything Bagel",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "bambassadors.com",
+    "company_name": "Bambassadors by Humanz",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "panelforcreators.com",
+    "company_name": "PANEL",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "brandcycle.com",
+    "company_name": "BrandCycle",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "rclashers.com",
+    "company_name": "RCLASHERS MEDIA",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "iguanagrowth.com",
+    "company_name": "Iguana Growth Studios",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "onyxco.io",
+    "company_name": "Onyx Commerce",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "acifin.co.uk",
+    "company_name": "Acifin",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "potensicreative.com",
+    "company_name": "Potensi Creative",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "sparkmedia.la",
+    "company_name": "Spark Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "vidosertalent.com",
+    "company_name": "VidoserTalent",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "streamelements.com",
+    "company_name": "StreamElements",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "brandnation.co.uk",
+    "company_name": "",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "sociallypowerful.com",
+    "company_name": "Socially Powerful",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "18h08.fr",
+    "company_name": "18h08",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "beinfluence.eu",
+    "company_name": "beinfluence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "fayrli.com",
+    "company_name": "Fayrli",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "goatagency.com",
+    "company_name": "The Goat Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "fab-agency.com",
+    "company_name": "fab agency gmbh",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "smokinggun.agency",
+    "company_name": "Smoking Gun",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "influenceminds.agency",
+    "company_name": "Influence Minds Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "lookfamed.de",
+    "company_name": "lookfamed",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "infludata.com",
+    "company_name": "Infludata",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "theshelf.com",
+    "company_name": "The Shelf",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "gameinfluencer.com",
+    "company_name": "GameInfluencer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "helloomonday.com",
+    "company_name": "Hello Monday",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "theinfluencemarketer.com",
+    "company_name": "551 Media LLC",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "tnsagency.com",
+    "company_name": "the new standard",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "neliagency.com",
+    "company_name": "Neli Agency",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influencersworld.co",
+    "company_name": "Influencers World Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "ugccreators.es",
+    "company_name": "ugc creators",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "sb.digital",
+    "company_name": "Smartbrand",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "imaginadigital.com",
+    "company_name": "Imagina Digital Solutions SL",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "jirada.com",
+    "company_name": "Jirada",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "zoopa.es",
+    "company_name": "Zoopa",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "vizz-agency.com",
+    "company_name": "Vizz Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "canelapr.com",
+    "company_name": "Canela Comunicaciones",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "agenciaoniria.com",
+    "company_name": "Oniria",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "admoma.es",
+    "company_name": "moma",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "mrwho.buzz",
+    "company_name": "mrwho",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "filippa.es",
+    "company_name": "Filippa",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "litenlemon.com",
+    "company_name": "liten lemon",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "cyberclick.es",
+    "company_name": "Cyberclick",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "itshoh.com",
+    "company_name": "itshoh",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "thoughtmakersdigital.com",
+    "company_name": "Thought Makers Digital",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "firebellymarketing.com",
+    "company_name": "Firebelly Marketing",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "company.shopltk.com",
+    "company_name": "LTK",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "brandinglosangeles.com",
+    "company_name": "Branding Los Angeles",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "pulse-advertising.com",
+    "company_name": "Pulse Advertising",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mediaalacarte.com",
+    "company_name": "Media A La Carte",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "cavesocial.com",
+    "company_name": "Cave",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "another.co",
+    "company_name": "another",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "s360digital.com",
+    "company_name": "s360",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "digitalpr.dk",
+    "company_name": "digitalpr",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "athleticconnect.net",
+    "company_name": "Athletic Connect",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "getcims.com",
+    "company_name": "CIMS",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "luxelatam.com",
+    "company_name": "Luxe Latam",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "hearts-science.com",
+    "company_name": "Hearts & Science",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "croing.com",
+    "company_name": "croing",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "faceplantcreative.com",
+    "company_name": "Faceplant Creative",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "sparktalentgroup.com",
+    "company_name": "Spark Talent Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "socialmedia55.com",
+    "company_name": "Social Media 55",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "theinfluence.com",
+    "company_name": "The Influence",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "sevensixagency.com",
+    "company_name": "SevenSix Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "voyanceagency.com",
+    "company_name": "Voyance Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "divex.global",
+    "company_name": "DIVE X",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "itzitip.com",
+    "company_name": "Itzitip",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "sociably.co",
+    "company_name": "Sociably",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "atlaswayfarer.com",
+    "company_name": "Atlas Wayfarer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "grailtalent-1730296269.teamtailor.com",
+    "company_name": "Grail Talent",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "kolsquareteamblue.teamtailor.com",
+    "company_name": "Kolsquare",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "vivesocialpr.com",
+    "company_name": "Vive Social + PR",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "talkshopmedia.com",
+    "company_name": "Talk Shop Media",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "elyptusdigital.com",
+    "company_name": "Elyptus Digital",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "sensetider.com",
+    "company_name": "Sense Tider",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influenstarasia.my",
+    "company_name": "Influenstar Asia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "somerce.com",
+    "company_name": "Somerce",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "clickstalentbv-1749060007.teamtailor.com",
+    "company_name": "Clicks Talent",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "arabianmedia.ae",
+    "company_name": "Arabian Media",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "itp.live",
+    "company_name": "ITP Live",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "avec-paris.com",
+    "company_name": "AVEC Paris",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "expin.com",
+    "company_name": "Expin",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "thegamemarketer.com",
+    "company_name": "The Game Marketer",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "t-solutions.net",
+    "company_name": "T-Solutions",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "itsprettygreen.com",
+    "company_name": "PrettyGreen",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "newoneagency.com",
+    "company_name": "New One",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "hypesociety.com",
+    "company_name": "Hype Society",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "emv.io",
+    "company_name": "Exchange Media Ventures",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "wefluens.com",
+    "company_name": "wefluens",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "ctzar.com",
+    "company_name": "Ctzar",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mtrchk.com",
+    "company_name": "Matriochka Influences",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "thegramer.com",
+    "company_name": "The Gramer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "storyflowagency.com",
+    "company_name": "Storyflow Agency",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "wegarage.es",
+    "company_name": "theGarage",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "millietheagency.com",
+    "company_name": "Millie",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "factorn.com",
+    "company_name": "Factor Ñ",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "klautadvertising.com",
+    "company_name": "Klaut Advertising",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "marvelcollabs.com",
+    "company_name": "Marvel Collabs",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "creatorsnetwork.io",
+    "company_name": "Creators Network",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "medatok.com",
+    "company_name": "MeDaTok",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "beesandhoney.plus",
+    "company_name": "Bees & Honey",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "empyrecommunications.com",
+    "company_name": "Empyre Communications",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "adms.paris",
+    "company_name": "ADMS.PARIS I GLOBE GROUPE",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "brkfst.io",
+    "company_name": "brkfst",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "xtremesocials.com",
+    "company_name": "XtremeSocials",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "losfroilans.es",
+    "company_name": "LOS FROILANS",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "joancreative.com",
+    "company_name": "JOAN Creative",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "stars4brands.pl",
+    "company_name": "Stars4Brands",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "maremedia.agency",
+    "company_name": "Mare Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "tlfnetwork.com",
+    "company_name": "The Leapfrog Network",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "socially.ae",
+    "company_name": "Socially.ae",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "dappergoat.com",
+    "company_name": "Dapper Goat",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "chasingcreative.io",
+    "company_name": "Chasing Creative",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "globalsearchcouncil.com",
+    "company_name": "Global Search Council",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "vaqueroadvertising.com",
+    "company_name": "Vaquero Advertising",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influencella.com",
+    "company_name": "Influencella",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "captureaccounting.com",
+    "company_name": "Capture Accounting",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "ventesavenues.in",
+    "company_name": "Ventes Avenues",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "creatormarketing.store",
+    "company_name": "Creator Marketing",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "vivamediacreative.com",
+    "company_name": "Viva Media Creative",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "xolomarketing.com",
+    "company_name": "Xolo Marketing Digital",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "abcdigital.mx",
+    "company_name": "ABC Digital",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "tokify.se",
+    "company_name": "Tokify",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "ahacreator.com",
+    "company_name": "AhaCreator",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "getcreatify.com",
+    "company_name": "Creatify",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "divo.in",
+    "company_name": "Divo",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "walee.ae",
+    "company_name": "WALEE MENA",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "onfluencer.net",
+    "company_name": "Onfluencer",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "swavy.com",
+    "company_name": "Swavy",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "animeta.ai",
+    "company_name": "Animeta",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "getviralinfluencer.com",
+    "company_name": "Get Viral Influencer - Influencer Marketing Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "pulpkey.com",
+    "company_name": "Pulpkey - The Influencer Marketing Company",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "bengalreach.com",
+    "company_name": "Bengal Reach",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "yellowcarbon.co.uk",
+    "company_name": "Yellow Carbon",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "yadainfluencer.com",
+    "company_name": "Yada Influencer",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "lydly.ai",
+    "company_name": "LYDLY.AI",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "cre8r.ai",
+    "company_name": "Cre8r.ai",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "influencer.az",
+    "company_name": "Influencer Azerbaijan",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "ziziproject.vn",
+    "company_name": "Zizi Project",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "linkpizza.com",
+    "company_name": "LinkPizza - Content & Influencer Marketplace",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "kisradigitals.in",
+    "company_name": "Kisra Digital Marketing Pvt. Ltd.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "thevibes.network",
+    "company_name": "The Vibes Network",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "hyperiser.com",
+    "company_name": "Hyperiser",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "connector.cc",
+    "company_name": "Connector Club Asia",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "newmedia.cl",
+    "company_name": "New Media PR & Digital",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "collabglow.com",
+    "company_name": "COLLABGLOW",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "the-secret-society.com",
+    "company_name": "The Secret Society",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "360influencemedia.com",
+    "company_name": "360InfluenceMedia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "tol-d.in",
+    "company_name": "Thinking Out Loud Digital",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "talentstotal.com",
+    "company_name": "TalentsTotal",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "brandedcontent.com",
+    "company_name": "Branded ContentTM by Social Native",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "vyntrak.in",
+    "company_name": "Vyntrak",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "creatorhunts.com",
+    "company_name": "Creator Hunts",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "nativno.com",
+    "company_name": "Nativno Lab.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "chainad.co",
+    "company_name": "ChainAd",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "urviral.com",
+    "company_name": "UrViral",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "socialtaxi.in",
+    "company_name": "Social Taxi",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "earnon.ai",
+    "company_name": "earnon",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "trendcraftmedia.com",
+    "company_name": "TrendCraft Media Inc",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "kreatorz.com.br",
+    "company_name": "Kreatorz",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "theembassy.com.au",
+    "company_name": "The Embassy",
+    "segment": "Creative Communications",
+    "confidence": "IM_FIRST_AGENCIES"
+  },
+  {
+    "domain": "herrencorp.com",
+    "company_name": "헤렌(HERREN)",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "nakopnisvujmarketing.cz",
+    "company_name": "Nakopni svůj marketing",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "adriftmediala.com",
+    "company_name": "Adrift Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "kreatedmedia.com",
+    "company_name": "K-REATED MEDIA",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "agenciasete.com",
+    "company_name": "Agência Sete",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "influence-united.com",
+    "company_name": "Influence+United",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "digitalberries.co.in",
+    "company_name": "Digital Berries",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "boomlet.co",
+    "company_name": "Boomlet",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "pocketaces.in",
+    "company_name": "Pocket Aces",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "nativo.company",
+    "company_name": "Nativo",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "symmetrygroup.biz",
+    "company_name": "Symmetry Group",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "mooncommercegroup.com",
+    "company_name": "Dealmoon Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "pipame.com",
+    "company_name": "PIPA MEDIA",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "gethero.pl",
+    "company_name": "GetHero",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influencer-agency-berlin.60sec.site",
+    "company_name": "60sec.site",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "impacthubconnect.in",
+    "company_name": "ImpactHub Connect",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "analyzenbd.com",
+    "company_name": "Analyzen",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "gethypedmedia.com",
+    "company_name": "Get Hyped Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "hoopla-marketing.com",
+    "company_name": "Hoopla Marketing",
+    "segment": "OTHER",
+    "confidence": "1"
+  },
+  {
+    "domain": "popularpays.com",
+    "company_name": "Popular Pays",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "starfish.agency",
+    "company_name": "Starfish Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "mystic-advertising.com",
+    "company_name": "Mystic Advertising",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "moongency.de",
+    "company_name": "moongency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "iicaglobal.co.uk",
+    "company_name": "International Influencers & Creators Alliance",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "plodni.com",
+    "company_name": "Grupa Płodni",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "convergensee.ai",
+    "company_name": "ConvergenSEE Asia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "owledmedia.com",
+    "company_name": "OWLED",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "cipio.ai",
+    "company_name": "CIPIO.ai",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "ourownbrand.co",
+    "company_name": "Our Own Brand",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "mobfountain.com",
+    "company_name": "Mobfountain Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "ugcscandinavia.com",
+    "company_name": "ugc agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "wadidigital.com",
+    "company_name": "WadiDigital - B2B Tech Marketing Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "thisisfuture.com",
+    "company_name": "Futuretech",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "flandecoco.net",
+    "company_name": "Flandecoco",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "roundbarnlabs.com",
+    "company_name": "Round Barn Labs",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "fancall.in",
+    "company_name": "Fancall Private Limited",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "costainfluence.com",
+    "company_name": "Costa Influence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "vkng.agency",
+    "company_name": "Viking Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "flickzilla.in",
+    "company_name": "FLICKZILLA ENTERTAINMENT",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "digitalplannet.in",
+    "company_name": "DIGITAL PLANET",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "socialtagindia.com",
+    "company_name": "SocialTAG",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "storytime.io",
+    "company_name": "Storytime",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "agenciaolympia.com",
+    "company_name": "Olympia Marketing Solutions",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "katha-ads.com",
+    "company_name": "Katha - Sharing Stories, Scaling Impact",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "stagedigital.com.br",
+    "company_name": "Stage Digital",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "somosinfluencia.com",
+    "company_name": "influencia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "hamelin-agency.com",
+    "company_name": "Hamelin Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "coinband.io",
+    "company_name": "Coinband",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "urba.media",
+    "company_name": "URBA Inc.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "tawa.digital",
+    "company_name": "TAWA Digital Talents",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "smartcode.sa",
+    "company_name": "سمارت كود Smart Code",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "influence.cl",
+    "company_name": "Influence Latam",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "iconosquare.com",
+    "company_name": "Iconosquare",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "gamesmedya.com",
+    "company_name": "Games Medya",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "ugcfactory.io",
+    "company_name": "UGC Factory",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "sparkle-agency.fr",
+    "company_name": "Sparkle I Jaws Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "wearesculpt.com",
+    "company_name": "Sculpt - B2B Social Media Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "i-o.digital",
+    "company_name": "IO DIGITAL",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "digitalshoutouts.com",
+    "company_name": "Digital ShoutOuts Media",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "culturekidsgroup.agency",
+    "company_name": "CULTURE KIDS GROUP",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "divisiond.com",
+    "company_name": "Division-D",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "vividcandi.com",
+    "company_name": "Vivid Candi",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "contentjet.com",
+    "company_name": "ContentJet",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "creativelysquared.com",
+    "company_name": "Creatively Squared",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "career.curemedia.com",
+    "company_name": "Cure Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "holymarketing.agency",
+    "company_name": "Holy Marketing",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "runwayinfluence.com",
+    "company_name": "Runway Influence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "adinfluence.cl",
+    "company_name": "Adinfluence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "meltstudios.se",
+    "company_name": "Melt Studios",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "intalentsagency.com",
+    "company_name": "intalents agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "agenciamasala.com",
+    "company_name": "Agencia Masala",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "socialelite.io",
+    "company_name": "Social Elite",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "amraandelma.com",
+    "company_name": "Amra & Elma",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "collabri.se",
+    "company_name": "Collabri",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "hireinfluence.com",
+    "company_name": "HireInfluence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "useclip.com",
+    "company_name": "Clip",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "burnstheagency.com",
+    "company_name": "Burns the Agency",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "nimagency.com",
+    "company_name": "NIM Agency",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "hollywoodbranded.com",
+    "company_name": "Hollywood Branded",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "new-moon.com",
+    "company_name": "New Moon",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "madeviral.co",
+    "company_name": "Madeviral",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "berysocial.com",
+    "company_name": "Bery Social",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "parklu.com",
+    "company_name": "PARKLU by Launchmetrics",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "mrndigital.in",
+    "company_name": "MRN Digital",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "genesismedia.social",
+    "company_name": "Genesis Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "madmushroom.gg",
+    "company_name": "Mad Mushroom",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "pimogroup.com",
+    "company_name": "PIMO Lebanon",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "ugc.ninja",
+    "company_name": "UGC Ninja",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "breakr.app",
+    "company_name": "Breakr",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "snackmedia.io",
+    "company_name": "Snack Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "lean.partners",
+    "company_name": "Lean",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "goviralqa.com",
+    "company_name": "GoViral Agency",
+    "segment": "Qatar",
+    "confidence": "UAE"
+  },
+  {
+    "domain": "mamcreatives.com",
+    "company_name": "MAM Creatives",
+    "segment": "Reklam & Yazılım Şirketi",
+    "confidence": "IM_FIRST_AGENCIES"
+  },
+  {
+    "domain": "alist.club",
+    "company_name": "alist.club",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "influirmedia.com",
+    "company_name": "Influir Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "socialbread.id",
+    "company_name": "Social Bread Indonesia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "co-influencer.com",
+    "company_name": "Co-Influencer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "flynt.social",
+    "company_name": "flynt.social",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "ramd.am",
+    "company_name": "Ramdam",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "tatam.digital",
+    "company_name": "TATAM Digital",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "amiesocial.com",
+    "company_name": "Amie",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "cultcreativeasia.com",
+    "company_name": "CULT CREATIVE",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "interactivemedia.com.co",
+    "company_name": "Interactive Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "socioimpulse.com",
+    "company_name": "Socio Impulse",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "spaxads.com",
+    "company_name": "Spaxads Digital Media Pvt Ltd.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "mogl.online",
+    "company_name": "MOGL",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "demarke.com.tr",
+    "company_name": "De Marke",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "arteegroup.id",
+    "company_name": "ARTEE Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "4eon.net",
+    "company_name": "4EON Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "letstok.ai",
+    "company_name": "LetsTok.AI",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "brandup.in",
+    "company_name": "brandupX",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "truenorthmarketers.com",
+    "company_name": "True North Marketers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "thelimitlessagency.com",
+    "company_name": "The Limitless Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "omnesmedia.com",
+    "company_name": "OMNES Media Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "krazyfox.in",
+    "company_name": "Krazyfox",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "risingsunsagency.com",
+    "company_name": "Rising Suns Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "wediacorp.com",
+    "company_name": "Wediacorp",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "smartkom.com",
+    "company_name": "SMARTKOM",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "new-base.de",
+    "company_name": "newbase GmbH",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "perfectgroup.fr",
+    "company_name": "PERFECT GROUP",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "tellscore.com",
+    "company_name": "Tellscore",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "zink-talent.com",
+    "company_name": "Zink Talent",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "leadtail.com",
+    "company_name": "Leadtail",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "lettly.com",
+    "company_name": "Lettly",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "eliotconsultinggroup.com",
+    "company_name": "Eliot Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "rasooc.com",
+    "company_name": "Rasooc",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "bravebison.io",
+    "company_name": "The Hook",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "meetandfun.com.ar",
+    "company_name": "Meet and Fun",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "fragile.cz",
+    "company_name": "Fragile agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "digitalcrewsolution.com",
+    "company_name": "Digital Crew Solution",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "partnerforward.com",
+    "company_name": "PartnerForward",
+    "segment": "AFFILIATE_PERFORMANCE",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "xomad.com",
+    "company_name": "XOMAD",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "socialbird.in",
+    "company_name": "Social Bird",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "mimoni.com",
+    "company_name": "Mimoni",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "scrollstop.com",
+    "company_name": "SCROll STOP",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "omcomunicacion.digital",
+    "company_name": "OM Agency - Agencia de Marketing Digital",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "reise.digital",
+    "company_name": "REISE",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "thesociallemon.com",
+    "company_name": "The Social Lemon",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "yoola.com",
+    "company_name": "Yoola",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "candidnetwork.co",
+    "company_name": "Candid Network",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "viralco.mx",
+    "company_name": "VIRAL CO",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "thishe.re",
+    "company_name": "This Here",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "wearep2p.com",
+    "company_name": "P2P Marketing Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "actlocal.ae",
+    "company_name": "Act Local SEO Dubai",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "vizsense.com",
+    "company_name": "VizSense",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "jagideasgroup.com",
+    "company_name": "JAG Ideas Co. Ltd.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "infloro.com",
+    "company_name": "Infloro",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "hustlershub.net",
+    "company_name": "Hustlers Hub OÜ",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "brandplant.co",
+    "company_name": "BrandPlant.co",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "h2o-studio.com",
+    "company_name": "H2O Studio",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "bowie-agency.com",
+    "company_name": "BOWIE",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "sideagency.nl",
+    "company_name": "SIDE Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "createnpost.com",
+    "company_name": "Create N Post",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "communityfluence.com",
+    "company_name": "Communityfluence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "brightside.agency",
+    "company_name": "Bright Side",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "nexuspartnersagency.com",
+    "company_name": "Nexus Partners Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "pure-elevate.de",
+    "company_name": "Pure Elevate",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "hypefluence.in",
+    "company_name": "HYPEFLUENCE",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "odinfluencer.com",
+    "company_name": "OD INFLUENCER AGENCY",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "themesh.co",
+    "company_name": "The Mesh Company",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "nanozebra.com",
+    "company_name": "Nano Zebra (acquired by Outloud Talent)",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "moneymakersagency.com",
+    "company_name": "Moneymakers Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "a2influence.com",
+    "company_name": "A2 Influence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "prappers.com",
+    "company_name": "PRAPPERS MEDIA GROUP",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "sociopoolindia.com",
+    "company_name": "Sociopool India",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "somedia.in",
+    "company_name": "So.Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "demise.live",
+    "company_name": "Demise Live",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "minimi-agency.de",
+    "company_name": "Minimi Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "igie.gg",
+    "company_name": "Ichigo Ichie (igie.gg)",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "markenkaeptn.de",
+    "company_name": "markenkäpt'n",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "apexinc.com.au",
+    "company_name": "APEX Inc",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "invictos.cl",
+    "company_name": "Invictos",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "younite-agency.de",
+    "company_name": "Younite Agency GmbH",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "alletragenmasken.de",
+    "company_name": "Alle tragen Masken GmbH",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "banoffeemedia.com",
+    "company_name": "Banoffee Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "tagmedia.cloud",
+    "company_name": "ATG Media Group Inc",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "bitsandbond.com",
+    "company_name": "bits&bond",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "bounties.work",
+    "company_name": "Bounties",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "polele.co",
+    "company_name": "Polele",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "walnutmedia.com",
+    "company_name": "Walnut Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "streamstrudel.com",
+    "company_name": "Strudel",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "jabberhaus.com",
+    "company_name": "Jabberhaus",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "grail-talent.com",
+    "company_name": "Grail Talent",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "brandpal.ai",
+    "company_name": "BrandPal",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "barkmedia.net",
+    "company_name": "BARK",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "gridvoice.co.id",
+    "company_name": "Grid Voice",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "46social.com",
+    "company_name": "+46 Social",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "eridu.co.th",
+    "company_name": "ERIDU Co., Ltd.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "impact.com",
+    "company_name": "Impact",
+    "segment": "AFFILIATE_PERFORMANCE",
+    "confidence": "1"
+  },
+  {
+    "domain": "growi.io",
+    "company_name": "growi",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "cloutscout.io",
+    "company_name": "Clout Scout",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "grapzy.com",
+    "company_name": "Grapzy",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "refluenced.de",
+    "company_name": "refluenced",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "peersway.com",
+    "company_name": "Peersway",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "storyclash.com",
+    "company_name": "Storyclash",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "cmxcreator.com",
+    "company_name": "cm x creator",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "insightiq.ai",
+    "company_name": "InsightIQ",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "4bridge.org",
+    "company_name": "4bridge",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "adfluencer.de",
+    "company_name": "adfluencer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "beeinfluence.co.uk",
+    "company_name": "bee influence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "fluencer.co.uk",
+    "company_name": "fluencer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "channelbuzz.de",
+    "company_name": "channelbuzz",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "disruptmarketing.co",
+    "company_name": "Disrupt",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "themanual.de",
+    "company_name": "themanual.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influenconnect.com",
+    "company_name": "influenconnect",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "scooperz.com",
+    "company_name": "scooperz",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "eezycollab.com",
+    "company_name": "eezycollab",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "thesocialcat.com",
+    "company_name": "Social Cat",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "ugcmexico.co",
+    "company_name": "UGC Mexico",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "youdji.com",
+    "company_name": "Youdji",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "iconicsthlm.com",
+    "company_name": "Iconic STHLM",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "alkimiads.com",
+    "company_name": "Alkimiads",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "flowflamingo.com",
+    "company_name": "Flow Flamingo",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "hubugc.com",
+    "company_name": "hubugc",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "ugccreadores.com",
+    "company_name": "UGC Creadores",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "bemycreator.com",
+    "company_name": "Be My Creator",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "alteraction.es",
+    "company_name": "Alteraction",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "plusroimedia.com",
+    "company_name": "PlusROI Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "ugcboss.es",
+    "company_name": "UGC Boss",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "calibreugc.com",
+    "company_name": "Calibre UGC",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "publifyer.com",
+    "company_name": "Publifyer",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "xmediaagency.es",
+    "company_name": "xmedia agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "nowinflu.com",
+    "company_name": "nowinflu",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "werefantasy.com",
+    "company_name": "we!re fantasy",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "sideshift.app",
+    "company_name": "Sideshift",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "rift-agency.com",
+    "company_name": "Rift Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "pinkhyevents.com",
+    "company_name": "Pinkhy Events",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "flymetothemoon.es",
+    "company_name": "Fly Me To The Moon",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "milkyway-agency.com",
+    "company_name": "Milkyway Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "keepers.es",
+    "company_name": "keepers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "bycreators.es",
+    "company_name": "bycreators",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "hicari.io",
+    "company_name": "hicari",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "kohlcomunicacion.com",
+    "company_name": "Kohl Comunicación",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "brandmanic.com",
+    "company_name": "Brandmanic",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "tanke.fr",
+    "company_name": "tanke",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "notabene.es",
+    "company_name": "Nota Bene",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "atagency.es",
+    "company_name": "atagency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mediabodies.com",
+    "company_name": "Media Bodies",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "glitzcreativemarketing.com",
+    "company_name": "Glitz Creative Marketing",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "modelmanager.es",
+    "company_name": "Model Manager",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "influbase.com",
+    "company_name": "Furlong Marketing Ltd.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "thebeautymakers.com",
+    "company_name": "The Beauty Makers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "fiftykey.com",
+    "company_name": "FiftyKey",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "flinque.com",
+    "company_name": "Flinque",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "platiniumcast.pl",
+    "company_name": "platinium cast",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "viralplace.io",
+    "company_name": "ViralPlace",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "team5pm.com",
+    "company_name": "team5pm",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "relatable.me",
+    "company_name": "relatable",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "flake-agency.com",
+    "company_name": "Flake Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influglue.com",
+    "company_name": "Influglue",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "prfps.com",
+    "company_name": "prfps",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "youthmarketing.com",
+    "company_name": "Youth Marketing Connection",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "buzzanova.com",
+    "company_name": "buzzanova",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "doomel.com",
+    "company_name": "Doomel",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "wearecube.se",
+    "company_name": "Cube",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "prnordic.com",
+    "company_name": "PR Nordic",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "fourthfloorcreative.co",
+    "company_name": "Fourth Floor Creative",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "unitedinfluencers.com",
+    "company_name": "United Influencers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "pattern.com",
+    "company_name": "Pattern",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "wearecoolr.com",
+    "company_name": "Coolr",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "brighterclick.com",
+    "company_name": "Brighter Click",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "getbarter.com",
+    "company_name": "Barter",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mustard.love",
+    "company_name": "Mustard",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "ugc.com.co",
+    "company_name": "ugc colombia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "authenticnoise.com",
+    "company_name": "Authentic Noise",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mondsteinmedia.com",
+    "company_name": "Mondstein Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "minflu.com",
+    "company_name": "Minflu",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "weareera.com",
+    "company_name": "we are era",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mysocial.io",
+    "company_name": "mysocial",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "nordddb.com",
+    "company_name": "Nord DDB",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "aainfluence.com",
+    "company_name": "aa agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "tourn.com",
+    "company_name": "Tourn",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influencerspanama.com",
+    "company_name": "Influencers Panama",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "whatineedmarketing.com",
+    "company_name": "w.i.n. marketing",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "cogentworld.com",
+    "company_name": "Cogent World",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influencer-marketing-agency.com",
+    "company_name": "influencer marketing agency",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "brandambassadors.eu",
+    "company_name": "BRANDAMBASSADORS",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "momentuminfluence1.com",
+    "company_name": "Momentum Influence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "bridgeagency.com",
+    "company_name": "Bridge Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "swai.social",
+    "company_name": "Swai",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "urbanyoungsters.de",
+    "company_name": "Urban Youngsters",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "thefoxmgmt.com",
+    "company_name": "Fox",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "matchupinfluencer.com",
+    "company_name": "itsMatchUp",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "hypetap.com",
+    "company_name": "Hypetap",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "shewolfagency.com",
+    "company_name": "She Wolf Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "greendots.agency",
+    "company_name": "Green Dots",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "reachdxb.me",
+    "company_name": "Reach DXB",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "catchers.agency",
+    "company_name": "Catchers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "girlillamarketing.com",
+    "company_name": "Girlilla Marketing",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "caagency.com",
+    "company_name": "CA Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "gofluence.io",
+    "company_name": "GoFluence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "theugc.group",
+    "company_name": "The UGC Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "gordonglenister.com",
+    "company_name": "Gordon Glenister Ltd",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influencermediaservices.com",
+    "company_name": "Influencer Media Services",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "en.mediamz.com",
+    "company_name": "Mediamz",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "newkith.com",
+    "company_name": "New Kith",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "uniquetalents.me",
+    "company_name": "uniquetalents",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "zhooshmiddleeast.com",
+    "company_name": "Zhoosh",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "influencyfy.com",
+    "company_name": "Influencyfy",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "imagency.com",
+    "company_name": "imagency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "spinbrands.com",
+    "company_name": "Spin",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "onehub.ae",
+    "company_name": "One Hub",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "alist.ae",
+    "company_name": "alist.ae",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "imfluence.ae",
+    "company_name": "Imfluence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "faved.com",
+    "company_name": "Faved",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "endorsementlab.com",
+    "company_name": "Endorsement Lab",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "grandeapp.com",
+    "company_name": "GrandeApp",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "takefluence.com",
+    "company_name": "Takefluence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "popcomms.ae",
+    "company_name": "POP Communications",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "offlimitsgroup.com",
+    "company_name": "Off Limits Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influencerdb.net",
+    "company_name": "InfluencerDB",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "vibe-social.com",
+    "company_name": "VIBE Social",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "dojo.do",
+    "company_name": "DOJO",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "aidem-agency.com",
+    "company_name": "Aidem Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "grupo-go.es",
+    "company_name": "Grupo Go",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mia-international.es",
+    "company_name": "MIA International",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "thewolfiscoming.com",
+    "company_name": "TWIC - The Wolf Is Coming",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "femmefab.nl",
+    "company_name": "Femmefab",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "imayln.com",
+    "company_name": "IM ĀYLN",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "virtualpublicist.com",
+    "company_name": "Virtual Publicist",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "8flamez.co",
+    "company_name": "8Flamez",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "marvalero.com",
+    "company_name": "Marvalero",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "inclusifystudio.com",
+    "company_name": "Inclusify Studio",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "atisfyre.com",
+    "company_name": "Atisfyre",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "keepupagency.se",
+    "company_name": "ARCO",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "carterpulse.com",
+    "company_name": "Carterpulse",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "show.gg",
+    "company_name": "Show Advertising Inc.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "compastudios.com",
+    "company_name": "Compa Studios",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "silainfluence.com",
+    "company_name": "Sila Influence",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "zenithmedia.es",
+    "company_name": "Zenith Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "youthevemedia.com",
+    "company_name": "Youth Eve Media LLC",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "thefifthagency.com",
+    "company_name": "The Fifth Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "bluecell.es",
+    "company_name": "Bluecell Comunicación",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "heyinfluencers.com",
+    "company_name": "Hey Influencers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "gb-dm.com",
+    "company_name": "G&B Digital Management, Inc.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "scalefluence.com",
+    "company_name": "Scalefluence",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "bitetheagency.com",
+    "company_name": "Join",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mnstr.com",
+    "company_name": "mnstr",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "fluffiagency.com",
+    "company_name": "Fluffi Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "themedialab.me",
+    "company_name": "The Media Lab",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "socializers.digital",
+    "company_name": "Socializers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influ-ia.com",
+    "company_name": "influ-ia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "brandlovers.it",
+    "company_name": "BRANDLOVERS",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influrating.com",
+    "company_name": "Influrating",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "rainman.co",
+    "company_name": "Rainman Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "returnoncreators.com",
+    "company_name": "Return On Creators",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "influentia.me",
+    "company_name": "Influentia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "vynagency.com",
+    "company_name": "Vyn Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "brandnation.se",
+    "company_name": "BrandNation",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "theqclub.es",
+    "company_name": "The Q Club",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "officine-25.it",
+    "company_name": "Officine Venticinque",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "xposure.se",
+    "company_name": "ARCO",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "adclusive.se",
+    "company_name": "Adclusive",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "be-shiny.com",
+    "company_name": "Be Shiny",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "following.ae",
+    "company_name": "Following",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "brands.air.io",
+    "company_name": "AIR Brands",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "1stcollab.com",
+    "company_name": "1stCollab",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "gima.ae",
+    "company_name": "GIMA",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "boomerang.ae",
+    "company_name": "Boomerang",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "valeriasofia.agency",
+    "company_name": "Valeria Sofia",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "impalamexico.com",
+    "company_name": "Impala Marketing Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "thebloomagency.es",
+    "company_name": "The Bloom Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "influbalance.com",
+    "company_name": "Influbalance",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "friendsandbrands.pl",
+    "company_name": "friends&brands",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "digitalnativescontent.com",
+    "company_name": "Digital Natives",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "moca-tech.net",
+    "company_name": "Moca Technology",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "mvemanagement.com",
+    "company_name": "MVE Management",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "thinkydigital.com",
+    "company_name": "Thinky Digital",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "shortsintel.com",
+    "company_name": "ShortsIntel",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "pendorsa.com",
+    "company_name": "Pendorsa",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "influxo.eu",
+    "company_name": "INFLUXO",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "sabioholding.com",
+    "company_name": "Sabio Holdings",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "scrumball.com",
+    "company_name": "Scrumball",
+    "segment": "OTHER",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "join.marketing",
+    "company_name": "Join Marketing",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "mocapp.net",
+    "company_name": "MOCAPP",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "ohmedya.com",
+    "company_name": "OH MEDYA",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "terareach.com",
+    "company_name": "Qoruz",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "crivey.com",
+    "company_name": "Crivey Ai",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "mediamixer.io",
+    "company_name": "MediaMixer",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "influencify.io",
+    "company_name": "Influencify",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "disint.ai",
+    "company_name": "DisInt.ai",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.75"
+  },
+  {
+    "domain": "geni.mn",
+    "company_name": "Geni Platform",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "acast.com",
+    "company_name": "Podcast Facteurs Humains",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "colegram.io",
+    "company_name": "Colegram.io",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "arsenal.gg",
+    "company_name": "Arsenal.gg",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "sphereinfluencer.com",
+    "company_name": "Sphere",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "richlinedigitalmedia.com",
+    "company_name": "Richline Media",
+    "segment": "OTHER",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "forefrontatl.com",
+    "company_name": "Forefront",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "thecollabers.com",
+    "company_name": "The Collabers",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "usevynture.com",
+    "company_name": "Vynture",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "atlaseek.com",
+    "company_name": "atlaseek",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "brandbacker.com",
+    "company_name": "BrandBacker",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "hepmil.com",
+    "company_name": "HEPMIL Thailand",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "onedigitalentertainment.com",
+    "company_name": "OneDigital Entertainment",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "allfluence.com.br",
+    "company_name": "Allfluence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "pingnetwork.in",
+    "company_name": "PING Network",
+    "segment": "OTHER",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "yeah1group.com",
+    "company_name": "YeaH1 Careers",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "dctagency.com",
+    "company_name": "DCT Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "evos.gg",
+    "company_name": "EVOS Esports",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "sillymonks.com",
+    "company_name": "Silly Monks Entertainment Ltd.",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "sparkfly.net",
+    "company_name": "SparkFly Media",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "nahato.co.jp",
+    "company_name": "株式会社ナハト",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "teamwhistle.com",
+    "company_name": "Team Whistle",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "charlesandcharlotte.com",
+    "company_name": "charles & charlotte - we're hiring!",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "didenokteam.com",
+    "company_name": "DIDENOK TEAM",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "vrinfluence.ai",
+    "company_name": "VRinfluence.ai",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "icollabs.com",
+    "company_name": "icollabsindia",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "moonio.io",
+    "company_name": "Moonio",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "sociocreator.com",
+    "company_name": "SocioCreator",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "igotrend.com",
+    "company_name": "IGoTrend",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "allymatic.com",
+    "company_name": "allymatic",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "playnest.com.br",
+    "company_name": "PlayNest",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "conex.id",
+    "company_name": "Conex.id",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "starrykol.com",
+    "company_name": "Starry",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "fluvip.com",
+    "company_name": "FLUVIP - Influencer Marketing Leader",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "mintandmilk.com",
+    "company_name": "Mint & Milk PR",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "foryouadvertising.com",
+    "company_name": "For You",
+    "segment": "TikTok Growth Agency",
+    "confidence": "IM_FIRST_AGENCIES"
+  },
+  {
+    "domain": "spawnpointmedia.com",
+    "company_name": "Spawnpoint Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "settr.com",
+    "company_name": "Settr",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "afmagency.net",
+    "company_name": "AFM Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "piltwave.com",
+    "company_name": "Piltwave Media",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "connector.ie",
+    "company_name": "Connector",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "ampverse.com",
+    "company_name": "Ampverse",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "monk-e.in",
+    "company_name": "Monk-E",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "goinsiders.com.br",
+    "company_name": "GoInsiders",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "greenwoodagency.org",
+    "company_name": "GREENWOOD MCN",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "bintangagency.com",
+    "company_name": "Biru Satria Mediatama",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "vxmediagroup.com",
+    "company_name": "VX Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "creatorinfo.in",
+    "company_name": "creator info",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "gmd.digital",
+    "company_name": "GMD",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "reign.management",
+    "company_name": "Reign Management Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "ebnbiz.com",
+    "company_name": "Esports Business Network (EBN)",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "gassed.com",
+    "company_name": "GASSED",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "unleashmgmt.com",
+    "company_name": "UNLEASH.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "pinpung.com",
+    "company_name": "PinPung",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "stackinfluence.com",
+    "company_name": "Stack Influence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "1"
+  },
+  {
+    "domain": "yimb.nl",
+    "company_name": "Yimb.nl",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "avantiocrew.com",
+    "company_name": "Avantio Crew",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "1stinfluencer.com",
+    "company_name": "1stinfluencer.com",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "drim.one",
+    "company_name": "DRIM",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "thecrazyentrepreneur.com",
+    "company_name": "The Crazy Entrepreneur",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "nooon.life",
+    "company_name": "nooon",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "mikzalliance.com",
+    "company_name": "mikz alliance",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "sokotrend.com",
+    "company_name": "Sokotrend",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "wearebonafide.co.uk",
+    "company_name": "Bona Fide",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "idiotic.media",
+    "company_name": "Idiotic Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "digitalmarketing.red",
+    "company_name": "Digital Marketing RED",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "tagby.io",
+    "company_name": "TAGby",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "creator.co",
+    "company_name": "IOVIA (Acquired by Creator.co)",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "socialswipe.in",
+    "company_name": "Social Swipe",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "influencenation.com",
+    "company_name": "Influence Nation",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "hemblem.app",
+    "company_name": "HEMBLEM",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "youthmarketer.com",
+    "company_name": "Youth Marketer",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "saltbuzz.co",
+    "company_name": "Saltbuzz",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "mom2.com",
+    "company_name": "Mom 2.0",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "onalytica.com",
+    "company_name": "Onalytica",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "1"
+  },
+  {
+    "domain": "nativehash.io",
+    "company_name": "nativehash",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "getendlss.com",
+    "company_name": "Endlss",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "epin.co.id",
+    "company_name": "PT EPIN",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "palettemedia.com",
+    "company_name": "Palette Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "valeriainc.com",
+    "company_name": "VALERIA INC.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "elementhuman.com",
+    "company_name": "Element Human",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "rubaru.app",
+    "company_name": "RuBaRu",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "newsocialtheory.com",
+    "company_name": "New Social Theory",
+    "segment": "NEW:SOCIAL_COMMERCE_TOOLS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "dls-consulting.de",
+    "company_name": "DLS Consulting GmbH",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "milanmedia.co",
+    "company_name": "Milan Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "jelly.cl",
+    "company_name": "Jelly - agencia con alma digital",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "creatorstation.com",
+    "company_name": "CreatorStation",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "herocollective.co",
+    "company_name": "Hero Collective",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.88"
+  },
+  {
+    "domain": "circuit.com.pe",
+    "company_name": "Circuit",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "otknetwork.com",
+    "company_name": "OTK Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "aiims.group",
+    "company_name": "AIIMSTM",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "twelvenyc.com",
+    "company_name": "Twelve",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "dexerto.media",
+    "company_name": "Dexerto",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "affogato.ai",
+    "company_name": "Affogato AI",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "livebuzzstudio.com",
+    "company_name": "LiveBuzz Studio",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "odysseyentgroup.com",
+    "company_name": "Odyssey Entertainment Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "wonderful.fr",
+    "company_name": "Wonderful",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "click2commission.com",
+    "company_name": "Click2Commission",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "storytap.com",
+    "company_name": "StoryTap",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "somosmodo.com",
+    "company_name": "MODO",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "neonroseagency.com",
+    "company_name": "Neon Rose",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "10pmcurfew.com",
+    "company_name": "10PM Curfew",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "weareverbatim.com",
+    "company_name": "Verbatim",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "3folks.com",
+    "company_name": "3Folks Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "breakthecode.in",
+    "company_name": "Break The Code",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "lunarstrategy.com",
+    "company_name": "Lunar Strategy: The Crypto Ecosystem Growth Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "popcommunication.com.br",
+    "company_name": "GRUPO POP",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "exhibit.co.in",
+    "company_name": "Exhibit & TopGear Mag India",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "chaibisket.com",
+    "company_name": "Chai Bisket",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "fromthelobby.com",
+    "company_name": "The Lobby",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "mobihunter.co",
+    "company_name": "Mobihunter",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "misiva.com.ec",
+    "company_name": "Misiva",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "splayone.com",
+    "company_name": "Splay One",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "aer.media",
+    "company_name": "Aer Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "creatorauthority.com",
+    "company_name": "Creator Authority",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "influasia.com",
+    "company_name": "INFLUASIA",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "palup.ai",
+    "company_name": "PalUp",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "intertalentgroup.com",
+    "company_name": "InterTalent",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "deodato.co",
+    "company_name": "Deodato",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "fabulate.com.au",
+    "company_name": "Fabulate",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "infleux.co",
+    "company_name": "Infleux",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "frame55.agency",
+    "company_name": "Frame 55",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "digimag.co.in",
+    "company_name": "DigiMag",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "trndmarketingph.com",
+    "company_name": "TRND Marketing",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "inbazz.com.br",
+    "company_name": "Inbazz",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "arlow.fr",
+    "company_name": "Arlow",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "playthehype.com",
+    "company_name": "PlayTheHype",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "gruposoller.com.br",
+    "company_name": "Grupo Soller",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "keepagency.us",
+    "company_name": "Keep Agency",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "socialtale.co",
+    "company_name": "Social Tale - TikTok Shop Agency",
+    "segment": "AFFILIATE_PERFORMANCE",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "algoritz.com",
+    "company_name": "Algoritz Technologies",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "dataonsteroids.com",
+    "company_name": "Data on Steroids",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "mcfillmedia.com",
+    "company_name": "McFill Media and Publishing Group",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "trysuperbloom.com",
+    "company_name": "Superbloom",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.8"
+  },
+  {
+    "domain": "visitinfluence.com",
+    "company_name": "Visit Influence MENA",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "wawaproductions.ca",
+    "company_name": "Wawa Productions",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.92"
+  },
+  {
+    "domain": "puffmedia.co",
+    "company_name": "Puff Media",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "haluandigital.agency",
+    "company_name": "Haluan Digital Agency",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.85"
+  },
+  {
+    "domain": "fcommerce.id",
+    "company_name": "F-Commerce",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "chcgroupusa.com",
+    "company_name": "CHC Fashion Group LLC",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.95"
+  },
+  {
+    "domain": "inhouse.team",
+    "company_name": "inHouse Productions Inc.",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "yonder.co.za",
+    "company_name": "YONDER",
+    "segment": "OTHER",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "37partners.com",
+    "company_name": "37 Partners",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  },
+  {
+    "domain": "alltargeting.com",
+    "company_name": "All Targeting Media & Marketing",
+    "segment": "INFLUENCER_PLATFORMS",
+    "confidence": "0.7"
+  },
+  {
+    "domain": "influenceme.de",
+    "company_name": "Influenceme",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "socialcut.agency",
+    "company_name": "Social Cut",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.5"
+  },
+  {
+    "domain": "grapesworldwide.com",
+    "company_name": "Grapes Worldwide",
+    "segment": "OTHER",
+    "confidence": "0.65"
+  },
+  {
+    "domain": "maxedinfluence.com",
+    "company_name": "Maxed Influence",
+    "segment": "IM_FIRST_AGENCIES",
+    "confidence": "0.9"
+  }
+]

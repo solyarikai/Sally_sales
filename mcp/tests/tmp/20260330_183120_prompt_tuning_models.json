@@ -1,0 +1,669 @@
+{
+  "ts": "20260330_183120",
+  "results": [
+    {
+      "classifier": "gpt-4o-mini",
+      "improver": "gpt-4o-mini",
+      "final_accuracy": 1.0,
+      "iterations": 4,
+      "time": 66.9436469078064,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1277
+        },
+        {
+          "iter": 2,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "inthestyle.com",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1508
+        },
+        {
+          "iter": 3,
+          "accuracy": 1.0,
+          "mismatches": [],
+          "prompt_len": 1653
+        }
+      ],
+      "remaining_errors": []
+    },
+    {
+      "classifier": "gpt-4o-mini",
+      "improver": "gpt-4.1-mini",
+      "final_accuracy": 1.0,
+      "iterations": 2,
+      "time": 39.47163009643555,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "inthestyle.com",
+              "type": "FP"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "accuracy": 1.0,
+          "mismatches": [],
+          "prompt_len": 1840
+        }
+      ],
+      "remaining_errors": []
+    },
+    {
+      "classifier": "gpt-4o-mini",
+      "improver": "gpt-4o",
+      "final_accuracy": 1.0,
+      "iterations": 3,
+      "time": 50.35746097564697,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "inthestyle.com",
+              "type": "FP"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1444
+        },
+        {
+          "iter": 2,
+          "accuracy": 1.0,
+          "mismatches": [],
+          "prompt_len": 1580
+        }
+      ],
+      "remaining_errors": []
+    },
+    {
+      "classifier": "gpt-4o-mini",
+      "improver": "gpt-4.1-nano",
+      "final_accuracy": 0,
+      "iterations": 2,
+      "time": 27.674655199050903,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "error": "Expecting value: line 1 column 1 (char 0)"
+        }
+      ],
+      "remaining_errors": []
+    },
+    {
+      "classifier": "gpt-4.1-mini",
+      "improver": "gpt-4o-mini",
+      "final_accuracy": 0.9,
+      "iterations": 5,
+      "time": 77.74069666862488,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1302
+        },
+        {
+          "iter": 2,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1438
+        },
+        {
+          "iter": 3,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1571
+        },
+        {
+          "iter": 4,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1596
+        }
+      ],
+      "remaining_errors": [
+        "majorplayers.co.uk"
+      ]
+    },
+    {
+      "classifier": "gpt-4.1-mini",
+      "improver": "gpt-4.1-mini",
+      "final_accuracy": 1.0,
+      "iterations": 2,
+      "time": 29.284335136413574,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "accuracy": 1.0,
+          "mismatches": [],
+          "prompt_len": 1685
+        }
+      ],
+      "remaining_errors": []
+    },
+    {
+      "classifier": "gpt-4.1-mini",
+      "improver": "gpt-4o",
+      "final_accuracy": 0.7,
+      "iterations": 5,
+      "time": 69.67473888397217,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1445
+        },
+        {
+          "iter": 2,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1526
+        },
+        {
+          "iter": 3,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1657
+        },
+        {
+          "iter": 4,
+          "accuracy": 0.7,
+          "mismatches": [
+            {
+              "domain": "inthestyle.com",
+              "type": "FP"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            },
+            {
+              "domain": "lindafarrow.com",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1669
+        }
+      ],
+      "remaining_errors": [
+        "inthestyle.com",
+        "majorplayers.co.uk",
+        "lindafarrow.com"
+      ]
+    },
+    {
+      "classifier": "gpt-4.1-mini",
+      "improver": "gpt-4.1-nano",
+      "final_accuracy": 0,
+      "iterations": 2,
+      "time": 21.688567876815796,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "error": "Expecting value: line 1 column 1 (char 0)"
+        }
+      ],
+      "remaining_errors": []
+    },
+    {
+      "classifier": "gpt-4.1-nano",
+      "improver": "gpt-4o-mini",
+      "final_accuracy": 0.7,
+      "iterations": 5,
+      "time": 53.5062301158905,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "accuracy": 0.6,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "sixteenth.com",
+              "type": "FN"
+            },
+            {
+              "domain": "seenconnects.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1272
+        },
+        {
+          "iter": 2,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1395
+        },
+        {
+          "iter": 3,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1389
+        },
+        {
+          "iter": 4,
+          "accuracy": 0.7,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "sixteenth.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1497
+        }
+      ],
+      "remaining_errors": [
+        "thenewgen.com",
+        "sixteenth.com",
+        "majorplayers.co.uk"
+      ]
+    },
+    {
+      "classifier": "gpt-4.1-nano",
+      "improver": "gpt-4.1-mini",
+      "final_accuracy": 0.7,
+      "iterations": 5,
+      "time": 62.38456606864929,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "accuracy": 0.7,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "sixteenth.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1651
+        },
+        {
+          "iter": 2,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1968
+        },
+        {
+          "iter": 3,
+          "accuracy": 0.7,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "sixteenth.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 2085
+        },
+        {
+          "iter": 4,
+          "accuracy": 0.7,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "sixteenth.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 2138
+        }
+      ],
+      "remaining_errors": [
+        "thenewgen.com",
+        "sixteenth.com",
+        "majorplayers.co.uk"
+      ]
+    },
+    {
+      "classifier": "gpt-4.1-nano",
+      "improver": "gpt-4o",
+      "final_accuracy": 0.8,
+      "iterations": 5,
+      "time": 52.08451294898987,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1398
+        },
+        {
+          "iter": 2,
+          "accuracy": 0.7,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "sixteenth.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1465
+        },
+        {
+          "iter": 3,
+          "accuracy": 0.9,
+          "mismatches": [
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1505
+        },
+        {
+          "iter": 4,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1651
+        }
+      ],
+      "remaining_errors": [
+        "thenewgen.com",
+        "majorplayers.co.uk"
+      ]
+    },
+    {
+      "classifier": "gpt-4.1-nano",
+      "improver": "gpt-4.1-nano",
+      "final_accuracy": 0,
+      "iterations": 2,
+      "time": 17.32452893257141,
+      "history": [
+        {
+          "iter": 0,
+          "accuracy": 0.8,
+          "mismatches": [
+            {
+              "domain": "thenewgen.com",
+              "type": "FN"
+            },
+            {
+              "domain": "majorplayers.co.uk",
+              "type": "FP"
+            }
+          ],
+          "prompt_len": 1209
+        },
+        {
+          "iter": 1,
+          "error": "'str' object has no attribute 'get'"
+        }
+      ],
+      "remaining_errors": []
+    }
+  ],
+  "best": {
+    "classifier": "gpt-4o-mini",
+    "improver": "gpt-4.1-mini",
+    "accuracy": 1.0,
+    "iterations": 2
+  }
+}

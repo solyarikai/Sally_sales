@@ -1,0 +1,21 @@
+{
+  "url": "https://onsocial.ai/",
+  "company_name": "OnSocial",
+  "core_offer": "AI-powered creator data solution for influencer marketing — find, analyze, and evaluate creators across Instagram, TikTok, YouTube",
+  "products": [
+    "Creator Discovery — find influencers by audience filters, engagement, geo, interests, content topics",
+    "Creator Analytics — deep influencer metrics + audience insights (demographics, psychographics, brand affinity)",
+    "Social Data API — programmatic access to creator/audience data",
+    "Sponsored Posts tracking — find paid posts by hashtags, mentions, brand handles"
+  ],
+  "target_audience": "Influencer marketing platforms, agencies, brands, tech companies, research companies",
+  "value_proposition": "Best-in-market influencer discovery with audience-level data (demographics, psychographics, geo) for data-driven creator selection",
+  "key_metrics": {
+    "platforms": "Instagram, TikTok, YouTube",
+    "data_types": "engagement rates, audience reachability, demographics, psychographics, brand affinity",
+    "discovery_type": "content-first (what creators talk about, not just keywords)"
+  },
+  "pricing_model": "SaaS pricing (pricing page exists)",
+  "competitors": ["HypeAuditor", "Modash", "CreatorIQ", "Upfluence"],
+  "NOT": ["social media management", "posting tool", "influencer agency", "fashion brand", "payroll"]
+}

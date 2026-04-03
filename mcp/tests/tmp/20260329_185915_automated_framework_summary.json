@@ -1,0 +1,1994 @@
+{
+  "timestamp": "2026-03-29T15:59:15.661609+00:00",
+  "source": "automated_framework",
+  "engine": "Claude (Anthropic API) \u2192 MCP SSE",
+  "server": "http://46.62.210.24:8002/mcp/sse",
+  "results": [
+    {
+      "test_id": "00_qwe_test_framework_validation",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "context_check",
+          "prompt": "What projects do I have? Show me my current state.",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 4.2,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 2,
+          "phase": "create_project",
+          "prompt": "New project: QWE-TestProject, site is easystaff.io",
+          "tools_called": [
+            "create_project"
+          ],
+          "duration_s": 3.8,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "check_integrations",
+          "prompt": "Which services are connected?",
+          "tools_called": [
+            "check_integrations"
+          ],
+          "duration_s": 2.89,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 4,
+          "phase": "list_sources",
+          "prompt": "What sources can I use?",
+          "tools_called": [
+            "tam_list_sources"
+          ],
+          "duration_s": 4.69,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 5,
+          "phase": "list_email_accounts",
+          "prompt": "List sending accounts",
+          "tools_called": [
+            "list_email_accounts"
+          ],
+          "duration_s": 7.06,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 6,
+          "phase": "reply_summary",
+          "prompt": "Reply status for my project?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 8.0,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 7,
+          "phase": "estimate_cost",
+          "prompt": "How much would it cost to find 50 IT consulting companies in Miami via Apollo?",
+          "tools_called": [
+            "estimate_cost"
+          ],
+          "duration_s": 6.27,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 100.0,
+      "timestamp": "2026-03-29T15:53:00.396698+00:00"
+    },
+    {
+      "test_id": "01_full_journey_easystaff",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "first_contact",
+          "prompt": "Hey, I want to launch outreach for my company",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 6.15,
+          "error_source": null,
+          "score": 0.0,
+          "passed": 0,
+          "total": 3,
+          "fails": {
+            "missing:sign up": true,
+            "missing:token": true,
+            "missing:setup": true
+          }
+        },
+        {
+          "step": 2,
+          "phase": "auth",
+          "prompt": "Here's my token: mcp_xxx...",
+          "tools_called": [
+            "login"
+          ],
+          "duration_s": 4.6,
+          "error_source": null,
+          "score": 0.0,
+          "passed": 0,
+          "total": 3,
+          "fails": {
+            "missing:welcome": true,
+            "missing:website": true,
+            "missing:what do you": true
+          }
+        },
+        {
+          "step": 3,
+          "phase": "company_context",
+          "prompt": "Check out easystaff.io \u2014 that's us. I'm Eleonora",
+          "tools_called": [
+            "tam_gather"
+          ],
+          "duration_s": 3.73,
+          "error_source": "mcp",
+          "score": 25.0,
+          "passed": 1,
+          "total": 4,
+          "fails": {
+            "missing:created": true,
+            "missing:scraped": true,
+            "tool_error:tam_gather": "Project not found"
+          }
+        },
+        {
+          "step": 4,
+          "phase": "api_keys",
+          "prompt": "Check my integrations",
+          "tools_called": [
+            "check_integrations"
+          ],
+          "duration_s": 3.91,
+          "error_source": null,
+          "score": 75.0,
+          "passed": 3,
+          "total": 4,
+          "fails": {
+            "missing:API key": true
+          }
+        },
+        {
+          "step": 5,
+          "phase": "existing_campaigns",
+          "prompt": "All campaigns including 'petr' in their names are my campaigns",
+          "tools_called": [
+            "import_smartlead_campaigns"
+          ],
+          "duration_s": 3.0,
+          "error_source": "mcp",
+          "score": 40.0,
+          "passed": 2,
+          "total": 5,
+          "fails": {
+            "missing:blacklist": true,
+            "missing:contacts": true,
+            "tool_error:import_smartlead_campaigns": "Project not found"
+          }
+        },
+        {
+          "step": 6,
+          "phase": "gathering_multi_segment_multi_geo",
+          "prompt": "Find IT consulting companies in Miami and video production companies in London",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.84,
+          "error_source": null,
+          "score": 80.0,
+          "passed": 4,
+          "total": 5,
+          "fails": {
+            "missing:2 segment": true
+          }
+        },
+        {
+          "step": 7,
+          "phase": "gathering_execution",
+          "prompt": "Start gathering for IT consulting and video production",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.07,
+          "error_source": null,
+          "score": 66.66666666666666,
+          "passed": 2,
+          "total": 3,
+          "fails": {
+            "missing:gathered": true
+          }
+        },
+        {
+          "step": 8,
+          "phase": "pipeline_processing",
+          "prompt": "Process the pipeline",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.98,
+          "error_source": null,
+          "score": 100,
+          "passed": 0,
+          "total": 0,
+          "fails": {}
+        },
+        {
+          "step": 9,
+          "phase": "email_accounts",
+          "prompt": "Pick accounts with eleonora in the email from my existing campaigns",
+          "tools_called": [
+            "list_smartlead_campaigns"
+          ],
+          "duration_s": 4.04,
+          "error_source": null,
+          "score": 0.0,
+          "passed": 0,
+          "total": 2,
+          "fails": {
+            "missing:email account": true,
+            "missing:which": true
+          }
+        },
+        {
+          "step": 10,
+          "phase": "sequence_and_campaign",
+          "prompt": "Create the sequence and campaign in SmartLead",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.22,
+          "error_source": null,
+          "score": 75.0,
+          "passed": 3,
+          "total": 4,
+          "fails": {
+            "missing:check your inbox": true
+          }
+        },
+        {
+          "step": 11,
+          "phase": "reply_intelligence",
+          "prompt": "Any warm leads? Who should I reply to?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.24,
+          "error_source": null,
+          "score": 33.33333333333333,
+          "passed": 1,
+          "total": 3,
+          "fails": {
+            "missing:follow-up": true,
+            "missing:interested": true
+          }
+        },
+        {
+          "step": 12,
+          "phase": "pending_campaigns_check",
+          "prompt": "Do I have any pending campaigns? What's their status?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.12,
+          "error_source": null,
+          "score": 50.0,
+          "passed": 2,
+          "total": 4,
+          "fails": {
+            "missing:ready": true,
+            "missing:launch": true
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 45.416666666666664,
+      "timestamp": "2026-03-29T15:53:49.850590+00:00"
+    },
+    {
+      "test_id": "03_add_more_targets",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "add_targets",
+          "prompt": "Can you find 10 more targets for the IT consulting pipeline?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.87,
+          "error_source": "gpt",
+          "score": 33.33333333333333,
+          "passed": 1,
+          "total": 3,
+          "fails": {
+            "missing_tool:tam_gather": "called:['get_context'] (acceptable: ['tam_gather', 'parse_gathering_intent', 'suggest_apollo_filters'])",
+            "missing:gathered": true
+          }
+        },
+        {
+          "step": 2,
+          "phase": "process_new",
+          "prompt": "Process the new companies \u2014 blacklist, scrape, and analyze them",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.6,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 5,
+          "fails": {
+            "missing_tool:tam_blacklist_check": "called:['get_context'] (acceptable: ['tam_blacklist_check'])",
+            "missing_tool:tam_approve_checkpoint": "called:['get_context'] (acceptable: ['tam_approve_checkpoint'])",
+            "missing_tool:tam_pre_filter": "called:['get_context'] (acceptable: ['tam_pre_filter'])",
+            "missing_tool:tam_scrape": "called:['get_context'] (acceptable: ['tam_scrape'])",
+            "missing_tool:tam_analyze": "called:['get_context'] (acceptable: ['tam_analyze'])"
+          }
+        },
+        {
+          "step": 3,
+          "phase": "update_campaign",
+          "score": 100,
+          "skipped": true
+        },
+        {
+          "step": 4,
+          "phase": "pending_campaigns_prompt",
+          "score": 100,
+          "skipped": true
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 58.33333333333333,
+      "timestamp": "2026-03-29T15:53:56.928454+00:00"
+    },
+    {
+      "test_id": "04_edit_sequence",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "review_sequence",
+          "prompt": "Let me see the email sequence",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.96,
+          "error_source": null,
+          "score": 0.0,
+          "passed": 0,
+          "total": 3,
+          "fails": {
+            "missing:Email 1": true,
+            "missing:subject": true,
+            "missing:body": true
+          }
+        },
+        {
+          "step": 2,
+          "phase": "edit_subject",
+          "prompt": "Change email 1 subject to: {{first_name}} \u2014 contractors abroad?",
+          "tools_called": [
+            "edit_sequence_step"
+          ],
+          "duration_s": 3.18,
+          "error_source": "mcp",
+          "score": 25.0,
+          "passed": 1,
+          "total": 4,
+          "fails": {
+            "missing:updated": true,
+            "missing:synced": true,
+            "tool_error:edit_sequence_step": "Sequence not found"
+          }
+        },
+        {
+          "step": 3,
+          "phase": "provide_feedback",
+          "prompt": "Emails are too stiff, relax the tone",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.08,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 4,
+          "fails": {
+            "missing_tool:provide_feedback": "called:['get_context'] (acceptable: ['provide_feedback'])",
+            "missing:feedback": true,
+            "missing:stored": true,
+            "missing:future": true
+          }
+        },
+        {
+          "step": 4,
+          "phase": "override_target",
+          "prompt": "arcee.ai is actually a consulting firm, make it a target",
+          "tools_called": [
+            "override_company_target"
+          ],
+          "duration_s": 3.17,
+          "error_source": "mcp",
+          "score": 75.0,
+          "passed": 3,
+          "total": 4,
+          "fails": {
+            "tool_error:override_company_target": "Company not found"
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 25.0,
+      "timestamp": "2026-03-29T15:54:10.516968+00:00"
+    },
+    {
+      "test_id": "05_activate_campaign",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "review_before_activate",
+          "prompt": "Email received, sequence looks good. What's waiting for my approval?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.89,
+          "error_source": null,
+          "score": 66.66666666666666,
+          "passed": 2,
+          "total": 3,
+          "fails": {
+            "missing:pending": true
+          }
+        },
+        {
+          "step": 2,
+          "phase": "activate",
+          "prompt": "Go ahead, activate the IT consulting campaign",
+          "tools_called": [
+            "check_integrations"
+          ],
+          "duration_s": 3.96,
+          "error_source": "gpt",
+          "score": 25.0,
+          "passed": 1,
+          "total": 4,
+          "fails": {
+            "missing_tool:activate_campaign": "called:['check_integrations'] (acceptable: ['activate_campaign', 'list_smartlead_campaigns', 'get_context'])",
+            "missing:ACTIVE": true,
+            "missing:sending": true
+          }
+        },
+        {
+          "step": 3,
+          "phase": "negative_test_no_activation_without_approval",
+          "score": 100,
+          "skipped": true
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 63.888888888888886,
+      "timestamp": "2026-03-29T15:54:17.970851+00:00"
+    },
+    {
+      "test_id": "16_campaign_lifecycle",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "email_account_selection",
+          "prompt": "Use the eleonora email accounts from the petr campaigns",
+          "tools_called": [
+            "list_email_accounts"
+          ],
+          "duration_s": 9.74,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 3,
+          "total": 3,
+          "fails": {}
+        },
+        {
+          "step": 2,
+          "phase": "sequence_generation",
+          "prompt": "Create the outreach sequence",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.05,
+          "error_source": "gpt",
+          "score": 75.0,
+          "passed": 3,
+          "total": 4,
+          "fails": {
+            "missing:step": true
+          }
+        },
+        {
+          "step": 3,
+          "phase": "sequence_approval",
+          "prompt": "The sequence is fine, go ahead",
+          "tools_called": [
+            "check_destination"
+          ],
+          "duration_s": 2.91,
+          "error_source": "gpt",
+          "score": 33.33333333333333,
+          "passed": 1,
+          "total": 3,
+          "fails": {
+            "missing_tool:god_approve_sequence": "called:['check_destination'] (acceptable: ['god_approve_sequence'])",
+            "must_contain_any": [
+              "approved",
+              "ready"
+            ]
+          }
+        },
+        {
+          "step": 4,
+          "phase": "smartlead_push",
+          "prompt": "Push this to SmartLead",
+          "tools_called": [
+            "check_destination"
+          ],
+          "duration_s": 4.64,
+          "error_source": "gpt",
+          "score": 42.857142857142854,
+          "passed": 3,
+          "total": 7,
+          "fails": {
+            "missing_tool:god_push_to_smartlead": "called:['check_destination'] (acceptable: ['god_push_to_smartlead'])",
+            "missing:DRAFT": true,
+            "missing:campaign": true,
+            "missing:inbox": true
+          }
+        },
+        {
+          "step": 5,
+          "phase": "test_email_verification",
+          "prompt": "Checked my inbox, email looks good",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 5.3,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 6,
+          "phase": "campaign_activation",
+          "prompt": "Activate",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 4.67,
+          "error_source": "gpt",
+          "score": 75.0,
+          "passed": 3,
+          "total": 4,
+          "fails": {
+            "missing:activated": true
+          }
+        },
+        {
+          "step": 7,
+          "phase": "monitoring_confirmation",
+          "score": 100,
+          "skipped": true
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 75.17006802721087,
+      "timestamp": "2026-03-29T15:54:50.083260+00:00"
+    },
+    {
+      "test_id": "17_getsales_flow",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "destination_clarification",
+          "prompt": "Create a campaign for the IT consulting targets",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.99,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 2,
+          "phase": "choose_getsales",
+          "prompt": "LinkedIn outreach via GetSales",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.5,
+          "error_source": null,
+          "score": 100,
+          "passed": 0,
+          "total": 0,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "sender_selection",
+          "prompt": "List GetSales sender profiles",
+          "tools_called": [
+            "gs_list_sender_profiles"
+          ],
+          "duration_s": 3.27,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 4,
+          "phase": "flow_generation",
+          "prompt": "Generate the LinkedIn flow",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.84,
+          "error_source": "gpt",
+          "score": 50.0,
+          "passed": 2,
+          "total": 4,
+          "fails": {
+            "missing_tool:gs_generate_flow": "called:['get_context'] (acceptable: ['gs_generate_flow'])",
+            "missing:step": true
+          }
+        },
+        {
+          "step": 5,
+          "phase": "flow_approval",
+          "prompt": "Looks good, approve the flow",
+          "tools_called": [
+            "gs_approve_flow"
+          ],
+          "duration_s": 2.89,
+          "error_source": "mcp",
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "tool_error:gs_approve_flow": "Flow not found"
+          }
+        },
+        {
+          "step": 6,
+          "phase": "push_to_getsales",
+          "prompt": "Push to GetSales",
+          "tools_called": [
+            "check_destination"
+          ],
+          "duration_s": 3.19,
+          "error_source": "gpt",
+          "score": 25.0,
+          "passed": 1,
+          "total": 4,
+          "fails": {
+            "missing_tool:gs_push_to_getsales": "called:['check_destination'] (acceptable: ['gs_push_to_getsales'])",
+            "missing:DRAFT": true,
+            "missing:pushed": true
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 70.83333333333333,
+      "timestamp": "2026-03-29T15:55:11.574073+00:00"
+    },
+    {
+      "test_id": "18_session_continuity",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "reconnect",
+          "prompt": "Show me my status",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.88,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 4,
+          "total": 4,
+          "fails": {}
+        },
+        {
+          "step": 2,
+          "phase": "verify_project_context",
+          "prompt": "What's in my pipeline?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.11,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "verify_pending_gates",
+          "score": 100,
+          "skipped": true
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 100.0,
+      "timestamp": "2026-03-29T15:55:18.161129+00:00"
+    },
+    {
+      "test_id": "19_reply_intelligence",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "reply_summary",
+          "prompt": "Any warm replies?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.82,
+          "error_source": "gpt",
+          "score": 66.66666666666666,
+          "passed": 2,
+          "total": 3,
+          "fails": {
+            "missing:_links": true
+          }
+        },
+        {
+          "step": 2,
+          "phase": "warm_leads_detail",
+          "prompt": "Which leads are interested?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.08,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "followups_needed",
+          "prompt": "Show me leads that need attention",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.86,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 4,
+          "phase": "deep_link_to_crm",
+          "prompt": "Open in CRM",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.01,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 3,
+          "total": 3,
+          "fails": {}
+        },
+        {
+          "step": 5,
+          "phase": "meeting_requests",
+          "prompt": "Any meetings booked?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.97,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 93.33333333333333,
+      "timestamp": "2026-03-29T15:55:34.406733+00:00"
+    },
+    {
+      "test_id": "20_apollo_credits_performance",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "cost_estimation",
+          "prompt": "What's the Apollo cost for 50 targets?",
+          "tools_called": [
+            "estimate_cost"
+          ],
+          "duration_s": 2.93,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 2,
+          "phase": "credit_spending_history",
+          "prompt": "Show me my Apollo credit usage",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.96,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "budget_cap_check",
+          "score": 100,
+          "skipped": true
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 100.0,
+      "timestamp": "2026-03-29T15:55:40.897097+00:00"
+    },
+    {
+      "test_id": "21_crm_verification",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "crm_contacts_visible",
+          "prompt": "Show me my contacts in CRM",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.95,
+          "error_source": "gpt",
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 2,
+          "phase": "filter_by_project",
+          "prompt": "Show me only EasyStaff-Global contacts",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.82,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "contact_detail_conversation_tab",
+          "score": 100,
+          "skipped": true
+        },
+        {
+          "step": 4,
+          "phase": "contact_source_visible",
+          "score": 100,
+          "skipped": true
+        },
+        {
+          "step": 5,
+          "phase": "pipeline_to_crm_link",
+          "score": 100,
+          "skipped": true
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 100.0,
+      "timestamp": "2026-03-29T15:55:47.264772+00:00"
+    },
+    {
+      "test_id": "22_campaigns_page_monitoring",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "campaigns_list",
+          "prompt": "List campaigns",
+          "tools_called": [
+            "list_smartlead_campaigns"
+          ],
+          "duration_s": 3.53,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 2,
+          "phase": "toggle_monitoring_off",
+          "prompt": "Stop monitoring replies for the petr campaign",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.38,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "toggle_monitoring_on",
+          "prompt": "Actually turn it back on",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.11,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 4,
+          "phase": "bulk_toggle",
+          "prompt": "Turn on monitoring for all my campaigns",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.0,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 100.0,
+      "timestamp": "2026-03-29T15:56:01.490989+00:00"
+    },
+    {
+      "test_id": "02_new_user_fashion",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "signup",
+          "score": 100,
+          "skipped": true
+        },
+        {
+          "step": 2,
+          "phase": "project_setup",
+          "prompt": "Create project: Fashion Brands Italy. Check https://thefashionpeople.com/ for our offer",
+          "tools_called": [
+            "create_project"
+          ],
+          "duration_s": 3.52,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 3,
+          "total": 3,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "no_campaigns_check",
+          "prompt": "This is our first outreach campaign",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.83,
+          "error_source": null,
+          "score": 0.0,
+          "passed": 0,
+          "total": 2,
+          "fails": {
+            "missing:gather": true,
+            "missing:find": true
+          }
+        },
+        {
+          "step": 4,
+          "phase": "gathering",
+          "prompt": "Search for Italian fashion companies",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.83,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 2,
+          "fails": {
+            "missing_tool:parse_gathering_intent": "called:['get_context'] (acceptable: ['parse_gathering_intent', 'tam_gather', 'suggest_apollo_filters'])",
+            "missing_tool:tam_gather": "called:['get_context'] (acceptable: ['tam_gather', 'parse_gathering_intent', 'suggest_apollo_filters'])"
+          }
+        },
+        {
+          "step": 5,
+          "phase": "full_pipeline",
+          "prompt": "Process the gathered companies",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.07,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 5,
+          "fails": {
+            "missing_tool:tam_blacklist_check": "called:['get_context'] (acceptable: ['tam_blacklist_check'])",
+            "missing_tool:tam_approve_checkpoint": "called:['get_context'] (acceptable: ['tam_approve_checkpoint'])",
+            "missing_tool:tam_pre_filter": "called:['get_context'] (acceptable: ['tam_pre_filter'])",
+            "missing_tool:tam_scrape": "called:['get_context'] (acceptable: ['tam_scrape'])",
+            "missing_tool:tam_analyze": "called:['get_context'] (acceptable: ['tam_analyze'])"
+          }
+        },
+        {
+          "step": 6,
+          "phase": "email_accounts",
+          "prompt": "Send from elnar@thefashionpeopletech.com",
+          "tools_called": [
+            "list_email_accounts"
+          ],
+          "duration_s": 3.33,
+          "error_source": null,
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing:which": true
+          }
+        },
+        {
+          "step": 7,
+          "phase": "second_project",
+          "prompt": "Create another project: OnSocial UK. Website: onsocial.ai. Find social influencer platforms in UK",
+          "tools_called": [
+            "create_project"
+          ],
+          "duration_s": 3.41,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 50.0,
+      "timestamp": "2026-03-29T15:56:23.895598+00:00"
+    },
+    {
+      "test_id": "09_multi_source_csv_first",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "login",
+          "prompt": "Here's my token: mcp_services_test_token",
+          "tools_called": [
+            "login"
+          ],
+          "duration_s": 3.18,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 2,
+          "phase": "project_selection",
+          "prompt": "Select project Result",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.02,
+          "error_source": "gpt",
+          "score": 66.66666666666666,
+          "passed": 2,
+          "total": 3,
+          "fails": {
+            "missing_tool:select_project": "called:['get_context'] (acceptable: ['select_project'])"
+          }
+        },
+        {
+          "step": 3,
+          "phase": "source_selection",
+          "prompt": "Run pipeline on this CSV file /data/take-test-100.csv \u2014 looking for fashion and apparel brands in Latin America",
+          "tools_called": [
+            "tam_gather"
+          ],
+          "duration_s": 3.65,
+          "error_source": "mcp",
+          "score": 71.42857142857143,
+          "passed": 5,
+          "total": 7,
+          "fails": {
+            "missing:gathered": true,
+            "tool_error:tam_gather": "Project not found"
+          }
+        },
+        {
+          "step": 4,
+          "phase": "custom_prompt",
+          "prompt": "Here's my classification: VALID if fashion brand/clothing manufacturer in LATAM. NOT_VALID if marketing agency, logistics, pure retail.",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.08,
+          "error_source": null,
+          "score": 33.33333333333333,
+          "passed": 1,
+          "total": 3,
+          "fails": {
+            "missing:prompt": true,
+            "missing:classify": true
+          }
+        },
+        {
+          "step": 5,
+          "phase": "blacklist",
+          "prompt": "Blacklist check please",
+          "tools_called": [
+            "check_integrations"
+          ],
+          "duration_s": 3.27,
+          "error_source": "gpt",
+          "score": 25.0,
+          "passed": 1,
+          "total": 4,
+          "fails": {
+            "missing_tool:tam_blacklist_check": "called:['check_integrations'] (acceptable: ['tam_blacklist_check'])",
+            "missing_tool:tam_approve_checkpoint": "called:['check_integrations'] (acceptable: ['tam_approve_checkpoint'])",
+            "missing:approved": true
+          }
+        },
+        {
+          "step": 6,
+          "phase": "pre_filter_scrape_analyze",
+          "prompt": "Now scrape and analyze all the companies",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.07,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 6,
+          "fails": {
+            "missing_tool:tam_pre_filter": "called:['get_context'] (acceptable: ['tam_pre_filter'])",
+            "missing_tool:tam_scrape": "called:['get_context'] (acceptable: ['tam_scrape'])",
+            "missing_tool:tam_analyze": "called:['get_context'] (acceptable: ['tam_analyze'])",
+            "missing:targets": true,
+            "missing:checkpoint": true,
+            "missing:review": true
+          }
+        },
+        {
+          "step": 7,
+          "phase": "checkpoint2_approval",
+          "prompt": "Looks good, approve the targets",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.24,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 1,
+          "fails": {
+            "missing_tool:tam_approve_checkpoint": "called:['get_context'] (acceptable: ['tam_approve_checkpoint'])"
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 42.3469387755102,
+      "timestamp": "2026-03-29T15:56:48.527309+00:00"
+    },
+    {
+      "test_id": "10_multi_source_sheet_add_to_existing",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "source_addition",
+          "prompt": "I have more leads in Google Sheets: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms",
+          "tools_called": [
+            "tam_gather"
+          ],
+          "duration_s": 4.41,
+          "error_source": "mcp",
+          "score": 0.0,
+          "passed": 0,
+          "total": 5,
+          "fails": {
+            "missing:existing": true,
+            "missing:pipeline": true,
+            "missing:new": true,
+            "must_contain_any": [
+              "add to existing",
+              "create a new pipeline",
+              "existing run"
+            ],
+            "tool_error:tam_gather": "Project not found"
+          }
+        },
+        {
+          "step": 2,
+          "phase": "user_chooses_existing",
+          "prompt": "Add to existing pipeline",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.04,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 4,
+          "fails": {
+            "missing_tool:tam_gather": "called:['get_context'] (acceptable: ['tam_gather', 'parse_gathering_intent', 'suggest_apollo_filters'])",
+            "missing:companies": true,
+            "missing:gathered": true,
+            "must_contain_any": [
+              "70 new",
+              "40 duplicate",
+              "40 already"
+            ]
+          }
+        },
+        {
+          "step": 3,
+          "phase": "blacklist_with_overlap",
+          "prompt": "Blacklist check for the sheet import",
+          "tools_called": [
+            "blacklist_check"
+          ],
+          "duration_s": 3.03,
+          "error_source": "gpt",
+          "score": 25.0,
+          "passed": 1,
+          "total": 4,
+          "fails": {
+            "missing_tool:tam_blacklist_check": "called:['blacklist_check'] (acceptable: ['tam_blacklist_check'])",
+            "missing_tool:tam_approve_checkpoint": "called:['blacklist_check'] (acceptable: ['tam_approve_checkpoint'])",
+            "missing:approved": true
+          }
+        },
+        {
+          "step": 4,
+          "phase": "full_pipeline",
+          "prompt": "Scrape and analyze the new companies",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.11,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 5,
+          "fails": {
+            "missing_tool:tam_pre_filter": "called:['get_context'] (acceptable: ['tam_pre_filter'])",
+            "missing_tool:tam_scrape": "called:['get_context'] (acceptable: ['tam_scrape'])",
+            "missing_tool:tam_analyze": "called:['get_context'] (acceptable: ['tam_analyze'])",
+            "missing:targets": true,
+            "missing:checkpoint": true
+          }
+        },
+        {
+          "step": 5,
+          "phase": "checkpoint2_approval",
+          "prompt": "Approve targets",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.17,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 1,
+          "fails": {
+            "missing_tool:tam_approve_checkpoint": "called:['get_context'] (acceptable: ['tam_approve_checkpoint'])"
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 5.0,
+      "timestamp": "2026-03-29T15:57:06.780055+00:00"
+    },
+    {
+      "test_id": "11_multi_source_drive_add_to_existing",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "source_addition",
+          "prompt": "I've got more files on Drive: https://drive.google.com/drive/folders/1bBZFN5Yg2qe7VGj_LATAM_batches",
+          "tools_called": [
+            "tam_gather"
+          ],
+          "duration_s": 3.81,
+          "error_source": "mcp",
+          "score": 0.0,
+          "passed": 0,
+          "total": 4,
+          "fails": {
+            "missing:existing": true,
+            "missing:pipeline": true,
+            "must_contain_any": [
+              "add to existing",
+              "already have 2 runs",
+              "existing pipeline for Result"
+            ],
+            "tool_error:tam_gather": "Project not found"
+          }
+        },
+        {
+          "step": 2,
+          "phase": "user_chooses_existing",
+          "prompt": "Yep, same project, just add these files",
+          "tools_called": [
+            "tam_gather"
+          ],
+          "duration_s": 3.75,
+          "error_source": "mcp",
+          "score": 40.0,
+          "passed": 2,
+          "total": 5,
+          "fails": {
+            "missing:gathered": true,
+            "must_contain_any": [
+              "35 new",
+              "70 duplicate",
+              "70 already"
+            ],
+            "tool_error:tam_gather": "Project not found"
+          }
+        },
+        {
+          "step": 3,
+          "phase": "blacklist",
+          "prompt": "Check blacklist for the drive import",
+          "tools_called": [
+            "check_integrations"
+          ],
+          "duration_s": 2.97,
+          "error_source": "gpt",
+          "score": 25.0,
+          "passed": 1,
+          "total": 4,
+          "fails": {
+            "missing_tool:tam_blacklist_check": "called:['check_integrations'] (acceptable: ['tam_blacklist_check'])",
+            "missing_tool:tam_approve_checkpoint": "called:['check_integrations'] (acceptable: ['tam_approve_checkpoint'])",
+            "missing:approved": true
+          }
+        },
+        {
+          "step": 4,
+          "phase": "full_pipeline",
+          "prompt": "Scrape and analyze",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.16,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 3,
+          "fails": {
+            "missing_tool:tam_pre_filter": "called:['get_context'] (acceptable: ['tam_pre_filter'])",
+            "missing_tool:tam_scrape": "called:['get_context'] (acceptable: ['tam_scrape'])",
+            "missing_tool:tam_analyze": "called:['get_context'] (acceptable: ['tam_analyze'])"
+          }
+        },
+        {
+          "step": 5,
+          "phase": "checkpoint2_approval",
+          "prompt": "Approve",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.86,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 1,
+          "fails": {
+            "missing_tool:tam_approve_checkpoint": "called:['get_context'] (acceptable: ['tam_approve_checkpoint'])"
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 13.0,
+      "timestamp": "2026-03-29T15:57:25.828955+00:00"
+    },
+    {
+      "test_id": "12_custom_prompt_chain",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "user_provides_custom_prompt",
+          "prompt": "Re-analyze with custom prompts: First classify the industry (FASHION_BRAND, TEXTILE_PRODUCER, RETAIL_ONLY, OTHER), then remove OTHERs, then segment by company size.",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.28,
+          "error_source": null,
+          "score": 33.33333333333333,
+          "passed": 1,
+          "total": 3,
+          "fails": {
+            "missing:step": true,
+            "missing:filter": true
+          }
+        },
+        {
+          "step": 2,
+          "phase": "user_approves_prompts",
+          "prompt": "Go ahead with those prompts",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.7,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 4,
+          "fails": {
+            "missing_tool:tam_re_analyze": "called:['get_context'] (acceptable: ['tam_re_analyze'])",
+            "missing:targets": true,
+            "missing:classified": true,
+            "missing:segments": true
+          }
+        },
+        {
+          "step": 3,
+          "phase": "review_results",
+          "prompt": "Show me the breakdown by segment and size",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.96,
+          "error_source": null,
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing:FASHION_BRAND": true
+          }
+        },
+        {
+          "step": 4,
+          "phase": "approve",
+          "prompt": "Approve targets",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.97,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 1,
+          "fails": {
+            "missing_tool:tam_approve_checkpoint": "called:['get_context'] (acceptable: ['tam_approve_checkpoint'])"
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 20.833333333333332,
+      "timestamp": "2026-03-29T15:57:39.941427+00:00"
+    },
+    {
+      "test_id": "13_blacklist_isolation",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "verify_project_a_state",
+          "prompt": "How many companies do we have in the Result project?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.37,
+          "error_source": null,
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing:215": true
+          }
+        },
+        {
+          "step": 2,
+          "phase": "create_project_b",
+          "prompt": "Create a new project called TestProjectB targeting IT consulting in London",
+          "tools_called": [
+            "create_project"
+          ],
+          "duration_s": 4.01,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "gather_for_project_b",
+          "prompt": "Gather companies for TestProjectB from this CSV: /data/test_overlap.csv",
+          "tools_called": [
+            "list_projects"
+          ],
+          "duration_s": 2.95,
+          "error_source": "gpt",
+          "score": 66.66666666666666,
+          "passed": 2,
+          "total": 3,
+          "fails": {
+            "missing_tool:tam_gather": "called:['list_projects'] (acceptable: ['tam_gather', 'parse_gathering_intent', 'suggest_apollo_filters'])"
+          }
+        },
+        {
+          "step": 4,
+          "phase": "verify_isolation",
+          "score": 100,
+          "skipped": true
+        },
+        {
+          "step": 5,
+          "phase": "verify_same_project_dedup",
+          "prompt": "Add the CSV data again to Result project: /data/take-test-100.csv",
+          "tools_called": [
+            "get_context",
+            "tam_gather"
+          ],
+          "duration_s": 6.13,
+          "error_source": null,
+          "score": 33.33333333333333,
+          "passed": 1,
+          "total": 3,
+          "fails": {
+            "missing:duplicate": true,
+            "missing:already": true
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 69.99999999999999,
+      "timestamp": "2026-03-29T15:57:57.605165+00:00"
+    },
+    {
+      "test_id": "14_source_suggestion_edge_cases",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "no_source_no_key",
+          "prompt": "Gather fashion companies in Argentina",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.85,
+          "error_source": null,
+          "score": 0.0,
+          "passed": 0,
+          "total": 1,
+          "fails": {
+            "must_contain_any": [
+              "Apollo key not configured",
+              "provide a CSV",
+              "Google Sheet"
+            ]
+          }
+        },
+        {
+          "step": 2,
+          "phase": "no_source_has_key",
+          "prompt": "Find fashion brands in Colombia, about 50 targets",
+          "tools_called": [
+            "list_projects"
+          ],
+          "duration_s": 2.88,
+          "error_source": null,
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing:Apollo": true
+          }
+        },
+        {
+          "step": 3,
+          "phase": "ambiguous_with_csv_mention",
+          "prompt": "I have a CSV file with my leads",
+          "tools_called": [
+            "tam_gather"
+          ],
+          "duration_s": 3.24,
+          "error_source": "mcp",
+          "score": 0.0,
+          "passed": 0,
+          "total": 2,
+          "fails": {
+            "must_contain_any": [
+              "file path",
+              "upload",
+              "where is the file"
+            ],
+            "tool_error:tam_gather": "Project not found"
+          }
+        },
+        {
+          "step": 4,
+          "phase": "google_doc_not_sheet",
+          "prompt": "Check this doc: https://docs.google.com/document/d/1abc123/edit",
+          "tools_called": [
+            "tam_gather"
+          ],
+          "duration_s": 3.91,
+          "error_source": null,
+          "score": 0.0,
+          "passed": 0,
+          "total": 1,
+          "fails": {
+            "must_contain_any": [
+              "Google Doc",
+              "spreadsheet",
+              "CSV"
+            ]
+          }
+        },
+        {
+          "step": 5,
+          "phase": "multiple_sources_in_one_message",
+          "prompt": "I have /data/batch1.csv and also this sheet: https://docs.google.com/spreadsheets/d/abc123/edit",
+          "tools_called": [
+            "tam_gather",
+            "tam_gather"
+          ],
+          "duration_s": 5.92,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 2,
+          "total": 2,
+          "fails": {}
+        },
+        {
+          "step": 6,
+          "phase": "vague_request",
+          "prompt": "Hey, I need some data",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.07,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 7,
+          "phase": "direct_domain_list",
+          "prompt": "Check these domains: easystaff.io, inxydigital.com, getsally.io",
+          "tools_called": [
+            "blacklist_check"
+          ],
+          "duration_s": 3.21,
+          "error_source": null,
+          "score": 100,
+          "passed": 0,
+          "total": 0,
+          "fails": {}
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 50.0,
+      "timestamp": "2026-03-29T15:58:24.794779+00:00"
+    },
+    {
+      "test_id": "15_step_add_remove_iterations",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "add_regex_step",
+          "prompt": "Classify companies by headcount into SMALL, MEDIUM, LARGE",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.15,
+          "error_source": null,
+          "score": 33.33333333333333,
+          "passed": 2,
+          "total": 6,
+          "fails": {
+            "missing:size": true,
+            "missing:column": true,
+            "missing:added": true,
+            "unexpected:AI": true
+          }
+        },
+        {
+          "step": 2,
+          "phase": "verify_iteration_1",
+          "prompt": "Show me the pipeline",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.38,
+          "error_source": null,
+          "score": 100,
+          "passed": 0,
+          "total": 0,
+          "fails": {}
+        },
+        {
+          "step": 3,
+          "phase": "remove_step",
+          "prompt": "Remove the size_segment column",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.36,
+          "error_source": null,
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing:removed": true
+          }
+        },
+        {
+          "step": 4,
+          "phase": "verify_iteration_history",
+          "prompt": "Switch to iteration 1",
+          "tools_called": [
+            "refinement_status"
+          ],
+          "duration_s": 3.42,
+          "error_source": "mcp",
+          "score": 0.0,
+          "passed": 0,
+          "total": 1,
+          "fails": {
+            "tool_error:refinement_status": "Refinement run not found"
+          }
+        },
+        {
+          "step": 5,
+          "phase": "add_ai_step",
+          "prompt": "Classify brand vs manufacturer from website content",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.6,
+          "error_source": null,
+          "score": 75.0,
+          "passed": 3,
+          "total": 4,
+          "fails": {
+            "missing:prompt": true
+          }
+        },
+        {
+          "step": 6,
+          "phase": "approve_and_run",
+          "prompt": "Looks good, run it",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.69,
+          "error_source": null,
+          "score": 100,
+          "passed": 0,
+          "total": 0,
+          "fails": {}
+        },
+        {
+          "step": 7,
+          "phase": "remove_ai_step",
+          "prompt": "Actually remove business_model, I don't need it",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 2.77,
+          "error_source": null,
+          "score": 100,
+          "passed": 0,
+          "total": 0,
+          "fails": {}
+        },
+        {
+          "step": 8,
+          "phase": "verify_all_4_iterations",
+          "prompt": "Show me all iterations",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.17,
+          "error_source": null,
+          "score": 100,
+          "passed": 0,
+          "total": 0,
+          "fails": {}
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 69.79166666666666,
+      "timestamp": "2026-03-29T15:58:53.791106+00:00"
+    },
+    {
+      "test_id": "23_second_project_onsocial",
+      "steps": [
+        {
+          "step": 1,
+          "phase": "create_second_project",
+          "prompt": "Create a new project called OnSocial UK. My website is https://onsocial.com/. I'm targeting influencer platforms and creator economy companies in the UK.",
+          "tools_called": [
+            "create_project"
+          ],
+          "duration_s": 3.98,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 4,
+          "total": 4,
+          "fails": {}
+        },
+        {
+          "step": 2,
+          "phase": "switch_project",
+          "prompt": "Switch to the Result project",
+          "tools_called": [
+            "list_projects"
+          ],
+          "duration_s": 3.02,
+          "error_source": "gpt",
+          "score": 50.0,
+          "passed": 1,
+          "total": 2,
+          "fails": {
+            "missing_tool:select_project": "called:['list_projects'] (acceptable: ['select_project'])"
+          }
+        },
+        {
+          "step": 3,
+          "phase": "verify_result_data",
+          "prompt": "How many companies in Result?",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.53,
+          "error_source": null,
+          "score": 100.0,
+          "passed": 1,
+          "total": 1,
+          "fails": {}
+        },
+        {
+          "step": 4,
+          "phase": "switch_to_onsocial",
+          "prompt": "Switch to OnSocial UK",
+          "tools_called": [
+            "list_projects"
+          ],
+          "duration_s": 2.86,
+          "error_source": "gpt",
+          "score": 0.0,
+          "passed": 0,
+          "total": 1,
+          "fails": {
+            "missing_tool:select_project": "called:['list_projects'] (acceptable: ['select_project'])"
+          }
+        },
+        {
+          "step": 5,
+          "phase": "gather_for_onsocial",
+          "prompt": "Search for UK influencer platforms",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.56,
+          "error_source": "gpt",
+          "score": 33.33333333333333,
+          "passed": 1,
+          "total": 3,
+          "fails": {
+            "missing_tool:tam_gather": "called:['get_context'] (acceptable: ['tam_gather', 'parse_gathering_intent', 'suggest_apollo_filters'])",
+            "missing:gathered": true
+          }
+        },
+        {
+          "step": 6,
+          "phase": "verify_isolation",
+          "prompt": "Check blacklist and approve for OnSocial",
+          "tools_called": [
+            "get_context"
+          ],
+          "duration_s": 3.11,
+          "error_source": "gpt",
+          "score": 25.0,
+          "passed": 1,
+          "total": 4,
+          "fails": {
+            "missing_tool:tam_blacklist_check": "called:['get_context'] (acceptable: ['tam_blacklist_check'])",
+            "missing_tool:tam_approve_checkpoint": "called:['get_context'] (acceptable: ['tam_approve_checkpoint'])",
+            "missing:approved": true
+          }
+        }
+      ],
+      "errors": [],
+      "source": "automated_framework",
+      "score": 51.388888888888886,
+      "timestamp": "2026-03-29T15:59:15.654401+00:00"
+    }
+  ],
+  "average": 62.11125958319836
+}

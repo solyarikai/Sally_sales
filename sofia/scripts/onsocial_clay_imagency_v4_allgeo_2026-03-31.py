@@ -24,16 +24,11 @@ People filters (v4):
 
 Steps:
   Step 0:     Clay Company Search via backend API (clay.companies.emulator)
-  Step 1:     Dedup — убираем компании, уже найденные в предыдущих запусках (auto)
-  Step 2:     Blacklist check — проверка по чёрному списку проекта → CP1 СТОП
-  Step 3:     Pre-filter — убираем мусор (офлайн, мёртвые сайты)
-  Step 4:     Scrape — скачиваем содержимое сайтов для анализа (FREE)
-  Step 5:     Classify (GPT-4o-mini) — AI классификация компаний → CP2 СТОП
-  Step 6:     Verify targets (Claude Code в чате) — ищем false positives
-  Step 7:     Adjust prompt → повторить 5-6 до accuracy ≥90%
-  Step 8:     Apollo People Search (Puppeteer UI) → CP3 СТОП (approve FindyMail cost)
-  Step 9:     FindyMail email enrichment ($0.01/email)
-  Step 10:    SmartLead upload (per-segment checkpoints, NEVER auto-activate)
+  Steps 2-8:  Backend pipeline (dedup -> blacklist -> scrape -> classify)
+  Step 9:     Export targets from DB
+  Step 10:    Apollo People UI Search (auto via apollo_scraper.js)
+  Step 11:    FindyMail email enrichment
+  Step 12:    SmartLead upload
 
 Usage (run on Hetzner via SSH):
   cd ~/magnum-opus-project/repo
@@ -573,10 +568,31 @@ def approve_pending_gate(run_id: int) -> bool:
     return False
 
 
-    # NOTE: blacklist_approved_targets removed.
-    # CRM sync (contacts table) already blocks companies in active campaigns.
-    # Blacklisting by domain was too aggressive — prevented finding new employees
-    # at already-targeted companies. See TAM_GATHERING_ARCHITECTURE.md.
+def blacklist_approved_targets(run_id: int):
+    sql = (f"SELECT DISTINCT dc.domain FROM discovered_companies dc "
+           f"JOIN company_source_links csl ON csl.discovered_company_id = dc.id "
+           f"WHERE csl.gathering_run_id = {run_id} AND dc.is_target = true "
+           f"AND dc.domain IS NOT NULL AND dc.domain != ''")
+    r = subprocess.run(
+        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+         "-d", "leadgen", "-t", "-A", "-c", sql],
+        capture_output=True, text=True, timeout=15,
+    )
+    domains = [d.strip() for d in r.stdout.strip().split("\n") if d.strip()]
+    if not domains:
+        return
+    values = ", ".join(
+        f"({PROJECT_ID}, '{d}', 'target_approved_run_{run_id}', 'pipeline', now())"
+        for d in domains
+    )
+    insert_sql = (f"INSERT INTO project_blacklist (project_id, domain, reason, source, created_at) "
+                  f"VALUES {values} ON CONFLICT DO NOTHING")
+    subprocess.run(
+        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
+         "-d", "leadgen", "-c", insert_sql],
+        capture_output=True, text=True, timeout=30,
+    )
+    print(f"  Blacklist: +{len(domains)} target domains (run #{run_id})")
 
 
 def step4_scrape(run_id: int) -> dict:
@@ -1014,7 +1030,6 @@ def export_getsales(without_email: list[dict], today: str) -> Path:
         gs["last_name"] = c.get("last_name", "")
         gs["position"] = c.get("title", "")
         gs["linkedin_nickname"] = _extract_linkedin_nickname(li_url)
-        gs["linkedin_id"] = _extract_linkedin_nickname(li_url)
         gs["linkedin_url"] = li_url
         gs["company_name"] = normalize_company(c.get("company_name", ""))
         gs["company_domain"] = c.get("domain", "")
@@ -1369,7 +1384,7 @@ def step12_upload(contacts: list[dict]):
 # ══════════════════════════════════════════════════════════════════════════════
 
 STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
-         "people", "findymail", "upload"]
+         "export", "people", "findymail", "upload"]
 
 
 def main():
@@ -1381,7 +1396,6 @@ def main():
     p.add_argument("--max-findymail", type=int, default=1500)
     p.add_argument("--force", action="store_true", help="Force re-run (ignore cache)")
     p.add_argument("--prompt-file", help="Custom analysis prompt file")
-    p.add_argument("--re-analyze", action="store_true", help="Re-analyze with new prompt (Step 7)")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
@@ -1429,23 +1443,6 @@ def main():
         prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
 
     run_id = args.run_id or load_state().get("run_id")
-
-    # Step 7: Re-analyze with new prompt (iterate until accuracy ≥90%)
-    if args.re_analyze:
-        if not run_id:
-            print("ERROR: --run-id required for --re-analyze")
-            sys.exit(1)
-        text = prompt_text or DEFAULT_ANALYSIS_PROMPT
-        print(f"\n  Step 7: RE-ANALYZE with updated prompt (run #{run_id})")
-        result = api("post", f"/pipeline/gathering/runs/{run_id}/re-analyze",
-                      params={"prompt_text": text, "model": "gpt-4o-mini"})
-        targets_found = result.get("targets_found", "?")
-        target_rate = result.get("target_rate", 0)
-        print(f"  Targets: {targets_found} ({target_rate*100:.1f}%)")
-        print(f"\n  ★ Back to Step 6: Verify targets in chat.")
-        print(f"  If accuracy ≥90% → --from-step verify --run-id {run_id}")
-        print(f"  If accuracy <90% → adjust prompt → --re-analyze --run-id {run_id}")
-        return
 
     # -- Step 0: Start Clay gathering --
     if "start" in steps:
@@ -1509,7 +1506,7 @@ def main():
         if phase == "filtered":
             step4_scrape(run_id)
 
-    # -- Step 5: Analyze (GPT classify) -> CP2 --
+    # -- Step 5: Analyze -> CP2 --
     if "analyze" in steps and run_id:
         _, prompt = get_latest_prompt()
         text = prompt_text or prompt or DEFAULT_ANALYSIS_PROMPT
@@ -1518,51 +1515,46 @@ def main():
         if phase == "scraped":
             cp2 = step5_analyze(run_id, text)
             if cp2.get("gate_id"):
-                print(f"\n  ★ PAUSING AT CP2.")
-                print(f"  Step 6: Verify targets with Claude Code in chat.")
-                print(f"  Step 7: If accuracy <90% → adjust prompt → re-analyze:")
-                print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
-                print(f"  When accuracy ≥90% → approve gate and resume:")
+                print(f"\n  PAUSING at CP2. Approve gate #{cp2['gate_id']}, then resume:")
                 print(f"    --from-step verify --run-id {run_id}")
                 return
 
-    # -- Steps 6-7 done in chat. Verify = approve CP2 + blacklist + export --
+    # -- Step 6: Verify -> CP3 --
     if "verify" in steps and run_id:
         run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
         phase = run_info.get("current_phase", "")
         if phase == "awaiting_targets_ok":
             approve_pending_gate(run_id)
+        blacklist_approved_targets(run_id)
+        cp3 = step6_prepare_verify(run_id)
+        if cp3.get("gate_id"):
+            print(f"\n  PAUSING at CP3. Approve gate #{cp3['gate_id']}, then resume:")
+            print(f"    --from-step export --run-id {run_id}")
+            return
+
+    # -- Step 9: Export targets --
+    if "export" in steps:
         targets = step9_export_targets(force=args.force)
     else:
         targets = load_json(TARGETS_FILE) or []
 
-    # -- Step 8: Apollo People Search (Puppeteer UI) --
+    # -- Step 10: Apollo People Search --
     if "people" in steps:
         if args.apollo_csv:
             contacts = step10_import_apollo_csv(args.apollo_csv, targets, force=args.force)
         else:
             contacts = step10_apollo_people_search(targets, force=args.force)
-
-        # CP3: approve FindyMail cost before proceeding
-        with_li = sum(1 for c in contacts if c.get("linkedin_url") and not c.get("email"))
-        cost_est = with_li * 0.01
-        print(f"\n  ★ CP3 — FindyMail cost estimate:")
-        print(f"  Contacts to enrich: {with_li}")
-        print(f"  Estimated cost: ${cost_est:.2f}")
-        print(f"  PAUSING. Approve cost, then resume:")
-        print(f"    --from-step findymail --run-id {run_id}")
-        return
     else:
         contacts = load_json(CONTACTS_FILE) or []
 
-    # -- Step 9: FindyMail email enrichment --
+    # -- Step 11: FindyMail --
     if "findymail" in steps:
         contacts = asyncio.run(step11_findymail(contacts, max_contacts=args.max_findymail,
                                                   force=args.force))
     else:
         contacts = load_json(ENRICHED_FILE) or contacts
 
-    # -- Step 10: SmartLead Upload --
+    # -- Step 12: SmartLead Upload --
     if "upload" in steps:
         step12_upload(contacts)
 

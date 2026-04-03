@@ -1,0 +1,4 @@
+1. how to launch regeneration in hwo to rerun.png? will it cause reclassification of conversation too?
+2. remove campaings ids, they are redudnat, names are enough
+3. hover on buttons, submit for instance
+4. "where conversation history is taken from.png" and "campaing with no actions.png" aafter clicking on link to smarltead inbox, prepeare several campaings for test purposes so that i can test several auto replies to petr, but really preoparet campijngs with sequcnes and sent pn@ggetsally.io emails from email accounts with spare capaity for today

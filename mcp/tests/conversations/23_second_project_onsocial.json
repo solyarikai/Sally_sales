@@ -1,0 +1,121 @@
+{
+  "id": "23_second_project_onsocial",
+  "description": "User 2 (services@getsally.io): Creates OnSocial UK project — verifies multi-project flows, project switching, data isolation between projects. Per scheduled_task_v1 Phase 4c.",
+  "user_email": "services@getsally.io",
+  "project_name": "OnSocial UK",
+  "depends_on": "11_multi_source_drive_add_to_existing",
+  "steps": [
+    {
+      "step": 1,
+      "phase": "create_second_project",
+      "description": "User creates a second project for UK influencer platforms.",
+      "user_prompt": "Create a new project called OnSocial UK. My website is https://onsocial.com/. I'm targeting influencer platforms and creator economy companies in the UK.",
+      "user_prompt_variants": [
+        "New project: OnSocial UK, site onsocial.com, UK influencer/creator platforms",
+        "Create project OnSocial UK for finding creator economy companies in the UK, my site is onsocial.com"
+      ],
+      "expected_tool_calls": [
+        "create_project"
+      ],
+      "expected_behavior": {
+        "project_created": true,
+        "website_scraped": true,
+        "response_must_contain": [
+          "OnSocial",
+          "project",
+          "created"
+        ]
+      }
+    },
+    {
+      "step": 2,
+      "phase": "switch_project",
+      "description": "Verify user can switch between Result and OnSocial UK projects.",
+      "user_prompt": "Switch to the Result project",
+      "expected_tool_calls": [
+        "select_project"
+      ],
+      "expected_behavior": {
+        "project_selected": "Result",
+        "response_must_contain": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "step": 3,
+      "phase": "verify_result_data",
+      "description": "Result project data should be unchanged (215 companies).",
+      "user_prompt": "How many companies in Result?",
+      "expected_behavior": {
+        "response_must_contain_any": [
+          "215",
+          "companies"
+        ]
+      }
+    },
+    {
+      "step": 4,
+      "phase": "switch_to_onsocial",
+      "description": "Switch to OnSocial UK — should have 0 companies (new project).",
+      "user_prompt": "Switch to OnSocial UK",
+      "expected_tool_calls": [
+        "select_project"
+      ],
+      "expected_behavior": {
+        "project_selected": "OnSocial UK"
+      }
+    },
+    {
+      "step": 5,
+      "phase": "gather_for_onsocial",
+      "description": "Gather companies for OnSocial UK — completely independent from Result.",
+      "user_prompt": "Find influencer platforms in UK, about 10 targets",
+      "user_prompt_variants": [
+        "Gather creator economy companies in the UK",
+        "Search for UK influencer platforms"
+      ],
+      "expected_tool_calls": [
+        "tam_gather"
+      ],
+      "expected_behavior": {
+        "source_type": "apollo.companies.api",
+        "project_is_onsocial": true,
+        "no_result_companies_mixed_in": true,
+        "response_must_contain": [
+          "companies",
+          "gathered"
+        ]
+      }
+    },
+    {
+      "step": 6,
+      "phase": "verify_isolation",
+      "description": "OnSocial's blacklist should NOT include Result's companies.",
+      "expected_tool_calls": [
+        "tam_blacklist_check",
+        "tam_approve_checkpoint"
+      ],
+      "expected_behavior": {
+        "blacklist_independent_from_result": true,
+        "response_must_contain": [
+          "blacklist",
+          "approved"
+        ]
+      },
+      "user_prompt": "Run blacklist check for OnSocial UK and approve",
+      "user_prompt_variants": [
+        "Check blacklist and approve for OnSocial",
+        "Blacklist check for this project"
+      ]
+    }
+  ],
+  "final_verification": {
+    "db_checks": [
+      "2 projects for services@getsally.io: Result (215 companies) + OnSocial UK (new)",
+      "OnSocial UK has own discovered_companies (NOT shared with Result)",
+      "OnSocial UK has own gathering_runs",
+      "Blacklist for OnSocial UK does NOT include Result's companies"
+    ]
+  }
+}

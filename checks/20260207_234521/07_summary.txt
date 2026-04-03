@@ -1,0 +1,11 @@
+
+── 7. SUMMARY ──
+  Total contacts:          54662
+  Total activities:        14101
+  Total processed replies: 2460
+  Total projects:          16
+  Campaigns in DB:         507
+
+======================================================================
+  RECHECK COMPLETE
+======================================================================

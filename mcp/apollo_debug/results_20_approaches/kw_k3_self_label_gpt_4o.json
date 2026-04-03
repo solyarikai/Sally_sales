@@ -1,0 +1,68 @@
+{
+  "type": "kw",
+  "prompt": "k3_self_label",
+  "model": "gpt-4o",
+  "avg": 2.25,
+  "details": [
+    {
+      "seg": "it_miami",
+      "err": "json_err"
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "video production",
+        "tv commercial production",
+        "high-quality content production",
+        "media & content creation",
+        "content creation studio",
+        "creative production",
+        "digital content creation",
+        "engaging content creation"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "fashion brand italy",
+        "italian luxury brands",
+        "luxury fashion italy",
+        "italian fashion",
+        "made in italy fashion",
+        "italian designer",
+        "luxury fashion milan",
+        "italian haute couture"
+      ],
+      "score": 4
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "influencer marketing agency",
+        "social media influencers",
+        "social media influencer campaigns",
+        "social media influencer strategy",
+        "influencer collaborations",
+        "influencer marketing",
+        "influencer outreach",
+        "influencer partnerships"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [
+        "influencer platforms",
+        "social media influencers",
+        "influencer marketing platforms",
+        "social media influencer campaigns",
+        "influencer collaboration platforms",
+        "digital influencer marketing",
+        "influencer marketing tools",
+        "influencer network"
+      ],
+      "score": 2
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+import { createContext, useContext } from 'react';
+import type { ContactStats, FilterOptions } from '../../api/contacts';
+
+export interface ContactsFilterState {
+  campaignFilters: string[];
+  setCampaignFilters: (names: string[]) => void;
+  toggleCampaign: (name: string) => void;
+  campaignIdFilter: string | null;
+  setCampaignIdFilter: (id: string | null) => void;
+  statusFilters: string[];
+  setStatusFilters: (statuses: string[]) => void;
+  toggleStatus: (status: string) => void;
+  segmentFilters: string[];
+  setSegmentFilters: (segments: string[]) => void;
+  toggleSegment: (segment: string) => void;
+  sourceFilter: string | null;
+  setSourceFilter: (s: string | null) => void;
+  geoFilter: string | null;
+  setGeoFilter: (s: string | null) => void;
+  repliedFilter: boolean | null;
+  setRepliedFilter: (v: boolean | null) => void;
+  followupFilter: boolean | null;
+  setFollowupFilter: (v: boolean | null) => void;
+  campaigns: Array<{ name: string; source: string }>;
+  ensureCampaignsLoaded: () => void;
+  stats: ContactStats | null;
+  filterOptions: FilterOptions | null;
+  resetPage: () => void;
+  createdAfter: string | null;
+  createdBefore: string | null;
+  setDateRange: (after: string | null, before: string | null) => void;
+  replyCategoryFilters: string[];
+  setReplyCategoryFilters: (cats: string[]) => void;
+  toggleReplyCategory: (cat: string) => void;
+}
+
+export const ContactsFilterContext = createContext<ContactsFilterState | null>(null);
+
+export function useContactsFilter(): ContactsFilterState {
+  const ctx = useContext(ContactsFilterContext);
+  if (!ctx) throw new Error('useContactsFilter must be used within ContactsFilterContext.Provider');
+  return ctx;
+}

@@ -1,0 +1,8 @@
+
+── 3. LIVE API CROSS-REFERENCE ──
+  (What: compare DB campaign counts with live SmartLead + GetSales APIs)
+  (Where: SmartLead API /campaigns, GetSales API /automations)
+
+  SmartLead API error: 400
+
+  GetSales API error: 404

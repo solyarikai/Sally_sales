@@ -1,0 +1,327 @@
+# Architecture Reference
+
+Single source of truth for system architecture. Updated Mar 2026.
+
+---
+
+## System Overview
+
+Lead generation and outreach automation platform with:
+- **Backend**: FastAPI + SQLAlchemy (async) + PostgreSQL
+- **Frontend**: React + TypeScript + Vite
+- **Deployment**: Docker Compose on Hetzner, volume-mounted source code
+- **Integrations**: SmartLead (email), GetSales (LinkedIn), Telegram (notifications)
+
+---
+
+## Scheduler Architecture
+
+The CRM scheduler (`crm_scheduler.py`) is a singleton started in `main.py` lifespan. It manages all background tasks:
+
+```
+CRM Scheduler
+  ├── _run_loop()                    — Full CRM sync every 30 min
+  ├── _run_reply_loop()              — Reply polling, adaptive 3–10 min
+  │     ├── sync_smartlead_replies()   (email)
+  │     ├── sync_getsales_replies()    (LinkedIn)
+  │     └── _auto_assign_new_campaigns() (every 6th run)
+  ├── _run_webhook_loop()            — Webhook registration every 1 hour (5 min on failure)
+  ├── _run_event_recovery_loop()     — Failed event retry every 5 min
+  ├── _run_conversation_sync_loop()  — replied_externally detection every 3 min
+  ├── _run_telegram_poll_loop()      — Telegram bot long-poll every 5 sec
+  ├── _run_report_loop()             — Telegram digest every 4 hours
+  ├── _run_prompt_refresh_loop()     — Prompt template refresh weekly
+  ├── _run_sheet_sync_loop()         — Google Sheets sync every 5 min
+  └── _run_watchdog()                — Health monitoring every 60 sec, resurrects dead tasks
+```
+
+---
+
+## Reply Pipeline
+
+### How replies arrive
+
+1. **SmartLead Webhooks** (primary, real-time, ~5s latency)
+   - SmartLead fires webhook → `POST /api/smartlead/webhook`
+   - Handler: `smartlead.py:receive_webhook()`
+   - Dedup via `WebhookEventModel` table + in-memory bounded cache
+   - Classify (GPT-4o-mini) → Generate draft → Create `ProcessedReply`
+   - Notify via Telegram (per-project routing)
+
+2. **SmartLead Polling** (fallback, 3–10 min latency)
+   - `crm_scheduler._run_reply_loop()` → `crm_sync_service.sync_smartlead_replies()`
+   - Uses `GET /campaigns/{id}/statistics` (paginated)
+   - Adaptive interval: fast (3 min) during startup or webhook failure, slow (10 min) steady state
+
+3. **GetSales LinkedIn** (webhook + polling)
+   - Webhook: `POST /api/crm-sync/webhook/getsales` → `crm_sync.py:getsales_webhook()`
+   - Polling fallback: `crm_sync_service.sync_getsales_replies()`
+   - Source="getsales", channel="linkedin"
+   - Operator can send reply directly via GetSales API (`send_linkedin_message()` with 3-attempt retry + 200ms rate limiting)
+   - Sender profile UUID → project mapping in `GETSALES_UUID_TO_PROJECT` (auto-populated from `GETSALES_FLOW_NAMES`)
+
+### Telegram notification routing
+
+Notifications are sent via `notification_service.py` with per-project subscriber routing:
+
+1. **Admin** always receives all notifications (via `TELEGRAM_CHAT_ID` env var)
+2. **Project subscribers** receive notifications for their projects (via `telegram_subscriptions` table)
+3. **Routing priority**:
+   - `campaign_name` → match against project `campaign_filters` (exact, case-insensitive)
+   - `project_id` fallback → direct project lookup via `GETSALES_UUID_TO_PROJECT` mapping (for LinkedIn replies without flow names)
+4. Operators subscribe to projects via Telegram bot commands (`/connect <project>`)
+5. Cache refreshes every 5 min (`_project_cache`)
+
+### Webhook endpoints (canonical, single source of truth)
+
+| Endpoint | Handler | Purpose |
+|----------|---------|---------|
+| `POST /api/smartlead/webhook` | `smartlead.py:receive_webhook()` | SmartLead email events |
+| `POST /api/crm-sync/webhook/getsales` | `crm_sync.py:getsales_webhook()` | GetSales LinkedIn events |
+| `POST /api/crm-sync/webhook/getsales/bulk-import` | `crm_sync.py:getsales_bulk_import_webhook()` | GetSales bulk contact import |
+
+All webhooks support optional token authentication via `?token=<WEBHOOK_SECRET>` query parameter.
+
+### Webhook registration
+
+Managed centrally by `setup_crm_webhooks_on_startup()` in `crm_scheduler.py`. Called:
+- On startup (once)
+- Every hour by `_run_webhook_loop()` (safety net)
+- After auto-assign discovers new campaigns
+
+**Never register webhooks from API endpoints or other services.** The `POST /api/crm-sync/setup-webhooks` endpoint delegates to the same central function.
+
+---
+
+## Key Data Models
+
+### ProcessedReply (central reply record)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| lead_email | str | Unique with campaign_id via `uq_processed_reply_email_campaign` |
+| campaign_id | str | SmartLead campaign ID or GetSales automation UUID |
+| category | str | GPT classification (8 categories: interested, meeting_request, not_interested, out_of_office, wrong_person, unsubscribe, question, other) |
+| approval_status | str | NULL/pending → approved/dismissed/edited |
+| source | str | smartlead / getsales |
+| channel | str | email / linkedin |
+| draft_reply | text | AI-generated draft |
+| contact_info | dict | Eagerly loaded from contacts table (company, domain, job_title, etc.) |
+
+### WebhookEventModel (event log + recovery)
+
+Stores raw webhook payloads. Recovery loop retries failed events with exponential backoff (5min → 15min → 45min → 2h → 6h, max 5 retries).
+
+### Project (saved filter preset)
+
+Links campaigns to business units via `campaign_filters` (list of campaign name prefixes). `webhooks_enabled` controls whether webhooks are registered for this project's campaigns.
+
+---
+
+## Shared Utilities
+
+Shared normalization functions live in `app/utils/normalization.py`:
+- `normalize_email()` — lowercase + strip
+- `normalize_linkedin_url()` — extract handle from any LinkedIn URL format
+- `calculate_name_similarity()` — SequenceMatcher ratio
+- `truncate()` — safe string truncation
+
+**Import from here. Do not duplicate these functions.**
+
+---
+
+## Concurrency Safety
+
+| Resource | Protection | File |
+|----------|-----------|------|
+| `_project_cache` | `asyncio.Lock` | `notification_service.py` |
+| `_verified_webhooks` | Bounded TTL dict (max 2000, 1h TTL) | `crm_sync_service.py` |
+| SmartLead API | `asyncio.Semaphore` in sync loops | `crm_scheduler.py` |
+
+---
+
+## Deployment
+
+```
+Server: Hetzner (ssh hetzner)
+Path:   ~/magnum-opus-project/repo
+Stack:  Docker Compose (v1)
+
+Containers:
+  leadgen-backend   — FastAPI app, volume-mounted from repo/backend → /app
+  leadgen-postgres   — PostgreSQL
+  redis              — Redis (caching, dedup)
+  leadgen-frontend   — Nginx serving built frontend
+```
+
+### Deploy procedure
+
+```bash
+ssh hetzner
+cd ~/magnum-opus-project/repo
+git pull
+docker restart leadgen-backend
+
+# Frontend (if changed):
+cd frontend
+npm install && npm run build
+docker restart leadgen-frontend
+```
+
+### Running scripts
+
+```bash
+docker exec -w /app -e PYTHONPATH=/app leadgen-backend python3 scripts/<script>.py
+```
+
+---
+
+## Conversation History
+
+### How history is loaded
+
+1. **SmartLead (email)**: `_fetch_and_cache_thread()` calls SmartLead's thread API on-demand (first History click). Cached in `thread_messages` table via `thread_fetched_at` flag.
+
+2. **GetSales (LinkedIn)**: On-demand fetch via `_fetch_getsales_conversation()` in `replies.py`. Uses `get_conversation_messages()` (filters by `linkedin_conversation_uuid`). Creates `ContactActivity` records (both outbound + inbound) and caches them. Only fetches when no outbound activities exist for the contact.
+
+3. **Campaign switching**: `/replies/{id}/campaign-thread` loads thread for a different campaign on-demand. Supports both SmartLead threads and LinkedIn ContactActivity records.
+
+4. **Default campaign**: Reply's own campaign is pinned first in the dropdown, rest sorted by recency.
+
+### Deduplication layers
+
+1. **Redis**: Atomic `SADD` via `try_claim_reply()` — first writer wins
+2. **DB unique constraint**: `uq_processed_reply_email_campaign` on `(LOWER(lead_email), campaign_id)` 
+3. **IntegrityError handling**: Graceful catch-and-skip on concurrent inserts
+4. **Outbound rejection**: `reply_processor.py` rejects SmartLead outbound sends masquerading as EMAIL_REPLY events at the gate
+
+### Empty body filtering
+
+Replies with empty/meaningless bodies (`(empty)`, `(no content)`, etc.) are excluded from:
+- `GET /replies/` when `needs_reply=true`
+- `GET /replies/counts` endpoint
+- Category count calculations
+
+---
+
+## Telegram Notifications
+
+### Format
+- Color-coded emoji prefix: 🟢 interested/meeting/question, 🔴 not_interested/unsubscribe, 🟡 OOO, 📧 default
+- Message preview: max 8 non-empty lines, max 200 chars
+- Placeholder emails (`gs_*@linkedin.placeholder`) hidden from message body but included in Replies UI link
+
+### Deep links
+- All Telegram notifications include `?lead=<email>&project=<slug>` in the Replies UI link
+- Even placeholder LinkedIn emails are included in the `lead=` parameter for direct filtering
+- Frontend handles deep links by: disabling auto-refresh polling, skipping `needs_reply`/`category` filters, using server-side `lead_email` filter
+
+---
+
+## Learning System
+
+### Architecture
+
+```
+Operator sends reply → record_correction() stores AI draft vs actual sent text
+                     ↓
+Knowledge page → "Learn" button → run_learning_cycle()
+                     ↓
+Fetch prioritized conversations (qualified leads first) + operator corrections
+                     ↓
+GPT-4o-mini analyzes patterns → updates reply prompt template + ICP knowledge
+                     ↓
+LearningLog records before/after snapshots + reasoning
+```
+
+### Components
+- **OperatorCorrection**: Stores AI draft vs operator's actual sent text per reply
+- **LearningLog**: Audit trail of learning cycles with before/after snapshots
+- **ProjectKnowledge**: ICP insights, objection patterns, qualification criteria
+- **ReplyPromptTemplateModel**: Versioned prompt templates with usage tracking
+- **SpotlightFeedback (Cmd+K)**: Operator feedback → processed by GPT → updates template/ICP
+
+### API endpoints
+- `GET /projects/{id}/learning/overview` — Full knowledge page data
+- `POST /projects/{id}/learning/analyze` — Trigger learning cycle (background)
+- `POST /projects/{id}/learning/feedback` — Submit Cmd+K feedback
+
+---
+
+## Architecture Decisions (why things are this way)
+
+1. **Single webhook handler per service** — SmartLead webhooks go to `smartlead.py`, GetSales to `crm_sync.py`. No duplicates.
+
+2. **Centralized webhook registration** — All webhook URLs are registered by `setup_crm_webhooks_on_startup()` only. API endpoints delegate to it.
+
+3. **Adaptive polling** — Reply polling starts fast (3 min) and slows to 10 min when webhooks are healthy. This prevents both stale data and API waste.
+
+4. **Webhook health monitoring** — If no webhook events arrive in 15 min, the system assumes webhooks are broken and switches to fast polling.
+
+5. **Event recovery** — Raw webhook payloads are stored in `webhook_events` table. A recovery loop retries failed events with exponential backoff. No data loss even if processing fails.
+
+6. **Project-campaign mapping** — Projects define campaign name prefixes in `campaign_filters`. The scheduler auto-discovers new campaigns matching these prefixes and assigns them.
+
+7. **Multi-operator notifications** — `telegram_subscriptions` table (many-to-many between projects and Telegram chats). Operators self-subscribe via bot. Notification routing uses campaign_name match first, then `project_id` fallback for GetSales replies.
+
+8. **GetSales sender profile mapping** — `GETSALES_FLOW_NAMES` maps sender profile UUIDs and automation UUIDs to human-readable names. `GETSALES_UUID_TO_PROJECT` (auto-populated) maps these to project IDs for notification routing when polled replies lack flow names.
+
+---
+
+## File Map (key files only)
+
+```
+backend/
+  app/
+    api/
+      smartlead.py         — SmartLead webhook handler + API endpoints
+      crm_sync.py          — GetSales webhooks + CRM sync API
+      replies.py           — Reply management API (list, approve, send, history)
+      learning.py          — Learning system API (analyze, feedback, logs)
+    services/
+      crm_scheduler.py     — Background scheduler (all loops)
+      crm_sync_service.py  — SmartLead/GetSales API clients + sync logic
+      notification_service.py — Telegram notifications + project routing
+      reply_processor.py   — GPT classification + draft generation
+      learning_service.py  — AI learning cycles + operator correction tracking
+      cache_service.py     — Redis utilities (dedup via atomic SADD)
+    models/
+      contact.py           — Contact, Project, ContactActivity
+      reply.py             — ProcessedReply, ThreadMessage, ReplyPromptTemplateModel
+      learning.py          — LearningLog, OperatorCorrection
+      project_knowledge.py — ProjectKnowledge (ICP, patterns)
+    utils/
+      normalization.py     — Shared email/LinkedIn/name normalization
+    core/
+      config.py            — All settings (Pydantic BaseSettings)
+    scripts/
+      sync_historical_messages.py — One-time GetSales message history sync
+
+frontend/
+  src/
+    pages/
+      TasksPage.tsx        — Main reply management UI (tabs: Replies, Meetings, Qualified)
+      KnowledgePage.tsx    — Knowledge page (tabs: ICP, Templates, Logs)
+    components/
+      ReplyQueue.tsx       — Reply queue with deep link support
+      ConversationThread.tsx — Chat-style conversation display
+      CampaignDropdown.tsx — Campaign selector in history
+      SpotlightFeedback.tsx — Cmd+K feedback interface
+      knowledge/           — ICPPanel, TemplatesPanel, LearningLogsPanel
+    api/
+      index.ts             — API client
+      replies.ts           — Reply/task API calls
+      learning.ts          — Learning system API calls
+```
+
+---
+
+## Common Mistakes to Avoid
+
+1. **Do not create duplicate webhook handlers.** Check existing endpoints before adding new ones.
+2. **Do not hardcode webhook URLs in API endpoints.** Use `setup_crm_webhooks_on_startup()`.
+3. **Do not duplicate normalization functions.** Import from `app.utils.normalization`.
+4. **Do not store credentials in docs or code.** Use `.env` file only.
+5. **Do not create unbounded caches.** Use TTL + max-size limits.
+6. **Do not skip `asyncio.Lock` for shared mutable state** in concurrent loops.
+7. **After git pull on server, restart the container** — Python caches imported modules.

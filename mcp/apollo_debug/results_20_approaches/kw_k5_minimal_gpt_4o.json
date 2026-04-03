@@ -1,0 +1,78 @@
+{
+  "type": "kw",
+  "prompt": "k5_minimal",
+  "model": "gpt-4o",
+  "avg": 1.8,
+  "details": [
+    {
+      "seg": "it_miami",
+      "kws": [
+        "it consulting services",
+        "technology consulting",
+        "it services & it consulting",
+        "it project consulting",
+        "strategic it consulting",
+        "cybersecurity consulting",
+        "cloud consultancy",
+        "enterprise it solutions"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "video production",
+        "tv commercial production",
+        "high-quality content production",
+        "studio production",
+        "content creation studio",
+        "creative production",
+        "digital content creation",
+        "media & content creation"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "fashion_italy",
+      "kws": [
+        "italian luxury brands",
+        "luxury fashion italy",
+        "italian fashion",
+        "made in italy fashion",
+        "italian designer",
+        "luxury fashion milan",
+        "italian haute couture",
+        "italian craftsmanship"
+      ],
+      "score": 3
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "kws": [
+        "digital influencer agency",
+        "influencer marketing agency",
+        "social media influencer campaigns",
+        "social media influencer strategy",
+        "social media influencer collaborations",
+        "social media influencer outreach",
+        "influencer marketing platforms",
+        "influencer management"
+      ],
+      "score": 1
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "kws": [
+        "influencer platforms",
+        "social media influencers",
+        "influencer marketing platforms",
+        "social media influencer collaborations",
+        "influencer collaboration platforms",
+        "influencer marketing",
+        "influencer network",
+        "influencer marketing tools"
+      ],
+      "score": 2
+    }
+  ]
+}

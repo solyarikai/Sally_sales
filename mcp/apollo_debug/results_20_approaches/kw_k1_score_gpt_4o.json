@@ -1,0 +1,58 @@
+{
+  "type": "kw",
+  "prompt": "k1_score",
+  "model": "gpt-4o",
+  "avg": 2.0,
+  "details": [
+    {
+      "seg": "it_miami",
+      "err": "json_err"
+    },
+    {
+      "seg": "video_london",
+      "kws": [
+        "video production",
+        "visual production",
+        "tv commercial production",
+        "high-quality content production",
+        "studio production",
+        "specialized tech studios",
+        "media & content creation",
+        "content creation studio",
+        "creative studio",
+        "performance creative production",
+        "creative production",
+        "content creation services",
+        "in-house production",
+        "digital content creators",
+        "digital creative solutions",
+        "content production",
+        "video",
+        "technology for creators",
+        "creative content",
+        "digital content creation",
+        "creative services",
+        "social media content creation",
+        "creative agency",
+        "creative industries",
+        "engaging content creation",
+        "creative projects",
+        "award-winning agency",
+        "media & entertainment"
+      ],
+      "score": 2
+    },
+    {
+      "seg": "fashion_italy",
+      "err": "json_err"
+    },
+    {
+      "seg": "influencer_agencies_uk",
+      "err": "json_err"
+    },
+    {
+      "seg": "influencer_platforms_uk",
+      "err": "json_err"
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+feedback to learn from , download each conversation from smartlead , save in knoweldge base and update it, test how suggestions would look like vs fact until 99%+ accuracy for inxy
+
+
+1 example
+
+Кристиан, добрый день.
+
+Конечно, прикрепляю к этому письму наш одностраничник.
+
+Чтобы я мог лучше понять ваш кейс, подскажите, пожалуйста, ваша основная задача — это прием инвестиций за токенизированные активы или выплаты их держателям?
+
+Если после изучения документа это покажется актуальным, будем рады созвониться и все обсудить.
+
+С уважением,
+Сергей Кузнецов
+Сооснователь, INXY.io
+Обработали более $2 млрд в 2025 году
+
+https://app.smartlead.ai/app/master-inbox?action=INBOX&leadMap=2717951311
+ky@antallum.com
+
+
+2 example
+
+Hi Kasimir,
+
+Thank you for your message. Of course, I am attaching our one-pager to this email.
+
+To help me understand where we can be most useful, could you please let me know if your main priority is accepting payments from your international clients or making payouts to your contractors?
+
+If this seems relevant after reviewing the document, we would be happy to schedule a call to discuss everything.
+
+Best regards,
+Sergey Kuznetsov
+Co-founder, INXY.io
+Processed $2B+ in 2025
+
+https://app.smartlead.ai/app/master-inbox?action=INBOX&leadMap=2740459504
+
+kasimir.guertler@kasimirlieselotte.de
+
+
+3 example 
+
+https://app.smartlead.ai/app/master-inbox?action=INBOX&leadMap=2740439487
+
+ines.iacono@trustpayments.com
+
+
+
+Hi Ines,
+
+Thank you for your message. I'm glad my email found its way to you.
+
+Just to clarify the purpose of the call upfront and to save our time: we are a licensed crypto payments infrastructure provider, not a company looking for payment solutions.
+
+My original proposal was intended for TrustPayments as a potential partner. We help PSPs like you offer a crypto acceptance option to your merchants in a White-Label format.
+
+If adding crypto payments to your product suite is something you are exploring, then I would be very happy to schedule that call.
+
+Best regards,
+Sergey Kuznetsov
+Co-founder, INXY.io
+Processed $2B+ in 2025
+
+
+
+4 example 
+
+https://app.smartlead.ai/app/master-inbox?leadMap=2717935865
+
+Надежда, добрый вечер!
+
+Спасибо за ответ и за ссылку на ваш календарь.Я забронировал слот на завтра в 17:00 CET с почты моего коллеги Александра a.bakharev@inxy.io
+
+Чтобы мы могли лучше подготовиться к нашему разговору, я правильно понимаю, что ваш основной интерес связан с управлением активами самого фонда (институциональный on/off-ramp) или вы ищете платежное решение для ваших портфельных компаний?
+
+С нетерпением ждем нашей встречи!
+
+С уважением,
+Сергей Кузнецов
+Сооснователь, INXY.io
+Обработали более $2 млрд в 2025 году
+
+
+
+5 example
+
+https://app.smartlead.ai/app/master-inbox?leadMap=2736578973
+
+
+Hi Erik,
+
+Thanks for the reply. I completely understand what a launch is like—best of luck on Friday!
+
+Of course, here are the quick bullet points on how we can be useful for an e-commerce platform like yours:
+Expand Your Audience: You can accept payments in crypto (USDT, BTC, etc.) from customers worldwide, especially from regions with card payment issues.
+Simple For You: You never have to touch crypto. A customer pays in crypto, and you receive regular fiat (EUR/USD) in your corporate bank account.
+Legal & Secure: We are a licensed European provider (EU VASP). For your bank, it looks like a standard B2B transfer.
+Links to explore:
+Our website: inxy.io 
+I'm attaching our one-pager.
+I won't distract you before the launch. We would be happy to schedule a call after things have settled down to discuss the details.
+
+Good luck again on Friday!
+
+Best regards,
+Sergey Kuznetsov
+Co-founder, INXY.io
+Processed $2B+ in 2025
+
+
+
+-----------
+
+inxy linkedin accounts in getsales
+
+ruslan zholik 
+
+https://amazing.getsales.io/messenger/e51f6556-ddf7-4a73-994b-995b922f8749?senderProfileId=%22aab81b67-61c7-4cb9-b642-ad8584f69550%22
+
+sergey gvnidze
+
+https://amazing.getsales.io/messenger/e51f6556-ddf7-4a73-994b-995b922f8749?senderProfileId=%22448339f7-07c4-4766-b9e5-c09474196fe9%22
+
+
+tamara bustmante
+
+https://amazing.getsales.io/messenger/c4384b26-cc4e-4535-b7c0-3606e002c8de?senderProfileId=%2225598cb7-f9d7-40e8-88f3-c8654759a8ab%22
+
+
+---
+
+
+
+
+step 1
+
+add inxy project with all active inxy campaings from smartlead and getsales
+
+add monitoring replies for inxy
+
+load knowledge for replies suggestions
+
+https://docs.google.com/spreadsheets/d/1x7qXLxolby-u3kL6D835ElQGYNQJH6kUDJxMpWZedX4/edit?gid=1547475686#gid=1547475686
+use shared drive setup to access it, it's within sally domain so you hace access to it
+
+
+learn on commncations with qualified leads and interested leads for tfp project for suggestions to be exact as operator replies and all cases
+
+50 comnvestaions from smartlead, 50 from getsales, priotiize qualified leads , then interested, then objections handling
+
+
+
+---
+step 2
+
+
+then load all leads from this google sheet into crm
+fix crm ui (night theme and light theme, open browser, see how it looks like and debug)
+i don't want to see overlaps
+for conversation history use the same ui and components that were used in replies ui, as replies page conversation history is perfect
+
+
+load all qualified leads in knowledge base to further (and really make it after) reverse engineer them by apollo, and classify yourself by busienss sgement parsing website via crona (like in datagathering pipleine flow) and running gpt4omini on website content so that as result for each qualified lead the system knows
+1. business segment
+2. all lables in apollo (no need to spend apollo credits right for cokmpany info requests): keywords, industry, all other data labeling fields
+3. so that you can summarize and provide go to market strategy like: segments list in descending order by prioirty and details (suggestions) how to gather more such companies from apollo and query searches , show this go to market startegy in a new sepaate tab in knowledge page. this analyze i guess is better to make with gemini2.5. make the system universal, but now do this only for inxy project
+
+as a result , further it will be very extremely easy to connect with data gathering pipeline so that the system will be albe to suggest go to market plan in ui --> operator aproves --> then the system starts gathering companies  
+
+
+---
+step 3
+
+
+Also make the system find leads, I mean perfect companies and contacts even for outreach from CRM itself. I mean, for instance, first you should make sure all contacts from in smart leads, there is probably brilliant endpoint to get all contacts from a campaign, like download CCs, like in one request. So make sure you download it all contacts in your CRM from all campaigns in, from all trackable projects, I mean, TFB, Easy stuff, Easy style global, and Mefford. And for instance, for ING, certainly some easy stuff leads might be appropriate for outreach, might be target for outreach. So if contacts downloaded from smart lead or get sales already contained column responsible for segment, for business segment. then use it, otherwise, like, for Inksy purposes, it would be very beneficial to first test it maybe on just a thousand, just like hardcode this, like, leave a comment in code that it's just for test purposes, a thousand of unlabelled, I mean, unlabelled by segment contacts from EasyStuffRU campaigns, EasyStuff Russian campaigns, I mean, EasyStuffRU project, and try to find the target contacts for Inksy outreach. How by scraping website via Crona, analyzing its content via GPT-4 Mini for fast and like cheap, and improve your CRM to, like, I mean, I want to use it not to create dozens of new pages and, or new tables, so I want to reuse. CRM view to show, for instance, contacts from easy stuff. I don't care even from where, but just contacts in my CRM, like, not yet, so you should definitely make sure you upload all contacts from INCI campaigns as well. So I should see, like, maybe add a column in the CRM, like, there is already a column project, but there should also be a column like suitable for, and it should be like multiple select field, multiple select, I mean multiple values might be there, but I can in this column, for instance, select and on query label 2 for easy shareable and for link actually from knowledge page, so that I can see content at the CRM and suitable for outreach for INCI, but not yet in INCI campaigns, I mean, not in smart lead campaigns, not in GetSales campaigns, but suitable from your this 1000 analysis of easy stuff through prospect to understand. So just test for now, but basically the system should work as it analyzes all contacts. Some contacts in Smart Target Sales already has this column responsible for segment. It might be called segment or something like that. So, probably, you can use it, like the system should either use this column or make this classification itself, but anyway, for now, analyze the like 1000 most recent contacts for resister and do it as I asked you.
