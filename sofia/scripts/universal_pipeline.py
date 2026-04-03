@@ -1052,7 +1052,7 @@ def step6_verify(run_id: int) -> dict:
 # Эти компании — основа для поиска людей (контактов) на следующем шаге.
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dict]:
+def step8_export_targets(config: ProjectConfig, force: bool = False) -> list[dict]:
     """Export approved target companies from backend DB."""
     targets_file = config.state_dir / "targets.json"
     print(f"\n{'='*60}")
@@ -2442,7 +2442,7 @@ def main():
         # Step 6-7 done in chat. Now: approve CP2 gate + export targets.
         # No blacklist_approved_targets — CRM sync handles this automatically.
         approve_pending_gate(config, run_id)
-        targets = step9_export_targets(config, force=args.force)
+        targets = step8_export_targets(config, force=args.force)
     else:
         targets = load_json(config.state_dir / "targets.json") or []
 
