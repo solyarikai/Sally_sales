@@ -950,7 +950,7 @@ def approve_gate(gate_id: int, note: str = "Approved") -> dict:
 
 
 def step3_prefilter(run_id: int) -> dict:
-    print(f"\n  Step 3: Pre-filter (run #{run_id})")
+    print(f"\n  STEP 3: PREFILTER (run #{run_id})")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter")
     print(f"  Passed: {result.get('passed', '?')}")
     return result
