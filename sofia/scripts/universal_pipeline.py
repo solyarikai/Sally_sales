@@ -1001,7 +1001,7 @@ def step5_reclassify(config: ProjectConfig, run_id: int,
                      prompt_text: str = None, model: str = "gpt-4o-mini") -> dict:
     """Re-run analysis with different prompt (no re-scrape needed)."""
     print(f"\n{'='*60}")
-    print(f"STEP 5 (RE-ANALYZE): run #{run_id}")
+    print(f"STEP 5 (RE-CLASSIFY): run #{run_id}")
     text = prompt_text or config.prompt_text
     if not text:
         print("  ERROR: No prompt text available.")
