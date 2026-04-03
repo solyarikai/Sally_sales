@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search, Send, Loader2, MessageCircle, User, ChevronRight, ChevronLeft,
   Tag, Hash, StickyNote,
@@ -27,6 +27,14 @@ interface InboxDialog {
   lead_status: string | null;
 }
 
+interface MessageEntity {
+  type: 'bold' | 'italic' | 'code' | 'pre' | 'url' | 'text_url' | 'mention' | 'strikethrough' | 'underline' | 'spoiler';
+  offset: number;
+  length: number;
+  url?: string;
+  language?: string;
+}
+
 interface InboxMessage {
   id: number;
   direction: 'inbound' | 'outbound';
@@ -36,6 +44,7 @@ interface InboxMessage {
   is_read: boolean;
   media_type?: string | null;
   reply_to_id?: number | null;
+  entities?: MessageEntity[];
 }
 
 interface CrmInfo {
@@ -110,6 +119,95 @@ const TAG_COLORS: Record<string, string> = {
   follow_up: '#f59e0b',
   spam: '#6b7280',
 };
+
+/* ─────────── formatted text renderer ─────────── */
+function renderFormattedText(text: string, entities?: MessageEntity[]): React.ReactNode {
+  if (!entities || entities.length === 0) return text;
+
+  // Sort entities by offset, then by length descending (longer first for nesting)
+  const sorted = [...entities].sort((a, b) => a.offset - b.offset || b.length - a.length);
+
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+
+  for (let i = 0; i < sorted.length; i++) {
+    const ent = sorted[i];
+    // Skip entities that overlap with already-processed text
+    if (ent.offset < cursor) continue;
+
+    // Add plain text before this entity
+    if (ent.offset > cursor) {
+      parts.push(text.slice(cursor, ent.offset));
+    }
+
+    const entityText = text.slice(ent.offset, ent.offset + ent.length);
+
+    switch (ent.type) {
+      case 'bold':
+        parts.push(<strong key={i}>{entityText}</strong>);
+        break;
+      case 'italic':
+        parts.push(<em key={i}>{entityText}</em>);
+        break;
+      case 'code':
+        parts.push(
+          <code key={i} className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[12px] font-mono">
+            {entityText}
+          </code>
+        );
+        break;
+      case 'pre':
+        parts.push(
+          <pre key={i} className="bg-black/10 dark:bg-white/10 p-2 rounded text-[12px] font-mono overflow-x-auto my-1">
+            <code>{entityText}</code>
+          </pre>
+        );
+        break;
+      case 'url':
+        parts.push(
+          <a key={i} href={entityText} target="_blank" rel="noopener noreferrer"
+            className="underline opacity-90 hover:opacity-100">{entityText}</a>
+        );
+        break;
+      case 'text_url':
+        parts.push(
+          <a key={i} href={ent.url} target="_blank" rel="noopener noreferrer"
+            className="underline opacity-90 hover:opacity-100">{entityText}</a>
+        );
+        break;
+      case 'mention':
+        parts.push(
+          <span key={i} className="font-medium opacity-90">{entityText}</span>
+        );
+        break;
+      case 'strikethrough':
+        parts.push(<s key={i}>{entityText}</s>);
+        break;
+      case 'underline':
+        parts.push(<u key={i}>{entityText}</u>);
+        break;
+      case 'spoiler':
+        parts.push(
+          <span key={i} className="bg-current rounded px-0.5 hover:bg-transparent transition-colors cursor-pointer"
+            onClick={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+            {entityText}
+          </span>
+        );
+        break;
+      default:
+        parts.push(entityText);
+    }
+
+    cursor = ent.offset + ent.length;
+  }
+
+  // Add remaining text after last entity
+  if (cursor < text.length) {
+    parts.push(text.slice(cursor));
+  }
+
+  return <>{parts}</>;
+}
 
 /* ─────────── main component ─────────── */
 export function InboxV2Page() {
@@ -464,7 +562,7 @@ export function InboxV2Page() {
                         }}
                       >
                         <div className="text-[13px] whitespace-pre-wrap break-words leading-[1.35]">
-                          {msg.text}
+                          {renderFormattedText(msg.text, msg.entities)}
                         </div>
                         <div className="flex items-center justify-end gap-1 mt-0.5 -mb-0.5">
                           <span className="text-[10px]" style={{ color: timeColor }}>

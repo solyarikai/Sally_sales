@@ -6755,6 +6755,7 @@ async def get_dialog_messages(
                 "is_read": m.get("is_read", False),
                 "fwd_from": m.get("fwd_from"),
                 "media": m.get("media"),
+                "entities": m.get("entities", []),
             })
 
         # Get peer online status + block detection

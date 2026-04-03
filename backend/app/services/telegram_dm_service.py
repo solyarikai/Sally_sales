@@ -532,6 +532,37 @@ class TelegramDMService:
                     if fwd_name:
                         fwd_info = {"from_name": fwd_name}
 
+                # Extract message entities (bold, italic, code, links, etc.)
+                entities_list = []
+                if msg.entities:
+                    from telethon.tl.types import (
+                        MessageEntityBold, MessageEntityItalic, MessageEntityCode,
+                        MessageEntityPre, MessageEntityUrl, MessageEntityTextUrl,
+                        MessageEntityMention, MessageEntityStrike, MessageEntityUnderline,
+                        MessageEntitySpoiler,
+                    )
+                    entity_type_map = {
+                        MessageEntityBold: "bold",
+                        MessageEntityItalic: "italic",
+                        MessageEntityCode: "code",
+                        MessageEntityPre: "pre",
+                        MessageEntityUrl: "url",
+                        MessageEntityTextUrl: "text_url",
+                        MessageEntityMention: "mention",
+                        MessageEntityStrike: "strikethrough",
+                        MessageEntityUnderline: "underline",
+                        MessageEntitySpoiler: "spoiler",
+                    }
+                    for ent in msg.entities:
+                        etype = entity_type_map.get(type(ent))
+                        if etype:
+                            e = {"type": etype, "offset": ent.offset, "length": ent.length}
+                            if etype == "text_url" and hasattr(ent, "url"):
+                                e["url"] = ent.url
+                            if etype == "pre" and hasattr(ent, "language") and ent.language:
+                                e["language"] = ent.language
+                            entities_list.append(e)
+
                 messages.append({
                     "id": msg.id,
                     "direction": "outbound" if msg.sender_id == me.id else "inbound",
@@ -543,6 +574,7 @@ class TelegramDMService:
                     "is_read": not msg.out or (msg.out and hasattr(msg, 'views')),
                     "fwd_from": fwd_info,
                     "media": media_info,
+                    "entities": entities_list,
                 })
         except FloodWaitError as e:
             logger.warning(f"Account {account_id} FloodWait on messages: {e.seconds}s")
