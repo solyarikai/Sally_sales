@@ -16,6 +16,7 @@ from app.models.telegram_outreach import (
 )
 from app.models.telegram_dm import TelegramDMAccount
 from app.services.telegram_dm_service import telegram_dm_service
+from app.services.infatica_proxy_service import infatica_proxy_service
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,19 @@ class InboxSyncService:
                     "username": proxy.username, "password": proxy.password,
                 }
                 logger.info(f"Inbox sync: proxy fallback for {account.phone} ← {proxy.host}:{proxy.port}")
+
+        # Fallback: auto-generate Infatica proxy
+        if not proxy_cfg and infatica_proxy_service.is_configured:
+            infatica = infatica_proxy_service.get_proxy_for_account(
+                account.phone, getattr(account, 'id', None) or account_id
+            )
+            if infatica:
+                proxy_cfg = {
+                    "type": infatica["protocol"],
+                    "host": infatica["host"], "port": infatica["port"],
+                    "username": infatica["username"], "password": infatica["password"],
+                }
+                logger.info(f"Inbox sync: Infatica proxy for {account.phone} (geo auto-detect)")
 
         # Check if already connected — avoid disconnect at the end if so
         already_connected = telegram_dm_service.is_connected(account_id)
