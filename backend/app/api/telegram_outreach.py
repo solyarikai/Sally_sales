@@ -2715,6 +2715,7 @@ async def import_account_bundle(
                     Path(photo_path).parent.mkdir(parents=True, exist_ok=True)
                     downloaded = await client.download_profile_photo(me, file=photo_path)
                     if downloaded:
+                        acc.profile_photo_path = photo_path
                         avatars_fetched += 1
             await telegram_engine.disconnect(acc.id)
         except Exception:
@@ -2767,6 +2768,7 @@ async def fetch_missing_avatars(session: AsyncSession = Depends(get_session)):
                     Path(photo_path).parent.mkdir(parents=True, exist_ok=True)
                     downloaded = await client.download_profile_photo(me, file=photo_path)
                     if downloaded:
+                        acc.profile_photo_path = photo_path
                         fetched += 1
             await telegram_engine.disconnect(acc.id)
         except Exception as e:
@@ -4325,6 +4327,18 @@ async def _save_session_after_auth(account_id: int, account, session: AsyncSessi
                     account.first_name = me.first_name
                 if me.last_name:
                     account.last_name = me.last_name
+            # Download avatar (best-effort)
+            try:
+                from pathlib import Path
+                photo_path = f"/app/tg_photos/{account.phone}.jpg"
+                Path(photo_path).parent.mkdir(parents=True, exist_ok=True)
+                downloaded = await client.download_profile_photo(me, file=photo_path)
+                if downloaded:
+                    account.profile_photo_path = photo_path
+                    logger.info(f"Avatar downloaded for account {account_id} ({account.phone})")
+            except Exception as e:
+                logger.warning(f"Failed to download avatar for {account_id}: {e}")
+
             string_session = StringSession.save(client.session)
             account.string_session = string_session
             account.session_file = account.phone
