@@ -40,6 +40,9 @@ export interface TgAccount {
   proxy_group_name?: string;
   assigned_proxy_id?: number;
   assigned_proxy_host?: string;
+  proxy_country?: string;
+  proxy_country_name?: string;
+  proxy_provider?: string;
   tags: TgAccountTag[];
   campaigns_count: number;
   country_code?: string;
@@ -209,6 +212,11 @@ export const telegramOutreachApi = {
   checkProxy: async (id: number) =>
     (await api.post<{ proxy_id: number; alive: boolean; latency_ms: number | null; error: string | null }>(
       `${BASE}/proxies/${id}/check`
+    )).data,
+
+  testAccountProxy: async (accountId: number) =>
+    (await api.post<{ ok: boolean; ip: string | null; latency_ms: number | null; provider: string | null; error: string | null }>(
+      `${BASE}/accounts/${accountId}/test-proxy`
     )).data,
 
   checkProxyGroup: async (groupId: number, autoDelete: boolean = false) =>

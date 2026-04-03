@@ -314,6 +314,49 @@ def _detect_country(phone: str) -> Optional[str]:
         return None
 
 
+def _country_name(iso_code: str) -> str:
+    """ISO alpha-2 → human-readable country name."""
+    _NAMES = {
+        "US": "United States", "GB": "United Kingdom", "DE": "Germany", "FR": "France",
+        "ES": "Spain", "IT": "Italy", "PT": "Portugal", "NL": "Netherlands", "BE": "Belgium",
+        "CH": "Switzerland", "AT": "Austria", "SE": "Sweden", "NO": "Norway", "DK": "Denmark",
+        "FI": "Finland", "PL": "Poland", "CZ": "Czech Republic", "HU": "Hungary", "RO": "Romania",
+        "BG": "Bulgaria", "HR": "Croatia", "RS": "Serbia", "SK": "Slovakia", "SI": "Slovenia",
+        "LT": "Lithuania", "LV": "Latvia", "EE": "Estonia", "IE": "Ireland", "GR": "Greece",
+        "RU": "Russia", "UA": "Ukraine", "BY": "Belarus", "KZ": "Kazakhstan", "UZ": "Uzbekistan",
+        "GE": "Georgia", "AM": "Armenia", "AZ": "Azerbaijan", "KG": "Kyrgyzstan", "TJ": "Tajikistan",
+        "TM": "Turkmenistan", "MD": "Moldova", "TR": "Turkey", "IL": "Israel", "AE": "UAE",
+        "SA": "Saudi Arabia", "IN": "India", "CN": "China", "JP": "Japan", "KR": "South Korea",
+        "BR": "Brazil", "AR": "Argentina", "MX": "Mexico", "CA": "Canada", "AU": "Australia",
+        "NZ": "New Zealand", "ZA": "South Africa", "NG": "Nigeria", "EG": "Egypt", "TH": "Thailand",
+        "VN": "Vietnam", "ID": "Indonesia", "MY": "Malaysia", "SG": "Singapore", "PH": "Philippines",
+        "HK": "Hong Kong", "TW": "Taiwan", "CY": "Cyprus", "MT": "Malta", "LU": "Luxembourg",
+    }
+    return _NAMES.get(iso_code.upper(), iso_code.upper()) if iso_code else ""
+
+
+def _resolve_proxy_meta(acc) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Resolve proxy country, country_name, and provider for an account.
+
+    Returns (proxy_country, proxy_country_name, proxy_provider).
+    """
+    # Custom proxy (assigned or group-based)
+    if acc.assigned_proxy_id or acc.proxy_group_id:
+        country = None
+        if acc.proxy_group and acc.proxy_group.country:
+            country = acc.proxy_group.country.upper()
+        elif acc.phone:
+            country = _detect_country(acc.phone)
+        return (country, _country_name(country) if country else None, "Custom")
+
+    # Infatica auto-proxy
+    if infatica_proxy_service.is_configured and acc.phone:
+        country = infatica_proxy_service.get_country_for_phone(acc.phone)
+        return (country, _country_name(country) if country else None, "Auto (Infatica)")
+
+    return (None, None, None)
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # PROXY HELPERS
 # ═══════════════════════════════════════════════════════════════════════
@@ -812,6 +855,7 @@ async def list_accounts(
             select(func.count(TgCampaignAccount.id)).where(TgCampaignAccount.account_id == acc.id)
         )
         wu = _warmup_info(acc)
+        _p_country, _p_country_name, _p_provider = _resolve_proxy_meta(acc)
         items.append(TgAccountResponse(
             id=acc.id, phone=acc.phone, username=acc.username,
             first_name=acc.first_name, last_name=acc.last_name, bio=acc.bio,
@@ -837,6 +881,7 @@ async def list_accounts(
             proxy_group_name=acc.proxy_group.name if acc.proxy_group else None,
             assigned_proxy_id=acc.assigned_proxy_id,
             assigned_proxy_host=f"{acc.assigned_proxy.host}:{acc.assigned_proxy.port}" if acc.assigned_proxy else None,
+            proxy_country=_p_country, proxy_country_name=_p_country_name, proxy_provider=_p_provider,
             tags=[TgAccountTagResponse.model_validate(t) for t in acc.tags],
             campaigns_count=camp_count_q.scalar() or 0,
             country_code=acc.country_code,
@@ -956,6 +1001,7 @@ async def update_account(account_id: int, data: TgAccountUpdate, session: AsyncS
         select(func.count(TgCampaignAccount.id)).where(TgCampaignAccount.account_id == account.id)
     )
     wu = _warmup_info(account)
+    _p_country, _p_country_name, _p_provider = _resolve_proxy_meta(account)
     return TgAccountResponse(
         id=account.id, phone=account.phone, username=account.username,
         first_name=account.first_name, last_name=account.last_name, bio=account.bio,
@@ -978,6 +1024,7 @@ async def update_account(account_id: int, data: TgAccountUpdate, session: AsyncS
         proxy_group_name=account.proxy_group.name if account.proxy_group else None,
         assigned_proxy_id=account.assigned_proxy_id,
         assigned_proxy_host=f"{account.assigned_proxy.host}:{account.assigned_proxy.port}" if account.assigned_proxy else None,
+        proxy_country=_p_country, proxy_country_name=_p_country_name, proxy_provider=_p_provider,
         tags=[TgAccountTagResponse.model_validate(t) for t in account.tags],
         campaigns_count=camp_count_q.scalar() or 0,
         last_connected_at=account.last_connected_at,
@@ -993,6 +1040,80 @@ async def delete_account(account_id: int, session: AsyncSession = Depends(get_se
         raise HTTPException(404, "Account not found")
     await session.delete(account)
     return {"ok": True}
+
+
+@router.post("/accounts/{account_id}/test-proxy")
+async def test_account_proxy(account_id: int, session: AsyncSession = Depends(get_session)):
+    """Test the proxy assigned to an account — returns exit IP and latency."""
+    import asyncio, time
+
+    account = await session.execute(
+        select(TgAccount).where(TgAccount.id == account_id)
+        .options(selectinload(TgAccount.proxy_group), selectinload(TgAccount.assigned_proxy))
+    )
+    account = account.scalar()
+    if not account:
+        raise HTTPException(404, "Account not found")
+
+    # Resolve proxy config (same hierarchy as sending_worker)
+    proxy_cfg = None
+    provider = None
+
+    if account.assigned_proxy_id and account.assigned_proxy:
+        p = account.assigned_proxy
+        proxy_cfg = {"protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol,
+                     "host": p.host, "port": p.port, "username": p.username, "password": p.password}
+        provider = "Custom"
+    elif account.proxy_group_id:
+        free = await _get_free_proxies(session, account.proxy_group_id, exclude_account_ids=[account.id])
+        if free:
+            p = free[0]
+            proxy_cfg = {"protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol,
+                         "host": p.host, "port": p.port, "username": p.username, "password": p.password}
+            provider = "Custom"
+    if not proxy_cfg and infatica_proxy_service.is_configured and account.phone:
+        proxy_cfg = infatica_proxy_service.get_proxy_for_account(account.phone, account.id)
+        provider = "Infatica"
+
+    if not proxy_cfg:
+        return {"ok": False, "error": "No proxy configured for this account", "ip": None, "latency_ms": None}
+
+    # Test: connect through proxy to ipify and get exit IP
+    protocol = proxy_cfg.get("protocol", "socks5")
+    host = proxy_cfg["host"]
+    port = proxy_cfg["port"]
+    username = proxy_cfg.get("username", "")
+    password = proxy_cfg.get("password", "")
+
+    start = time.monotonic()
+    try:
+        if protocol in ("http", "https"):
+            import aiohttp
+            proxy_url = f"http://{username}:{password}@{host}:{port}" if username else f"http://{host}:{port}"
+            async with aiohttp.ClientSession() as cs:
+                async with cs.get("http://api.ipify.org?format=text", proxy=proxy_url,
+                                  timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    ip = (await resp.text()).strip()
+        else:
+            import socks, socket
+            def _socks_get_ip():
+                s = socks.socksocket()
+                s.set_proxy(socks.SOCKS5, host, port, rdns=True, username=username, password=password)
+                s.settimeout(15)
+                s.connect(("api.ipify.org", 80))
+                s.sendall(b"GET /?format=text HTTP/1.1\r\nHost: api.ipify.org\r\nConnection: close\r\n\r\n")
+                data = s.recv(4096).decode()
+                s.close()
+                return data.split("\r\n\r\n", 1)[-1].strip()
+            ip = await asyncio.to_thread(_socks_get_ip)
+
+        latency = round((time.monotonic() - start) * 1000)
+        return {"ok": True, "ip": ip, "latency_ms": latency, "provider": provider, "error": None}
+
+    except asyncio.TimeoutError:
+        return {"ok": False, "ip": None, "latency_ms": None, "error": "Timeout (15s)"}
+    except Exception as e:
+        return {"ok": False, "ip": None, "latency_ms": None, "error": str(e)[:200]}
 
 
 @router.patch("/accounts/{account_id}/limit")

@@ -2795,6 +2795,70 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
 
 
 // ══════════════════════════════════════════════════════════════════════
+// Proxy Test Button (used inside Edit Account Modal)
+// ══════════════════════════════════════════════════════════════════════
+
+function ProxyTestButton({ accountId, toast, hasProxy }: { accountId: number; toast: any; hasProxy: boolean }) {
+  const [state, setState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [result, setResult] = useState<{ ip?: string | null; latency_ms?: number | null; error?: string | null }>({});
+
+  const runTest = useCallback(async () => {
+    setState('testing');
+    setResult({});
+    try {
+      const r = await telegramOutreachApi.testAccountProxy(accountId);
+      if (r.ok) {
+        setState('ok');
+        setResult({ ip: r.ip, latency_ms: r.latency_ms });
+        toast(`Proxy OK — exit IP: ${r.ip} (${r.latency_ms}ms)`, 'success');
+      } else {
+        setState('error');
+        setResult({ error: r.error });
+        toast(`Proxy failed: ${r.error}`, 'error');
+      }
+    } catch (e: any) {
+      setState('error');
+      setResult({ error: e.message });
+      toast('Proxy test failed', 'error');
+    }
+  }, [accountId, toast]);
+
+  if (!hasProxy) {
+    return <span className="text-xs" style={{ color: '#9E9E9E' }}>No proxy</span>;
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {state === 'ok' && (
+        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#2E7D32' }}>
+          <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#4CAF50' }} />
+          {result.ip} <span style={{ color: '#9E9E9E' }}>({result.latency_ms}ms)</span>
+        </span>
+      )}
+      {state === 'error' && (
+        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#D32F2F' }}>
+          <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#F44336' }} />
+          Error
+        </span>
+      )}
+      {state === 'idle' && (
+        <span className="text-xs" style={{ color: '#9E9E9E' }}>Not tested</span>
+      )}
+      <button
+        onClick={runTest}
+        disabled={state === 'testing'}
+        className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors hover:opacity-80"
+        style={{ background: '#F5F5F5', color: '#616161', border: '1px solid #E0E0E0' }}
+      >
+        {state === 'testing' ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+        {state === 'testing' ? 'Testing…' : 'Test'}
+      </button>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
 // Edit Account Modal
 // ══════════════════════════════════════════════════════════════════════
 
@@ -3256,8 +3320,34 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
           {/* ---- Section: Proxy ---- */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Proxy</h3>
-            <div className="rounded-lg p-3 space-y-2"
+            <div className="rounded-lg p-3 space-y-2.5"
                  style={{ background: A.bg, border: `1px solid ${A.border}` }}>
+              {/* Proxy Country */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Proxy Country</span>
+                {account.proxy_country ? (
+                  <span className="flex items-center gap-1.5 text-xs font-medium">
+                    <CountryFlag code={account.proxy_country} />
+                    <span style={{ color: A.text1 }}>{account.proxy_country_name || account.proxy_country}</span>
+                  </span>
+                ) : (
+                  <span className="text-xs" style={{ color: A.text3 }}>--</span>
+                )}
+              </div>
+              {/* Provider */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Provider</span>
+                {account.proxy_provider ? (
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                        style={{ background: account.proxy_provider.includes('Infatica') ? '#E8F5E9' : A.blueBg,
+                                 color: account.proxy_provider.includes('Infatica') ? '#2E7D32' : A.blue }}>
+                    {account.proxy_provider}
+                  </span>
+                ) : (
+                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
+                )}
+              </div>
+              {/* Group */}
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium" style={{ color: A.text3 }}>Group</span>
                 {account.proxy_group_name ? (
@@ -3269,6 +3359,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                   <span className="text-xs" style={{ color: A.text3 }}>None</span>
                 )}
               </div>
+              {/* Assigned Proxy */}
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium" style={{ color: A.text3 }}>Assigned Proxy</span>
                 {account.assigned_proxy_host ? (
@@ -3284,6 +3375,11 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                 ) : (
                   <span className="text-xs" style={{ color: A.text3 }}>None</span>
                 )}
+              </div>
+              {/* Proxy Test */}
+              <div className="flex items-center justify-between pt-1" style={{ borderTop: `1px solid ${A.border}` }}>
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Proxy Status</span>
+                <ProxyTestButton accountId={account.id} toast={toast} hasProxy={!!account.proxy_provider} />
               </div>
             </div>
           </section>
