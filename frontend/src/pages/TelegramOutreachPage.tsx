@@ -1908,6 +1908,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
             if (res.frozen) parts.push(`⚠ ${res.frozen} frozen`);
             if (res.banned) parts.push(`✕ ${res.banned} banned`);
             if (res.dead) parts.push(`☠ ${res.dead} dead`);
+            if (res.errors) parts.push(`⚡ ${res.errors} errors`);
             toast(parts.join(' · '), res.alive === res.total ? 'success' : 'warning');
             onDone();
           } catch { toast('Alive check failed', 'error'); }

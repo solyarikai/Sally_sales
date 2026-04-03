@@ -4794,13 +4794,14 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
 
             await telegram_engine.disconnect(aid)
         except Exception as e:
-            results.append({"account_id": aid, "error": str(e)[:80]})
+            results.append({"account_id": aid, "alive": False, "reason": "error", "error": str(e)[:80]})
 
     alive_count = sum(1 for r in results if r.get("alive"))
     frozen_count = sum(1 for r in results if r.get("reason") == "frozen")
     banned_count = sum(1 for r in results if r.get("reason") in ("banned", "user_deactivated", "send_failed"))
     dead_count = sum(1 for r in results if r.get("reason") == "not_authorized")
-    return {"total": len(results), "alive": alive_count, "frozen": frozen_count, "banned": banned_count, "dead": dead_count, "results": results}
+    error_count = sum(1 for r in results if r.get("reason") == "error")
+    return {"total": len(results), "alive": alive_count, "frozen": frozen_count, "banned": banned_count, "dead": dead_count, "errors": error_count, "results": results}
 
 
 # ── Profile update ────────────────────────────────────────────────────
