@@ -2195,8 +2195,8 @@ def mode4_expand(base_run_id: int, overrides: dict) -> dict:
 # Можно запустить с любого шага: --from-step people (начать с импорта людей)
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
-         "people", "findymail", "upload"]
+STEPS = ["start", "blacklist", "prefilter", "scrape", "classify", "verify",
+         "export", "people", "findymail", "sequences", "upload"]
 
 def main():
     p = argparse.ArgumentParser(description="Universal Lead Generation Pipeline")
