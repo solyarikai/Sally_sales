@@ -691,6 +691,10 @@ export const telegramOutreachApi = {
   getCampaignActivity: async (campaignId: number, limit: number = 50) =>
     (await api.get<{ activity: any[] }>(`${BASE}/campaigns/${campaignId}/activity`, { params: { limit } })).data,
 
+  // Daily stats (accurate SQL aggregation for chart)
+  getCampaignDailyStats: async (campaignId: number) =>
+    (await api.get<{ daily_stats: { date: string; sent: number; replied: number; failed: number }[] }>(`${BASE}/campaigns/${campaignId}/daily-stats`)).data,
+
   // ── Replies (Phase 6) ──────────────────────────────────────────
 
   listCampaignReplies: async (campaignId: number, params: { page?: number; page_size?: number } = {}) =>

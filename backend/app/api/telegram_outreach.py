@@ -5296,6 +5296,50 @@ async def get_campaign_activity(campaign_id: int, limit: int = Query(50, ge=1, l
     return {"activity": activity[:limit]}
 
 
+@router.get("/campaigns/{campaign_id}/daily-stats")
+async def get_campaign_daily_stats(campaign_id: int, session: AsyncSession = Depends(get_session)):
+    """Accurate daily stats for campaign chart — SQL GROUP BY, no row limit."""
+    from sqlalchemy import cast, Date
+
+    # Daily sent/failed from outreach messages
+    msg_q = await session.execute(
+        select(
+            cast(TgOutreachMessage.sent_at, Date).label("day"),
+            TgOutreachMessage.status,
+            func.count(TgOutreachMessage.id),
+        ).where(
+            TgOutreachMessage.campaign_id == campaign_id,
+        ).group_by("day", TgOutreachMessage.status).order_by("day")
+    )
+    daily: dict = {}
+    for day, status, cnt in msg_q.all():
+        ds = day.isoformat()
+        if ds not in daily:
+            daily[ds] = {"date": ds, "sent": 0, "replied": 0, "failed": 0}
+        st = status.value if hasattr(status, "value") else status
+        if st == "sent":
+            daily[ds]["sent"] += cnt
+        elif st in ("failed", "spamblocked"):
+            daily[ds]["failed"] += cnt
+
+    # Daily replies from incoming replies
+    reply_q = await session.execute(
+        select(
+            cast(TgIncomingReply.received_at, Date).label("day"),
+            func.count(TgIncomingReply.id),
+        ).where(
+            TgIncomingReply.campaign_id == campaign_id,
+        ).group_by("day").order_by("day")
+    )
+    for day, cnt in reply_q.all():
+        ds = day.isoformat()
+        if ds not in daily:
+            daily[ds] = {"date": ds, "sent": 0, "replied": 0, "failed": 0}
+        daily[ds]["replied"] = cnt
+
+    return {"daily_stats": sorted(daily.values(), key=lambda x: x["date"])}
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # INCOMING REPLIES (Phase 6)
 # ═══════════════════════════════════════════════════════════════════════
