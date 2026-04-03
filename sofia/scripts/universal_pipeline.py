@@ -1553,7 +1553,7 @@ async def step10_findymail(config: ProjectConfig, contacts: list[dict],
     progress_file = config.state_dir / "findymail_progress.json"
 
     print(f"\n{'='*60}")
-    print(f"STEP 11: FindyMail Enrichment")
+    print(f"STEP 10: FINDYMAIL — Email Enrichment")
     print(f"{'='*60}")
 
     if enriched_file.exists() and not force:
