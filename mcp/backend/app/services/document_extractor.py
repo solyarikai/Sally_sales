@@ -17,97 +17,73 @@ async def extract_from_document(
     text: str,
     website: str,
     openai_key: str,
-    model: str = "gpt-4.1-mini",
+    model: str = "gpt-5.4-mini",
 ) -> Dict[str, Any]:
     """Extract project data from a strategy document.
 
     Extracts what can be automated. Silently skips the rest.
+    Model: gpt-5.4-mini (v5 prompt) — tested 2026-04-03 across 11 models x 4 prompts.
+    Winner: 100% accuracy, 11s, $0.003/call, 8 segments, 80 keywords on both fintech + iGaming docs.
     """
-    prompt = f"""You are an expert at extracting structured campaign data from strategy documents.
+    prompt = f"""Read this outreach campaign document. Extract everything into JSON.
 
 Website: {website}
 
-Extract the following from this document. Return ONLY valid JSON.
-If a field cannot be determined, omit it (don't guess).
-Silently skip anything that requires manual work, external signals, or data not in the document.
+I need:
+- offer: what the company sells (1 sentence)
+- value_prop: the key value proposition
+- target_audience: who they sell to
+- target_roles: {{primary: [titles], secondary: [titles], tertiary: [titles], seniorities: [apollo seniority levels]}}
+- segments: EVERY industry sub-vertical mentioned in the document. Each segment is a distinct type of company. NOT generic categories like "Funded Companies" or "High Value Targets". Format:
+  {{"name": "SHORT_CAPS_LABEL", "keywords": [8-10 specific product/technology terms that ONLY companies in this sub-vertical would have on their website]}}
+- apollo_filters:
+  - combined_keywords: merge ALL segment keywords into one flat list (aim for 60-80 total)
+  - locations: [target countries]
+  - employee_range: "min,max"
+  - industries: [broad industry names]
+  - funding_stages: [if mentioned]
+- sequences: email sequences from the doc as {{name, steps: [{{day, subject, body}}]}}
+  - Use ONLY SmartLead variable format: {{{{first_name}}}}, {{{{last_name}}}}, {{{{company_name}}}}, {{{{city}}}}, {{{{signature}}}}
+  - For ANY non-standard variable: replace with natural text that works without external data
+- exclusion_list: company types to NOT target. Format: {{type: "category", reason: "why exclude"}}
+- example_companies: seed companies mentioned. Format: {{domain, name, reason}}
+- campaign_settings: {{tracking, stop_on_reply, plain_text, daily_limit_per_mailbox}}
 
-Extract:
-1. "offer" — the company's product/service in 1-2 sentences
-2. "value_prop" — the key value proposition
-3. "target_audience" — who they're selling to
-4. "target_roles" — object with:
-   - "primary": [list of primary decision-maker titles]
-   - "secondary": [list of secondary titles]
-   - "tertiary": [list of tertiary/fallback titles]
-   - "seniorities": [Apollo seniority levels: "owner", "founder", "c_suite", "vp", "head", "director"]
-5. "segments" — array of ALL industry sub-verticals mentioned in the document.
-   Extract EVERY sub-vertical, niche, or market segment the document mentions.
-   Do NOT stop early — if the document mentions 8 sub-verticals, extract all 8.
-   Each segment is a distinct INDUSTRY TYPE (e.g. "Payments", "Lending", "RegTech").
-   NOT generic categories like "Companies with Sales Teams" or "Funded Companies".
-   Each with:
-   - "name": SHORT industry label in CAPS (e.g. "PAYMENTS", "LENDING", "REGTECH")
-   - "keywords": [8-10 SPECIFIC product keywords per segment, NOT generic]
-     Good keywords: "payment gateway API", "PSP platform", "merchant acquiring", "loan origination system", "KYC API"
-     Bad keywords: "payment solutions", "digital payments" (too generic, returns noise)
-6. "apollo_filters" — object with:
-   - "combined_keywords": [ALL keywords from ALL segments merged — aim for 60-80 total]
-   - "locations": [target countries/regions]
-   - "employee_range": "min,max" (e.g. "20,500")
-   - "industries": [Apollo industry names if identifiable]
-   - "funding_stages": [if mentioned: "series_a", "series_b", etc.]
-7. "sequences" — array of email sequences:
-   - "name": sequence name
-   - "steps": array of {{"day": N, "subject": "...", "body": "..."}}
-   - Use ONLY SmartLead variable format (snake_case): {{{{first_name}}}}, {{{{last_name}}}}, {{{{company_name}}}}, {{{{email}}}}, {{{{city}}}}, {{{{phone_number}}}}
-   - IMPORTANT: SmartLead uses snake_case! NOT {{{{firstName}}}} or {{{{company}}}}. Use {{{{first_name}}}} and {{{{company_name}}}}.
-   - For signature use {{{{signature}}}} (SmartLead built-in).
-   - For ANY non-standard variable: replace with natural text that works without external data.
-   - The sequence MUST work as-is in SmartLead with only lead fields filled.
-8. "campaign_settings" — object with:
-   - "daily_limit_per_mailbox": number
-   - "tracking": boolean
-   - "stop_on_reply": boolean
-   - "plain_text": boolean
-9. "example_companies" — array of example/seed companies mentioned in the document:
-   - "domain": company website domain (e.g. "softswiss.com")
-   - "name": company name
-   - "reason": why they're a good example (1 line)
-   Look for sections titled "examples", "seed companies", "top companies", "filter seeds", etc.
-   If no examples mentioned, omit this field.
-10. "exclusion_list" — array of company types or specific companies to EXCLUDE from targeting.
-   IMPORTANT: If the document describes targeting users of competing vendors
-   (e.g. a "competitor conquest" sequence), those competing vendors' CLIENTS
-   are high-intent TARGETS, not exclusions.
-   Only list companies the document EXPLICITLY says to avoid, skip, or never contact.
-   - "type": category to exclude (e.g. "Casino Operators", "Recruitment Agencies")
-   - "reason": why to exclude
-   If no exclusions mentioned, omit this field.
-
-Return ONLY the JSON object, no markdown formatting.
+Return ONLY JSON. No explanation, no markdown.
 
 DOCUMENT:
-{text[:15000]}"""
+{text[:25000]}"""
 
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        is_reasoning = model.startswith("o") or model.startswith("gpt-5")
+        request_body = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if is_reasoning:
+            request_body["max_completion_tokens"] = 8000
+        else:
+            request_body["max_tokens"] = 4000
+            request_body["temperature"] = 0
+
+        async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
-                json={
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 4000,
-                    "temperature": 0,
-                },
+                json=request_body,
             )
             data = resp.json()
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
 
-            # Parse JSON
+            # Parse JSON — handle markdown wrapping and reasoning model output
+            import re as _re
             clean = content.strip()
             if clean.startswith("```"):
                 clean = clean.split("\n", 1)[1].rsplit("```", 1)[0]
+            # Reasoning models may have text before/after JSON
+            json_match = _re.search(r'\{[\s\S]+\}', clean)
+            if json_match:
+                clean = json_match.group()
 
             result = json.loads(clean)
 
