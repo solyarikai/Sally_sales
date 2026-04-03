@@ -14,7 +14,11 @@ Repos:
 - `mo` = `/Users/user/sales_engineer/magnum-opus` → GitLab (sally-saas/magnum-opus)
 
 Спроси какой репо: sales или mo.
-Выполни: `cd <repo_path> && git push origin $(git branch --show-current)`
 
-Если ошибка "no upstream", повтори с `-u`.
-Покажи результат.
+1. `cd <repo_path>`
+2. Проверь `git status --short` — если есть изменения:
+   - Сгенерируй коммит-сообщение по диффу (префикс `fix:`, `feat:`, `update:`, `docs:`, `refactor:`, `chore:`)
+   - `git add -A && git commit -m "<message>"` — без подтверждения
+3. `git push origin $(git branch --show-current)`
+4. Если ошибка "no upstream", повтори с `-u`
+5. Покажи результат (коммит + пуш)
