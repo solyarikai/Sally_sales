@@ -10,6 +10,11 @@ services:
     volumes:
       - gathering-dach-data:/data
       - /root/magnum-opus-project/repo/google-credentials.json:/app/google-credentials.json:ro
+      # Puppeteer script + node_modules from main repo (no need to npm install in container)
+      - /root/magnum-opus-project/repo/scripts:/app/scripts:ro
+      - /root/magnum-opus-project/repo/node_modules:/app/node_modules:ro
+      # Shared output dir for scraped company JSON files
+      - /root/magnum-opus-project/repo/gathering-data:/app/gathering-data
     environment:
       - APOLLO_API_KEY=${APOLLO_API_KEY}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json

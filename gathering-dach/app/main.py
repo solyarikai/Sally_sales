@@ -3,11 +3,11 @@ DACH→LATAM Gathering Pipeline — FastAPI
 ========================================
 
 Endpoints:
-  POST /start          — Start Phase 1 (LATAM employees at DACH companies)
+  POST /start          — Start Phase 1 (Puppeteer scrape DACH companies)
   GET  /status         — Current pipeline state
   GET  /cp1            — CHECKPOINT 1: company list for review
   POST /cp1/approve    — Approve company list (optionally exclude domains)
-  POST /phase2/start   — Start Phase 2 (CEO/CFO at approved domains)
+  POST /phase2/start   — Start Phase 2 (CFO→CEO→COO at approved domains)
   GET  /cp2            — CHECKPOINT 2: contact count for review
   POST /export         — Export contacts to Google Sheets
 
@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from app import db
 from app.apollo import ApolloClient
 from app import pipeline as pipe
+from app.scraper import SEARCH_LOCATIONS, LATAM_KEYWORDS, SIZE_RANGES
 
 logging.basicConfig(
     level=logging.INFO,
@@ -67,27 +68,27 @@ def _apollo() -> ApolloClient:
 # ── /start ────────────────────────────────────────────────────────────────────
 
 class StartRequest(BaseModel):
-    notes: str = "DACH/Nordic companies with LATAM employees — EasyStaff Global"
+    notes: str = "DACH/Nordic companies with LATAM/international team presence — EasyStaff Global"
     project_id: int = PROJECT_ID
 
 
-@app.post("/start", summary="Start Phase 1: find LATAM employees at DACH companies")
+@app.post("/start", summary="Start Phase 1: Puppeteer scrape of DACH companies")
 async def start_phase1(body: StartRequest, bg: BackgroundTasks):
     """
     Phase 1 is FREE (0 Apollo credits).
-    Searches /mixed_people/api_search for employees located in LATAM
-    at companies headquartered in DACH+Nordic with <500 employees.
-    Extracts unique company domains with confirmed LATAM presence.
+    Puppeteer scrapes Apollo Companies UI for DACH/Nordic companies (10–500 employees)
+    with keywords indicating LATAM/international team presence.
+    Extracts unique company domains for Phase 2.
     """
     run = db.get_latest_run()
     if run and run["state"] in ("phase1_running", "phase2_running"):
         raise HTTPException(400, detail=f"Pipeline already running in state: {run['state']}")
 
     phase1_filters = {
-        "person_locations": pipe.LATAM_COUNTRIES,
-        "organization_locations": pipe.DACH_NORDIC_COUNTRIES,
-        "organization_num_employees_ranges": pipe.EMPLOYEE_RANGES,
-        "max_pages_per_country": pipe.PHASE1_MAX_PAGES,
+        "method": "puppeteer_companies_ui",
+        "locations": SEARCH_LOCATIONS,
+        "keywords": LATAM_KEYWORDS,
+        "size_ranges": SIZE_RANGES,
     }
     run_id = db.create_run(body.project_id, phase1_filters, body.notes)
     _progress.clear()
@@ -99,7 +100,7 @@ async def start_phase1(body: StartRequest, bg: BackgroundTasks):
 
     async def _run():
         try:
-            count = await pipe.run_phase1(run_id, _apollo(), progress_cb)
+            count = await pipe.run_phase1(run_id, progress_cb)
             _progress["state"] = "phase1_done"
             _progress["unique_domains"] = count
         except Exception as e:
@@ -114,11 +115,12 @@ async def start_phase1(body: StartRequest, bg: BackgroundTasks):
     return {
         "run_id": run_id,
         "state": "phase1_running",
-        "message": "Phase 1 started. GET /status to track progress. GET /cp1 when done.",
+        "message": "Phase 1 started (Puppeteer scrape). GET /status to track. GET /cp1 when done.",
         "searching": {
-            "person_locations": pipe.LATAM_COUNTRIES,
-            "organization_locations": pipe.DACH_NORDIC_COUNTRIES,
-            "max_employees": 500,
+            "locations": SEARCH_LOCATIONS,
+            "keywords": LATAM_KEYWORDS,
+            "size_ranges": SIZE_RANGES,
+            "estimated_duration": "1–3 hours (7 countries × all keywords)",
         },
     }
 
@@ -172,20 +174,13 @@ async def checkpoint1():
 
     companies = db.get_companies(run["id"])
 
-    # Group by country for summary
-    by_country: dict = {}
-    for c in companies:
-        countries = c["latam_countries"] or "[]"
-        import json
-        for country in json.loads(countries):
-            by_country[country] = by_country.get(country, 0) + 1
+    import json
 
     return {
         "run_id": run["id"],
         "state": run["state"],
         "summary": {
             "total_companies": len(companies),
-            "by_latam_country": dict(sorted(by_country.items(), key=lambda x: -x[1])),
             "top_hq_countries": _top_countries(companies),
             "top_industries": _top_industries(companies),
         },
@@ -196,8 +191,6 @@ async def checkpoint1():
                 "hq_country": c["hq_country"],
                 "employees": c["employees"],
                 "industry": c["industry"],
-                "latam_countries": json.loads(c["latam_countries"] or "[]"),
-                "latam_employees_found": c["latam_count"],
                 "approved": bool(c["approved"]),
             }
             for c in companies[:200]  # first 200 for review
@@ -298,7 +291,7 @@ async def start_phase2():
         "state": "phase2_running",
         "searching_at": len(approved),
         "target_contacts": pipe.TARGET_CONTACTS,
-        "titles": pipe.EXEC_TITLES,
+        "titles": pipe.ALL_EXEC_TITLES,
         "message": "Phase 2 started. GET /status to track. GET /cp2 when done.",
     }
 
