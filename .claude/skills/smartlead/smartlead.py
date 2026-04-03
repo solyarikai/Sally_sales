@@ -62,6 +62,7 @@ def _request(url, method="GET", body=None, retries=3):
     for attempt in range(retries):
         req = Request(url, data=data_bytes, method=method)
         req.add_header("Content-Type", "application/json")
+        req.add_header("User-Agent", "Mozilla/5.0 SmartLead-CLI/1.0")
         try:
             with urlopen(req) as resp:
                 raw = resp.read().decode("utf-8")
