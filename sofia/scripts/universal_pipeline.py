@@ -709,7 +709,7 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 # Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-10).
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step0_start(config: ProjectConfig, filters: dict, mode: str,
+def step0_gather(config: ProjectConfig, filters: dict, mode: str,
                 input_text: str = None, notes: str = "") -> int:
     """Start Clay gathering via backend API (sources A and B). Returns run_id.
 
