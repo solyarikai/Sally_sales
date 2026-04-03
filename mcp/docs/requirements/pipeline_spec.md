@@ -153,7 +153,17 @@ Generate 20-30 keywords...
 ```
 **Output**: `{keywords: [...], employee_ranges: [...]}`
 
-**Note**: Apollo accepts ANY free-text in `q_organization_keyword_tags`. No predefined keyword list or validation needed. GPT generates freely, seeds inform but don't constrain.
+**Apollo keyword behavior** (verified via live testing 2026-04-03):
+- `q_organization_keyword_tags` accepts ANY free-text strings
+- Multiple keywords are **OR-combined** — adding keywords EXPANDS results:
+  - "payment gateway" alone: 3,199 companies
+  - "lending platform" alone: 401 companies
+  - Both together: 3,591 (more than either alone)
+  - 5 keywords together: 5,788 (keeps growing)
+- One API call with 20-30 keywords covers all segments at once
+- No per-keyword calls needed, no predefined list, no validation
+- More keywords = broader coverage = more targets for GPT to classify
+- Keywords are NOT per-segment — flat list, all OR'd together in one search
 
 ### Step C: Location Extraction
 **File**: `services/filter_mapper.py:_extract_locations()`
