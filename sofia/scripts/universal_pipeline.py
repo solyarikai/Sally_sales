@@ -2512,8 +2512,9 @@ def main():
     else:
         contacts = load_json(config.state_dir / "enriched.json") or contacts
 
-    # ── Step 10: SmartLead upload ──
-    if "upload" in steps:
+    # ── Steps 11-12: Sequences + SmartLead Upload ──
+    # Sequences are loaded/generated inside step12_smartlead (per segment).
+    if "sequences" in steps or "upload" in steps:
         step12_smartlead(config, contacts)
 
 
