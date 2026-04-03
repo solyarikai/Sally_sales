@@ -98,17 +98,39 @@ function ProjectCard({ project }: { project: any }) {
             </div>
           )}
 
-          {/* Target Segments (from document) */}
+          {/* Target Segments with keywords (from document) */}
           {offer?.segments && offer.segments.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>Target Segments ({offer.segments.length})</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {offer.segments.map((s: any, i: number) => (
-                  <span key={i} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', fontWeight: 500 }}>
+              {offer.segments.map((s: any, i: number) => (
+                <div key={i} style={{ marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 4, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', fontWeight: 500 }}>
                     {s.name || s}
                   </span>
-                ))}
+                  {s.keywords && s.keywords.length > 0 && (
+                    <div style={{ marginTop: 4, marginLeft: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+                      {s.keywords.join(', ')}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Seed Keywords (from document or examples) */}
+          {offer?.seed_data?.keywords && offer.seed_data.keywords.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
+                Seed Keywords ({offer.seed_data.keywords.length}) — {offer.seed_data.source || 'unknown'}
               </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                {offer.seed_data.keywords.join(', ')}
+              </div>
+              {offer.seed_data.industry_tag_ids && offer.seed_data.industry_tag_ids.length > 0 && (
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                  {offer.seed_data.industry_tag_ids.length} industry tag IDs from examples
+                </div>
+              )}
             </div>
           )}
 

@@ -40,17 +40,16 @@ Extract:
    - "secondary": [list of secondary titles]
    - "tertiary": [list of tertiary/fallback titles]
    - "seniorities": [Apollo seniority levels: "owner", "founder", "c_suite", "vp", "head", "director"]
-5. "segments" — array of INDUSTRY SUB-VERTICALS (not ICP categories).
-   Look for sections about sub-verticals, market segments, or industry niches.
+5. "segments" — array of ALL industry sub-verticals mentioned in the document.
+   Extract EVERY sub-vertical, niche, or market segment the document mentions.
+   Do NOT stop early — if the document mentions 8 sub-verticals, extract all 8.
    Each segment is a distinct INDUSTRY TYPE (e.g. "Payments", "Lending", "RegTech").
    NOT generic categories like "Companies with Sales Teams" or "Funded Companies".
    Each with:
    - "name": SHORT industry label in CAPS (e.g. "PAYMENTS", "LENDING", "REGTECH")
    - "keywords": [8-10 SPECIFIC product keywords per segment, NOT generic]
-     For PAYMENTS: "payment gateway API", "PSP platform", "merchant acquiring", "payment orchestration", "A2A payments", "card issuing API", "checkout API", "recurring billing platform"
-     For LENDING: "lending-as-a-service", "loan origination system", "credit decisioning API", "underwriting automation", "BNPL infrastructure"
-     For REGTECH: "KYC API", "AML platform", "identity verification API", "transaction monitoring", "sanctions screening"
-     NOT: "payment solutions", "digital payments" (too generic, returns noise)
+     Good keywords: "payment gateway API", "PSP platform", "merchant acquiring", "loan origination system", "KYC API"
+     Bad keywords: "payment solutions", "digital payments" (too generic, returns noise)
 6. "apollo_filters" — object with:
    - "combined_keywords": [ALL keywords from ALL segments merged — aim for 60-80 total]
    - "locations": [target countries/regions]
@@ -76,8 +75,11 @@ Extract:
    - "reason": why they're a good example (1 line)
    Look for sections titled "examples", "seed companies", "top companies", "filter seeds", etc.
    If no examples mentioned, omit this field.
-10. "exclusion_list" — array of company types or specific companies to EXCLUDE:
-   Look for sections titled "exclude", "shit list", "not target", "negative list", etc.
+10. "exclusion_list" — array of company types or specific companies to EXCLUDE from targeting.
+   IMPORTANT: If the document describes targeting users of competing vendors
+   (e.g. a "competitor conquest" sequence), those competing vendors' CLIENTS
+   are high-intent TARGETS, not exclusions.
+   Only list companies the document EXPLICITLY says to avoid, skip, or never contact.
    - "type": category to exclude (e.g. "Casino Operators", "Recruitment Agencies")
    - "reason": why to exclude
    If no exclusions mentioned, omit this field.
