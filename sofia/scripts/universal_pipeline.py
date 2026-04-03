@@ -2442,26 +2442,29 @@ def main():
         step3_prefilter(run_id)
     if "scrape" in steps and run_id:
         step4_scrape(run_id)
-    if "analyze" in steps and run_id:
+    # ── Step 5: Classify ──
+    if "classify" in steps and run_id:
         cp2 = step5_classify(config, run_id, prompt_text)
         if cp2.get("gate_id"):
             print(f"\n  ★ PAUSING AT CP2.")
             print(f"  Step 6: Verify targets with Claude Code in chat.")
-            print(f"  Step 7: If accuracy <90% → adjust prompt → re-analyze:")
+            print(f"  Step 7: If accuracy <90% → adjust prompt → re-classify:")
             print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
             print(f"  When accuracy ≥90% → approve gate and resume:")
             print(f"    --from-step verify --run-id {run_id}")
             return
 
+    # ── Steps 6-7: Verify + Adjust (manual, in chat) ──
     if "verify" in steps and run_id:
-        # Step 6-7 done in chat. Now: approve CP2 gate + export targets.
-        # No blacklist_approved_targets — CRM sync handles this automatically.
         approve_pending_gate(config, run_id)
+
+    # ── Step 8: Export Targets ──
+    if "export" in steps or "verify" in steps:
         targets = step8_export_targets(config, force=args.force)
     else:
         targets = load_json(config.state_dir / "targets.json") or []
 
-    # ── Step 8: Apollo People Search ──
+    # ── Step 9: People Search ──
     if "people" in steps:
         if args.apollo_csv:
             all_contacts = []
