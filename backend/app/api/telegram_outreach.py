@@ -4614,7 +4614,9 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
     frozen_count = sum(1 for r in results if r.get("reason") == "frozen")
     banned_count = sum(1 for r in results if r.get("reason") in ("banned", "user_deactivated", "send_failed"))
     dead_count = sum(1 for r in results if r.get("reason") == "not_authorized")
-    return {"total": len(results), "alive": alive_count, "frozen": frozen_count, "banned": banned_count, "dead": dead_count, "results": results}
+    no_session_count = sum(1 for r in results if r.get("reason") == "no_session")
+    error_count = sum(1 for r in results if "error" in r)
+    return {"total": len(results), "alive": alive_count, "frozen": frozen_count, "banned": banned_count, "dead": dead_count, "no_session": no_session_count, "errors": error_count, "results": results}
 
 
 # ── Profile update ────────────────────────────────────────────────────

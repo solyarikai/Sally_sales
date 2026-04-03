@@ -1898,7 +1898,10 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
             if (res.frozen) parts.push(`⚠ ${res.frozen} frozen`);
             if (res.banned) parts.push(`✕ ${res.banned} banned`);
             if (res.dead) parts.push(`☠ ${res.dead} dead`);
-            toast(parts.join(' · '), res.alive === res.total ? 'success' : 'warning');
+            if (res.no_session) parts.push(`○ ${res.no_session} no session`);
+            if (res.errors) parts.push(`⚡ ${res.errors} errors`);
+            const allFailed = (res.alive ?? 0) === 0 && (res.errors > 0 || res.no_session > 0);
+            toast(parts.join(' · '), res.alive === res.total ? 'success' : allFailed ? 'error' : 'warning');
             onDone();
           } catch { toast('Alive check failed', 'error'); }
           finally { setLoading(false); }
