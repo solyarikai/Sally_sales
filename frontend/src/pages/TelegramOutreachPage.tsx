@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Users, Send, Shield, Plus, Search, Trash2,
-  Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
+  Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown, Eye,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
   LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon,
@@ -2464,6 +2464,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [accountId, setAccountId] = useState<number | null>(null);
   const [deviceModel, setDeviceModel] = useState('');
   const [loading, setLoading] = useState(false);
@@ -2709,11 +2710,17 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </div>
               <div>
                 <label className={labelCls}>2FA Password</label>
-                <input value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleVerify2FA()}
-                  type="password" placeholder="Enter your cloud password"
-                  className={inputCls} autoFocus />
+                <div className="relative">
+                  <input value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleVerify2FA()}
+                    type={showPassword ? 'text' : 'password'} placeholder="Enter your cloud password"
+                    className={cn(inputCls, 'pr-9')} autoFocus />
+                  <button type="button" onClick={() => setShowPassword(v => !v)}
+                    className={cn('absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:opacity-80', t.text3)}>
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             </div>
           )}
