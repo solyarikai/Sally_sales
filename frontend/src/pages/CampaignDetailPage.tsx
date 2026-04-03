@@ -2367,7 +2367,6 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
     totals: { sent: number; read: number; replied: number; total_recipients: number };
     period: string | null;
   } | null>(null);
-  const [activity, setActivity] = useState<any[]>([]);
   const [dailyStats, setDailyStats] = useState<{ date: string; sent: number; replied: number; failed: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<string>('all');
@@ -2383,15 +2382,13 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, ss, a, ds] = await Promise.all([
+      const [s, ss, ds] = await Promise.all([
         telegramOutreachApi.getCampaignStats(campaignId),
         telegramOutreachApi.getCampaignStepStats(campaignId, periodParams),
-        telegramOutreachApi.getCampaignActivity(campaignId, 200),
         telegramOutreachApi.getCampaignDailyStats(campaignId),
       ]);
       setStats(s);
       setStepStats(ss);
-      setActivity(a.activity || []);
       setDailyStats(ds.daily_stats || []);
     } catch { toast('Failed to load analytics', 'error'); }
     finally { setLoading(false); }
