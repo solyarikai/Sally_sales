@@ -196,7 +196,7 @@ def upload_sequences(campaign_id: int, sequences: list):
     for seq in sequences:
         payload.append({
             "seq_number": seq["seq_number"],
-            "seq_delay_details": {"delayInDays": seq["delay_days"]},
+            "seq_delay_details": {"delay_in_days": seq["delay_days"]},
             "subject": seq["subject"],
             "email_body": seq["body"],
         })
