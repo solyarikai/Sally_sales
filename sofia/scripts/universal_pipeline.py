@@ -786,7 +786,7 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
     max_pages = filters.get("max_pages", 25)
 
     print(f"\n{'='*60}")
-    print(f"STEP 0: Apollo Companies Search (Internal API)")
+    print(f"STEP 0: GATHERING — Apollo Companies (Internal API)")
     print(f"  Project: {config.project_name} (ID {config.project_id})")
     print(f"  Keyword tags: {len(keyword_tags)}")
     print(f"  Locations: {len(locations)} ({', '.join(locations[:5])}{'...' if len(locations) > 5 else ''})")
