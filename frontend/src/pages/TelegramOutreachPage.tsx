@@ -3097,7 +3097,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                     { value: 'dead', label: 'Dead' },
                     { value: 'frozen', label: 'Frozen' },
                   ]}
-                  renderOption={(opt, isSel) => (
+                  renderOption={(opt) => (
                     <span className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: (ACCOUNT_STATUS_STYLES[opt.value] || { color: '#6B7280' }).color }} />
                       {opt.label}
