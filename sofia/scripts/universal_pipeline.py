@@ -703,7 +703,7 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 #   Puppeteer + internal API (q_organization_keyword_tags). БЕСПЛАТНО.
 #   Скрипт: scripts/sofia/onsocial_apollo_companies_search.js
 #
-# Clay (A, B, C) → step0_start() → backend API → run_id
+# Clay (A, B, C) → step0_gather() → backend API → run_id
 # Apollo (D) → step0_apollo_companies() → JS scraper → domains → create_batched_runs()
 #
 # Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-10).
@@ -2383,7 +2383,7 @@ def main():
         else:
             # Clay/other modes: send filters to backend API
             notes = f"{args.mode} — {args.input_text or args.segment or args.examples or f'expand#{args.base_run}'}"
-            run_id = step0_start(config, mode_config["filters"], args.mode, args.input_text, notes)
+            run_id = step0_gather(config, mode_config["filters"], args.mode, args.input_text, notes)
             # Wait for Clay
             print("\n  Waiting for gathering to complete...")
             conn_errors = 0
