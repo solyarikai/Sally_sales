@@ -964,7 +964,7 @@ def step4_scrape(run_id: int) -> dict:
     return result
 
 
-def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -> dict:
+def step5_classify(config: ProjectConfig, run_id: int, prompt_text: str = None) -> dict:
     """Run GPT classification. Uses prompt_text from gathering_prompts.
     Note: backend API requires prompt_text, not prompt_id."""
     print(f"\n  Step 5: Analyze (run #{run_id})")
@@ -2428,7 +2428,7 @@ def main():
     if "scrape" in steps and run_id:
         step4_scrape(run_id)
     if "analyze" in steps and run_id:
-        cp2 = step5_analyze(config, run_id, prompt_text)
+        cp2 = step5_classify(config, run_id, prompt_text)
         if cp2.get("gate_id"):
             print(f"\n  ★ PAUSING AT CP2.")
             print(f"  Step 6: Verify targets with Claude Code in chat.")
