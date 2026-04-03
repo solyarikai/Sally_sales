@@ -3219,7 +3219,7 @@ async def sync_segment(campaign_id: int, session: AsyncSession = Depends(get_ses
     total_q = await session.execute(
         select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
     )
-    campaign.total_recipients = (total_q.scalar() or 0) + added
+    campaign.total_recipients = total_q.scalar() or 0  # auto-flush makes added visible
     await session.flush()
 
     return {"ok": True, "added": added, "total_recipients": campaign.total_recipients,
