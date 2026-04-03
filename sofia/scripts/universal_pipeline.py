@@ -1379,7 +1379,7 @@ def step9_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list[
     contacts_file = config.state_dir / "contacts.json"
     print(f"\n{'='*60}")
     seg_label = f" ({segment_override})" if segment_override else ""
-    print(f"STEP 10: Import Apollo People CSV{seg_label}")
+    print(f"STEP 9: PEOPLE SEARCH — Import Apollo CSV{seg_label}")
     print(f"{'='*60}")
 
     if contacts_file.exists() and not force:
