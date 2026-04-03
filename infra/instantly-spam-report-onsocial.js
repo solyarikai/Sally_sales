@@ -75,8 +75,9 @@ async function sendSlack(webhook, testId, stats) {
 (async () => {
   for (const t of TESTS) {
     const items = await getAnalytics(t.id);
-    const bad = getBadMailboxes(items);
-    const ok = await sendSlack(t.webhook, t.id, bad);
+    const stats = getMailboxStats(items);
+    const bad = stats.filter(s => s.deliverability < 80);
+    const ok = await sendSlack(t.webhook, t.id, stats);
     const status = bad.length > 0 ? bad.length + ' ящиков < 80%' : 'все OK';
     console.log(t.name + ': ' + (ok ? 'отправлено' : 'ОШИБКА') + ' — ' + status);
   }
