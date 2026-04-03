@@ -1546,7 +1546,7 @@ async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
         return {"email": "", "verified": False}
 
 
-async def step11_findymail(config: ProjectConfig, contacts: list[dict],
+async def step10_findymail(config: ProjectConfig, contacts: list[dict],
                             max_contacts: int = 1500, force: bool = False) -> list[dict]:
     """FindyMail enrichment. Charges only for found emails."""
     enriched_file = config.state_dir / "enriched.json"
@@ -2489,7 +2489,7 @@ def main():
 
     # ── Step 9: FindyMail email enrichment ──
     if "findymail" in steps:
-        contacts = asyncio.run(step11_findymail(config, contacts,
+        contacts = asyncio.run(step10_findymail(config, contacts,
                                                  max_contacts=args.max_findymail, force=args.force))
     else:
         contacts = load_json(config.state_dir / "enriched.json") or contacts
