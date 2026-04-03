@@ -622,6 +622,52 @@ class TelegramEngine:
         except Exception as e:
             return {"status": "failed", "detail": str(e)}
 
+    # ── Send file (media / voice / document) ─────────────────────────
+
+    async def send_file(
+        self, account_id: int, recipient_username: str, file_path: str,
+        caption: str = "", voice_note: bool = False, video_note: bool = False,
+        silent: bool = False, delete_dialog_after: bool = False,
+    ) -> dict:
+        """Send a file/media to a user. Returns {status, message_id} or error."""
+        client = self.get_client(account_id)
+        if not client or not client.is_connected():
+            return {"status": "error", "detail": "Account not connected"}
+
+        try:
+            entity = await client.get_entity(recipient_username)
+            msg = await client.send_file(
+                entity, file_path,
+                caption=caption or None,
+                voice_note=voice_note,
+                video_note=video_note,
+                silent=silent,
+            )
+            if delete_dialog_after:
+                try:
+                    import random
+                    await asyncio.sleep(random.uniform(3, 7))
+                    await client.delete_dialog(entity)
+                except Exception:
+                    pass
+            return {"status": "sent", "message_id": msg.id}
+        except errors.UserPrivacyRestrictedError:
+            return {"status": "failed", "detail": "Privacy restricted"}
+        except errors.PeerFloodError:
+            return {"status": "spamblocked", "detail": "PeerFloodError (spamblock)"}
+        except errors.FloodWaitError as e:
+            return {"status": "flood", "detail": f"Flood wait {e.seconds}s", "wait_seconds": e.seconds}
+        except errors.UserNotMutualContactError:
+            return {"status": "failed", "detail": "Not mutual contact"}
+        except errors.ChatWriteForbiddenError:
+            return {"status": "failed", "detail": "Write forbidden"}
+        except errors.InputUserDeactivatedError:
+            return {"status": "bounced", "detail": "User deactivated"}
+        except ValueError:
+            return {"status": "bounced", "detail": f"Cannot find user {recipient_username}"}
+        except Exception as e:
+            return {"status": "failed", "detail": str(e)}
+
 
 # Singleton
 telegram_engine = TelegramEngine()

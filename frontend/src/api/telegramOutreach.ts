@@ -126,12 +126,16 @@ export interface TgStepVariant {
   variant_label: string;
   message_text: string;
   weight_percent: number;
+  media_file_path?: string | null;
 }
+
+export type MessageType = 'text' | 'image' | 'video' | 'document' | 'voice';
 
 export interface TgSequenceStep {
   id?: number;
   step_order: number;
   delay_days: number;
+  message_type: MessageType;
   variants: TgStepVariant[];
 }
 
@@ -507,6 +511,12 @@ export const telegramOutreachApi = {
 
   updateSequence: async (campaignId: number, data: TgSequence) =>
     (await api.put<TgSequence>(`${BASE}/campaigns/${campaignId}/sequence`, data)).data,
+
+  uploadMedia: async (campaignId: number, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return (await api.post<{ file_path: string; filename: string; size: number }>(`${BASE}/campaigns/${campaignId}/media`, fd)).data;
+  },
 
   previewSequence: async (campaignId: number, recipientIndex: number = 0) =>
     (await api.post(`${BASE}/campaigns/${campaignId}/sequence/preview`, { recipient_index: recipientIndex })).data,
