@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 # --- Настройки Exa MCP ---
-EXA_API_KEY = "ВАШ_КЛЮЧ_EXA_ЗДЕСЬ" 
+EXA_API_KEY = "197fc32a-3563-4e29-bdb1-5f5a796034c9" 
 
 def update_json_file(file_path, update_func):
     path = Path(file_path).expanduser()
@@ -68,5 +68,4 @@ if __name__ == "__main__":
     print("🚀 Настройка Exa MCP во всех инструментах...")
     update_json_file("~/Library/Application Support/Claude/claude_desktop_config.json", update_claude_desktop)
     update_json_file("~/.continue/config.json", update_continue)
-    print("
-✨ Готово! Пожалуйста, перезапустите программы.")
+    print("\n✨ Готово! Пожалуйста, перезапустите программы.")
