@@ -1120,13 +1120,14 @@ def step8_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 10: ПОИСК ЛЮДЕЙ (ЛПР) В APOLLO PEOPLE UI
+# ШАГ 9: ПОИСК ЛЮДЕЙ (ЛПР) [скрипт → Apollo]
 # Автоматический поиск через Puppeteer (apollo_scraper.js):
 # - Берёт домены таргет-компаний, группирует по сегменту
-# - Подбирает titles/seniorities из apollo-filters-v3
+# - Подбирает titles/seniorities из конфига сегмента
 # - Батчит по 30 доменов, запускает apollo_scraper.js
 # - Парсит JSON → маппит в формат контактов
 # Fallback: --apollo-csv для ручного CSV импорта.
+# ★ CP3: "Одобряете расходы на email enrichment?"
 # ══════════════════════════════════════════════════════════════════════════════
 
 APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
