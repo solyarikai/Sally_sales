@@ -62,12 +62,31 @@ Backend endpoint: `POST /api/tg-outreach/inbox/new-chat`
 - Если диалог уже существует — возвращает его (с `is_new: false`)
 - Автоматически создаёт `TgAccount` если его нет для DM-аккаунта (фикс: многие DM-аккаунты не имели соответствующего `TgAccount`, что приводило к ошибке "No outreach account found")
 
+### Inbox V2 — 3-колоночный layout с рендерингом форматирования
+
+Новая страница `/inbox` (InboxV2Page) с Telegram Web-style интерфейсом:
+
+1. **Левая колонка (320px)** — список диалогов с аватарами, unread badges, фильтры по тегам, поиск
+2. **Центр (flex)** — чат-пузыри с разделителями по датам, рендеринг Telegram entities
+3. **Правая колонка (340px, скрываемая)** — CRM-карточка: статус, кампании, заметки
+
+**Рендеринг форматирования сообщений** — функция `renderFormattedText()` обрабатывает 10 типов Telegram entities:
+- `bold`, `italic`, `code`, `pre`, `url`, `text_url`, `mention`, `strikethrough`, `underline`, `spoiler`
+- Spoiler реализован через hover-reveal с transition на background
+- Code/pre — тёмный фон, моноширинный шрифт
+
+**Backend entity extraction** — в `telegram_dm_service.get_messages()` извлекаются Telethon entities (`MessageEntityBold`, `MessageEntityItalic`, etc.) и конвертируются в JSON-формат `{type, offset, length, url?, language?}`.
+
+**Поллинг**: диалоги каждые 12с, сообщения каждые 6с (silent refresh).
+
 ## Изменённые файлы
 
 - `frontend/src/pages/TelegramOutreachPage.tsx` — contentEditable-редактор вместо textarea, `wrapSelectionWith()` для форматирования, `handleEditorKeyDown` для горячих клавиш, formatting toolbar, New Chat модальное окно и `handleNewChat()`, toggle fix для code/quote, custom link popup
+- `frontend/src/pages/InboxV2Page.tsx` — новая страница Inbox V2 с 3-колоночным layout, `renderFormattedText()` для рендеринга Telegram entities в чат-пузырях, CRM-панель, поллинг диалогов и сообщений
 - `frontend/src/api/telegramOutreach.ts` — метод `createNewChat()` для API вызова
 - `frontend/src/index.css` — CSS-стили для ссылок в contentEditable-редакторе
-- `backend/app/api/telegram_outreach.py` — endpoint `POST /inbox/new-chat` с резолвингом username и созданием диалога, авто-создание `TgAccount`
+- `backend/app/api/telegram_outreach.py` — endpoint `POST /inbox/new-chat` с резолвингом username и созданием диалога, авто-создание `TgAccount`; entities в ответе `GET /inbox/dialogs/{id}/messages`
+- `backend/app/services/telegram_dm_service.py` — извлечение Telethon message entities (bold, italic, code, pre, url, text_url, mention, strikethrough, underline, spoiler) и конвертация в JSON
 - `backend/app/services/inbox_sync_service.py` — авто-создание `TgAccount` при inbox sync для DM-аккаунтов без outreach-записи
 
 ## Использование
