@@ -88,31 +88,80 @@
 
 ### Checkpoint CP1 — Unique Companies
 
-~900 уникальных company_name в CSV.
+458 уникальных company_name в CSV.
 
-### Checkpoint CP2 — Enrichment Script
+### Checkpoint CP2 — Apollo Enrichment
 
 **Script:** `sofia/scripts/enrich_imagency_company_hq.py`
-**Method:** Apollo `/mixed_companies/api_search` (FREE) -> поиск по company_name -> HQ country/city из top match
-**Rate:** 0.35s/call, ~900 companies = ~5.5 min
-**Output:** enriched CSV + JSON cache
-**Runs on:** Hetzner (APOLLO_API_KEY from .env)
+**Method:** Apollo `/v1/mixed_companies/search` (FREE) -> поиск по company_name
+**Result:** 370/458 matched (81%), домены найдены. НО Apollo search НЕ возвращает country/city — только domain + linkedin.
+**Проблема:** первый запуск на `/api/v1/mixed_companies/api_search` вернул 404 для всех. Фикс: правильный endpoint `/v1/mixed_companies/search`.
 
-**Status:** Script ready, deploying to Hetzner...
+### Checkpoint CP3 — Geo Resolution (3-step)
 
-### Checkpoint CP3 — Match Rate
+| Шаг | Метод | Компаний | Лидов |
+|-----|-------|----------|-------|
+| 1 | **ccTLD** (.de→Germany, .fr→France...) | 144 | 430 |
+| 2 | **Website scrape + Gemini 2.5 Flash Lite** | 83 | 260 |
+| 3 | **Person location fallback** | 135 | 749 |
+| — | Unknown | — | 2 |
+| **Total** | | **362** | **1,441** |
 
-Pending.
+**Проблемы по пути:**
+- Gemini 2.0 Flash → 404. Модель deprecated. Фикс: `gemini-2.5-flash-lite`
+- 47 empty pages, 34 fetch failed → fallback на person location
 
-### Checkpoint CP4 — Geo Distribution (Company HQ)
+### Checkpoint CP4 — Final Geo Distribution
 
-Pending.
+| Country | Leads | % |
+|---------|-------|---|
+| United Kingdom | 147 | 10.2% |
+| Germany | 135 | 9.4% |
+| France | 83 | 5.8% |
+| Philippines | 79 | 5.5% |
+| Spain | 76 | 5.3% |
+| India | 53 | 3.7% |
+| Saudi Arabia | 47 | 3.3% |
+| Turkey | 45 | 3.1% |
+| Colombia | 44 | 3.1% |
+| Brazil | 42 | 2.9% |
+| Poland | 41 | 2.8% |
+| South Africa | 35 | 2.4% |
+| Argentina | 34 | 2.4% |
+| Hungary | 34 | 2.4% |
+
+**Вывод:** Реальная база — global, не Europe. Europe (UK+DE+FR+ES+IT+PL+NL+BE+AT+CH+DK+IE+HU+BG+CZ) = ~650 лидов (45%). Остальные 55% — MENA, APAC, LATAM, Africa.
 
 ---
 
 ## Phase 4: Final Segmentation Matrix
 
-Pending CP3-CP4 results.
+### DM Cluster Distribution
+
+| Кластер | Лидов | % от total | Файл |
+|---------|-------|-----------|------|
+| **FOUNDERS_CSUITE** | 292 | 20.3% | `data/imagency_founders_csuite.csv` |
+| **CREATIVE_LEADERSHIP** | 139 | 9.6% | `data/imagency_creative_leadership.csv` |
+| **ACCOUNT_OPS** | 876 | 60.8% | `data/imagency_account_ops.csv` |
+| ~~EXCLUDED~~ | 134 | 9.3% | Excluded (Art Directors, Copywriters) |
+| **Активных** | **1,307** | **90.7%** | |
+
+### Cluster x Top Geo
+
+**FOUNDERS_CSUITE (292):** Spain 22, Germany 20, France 19, UK 17, Netherlands 12, Indonesia 12, Turkey 11
+**CREATIVE_LEADERSHIP (139):** Philippines 25, Germany 13, UK 10, Saudi Arabia 7, Egypt 6
+**ACCOUNT_OPS (876):** UK 115, Germany 89, France 52, Spain 47, India 46, Colombia 31, Brazil 30
+
+### Файлы данных
+
+| Файл | Описание |
+|------|----------|
+| `data/imagency_final_enriched.csv` | Все 1,441 лида с hq_country, geo_source, company_domain, dm_cluster |
+| `data/imagency_founders_csuite.csv` | 292 Founders/C-Suite |
+| `data/imagency_creative_leadership.csv` | 139 Creative Leadership |
+| `data/imagency_account_ops.csv` | 876 Account/Ops |
+
+---
 
 ## Phase 5: Deep Research — Pains per Cluster
 
