@@ -10,6 +10,7 @@ export interface TgAccountTag {
 
 export interface TgAccount {
   id: number;
+  project_id?: number;
   phone: string;
   username?: string;
   first_name?: string;
@@ -81,6 +82,7 @@ export interface TgProxy {
 
 export interface TgCampaign {
   id: number;
+  project_id?: number;
   name: string;
   status: string;
   daily_message_limit?: number;
@@ -236,6 +238,7 @@ export const telegramOutreachApi = {
   listAccounts: async (params: {
     page?: number; page_size?: number; status?: string;
     tag_id?: number; proxy_group_id?: number; search?: string;
+    project_id?: number;
   } = {}) =>
     (await api.get<TgAccountListResponse>(`${BASE}/accounts`, { params })).data,
 
@@ -407,8 +410,8 @@ export const telegramOutreachApi = {
     (await api.get(`${BASE}/accounts/${id}/campaigns`)).data,
 
   // Campaigns
-  listCampaigns: async () =>
-    (await api.get<TgCampaignListResponse>(`${BASE}/campaigns`)).data,
+  listCampaigns: async (params: { project_id?: number } = {}) =>
+    (await api.get<TgCampaignListResponse>(`${BASE}/campaigns`, { params })).data,
 
   createCampaign: async (data: Record<string, any>) =>
     (await api.post<TgCampaign>(`${BASE}/campaigns`, data)).data,
@@ -576,7 +579,7 @@ export const telegramOutreachApi = {
     (await api.post<{ suggestions: string[] }>(`${BASE}/accounts/${accountId}/suggest-usernames`, null, { params: { first_name: firstName, last_name: lastName } })).data,
 
   // CRM
-  listCrmContacts: async (params: { page?: number; page_size?: number; status?: string; search?: string } = {}) =>
+  listCrmContacts: async (params: { page?: number; page_size?: number; status?: string; search?: string; project_id?: number } = {}) =>
     (await api.get(`${BASE}/crm/contacts`, { params })).data,
 
   getCrmContact: async (id: number) =>
@@ -603,7 +606,7 @@ export const telegramOutreachApi = {
   getCrmContactCampaigns: async (id: number) =>
     (await api.get(`${BASE}/crm/contacts/${id}/campaigns`)).data,
 
-  getCrmPipeline: async (params: { search?: string; limit_per_status?: number } = {}) =>
+  getCrmPipeline: async (params: { search?: string; limit_per_status?: number; project_id?: number } = {}) =>
     (await api.get(`${BASE}/crm/pipeline`, { params })).data,
 
   // Tools
@@ -691,7 +694,7 @@ export const telegramOutreachApi = {
     (await api.post(`${BASE}/worker/reset-daily-counters`)).data,
 
   // Inbox (legacy thread-based)
-  listInboxThreads: async (params: { campaign_id?: number; account_id?: number; campaign_tag?: string; tag?: string; page?: number; page_size?: number }) =>
+  listInboxThreads: async (params: { campaign_id?: number; account_id?: number; campaign_tag?: string; tag?: string; project_id?: number; page?: number; page_size?: number }) =>
     (await api.get(`${BASE}/inbox/threads`, { params })).data,
 
   getThreadMessages: async (recipientId: number, limit: number = 50) =>
@@ -704,7 +707,7 @@ export const telegramOutreachApi = {
     (await api.patch(`${BASE}/inbox/threads/${recipientId}/tag`, { tag })).data,
 
   // New inbox endpoints (dialog-based)
-  listInboxDialogs: async (params: { account_id?: number; campaign_id?: number; campaign_tag?: string; tag?: string; search?: string; page?: number; page_size?: number }) =>
+  listInboxDialogs: async (params: { account_id?: number; campaign_id?: number; campaign_tag?: string; tag?: string; search?: string; project_id?: number; page?: number; page_size?: number }) =>
     (await api.get(`${BASE}/inbox/dialogs`, { params })).data,
 
   getDialogMessages: async (dialogId: number, limit: number = 30) =>

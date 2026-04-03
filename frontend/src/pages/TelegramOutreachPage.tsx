@@ -7,7 +7,7 @@ import {
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
   LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon,
-  BarChart3, ChevronUp,
+  BarChart3, ChevronUp, FolderOpen,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -15,6 +15,8 @@ import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useToast } from '../components/Toast';
 import { telegramOutreachApi } from '../api/telegramOutreach';
+import { useAppStore } from '../store/appStore';
+import { contactsApi } from '../api/contacts';
 import type {
   TgAccount, TgAccountTag, TgProxyGroup, TgProxy, TgCampaign,
 } from '../api/telegramOutreach';
@@ -233,6 +235,31 @@ export function TelegramOutreachPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // ── Project selector ───────────────────────────────────────────────
+  const { projects, currentProject, setCurrentProject, setProjects } = useAppStore();
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Load projects if not already loaded
+  useEffect(() => {
+    if (projects.length === 0) {
+      contactsApi.listProjectsLite().then(ps => setProjects(ps as any)).catch(() => {});
+    }
+  }, [projects.length, setProjects]);
+
+  // Close project dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
+        setShowProjectDropdown(false);
+        setProjectSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   // ── Sidebar state ──────────────────────────────────────────────────
   const [collapsed, setCollapsed] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -293,6 +320,100 @@ export function TelegramOutreachPage() {
             <PanelLeft className="w-4 h-4" style={collapsed ? { transform: 'scaleX(-1)' } : undefined} />
           </button>
         </div>
+
+        {/* Project Selector */}
+        {!collapsed && projects.length > 0 && (
+          <div className="relative px-2 pt-2" ref={projectDropdownRef}>
+            <button
+              onClick={() => { setShowProjectDropdown(!showProjectDropdown); setProjectSearch(''); }}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] transition-colors"
+              style={{
+                background: currentProject ? A.blueBg : '#F3F3F1',
+                color: currentProject ? A.blue : A.text2,
+                border: `1px solid ${currentProject ? A.blue + '30' : A.border}`,
+              }}
+              onMouseEnter={e => { if (!currentProject) e.currentTarget.style.background = '#EDEDEB'; }}
+              onMouseLeave={e => { if (!currentProject) e.currentTarget.style.background = '#F3F3F1'; }}
+            >
+              <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate flex-1 text-left">
+                {currentProject ? currentProject.name : 'All Projects'}
+              </span>
+              <ChevronDown className="w-3 h-3 shrink-0" style={{
+                transform: showProjectDropdown ? 'rotate(180deg)' : undefined,
+                transition: 'transform 150ms',
+              }} />
+            </button>
+
+            {showProjectDropdown && (
+              <div className="absolute left-2 right-2 top-full mt-1 rounded-md shadow-xl z-50 py-0.5"
+                style={{ background: A.surface, border: `1px solid ${A.border}` }}>
+                <div className="px-1.5 py-1.5">
+                  <input
+                    type="text"
+                    value={projectSearch}
+                    onChange={e => setProjectSearch(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') { setShowProjectDropdown(false); setProjectSearch(''); }
+                    }}
+                    placeholder="Search..."
+                    autoFocus
+                    className="w-full px-2 py-1 text-[12px] rounded border-none focus:outline-none"
+                    style={{ background: '#F3F3F1', color: A.text1 }}
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto py-0.5">
+                  <button
+                    onClick={() => { setCurrentProject(null); setShowProjectDropdown(false); setProjectSearch(''); }}
+                    className="w-full px-3 py-1.5 text-left text-[13px] transition-colors"
+                    style={{
+                      color: !currentProject ? A.blue : A.text2,
+                      background: !currentProject ? A.blueBg : 'transparent',
+                      fontWeight: !currentProject ? 600 : 400,
+                    }}
+                    onMouseEnter={e => { if (currentProject) e.currentTarget.style.background = '#F3F3F1'; }}
+                    onMouseLeave={e => { if (currentProject) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    All Projects
+                  </button>
+                  {projects
+                    .filter(p => !projectSearch || p.name.toLowerCase().includes(projectSearch.toLowerCase()))
+                    .map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => { setCurrentProject(p); setShowProjectDropdown(false); setProjectSearch(''); }}
+                        className="w-full px-3 py-1.5 text-left text-[13px] truncate transition-colors"
+                        style={{
+                          color: currentProject?.id === p.id ? A.blue : A.text2,
+                          background: currentProject?.id === p.id ? A.blueBg : 'transparent',
+                          fontWeight: currentProject?.id === p.id ? 600 : 400,
+                        }}
+                        onMouseEnter={e => { if (currentProject?.id !== p.id) e.currentTarget.style.background = '#F3F3F1'; }}
+                        onMouseLeave={e => { if (currentProject?.id !== p.id) e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        {p.name}
+                      </button>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {collapsed && projects.length > 0 && (
+          <div className="px-2 pt-2">
+            <button
+              onClick={() => { setCollapsed(false); setTimeout(() => setShowProjectDropdown(true), 200); }}
+              className="w-full flex items-center justify-center py-2 rounded-md transition-colors"
+              style={{ color: currentProject ? A.blue : A.text3 }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#F3F3F1')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              title={currentProject ? currentProject.name : 'All Projects'}
+            >
+              <FolderOpen className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Sections */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-1">
@@ -406,6 +527,7 @@ export function TelegramOutreachPage() {
 
 function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
   const { isDark } = useTheme();
+  const currentProject = useAppStore(s => s.currentProject);
   const [accounts, setAccounts] = useState<TgAccount[]>([]);
   const [_tags, setTags] = useState<TgAccountTag[]>([]);
   const [total, setTotal] = useState(0);
@@ -437,6 +559,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
       const params: any = { page, page_size: 50 };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
+      if (currentProject?.id) params.project_id = currentProject.id;
       const data = await telegramOutreachApi.listAccounts(params);
       setAccounts(data.items);
       setTotal(data.total);
@@ -445,7 +568,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, toast]);
+  }, [page, search, statusFilter, currentProject?.id, toast]);
 
   const loadTags = useCallback(async () => {
     try { setTags(await telegramOutreachApi.listTags()); } catch { /* ignore */ }
@@ -924,20 +1047,23 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
 
 function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) { void _t;
   const navigate = useNavigate();
+  const currentProject = useAppStore(s => s.currentProject);
   const [campaigns, setCampaigns] = useState<TgCampaign[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadCampaigns = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await telegramOutreachApi.listCampaigns();
+      const params: any = {};
+      if (currentProject?.id) params.project_id = currentProject.id;
+      const data = await telegramOutreachApi.listCampaigns(params);
       setCampaigns(data.items);
     } catch {
       toast('Failed to load campaigns', 'error');
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [currentProject?.id, toast]);
 
   useEffect(() => { loadCampaigns(); }, [loadCampaigns]);
 
@@ -962,7 +1088,7 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
 
   const handleCreate = async () => {
     try {
-      const created = await telegramOutreachApi.createCampaign({ name: 'New Campaign' });
+      const created = await telegramOutreachApi.createCampaign({ name: 'New Campaign', project_id: currentProject?.id });
       toast('Campaign created', 'success');
       navigate(`/outreach/campaigns/${created.id}`);
     } catch {
@@ -4167,6 +4293,7 @@ const DRAFT_PREFIX = 'inbox_draft_';
 const DRAFT_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const currentProject = useAppStore(s => s.currentProject);
   const [dialogs, setDialogs] = useState<any[]>([]);
   const [selectedDialog, setSelectedDialog] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -4416,8 +4543,9 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     if (filterCampaign) params.campaign_id = Number(filterCampaign);
     if (filterTag) params.campaign_tag = filterTag;
     if (filterLeadStatus) params.lead_status = filterLeadStatus;
+    if (currentProject?.id) params.project_id = currentProject.id;
     return params;
-  }, [filterAccount, filterCampaign, filterTag, filterLeadStatus]);
+  }, [filterAccount, filterCampaign, filterTag, filterLeadStatus, currentProject?.id]);
 
   // Silent refresh — re-fetch dialogs without loading spinner (for auto-polling)
   const silentRefresh = useCallback(async () => {
@@ -4429,7 +4557,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
 
   // Apply handler — syncs from Telegram + loads dialogs
   const handleApply = useCallback(async () => {
-    const hasFilter = filterAccount || filterCampaign || filterTag || filterLeadStatus;
+    const hasFilter = filterAccount || filterCampaign || filterTag || filterLeadStatus || currentProject?.id;
     if (!hasFilter) {
       toast('Select at least one filter', 'error');
       return;
@@ -6221,6 +6349,7 @@ const PIPELINE_COLORS: Record<string, { bg: string; text: string; border: string
 };
 
 function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const currentProject = useAppStore(s => s.currentProject);
   const [pipeline, setPipeline] = useState<Record<string, { count: number; contacts: any[] }>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -6237,10 +6366,11 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
     try {
       const params: any = { limit_per_status: 50 };
       if (searchDebounced) params.search = searchDebounced;
+      if (currentProject?.id) params.project_id = currentProject.id;
       setPipeline(await telegramOutreachApi.getCrmPipeline(params));
     } catch { toast('Failed to load pipeline', 'error'); }
     finally { setLoading(false); }
-  }, [searchDebounced, toast]);
+  }, [searchDebounced, currentProject?.id, toast]);
 
   useEffect(() => { loadPipeline(); }, [loadPipeline]);
 
@@ -6582,6 +6712,7 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
 
 
 function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) { void _t;
+  const currentProject = useAppStore(s => s.currentProject);
   const [contacts, setContacts] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -6601,12 +6732,13 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
       const params: any = { page, page_size: 50 };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
+      if (currentProject?.id) params.project_id = currentProject.id;
       const data = await telegramOutreachApi.listCrmContacts(params);
       setContacts(data.items);
       setTotal(data.total);
     } catch { toast('Failed to load contacts', 'error'); }
     finally { setLoading(false); }
-  }, [page, search, statusFilter, toast]);
+  }, [page, search, statusFilter, currentProject?.id, toast]);
 
   const loadStats = useCallback(async () => {
     try { setStats(await telegramOutreachApi.getCrmStats()); } catch { /* ok */ }

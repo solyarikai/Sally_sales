@@ -120,6 +120,7 @@ class TgAccountUpdate(BaseModel):
 
 class TgAccountResponse(BaseModel):
     id: int
+    project_id: Optional[int] = None
     phone: str
     username: Optional[str] = None
     first_name: Optional[str] = None
@@ -187,6 +188,7 @@ class TgCampaignBase(BaseModel):
 
 
 class TgCampaignCreate(TgCampaignBase):
+    project_id: Optional[int] = None
     tags: Optional[list[str]] = None
     crm_tag_on_reply: Optional[list[str]] = None
     crm_status_on_reply: Optional[str] = None
@@ -195,6 +197,7 @@ class TgCampaignCreate(TgCampaignBase):
 
 
 class TgCampaignUpdate(BaseModel):
+    project_id: Optional[int] = None
     name: Optional[str] = None
     daily_message_limit: Optional[int] = None
     timezone: Optional[str] = None
@@ -212,6 +215,7 @@ class TgCampaignUpdate(BaseModel):
 
 class TgCampaignResponse(TgCampaignBase):
     id: int
+    project_id: Optional[int] = None
     status: str = "draft"
     tags: list[str] = []
     crm_tag_on_reply: list[str] = []
