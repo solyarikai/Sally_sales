@@ -2065,7 +2065,7 @@ def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
                 else:
                     print(f"  ⚠ Schedule error: {r.status_code} {r.text[:200]}")
 
-        # ── 12f: Активация — ТОЛЬКО вручную в SmartLead UI ──
+        # ── Активация — ТОЛЬКО вручную в SmartLead UI ──
         # Скрипт НИКОГДА не активирует кампанию. Это делает оператор
         # в SmartLead после финальной проверки всех настроек.
         print(f"\n  ✓ Campaign '{campaign_name}' готова в DRAFTED статусе.")
