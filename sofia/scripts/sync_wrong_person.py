@@ -310,26 +310,49 @@ def mark_as_processed(reply_ids: list, campaign_id: int):
             conn.close()
 
 
-def send_telegram_notification(stats: dict, leads_count: int, project: str, campaign_id: int, chat_id: str):
+def send_telegram_notification(stats: dict, leads: list, project: str, campaign_id: int, chat_id: str):
     """Send execution report to Telegram."""
     if not TELEGRAM_BOT_TOKEN or not chat_id:
         logger.warning("Telegram config missing, skipping notification")
         return
 
     try:
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M UTC')
-        message = (
-            f"Wrong Person Sync Report - {timestamp}\n"
-            f"\n"
-            f"Project: {project}\n"
-            f"Found: {leads_count} unprocessed Wrong Person replies\n"
-            f"Added to SmartLead: {stats['added']}\n"
-            f"Failed: {stats['failed']}\n"
-            f"\n"
-            f"Campaign ID: {campaign_id}"
-        )
-        if stats['errors']:
-            message += "\n\nErrors:\n"
+        timestamp = datetime.now().strftime('%b %d, %Y at %H:%M UTC')
+
+        if not leads:
+            message = (
+                f"\U0001f7e2 Wrong Person Sync - {timestamp}\n"
+                f"\n"
+                f"\U0001f4cb Project: {project}\n"
+                f"No new Wrong Person replies to sync.\n"
+                f"\n"
+                f"\U0001f3af Destination: campaign {campaign_id}"
+            )
+        else:
+            emoji = "\U0001f534" if stats['failed'] > 0 else "\U0001f7e1"
+            message = (
+                f"{emoji} \U0001f465 Wrong Person Sync - {timestamp}\n"
+                f"\n"
+                f"\U0001f4cb Project: {project}\n"
+                f"\u2705 Added: {stats['added']}  \u274c Failed: {stats['failed']}\n"
+                f"\U0001f3af Destination: campaign {campaign_id}\n"
+            )
+
+            for lead in leads[:10]:
+                name = f"{lead['first_name']} {lead.get('last_name', '')}".strip() or lead['email']
+                company = lead.get('company', '') or 'Unknown'
+                message += (
+                    f"\n\U0001f464 {name}\n"
+                    f"    \U0001f4e7 {lead['email']}\n"
+                    f"    \U0001f3e2 {company}\n"
+                    f"    \U0001f4e8 From: {lead.get('campaign', '?')}\n"
+                )
+
+            if len(leads) > 10:
+                message += f"\n... and {len(leads) - 10} more"
+
+        if stats.get('errors'):
+            message += "\n\n\u26a0\ufe0f Errors:\n"
             for error in stats['errors'][:3]:
                 message += f"  - {error[:100]}\n"
 
@@ -367,7 +390,7 @@ def sync_project(project: str, campaign_id: int, campaign_names: list,
     if not leads:
         logger.info("No leads to process")
         if not dry_run:
-            send_telegram_notification({'added': 0, 'failed': 0, 'errors': []}, 0, project, campaign_id, chat_id)
+            send_telegram_notification({'added': 0, 'failed': 0, 'errors': []}, [], project, campaign_id, chat_id)
         return {'project': project, 'found': 0, 'added': 0, 'failed': 0}
 
     # 2. Log what we found
@@ -391,7 +414,7 @@ def sync_project(project: str, campaign_id: int, campaign_names: list,
         mark_as_processed(reply_ids, campaign_id)
 
     # 5. Send notification
-    send_telegram_notification(stats, len(leads), project, campaign_id, chat_id)
+    send_telegram_notification(stats, leads, project, campaign_id, chat_id)
 
     return {'project': project, 'found': len(leads), 'added': stats['added'], 'failed': stats['failed']}
 
