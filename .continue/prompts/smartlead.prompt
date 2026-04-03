@@ -1,0 +1,175 @@
+---
+name: smartlead
+description: Универсальный SmartLead API - кампании, лиды, секвенции, аккаунты, аналитика, вебхуки, инбокс. Используй ВСЕГДА когда пользователь упоминает SmartLead, кампании рассылок, cold email, выгрузку лидов, экспорт из кампании, создание кампании, секвенции писем, email accounts, аналитику кампании, replies inbox, вебхуки. Триггеры: "smartlead", "смартлид", "кампания", "выгрузи лиды", "экспорт лидов", "leads export", "создай кампанию", "секвенция", "email accounts", "аналитика кампании", "inbox replies", "вебхук", "добавь лиды", "поставь на паузу", "покажи кампании", "история переписки".
+---
+
+# SmartLead — Universal API Tool
+
+Единый скрипт `smartlead.py` для всех операций с SmartLead API.
+
+**Скрипт**: `python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py <command> [args]`
+
+## Важные правила
+
+1. **НИКОГДА не активируй кампании через API** (START/ACTIVE запрещены). Только PAUSED и STOPPED. Активация — только вручную в SmartLead UI.
+2. **Пагинация**: макс 100 лидов за запрос. Скрипт автоматически проходит все страницы.
+3. **CSV экспорт включает ВСЕ поля** — стандартные + все custom_fields динамически.
+4. **API ключ захардкожен** в скрипте. Менять не нужно.
+
+---
+
+## Команды
+
+### Кампании
+
+```bash
+# Список всех кампаний
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaigns
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaigns --search "OnSocial"
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaigns --status ACTIVE
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaigns --json
+
+# Детали кампании
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaign-get <ID>
+
+# Создать кампанию (статус DRAFTED)
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaign-create "c-OnSocial_NEW SEGMENT #C"
+
+# Поставить на паузу / остановить (START запрещён!)
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaign-status <ID> PAUSED
+
+# Обновить настройки
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaign-settings <ID> '{"send_as_plain_text": true}'
+
+# Установить расписание
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaign-schedule <ID> '{"tz": "Europe/London", "days": [1,2,3,4,5], "startHour": "09:00", "endHour": "18:00"}'
+```
+
+### Лиды
+
+```bash
+# Список лидов (JSON)
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads <CAMPAIGN_ID>
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads <ID> --status COMPLETED
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads <ID> --email-status is_replied
+
+# Экспорт в CSV (все поля + все custom_fields)
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-export <ID>
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-export <ID> --status COMPLETED -o completed.csv
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-export <ID> --require-job-title
+
+# Добавить лиды из JSON файла (макс 400 за батч, автосплит)
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-add <ID> leads.json
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-add <ID> leads.json --skip-blocklist --allow-duplicates
+
+# Поиск лида по email
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-search john@example.com
+
+# Обновить лида
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-update <CAMPAIGN_ID> <LEAD_ID> '{"first_name": "John"}'
+
+# Пауза / возобновление лида
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-pause <CAMPAIGN_ID> <LEAD_ID>
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-resume <CAMPAIGN_ID> <LEAD_ID>
+
+# Отписать лида глобально
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-unsubscribe <LEAD_ID>
+
+# Категории лидов
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-categories
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-set-category <CAMPAIGN_ID> <LEAD_ID> <CATEGORY_ID>
+
+# История переписки
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py leads-history <CAMPAIGN_ID> <LEAD_ID>
+```
+
+### Секвенции
+
+```bash
+# Получить секвенции кампании
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py sequences <ID>
+
+# Создать/обновить из JSON файла
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py sequences-set <ID> sequences.json
+```
+
+Формат JSON для секвенций:
+```json
+[
+  {
+    "id": null,
+    "seq_number": 1,
+    "subject": "Hello {{first_name}}",
+    "email_body": "<p>Hi {{first_name}},</p>",
+    "seq_delay_details": {"delay_in_days": 0}
+  }
+]
+```
+
+### Email-аккаунты
+
+```bash
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py accounts
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py accounts --warmup-status ACTIVE --json
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py accounts-campaign <ID>
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py accounts-add <ID> "101,102,103"
+```
+
+### Аналитика
+
+```bash
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py analytics <ID>
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py analytics-sequences <ID>
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py analytics-dates <ID> --start-date 2026-03-01 --end-date 2026-04-01
+```
+
+### Вебхуки
+
+```bash
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py webhooks
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py webhook-create '{"name": "Replies", "webhook_url": "https://example.com/hook", "association_type": 3, "email_campaign_id": 123, "event_type_map": {"REPLIED": true}}'
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py webhook-update <ID> '{"name": "Updated"}'
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py webhook-delete <ID>
+```
+
+### Master Inbox
+
+```bash
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py inbox-replies
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py inbox-replies --campaign-id <ID>
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py inbox-reply <CAMPAIGN_ID> <LEAD_ID> "Thanks for your reply!"
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py inbox-note <LEAD_ID> "Follow up next week"
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py inbox-category <LEAD_ID> <CATEGORY_ID>
+```
+
+---
+
+## Поиск кампании по названию
+
+Если пользователь даёт название кампании вместо ID — сначала найди ID:
+
+```bash
+python3 {{{ cwd }}}/.claude/skills/smartlead/smartlead.py campaigns --search "часть названия"
+```
+
+## Формат leads-add JSON
+
+```json
+[
+  {
+    "email": "john@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "company_name": "Acme Corp",
+    "linkedin_profile": "https://linkedin.com/in/johndoe",
+    "custom_fields": {"job_title": "CEO", "industry": "SaaS"}
+  }
+]
+```
+
+## SmartLead Email Formatting Rules
+
+При работе с секвенциями (email_body):
+- Используй `<br>` вместо `\n` для переносов строк
+- Используй `-` вместо `—` (em dash ломает email клиенты)
+- A/B варианты не поддерживаются API — добавляй вручную в SmartLead UI
