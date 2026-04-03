@@ -155,15 +155,20 @@ Generate 20-30 keywords...
 
 **Apollo keyword behavior** (verified via live testing 2026-04-03):
 - `q_organization_keyword_tags` accepts ANY free-text strings
-- Multiple keywords are **OR-combined** — adding keywords EXPANDS results:
-  - "payment gateway" alone: 3,199 companies
-  - "lending platform" alone: 401 companies
-  - Both together: 3,591 (more than either alone)
-  - 5 keywords together: 5,788 (keeps growing)
-- One API call with 20-30 keywords covers all segments at once
+- Multiple keywords are **OR-combined** — expands the searchable pool
+- **BUT**: More keywords changes Apollo's ranking, not just adds to the list:
+  - 1 keyword ("payment gateway"), 5 pages: 126 unique domains
+  - 3 keywords, 5 pages: 109 unique domains (fewer! ranking shifted)
+  - 10 keywords, 5 pages: 131 unique domains
+  - **10kw found 116 NEW domains not in 1kw results** (almost no overlap — only 15 shared)
+  - Union of all 3 searches: 251 unique domains
+- Apollo's `total_entries` is UNRELIABLE (reports 3,199-10,179 but returns ~130 in 5 pages)
+- **Implication for pipeline**: Running parallel streams with DIFFERENT keyword sets
+  (e.g. funded vs unfunded, or different keyword subsets) yields MORE unique companies
+  than one stream with all keywords combined. The streaming pipeline's parallel
+  architecture (L0_funded + L1_keywords + L1_industry) naturally exploits this.
+- Keywords are NOT per-segment — flat list, all OR'd together per stream
 - No per-keyword calls needed, no predefined list, no validation
-- More keywords = broader coverage = more targets for GPT to classify
-- Keywords are NOT per-segment — flat list, all OR'd together in one search
 
 ### Step C: Location Extraction
 **File**: `services/filter_mapper.py:_extract_locations()`
