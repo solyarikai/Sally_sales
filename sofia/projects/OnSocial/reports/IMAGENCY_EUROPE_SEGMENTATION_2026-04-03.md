@@ -243,9 +243,85 @@
 | MENA | Formal, rapport-building | Low-pressure | English |
 | India/PH | Friendly, fast | "Quick 15-min call?" + link | English |
 
+## Phase 5.6: Финальная архитектура кампаний
+
+### Decisions D6-D10
+
+| # | Вопрос | Решение |
+|---|--------|---------|
+| D6 | Germany cold email risk? | Оставляем в email — принимаем риск |
+| D7 | Структура кампаний? | 3 кампании по должности, гео через custom fields |
+| D8 | Custom fields? | 4 поля: pain, social_proof, competitor, hook. CTA единый: "Quick 15-min call?" |
+| D9 | Гео-кластеров? | 6 (UK+IE / DACH+Nordics+NL+BE / Southern EU / CEE+Turkey / India+APAC / MENA+LATAM+Africa) |
+| D10 | Social proof честность? | CEE (0 клиентов) и MENA/LATAM (2 клиента) — product capabilities вместо client names |
+
+### Campaign Architecture: 3 campaigns x 6 geo custom field sets = 18 combinations
+
+**Campaigns:**
+1. `IMAGENCY_FOUNDERS` — 292 leads (CEO, Founder, COO, President, Partner)
+2. `IMAGENCY_CREATIVE` — 139 leads (Creative Director, Executive CD)
+3. `IMAGENCY_ACCOUNT_OPS` — 876 leads (Account Director, Managing Director, Head of X)
+
+**Excluded:** 134 leads (Art Director, Copywriter) → GetSales LinkedIn
+
+### Custom Fields Mapping
+
+#### 1. UK+IE (~160 leads)
+- `{{custom1}}` pain: balancing influencer freedom with brand safety
+- `{{custom2}}` social_proof: teams like Whalar and Billion Dollar Boy
+- `{{custom3}}` competitor: agencies moving off HypeAuditor over pricing transparency
+- `{{custom4}}` hook: UK agencies plan to scale creator programs 50%+ this year
+
+#### 2. DACH+Nordics+NL+BE (~200 leads)
+- `{{custom1}}` pain: finding verified creators with reliable audience data
+- `{{custom2}}` social_proof: teams like Zalando, Linkster and Intermate
+- `{{custom3}}` competitor: analytics gaps in tools like HypeAuditor
+- `{{custom4}}` hook: 51% of Nordic marketers say data reliability is their top challenge
+
+#### 3. Southern Europe (~180 leads)
+- `{{custom1}}` pain: rising influencer costs with no clear ROI proof
+- `{{custom2}}` social_proof: teams like Kolsquare, Ykone and SAMY Alliance
+- `{{custom3}}` competitor: tools that lack creator coverage outside Western Europe
+- `{{custom4}}` hook: IM budgets across Southern Europe are growing - but so is cost inflation
+
+#### 4. CEE+Turkey (~170 leads)
+- `{{custom1}}` pain: verifying real engagement when fake followers are everywhere
+- `{{custom2}}` social_proof: agencies across 30+ markets who use our fraud detection
+- `{{custom3}}` competitor: global tools that lack depth in CEE and Turkish creator data
+- `{{custom4}}` hook: Buying popularity is easy - proving engagement is real is the hard part
+
+#### 5. India+APAC (~250 leads)
+- `{{custom1}}` pain: protecting margins when clients ask to see the data source
+- `{{custom2}}` social_proof: teams like KlugKlug, Qoruz and TRIBEGroup
+- `{{custom3}}` competitor: paying for HypeAuditor while clients see their branding in your reports
+- `{{custom4}}` hook: IM agencies run on 15-25% margins - white-label data keeps clients seeing you as the source
+
+#### 6. MENA+LATAM+Africa (~250 leads)
+- `{{custom1}}` pain: getting reliable creator data across multiple markets from one source
+- `{{custom2}}` social_proof: platforms like ArabyAds and Sociata
+- `{{custom3}}` competitor: stitching together 5+ data sources for multi-market campaigns
+- `{{custom4}}` hook: Running creator campaigns across markets means fragmented data - unless you have one API
+
+### OnSocial Real Clients by Region (verified)
+
+| Region | Clients | Status |
+|--------|---------|--------|
+| UK | Whalar, Billion Dollar Boy, InfluencerUK, LADbible | ✅ Strong |
+| Germany | Zalando, Linkster, Intermate, Gocomo | ✅ Strong |
+| France | Kolsquare, Skeepers, Ykone, Favikon | ✅ Strong |
+| Spain | SAMY Alliance | ⚠️ 1 client |
+| India | KlugKlug, Qoruz, Tonic Worldwide | ✅ Strong |
+| Australia | TRIBEGroup | ⚠️ 1 client |
+| MENA | ArabyAds, Sociata | ⚠️ 2 clients |
+| CEE/Turkey | — | ❌ None |
+| LATAM | — | ❌ None |
+| US/CA | Viral Nation, Obviously | ✅ (not relevant for this campaign) |
+
+---
+
 ## Phase 6: Sequence Drafts
 
-Pending.
+Pending — next step.
 
 ## Phase 7: SmartLead Campaign Creation
 
