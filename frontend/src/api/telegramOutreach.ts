@@ -713,6 +713,9 @@ export const telegramOutreachApi = {
   getDialogMessages: async (dialogId: number, limit: number = 30) =>
     (await api.get(`${BASE}/inbox/dialogs/${dialogId}/messages`, { params: { limit } })).data,
 
+  getDialogTyping: async (dialogId: number): Promise<{ typing: boolean }> =>
+    (await api.get(`${BASE}/inbox/dialogs/${dialogId}/typing`)).data,
+
   sendDialogMessage: async (dialogId: number, text: string, opts?: { parseMode?: string; replyTo?: number }) =>
     (await api.post(`${BASE}/inbox/dialogs/${dialogId}/send`, { text, parseMode: opts?.parseMode, replyTo: opts?.replyTo })).data,
 

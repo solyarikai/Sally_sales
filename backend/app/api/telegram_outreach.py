@@ -6397,6 +6397,34 @@ async def get_dialog_messages(
         raise HTTPException(500, f"Failed to fetch messages: {str(e)[:100]}")
 
 
+@router.get("/inbox/dialogs/{dialog_id}/typing")
+async def get_dialog_typing(
+    dialog_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Check if the peer in this dialog is currently typing."""
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+
+    tg_acc = await session.get(TgAccount, dialog.account_id)
+    if not tg_acc:
+        return {"typing": False}
+    dm_result = await session.execute(
+        select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone)
+    )
+    account = None
+    for c in dm_result.scalars().all():
+        if telegram_dm_service.is_connected(c.id) and c.string_session:
+            account = c
+            break
+    if not account:
+        return {"typing": False}
+
+    is_typing = telegram_dm_service.get_typing_status(account.id, dialog.peer_id)
+    return {"typing": is_typing}
+
+
 @router.post("/inbox/dialogs/{dialog_id}/send")
 async def send_dialog_message(
     dialog_id: int,

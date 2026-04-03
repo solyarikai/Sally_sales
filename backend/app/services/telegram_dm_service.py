@@ -15,7 +15,7 @@ from typing import Optional
 
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
-from telethon.tl.types import User, InputPeerUser
+from telethon.tl.types import User, InputPeerUser, UpdateUserTyping, SendMessageTypingAction
 from telethon.errors import (
     FloodWaitError,
     AuthKeyUnregisteredError,
@@ -36,6 +36,8 @@ class TelegramDMService:
         self.api_hash = getattr(settings, "TELEGRAM_CHECKER_API_HASH", "")
         self._clients: dict[int, TelegramClient] = {}  # account_id -> client
         self._lock = asyncio.Lock()
+        # Typing status: {account_id: {peer_id: timestamp}} — expires after 6s
+        self._typing_status: dict[int, dict[int, float]] = {}
 
     # ── Account Import ──────────────────────────────────────────────
 
@@ -888,6 +890,28 @@ class TelegramDMService:
 
             except Exception as e:
                 logger.error(f"[TELEGRAM] Event handler error for account {account_id}: {e}")
+
+        # Typing indicator: capture UpdateUserTyping for private chats
+        @client.on(events.Raw(types=[UpdateUserTyping]))
+        async def _on_typing(update):
+            try:
+                import time
+                if account_id not in self._typing_status:
+                    self._typing_status[account_id] = {}
+                self._typing_status[account_id][update.user_id] = time.time()
+            except Exception:
+                pass  # non-critical
+
+    def get_typing_status(self, account_id: int, peer_id: int) -> bool:
+        """Check if peer is currently typing (within last 6 seconds)."""
+        import time
+        ts = self._typing_status.get(account_id, {}).get(peer_id)
+        if ts and (time.time() - ts) < 6:
+            return True
+        # Clean up expired entry
+        if ts:
+            self._typing_status.get(account_id, {}).pop(peer_id, None)
+        return False
 
     async def start_listening(self):
         """Start persistent Telethon connections for all connected clients.

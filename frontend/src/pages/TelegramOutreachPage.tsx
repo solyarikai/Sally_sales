@@ -4326,6 +4326,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [crmData, setCrmData] = useState<any>(null);
   const [crmLoading, setCrmLoading] = useState(false);
   const [peerStatus, setPeerStatus] = useState<any>(null);
+  const [peerTyping, setPeerTyping] = useState(false);
   const [filterLeadStatus, setFilterLeadStatus] = useState<string>('');
   const [campaignTags, setCampaignTags] = useState<string[]>([]);
   const [accountTags, setAccountTags] = useState<{ id: number; name: string }[]>([]);
@@ -4660,6 +4661,19 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
       }
     })();
     return () => { cancelled = true; };
+  }, [selectedDialog]);
+
+  // Poll typing status every 3s
+  useEffect(() => {
+    if (!selectedDialog) { setPeerTyping(false); return; }
+    setPeerTyping(false);
+    const interval = setInterval(async () => {
+      try {
+        const data = await telegramOutreachApi.getDialogTyping(selectedDialog.id);
+        setPeerTyping(data.typing);
+      } catch { setPeerTyping(false); }
+    }, 3_000);
+    return () => { clearInterval(interval); setPeerTyping(false); };
   }, [selectedDialog]);
 
   // Load CRM data when Info panel is opened
@@ -5175,7 +5189,16 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   <p className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
                     {selectedDialog.peer_name || selectedDialog.name || `Dialog ${selectedDialog.id}`}
                   </p>
-                  {peerStatus && (
+                  {peerTyping ? (
+                    <span className="text-[10px] flex items-center gap-1 flex-shrink-0" style={{ color: '#22C55E' }}>
+                      <span className="flex gap-0.5">
+                        <span className="w-1 h-1 rounded-full animate-bounce" style={{ background: '#22C55E', animationDelay: '0ms' }} />
+                        <span className="w-1 h-1 rounded-full animate-bounce" style={{ background: '#22C55E', animationDelay: '150ms' }} />
+                        <span className="w-1 h-1 rounded-full animate-bounce" style={{ background: '#22C55E', animationDelay: '300ms' }} />
+                      </span>
+                      typing
+                    </span>
+                  ) : peerStatus && (
                     <span className="text-[10px] flex items-center gap-1 flex-shrink-0" style={{
                       color: peerStatus.status === 'online' ? '#22C55E'
                         : peerStatus.possibly_blocked ? '#EF4444'
@@ -5439,6 +5462,18 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                           </span>
                         );
                       })}
+                      {peerTyping && (
+                        <div className="flex justify-start">
+                          <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs" style={{ background: A.surface, border: `1px solid ${A.border}` }}>
+                            <span className="flex gap-0.5">
+                              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: A.text3, animationDelay: '0ms' }} />
+                              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: A.text3, animationDelay: '150ms' }} />
+                              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: A.text3, animationDelay: '300ms' }} />
+                            </span>
+                            <span style={{ color: A.text3 }}>typing</span>
+                          </div>
+                        </div>
+                      )}
                       <div ref={messagesEndRef} />
                     </div>
 
