@@ -7488,3 +7488,94 @@ async def bulk_delete_blacklist(data: dict, session: AsyncSession = Depends(get_
 async def blacklist_count(session: AsyncSession = Depends(get_session)):
     total = (await session.execute(select(func.count(TgBlacklist.id)))).scalar() or 0
     return {"total": total}
+
+
+# ── Notification Bot Endpoints ────────────────────────────────────────
+from app.models.telegram_outreach import TgOutreachNotifSub
+from app.schemas.telegram_outreach import TgNotifSubResponse, TgNotifSubUpdate, TgNotifBotInfoResponse
+
+
+@router.get("/notifications/bot-info", response_model=TgNotifBotInfoResponse)
+async def get_notif_bot_info(session: AsyncSession = Depends(get_session)):
+    """Get bot info and deep link for connecting."""
+    from app.core.config import settings as _s
+    import httpx
+
+    bot_username = None
+    token = _s.TELEGRAM_BOT_TOKEN
+    if token:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(f"https://api.telegram.org/bot{token}/getMe")
+                data = resp.json()
+                if data.get("ok"):
+                    bot_username = data["result"].get("username")
+        except Exception:
+            pass
+
+    total = (await session.execute(
+        select(func.count(TgOutreachNotifSub.id)).where(TgOutreachNotifSub.is_active == True)
+    )).scalar() or 0
+
+    deep_link = f"https://t.me/{bot_username}?start=tg_outreach" if bot_username else None
+    return TgNotifBotInfoResponse(
+        bot_username=bot_username,
+        deep_link=deep_link,
+        subscribers_count=total,
+    )
+
+
+@router.get("/notifications/subscribers", response_model=list[TgNotifSubResponse])
+async def list_notif_subscribers(session: AsyncSession = Depends(get_session)):
+    result = await session.execute(
+        select(TgOutreachNotifSub).order_by(TgOutreachNotifSub.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.put("/notifications/subscribers/{sub_id}", response_model=TgNotifSubResponse)
+async def update_notif_subscriber(
+    sub_id: int,
+    data: TgNotifSubUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    sub = await session.get(TgOutreachNotifSub, sub_id)
+    if not sub:
+        raise HTTPException(404, "Subscriber not found")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(sub, field, value)
+    sub.updated_at = _dt.utcnow()
+    await session.commit()
+    await session.refresh(sub)
+    return sub
+
+
+@router.delete("/notifications/subscribers/{sub_id}")
+async def delete_notif_subscriber(sub_id: int, session: AsyncSession = Depends(get_session)):
+    sub = await session.get(TgOutreachNotifSub, sub_id)
+    if not sub:
+        raise HTTPException(404, "Subscriber not found")
+    await session.delete(sub)
+    await session.commit()
+    return {"ok": True}
+
+
+@router.post("/notifications/test")
+async def send_test_notification(session: AsyncSession = Depends(get_session)):
+    """Send a test notification to all active subscribers."""
+    from app.services.tg_outreach_notif_service import tg_outreach_notif_service
+
+    result = await session.execute(
+        select(TgOutreachNotifSub).where(TgOutreachNotifSub.is_active == True)
+    )
+    subs = result.scalars().all()
+    sent = 0
+    for sub in subs:
+        msg_id = await tg_outreach_notif_service._send_message(
+            sub.chat_id,
+            "🔔 <b>Test Notification</b>\n\nTG Outreach notifications are working!",
+        )
+        if msg_id:
+            sent += 1
+    return {"ok": True, "sent": sent, "total": len(subs)}

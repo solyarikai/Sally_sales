@@ -826,4 +826,24 @@ export const telegramOutreachApi = {
 
   updateContactCustomFields: async (contactId: number, values: { field_id: number; value: string | null }[]) =>
     (await api.put(`${BASE}/crm/contacts/${contactId}/custom-fields`, values)).data,
+
+  // Notification Bot
+  getNotifBotInfo: async () =>
+    (await api.get(`${BASE}/notifications/bot-info`)).data as { bot_username: string | null; deep_link: string | null; subscribers_count: number },
+
+  listNotifSubscribers: async () =>
+    (await api.get(`${BASE}/notifications/subscribers`)).data as Array<{
+      id: number; chat_id: string; username: string | null; first_name: string | null;
+      notify_mode: string; daily_digest: boolean; digest_hour: number;
+      campaign_ids: number[] | null; is_active: boolean; created_at: string | null;
+    }>,
+
+  updateNotifSubscriber: async (id: number, data: { notify_mode?: string; daily_digest?: boolean; digest_hour?: number; campaign_ids?: number[] | null; is_active?: boolean }) =>
+    (await api.put(`${BASE}/notifications/subscribers/${id}`, data)).data,
+
+  deleteNotifSubscriber: async (id: number) =>
+    (await api.delete(`${BASE}/notifications/subscribers/${id}`)).data,
+
+  sendTestNotification: async () =>
+    (await api.post(`${BASE}/notifications/test`)).data as { ok: boolean; sent: number; total: number },
 };

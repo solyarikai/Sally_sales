@@ -624,3 +624,34 @@ class TgCrmLeadFieldValueResponse(BaseModel):
     field_type: Optional[str] = None
     options_json: list = []
     model_config = {"from_attributes": True}
+
+
+# ── Notification Bot ──────────────────────────────────────────────────
+
+class TgNotifSubResponse(BaseModel):
+    id: int
+    chat_id: str
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    notify_mode: str = "all"
+    daily_digest: bool = False
+    digest_hour: int = 9
+    campaign_ids: Optional[list[int]] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+
+class TgNotifSubUpdate(BaseModel):
+    notify_mode: Optional[str] = None
+    daily_digest: Optional[bool] = None
+    digest_hour: Optional[int] = None
+    campaign_ids: Optional[list[int]] = None
+    is_active: Optional[bool] = None
+
+
+class TgNotifBotInfoResponse(BaseModel):
+    bot_username: Optional[str] = None
+    deep_link: Optional[str] = None
+    subscribers_count: int = 0

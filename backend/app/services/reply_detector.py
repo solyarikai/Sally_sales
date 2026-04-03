@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import async_session_maker
@@ -316,6 +316,36 @@ class ReplyDetector:
                         contact.custom_data = custom
             except Exception:
                 logger.exception("CRM update failed for %s", username)
+
+            # Notify managers via bot
+            try:
+                from app.services.tg_outreach_notif_service import tg_outreach_notif_service
+                # is_first_reply: recipient had no previous incoming replies
+                existing_replies = await session.execute(
+                    select(func.count(TgIncomingReply.id)).where(
+                        TgIncomingReply.recipient_id == recipient.id,
+                        TgIncomingReply.tg_message_id != msg_id,
+                    )
+                )
+                is_first = existing_replies.scalar() == 0
+                asyncio.create_task(
+                    tg_outreach_notif_service.notify_new_reply(
+                        reply=TgIncomingReply(
+                            campaign_id=campaign.id,
+                            recipient_id=recipient.id,
+                            account_id=account.id,
+                            tg_message_id=msg_id,
+                            message_text=reply_text,
+                            received_at=last_msg.date.replace(tzinfo=None) if last_msg.date else datetime.utcnow(),
+                        ),
+                        campaign=campaign,
+                        recipient=recipient,
+                        account=account,
+                        is_first_reply=is_first,
+                    )
+                )
+            except Exception:
+                logger.debug("Outreach notification failed (non-fatal)", exc_info=True)
 
             self._last_seen[cache_key] = msg_id
 

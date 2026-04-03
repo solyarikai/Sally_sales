@@ -614,3 +614,46 @@ class TgWarmupLog(Base):
     __table_args__ = (
         Index("ix_tg_warmup_log_account_at", "account_id", "performed_at"),
     )
+
+
+# ── Notification Bot ──────────────────────────────────────────────────
+
+class TgNotifyMode(str, enum.Enum):
+    ALL = "all"               # every reply
+    INTERESTED = "interested"  # only inbox_tag=interested
+    NEW_ONLY = "new_only"     # only first reply from a recipient
+
+
+class TgOutreachNotifSub(Base):
+    """Manager subscription for TG outreach reply notifications via Telegram bot."""
+    __tablename__ = "tg_outreach_notif_subs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(String(100), nullable=False, unique=True, index=True)
+    username = Column(String(100), nullable=True)
+    first_name = Column(String(200), nullable=True)
+    notify_mode = Column(String(20), nullable=False, default=TgNotifyMode.ALL.value)
+    daily_digest = Column(Boolean, nullable=False, default=False)
+    digest_hour = Column(Integer, nullable=False, default=9)  # UTC hour
+    campaign_ids = Column(JSONB, nullable=True)  # null = all campaigns
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+
+class TgOutreachNotifLog(Base):
+    """Tracks sent notification messages for quick-reply routing."""
+    __tablename__ = "tg_outreach_notif_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_message_id = Column(BigInteger, nullable=False, index=True)
+    chat_id = Column(String(100), nullable=False, index=True)
+    recipient_id = Column(Integer, ForeignKey("tg_recipients.id", ondelete="CASCADE"), nullable=False)
+    account_id = Column(Integer, ForeignKey("tg_accounts.id", ondelete="CASCADE"), nullable=False)
+    campaign_id = Column(Integer, ForeignKey("tg_campaigns.id", ondelete="CASCADE"), nullable=False)
+    recipient_username = Column(String(200), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_notif_log_chat_msg", "chat_id", "bot_message_id"),
+    )

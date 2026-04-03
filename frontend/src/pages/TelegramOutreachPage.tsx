@@ -518,7 +518,7 @@ export function TelegramOutreachPage() {
           {tab === 'blacklist' && <BlacklistTab toast={toast} />}
           {tab === 'inbox' && <InboxTab toast={toast} />}
           {tab === 'custom_fields' && <CustomFieldsTab toast={toast} />}
-          {tab === 'info' && <InfoTab t={t} />}
+          {tab === 'info' && <InfoTab t={t} toast={toast} />}
         </div>
       </div>
     </div>
@@ -4234,7 +4234,150 @@ function CustomFieldsTab({ toast }: { toast: (msg: string, type?: 'success' | 'e
 // Info Tab
 // ══════════════════════════════════════════════════════════════════════
 
-function InfoTab({ t: _t }: { t: any }) { void _t;
+function NotificationBotSection({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const [botInfo, setBotInfo] = useState<{ bot_username: string | null; deep_link: string | null; subscribers_count: number } | null>(null);
+  const [subs, setSubs] = useState<Array<{
+    id: number; chat_id: string; username: string | null; first_name: string | null;
+    notify_mode: string; daily_digest: boolean; digest_hour: number;
+    campaign_ids: number[] | null; is_active: boolean; created_at: string | null;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const [info, list] = await Promise.all([
+        telegramOutreachApi.getNotifBotInfo(),
+        telegramOutreachApi.listNotifSubscribers(),
+      ]);
+      setBotInfo(info);
+      setSubs(list);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleToggle = async (sub: typeof subs[0]) => {
+    try {
+      await telegramOutreachApi.updateNotifSubscriber(sub.id, { is_active: !sub.is_active });
+      setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, is_active: !s.is_active } : s));
+      toast(sub.is_active ? 'Paused' : 'Activated', 'success');
+    } catch { toast('Failed', 'error'); }
+  };
+
+  const handleModeChange = async (sub: typeof subs[0], mode: string) => {
+    try {
+      await telegramOutreachApi.updateNotifSubscriber(sub.id, { notify_mode: mode });
+      setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, notify_mode: mode } : s));
+    } catch { toast('Failed', 'error'); }
+  };
+
+  const handleDigestToggle = async (sub: typeof subs[0]) => {
+    try {
+      await telegramOutreachApi.updateNotifSubscriber(sub.id, { daily_digest: !sub.daily_digest });
+      setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, daily_digest: !s.daily_digest } : s));
+    } catch { toast('Failed', 'error'); }
+  };
+
+  const handleDelete = async (sub: typeof subs[0]) => {
+    try {
+      await telegramOutreachApi.deleteNotifSubscriber(sub.id);
+      setSubs(prev => prev.filter(s => s.id !== sub.id));
+      toast('Removed', 'success');
+    } catch { toast('Failed', 'error'); }
+  };
+
+  const handleTest = async () => {
+    try {
+      const res = await telegramOutreachApi.sendTestNotification();
+      toast(`Test sent to ${res.sent}/${res.total} subscribers`, 'success');
+    } catch { toast('Failed to send test', 'error'); }
+  };
+
+  const sectionStyle: React.CSSProperties = { borderRadius: 12, border: `1px solid ${A.border}`, padding: 20, background: A.surface };
+  const modeLabels: Record<string, string> = { all: 'All replies', interested: 'Interested only', new_only: 'First reply only' };
+
+  if (loading) return <div className="text-center py-8 text-[13px]" style={{ color: A.text3 }}>Loading...</div>;
+
+  return (
+    <div className="space-y-3" style={sectionStyle}>
+      <div className="flex items-center justify-between">
+        <h2 className="text-[15px] font-semibold" style={{ color: A.text1 }}>Notification Bot</h2>
+        <div className="flex gap-2">
+          {botInfo?.deep_link && (
+            <a href={botInfo.deep_link} target="_blank" rel="noreferrer"
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white"
+              style={{ background: A.blue }}>
+              Connect via Telegram
+            </a>
+          )}
+          <button onClick={handleTest}
+            className="px-3 py-1.5 rounded-lg text-[12px] font-medium border"
+            style={{ borderColor: A.border, color: A.text2 }}>
+            Send Test
+          </button>
+        </div>
+      </div>
+
+      <p className="text-[13px]" style={{ color: A.text2 }}>
+        Get notified in Telegram when prospects reply to outreach campaigns. Reply directly to respond.
+      </p>
+
+      {botInfo?.bot_username && (
+        <p className="text-[12px]" style={{ color: A.text3 }}>
+          Bot: <b>@{botInfo.bot_username}</b> &middot; {botInfo.subscribers_count} subscriber{botInfo.subscribers_count !== 1 ? 's' : ''}
+        </p>
+      )}
+
+      {subs.length === 0 ? (
+        <p className="text-[13px] py-4 text-center" style={{ color: A.text3 }}>
+          No subscribers yet. Click "Connect via Telegram" to start receiving notifications.
+        </p>
+      ) : (
+        <div className="space-y-2 mt-2">
+          {subs.map(sub => (
+            <div key={sub.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border"
+              style={{ borderColor: A.border, opacity: sub.is_active ? 1 : 0.5 }}>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium" style={{ color: A.text1 }}>
+                  {sub.first_name || 'Unknown'} {sub.username ? `(@${sub.username})` : ''}
+                </div>
+                <div className="text-[11px] mt-0.5" style={{ color: A.text3 }}>
+                  {modeLabels[sub.notify_mode] || sub.notify_mode}
+                  {sub.daily_digest && ' · Digest ON'}
+                  {!sub.is_active && ' · Paused'}
+                </div>
+              </div>
+              <select value={sub.notify_mode} onChange={e => handleModeChange(sub, e.target.value)}
+                className="text-[11px] px-2 py-1 rounded border bg-transparent"
+                style={{ borderColor: A.border, color: A.text2 }}>
+                <option value="all">All replies</option>
+                <option value="interested">Interested only</option>
+                <option value="new_only">First reply only</option>
+              </select>
+              <button onClick={() => handleDigestToggle(sub)}
+                className="text-[11px] px-2 py-1 rounded border"
+                style={{ borderColor: A.border, color: sub.daily_digest ? A.teal : A.text3, background: sub.daily_digest ? A.tealBg : 'transparent' }}>
+                Digest
+              </button>
+              <button onClick={() => handleToggle(sub)}
+                className="text-[11px] px-2 py-1 rounded border"
+                style={{ borderColor: A.border, color: sub.is_active ? A.text2 : A.teal }}>
+                {sub.is_active ? 'Pause' : 'Activate'}
+              </button>
+              <button onClick={() => handleDelete(sub)}
+                className="text-[11px] px-1.5 py-1 rounded hover:bg-red-50">
+                <Trash2 size={13} style={{ color: A.rose }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InfoTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) { void _t;
   const sectionStyle: React.CSSProperties = { borderRadius: 12, border: `1px solid ${A.border}`, padding: 20, background: A.surface };
   const sectionCls = 'space-y-3';
   const h2Cls = 'text-[15px] font-semibold';
@@ -4245,6 +4388,9 @@ function InfoTab({ t: _t }: { t: any }) { void _t;
 
   return (
     <div className="max-w-4xl mx-auto space-y-5" style={{ color: A.text2 }}>
+      {/* ── Notification Bot ── */}
+      <NotificationBotSection toast={toast} />
+
       {/* ── Accounts ── */}
       <div className={sectionCls} style={sectionStyle}>
         <h2 className={h2Cls} style={{ color: A.text1 }}>Accounts</h2>
