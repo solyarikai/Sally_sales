@@ -5234,17 +5234,49 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                                   <p className="truncate" style={{ color: A.text2 }}>{msg.reply_to.text || ''}</p>
                                 </div>
                               )}
-                              {/* Media indicator */}
-                              {msg.media && (
-                                <div className="flex items-center gap-1.5 mb-1 text-[12px] py-1 px-2 rounded-md" style={{ background: isOutbound ? 'rgba(79,107,240,0.08)' : 'rgba(0,0,0,0.04)' }}>
-                                  {msg.media.type === 'photo' && <><Image className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>Photo{msg.media.file_name ? ` — ${msg.media.file_name}` : ''}</span></>}
-                                  {msg.media.type === 'video' && <><Play className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>Video{msg.media.file_name ? ` — ${msg.media.file_name}` : ''}</span></>}
-                                  {msg.media.type === 'voice' && <><Mic className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>Voice message{msg.media.duration ? ` (${msg.media.duration}s)` : ''}</span></>}
-                                  {msg.media.type === 'video_note' && <><Play className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>Video message</span></>}
-                                  {msg.media.type === 'sticker' && <span style={{ color: A.text2 }}>Sticker</span>}
-                                  {msg.media.type === 'document' && <><FileIcon className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>{msg.media.file_name || 'File'}{msg.media.size ? ` (${(msg.media.size / 1024).toFixed(0)} KB)` : ''}</span></>}
-                                </div>
-                              )}
+                              {/* Media content */}
+                              {msg.media && (() => {
+                                const mediaUrl = selectedDialog ? telegramOutreachApi.getDialogMediaUrl(selectedDialog.id, msg.id) : '';
+                                return (
+                                  <div className="mb-1">
+                                    {msg.media.type === 'photo' && (
+                                      <img src={mediaUrl} alt="Photo" loading="lazy"
+                                        className="rounded-lg cursor-pointer max-w-full"
+                                        style={{ maxHeight: 280, objectFit: 'contain' }}
+                                        onClick={() => window.open(mediaUrl, '_blank')}
+                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling && ((e.target as HTMLImageElement).nextElementSibling as HTMLElement).style.removeProperty('display'); }}
+                                      />
+                                    )}
+                                    {msg.media.type === 'photo' && (
+                                      <div className="flex items-center gap-1.5 text-[12px] py-1 px-2 rounded-md" style={{ display: 'none', background: isOutbound ? 'rgba(79,107,240,0.08)' : 'rgba(0,0,0,0.04)' }}>
+                                        <Image className="w-3.5 h-3.5" style={{ color: A.blue }} /><span style={{ color: A.text2 }}>Photo</span>
+                                      </div>
+                                    )}
+                                    {(msg.media.type === 'video' || msg.media.type === 'video_note') && (
+                                      <video src={mediaUrl} controls preload="metadata"
+                                        className="rounded-lg max-w-full"
+                                        style={{ maxHeight: 280, borderRadius: msg.media.type === 'video_note' ? '50%' : undefined, width: msg.media.type === 'video_note' ? 200 : undefined, height: msg.media.type === 'video_note' ? 200 : undefined, objectFit: msg.media.type === 'video_note' ? 'cover' : undefined }}
+                                      />
+                                    )}
+                                    {msg.media.type === 'voice' && (
+                                      <audio src={mediaUrl} controls preload="metadata" style={{ maxWidth: 260, height: 36 }} />
+                                    )}
+                                    {msg.media.type === 'sticker' && (
+                                      <img src={mediaUrl} alt="Sticker" loading="lazy" className="max-w-[160px] max-h-[160px]" />
+                                    )}
+                                    {msg.media.type === 'document' && (
+                                      <a href={mediaUrl} download={msg.media.file_name || 'file'} target="_blank" rel="noreferrer"
+                                        className="flex items-center gap-2 py-1.5 px-2 rounded-md text-[12px] no-underline hover:opacity-80 transition-opacity"
+                                        style={{ background: isOutbound ? 'rgba(79,107,240,0.08)' : 'rgba(0,0,0,0.04)' }}>
+                                        <FileIcon className="w-4 h-4 flex-shrink-0" style={{ color: A.blue }} />
+                                        <span style={{ color: A.text1 }}>{msg.media.file_name || 'File'}</span>
+                                        {msg.media.size && <span style={{ color: A.text3 }}>({msg.media.size >= 1048576 ? `${(msg.media.size / 1048576).toFixed(1)} MB` : `${(msg.media.size / 1024).toFixed(0)} KB`})</span>}
+                                        <Download className="w-3.5 h-3.5 flex-shrink-0" style={{ color: A.blue }} />
+                                      </a>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                               {(msg.text || msg.rendered_text || msg.message_text) && <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{msg.text || msg.rendered_text || msg.message_text}</p>}
                               {/* Footer: reactions + time + read status — all inline */}
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap" style={{ justifyContent: isOutbound ? 'flex-end' : 'flex-start' }}>

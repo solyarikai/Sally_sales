@@ -6279,6 +6279,7 @@ async def get_dialog_messages(
                 "sender_name": m.get("sender_name", ""),
                 "is_read": m.get("is_read", False),
                 "fwd_from": m.get("fwd_from"),
+                "media": m.get("media"),
             })
 
         # Get peer online status + block detection
@@ -6480,6 +6481,64 @@ async def send_dialog_file(
             os.unlink(tmp.name)
         except:
             pass
+
+
+@router.get("/inbox/dialogs/{dialog_id}/media/{msg_id}")
+async def get_dialog_media(
+    dialog_id: int,
+    msg_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Download media from a specific message in a dialog."""
+    from fastapi.responses import Response
+
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+
+    tg_acc = await session.get(TgAccount, dialog.account_id)
+    if not tg_acc:
+        raise HTTPException(400, "Account not found")
+    dm_r = await session.execute(select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone))
+    dm_candidates = dm_r.scalars().all()
+    account = next((c for c in dm_candidates if telegram_dm_service.is_connected(c.id) and c.string_session), None)
+    if not account:
+        account = next((c for c in dm_candidates if c.string_session), None)
+    if not account or not account.string_session:
+        raise HTTPException(400, "Account not available")
+
+    proxy_cfg = await _resolve_dm_proxy(account, session)
+    already_connected = telegram_dm_service.is_connected(account.id)
+
+    try:
+        if not already_connected:
+            ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
+            if not ok:
+                raise HTTPException(500, "Failed to connect account")
+
+        result = await telegram_dm_service.download_message_media(account.id, dialog.peer_id, msg_id)
+
+        if not already_connected:
+            await telegram_dm_service.disconnect_account(account.id)
+
+        if not result:
+            raise HTTPException(404, "No media found for this message")
+
+        data, content_type = result
+        return Response(
+            content=data,
+            media_type=content_type,
+            headers={"Cache-Control": "private, max-age=3600"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(account.id)
+        except:
+            pass
+        raise HTTPException(500, f"Failed to download media: {str(e)[:100]}")
 
 
 @router.patch("/inbox/dialogs/{dialog_id}/tag")
