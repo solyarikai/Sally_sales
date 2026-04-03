@@ -304,6 +304,7 @@ class TgStepVariantSchema(BaseModel):
     message_text: str = ""
     weight_percent: int = 100
     media_file_path: Optional[str] = None
+    model_config = {"from_attributes": True}
 
 
 class TgSequenceStepSchema(BaseModel):
@@ -312,6 +313,7 @@ class TgSequenceStepSchema(BaseModel):
     delay_days: int = 0
     message_type: str = "text"  # text, image, video, document, voice
     variants: list[TgStepVariantSchema] = []
+    model_config = {"from_attributes": True}
 
 
 class TgSequenceSchema(BaseModel):
@@ -319,6 +321,7 @@ class TgSequenceSchema(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
     steps: list[TgSequenceStepSchema] = []
+    model_config = {"from_attributes": True}
 
 
 class TgSequencePreviewRequest(BaseModel):
