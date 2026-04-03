@@ -6581,6 +6581,50 @@ async def react_dialog_message(
 
 
 
+@router.put("/inbox/dialogs/{dialog_id}/messages/{msg_id}/edit")
+async def edit_dialog_message(
+    dialog_id: int, msg_id: int,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Edit a sent message in a dialog."""
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, "Message text required")
+    dialog = await session.get(TgInboxDialog, dialog_id)
+    if not dialog:
+        raise HTTPException(404, "Dialog not found")
+    tg_acc = await session.get(TgAccount, dialog.account_id)
+    if not tg_acc:
+        raise HTTPException(400, "Account not found")
+    dm_r = await session.execute(select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone))
+    dm_candidates = dm_r.scalars().all()
+    account = next((c for c in dm_candidates if telegram_dm_service.is_connected(c.id) and c.string_session), None)
+    if not account:
+        account = next((c for c in dm_candidates if c.string_session), None)
+    if not account:
+        raise HTTPException(400, "No DM account available")
+    proxy_cfg = await _resolve_dm_proxy(account, session)
+    already = telegram_dm_service.is_connected(account.id)
+    if not already:
+        ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
+        if not ok:
+            raise HTTPException(500, "Failed to connect")
+    try:
+        result = await telegram_dm_service.edit_message(
+            account.id, dialog.peer_id, msg_id,
+            text, parse_mode=body.get("parseMode"),
+        )
+        if not already:
+            await telegram_dm_service.disconnect_account(account.id)
+        return result
+    except Exception as e:
+        if not already:
+            try: await telegram_dm_service.disconnect_account(account.id)
+            except: pass
+        raise HTTPException(500, f"Edit failed: {str(e)[:100]}")
+
+
 @router.post("/inbox/dialogs/{dialog_id}/forward")
 async def forward_dialog_messages(
     dialog_id: int,

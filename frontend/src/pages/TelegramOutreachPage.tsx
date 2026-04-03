@@ -4193,6 +4193,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   // Context menu, reply, selection
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; msg: any } | null>(null);
   const [replyTo, setReplyTo] = useState<any>(null);
+  const [editingMsg, setEditingMsg] = useState<any>(null);
   const [deleteModal, setDeleteModal] = useState<any>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedMsgs, setSelectedMsgs] = useState<Set<number>>(new Set());
@@ -4642,6 +4643,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   };
 
   const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape' && editingMsg) { e.preventDefault(); setEditingMsg(null); const ed = editorRef.current; if (ed) ed.innerHTML = ''; setMessageText(''); return; }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); return; }
     if (e.ctrlKey || e.metaKey) {
       if (e.shiftKey) {
@@ -4672,7 +4674,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     if (editorRef.current) editorRef.current.textContent = text;
   };
 
-  // Send handler (supports reply_to + formatting)
+  // Send handler (supports reply_to + formatting + edit mode)
   const handleSend = async () => {
     if (!selectedDialog || sending) return;
     const hasText = messageText.trim().length > 0;
@@ -4688,7 +4690,10 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
         if (html !== text) { text = html; parseMode = 'html'; }
       }
 
-      if (hasFile) {
+      if (editingMsg) {
+        await telegramOutreachApi.editDialogMessage(selectedDialog.id, editingMsg.id, text, parseMode);
+        setEditingMsg(null);
+      } else if (hasFile) {
         await telegramOutreachApi.sendDialogFile(selectedDialog.id, attachedFile!, {
           caption: text || undefined,
           parseMode,
@@ -4710,7 +4715,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
       setMessages(data.messages || data || []);
       editorRef.current?.focus();
     } catch (e: any) {
-      toast(e?.response?.data?.detail || 'Failed to send', 'error');
+      toast(e?.response?.data?.detail || (editingMsg ? 'Failed to edit' : 'Failed to send'), 'error');
     } finally {
       setSending(false);
     }
@@ -4937,6 +4942,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                     }
                     setSelectedDialog(dialog);
                     exitSelectMode();
+                    setEditingMsg(null);
                     setShowStatusDropdown(false);
                     setShowNotes(false);
                     setShowTemplates(false);
@@ -5278,6 +5284,20 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                                 className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1, border: 'none', background: 'none', cursor: 'pointer' }}>
                           Reply
                         </button>
+                        {ctxMenu.msg.out && ctxMenu.msg.text && (
+                          <button onClick={() => {
+                            setEditingMsg(ctxMenu.msg);
+                            setReplyTo(null);
+                            const editor = editorRef.current;
+                            if (editor) { editor.textContent = ctxMenu.msg.text; }
+                            setMessageText(ctxMenu.msg.text);
+                            setCtxMenu(null);
+                            editorRef.current?.focus();
+                          }}
+                                  className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1, border: 'none', background: 'none', cursor: 'pointer' }}>
+                            Edit
+                          </button>
+                        )}
                         <button onClick={() => { setForwardPopup({ msgIds: [ctxMenu.msg.id] }); setForwardDialogs(dialogs); setCtxMenu(null); }}
                                 className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#F5F5F0]" style={{ color: A.text1, border: 'none', background: 'none', cursor: 'pointer' }}>
                           Forward
@@ -5533,8 +5553,21 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                     )}
                   </div>
 
+                  {/* Edit preview */}
+                  {editingMsg && (
+                    <div className="flex items-center gap-2 px-2 py-1 rounded-lg text-[11px]" style={{ background: '#FEF3C7', color: A.text2 }}>
+                      <div className="flex-1 truncate" style={{ borderLeft: '2px solid #F59E0B', paddingLeft: 6 }}>
+                        <span style={{ color: '#D97706', fontWeight: 600 }}>Editing</span>{' '}
+                        {(editingMsg.text || '').slice(0, 60)}
+                      </div>
+                      <button onClick={() => { setEditingMsg(null); const editor = editorRef.current; if (editor) editor.innerHTML = ''; setMessageText(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: A.text3, padding: 2 }}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+
                   {/* Reply preview */}
-                  {replyTo && (
+                  {replyTo && !editingMsg && (
                     <div className="flex items-center gap-2 px-2 py-1 rounded-lg text-[11px]" style={{ background: A.blueBg, color: A.text2 }}>
                       <div className="flex-1 truncate" style={{ borderLeft: `2px solid ${A.blue}`, paddingLeft: 6 }}>
                         <span style={{ color: A.blue, fontWeight: 600 }}>Reply</span>{' '}
@@ -5585,13 +5618,13 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                       disabled={sending || (!messageText.trim() && !attachedFile)}
                       className="h-9 w-9 rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
                       style={{
-                        background: (messageText.trim() || attachedFile) ? A.blue : '#E5E7EB',
+                        background: (messageText.trim() || attachedFile) ? (editingMsg ? '#D97706' : A.blue) : '#E5E7EB',
                         cursor: (messageText.trim() || attachedFile) ? 'pointer' : 'default',
                       }}
                     >
                       {sending
                         ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-                        : <Send className="w-4 h-4 text-white" />}
+                        : editingMsg ? <Check className="w-4 h-4 text-white" /> : <Send className="w-4 h-4 text-white" />}
                     </button>
                   </div>
 

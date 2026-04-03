@@ -653,6 +653,22 @@ class TelegramDMService:
             logger.error(f"Account {account_id} delete failed: {e}")
             return {"success": False, "error": str(e)}
 
+    async def edit_message(self, account_id: int, peer_id: int, msg_id: int, text: str, parse_mode: str | None = None) -> dict:
+        """Edit a sent message."""
+        client = self._get_client(account_id)
+        try:
+            try:
+                entity = await client.get_input_entity(peer_id)
+            except Exception:
+                await client.get_dialogs(limit=100)
+                entity = await client.get_input_entity(peer_id)
+            await client.edit_message(entity, msg_id, text, parse_mode=parse_mode)
+            logger.info(f"Account {account_id}: edited msg {msg_id} in {peer_id}")
+            return {"success": True}
+        except Exception as e:
+            logger.error(f"Account {account_id} edit failed: {e}")
+            return {"success": False, "error": str(e)}
+
     async def forward_messages(self, account_id: int, from_peer_id: int, msg_ids: list[int], to_peer_id: int) -> dict:
         """Forward messages to another chat."""
         client = self._get_client(account_id)
