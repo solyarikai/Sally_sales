@@ -4,13 +4,16 @@ description: Auto-commit with generated message for sales_engineer or magnum-opu
 invokable: true
 ---
 
+Всегда отвечай на русском языке.
+
+
 Create a commit with an auto-generated message for the specified repo.
 
 Repos:
-- `sales` = `/Users/user/sales_engineer` → GitHub (Yarik174/Sally_sales)
+- `sales` = `/Users/user/sales_engineer` → GitHub `https://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@github.com/solyarikai/Sally_sales.git`
 - `mo` = `/Users/user/sales_engineer/magnum-opus` → GitLab (sally-saas/magnum-opus)
 
-Ask me which repo: sales or mo.
+Спроси какой репо: sales или mo.
 
 Steps:
 1. `cd <repo_path>`
@@ -25,5 +28,5 @@ Steps:
 4. Stage all changes with `git add -A`, commit, and push to origin immediately
 5. Show the commit message and push result
 
-Do NOT ask for confirmation — commit and push automatically.
-Message language: English, 1 line, max 72 chars.
+НЕ спрашивай подтверждение — commit and push automatically.
+Сообщение коммита: английский, 1 строка, макс 72 символа.

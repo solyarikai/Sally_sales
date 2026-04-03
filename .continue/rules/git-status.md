@@ -4,6 +4,9 @@ description: Show git status for both repos at once
 invokable: true
 ---
 
+Всегда отвечай на русском языке.
+
+
 Show git status for both repos in one view.
 
 Run these commands and format the output clearly:
