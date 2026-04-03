@@ -525,6 +525,9 @@ class StreamingPipeline:
         raw_total = 0
         new_unique = 0
 
+        # Set current source so _ingest_page_results can tag companies
+        self._current_source = {"type": filter_type, "value": filter_value, "round": round_num, "funded": funded}
+
         for page in range(1, self.MAX_PAGES_PER_KEYWORD + 1):
             if self._shutdown.is_set() or self._stop:
                 break
@@ -577,22 +580,54 @@ class StreamingPipeline:
         logger.warning(f"Processing wait timeout ({max_wait}s)")
 
     async def _persist_tracking_stats(self):
-        """Save per-keyword/industry tracking stats to gathering_run."""
+        """Save per-keyword/industry tracking stats to gathering_run.
+        Also counts targets per keyword/industry from classified companies."""
         try:
             from app.db import async_session_maker
+            from sqlalchemy import text as sa_text
+
+            # Count targets per source filter from classified companies
             async with async_session_maker() as ws:
+                # Get all target companies with their source_data.found_by
+                result = await ws.execute(
+                    select(DiscoveredCompany.source_data)
+                    .join(CompanySourceLink, CompanySourceLink.discovered_company_id == DiscoveredCompany.id)
+                    .where(
+                        CompanySourceLink.gathering_run_id == self.run.id,
+                        DiscoveredCompany.is_target == True,
+                    )
+                )
+                for row in result.all():
+                    sd = row[0] if row[0] else {}
+                    found_by = sd.get("found_by", [])
+                    for source in found_by:
+                        if source in self._keyword_stats:
+                            self._keyword_stats[source]["targets_found"] = self._keyword_stats[source].get("targets_found", 0) + 1
+                        if source in self._industry_stats:
+                            self._industry_stats[source]["targets_found"] = self._industry_stats[source].get("targets_found", 0) + 1
+
+                # Calculate target rates
+                for stats in (self._keyword_stats, self._industry_stats):
+                    for key, stat in stats.items():
+                        targets = stat.get("targets_found", 0)
+                        unique = stat.get("new_unique", 1)
+                        stat["target_rate"] = round(targets / max(unique, 1), 3)
+
+                # Persist to run
                 run = await ws.get(GatheringRun, self.run.id)
                 if run and run.filters:
                     f = dict(run.filters)
-                    f["keyword_stats"] = getattr(self, '_keyword_stats', {})
-                    f["industry_stats"] = getattr(self, '_industry_stats', {})
+                    f["keyword_stats"] = self._keyword_stats
+                    f["industry_stats"] = self._industry_stats
                     f["search_requests"] = getattr(self, '_search_requests', [])
                     f["pipeline_summary"] = {
                         "total_credits_used": self.run.credits_used or 0,
                         "total_unique_companies": self.total_companies,
                         "total_targets": self.total_targets,
-                        "keywords_used": len(getattr(self, '_keyword_stats', {})),
-                        "industries_used": len(getattr(self, '_industry_stats', {})),
+                        "overall_target_rate": round(self.total_targets / max(self.total_companies, 1), 3),
+                        "keywords_used": len(self._keyword_stats),
+                        "keywords_available": len(getattr(self, '_all_keywords_count', 0) or []),
+                        "industries_used": len(self._industry_stats),
                         "kpi_met": self._kpi_met,
                         "total_people": self.total_people,
                     }
@@ -888,14 +923,28 @@ class StreamingPipeline:
                         dc.industry = company_data["industry"]
                     if company_data.get("employee_count"):
                         dc.employee_count = company_data["employee_count"]
-                    # Update source_data with full Apollo org
+                    # Update source_data with full Apollo org + tracking
                     raw_org = company_data.get("_raw_org")
                     if raw_org:
+                        # Append found_by source tracking
+                        src = getattr(self, '_current_source', None)
+                        if src:
+                            found_by = raw_org.get("found_by", [])
+                            found_by.append(src.get("value", ""))
+                            raw_org["found_by"] = list(set(found_by))
+                            raw_org["found_in_round"] = src.get("round", 1)
+                            raw_org["funded_stream"] = src.get("funded", False)
                         dc.source_data = raw_org
                         if raw_org.get("linkedin_url") and not dc.linkedin_url:
                             dc.linkedin_url = raw_org["linkedin_url"]
                 else:
                     raw_org = company_data.get("_raw_org", company_data)
+                    # Add found_by tracking for new companies
+                    src = getattr(self, '_current_source', None)
+                    if src:
+                        raw_org["found_by"] = [src.get("value", "")]
+                        raw_org["found_in_round"] = src.get("round", 1)
+                        raw_org["funded_stream"] = src.get("funded", False)
                     dc = DiscoveredCompany(
                         project_id=self.run.project_id,
                         company_id=self.run.company_id,
