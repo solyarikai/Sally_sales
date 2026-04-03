@@ -438,6 +438,9 @@ export const telegramOutreachApi = {
       period: string | null;
     },
 
+  getCampaignDailyStats: async (id: number, params: { period?: string; from_date?: string; to_date?: string } = {}) =>
+    (await api.get<{ daily: { date: string; sent: number; replied: number; failed: number }[] }>(`${BASE}/campaigns/${id}/daily-stats`, { params })).data,
+
   getCampaignTimeline: async (id: number, params: { page?: number; page_size?: number; search?: string; sort_by?: string; sort_dir?: string } = {}) =>
     (await api.get(`${BASE}/campaigns/${id}/timeline`, { params })).data as {
       steps: { step_order: number; step_id: number; delay_days: number }[];

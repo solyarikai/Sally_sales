@@ -2079,7 +2079,7 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
     totals: { sent: number; read: number; replied: number; total_recipients: number };
     period: string | null;
   } | null>(null);
-  const [activity, setActivity] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<{ date: string; sent: number; replied: number; failed: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<string>('all');
   const [customFrom, setCustomFrom] = useState('');
@@ -2094,33 +2094,19 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, ss, a] = await Promise.all([
+      const [s, ss, ds] = await Promise.all([
         telegramOutreachApi.getCampaignStats(campaignId),
         telegramOutreachApi.getCampaignStepStats(campaignId, periodParams),
-        telegramOutreachApi.getCampaignActivity(campaignId, 200),
+        telegramOutreachApi.getCampaignDailyStats(campaignId, periodParams),
       ]);
       setStats(s);
       setStepStats(ss);
-      setActivity(a.activity || []);
+      setChartData(ds.daily || []);
     } catch { toast('Failed to load analytics', 'error'); }
     finally { setLoading(false); }
   }, [campaignId, toast, periodParams]);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  const chartData = (() => {
-    if (!activity.length) return [];
-    const m: Record<string, { date: string; sent: number; replied: number; failed: number }> = {};
-    for (const a of activity) {
-      if (!a.time) continue;
-      const d = new Date(a.time).toLocaleDateString('en-CA');
-      if (!m[d]) m[d] = { date: d, sent: 0, replied: 0, failed: 0 };
-      if (a.type === 'reply') m[d].replied++;
-      else if (a.status === 'sent') m[d].sent++;
-      else if (a.status === 'failed' || a.status === 'spamblocked') m[d].failed++;
-    }
-    return Object.values(m).sort((a, b) => a.date.localeCompare(b.date));
-  })();
 
   const funnelItems = stats ? [
     { label: 'Pending', value: stats.pending, color: '#9CA3AF' },
@@ -2245,7 +2231,7 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
           {[
             { label: 'Recipients', value: stats.total_recipients, color: B.blue },
             { label: 'Total Sent', value: stats.total_messages_sent, color: B.text1 },
-            { label: 'Replied', value: stats.replied, color: '#22C55E' },
+            { label: 'Total Replied', value: stats.replied, color: '#22C55E' },
             { label: 'Reply Rate', value: `${pct(stats.replied, totalR)}%`, color: B.blue },
             { label: 'Delivery', value: `${pct(totalR - stats.failed - stats.bounced, totalR)}%`, color: '#3B82F6' },
           ].map(s => (

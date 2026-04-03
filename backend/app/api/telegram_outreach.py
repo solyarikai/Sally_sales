@@ -4953,6 +4953,93 @@ async def download_campaign_report(
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# CAMPAIGN DAILY STATS (for chart)
+# ═══════════════════════════════════════════════════════════════════════
+
+@router.get("/campaigns/{campaign_id}/daily-stats")
+async def get_campaign_daily_stats(
+    campaign_id: int,
+    period: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Aggregated daily sent / replied / failed counts for the campaign chart."""
+    from sqlalchemy import cast, Date
+
+    # Build date filters
+    now = _dt.utcnow()
+    date_from = None
+    if period == "7d":
+        date_from = now - _td(days=7)
+    elif period == "30d":
+        date_from = now - _td(days=30)
+    elif period == "custom" and from_date:
+        try:
+            date_from = _dt.fromisoformat(from_date)
+        except ValueError:
+            pass
+    date_to = None
+    if period == "custom" and to_date:
+        try:
+            date_to = _dt.fromisoformat(to_date) + _td(days=1)
+        except ValueError:
+            pass
+
+    # --- Sent & failed per day ---
+    msg_filters = [TgOutreachMessage.campaign_id == campaign_id]
+    if date_from:
+        msg_filters.append(TgOutreachMessage.sent_at >= date_from)
+    if date_to:
+        msg_filters.append(TgOutreachMessage.sent_at < date_to)
+
+    daily_msg_q = await session.execute(
+        select(
+            cast(TgOutreachMessage.sent_at, Date).label("day"),
+            TgOutreachMessage.status,
+            func.count(TgOutreachMessage.id),
+        ).where(*msg_filters)
+        .group_by("day", TgOutreachMessage.status)
+        .order_by("day")
+    )
+
+    daily: dict[str, dict] = {}
+    for day, status, cnt in daily_msg_q.all():
+        ds = day.isoformat()
+        if ds not in daily:
+            daily[ds] = {"date": ds, "sent": 0, "replied": 0, "failed": 0}
+        st = status.value if hasattr(status, "value") else status
+        if st == "sent":
+            daily[ds]["sent"] += cnt
+        elif st in ("failed", "spamblocked", "bounced"):
+            daily[ds]["failed"] += cnt
+
+    # --- Unique replied recipients per day ---
+    reply_filters = [TgIncomingReply.campaign_id == campaign_id]
+    if date_from:
+        reply_filters.append(TgIncomingReply.received_at >= date_from)
+    if date_to:
+        reply_filters.append(TgIncomingReply.received_at < date_to)
+
+    daily_replies_q = await session.execute(
+        select(
+            cast(TgIncomingReply.received_at, Date).label("day"),
+            func.count(func.distinct(TgIncomingReply.recipient_id)),
+        ).where(*reply_filters)
+        .group_by("day")
+        .order_by("day")
+    )
+    for day, cnt in daily_replies_q.all():
+        ds = day.isoformat()
+        if ds not in daily:
+            daily[ds] = {"date": ds, "sent": 0, "replied": 0, "failed": 0}
+        daily[ds]["replied"] = cnt
+
+    data = sorted(daily.values(), key=lambda x: x["date"])
+    return {"daily": data}
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # CAMPAIGN ACTIVITY LOG
 # ═══════════════════════════════════════════════════════════════════════
 
