@@ -31,7 +31,6 @@ from app.models.telegram_outreach import (
     TgIncomingReply,
 )
 from app.services.telegram_engine import telegram_engine
-from app.services.infatica_proxy_service import infatica_proxy_service
 
 logger = logging.getLogger(__name__)
 
@@ -575,12 +574,7 @@ class SendingWorker:
                     logger.warning(f"{cname} Account {account.phone}: no free proxy in group — skipping")
                     continue
             else:
-                # Fallback: auto-generate Infatica proxy
-                if infatica_proxy_service.is_configured:
-                    proxy_dict = infatica_proxy_service.get_proxy_for_account(account.phone, account.id)
-                    logger.info(f"{cname} Account {account.phone}: using Infatica proxy (geo auto-detect)")
-                else:
-                    logger.warning(f"{cname} Account {account.phone} has NO proxy assigned — will connect directly")
+                logger.warning(f"{cname} Account {account.phone} has NO proxy assigned — will connect directly")
 
             # Render message
             variables = {

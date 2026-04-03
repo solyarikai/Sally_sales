@@ -150,9 +150,6 @@ class TgAccountResponse(BaseModel):
     proxy_group_name: Optional[str] = None
     assigned_proxy_id: Optional[int] = None
     assigned_proxy_host: Optional[str] = None
-    proxy_country: Optional[str] = None       # ISO code of proxy exit country
-    proxy_country_name: Optional[str] = None   # Human-readable country name
-    proxy_provider: Optional[str] = None       # "Auto (Infatica)" or "Custom"
     tags: list[TgAccountTagResponse] = []
     campaigns_count: int = 0
     country_code: Optional[str] = None

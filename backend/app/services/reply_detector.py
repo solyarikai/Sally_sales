@@ -25,7 +25,6 @@ from app.models.telegram_outreach import (
     TgProxy,
 )
 from app.services.telegram_engine import telegram_engine
-from app.services.infatica_proxy_service import infatica_proxy_service
 
 logger = logging.getLogger(__name__)
 
@@ -160,12 +159,7 @@ class ReplyDetector:
             else:
                 logger.warning(f"[PROXY] Account {account.phone}: assigned_proxy_id={account.assigned_proxy_id} not found in DB")
         else:
-            # Fallback: auto-generate Infatica proxy
-            if infatica_proxy_service.is_configured:
-                proxy_dict = infatica_proxy_service.get_proxy_for_account(account.phone, account.id)
-                logger.info(f"[PROXY] Reply detector {account.phone}: using Infatica proxy (geo auto-detect)")
-            else:
-                logger.debug(f"[PROXY] Reply detector: account {account.phone} has no proxy assigned")
+            logger.debug(f"[PROXY] Reply detector: account {account.phone} has no proxy assigned")
 
         # Connect
         try:
