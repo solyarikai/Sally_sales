@@ -3086,16 +3086,30 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
               </div>
               <div>
                 <label className={panelLabelCls} style={{ color: A.text3 }}>Status</label>
-                <select value={form.status} onChange={e => set('status', e.target.value)}
-                        className={panelInputCls}
-                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }}>
-                  <option value="active">Active</option>
-                  <option value="paused">Paused</option>
-                  <option value="spamblocked">Spamblocked</option>
-                  <option value="banned">Banned</option>
-                  <option value="dead">Dead</option>
-                  <option value="frozen">Frozen</option>
-                </select>
+                <StyledSelect
+                  value={form.status}
+                  onChange={v => set('status', v)}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'paused', label: 'Paused' },
+                    { value: 'spamblocked', label: 'Spamblocked' },
+                    { value: 'banned', label: 'Banned' },
+                    { value: 'dead', label: 'Dead' },
+                    { value: 'frozen', label: 'Frozen' },
+                  ]}
+                  renderOption={(opt, isSel) => (
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: (ACCOUNT_STATUS_STYLES[opt.value] || { color: '#6B7280' }).color }} />
+                      {opt.label}
+                    </span>
+                  )}
+                  renderSelected={opt => (
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: (ACCOUNT_STATUS_STYLES[opt.value] || { color: '#6B7280' }).color }} />
+                      {opt.label}
+                    </span>
+                  )}
+                />
               </div>
             </div>
             <div className="mt-3">
