@@ -1980,7 +1980,7 @@ def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
             upload_log[seg_name] = {"campaign_id": cid, "campaign_name": campaign_name, "at": ts()}
             save_json(config.state_dir / "upload_log.json", upload_log)
 
-        # ── 12b: Validate & attach email accounts ──
+        # ── Attach email accounts ──
         if not _checkpoint(f"Attach email accounts to '{campaign_name}'?"):
             print("  Skipping email accounts.")
         else:
