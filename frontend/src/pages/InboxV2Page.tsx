@@ -341,23 +341,15 @@ export function InboxV2Page() {
     return groups;
   })();
 
-  /* ── colors ── */
-  const bubbleOut = isDark ? '#2B5278' : '#EFFDDE';
-  const bubbleOutText = isDark ? '#E1E3E6' : '#000000';
-  const bubbleIn = isDark ? '#212121' : '#FFFFFF';
-  const bubbleInText = isDark ? '#E1E3E6' : '#000000';
-  const chatBg = isDark ? '#0E1621' : '#E6EBEE';
+  /* ── colors (remaining inline ones — most now handled by CSS classes) ── */
   const dialogListBg = isDark ? '#17212B' : '#FFFFFF';
-  const dialogActive = isDark ? '#2B5278' : '#419FD9';
-  const dialogHover = isDark ? '#202B36' : '#F4F4F5';
-  const headerBg = isDark ? '#17212B' : '#FFFFFF';
   const crmBg = isDark ? '#17212B' : '#FFFFFF';
   const borderColor = isDark ? '#0E1621' : '#E6E6E6';
   const searchBg = isDark ? '#242F3D' : '#F0F2F5';
   const timeColor = isDark ? '#6D7F8F' : '#8E9BA7';
 
   return (
-    <div className="h-full flex" style={{ background: chatBg }}>
+    <div className="h-full flex tg-chat-bg">
       {/* ═══════════ COLUMN 1: DIALOGS ═══════════ */}
       <div
         className="flex flex-col flex-shrink-0"
@@ -417,18 +409,13 @@ export function InboxV2Page() {
               <div
                 key={d.id}
                 onClick={() => selectDialog(d)}
-                className="flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors"
-                style={{
-                  background: isActive ? dialogActive : 'transparent',
-                }}
-                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = dialogHover; }}
-                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                className={`tg-dialog-item ${isActive ? 'tg-dialog-item-active' : ''}`}
               >
-                <Avatar name={d.peer_name || 'U'} size={46} />
+                <Avatar name={d.peer_name || 'U'} size={48} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span
-                      className="text-[13px] font-medium truncate"
+                      className="text-[13.5px] font-medium truncate"
                       style={{ color: isActive ? '#fff' : t.text1 }}
                     >
                       {d.peer_name}
@@ -439,7 +426,7 @@ export function InboxV2Page() {
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
                     <span
-                      className="text-xs truncate"
+                      className="text-[12.5px] truncate"
                       style={{ color: isActive ? 'rgba(255,255,255,0.7)' : t.text4 }}
                     >
                       {d.last_direction === 'outbound' && (
@@ -456,12 +443,7 @@ export function InboxV2Page() {
                         />
                       )}
                       {d.unread_count > 0 && (
-                        <span
-                          className="text-[10px] min-w-[18px] h-[18px] px-1 rounded-full font-bold flex items-center justify-center text-white"
-                          style={{ background: '#3390EC' }}
-                        >
-                          {d.unread_count}
-                        </span>
+                        <span className="tg-unread-badge">{d.unread_count}</span>
                       )}
                     </div>
                   </div>
@@ -484,8 +466,7 @@ export function InboxV2Page() {
           <>
             {/* Chat header */}
             <div
-              className="flex items-center gap-3 px-4 py-2 flex-shrink-0"
-              style={{ background: headerBg, borderBottom: `1px solid ${borderColor}` }}
+              className="flex items-center gap-3 px-4 py-2 flex-shrink-0 tg-header"
             >
               <Avatar name={selectedDialog.peer_name || 'U'} size={36} />
               <div className="flex-1 min-w-0">
@@ -520,8 +501,7 @@ export function InboxV2Page() {
 
             {/* Messages area */}
             <div
-              className="flex-1 overflow-y-auto px-4 py-3"
-              style={{ background: chatBg }}
+              className="flex-1 overflow-y-auto px-4 py-3 tg-chat-bg tg-chat-scroll"
             >
               {loading.messages && messages.length === 0 && (
                 <div className="flex justify-center py-12">
@@ -532,61 +512,52 @@ export function InboxV2Page() {
                 <div key={gi}>
                   {/* Date separator */}
                   {group.date && (
-                    <div className="flex justify-center my-3">
-                      <span
-                        className="text-[11px] px-3 py-1 rounded-full font-medium"
-                        style={{
-                          background: isDark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.08)',
-                          color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.45)',
-                        }}
-                      >
-                        {formatDateSeparator(group.date)}
-                      </span>
+                    <div className="tg-date-sep">
+                      <span>{formatDateSeparator(group.date)}</span>
                     </div>
                   )}
-                  {/* Messages */}
-                  {group.msgs.map(msg => (
-                    <div
-                      key={msg.id}
-                      className={`flex mb-1 ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                    >
+                  {/* Messages — grouped with tails */}
+                  {group.msgs.map((msg, mi) => {
+                    const isOut = msg.direction === 'outbound';
+                    const prev = group.msgs[mi - 1];
+                    const next = group.msgs[mi + 1];
+                    const sameDirPrev = prev && prev.direction === msg.direction;
+                    const sameDirNext = next && next.direction === msg.direction;
+                    const isLast = !sameDirNext;
+                    const spacing = isLast ? 'tg-bubble-group-last' : 'tg-bubble-group-mid';
+                    const tail = isLast
+                      ? (isOut ? 'tg-bubble-tail-out' : 'tg-bubble-tail-in')
+                      : '';
+
+                    return (
                       <div
-                        className="max-w-[55%] px-2.5 py-1.5 relative"
-                        style={{
-                          background: msg.direction === 'outbound' ? bubbleOut : bubbleIn,
-                          color: msg.direction === 'outbound' ? bubbleOutText : bubbleInText,
-                          borderRadius: msg.direction === 'outbound'
-                            ? '12px 12px 4px 12px'
-                            : '12px 12px 12px 4px',
-                          boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.08)',
-                        }}
+                        key={msg.id}
+                        className={`flex tg-msg-row ${spacing} ${isOut ? 'justify-end' : 'justify-start'}`}
+                        style={{ paddingLeft: isOut ? 0 : (isLast ? 0 : 11), paddingRight: isOut ? (isLast ? 0 : 11) : 0 }}
                       >
-                        <div className="text-[13px] whitespace-pre-wrap break-words leading-[1.35]">
+                        <div className={`tg-bubble ${isOut ? 'tg-bubble-out' : 'tg-bubble-in'} ${tail}`}>
+                          <span className={`tg-meta`}>
+                            <span className={isOut ? 'tg-meta-time-out' : 'tg-meta-time'}>
+                              {formatMessageTime(msg.sent_at)}
+                            </span>
+                            {isOut && (
+                              <span className="tg-meta-check">
+                                {msg.is_read ? '\u2713\u2713' : '\u2713'}
+                              </span>
+                            )}
+                          </span>
                           {renderFormattedText(msg.text, msg.entities)}
                         </div>
-                        <div className="flex items-center justify-end gap-1 mt-0.5 -mb-0.5">
-                          <span className="text-[10px]" style={{ color: timeColor }}>
-                            {formatMessageTime(msg.sent_at)}
-                          </span>
-                          {msg.direction === 'outbound' && (
-                            <span className="text-[10px]" style={{ color: msg.is_read ? '#53BDEB' : timeColor }}>
-                              {msg.is_read ? '\u2713\u2713' : '\u2713'}
-                            </span>
-                          )}
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input area */}
-            <div
-              className="px-3 py-2 flex items-end gap-2 flex-shrink-0"
-              style={{ background: headerBg, borderTop: `1px solid ${borderColor}` }}
-            >
+            {/* Input area — Telegram-style composer */}
+            <div className="tg-composer tg-header" style={{ borderTop: `1px solid ${borderColor}`, borderBottom: 'none' }}>
               <textarea
                 ref={editorRef}
                 value={messageText}
@@ -599,24 +570,17 @@ export function InboxV2Page() {
                 }}
                 placeholder="Message"
                 rows={1}
-                className="flex-1 resize-none px-3 py-2 rounded-xl text-sm outline-none"
-                style={{
-                  background: searchBg,
-                  color: t.text1,
-                  maxHeight: 120,
-                  minHeight: 36,
-                }}
+                className="tg-composer-input"
               />
               <button
                 onClick={handleSend}
                 disabled={sending || !messageText.trim()}
-                className="p-2 rounded-full transition-colors disabled:opacity-40"
-                style={{ background: '#3390EC', color: '#fff' }}
+                className="tg-send-btn"
               >
                 {sending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-[18px] h-[18px] animate-spin" />
                 ) : (
-                  <Send className="w-4 h-4" />
+                  <Send className="w-[18px] h-[18px]" />
                 )}
               </button>
             </div>
@@ -641,7 +605,7 @@ export function InboxV2Page() {
       {/* ═══════════ COLUMN 3: CRM CARD ═══════════ */}
       {showCrm && selectedDialog && (
         <div
-          className="flex flex-col flex-shrink-0 overflow-y-auto"
+          className="flex flex-col flex-shrink-0 overflow-y-auto tg-crm-panel"
           style={{ width: 340, background: crmBg, borderLeft: `1px solid ${borderColor}` }}
         >
           {/* CRM header */}
