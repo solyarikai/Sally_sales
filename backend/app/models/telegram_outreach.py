@@ -509,6 +509,52 @@ class TgContact(Base, TimestampMixin):
     source_campaign_id = Column(Integer, ForeignKey("tg_campaigns.id", ondelete="SET NULL"), nullable=True)
 
 
+class TgCrmCustomFieldType(str, enum.Enum):
+    TEXT = "text"
+    NUMBER = "number"
+    SELECT = "select"
+    MULTI_SELECT = "multi_select"
+    DATE = "date"
+    URL = "url"
+
+
+class TgCrmCustomField(Base, TimestampMixin):
+    """Custom property definition for CRM contacts."""
+    __tablename__ = "tg_crm_custom_fields"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, nullable=True, index=True)
+    name = Column(String(100), nullable=False)
+    field_type = Column(
+        SQLEnum(TgCrmCustomFieldType, values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
+    )
+    options_json = Column(JSONB, nullable=False, default=list)  # for select/multi_select
+    sort_order = Column(Integer, nullable=False, default=0)
+
+    values = relationship("TgCrmLeadFieldValue", back_populates="field", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "name", name="uq_crm_custom_field_project_name"),
+    )
+
+
+class TgCrmLeadFieldValue(Base, TimestampMixin):
+    """Value of a custom field for a specific CRM contact."""
+    __tablename__ = "tg_crm_lead_field_values"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("tg_contacts.id", ondelete="CASCADE"), nullable=False, index=True)
+    field_id = Column(Integer, ForeignKey("tg_crm_custom_fields.id", ondelete="CASCADE"), nullable=False, index=True)
+    value = Column(Text, nullable=True)
+
+    field = relationship("TgCrmCustomField", back_populates="values")
+
+    __table_args__ = (
+        UniqueConstraint("lead_id", "field_id", name="uq_crm_lead_field_value"),
+    )
+
+
 class TgBlacklist(Base, TimestampMixin):
     """Blacklisted Telegram usernames — recipients matching these are filtered out on upload."""
     __tablename__ = "tg_blacklist"

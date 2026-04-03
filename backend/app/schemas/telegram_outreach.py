@@ -561,3 +561,48 @@ class TgCampaignTimelineResponse(BaseModel):
     total: int = 0
     page: int = 1
     page_size: int = 50
+
+
+# ── CRM Custom Fields ────────────────────────────────────────────────
+
+class TgCrmCustomFieldCreate(BaseModel):
+    name: str
+    field_type: str  # text, number, select, multi_select, date, url
+    options_json: list = []
+    project_id: Optional[int] = None
+    sort_order: int = 0
+
+
+class TgCrmCustomFieldUpdate(BaseModel):
+    name: Optional[str] = None
+    field_type: Optional[str] = None
+    options_json: Optional[list] = None
+    sort_order: Optional[int] = None
+
+
+class TgCrmCustomFieldResponse(BaseModel):
+    id: int
+    project_id: Optional[int] = None
+    name: str
+    field_type: str
+    options_json: list = []
+    sort_order: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+
+class TgCrmLeadFieldValueUpdate(BaseModel):
+    field_id: int
+    value: Optional[str] = None
+
+
+class TgCrmLeadFieldValueResponse(BaseModel):
+    id: int
+    lead_id: int
+    field_id: int
+    value: Optional[str] = None
+    field_name: Optional[str] = None
+    field_type: Optional[str] = None
+    options_json: list = []
+    model_config = {"from_attributes": True}

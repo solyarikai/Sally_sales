@@ -787,4 +787,23 @@ export const telegramOutreachApi = {
 
   getBlacklistCount: async () =>
     (await api.get(`${BASE}/blacklist/count`)).data,
+
+  // CRM Custom Fields
+  listCustomFields: async (projectId?: number) =>
+    (await api.get(`${BASE}/crm/custom-fields`, { params: projectId != null ? { project_id: projectId } : {} })).data,
+
+  createCustomField: async (data: { name: string; field_type: string; options_json?: string[]; project_id?: number; sort_order?: number }) =>
+    (await api.post(`${BASE}/crm/custom-fields`, data)).data,
+
+  updateCustomField: async (id: number, data: { name?: string; field_type?: string; options_json?: string[]; sort_order?: number }) =>
+    (await api.put(`${BASE}/crm/custom-fields/${id}`, data)).data,
+
+  deleteCustomField: async (id: number) =>
+    (await api.delete(`${BASE}/crm/custom-fields/${id}`)).data,
+
+  getContactCustomFields: async (contactId: number) =>
+    (await api.get(`${BASE}/crm/contacts/${contactId}/custom-fields`)).data,
+
+  updateContactCustomFields: async (contactId: number, values: { field_id: number; value: string | null }[]) =>
+    (await api.put(`${BASE}/crm/contacts/${contactId}/custom-fields`, values)).data,
 };

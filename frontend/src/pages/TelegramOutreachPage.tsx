@@ -21,7 +21,7 @@ import type {
   TgAccount, TgAccountTag, TgProxyGroup, TgProxy, TgCampaign,
 } from '../api/telegramOutreach';
 
-type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'pipeline' | 'blacklist' | 'inbox' | 'info';
+type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'pipeline' | 'custom_fields' | 'blacklist' | 'inbox' | 'info';
 
 const TAB_ROUTES: Record<Tab, string> = {
   inbox: '/outreach/inbox',
@@ -29,6 +29,7 @@ const TAB_ROUTES: Record<Tab, string> = {
   accounts: '/outreach/accounts',
   crm: '/outreach/crm/leads',
   pipeline: '/outreach/crm/pipeline',
+  custom_fields: '/outreach/crm/custom-fields',
   parser: '/outreach/tools/parser',
   proxies: '/outreach/tools/proxies',
   blacklist: '/outreach/tools/blacklist',
@@ -37,6 +38,7 @@ const TAB_ROUTES: Record<Tab, string> = {
 
 function pathToTab(pathname: string): Tab {
   if (pathname.startsWith('/outreach/crm/leads')) return 'crm';
+  if (pathname.startsWith('/outreach/crm/custom-fields')) return 'custom_fields';
   if (pathname.startsWith('/outreach/crm/pipeline')) return 'pipeline';
   if (pathname.startsWith('/outreach/tools/parser')) return 'parser';
   if (pathname.startsWith('/outreach/tools/proxies')) return 'proxies';
@@ -275,6 +277,7 @@ export function TelegramOutreachPage() {
       items: [
         { key: 'crm', label: 'All Leads', icon: Users },
         { key: 'pipeline', label: 'Pipeline', icon: LayoutGrid },
+        { key: 'custom_fields', label: 'Custom Properties', icon: Settings },
       ],
     },
     {
@@ -514,6 +517,7 @@ export function TelegramOutreachPage() {
           {tab === 'pipeline' && <PipelineTab toast={toast} />}
           {tab === 'blacklist' && <BlacklistTab toast={toast} />}
           {tab === 'inbox' && <InboxTab toast={toast} />}
+          {tab === 'custom_fields' && <CustomFieldsTab toast={toast} />}
           {tab === 'info' && <InfoTab t={t} />}
         </div>
       </div>
@@ -3990,6 +3994,237 @@ function ParserTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'succ
 // ══════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════
+// Custom Fields Tab (Custom Properties)
+// ══════════════════════════════════════════════════════════════════════
+
+const FIELD_TYPES = [
+  { value: 'text', label: 'Text' },
+  { value: 'number', label: 'Number' },
+  { value: 'select', label: 'Select' },
+  { value: 'multi_select', label: 'Multi-Select' },
+  { value: 'date', label: 'Date' },
+  { value: 'url', label: 'URL' },
+];
+
+function CustomFieldsTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const [fields, setFields] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingField, setEditingField] = useState<any>(null);
+  const [formName, setFormName] = useState('');
+  const [formType, setFormType] = useState('text');
+  const [formOptions, setFormOptions] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const loadFields = useCallback(async () => {
+    try {
+      const data = await telegramOutreachApi.listCustomFields();
+      setFields(data);
+    } catch { toast('Failed to load custom fields', 'error'); }
+    setLoading(false);
+  }, [toast]);
+
+  useEffect(() => { loadFields(); }, [loadFields]);
+
+  const openCreate = () => {
+    setEditingField(null);
+    setFormName('');
+    setFormType('text');
+    setFormOptions('');
+    setShowCreate(true);
+  };
+
+  const openEdit = (f: any) => {
+    setEditingField(f);
+    setFormName(f.name);
+    setFormType(f.field_type);
+    setFormOptions((f.options_json || []).join('\n'));
+    setShowCreate(true);
+  };
+
+  const handleSave = async () => {
+    if (!formName.trim()) { toast('Name is required', 'error'); return; }
+    setSaving(true);
+    try {
+      const options = (formType === 'select' || formType === 'multi_select')
+        ? formOptions.split('\n').map(s => s.trim()).filter(Boolean)
+        : [];
+      if (editingField) {
+        await telegramOutreachApi.updateCustomField(editingField.id, {
+          name: formName.trim(),
+          field_type: formType,
+          options_json: options,
+        });
+        toast('Field updated', 'success');
+      } else {
+        await telegramOutreachApi.createCustomField({
+          name: formName.trim(),
+          field_type: formType,
+          options_json: options,
+        });
+        toast('Field created', 'success');
+      }
+      setShowCreate(false);
+      loadFields();
+    } catch { toast('Failed to save field', 'error'); }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Delete this custom field and all its values?')) return;
+    try {
+      await telegramOutreachApi.deleteCustomField(id);
+      toast('Field deleted', 'success');
+      loadFields();
+    } catch { toast('Failed to delete', 'error'); }
+  };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: A.text2 }} /></div>;
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>Custom Properties</h2>
+          <p className="text-sm mt-0.5" style={{ color: A.text2 }}>Define custom fields for your CRM contacts</p>
+        </div>
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
+          style={{ background: A.blue }}
+        >
+          <Plus className="w-4 h-4" /> Add Field
+        </button>
+      </div>
+
+      {fields.length === 0 ? (
+        <div className="text-center py-16 rounded-xl" style={{ background: A.surface, border: `1px solid ${A.border}` }}>
+          <Settings className="w-10 h-10 mx-auto mb-3" style={{ color: A.text2 }} />
+          <p className="text-sm font-medium" style={{ color: A.text1 }}>No custom fields yet</p>
+          <p className="text-xs mt-1" style={{ color: A.text2 }}>Create fields to track custom data on your leads</p>
+          <button onClick={openCreate} className="mt-4 px-4 py-1.5 rounded-lg text-sm font-medium text-white" style={{ background: A.blue }}>
+            Create First Field
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${A.border}` }}>
+          <table className="w-full text-sm" style={{ background: A.surface }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${A.border}` }}>
+                <th className="text-left px-4 py-2.5 font-medium" style={{ color: A.text2 }}>Name</th>
+                <th className="text-left px-4 py-2.5 font-medium" style={{ color: A.text2 }}>Type</th>
+                <th className="text-left px-4 py-2.5 font-medium" style={{ color: A.text2 }}>Options</th>
+                <th className="w-20 px-4 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {fields.map((f: any) => (
+                <tr key={f.id} style={{ borderBottom: `1px solid ${A.border}` }} className="hover:opacity-80">
+                  <td className="px-4 py-2.5 font-medium" style={{ color: A.text1 }}>{f.name}</td>
+                  <td className="px-4 py-2.5">
+                    <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: A.blueBg, color: A.blue }}>
+                      {FIELD_TYPES.find(t => t.value === f.field_type)?.label || f.field_type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: A.text2 }}>
+                    {(f.options_json || []).length > 0 ? (f.options_json as string[]).join(', ') : '—'}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEdit(f)} className="p-1 rounded hover:opacity-70" style={{ color: A.text2 }}>
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(f.id)} className="p-1 rounded hover:opacity-70" style={{ color: '#ef4444' }}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create / Edit Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div className="rounded-xl p-6 w-[420px] space-y-4" style={{ background: A.surface, border: `1px solid ${A.border}` }}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold" style={{ color: A.text1 }}>
+                {editingField ? 'Edit Field' : 'New Custom Field'}
+              </h3>
+              <button onClick={() => setShowCreate(false)} className="p-1 rounded hover:opacity-70" style={{ color: A.text2 }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: A.text2 }}>Field Name</label>
+              <input
+                value={formName}
+                onChange={e => setFormName(e.target.value)}
+                placeholder="e.g. Industry, Revenue, Website"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: A.bg, border: `1px solid ${A.border}`, color: A.text1 }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: A.text2 }}>Field Type</label>
+              <select
+                value={formType}
+                onChange={e => setFormType(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: A.bg, border: `1px solid ${A.border}`, color: A.text1 }}
+              >
+                {FIELD_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {(formType === 'select' || formType === 'multi_select') && (
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: A.text2 }}>Options (one per line)</label>
+                <textarea
+                  value={formOptions}
+                  onChange={e => setFormOptions(e.target.value)}
+                  rows={4}
+                  placeholder={"Option 1\nOption 2\nOption 3"}
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                  style={{ background: A.bg, border: `1px solid ${A.border}`, color: A.text1 }}
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowCreate(false)}
+                className="px-4 py-1.5 rounded-lg text-sm"
+                style={{ color: A.text2, border: `1px solid ${A.border}` }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-1.5 rounded-lg text-sm font-medium text-white flex items-center gap-1.5"
+                style={{ background: A.blue, opacity: saving ? 0.7 : 1 }}
+              >
+                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {editingField ? 'Save Changes' : 'Create Field'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
 // Info Tab
 // ══════════════════════════════════════════════════════════════════════
 
@@ -4325,6 +4560,8 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [showCrmInfo, setShowCrmInfo] = useState(false);
   const [crmData, setCrmData] = useState<any>(null);
   const [crmLoading, setCrmLoading] = useState(false);
+  const [crmCustomFields, setCrmCustomFields] = useState<any[]>([]);
+  const [crmFieldDefs, setCrmFieldDefs] = useState<any[]>([]);
   const [peerStatus, setPeerStatus] = useState<any>(null);
   const [peerTyping, setPeerTyping] = useState(false);
   const [filterLeadStatus, setFilterLeadStatus] = useState<string>('');
@@ -4678,14 +4915,24 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
 
   // Load CRM data when Info panel is opened
   useEffect(() => {
-    if (!showCrmInfo || !selectedDialog) { setCrmData(null); return; }
+    if (!showCrmInfo || !selectedDialog) { setCrmData(null); setCrmCustomFields([]); return; }
     let cancelled = false;
     setCrmLoading(true);
     (async () => {
       try {
-        const data = await telegramOutreachApi.getDialogCrm(selectedDialog.id);
-        if (!cancelled) setCrmData(data.contact);
-      } catch { if (!cancelled) setCrmData(null); }
+        const [data, fieldDefs] = await Promise.all([
+          telegramOutreachApi.getDialogCrm(selectedDialog.id),
+          telegramOutreachApi.listCustomFields(),
+        ]);
+        if (!cancelled) {
+          setCrmData(data.contact);
+          setCrmFieldDefs(fieldDefs);
+          if (data.contact?.contact_id) {
+            const vals = await telegramOutreachApi.getContactCustomFields(data.contact.contact_id);
+            if (!cancelled) setCrmCustomFields(vals);
+          }
+        }
+      } catch { if (!cancelled) { setCrmData(null); setCrmCustomFields([]); } }
       finally { if (!cancelled) setCrmLoading(false); }
     })();
     return () => { cancelled = true; };
@@ -6068,16 +6315,33 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                           </div>
                         )}
 
-                        {/* Custom Data */}
-                        {crmData.custom_data && Object.keys(crmData.custom_data).filter(k => !k.startsWith('_')).length > 0 && (
+                        {/* Custom Properties */}
+                        {crmFieldDefs.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Custom Fields</p>
-                            <div className="flex flex-col gap-0.5">
-                              {Object.entries(crmData.custom_data).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
-                                <p key={k} className="text-[11px]" style={{ color: A.text2 }}>
-                                  <span style={{ color: A.text3 }}>{k}:</span> {String(v)}
-                                </p>
-                              ))}
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Custom Properties</p>
+                            <div className="flex flex-col gap-1">
+                              {crmFieldDefs.map((fd: any) => {
+                                const cv = crmCustomFields.find((v: any) => v.field_id === fd.id);
+                                return (
+                                  <div key={fd.id} className="flex items-center gap-1.5">
+                                    <span className="text-[10px] shrink-0 w-20 truncate" style={{ color: A.text3 }}>{fd.name}</span>
+                                    <input
+                                      className="flex-1 text-[11px] px-1.5 py-0.5 rounded outline-none min-w-0"
+                                      style={{ background: A.bg, border: `1px solid ${A.border}`, color: A.text1 }}
+                                      type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : 'text'}
+                                      defaultValue={cv?.value || ''}
+                                      placeholder="—"
+                                      onBlur={async (e) => {
+                                        if (!crmData?.contact_id) return;
+                                        const val = e.target.value.trim();
+                                        try {
+                                          await telegramOutreachApi.updateContactCustomFields(crmData.contact_id, [{ field_id: fd.id, value: val || null }]);
+                                        } catch { /* silent */ }
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -6774,6 +7038,16 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [crmDeleteConfirm, setCrmDeleteConfirm] = useState<string | null>(null);
+  const [contactFieldDefs, setContactFieldDefs] = useState<any[]>([]);
+  const [contactFieldVals, setContactFieldVals] = useState<any[]>([]);
+  const [cfFilterFieldId, setCfFilterFieldId] = useState<number | null>(null);
+  const [cfFilterValue, setCfFilterValue] = useState('');
+  const [allFieldDefs, setAllFieldDefs] = useState<any[]>([]);
+
+  // Load custom field definitions once
+  useEffect(() => {
+    telegramOutreachApi.listCustomFields().then(setAllFieldDefs).catch(() => {});
+  }, []);
 
   const loadContacts = useCallback(async () => {
     setLoading(true);
@@ -6782,12 +7056,16 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       if (currentProject?.id) params.project_id = currentProject.id;
+      if (cfFilterFieldId && cfFilterValue) {
+        params.cf_field_id = cfFilterFieldId;
+        params.cf_value = cfFilterValue;
+      }
       const data = await telegramOutreachApi.listCrmContacts(params);
       setContacts(data.items);
       setTotal(data.total);
     } catch { toast('Failed to load contacts', 'error'); }
     finally { setLoading(false); }
-  }, [page, search, statusFilter, currentProject?.id, toast]);
+  }, [page, search, statusFilter, currentProject?.id, cfFilterFieldId, cfFilterValue, toast]);
 
   const loadStats = useCallback(async () => {
     try { setStats(await telegramOutreachApi.getCrmStats()); } catch { /* ok */ }
@@ -6799,13 +7077,18 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const openContact = async (c: any) => {
     setSelectedContact(c);
     setCampaignProgress([]);
+    setContactFieldVals([]);
     try {
-      const [h, cp] = await Promise.all([
+      const [h, cp, fds, fvs] = await Promise.all([
         telegramOutreachApi.getCrmContactHistory(c.id),
         telegramOutreachApi.getCrmContactCampaigns(c.id),
+        telegramOutreachApi.listCustomFields(),
+        telegramOutreachApi.getContactCustomFields(c.id),
       ]);
       setHistory(h.history);
       setCampaignProgress(cp.campaigns || []);
+      setContactFieldDefs(fds);
+      setContactFieldVals(fvs);
     } catch { setHistory([]); setCampaignProgress([]); }
   };
 
@@ -6842,6 +7125,47 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                  className="pl-8 pr-3 py-1.5 rounded-lg border text-xs w-full"
                  style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
         </div>
+        {allFieldDefs.length > 0 && (
+          <div className="flex items-center gap-1">
+            <select
+              value={cfFilterFieldId ?? ''}
+              onChange={e => { setCfFilterFieldId(e.target.value ? Number(e.target.value) : null); setCfFilterValue(''); setPage(1); }}
+              className="px-2 py-1.5 rounded-lg border text-xs"
+              style={{ borderColor: A.border, background: A.surface, color: A.text1 }}
+            >
+              <option value="">Filter by field...</option>
+              {allFieldDefs.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            {cfFilterFieldId && (() => {
+              const fd = allFieldDefs.find((f: any) => f.id === cfFilterFieldId);
+              return fd?.field_type === 'select' || fd?.field_type === 'multi_select' ? (
+                <select
+                  value={cfFilterValue}
+                  onChange={e => { setCfFilterValue(e.target.value); setPage(1); }}
+                  className="px-2 py-1.5 rounded-lg border text-xs"
+                  style={{ borderColor: A.border, background: A.surface, color: A.text1 }}
+                >
+                  <option value="">Any</option>
+                  {(fd.options_json || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input
+                  value={cfFilterValue}
+                  onChange={e => { setCfFilterValue(e.target.value); setPage(1); }}
+                  placeholder="Value..."
+                  className="px-2 py-1.5 rounded-lg border text-xs w-28"
+                  style={{ borderColor: A.border, background: A.surface, color: A.text1 }}
+                />
+              );
+            })()}
+            {cfFilterFieldId && (
+              <button onClick={() => { setCfFilterFieldId(null); setCfFilterValue(''); setPage(1); }}
+                className="p-1 rounded hover:opacity-70" style={{ color: A.text3 }}>
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
         <span className="text-xs" style={{ color: A.text3 }}>{total} contacts</span>
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-1.5 ml-auto">
@@ -7072,6 +7396,50 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+              {/* Custom Properties */}
+              {contactFieldDefs.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Custom Properties</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {contactFieldDefs.map((fd: any) => {
+                      const cv = contactFieldVals.find((v: any) => v.field_id === fd.id);
+                      return (
+                        <div key={fd.id}>
+                          <label className="block text-[10px] font-medium mb-0.5" style={{ color: A.text3 }}>{fd.name}</label>
+                          {fd.field_type === 'select' ? (
+                            <select
+                              className="w-full px-2 py-1 rounded border text-xs"
+                              style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                              defaultValue={cv?.value || ''}
+                              onChange={async (e) => {
+                                try {
+                                  await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value || null }]);
+                                } catch { /* silent */ }
+                              }}
+                            >
+                              <option value="">—</option>
+                              {(fd.options_json || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            <input
+                              className="w-full px-2 py-1 rounded border text-xs outline-none"
+                              style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                              type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : 'text'}
+                              defaultValue={cv?.value || ''}
+                              placeholder="—"
+                              onBlur={async (e) => {
+                                try {
+                                  await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value.trim() || null }]);
+                                } catch { /* silent */ }
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

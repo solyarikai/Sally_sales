@@ -23,6 +23,7 @@ from app.models.telegram_outreach import (
     TgInboxDialog, TgContact, TgContactStatus,
     TgIncomingReply, TgBlacklist,
     TgWarmupLog, TgWarmupActionType, TgWarmupChannel,
+    TgCrmCustomField, TgCrmCustomFieldType, TgCrmLeadFieldValue,
 )
 from app.models.telegram_dm import TelegramDMAccount
 
@@ -87,6 +88,8 @@ from app.schemas.telegram_outreach import (
     TgWarmupStatusResponse, TgWarmupLogResponse,
     TgWarmupChannelCreate, TgWarmupChannelResponse,
     TgCampaignTimelineResponse, TgTimelineRecipient, TgTimelineStep, TgTimelineStepStatus,
+    TgCrmCustomFieldCreate, TgCrmCustomFieldUpdate, TgCrmCustomFieldResponse,
+    TgCrmLeadFieldValueUpdate, TgCrmLeadFieldValueResponse,
 )
 
 router = APIRouter(prefix="/telegram-outreach", tags=["Telegram Outreach"])
@@ -5157,6 +5160,8 @@ async def list_crm_contacts(
     campaign_id: Optional[int] = None,
     exclude_campaign_id: Optional[int] = None,
     project_id: Optional[int] = None,
+    cf_field_id: Optional[int] = None,
+    cf_value: Optional[str] = None,
     session: AsyncSession = Depends(get_session),
 ):
     query = select(TgContact)
@@ -5183,6 +5188,15 @@ async def list_crm_contacts(
         already_in = select(TgRecipient.username).where(TgRecipient.campaign_id == exclude_campaign_id)
         query = query.where(~TgContact.username.in_(already_in))
         count_query = count_query.where(~TgContact.username.in_(already_in))
+
+    # Custom field filter
+    if cf_field_id is not None and cf_value is not None:
+        cf_sub = select(TgCrmLeadFieldValue.lead_id).where(
+            TgCrmLeadFieldValue.field_id == cf_field_id,
+            TgCrmLeadFieldValue.value.ilike(f"%{cf_value}%"),
+        )
+        query = query.where(TgContact.id.in_(cf_sub))
+        count_query = count_query.where(TgContact.id.in_(cf_sub))
 
     total = (await session.execute(count_query)).scalar() or 0
     query = query.order_by(desc(TgContact.last_contacted_at).nullslast()).offset((page - 1) * page_size).limit(page_size)
@@ -5447,6 +5461,143 @@ async def get_contact_campaigns(contact_id: int, session: AsyncSession = Depends
         })
 
     return {"campaigns": campaigns}
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# CRM — Custom Fields (Custom Properties)
+# ═══════════════════════════════════════════════════════════════════════
+
+@router.get("/crm/custom-fields", response_model=list[TgCrmCustomFieldResponse])
+async def list_custom_fields(
+    project_id: Optional[int] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """List all custom field definitions."""
+    q = select(TgCrmCustomField).order_by(TgCrmCustomField.sort_order, TgCrmCustomField.id)
+    if project_id is not None:
+        q = q.where(TgCrmCustomField.project_id == project_id)
+    else:
+        q = q.where(TgCrmCustomField.project_id.is_(None))
+    result = await session.execute(q)
+    return result.scalars().all()
+
+
+@router.post("/crm/custom-fields", response_model=TgCrmCustomFieldResponse)
+async def create_custom_field(
+    body: TgCrmCustomFieldCreate,
+    session: AsyncSession = Depends(get_session),
+):
+    """Create a new custom field definition."""
+    TgCrmCustomFieldType(body.field_type)  # validate enum
+    field = TgCrmCustomField(
+        name=body.name,
+        field_type=TgCrmCustomFieldType(body.field_type),
+        options_json=body.options_json,
+        project_id=body.project_id,
+        sort_order=body.sort_order,
+    )
+    session.add(field)
+    await session.flush()
+    await session.refresh(field)
+    return field
+
+
+@router.put("/crm/custom-fields/{field_id}", response_model=TgCrmCustomFieldResponse)
+async def update_custom_field(
+    field_id: int,
+    body: TgCrmCustomFieldUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    """Update a custom field definition."""
+    field = await session.get(TgCrmCustomField, field_id)
+    if not field:
+        raise HTTPException(404, "Custom field not found")
+    if body.name is not None:
+        field.name = body.name
+    if body.field_type is not None:
+        field.field_type = TgCrmCustomFieldType(body.field_type)
+    if body.options_json is not None:
+        field.options_json = body.options_json
+    if body.sort_order is not None:
+        field.sort_order = body.sort_order
+    await session.flush()
+    await session.refresh(field)
+    return field
+
+
+@router.delete("/crm/custom-fields/{field_id}")
+async def delete_custom_field(
+    field_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete a custom field and all its values."""
+    field = await session.get(TgCrmCustomField, field_id)
+    if not field:
+        raise HTTPException(404, "Custom field not found")
+    await session.delete(field)
+    return {"ok": True}
+
+
+@router.get("/crm/contacts/{contact_id}/custom-fields")
+async def get_contact_custom_fields(
+    contact_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Get all custom field values for a contact."""
+    contact = await session.get(TgContact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+
+    result = await session.execute(
+        select(TgCrmLeadFieldValue, TgCrmCustomField)
+        .join(TgCrmCustomField, TgCrmLeadFieldValue.field_id == TgCrmCustomField.id)
+        .where(TgCrmLeadFieldValue.lead_id == contact_id)
+        .order_by(TgCrmCustomField.sort_order, TgCrmCustomField.id)
+    )
+    rows = result.all()
+    return [
+        {
+            "id": val.id,
+            "lead_id": val.lead_id,
+            "field_id": val.field_id,
+            "value": val.value,
+            "field_name": fld.name,
+            "field_type": fld.field_type.value,
+            "options_json": fld.options_json or [],
+        }
+        for val, fld in rows
+    ]
+
+
+@router.put("/crm/contacts/{contact_id}/custom-fields")
+async def update_contact_custom_fields(
+    contact_id: int,
+    values: list[TgCrmLeadFieldValueUpdate],
+    session: AsyncSession = Depends(get_session),
+):
+    """Bulk upsert custom field values for a contact."""
+    contact = await session.get(TgContact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+
+    for item in values:
+        existing = await session.execute(
+            select(TgCrmLeadFieldValue).where(
+                TgCrmLeadFieldValue.lead_id == contact_id,
+                TgCrmLeadFieldValue.field_id == item.field_id,
+            )
+        )
+        row = existing.scalar_one_or_none()
+        if row:
+            row.value = item.value
+        else:
+            session.add(TgCrmLeadFieldValue(
+                lead_id=contact_id,
+                field_id=item.field_id,
+                value=item.value,
+            ))
+
+    return {"ok": True}
 
 
 # ═══════════════════════════════════════════════════════════════════════
