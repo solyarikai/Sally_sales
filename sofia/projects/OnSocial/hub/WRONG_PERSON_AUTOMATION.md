@@ -1,6 +1,6 @@
 # Wrong Person - Automated Routing
 
-**Date**: 2026-04-02
+**Date**: 2026-04-03
 **Author**: Sofia
 **Status**: ACTIVE
 
@@ -10,19 +10,62 @@
 
 When someone replies "I'm not the right person" or "talk to my colleague X", the system automatically adds them to a dedicated SmartLead follow-up campaign that asks for a referral.
 
-**Scope: OnSocial campaigns ONLY.** The script filters by `campaign_name ILIKE '%OnSocial%'` and will never touch leads from other projects (EasyStaff, SquareFi, TFP, etc.).
+**Works for any project.** The script takes `--project` (e.g. OnSocial, EasyStaff) and:
+1. Discovers all SmartLead campaigns with the project name in their title
+2. Collects Wrong Person replies from those campaigns
+3. Syncs them to the project's WRONG-PERSON referral campaign
+
+**No hardcoded IDs.** New campaigns are picked up automatically by name.
 
 ---
 
-## SmartLead Campaign
+## Setup for a New Project
 
-- **Name**: `c-OnSocial_WRONG-PERSON-referral`
-- **ID**: `3092917`
-- **Status**: DRAFTED (activate manually in SmartLead UI)
+1. Create a SmartLead campaign named `c-{Project}_WRONG-PERSON-referral`
+2. Add sequences (see below) and email accounts
+3. Add a cron entry:
+
+```bash
+# In ~/run_sync_wrong_person_{project}.sh
+cd ~/magnum-opus-project/repo
+set -a && source .env && set +a
+python3 sofia/scripts/sync_wrong_person.py --project {Project} --chat-id {YOUR_TG_CHAT_ID} >> ~/logs/wrong_person_sync.log 2>&1
+```
+
+```bash
+# Cron: 2x daily
+0 9,17 * * * /home/leadokol/run_sync_wrong_person_{project}.sh
+```
+
+That's it. The script will auto-discover:
+- **Destination**: campaign matching `{Project}` + `WRONG` + `PERSON` in name
+- **Source**: all campaigns containing `{Project}` in name (excluding the WRONG-PERSON one)
 
 ---
 
-## Sequence (copy-paste ready)
+## How Discovery Works
+
+```
+SmartLead API: GET /campaigns
+  -> filter by name containing project (e.g. "OnSocial")
+  -> split into:
+     SOURCE campaigns (all OnSocial campaigns)
+     DESTINATION campaign (the one with WRONG + PERSON in name)
+
+Leadgen DB: SELECT from processed_replies
+  -> WHERE category = 'wrong_person'
+  -> AND campaign_name = ANY(source campaign names)
+  -> AND not already synced (contact_activities check)
+
+SmartLead API: POST /campaigns/{destination_id}/leads
+  -> upload new Wrong Person leads
+  -> mark as synced in contact_activities
+  -> send Telegram report
+```
+
+---
+
+## Sequence (copy-paste ready for new projects)
 
 ### Step 1 (Day 0)
 
@@ -81,51 +124,25 @@ Bhaskar Vishnu from OnSocial
 | `{{company_name}}` | Company name | impact.com |
 | `{{colleague_name}}` | Name of the person who replied "wrong person" (the original contact) | Damon Fairchild |
 
-**Important**: `{{colleague_name}}` must be filled when adding a lead. The script sets it automatically from the original responder's first name. If the reply mentions a specific person to contact, update `colleague_name` manually in SmartLead.
+**Important**: `{{colleague_name}}` is set automatically from the original responder's first name.
 
 ---
 
-## How the Script Works
-
-**File**: `sofia/scripts/sync_wrong_person.py`
-
-### Data flow:
-
-```
-Leadgen DB (processed_replies table)
-  -> filter: category = 'wrong_person' AND campaign_name ILIKE '%OnSocial%'
-  -> filter: not already synced (checked via contact_activities)
-  -> SmartLead API: POST /campaigns/3092917/leads
-  -> mark synced in contact_activities
-  -> Telegram notification
-```
-
-### Database details:
-
-- **Source table**: `processed_replies` - contains all categorized email replies
-- **Tracking table**: `contact_activities` - stores sync state (`extra_data->>'smartlead_synced' = 'true'`)
-- **Connection**: PostgreSQL on Hetzner (`docker exec leadgen-postgres`)
-- **Credentials**: from `.env` file (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
-
-### SmartLead API:
-
-- Calls `https://server.smartlead.ai/api/v1/campaigns/3092917/leads` directly
-- Uses `SMARTLEAD_API_KEY` from `.env`
-- Sends: email, first_name, last_name, company_name, custom_fields.colleague_name
-
-### Schedule:
-
-- Cron: `0 9,17 * * *` (09:00 and 17:00 UTC)
-- Wrapper: `/home/leadokol/run_sync_wrong_person.sh`
-- Logs: `~/logs/wrong_person_sync.log`
-
----
-
-## Manual Operations
+## Usage
 
 ### Run manually:
 ```bash
-ssh hetzner "cd ~/magnum-opus-project/repo && set -a && source .env && set +a && python3 sofia/scripts/sync_wrong_person.py --project OnSocial --campaign-id 3092917 --chat-id 7380803777"
+ssh hetzner "cd ~/magnum-opus-project/repo && set -a && source .env && set +a && python3 sofia/scripts/sync_wrong_person.py --project OnSocial --chat-id 7380803777"
+```
+
+### Dry run (preview without syncing):
+```bash
+ssh hetzner "cd ~/magnum-opus-project/repo && set -a && source .env && set +a && python3 sofia/scripts/sync_wrong_person.py --project OnSocial --chat-id 7380803777 --dry-run"
+```
+
+### Override campaign ID (if auto-discovery fails):
+```bash
+python3 sofia/scripts/sync_wrong_person.py --project OnSocial --campaign-id 3092917 --chat-id 7380803777
 ```
 
 ### Check logs:
@@ -133,21 +150,11 @@ ssh hetzner "cd ~/magnum-opus-project/repo && set -a && source .env && set +a &&
 ssh hetzner "tail -50 ~/logs/wrong_person_sync.log"
 ```
 
-### Disable cron:
-```bash
-ssh hetzner "crontab -l | grep -v run_sync_wrong_person | crontab -"
-```
-
-### Re-enable cron:
-```bash
-ssh hetzner "(crontab -l; echo '0 9 * * * /home/leadokol/run_sync_wrong_person.sh'; echo '0 17 * * * /home/leadokol/run_sync_wrong_person.sh') | crontab -"
-```
-
 ---
 
 ## Safety
 
-- **Project isolation**: Only processes OnSocial campaigns (`ILIKE '%OnSocial%'`). Other projects are never touched.
+- **Project isolation**: `--project` scopes everything. OnSocial run never touches EasyStaff campaigns.
 - **Idempotent**: `smartlead_synced` flag prevents duplicate adds. Safe to re-run.
 - **Read-only on source**: Only SELECTs from `processed_replies` (never modifies).
 - **Append-only on SmartLead**: Only adds leads, never deletes or modifies existing ones.
