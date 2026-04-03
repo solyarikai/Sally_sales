@@ -22,8 +22,8 @@ Steps:
    - `docs:` for documentation
    - `refactor:` for refactoring
    - `chore:` for maintenance tasks
-4. Show me the message and the list of changed files
-5. Ask for confirmation before committing
-6. Stage all changes with `git add -A` and commit
+4. Stage all changes with `git add -A`, commit, and push to origin immediately
+5. Show the commit message and push result
 
+Do NOT ask for confirmation — commit and push automatically.
 Message language: English, 1 line, max 72 chars.
