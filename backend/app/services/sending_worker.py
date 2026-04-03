@@ -663,12 +663,22 @@ class SendingWorker:
                 logger.debug(f"{cname} {account.phone} delay={delay}s")
                 await asyncio.sleep(delay)
 
-                result = await telegram_engine.send_message(
-                    account.id, recipient.username, rendered,
-                    link_preview=getattr(campaign, 'link_preview', False),
-                    silent=getattr(campaign, 'silent', False),
-                    delete_dialog_after=getattr(campaign, 'delete_dialog_after', False),
-                )
+                msg_type = getattr(step, 'message_type', 'text') or 'text'
+                if msg_type != 'text' and getattr(variant, 'media_file_path', None):
+                    result = await telegram_engine.send_file(
+                        account.id, recipient.username, variant.media_file_path,
+                        caption=rendered if msg_type != 'voice' else '',
+                        voice_note=(msg_type == 'voice'),
+                        silent=getattr(campaign, 'silent', False),
+                        delete_dialog_after=getattr(campaign, 'delete_dialog_after', False),
+                    )
+                else:
+                    result = await telegram_engine.send_message(
+                        account.id, recipient.username, rendered,
+                        link_preview=getattr(campaign, 'link_preview', False),
+                        silent=getattr(campaign, 'silent', False),
+                        delete_dialog_after=getattr(campaign, 'delete_dialog_after', False),
+                    )
                 status = result.get("status", "failed")
                 logger.info(f"{cname} {account.phone} -> @{recipient.username}: {status}"
                              + (f" ({result.get('detail','')})" if status != "sent" else ""))

@@ -3818,6 +3818,7 @@ async def update_sequence(campaign_id: int, data: TgSequenceSchema,
             sequence_id=seq.id,
             step_order=step_data.step_order,
             delay_days=step_data.delay_days,
+            message_type=step_data.message_type,
         )
         session.add(step)
         await session.flush()
@@ -3828,6 +3829,7 @@ async def update_sequence(campaign_id: int, data: TgSequenceSchema,
                 variant_label=v_data.variant_label,
                 message_text=v_data.message_text,
                 weight_percent=v_data.weight_percent,
+                media_file_path=v_data.media_file_path,
             )
             session.add(variant)
 
@@ -3837,6 +3839,24 @@ async def update_sequence(campaign_id: int, data: TgSequenceSchema,
 
     # Re-read and return
     return await get_sequence(campaign_id, session)
+
+
+@router.post("/campaigns/{campaign_id}/media")
+async def upload_campaign_media(campaign_id: int, file: UploadFile = File(...)):
+    """Upload a media file (image, video, document, voice) for a campaign sequence step."""
+    import os
+    media_dir = f"/app/media/campaigns/{campaign_id}"
+    os.makedirs(media_dir, exist_ok=True)
+
+    # Sanitize filename
+    safe_name = file.filename.replace(" ", "_").replace("/", "_").replace("\\", "_")
+    file_path = f"{media_dir}/{safe_name}"
+
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    return {"file_path": file_path, "filename": safe_name, "size": len(content)}
 
 
 @router.post("/campaigns/{campaign_id}/sequence/preview", response_model=TgSequencePreviewResponse)

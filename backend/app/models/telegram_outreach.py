@@ -321,6 +321,7 @@ class TgSequenceStep(Base, TimestampMixin):
     sequence_id = Column(Integer, ForeignKey("tg_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
     step_order = Column(Integer, nullable=False, default=1)
     delay_days = Column(Integer, nullable=False, default=0)
+    message_type = Column(String(20), nullable=False, default="text", server_default="text")  # text, image, video, document, voice
 
     # Relationships
     sequence = relationship("TgSequence", back_populates="steps")
@@ -340,6 +341,7 @@ class TgStepVariant(Base, TimestampMixin):
     variant_label = Column(String(5), nullable=False, default="A")
     message_text = Column(Text, nullable=False, default="")
     weight_percent = Column(Integer, nullable=False, default=100)
+    media_file_path = Column(String(500), nullable=True)  # path to uploaded media file
 
     # Relationships
     step = relationship("TgSequenceStep", back_populates="variants")

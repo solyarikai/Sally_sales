@@ -4,7 +4,7 @@ import {
   ArrowLeft, Settings2, ListOrdered, Users, Eye, MessageSquare, Reply, Download,
   Plus, Trash2, Save, Upload, Loader2, Play, Pause,
   ChevronLeft, ChevronRight, RefreshCw, Type, BarChart3, X, Search, UserPlus, Check,
-  Table2, AlertTriangle,
+  Table2, AlertTriangle, Image, Video, FileText, Mic, Paperclip,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -14,7 +14,7 @@ import { useToast } from '../components/Toast';
 import { telegramOutreachApi } from '../api/telegramOutreach';
 import type {
   TgCampaign, TgSequence, TgSequenceStep, TgStepVariant,
-  TgRecipient, TgCampaignStats, TgAccount,
+  TgRecipient, TgCampaignStats, TgAccount, MessageType,
 } from '../api/telegramOutreach';
 
 type Tab = 'recipients' | 'messages' | 'accounts' | 'review';
@@ -531,6 +531,7 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
         {
           step_order: newOrder,
           delay_days: newOrder === 1 ? 0 : 1,
+          message_type: 'text' as MessageType,
           variants: [{ variant_label: 'A', message_text: '', weight_percent: 100 }],
         },
       ],
@@ -734,6 +735,15 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
                       <span className={cn('text-xs', t.text3)}>days</span>
                     </div>
                   )}
+                  <select value={step.message_type || 'text'}
+                          onChange={e => updateStep(stepIdx, { message_type: e.target.value as MessageType })}
+                          className={cn('text-xs px-2 py-1 rounded border', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}>
+                    <option value="text">Text</option>
+                    <option value="image">Image</option>
+                    <option value="video">Video</option>
+                    <option value="document">Document</option>
+                    <option value="voice">Voice</option>
+                  </select>
                 </div>
                 <div className="flex items-center gap-2">
                   {step.variants.length < 5 && (
@@ -778,7 +788,45 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
                       </div>
                     )}
 
+                    {/* Media upload for non-text steps */}
+                    {(step.message_type || 'text') !== 'text' && (
+                      <div className={cn('flex items-center gap-3 p-3 rounded-lg border border-dashed', 'border-gray-300 dark:border-gray-600', isDark ? 'bg-gray-800/30' : 'bg-gray-50/50')}>
+                        {variant.media_file_path ? (
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {step.message_type === 'image' && <Image className="w-4 h-4 text-blue-500 shrink-0" />}
+                            {step.message_type === 'video' && <Video className="w-4 h-4 text-purple-500 shrink-0" />}
+                            {step.message_type === 'document' && <FileText className="w-4 h-4 text-orange-500 shrink-0" />}
+                            {step.message_type === 'voice' && <Mic className="w-4 h-4 text-green-500 shrink-0" />}
+                            <span className={cn('text-xs truncate', t.text2)}>{variant.media_file_path.split('/').pop()}</span>
+                            <button onClick={() => updateVariant(stepIdx, varIdx, { media_file_path: null })}
+                                    className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded shrink-0">
+                              <X className="w-3 h-3 text-red-400" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex items-center gap-2 cursor-pointer flex-1">
+                            <Paperclip className={cn('w-4 h-4', t.text3)} />
+                            <span className={cn('text-xs', t.text3)}>
+                              Upload {step.message_type === 'voice' ? 'voice message (.ogg)' : step.message_type}
+                            </span>
+                            <input type="file" className="hidden"
+                                   accept={step.message_type === 'image' ? 'image/*' : step.message_type === 'video' ? 'video/*' : step.message_type === 'voice' ? 'audio/ogg,audio/*' : '*/*'}
+                                   onChange={async (e) => {
+                                     const f = e.target.files?.[0];
+                                     if (!f || !campaignId) return;
+                                     try {
+                                       const res = await telegramOutreachApi.uploadMedia(Number(campaignId), f);
+                                       updateVariant(stepIdx, varIdx, { media_file_path: res.file_path });
+                                       toast('File uploaded', 'success');
+                                     } catch { toast('Upload failed', 'error'); }
+                                   }} />
+                          </label>
+                        )}
+                      </div>
+                    )}
+
                     {/* Variable Insert Buttons */}
+                    {(step.message_type || 'text') !== 'voice' && (
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={cn('text-xs', t.text3)}>Insert:</span>
                       {['first_name', 'company_name', 'username', ...customVars].map(v => (
@@ -789,17 +837,18 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
                         </button>
                       ))}
                     </div>
+                    )}
 
                     {/* Message textarea with { variable popup */}
                     <div className="relative">
                       <textarea
                         id={`seq-${stepIdx}-${varIdx}`}
-                        rows={5}
+                        rows={step.message_type === 'voice' ? 1 : 5}
                         value={variant.message_text}
                         onChange={e => handleSeqChange(e, stepIdx, varIdx)}
                         onKeyDown={e => handleSeqKeyDown(e, stepIdx, varIdx)}
-                        placeholder="Type your message... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables"
-                        className={cn('w-full px-3 py-2 rounded-lg border text-sm font-mono leading-relaxed resize-y', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}
+                        placeholder={step.message_type === 'voice' ? 'Voice messages have no text caption' : (step.message_type || 'text') !== 'text' ? 'Caption (optional)... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables' : 'Type your message... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables'}
+                        className={cn('w-full px-3 py-2 rounded-lg border text-sm font-mono leading-relaxed resize-y', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1, step.message_type === 'voice' && 'hidden')}
                       />
                       {varPopup?.stepIdx === stepIdx && varPopup?.varIdx === varIdx && popupItems.length > 0 && (() => {
                         const sysItems = popupItems.filter(i => i.section === 'system' && i.type === 'var');

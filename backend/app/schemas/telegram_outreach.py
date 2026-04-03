@@ -303,12 +303,14 @@ class TgStepVariantSchema(BaseModel):
     variant_label: str = "A"
     message_text: str = ""
     weight_percent: int = 100
+    media_file_path: Optional[str] = None
 
 
 class TgSequenceStepSchema(BaseModel):
     id: Optional[int] = None
     step_order: int = 1
     delay_days: int = 0
+    message_type: str = "text"  # text, image, video, document, voice
     variants: list[TgStepVariantSchema] = []
 
 
