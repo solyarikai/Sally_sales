@@ -1909,7 +1909,7 @@ def _show_social_proof_stats(contacts: list[dict], segment: str):
 def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
     """SmartLead upload with checkpoints at every step."""
     print(f"\n{'='*60}")
-    print(f"STEP 12: SmartLead Upload")
+    print(f"STEP 12: SMARTLEAD — Upload")
     print(f"{'='*60}")
 
     if not SMARTLEAD_API_KEY:
