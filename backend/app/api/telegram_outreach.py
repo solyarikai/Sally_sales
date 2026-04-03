@@ -4730,7 +4730,14 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                 continue
 
             kwargs = _account_connect_kwargs(account, proxy)
-            await telegram_engine.connect(aid, **kwargs)
+            # Try with proxy first; if connection fails, retry direct (no proxy)
+            try:
+                await telegram_engine.connect(aid, **kwargs)
+            except Exception as conn_err:
+                logger.warning(f"[ALIVE] {account.phone} proxy connect failed: {conn_err}, retrying direct")
+                await telegram_engine.disconnect(aid)
+                kwargs_direct = _account_connect_kwargs(account, None)
+                await telegram_engine.connect(aid, **kwargs_direct)
             client = telegram_engine.get_client(aid)
             authorized = await client.is_user_authorized()
 
@@ -4794,6 +4801,7 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
 
             await telegram_engine.disconnect(aid)
         except Exception as e:
+            logger.error(f"[ALIVE] account {aid} error: {e}")
             results.append({"account_id": aid, "alive": False, "reason": "error", "error": str(e)[:80]})
 
     alive_count = sum(1 for r in results if r.get("alive"))
@@ -4801,6 +4809,7 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
     banned_count = sum(1 for r in results if r.get("reason") in ("banned", "user_deactivated", "send_failed"))
     dead_count = sum(1 for r in results if r.get("reason") == "not_authorized")
     error_count = sum(1 for r in results if r.get("reason") == "error")
+    logger.info(f"[ALIVE] Done: {len(results)} checked — {alive_count} alive, {frozen_count} frozen, {banned_count} banned, {dead_count} dead, {error_count} errors")
     return {"total": len(results), "alive": alive_count, "frozen": frozen_count, "banned": banned_count, "dead": dead_count, "errors": error_count, "results": results}
 
 
