@@ -519,9 +519,7 @@ export function InboxV2Page() {
                   {/* Messages — grouped with tails */}
                   {group.msgs.map((msg, mi) => {
                     const isOut = msg.direction === 'outbound';
-                    const prev = group.msgs[mi - 1];
                     const next = group.msgs[mi + 1];
-                    const sameDirPrev = prev && prev.direction === msg.direction;
                     const sameDirNext = next && next.direction === msg.direction;
                     const isLast = !sameDirNext;
                     const spacing = isLast ? 'tg-bubble-group-last' : 'tg-bubble-group-mid';
