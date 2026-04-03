@@ -5039,9 +5039,12 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
       } catch (e: any) {
         if (!cancelled) {
           setMessages([]);
+          const status = e?.response?.status;
           const detail = e?.response?.data?.detail || 'Failed to load messages';
-          if (detail.includes('connect')) {
-            toast('Account session expired — cannot load messages. Re-authorize the account.', 'error');
+          if (status === 401) {
+            toast('Session expired — re-authorize the account.', 'error');
+          } else if (status === 503) {
+            toast('Connection error — please try again.', 'error');
           } else {
             toast(detail, 'error');
           }

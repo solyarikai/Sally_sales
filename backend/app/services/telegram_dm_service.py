@@ -224,7 +224,11 @@ class TelegramDMService:
 
                 if not await client.is_user_authorized():
                     logger.warning(f"Account {account_id}: session not authorized")
-                    return False
+                    try:
+                        await client.disconnect()
+                    except Exception:
+                        pass
+                    raise AuthKeyUnregisteredError()
 
                 self._clients[account_id] = client
                 me = await client.get_me()

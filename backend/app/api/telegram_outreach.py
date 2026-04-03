@@ -6742,6 +6742,7 @@ async def get_dialog_messages(
     session: AsyncSession = Depends(get_session),
 ):
     """Fetch real messages from Telegram for a dialog via telegram_dm_service."""
+    from telethon.errors import AuthKeyUnregisteredError, SessionRevokedError, UserDeactivatedBanError
     dialog = await session.get(TgInboxDialog, dialog_id)
     if not dialog:
         raise HTTPException(404, "Dialog not found")
@@ -6779,7 +6780,12 @@ async def get_dialog_messages(
         if not already_connected:
             ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
             if not ok:
-                raise HTTPException(500, "Failed to connect account")
+                # Retry once for temporary connection failures (network/proxy)
+                import asyncio as _aio
+                await _aio.sleep(2)
+                ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
+                if not ok:
+                    raise HTTPException(503, "Temporary connection error — please try again")
 
         messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit)
 
@@ -6849,6 +6855,13 @@ async def get_dialog_messages(
         }
     except HTTPException:
         raise
+    except (AuthKeyUnregisteredError, SessionRevokedError, UserDeactivatedBanError):
+        try:
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(account.id)
+        except Exception:
+            pass
+        raise HTTPException(401, "Session expired — re-authorize the account")
     except Exception as e:
         try:
             if not already_connected:
@@ -6893,6 +6906,7 @@ async def send_dialog_message(
     session: AsyncSession = Depends(get_session),
 ):
     """Send a message in a dialog via telegram_dm_service."""
+    from telethon.errors import AuthKeyUnregisteredError, SessionRevokedError, UserDeactivatedBanError
     text = (body.get("text") or "").strip()
     if not text:
         raise HTTPException(400, "Message text required")
@@ -6941,6 +6955,13 @@ async def send_dialog_message(
         return result
     except HTTPException:
         raise
+    except (AuthKeyUnregisteredError, SessionRevokedError, UserDeactivatedBanError):
+        try:
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(account.id)
+        except Exception:
+            pass
+        raise HTTPException(401, "Session expired — re-authorize the account")
     except Exception as e:
         try:
             if not already_connected:
@@ -6960,6 +6981,7 @@ async def send_dialog_file(
     session: AsyncSession = Depends(get_session),
 ):
     """Send a file/media in a dialog via telegram_dm_service."""
+    from telethon.errors import AuthKeyUnregisteredError, SessionRevokedError, UserDeactivatedBanError
     import os, tempfile, shutil
 
     dialog = await session.get(TgInboxDialog, dialog_id)
@@ -7014,6 +7036,13 @@ async def send_dialog_file(
         return result
     except HTTPException:
         raise
+    except (AuthKeyUnregisteredError, SessionRevokedError, UserDeactivatedBanError):
+        try:
+            if not already_connected:
+                await telegram_dm_service.disconnect_account(account.id)
+        except Exception:
+            pass
+        raise HTTPException(401, "Session expired — re-authorize the account")
     except Exception as e:
         try:
             if not already_connected:
