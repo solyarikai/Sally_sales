@@ -1303,7 +1303,7 @@ def _map_apollo_person(person: dict, targets_by_domain: dict, config: ProjectCon
     }
 
 
-def step10_apollo_people_search(config: ProjectConfig, targets: list[dict],
+def step9_people_search(config: ProjectConfig, targets: list[dict],
                                  force: bool = False) -> list[dict]:
     """Search Apollo People UI for contacts at target companies (automated)."""
     contacts_file = config.state_dir / "contacts.json"
@@ -2472,7 +2472,7 @@ def main():
                 print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
             contacts = all_contacts
         else:
-            contacts = step10_apollo_people_search(config, targets, force=args.force)
+            contacts = step9_people_search(config, targets, force=args.force)
 
         # CP3: approve FindyMail cost before proceeding
         with_li = sum(1 for c in contacts if c.get("linkedin_url") and not c.get("email"))
