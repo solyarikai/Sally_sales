@@ -706,7 +706,7 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 # Clay (A, B, C) → step0_gather() → backend API → run_id
 # Apollo (D) → step0_apollo_companies() → JS scraper → domains → create_batched_runs()
 #
-# Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-10).
+# Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-12).
 # ══════════════════════════════════════════════════════════════════════════════
 
 def step0_gather(config: ProjectConfig, filters: dict, mode: str,
