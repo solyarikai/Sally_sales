@@ -6,7 +6,8 @@ import {
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { telegramOutreachApi } from '../api/telegramOutreach';
-import { getAccounts, TelegramDMAccount } from '../api/telegram';
+import { getAccounts } from '../api/telegram';
+import type { TelegramDMAccount } from '../api/telegram';
 import { useAppStore } from '../store/appStore';
 import { Link } from 'react-router-dom';
 
