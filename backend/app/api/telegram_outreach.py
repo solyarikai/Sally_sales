@@ -6172,7 +6172,7 @@ async def list_inbox_threads(
             reply_stats_sq.c.reply_count,
         )
         .join(TgCampaign, TgRecipient.campaign_id == TgCampaign.id)
-        .outerjoin(TgAccount, TgRecipient.assigned_account_id == TgAccount.id)
+        .join(TgAccount, TgRecipient.assigned_account_id == TgAccount.id)
         .join(reply_stats_sq, TgRecipient.id == reply_stats_sq.c.recipient_id)
         .where(TgRecipient.status == TgRecipientStatus.REPLIED)
     )
@@ -6180,7 +6180,7 @@ async def list_inbox_threads(
     count_query = (
         select(func.count(TgRecipient.id))
         .join(TgCampaign, TgRecipient.campaign_id == TgCampaign.id)
-        .outerjoin(TgAccount, TgRecipient.assigned_account_id == TgAccount.id)
+        .join(TgAccount, TgRecipient.assigned_account_id == TgAccount.id)
         .join(reply_stats_sq, TgRecipient.id == reply_stats_sq.c.recipient_id)
         .where(TgRecipient.status == TgRecipientStatus.REPLIED)
     )
@@ -6473,8 +6473,10 @@ async def list_inbox_accounts(session: AsyncSession = Depends(get_session)):
     response = []
     for a in dm_accounts:
         tg = tg_map.get(a.phone)
-        # Skip accounts whose TgAccount is dead or banned
-        if tg and tg.status in (TgAccountStatus.DEAD, TgAccountStatus.BANNED):
+        # Skip accounts whose TgAccount was deleted or is dead/banned
+        if not tg:
+            continue
+        if tg.status in (TgAccountStatus.DEAD, TgAccountStatus.BANNED):
             continue
         campaign_ids = [cl.campaign_id for cl in tg.campaign_links] if tg else []
         tag_names = [t.name for t in tg.tags] if tg else []
