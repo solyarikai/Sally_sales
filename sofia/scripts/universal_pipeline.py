@@ -1969,7 +1969,7 @@ def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
             print("  Skipping this segment.")
             continue
 
-        # ── 12a: Create campaign ──
+        # ── Create campaign ──
         cid = upload_log.get(seg_name, {}).get("campaign_id")
         if cid:
             print(f"  Campaign already exists: {cid}")
