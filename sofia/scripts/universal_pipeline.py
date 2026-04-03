@@ -1056,7 +1056,7 @@ def step8_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
     """Export approved target companies from backend DB."""
     targets_file = config.state_dir / "targets.json"
     print(f"\n{'='*60}")
-    print(f"STEP 9: Export Targets (project_id={config.project_id})")
+    print(f"STEP 8: EXPORT TARGETS (project_id={config.project_id})")
     print(f"{'='*60}")
 
     if targets_file.exists() and not force:
