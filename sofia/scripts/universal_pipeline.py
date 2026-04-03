@@ -723,7 +723,7 @@ def step0_gather(config: ProjectConfig, filters: dict, mode: str,
     search_mode = "description_keywords (direct)" if has_keywords else "icp_text (AI-mapped)" if has_icp else "unknown"
 
     print(f"\n{'='*60}")
-    print(f"STEP 0: Start Gathering")
+    print(f"STEP 0: GATHERING — Start")
     print(f"  Project: {config.project_name} (ID {config.project_id})")
     print(f"  Mode: {mode}")
     print(f"  Clay search: {search_mode}")
