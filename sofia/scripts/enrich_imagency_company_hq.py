@@ -48,7 +48,7 @@ def search_company(name: str, api_key: str) -> dict | None:
 
     try:
         resp = requests.post(
-            f"{APOLLO_API_URL}/mixed_companies/api_search",
+            f"{APOLLO_API_URL}/mixed_companies/search",
             json=payload,
             headers=headers,
             timeout=15,
