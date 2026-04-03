@@ -215,10 +215,7 @@ class TgCampaign(Base, TimestampMixin):
     )
 
     # Campaign type: one_time (fixed CSV list) or dynamic (CRM segment-based)
-    campaign_type = Column(
-        SQLEnum(TgCampaignType, values_callable=lambda e: [x.value for x in e]),
-        nullable=False, default=TgCampaignType.ONE_TIME,
-    )
+    campaign_type = Column(String(20), nullable=False, default="one_time")
     # Filter criteria for dynamic campaigns (JSON: {logic, filters[]})
     segment_filters = Column(JSONB, nullable=True, default=None)
     segment_last_synced_at = Column(DateTime, nullable=True)
