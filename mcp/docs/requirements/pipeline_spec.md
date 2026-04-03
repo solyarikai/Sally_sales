@@ -200,15 +200,25 @@ Generate 20-30 keywords...
 }
 ```
 
-## 7. APOLLO PROBE
-**File**: `services/filter_intelligence.py:probe_and_scrape()`
-**Input**: Final assembled filters
-**Method**: Apollo API `/organizations/search` (1 credit per call)
-**Output**: `total_available` companies, sample results for preview
+## 7. APOLLO PROBE (per-filter, not all-together)
+**File**: `mcp/dispatcher.py` (inline in tam_gather PREVIEW handler)
+**Method**: Separate probe for each industry tag_id (top 3) and each keyword (top 3)
+**Cost**: 1 credit per probe request (up to 6 total)
+**Why per-filter**: All-together probe gives unreliable totals. Per-filter shows what each keyword/industry contributes.
+
+**Output** (included in preview response as `probe_breakdown`):
+```json
+[
+  {"type": "industry", "name": "financial services", "total": 3200, "companies": 100},
+  {"type": "keyword", "name": "payment gateway", "total": 3199, "companies": 85},
+  {"type": "keyword", "name": "lending platform", "total": 401, "companies": 68}
+]
+```
+Probe companies from all requests are deduped and saved for reuse on confirm (skip page 1).
 
 ## 8. PIPELINE PREVIEW → USER APPROVAL
 **File**: `mcp/dispatcher.py` (tam_gather PREVIEW mode)
-**Shows user**: All keywords, industries, tag_ids, cost estimate, KPIs, pipeline link
+**Shows user**: All keywords, industries, tag_ids, probe breakdown, cost estimate, KPIs, pipeline link
 **Waits for**: User says "Proceed?" → `tam_gather(confirm_filters=true)`
 
 **MCP agent behavior**:
@@ -388,8 +398,8 @@ User input (document or URL)
   │   ├ Step D: Document overrides (locations, funding, size)
   │   └ Step E: Seed tag_id merge (union with filter_mapper)
   │
-  ├─ A11 Classifier (gpt-4o-mini) — informational label only
-  ├─ Apollo Probe (1 page, 1 credit) → total_entries + 100 companies
+  ├─ Apollo Probe (per-filter: 1 industry + 1 keyword per probe, ~6 credits)
+  │   → probe_breakdown: [{type, name, total, companies}]
   └─ Preview response → user confirms → pipeline starts
 ```
 
@@ -443,7 +453,7 @@ Else:
 | Offer feedback merge | gpt-4.1-mini | Update offer from user corrections |
 | Industry selection | gpt-4.1-mini | Pick 2-3 Apollo industries from 84 |
 | Keyword generation | gpt-4.1-mini | Generate 20-30 search keywords (seed-informed) |
-| Industry specificity (A11) | gpt-4o-mini | SPECIFIC vs BROAD label (informational) |
+| Industry seed prioritization | gpt-4o-mini | Select most relevant industries from examples |
 | Classification prompt (Agent #2) | gpt-4.1-mini | Generate via negativa rules from document |
 | Company classification | gpt-4o-mini | Classify each scraped company |
 | 2-pass re-evaluation | gpt-4o | Re-classify on low/medium confidence |
@@ -484,11 +494,21 @@ Show estimated costs BEFORE executing: Apollo credits, Apify GB, OpenAI tokens
 - Shared frontend components via `@main` alias
 - Independent from main leadgen app
 
-### Pipeline UI
+### Pipeline UI (`PipelinePage.tsx`)
 - Status column: new → scraping → scraped → analyzing → target/rejected
 - Segment label column (PAYMENTS, LENDING, etc.)
 - Click row → modal with analysis details
 - Company name normalization stored + passed to SmartLead
+
+### Pipeline Tracking UI (shown per run)
+- **KEYWORD PERFORMANCE** table: each keyword sorted by `new_unique` desc, showing pages, new companies, targets found, target rate, funded flag
+- **INDUSTRY PERFORMANCE** table: each industry_tag_id with same metrics
+- **Pipeline Summary**: total keywords/industries used, credits, overall target rate, KPI status
+
+### Projects UI (`ProjectsPage.tsx`)
+- Per-segment keywords shown under each segment name
+- Seed keywords section with source label (document/examples)
+- Seed industry tag_ids count (from examples)
 
 ---
 
