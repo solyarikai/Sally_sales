@@ -606,6 +606,9 @@ export const telegramOutreachApi = {
   getCrmContactCampaigns: async (id: number) =>
     (await api.get(`${BASE}/crm/contacts/${id}/campaigns`)).data,
 
+  addCrmContactNote: async (contactId: number, text: string) =>
+    (await api.post(`${BASE}/crm/contacts/${contactId}/notes`, { text })).data,
+
   getCrmPipeline: async (params: { search?: string; limit_per_status?: number; project_id?: number } = {}) =>
     (await api.get(`${BASE}/crm/pipeline`, { params })).data,
 

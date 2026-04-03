@@ -5111,6 +5111,41 @@ async def export_campaign_replies(campaign_id: int, session: AsyncSession = Depe
 # ═══════════════════════════════════════════════════════════════════════
 
 from app.models.telegram_outreach import TgContact, TgContactStatus
+import json as _json
+
+
+def _parse_notes(raw) -> list:
+    """Parse notes field — supports both plain text and JSON array."""
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return raw
+    try:
+        parsed = _json.loads(raw)
+        if isinstance(parsed, list):
+            return parsed
+    except (ValueError, TypeError):
+        pass
+    # Legacy plain text — wrap as single note
+    return [{"id": 1, "text": raw, "created_at": "", "author": "system"}] if raw.strip() else []
+
+
+@router.post("/crm/contacts/{contact_id}/notes")
+async def add_crm_contact_note(contact_id: int, body: dict, session: AsyncSession = Depends(get_session)):
+    """Add a note to a CRM contact."""
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, "Note text required")
+    contact = await session.get(TgContact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+    existing = _parse_notes(contact.notes)
+    new_id = max((n.get("id", 0) for n in existing), default=0) + 1
+    note = {"id": new_id, "text": text, "created_at": datetime.utcnow().isoformat(), "author": "user"}
+    existing.insert(0, note)
+    contact.notes = _json.dumps(existing)
+    await session.commit()
+    return note
 
 
 @router.get("/crm/contacts")
@@ -5176,7 +5211,7 @@ async def get_crm_contact(contact_id: int, session: AsyncSession = Depends(get_s
     return {
         "id": contact.id, "username": contact.username, "first_name": contact.first_name,
         "last_name": contact.last_name, "company_name": contact.company_name, "phone": contact.phone,
-        "status": contact.status.value, "tags": contact.tags or [], "notes": contact.notes,
+        "status": contact.status.value, "tags": contact.tags or [], "notes": _parse_notes(contact.notes),
         "custom_data": contact.custom_data or {}, "campaigns": contact.campaigns or [],
         "total_messages_sent": contact.total_messages_sent, "total_replies_received": contact.total_replies_received,
         "first_contacted_at": contact.first_contacted_at.isoformat() if contact.first_contacted_at else None,
@@ -6858,7 +6893,7 @@ async def get_dialog_crm(dialog_id: int, session: AsyncSession = Depends(get_ses
         "phone": contact.phone,
         "status": contact.status.value if hasattr(contact.status, "value") else contact.status,
         "tags": contact.tags or [],
-        "notes": contact.notes,
+        "notes": _parse_notes(contact.notes),
         "custom_data": contact.custom_data or {},
         "campaigns": contact.campaigns or [],
         "total_messages_sent": contact.total_messages_sent or 0,
