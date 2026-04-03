@@ -2320,11 +2320,12 @@ function TimelineTab({ campaignId, t: _t, toast }: TabProps & { campaignId: numb
                       {cell.status !== 'pending' && (
                         <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block">
                           <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
-                            {cell.sent_at && <div>Sent: {formatTimelineDate(cell.sent_at)}</div>}
+                            {cell.status === 'scheduled' && cell.sent_at && <div>Scheduled: {formatTimelineDate(cell.sent_at)}</div>}
+                            {cell.status === 'failed' && cell.sent_at && <div>Failed: {formatTimelineDate(cell.sent_at)}</div>}
+                            {cell.status !== 'scheduled' && cell.status !== 'failed' && cell.sent_at && <div>Sent: {formatTimelineDate(cell.sent_at)}</div>}
                             {cell.read_at && <div>Read: {formatTimelineDate(cell.read_at)}</div>}
                             {cell.replied_at && <div>Replied: {formatTimelineDate(cell.replied_at)}</div>}
                             {cell.error_message && <div className="text-red-300">Error: {cell.error_message}</div>}
-                            {cell.status === 'scheduled' && cell.sent_at && <div>Scheduled: {formatTimelineDate(cell.sent_at)}</div>}
                           </div>
                         </div>
                       )}
