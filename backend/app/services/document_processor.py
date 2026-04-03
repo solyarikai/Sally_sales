@@ -6,7 +6,13 @@ from typing import List, Optional
 from openai import AsyncOpenAI
 from app.core.config import settings
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+_client = None
+
+def _get_client():
+    global _client
+    if _client is None:
+        _client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return _client
 
 
 async def process_document(content: bytes, filename: str, content_type: Optional[str] = None) -> dict:
@@ -120,7 +126,7 @@ async def convert_to_markdown(text: str, filename: str) -> str:
         text = text[:max_chars] + "\n\n[... truncated ...]"
     
     try:
-        response = await client.chat.completions.create(
+        response = await _get_client().chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
@@ -168,7 +174,7 @@ async def generate_company_summary(documents_md: List[str]) -> str:
         combined = combined[:max_chars] + "\n\n[... additional content truncated ...]"
     
     try:
-        response = await client.chat.completions.create(
+        response = await _get_client().chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
