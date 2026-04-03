@@ -717,7 +717,7 @@ export function InboxV2Page() {
                 >
                   {(crmData.status || 'new').replace('_', ' ')}
                 </span>
-                {crmData.tags.length > 0 && (
+                {crmData.tags && crmData.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {crmData.tags.map((tag, i) => (
                       <span key={i} className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: t.badgeBg, color: t.text3 }}>
@@ -740,7 +740,7 @@ export function InboxV2Page() {
               </div>
 
               {/* Campaign history */}
-              {crmData.campaigns.length > 0 && (
+              {crmData.campaigns && crmData.campaigns.length > 0 && (
                 <div className="px-4 py-3" style={{ borderBottom: `1px solid ${borderColor}` }}>
                   <div className="flex items-center gap-2 mb-2">
                     <Hash className="w-3.5 h-3.5" style={{ color: t.text4 }} />
@@ -784,7 +784,7 @@ export function InboxV2Page() {
                     Add
                   </button>
                 </div>
-                {crmData.notes.length > 0 && (
+                {crmData.notes && crmData.notes.length > 0 && (
                   <div className="space-y-1.5 max-h-40 overflow-y-auto">
                     {crmData.notes.map(n => (
                       <div key={n.id} className="text-xs px-2 py-1.5 rounded" style={{ background: isDark ? '#1C2733' : '#F5F5F5' }}>
@@ -796,7 +796,7 @@ export function InboxV2Page() {
                     ))}
                   </div>
                 )}
-                {crmData.notes.length === 0 && (
+                {(!crmData.notes || crmData.notes.length === 0) && (
                   <div className="text-[11px]" style={{ color: t.text5 }}>No notes yet</div>
                 )}
               </div>
