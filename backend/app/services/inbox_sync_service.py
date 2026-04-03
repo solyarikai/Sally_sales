@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.telegram_outreach import (
-    TgInboxDialog, TgRecipient, TgAccount, TgOutreachMessage, TgProxy,
+    TgInboxDialog, TgRecipient, TgAccount, TgAccountStatus, TgOutreachMessage, TgProxy,
 )
 from app.models.telegram_dm import TelegramDMAccount
 from app.services.telegram_dm_service import telegram_dm_service
@@ -47,6 +47,11 @@ class InboxSyncService:
             row = tg_result.first()
             if row:
                 tg_account_id = row[0]
+                # Skip syncing dialogs for inactive accounts
+                tg_acc_obj = await session.get(TgAccount, tg_account_id)
+                if tg_acc_obj and tg_acc_obj.status in (TgAccountStatus.DEAD, TgAccountStatus.BANNED, TgAccountStatus.FROZEN):
+                    logger.debug(f"Inbox sync: TgAccount {tg_account_id} status={tg_acc_obj.status.value}, skipping")
+                    return 0
         if not tg_account_id:
             if not account.phone:
                 logger.warning(f"Inbox sync: account {account_id} has no phone — cannot sync")

@@ -6330,6 +6330,12 @@ async def list_inbox_dialogs(
     query = select(TgInboxDialog).order_by(TgInboxDialog.last_message_at.desc().nullslast())
     count_q = select(func.count(TgInboxDialog.id))
 
+    # Filter out dialogs from inactive/deleted/banned accounts (magnum-e15.14)
+    inactive_statuses = [TgAccountStatus.DEAD, TgAccountStatus.BANNED, TgAccountStatus.FROZEN]
+    inactive_sub = select(TgAccount.id).where(TgAccount.status.in_(inactive_statuses))
+    query = query.where(TgInboxDialog.account_id.notin_(inactive_sub))
+    count_q = count_q.where(TgInboxDialog.account_id.notin_(inactive_sub))
+
     if account_id:
         # Dialogs are stored with DM account IDs (from inbox_sync_service).
         # Also include TG outreach account IDs (via phone) for backwards compat.
