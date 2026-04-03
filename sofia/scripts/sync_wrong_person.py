@@ -72,18 +72,19 @@ def fetch_smartlead_campaigns():
     return camps
 
 
-def find_wrong_person_campaign(camps: list, project: str) -> int:
+def find_wrong_person_campaign(camps: list, project: str) -> tuple:
     """
     Auto-discover WRONG-PERSON referral campaign in SmartLead.
     Matches campaign name containing project name + 'WRONG' + 'PERSON'.
+    Returns (campaign_id, campaign_name) or (0, '').
     """
     project_upper = project.upper()
     for c in camps:
         name_upper = c.get('name', '').upper()
         if project_upper in name_upper and 'WRONG' in name_upper and 'PERSON' in name_upper:
             logger.info(f"Auto-discovered destination: {c['name']} (id={c['id']})")
-            return c['id']
-    return 0
+            return c['id'], c['name']
+    return 0, ''
 
 
 def find_project_campaign_names(camps: list, project: str) -> list:
@@ -310,7 +311,7 @@ def mark_as_processed(reply_ids: list, campaign_id: int):
             conn.close()
 
 
-def send_telegram_notification(stats: dict, leads: list, project: str, campaign_id: int, chat_id: str):
+def send_telegram_notification(stats: dict, leads: list, project: str, campaign_id: int, campaign_name: str, chat_id: str):
     """Send execution report to Telegram."""
     if not TELEGRAM_BOT_TOKEN or not chat_id:
         logger.warning("Telegram config missing, skipping notification")
@@ -326,7 +327,7 @@ def send_telegram_notification(stats: dict, leads: list, project: str, campaign_
                 f"\U0001f4cb Project: {project}\n"
                 f"No new Wrong Person replies to sync.\n"
                 f"\n"
-                f"\U0001f3af Destination: campaign {campaign_id}"
+                f"\U0001f3af Destination: {campaign_name}"
             )
         else:
             emoji = "\U0001f534" if stats['failed'] > 0 else "\U0001f7e1"
@@ -370,8 +371,8 @@ def send_telegram_notification(stats: dict, leads: list, project: str, campaign_
         logger.error(f"Telegram notification failed: {e}")
 
 
-def sync_project(project: str, campaign_id: int, campaign_names: list,
-                  chat_id: str, dry_run: bool) -> dict:
+def sync_project(project: str, campaign_id: int, dest_campaign_name: str,
+                  campaign_names: list, chat_id: str, dry_run: bool) -> dict:
     """Sync Wrong Person leads for a single project. Returns stats dict."""
     logger.info("=" * 60)
     logger.info(f"Syncing Wrong Person: {project}")
@@ -390,7 +391,7 @@ def sync_project(project: str, campaign_id: int, campaign_names: list,
     if not leads:
         logger.info("No leads to process")
         if not dry_run:
-            send_telegram_notification({'added': 0, 'failed': 0, 'errors': []}, [], project, campaign_id, chat_id)
+            send_telegram_notification({'added': 0, 'failed': 0, 'errors': []}, [], project, campaign_id, dest_campaign_name, chat_id)
         return {'project': project, 'found': 0, 'added': 0, 'failed': 0}
 
     # 2. Log what we found
@@ -414,7 +415,7 @@ def sync_project(project: str, campaign_id: int, campaign_names: list,
         mark_as_processed(reply_ids, campaign_id)
 
     # 5. Send notification
-    send_telegram_notification(stats, leads, project, campaign_id, chat_id)
+    send_telegram_notification(stats, leads, project, campaign_id, dest_campaign_name, chat_id)
 
     return {'project': project, 'found': len(leads), 'added': stats['added'], 'failed': stats['failed']}
 
@@ -439,20 +440,29 @@ def main():
 
     # Find destination WRONG-PERSON campaign
     campaign_id = args.campaign_id
+    dest_name = ''
     if not campaign_id:
-        campaign_id = find_wrong_person_campaign(camps, args.project)
+        campaign_id, dest_name = find_wrong_person_campaign(camps, args.project)
         if not campaign_id:
             logger.error(f"No WRONG-PERSON campaign found for project '{args.project}'. "
                          f"Create a campaign named like c-{args.project}_WRONG-PERSON-referral "
                          f"or pass --campaign-id explicitly.")
             return
+    else:
+        # Manual campaign-id: look up name
+        for c in camps:
+            if c.get('id') == campaign_id:
+                dest_name = c.get('name', '')
+                break
+        if not dest_name:
+            dest_name = f"campaign {campaign_id}"
 
     # Find all source campaigns for this project (by name)
     campaign_names = find_project_campaign_names(camps, args.project)
     if not campaign_names:
         logger.warning(f"No source campaigns found for project '{args.project}'")
 
-    sync_project(args.project, campaign_id, campaign_names, args.chat_id, args.dry_run)
+    sync_project(args.project, campaign_id, dest_name, campaign_names, args.chat_id, args.dry_run)
 
 
 if __name__ == '__main__':
