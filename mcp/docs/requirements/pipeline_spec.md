@@ -221,39 +221,86 @@ Generate 20-30 keywords...
 **File**: `services/streaming_pipeline.py`
 **Runs in background after user confirms**
 
-### Parallel Streams (all launched simultaneously)
+### Critical Apollo Discovery: 1 Filter Per Request (verified 2026-04-03)
+
+Apollo's internal ranking picks ~100 "best matches" per page. Combining multiple keywords/industries in one request causes Apollo to rank by overall relevance, hiding companies that match only ONE specific keyword.
+
+**Keywords** (10 fintech keywords, US, 20-500 emp, 5 pages each):
+| Strategy | Unique Domains | Credits |
+|----------|---------|---------|
+| Each keyword alone (10×5p) | **930** | 50 |
+| All 10 together (1×5p) | **126** | 5 |
+| Single-only (missed by together) | **904** | — |
+
+**Industry tag_ids** (3 fintech industries, same filters):
+| Strategy | Unique Domains | Credits |
+|----------|---------|---------|
+| Each tag alone (3×5p) | **753** | 15 |
+| All 3 together (1×5p) | **204** | 5 |
+| Single-only (missed by together) | **614** | — |
+
+**Rule: ALWAYS use 1 keyword or 1 industry_tag_id per Apollo request.** Never combine.
+
+### Per-Step KPIs (measured by real company counts, not Apollo totals)
+
+Apollo's `total_entries` is unreliable (reports 10K, returns ~130 in 5 pages). All KPIs use actual deduped company counts.
+
+| Step | KPI | Concurrency |
+|------|-----|-------------|
+| **Apollo Gatherer** | 400 unique companies per round | 1 request per keyword/industry, all in parallel |
+| **Apify Scraper** | Process all incoming ASAP | 100 concurrent |
+| **GPT Classifier** | Process all scraped ASAP | 100 concurrent |
+| **People Extractor** | Extract from confirmed targets | 20 concurrent |
+| **Pipeline Controller** | **100 people** (default) | Checks after each round |
+
+### Flow: Lazy Keyword Batching with Early Stopping
+
 ```
-streams = []
+GPT generates 20-30 keywords + picks 2-3 industries (with tag_ids)
 
-# Prioritization: funded streams (if funding filter provided)
-if has_funding:
-    L0_kw_funded   → keywords + funding + geo + size    (best: funded + relevant)
-    L0_ind_funded  → industry_tag_ids + funding + geo + size  (best: funded + broad)
+ROUND 1 — All in parallel:
+  Keyword requests: keywords[0:N] × 1 keyword per request (N parallel)
+  Industry requests: tag_ids[0:M] × 1 tag_id per request (M parallel)
+  (If funding: funded variants of ALL above run simultaneously)
+  → All feed shared dedup set (seen_domains)
+  → Stop adding new requests when 400 unique companies reached
+  → Apify + GPT process companies as they arrive (streaming)
 
-# Mandatory: always run
-L1_keywords    → keywords + geo + size              (broad coverage)
-L1_industry    → industry_tag_ids + geo + size       (precise, good pagination)
+WAIT: All 400 scraped + classified
 
-# All run via asyncio.gather — pipeline deduplicates by domain
-# KPI flag stops ALL streams when target reached
+CHECK:
+  Enough targets for 100 people?
+  YES → extract people → push SmartLead → DONE
+  NO  → ROUND 2: keywords[N:P] (next batch)
+  
+REPEAT until KPI met or all keywords exhausted
 ```
 
-**Apollo rule**: `industry_tag_ids` and `keywords` are NEVER combined in the same API call (they AND together = near-zero results). Each stream uses one or the other.
+### Per-Request Tracking (stored in gathering_run metadata)
+
+Every Apollo API request tracked with: type (keyword/industry), filter_value, round, funded flag, raw_returned, new_unique, duplicates, credits_used, timestamp.
+
+Per-keyword and per-industry aggregated stats: pages_fetched, raw_companies, new_unique, targets_found, target_rate, credits_used.
+
+Each DiscoveredCompany tracks: found_by (which keywords/industries), found_in_round, funded_stream.
+
+Pipeline-level summary: rounds_completed, total_credits, keywords_used vs available, KPI status.
 
 ### Phase 1: Gather
-- Apollo API pages (100 companies/page, parallel batches)
-- ~56-85 unique companies per page (Apollo pagination is inconsistent with keywords)
-- ~100 unique companies per page with industry_tag_ids (consistent)
-- Stores as `DiscoveredCompany` records
-- Cross-page dedup by domain (~5% duplicates)
+- 1 keyword per Apollo request, all keywords in parallel
+- 1 industry_tag_id per Apollo request, all industries in parallel
+- Global dedup by domain across all streams
+- Stop when 400 unique companies in round
+- Track which keyword/industry found each company
 
 ### Phase 2: Scrape
-- Website content via Apify residential proxy (50 concurrent)
+- Website content via Apify residential proxy (100 concurrent)
 - BeautifulSoup HTML → clean text
 - Stored as `CompanyScrape` records
+- Streaming: processes companies as they arrive from Apollo
 
 ### Phase 3: Classify (via negativa)
-**Model**: `gpt-4o-mini` (50 concurrent)
+**Model**: `gpt-4o-mini` (100 concurrent)
 **Prompt**: Analyzes scraped website content against project's ICP
 **Method**: Via negativa — focuses on EXCLUDING non-matches
 **Output per company**:
@@ -261,6 +308,7 @@ L1_industry    → industry_tag_ids + geo + size       (precise, good pagination
 - `confidence`: 0-100
 - `segment`: CAPS_LOCKED label (PAYMENTS, LENDING, etc.)
 - `reasoning`: Why target/not-target
+- Streaming: classifies companies as they're scraped
 
 **Cost**: ~$0.003 per company ($0.07 per 300 companies)
 
