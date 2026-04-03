@@ -6,6 +6,7 @@ import {
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { telegramOutreachApi } from '../api/telegramOutreach';
+import { getAccounts, TelegramDMAccount } from '../api/telegram';
 import { useAppStore } from '../store/appStore';
 import { Link } from 'react-router-dom';
 
@@ -245,6 +246,8 @@ export function InboxV2Page() {
   const [sending, setSending] = useState(false);
   const [search, setSearch] = useState('');
   const [filterTag, setFilterTag] = useState('');
+  const [filterAccountId, setFilterAccountId] = useState<number | ''>('');
+  const [accounts, setAccounts] = useState<TelegramDMAccount[]>([]);
   const [loading, setLoading] = useState({ dialogs: true, messages: false });
   const [crmData, setCrmData] = useState<CrmInfo | null>(null);
   const [crmLoading, setCrmLoading] = useState(false);
@@ -258,6 +261,11 @@ export function InboxV2Page() {
   const prevMsgCount = useRef(0);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
+  /* ── load accounts ── */
+  useEffect(() => {
+    getAccounts().then(setAccounts).catch(() => {});
+  }, []);
+
   /* ── load dialogs ── */
   const loadDialogs = useCallback(async (silent = false) => {
     if (dialogPollRef.current) return;
@@ -267,13 +275,14 @@ export function InboxV2Page() {
       const params: any = { page_size: 100 };
       if (search) params.search = search;
       if (filterTag) params.tag = filterTag;
+      if (filterAccountId) params.account_id = filterAccountId;
       if (currentProject?.id) params.project_id = currentProject.id;
       const data = await telegramOutreachApi.listInboxDialogs(params);
       setDialogs(data.items || data.dialogs || data || []);
     } catch { /* silent */ }
     if (!silent) setLoading(l => ({ ...l, dialogs: false }));
     dialogPollRef.current = false;
-  }, [search, filterTag, currentProject?.id]);
+  }, [search, filterTag, filterAccountId, currentProject?.id]);
 
   useEffect(() => { loadDialogs(); }, [loadDialogs]);
 
@@ -401,6 +410,23 @@ export function InboxV2Page() {
               style={{ background: searchBg, color: t.text1 }}
             />
           </div>
+          {/* Account filter */}
+          {accounts.length > 0 && (
+            <select
+              value={filterAccountId}
+              onChange={e => setFilterAccountId(e.target.value ? Number(e.target.value) : '')}
+              className="w-full mt-2 px-2 py-1 rounded-lg text-xs outline-none appearance-none cursor-pointer"
+              style={{ background: searchBg, color: t.text1, border: 'none' }}
+            >
+              <option value="">All accounts</option>
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.first_name || acc.username || acc.phone || `#${acc.id}`}
+                  {acc.phone ? ` (${acc.phone})` : ''}
+                </option>
+              ))}
+            </select>
+          )}
           {/* Tag filters */}
           <div className="flex gap-1 mt-2 overflow-x-auto pb-0.5">
             {['', 'interested', 'not_interested', 'meeting_booked', 'follow_up'].map(tag => (
