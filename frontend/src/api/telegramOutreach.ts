@@ -720,6 +720,9 @@ export const telegramOutreachApi = {
     })).data;
   },
 
+  editDialogMessage: async (dialogId: number, msgId: number, text: string, parseMode?: string) =>
+    (await api.put(`${BASE}/inbox/dialogs/${dialogId}/messages/${msgId}/edit`, { text, parseMode })).data,
+
   deleteDialogMessage: async (dialogId: number, msgId: number, revoke: boolean = false) =>
     (await api.delete(`${BASE}/inbox/dialogs/${dialogId}/messages/${msgId}`, { params: { revoke } })).data,
 
