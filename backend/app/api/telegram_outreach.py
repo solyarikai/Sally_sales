@@ -4583,7 +4583,7 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                 except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
                     frozen = True
                 except _terr.FloodWaitError:
-                    pass  # not a ban
+                    frozen = True  # FloodWait on self-message = restricted account
                 except Exception as e:
                     err_str = str(e).lower()
                     if "deactivated" in err_str or "banned" in err_str:
