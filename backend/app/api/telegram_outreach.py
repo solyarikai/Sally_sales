@@ -4719,8 +4719,8 @@ async def bulk_check_live(data: TgBulkAccountIds, session: AsyncSession = Depend
 
 @router.post("/accounts/bulk-check-alive")
 async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
-    """Quick alive check — only connect + is_authorized. No spamblock check (safe to run often).
-    Also fetches telegram_user_id and estimates account age if missing."""
+    """Alive check: connect + auth + self-message test + SpamBot check.
+    Detects frozen/spamblocked/banned accounts. Also fetches telegram_user_id and estimates account age."""
     results = []
     for aid in data.account_ids:
         try:
@@ -4793,8 +4793,87 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                     account.spamblock_type = TgSpamblockType.TEMPORARY
                     results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "frozen"})
                 else:
-                    account.status = TgAccountStatus.ACTIVE if account.spamblock_type == TgSpamblockType.NONE else account.status
-                    results.append({"account_id": aid, "phone": account.phone, "alive": True})
+                    # ── SpamBot check: detect spamblock/frozen that self-msg missed ──
+                    spamblock_detected = False
+                    spamblock_reason = None
+                    try:
+                        spambot = await client.get_entity("@SpamBot")
+                        await client.send_message(spambot, "/start")
+                        await _asyncio.sleep(2)
+                        messages = await client.get_messages(spambot, limit=1)
+                        if messages:
+                            text = messages[0].text or ""
+                            text_lower = text.lower()
+                            no_limit_kw = [
+                                "no limits", "free as a bird", "not limited",
+                                "не ограничен", "всё хорошо", "нет ограничений",
+                            ]
+                            temp_kw = [
+                                "temporary", "will be removed", "will be lifted",
+                                "временно", "будет снято", "будет автоматически",
+                            ]
+                            perm_kw = [
+                                "permanent", "forever",
+                                "навсегда", "навечно",
+                            ]
+                            restricted_kw = [
+                                "limited", "restricted", "frozen",
+                                "ограничен", "заморожен", "заблокирован",
+                            ]
+                            if any(kw in text_lower for kw in no_limit_kw):
+                                account.spamblock_type = TgSpamblockType.NONE
+                            elif any(kw in text_lower for kw in temp_kw):
+                                spamblock_detected = True
+                                account.status = TgAccountStatus.SPAMBLOCKED
+                                account.spamblock_type = TgSpamblockType.TEMPORARY
+                                spamblock_reason = "spamblocked"
+                                date_match = _re.search(
+                                    r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
+                                    r'|(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
+                                    r'|(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})',
+                                    text, _re.IGNORECASE
+                                )
+                                if date_match:
+                                    try:
+                                        from dateutil import parser as dateparser
+                                        account.spamblock_end = dateparser.parse(date_match.group(0))
+                                    except Exception:
+                                        pass
+                                logger.warning(f"[ALIVE] {account.phone} spamblocked (temporary) — SpamBot: {text[:200]}")
+                            elif any(kw in text_lower for kw in perm_kw):
+                                spamblock_detected = True
+                                account.status = TgAccountStatus.BANNED
+                                account.spamblock_type = TgSpamblockType.PERMANENT
+                                spamblock_reason = "banned"
+                                logger.warning(f"[ALIVE] {account.phone} permanent spamblock — SpamBot: {text[:200]}")
+                            elif any(kw in text_lower for kw in restricted_kw):
+                                spamblock_detected = True
+                                account.status = TgAccountStatus.FROZEN
+                                account.spamblock_type = TgSpamblockType.TEMPORARY
+                                spamblock_reason = "frozen"
+                                logger.warning(f"[ALIVE] {account.phone} frozen/restricted — SpamBot: {text[:200]}")
+                        # Clean up SpamBot dialog
+                        try:
+                            import random
+                            await _asyncio.sleep(random.uniform(1, 3))
+                            await client.delete_dialog(spambot)
+                        except Exception:
+                            pass
+                    except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
+                        spamblock_detected = True
+                        spamblock_reason = "frozen"
+                        account.status = TgAccountStatus.FROZEN
+                        account.spamblock_type = TgSpamblockType.TEMPORARY
+                        logger.warning(f"[ALIVE] {account.phone} frozen — cannot message SpamBot")
+                    except Exception as e:
+                        logger.warning(f"[ALIVE] {account.phone} SpamBot check failed: {e}")
+
+                    if spamblock_detected:
+                        results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": spamblock_reason})
+                    else:
+                        account.status = TgAccountStatus.ACTIVE
+                        account.spamblock_type = TgSpamblockType.NONE
+                        results.append({"account_id": aid, "phone": account.phone, "alive": True})
             else:
                 account.status = TgAccountStatus.DEAD
                 results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "not_authorized"})
@@ -4806,11 +4885,12 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
 
     alive_count = sum(1 for r in results if r.get("alive"))
     frozen_count = sum(1 for r in results if r.get("reason") == "frozen")
+    spamblocked_count = sum(1 for r in results if r.get("reason") == "spamblocked")
     banned_count = sum(1 for r in results if r.get("reason") in ("banned", "user_deactivated", "send_failed"))
     dead_count = sum(1 for r in results if r.get("reason") == "not_authorized")
     error_count = sum(1 for r in results if r.get("reason") == "error")
-    logger.info(f"[ALIVE] Done: {len(results)} checked — {alive_count} alive, {frozen_count} frozen, {banned_count} banned, {dead_count} dead, {error_count} errors")
-    return {"total": len(results), "alive": alive_count, "frozen": frozen_count, "banned": banned_count, "dead": dead_count, "errors": error_count, "results": results}
+    logger.info(f"[ALIVE] Done: {len(results)} checked — {alive_count} alive, {frozen_count} frozen, {spamblocked_count} spamblocked, {banned_count} banned, {dead_count} dead, {error_count} errors")
+    return {"total": len(results), "alive": alive_count, "frozen": frozen_count + spamblocked_count, "banned": banned_count, "dead": dead_count, "errors": error_count, "results": results}
 
 
 # ── Profile update ────────────────────────────────────────────────────
