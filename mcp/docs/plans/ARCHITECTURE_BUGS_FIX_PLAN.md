@@ -2,7 +2,7 @@
 
 Cross-referenced against: `pipeline_spec.md`, `DOCUMENT_BASED_FLOW.md`, `REALITY_TEST_PLAN_20260330.md`, `FUNDING_FILTER_TESTING.md`.
 
-**ALL BUGS FIXED. Only Apollo API and MCP protocol limitations remain (not fixable in our code).**
+**Updated 2026-04-03: New gaps found after 1-filter-per-request pipeline rewrite.**
 
 ---
 
@@ -26,6 +26,61 @@ Cross-referenced against: `pipeline_spec.md`, `DOCUMENT_BASED_FLOW.md`, `REALITY
 | **Bug #5** | Scraper 590 failures | 590 in retry list + direct fetch fallback. |
 | **Bug #9** | Hardcoded classification | Dynamic prompts from document extraction + GPT agent #2. |
 | **C-7** | Probe page accounting — `run.pages_fetched` set to `max_pages` (10) instead of 1, causing streaming pipeline to skip pages 2-10 | Fixed: `run.pages_fetched = probe_page_done` (actual pages fetched by probe). Pipeline now starts from page 2 correctly. |
+
+---
+
+## OPEN BUGS (from Apr 3 pipeline rewrite)
+
+### C-8: `_current_source` Race Condition — CRITICAL
+**File**: `streaming_pipeline.py` line 529
+**Problem**: Multiple `_run_single_filter` coroutines run in parallel via `asyncio.gather`. All write to `self._current_source`. When `_ingest_page_results` reads it, it gets the WRONG source because another coroutine overwrote it.
+**Impact**: Companies tagged with wrong `found_by` keyword/industry. Per-keyword `targets_found` stats are inaccurate.
+**Fix**: Pass `source_info` dict as parameter through `_fetch_pages_parallel` → `_ingest_page_results` instead of using shared instance variable.
+
+### C-9: Exclusion logic missing competitor conquest warning on production
+**File**: Production `document_extractor.py` line 48
+**Problem**: Prompt says `exclusion_list: company types to NOT target` without warning about competitor conquest sequences. GPT may extract Belkins/CIENCE as exclusions when the document intends them as targets for conquest.
+**Fix**: Add to exclusion_list prompt: "If the document describes targeting users of competing vendors (competitor conquest), those are TARGETS, not exclusions."
+
+### M-7: PipelinePage explanation text references removed systems
+**File**: `PipelinePage.tsx` lines 769-776
+**Problem**: References "AI classifier" (A11 — removed), "112 industry categories" (now 84), "20 consecutive pages" (now LOW_YIELD_THRESHOLD=10), "keywords_first strategy" (no longer exists as a named strategy).
+**Fix**: Update text to reflect current architecture: 84 industries, 1-filter-per-request parallel, per-keyword tracking.
+
+### M-8: `_level_stats` dead code in PipelinePage
+**File**: `PipelinePage.tsx` lines 751-767
+**Problem**: "CASCADE LEVELS" section reads from `run.filters._level_stats` which is no longer populated. The new `_run_single_filter` architecture stores `keyword_stats` and `industry_stats` instead.
+**Fix**: Remove dead `_level_stats` display. Already replaced by KEYWORD PERFORMANCE and INDUSTRY PERFORMANCE tables.
+
+### m-5: `_wait_for_processing` doesn't track in-flight tasks
+**File**: `streaming_pipeline.py` lines 566-580
+**Problem**: Checks `queue.qsize() == 0` but workers may have dequeued items still being processed. Method returns "done" prematurely.
+**Impact**: Low — may cause premature round transitions where KPI check sees stale target counts.
+**Fix**: Track in-flight count with atomic counter: increment on dequeue, decrement on task completion.
+
+---
+
+## SPEC GAPS (requirements docs outdated, not code bugs)
+
+### GAP-1: REALITY_TEST_PLAN checkpoint flow is obsolete
+**Source**: REALITY_TEST_PLAN Phase 4 Tests 4.1-4.4
+**Issue**: Describes manual tam_blacklist_check → checkpoint → approve flow. Replaced by auto-pipeline streaming.
+**Action**: Update REALITY_TEST_PLAN to reflect auto-pipeline architecture.
+
+### GAP-2: REALITY_TEST_PLAN iteration selector is obsolete
+**Source**: REALITY_TEST_PLAN Phase 7 Tests 7.1-7.8
+**Issue**: Describes pipeline_iterations table + iteration selector UI. Replaced by round-based gathering with keyword/industry performance tracking.
+**Action**: Update REALITY_TEST_PLAN Phase 7 to describe keyword/industry stats UI instead.
+
+### GAP-3: REALITY_TEST_PLAN references old IP
+**Source**: REALITY_TEST_PLAN Test 1.1
+**Issue**: References `http://46.62.210.24:3000/setup`. Should be `https://gtm-mcp.com/setup`.
+**Action**: Update all URLs in REALITY_TEST_PLAN.
+
+### GAP-4: Funded vs unfunded not shown in UI
+**Source**: FUNDING_FILTER_TESTING "UI Visibility"
+**Issue**: `source_data.funded_stream` tracked per company but PipelinePage doesn't display it.
+**Action**: Add funded badge to company table (low priority).
 
 ---
 
