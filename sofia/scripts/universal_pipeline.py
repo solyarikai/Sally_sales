@@ -7,7 +7,7 @@ Universal Lead Generation Pipeline
 Ничего не захардкожено под конкретный проект.
 
 ═══════════════════════════════════════════════════════════
-  ШАГ 0: ПОИСК КОМПАНИЙ (3 источника на выбор)
+  ШАГ 0: ПОИСК КОМПАНИЙ (4 источника на выбор)
 ═══════════════════════════════════════════════════════════
 
   Источник A — Clay ICP (--mode structured / --mode natural)
@@ -34,27 +34,72 @@ Universal Lead Generation Pipeline
     Стоимость: БЕСПЛАТНО (0 credits).
 
   Все четыре источника на выходе дают список доменов компаний,
-  который дальше идёт в единый pipeline (шаги 1-10).
+  который дальше идёт в единый pipeline (шаги 1-12).
 
 ═══════════════════════════════════════════════════════════
-  ШАГИ 1-10: ЕДИНЫЙ PIPELINE (одинаковый для всех источников)
+  ШАГИ 1-12: ЕДИНЫЙ PIPELINE (одинаковый для всех источников)
 ═══════════════════════════════════════════════════════════
 
-  Шаг 1:    DEDUP — убираем компании, уже найденные в предыдущих запусках.
-  Шаг 2:    BLACKLIST — проверяем компании по чёрному списку проекта.
+  Где живёт каждый шаг:
+    [backend]  = выполняется на бэкенде (magnum-opus FastAPI), скрипт
+                 только триггерит API и ждёт результата.
+    [скрипт]   = выполняется здесь, в universal_pipeline.py.
+    [ручной]   = выполняется оператором в чате с Claude Code.
+
+  Шаг 1:    DEDUP [backend]
+            Убираем компании, уже найденные в предыдущих запусках.
+            Бэкенд делает автоматически при создании run.
+
+  Шаг 2:    BLACKLIST [backend]
+            Проверяем компании по чёрному списку проекта.
             ★ CP1: "Правильный проект? Правильный scope?"
-  Шаг 3-4:  ФИЛЬТРАЦИЯ И СКРЕЙПИНГ — убираем мусор (офлайн-бизнесы,
-            мёртвые сайты). Скачиваем содержимое сайтов для анализа.
-  Шаг 5:    CLASSIFY (GPT-4o-mini) — AI классифицирует каждую компанию:
-            is_target? confidence? сегмент? reasoning? ~$0.01-0.05 за батч из 500.
+
+  Шаг 3:    PREFILTER [backend]
+            Убираем мусор — офлайн-бизнесы, нерелевантные компании.
+            Бэкенд фильтрует по базовым признакам (отрасль, размер, гео).
+
+  Шаг 4:    SCRAPE [backend]
+            Скачиваем содержимое сайтов для анализа.
+            Бэкенд скрейпит homepage каждой компании.
+
+  Шаг 5:    CLASSIFY [backend, GPT-4o-mini]
+            AI классифицирует каждую компанию:
+            is_target? confidence? сегмент? reasoning?
+            Стоимость: ~$0.01-0.05 за батч из 500.
             ★ CP2: "Список компаний корректный?"
-  Шаг 6:    VERIFY — оператор с Claude проверяют таргеты GPT.
-  Шаг 7:    ADJUST PROMPT → повторить 5-6 если accuracy <90%.
-  Шаг 8:    ПОИСК ЛЮДЕЙ — Apollo People Search (auto или --apollo-csv).
+
+  Шаг 6:    VERIFY [ручной]
+            Оператор с Claude проверяют таргеты GPT.
+            Смотрим выборку, оцениваем accuracy классификации.
+
+  Шаг 7:    ADJUST PROMPT [ручной]
+            Если accuracy <90% → правим промпт → повторяем шаги 5-6.
+            Команда: --re-analyze --run-id {run_id} --prompt-file new_prompt.txt
+
+  Шаг 8:    EXPORT TARGETS [скрипт]
+            Выгружаем одобренные таргеты из бэкенда в targets.json.
+            Approve CP2 gate → экспорт компаний для поиска людей.
+
+  Шаг 9:    PEOPLE SEARCH [скрипт → Apollo]
+            Поиск людей (контактов ЛПР) в компаниях-таргетах.
+            Apollo People Search (auto) или импорт CSV (--apollo-csv).
             ★ CP3: "Одобряете расходы на email enrichment?"
-  Шаг 9:    ПОИСК EMAIL — FindyMail ($0.01/найденный email).
-  Шаг 10:   ЗАГРУЗКА В SMARTLEAD — в существующие кампании.
-            Активация — НИКОГДА автоматически.
+
+  Шаг 10:   FINDYMAIL [скрипт → FindyMail API]
+            Поиск email-адресов по LinkedIn URL.
+            Стоимость: $0.01/найденный email.
+            Контакты без email → GetSales-ready CSV.
+
+  Шаг 11:   SEQUENCES [скрипт → GPT-4o / markdown]
+            Загрузка email-секвенций для кампании.
+            Приоритет: markdown файл (написан человеком) > GOD_SEQUENCE (GPT).
+            GOD_SEQUENCE генерирует 5-шаговую секвенцию по ICP и продукту.
+            Оператор обязательно проверяет тексты перед загрузкой.
+
+  Шаг 12:   UPLOAD TO SMARTLEAD [скрипт → SmartLead API]
+            Создание кампании, привязка email-аккаунтов, загрузка лидов,
+            загрузка секвенций, настройка расписания.
+            Активация — НИКОГДА автоматически. Только вручную в UI.
 
 ═══════════════════════════════════════════════════════════
   GOOGLE SHEETS & DRIVE
@@ -658,13 +703,13 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 #   Puppeteer + internal API (q_organization_keyword_tags). БЕСПЛАТНО.
 #   Скрипт: scripts/sofia/onsocial_apollo_companies_search.js
 #
-# Clay (A, B, C) → step0_start() → backend API → run_id
+# Clay (A, B, C) → step0_gather() → backend API → run_id
 # Apollo (D) → step0_apollo_companies() → JS scraper → domains → create_batched_runs()
 #
-# Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-10).
+# Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-12).
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step0_start(config: ProjectConfig, filters: dict, mode: str,
+def step0_gather(config: ProjectConfig, filters: dict, mode: str,
                 input_text: str = None, notes: str = "") -> int:
     """Start Clay gathering via backend API (sources A and B). Returns run_id.
 
@@ -678,7 +723,7 @@ def step0_start(config: ProjectConfig, filters: dict, mode: str,
     search_mode = "description_keywords (direct)" if has_keywords else "icp_text (AI-mapped)" if has_icp else "unknown"
 
     print(f"\n{'='*60}")
-    print(f"STEP 0: Start Gathering")
+    print(f"STEP 0: GATHERING — Start")
     print(f"  Project: {config.project_name} (ID {config.project_id})")
     print(f"  Mode: {mode}")
     print(f"  Clay search: {search_mode}")
@@ -741,7 +786,7 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
     max_pages = filters.get("max_pages", 25)
 
     print(f"\n{'='*60}")
-    print(f"STEP 0: Apollo Companies Search (Internal API)")
+    print(f"STEP 0: GATHERING — Apollo Companies (Internal API)")
     print(f"  Project: {config.project_name} (ID {config.project_id})")
     print(f"  Keyword tags: {len(keyword_tags)}")
     print(f"  Locations: {len(locations)} ({', '.join(locations[:5])}{'...' if len(locations) > 5 else ''})")
@@ -861,23 +906,26 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГИ 1-8: ОБРАБОТКА КОМПАНИЙ
-# Последовательная обработка найденных компаний:
-#   Шаг 2 (Blacklist): проверяем, не писали ли мы уже этим компаниям.
-#     → CP1: оператор подтверждает проект и список.
-#   Шаг 3 (Pre-filter): убираем офлайн-бизнесы, мусорные домены (.gov, .edu).
-#   Шаг 4 (Scrape): скачиваем главную страницу сайта каждой компании.
-#   Шаг 5 (Analyze): GPT читает сайт и классифицирует компанию —
+# ШАГИ 1-7: ОБРАБОТКА КОМПАНИЙ [backend + ручные]
+# Все эти шаги выполняются на бэкенде (magnum-opus). Скрипт только
+# триггерит API и ждёт результата. Шаги 6-7 — ручные (в чате с Claude).
+#
+#   Шаг 1 (Dedup):      бэкенд убирает дубли автоматически при создании run.
+#   Шаг 2 (Blacklist):   проверяем, не писали ли мы уже этим компаниям.
+#     → CP1: оператор подтверждает проект и scope.
+#   Шаг 3 (Prefilter):   убираем офлайн-бизнесы, мусорные домены (.gov, .edu).
+#   Шаг 4 (Scrape):      скачиваем главную страницу сайта каждой компании.
+#   Шаг 5 (Classify):    GPT читает сайт и классифицирует компанию —
 #     наш сегмент (platform/agency) или нет (OTHER).
-#     → CP2: оператор проверяет список таргетов. Убирает ложные срабатывания.
-#   Шаг 6 (Verify): подготовка к FindyMail — оценка стоимости.
-#     → CP3: оператор одобряет расходы.
+#     → CP2: оператор проверяет список таргетов.
+#   Шаг 6 (Verify):      оператор с Claude проверяют таргеты GPT в чате.
+#   Шаг 7 (Adjust):      если accuracy <90% → правим промпт → повторяем 5-6.
 # ══════════════════════════════════════════════════════════════════════════════
 
 def step2_blacklist(config: ProjectConfig, run_id: int) -> dict:
     """Run blacklist check → creates CP1 gate."""
     print(f"\n{'='*60}")
-    print(f"STEP 2: Blacklist Check (run #{run_id})")
+    print(f"STEP 2: BLACKLIST (run #{run_id})")
     print(f"{'='*60}")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
     gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
@@ -902,7 +950,7 @@ def approve_gate(gate_id: int, note: str = "Approved") -> dict:
 
 
 def step3_prefilter(run_id: int) -> dict:
-    print(f"\n  Step 3: Pre-filter (run #{run_id})")
+    print(f"\n  STEP 3: PREFILTER (run #{run_id})")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter")
     print(f"  Passed: {result.get('passed', '?')}")
     return result
@@ -910,7 +958,7 @@ def step3_prefilter(run_id: int) -> dict:
 
 def step4_scrape(run_id: int) -> dict:
     """Scrape websites. Resilient to backend restarts — polls until phase advances."""
-    print(f"\n  Step 4: Scrape websites (run #{run_id})")
+    print(f"\n  STEP 4: SCRAPE (run #{run_id})")
     print(f"  This may take 10-60 min depending on company count...")
     result = api_long("post", f"/pipeline/gathering/runs/{run_id}/scrape",
                       expected_phase="scraped", run_id=run_id, timeout=3600)
@@ -919,10 +967,10 @@ def step4_scrape(run_id: int) -> dict:
     return result
 
 
-def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -> dict:
+def step5_classify(config: ProjectConfig, run_id: int, prompt_text: str = None) -> dict:
     """Run GPT classification. Uses prompt_text from gathering_prompts.
     Note: backend API requires prompt_text, not prompt_id."""
-    print(f"\n  Step 5: Analyze (run #{run_id})")
+    print(f"\n  STEP 5: CLASSIFY (run #{run_id})")
     # Resolve prompt text: argument > config > error
     text = prompt_text or config.prompt_text
     if not text:
@@ -952,11 +1000,11 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
     return {"targets_found": targets, "total_analyzed": total}
 
 
-def step5_reanalyze(config: ProjectConfig, run_id: int,
+def step5_reclassify(config: ProjectConfig, run_id: int,
                      prompt_text: str = None, model: str = "gpt-4o-mini") -> dict:
     """Re-run analysis with different prompt (no re-scrape needed)."""
     print(f"\n{'='*60}")
-    print(f"STEP 5 (RE-ANALYZE): run #{run_id}")
+    print(f"STEP 5 (RE-CLASSIFY): run #{run_id}")
     text = prompt_text or config.prompt_text
     if not text:
         print("  ERROR: No prompt text available.")
@@ -984,9 +1032,9 @@ def step5_reanalyze(config: ProjectConfig, run_id: int,
     # at already-targeted companies. See TAM_GATHERING_ARCHITECTURE.md.
 
 
-def step6_prepare_verify(run_id: int) -> dict:
+def step6_verify(run_id: int) -> dict:
     """Prepare FindyMail verification → creates CP3 with cost estimate."""
-    print(f"\n  Step 6: Prepare Verification (run #{run_id})")
+    print(f"\n  STEP 6: VERIFY (run #{run_id})")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/prepare-verification")
     gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
     pending = [g for g in gates if g["status"] == "pending"]
@@ -1001,17 +1049,17 @@ def step6_prepare_verify(run_id: int) -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 9: ЭКСПОРТ КОМПАНИЙ-ТАРГЕТОВ
+# ШАГ 8: ЭКСПОРТ КОМПАНИЙ-ТАРГЕТОВ [скрипт]
 # Выгружаем из базы все компании, прошедшие классификацию (is_target=true).
 # Разбиваем по сегментам, сохраняем CSV локально и в Google Sheets.
 # Эти компании — основа для поиска людей (контактов) на следующем шаге.
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dict]:
+def step8_export_targets(config: ProjectConfig, force: bool = False) -> list[dict]:
     """Export approved target companies from backend DB."""
     targets_file = config.state_dir / "targets.json"
     print(f"\n{'='*60}")
-    print(f"STEP 9: Export Targets (project_id={config.project_id})")
+    print(f"STEP 8: EXPORT TARGETS (project_id={config.project_id})")
     print(f"{'='*60}")
 
     if targets_file.exists() and not force:
@@ -1043,7 +1091,7 @@ def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
             })
 
     if not targets:
-        print("  No targets found. Complete backend pipeline first (Steps 0-8).")
+        print("  No targets found. Complete backend pipeline first (Steps 0-7).")
         sys.exit(1)
 
     save_json(targets_file, targets)
@@ -1072,13 +1120,14 @@ def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 10: ПОИСК ЛЮДЕЙ (ЛПР) В APOLLO PEOPLE UI
+# ШАГ 9: ПОИСК ЛЮДЕЙ (ЛПР) [скрипт → Apollo]
 # Автоматический поиск через Puppeteer (apollo_scraper.js):
 # - Берёт домены таргет-компаний, группирует по сегменту
-# - Подбирает titles/seniorities из apollo-filters-v3
+# - Подбирает titles/seniorities из конфига сегмента
 # - Батчит по 30 доменов, запускает apollo_scraper.js
 # - Парсит JSON → маппит в формат контактов
 # Fallback: --apollo-csv для ручного CSV импорта.
+# ★ CP3: "Одобряете расходы на email enrichment?"
 # ══════════════════════════════════════════════════════════════════════════════
 
 APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
@@ -1258,12 +1307,12 @@ def _map_apollo_person(person: dict, targets_by_domain: dict, config: ProjectCon
     }
 
 
-def step10_apollo_people_search(config: ProjectConfig, targets: list[dict],
+def step9_people_search(config: ProjectConfig, targets: list[dict],
                                  force: bool = False) -> list[dict]:
     """Search Apollo People UI for contacts at target companies (automated)."""
     contacts_file = config.state_dir / "contacts.json"
     print(f"\n{'='*60}")
-    print(f"STEP 10: Apollo People UI Search (automated)")
+    print(f"STEP 9: PEOPLE SEARCH — Apollo UI (automated)")
     print(f"{'='*60}")
     if contacts_file.exists() and not force:
         contacts = load_json(contacts_file)
@@ -1328,13 +1377,13 @@ def step10_apollo_people_search(config: ProjectConfig, targets: list[dict],
     return all_contacts
 
 
-def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list[dict],
+def step9_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list[dict],
                               force: bool = False, segment_override: str = None) -> list[dict]:
     """Import contacts from a manual Apollo People Search CSV export."""
     contacts_file = config.state_dir / "contacts.json"
     print(f"\n{'='*60}")
     seg_label = f" ({segment_override})" if segment_override else ""
-    print(f"STEP 10: Import Apollo People CSV{seg_label}")
+    print(f"STEP 9: PEOPLE SEARCH — Import Apollo CSV{seg_label}")
     print(f"{'='*60}")
 
     if contacts_file.exists() and not force:
@@ -1467,7 +1516,8 @@ def export_getsales(config: ProjectConfig, without_email: list[dict], today: str
     return out_path
 
 
-# ШАГ 11: ПОИСК EMAIL ЧЕРЕЗ FINDYMAIL
+# ══════════════════════════════════════════════════════════════════════════════
+# ШАГ 10: ПОИСК EMAIL ЧЕРЕЗ FINDYMAIL [скрипт → FindyMail API]
 # Для каждого человека с LinkedIn URL — FindyMail ищет рабочий email.
 # Оплата: $0.01 за каждый НАЙДЕННЫЙ email. Ненайденные — бесплатно.
 # Типичный hit rate: 60-80% (из 500 LinkedIn → ~350-400 email).
@@ -1475,6 +1525,7 @@ def export_getsales(config: ProjectConfig, without_email: list[dict], today: str
 #   1) "Verified Emails" — люди с email, готовы к отправке в SmartLead
 #   2) "No Email (LinkedIn only)" — люди без email, можно работать через LinkedIn
 # Оба сохраняются локально и в Google Sheets.
+# Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
@@ -1501,14 +1552,14 @@ async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
         return {"email": "", "verified": False}
 
 
-async def step11_findymail(config: ProjectConfig, contacts: list[dict],
+async def step10_findymail(config: ProjectConfig, contacts: list[dict],
                             max_contacts: int = 1500, force: bool = False) -> list[dict]:
     """FindyMail enrichment. Charges only for found emails."""
     enriched_file = config.state_dir / "enriched.json"
     progress_file = config.state_dir / "findymail_progress.json"
 
     print(f"\n{'='*60}")
-    print(f"STEP 11: FindyMail Enrichment")
+    print(f"STEP 10: FINDYMAIL — Email Enrichment")
     print(f"{'='*60}")
 
     if enriched_file.exists() and not force:
@@ -1592,15 +1643,21 @@ async def step11_findymail(config: ProjectConfig, contacts: list[dict],
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GOD_SEQUENCE — АВТОГЕНЕРАЦИЯ ТЕКСТОВ ПИСЕМ
-# Если для сегмента нет готовых текстов (markdown файл), система сама
-# генерирует 5-шаговую email-секвенцию через GPT-4o, используя:
-#   - ICP проекта (кто наш клиент, что болит)
-#   - Описание продукта (что продаём)
-#   - Стиль коммуникации (как пишем)
-#   - Данные сегмента (должности ЛПР, примеры компаний)
-# Оператор обязательно проверяет сгенерированные тексты перед загрузкой.
-# Приоритет: написанные человеком тексты (markdown) > автогенерация (GPT-4o).
+# ШАГ 11: SEQUENCES [скрипт → GPT-4o / markdown]
+# Загрузка email-секвенций для кампании. Два источника:
+#
+#   Приоритет 1 — Markdown файл (написан человеком)
+#     Путь: sofia/projects/{project}/sequences/{segment}.md
+#     Парсит заголовки (## Step N), subject/body, A/B варианты.
+#
+#   Приоритет 2 — GOD_SEQUENCE (автогенерация через GPT-4o)
+#     Генерирует 5-шаговую email-секвенцию, используя:
+#       - ICP проекта (кто наш клиент, что болит)
+#       - Описание продукта (что продаём)
+#       - Стиль коммуникации (как пишем)
+#       - Данные сегмента (должности ЛПР, примеры компаний)
+#
+# Оператор обязательно проверяет тексты перед загрузкой в SmartLead.
 # ══════════════════════════════════════════════════════════════════════════════
 
 def god_sequence(config: ProjectConfig, segment_slug: str) -> list[dict] | None:
@@ -1779,18 +1836,21 @@ def get_sequences(config: ProjectConfig, segment_slug: str) -> list[dict] | None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 12: ЗАГРУЗКА В SMARTLEAD (с подтверждением каждого подшага)
-# Финальный шаг — подготовка и запуск email-кампании. Подшаги:
-#   12a: Проверка social_proof — показывает распределение по регионам.
-#        "187 лидов: 50 UK, 40 India, 30 MENA..." — оператор проверяет.
-#   12b: Создание кампании — `c-ProjectName_Segment ALL GEO #C`
-#   12c: Привязка email-аккаунтов — проверяет какие аккаунты активны.
-#   12d: Загрузка лидов — email, имя, компания, social_proof (переменная).
-#   12e: Загрузка секвенсов — 5 писем, шаги 1-2 с A/B вариантами.
-#        ⚠ SmartLead API не поддерживает A/B — B варианты добавлять вручную.
-#   12f: Установка расписания — дни, время, интервал между письмами.
-#   Активация — ТОЛЬКО вручную в SmartLead UI. Скрипт НИКОГДА не активирует.
-#        Оператор проверяет всё в UI и нажимает кнопку сам.
+# ШАГ 12: ЗАГРУЗКА В SMARTLEAD [скрипт → SmartLead API]
+# Финальный шаг — подготовка и запуск email-кампании.
+#
+# Что делает (для каждого сегмента отдельно):
+#   1. Проверка social_proof — показывает распределение по регионам.
+#      "187 лидов: 50 UK, 40 India, 30 MENA..." — оператор проверяет.
+#   2. Создание кампании — `c-ProjectName_Segment ALL GEO #C`
+#   3. Привязка email-аккаунтов — проверяет какие аккаунты активны.
+#   4. Загрузка лидов — email, имя, компания, social_proof (переменная).
+#   5. Загрузка секвенций (из шага 11) — subject + body для каждого письма.
+#      ⚠ SmartLead API не поддерживает A/B — B варианты добавлять вручную.
+#   6. Установка расписания — дни, время, интервал между письмами.
+#
+# Активация — ТОЛЬКО вручную в SmartLead UI. Скрипт НИКОГДА не активирует.
+# Оператор проверяет всё в UI и нажимает кнопку сам.
 # ══════════════════════════════════════════════════════════════════════════════
 
 def sl_params():
@@ -1861,10 +1921,10 @@ def _show_social_proof_stats(contacts: list[dict], segment: str):
         print(f"    {cnt:3d}  {co}")
 
 
-def step12_upload(config: ProjectConfig, contacts: list[dict]):
+def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
     """SmartLead upload with checkpoints at every step."""
     print(f"\n{'='*60}")
-    print(f"STEP 12: SmartLead Upload")
+    print(f"STEP 12: SMARTLEAD — Upload")
     print(f"{'='*60}")
 
     if not SMARTLEAD_API_KEY:
@@ -1909,7 +1969,7 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
             print("  Skipping this segment.")
             continue
 
-        # ── 12a: Create campaign ──
+        # ── Create campaign ──
         cid = upload_log.get(seg_name, {}).get("campaign_id")
         if cid:
             print(f"  Campaign already exists: {cid}")
@@ -1920,7 +1980,7 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
             upload_log[seg_name] = {"campaign_id": cid, "campaign_name": campaign_name, "at": ts()}
             save_json(config.state_dir / "upload_log.json", upload_log)
 
-        # ── 12b: Validate & attach email accounts ──
+        # ── Attach email accounts ──
         if not _checkpoint(f"Attach email accounts to '{campaign_name}'?"):
             print("  Skipping email accounts.")
         else:
@@ -1933,7 +1993,7 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
                 else:
                     print(f"  ⚠ Email accounts error: {r.status_code} {r.text[:200]}")
 
-        # ── 12c: Upload leads ──
+        # ── Upload leads ──
         if not _checkpoint(f"Upload {len(seg_contacts)} leads to '{campaign_name}'?"):
             print("  Skipping leads upload.")
         else:
@@ -1942,7 +2002,7 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
             upload_log[seg_name]["uploaded_at"] = ts()
             save_json(config.state_dir / "upload_log.json", upload_log)
 
-        # ── 12d: Load and upload sequences ──
+        # ── Upload sequences (from step 11) ──
         sequences = get_sequences(config, seg_slug) if seg_slug else None
         if sequences:
             if not _checkpoint(f"Upload {len(sequences)} email steps to '{campaign_name}'?"):
@@ -1990,7 +2050,7 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
         else:
             print("  ⚠ No sequences — add manually in SmartLead UI.")
 
-        # ── 12e: Set schedule ──
+        # ── Set schedule ──
         if config.schedule:
             if not _checkpoint(f"Set schedule for '{campaign_name}'?"):
                 print("  Skipping schedule.")
@@ -2005,7 +2065,7 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
                 else:
                     print(f"  ⚠ Schedule error: {r.status_code} {r.text[:200]}")
 
-        # ── 12f: Активация — ТОЛЬКО вручную в SmartLead UI ──
+        # ── Активация — ТОЛЬКО вручную в SmartLead UI ──
         # Скрипт НИКОГДА не активирует кампанию. Это делает оператор
         # в SmartLead после финальной проверки всех настроек.
         print(f"\n  ✓ Campaign '{campaign_name}' готова в DRAFTED статусе.")
@@ -2135,8 +2195,8 @@ def mode4_expand(base_run_id: int, overrides: dict) -> dict:
 # Можно запустить с любого шага: --from-step people (начать с импорта людей)
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
-         "people", "findymail", "upload"]
+STEPS = ["start", "blacklist", "prefilter", "scrape", "classify", "verify",
+         "export", "people", "findymail", "sequences", "upload"]
 
 def main():
     p = argparse.ArgumentParser(description="Universal Lead Generation Pipeline")
@@ -2303,7 +2363,7 @@ def main():
         print(f"  Steps: {' → '.join(steps)}")
         return
 
-    # ── Steps 0-8: Backend gathering API ──
+    # ── Steps 0-5: Gathering + Backend pipeline ──
     if "start" in steps:
         if not mode_config:
             print("ERROR: no filters resolved")
@@ -2338,7 +2398,7 @@ def main():
         else:
             # Clay/other modes: send filters to backend API
             notes = f"{args.mode} — {args.input_text or args.segment or args.examples or f'expand#{args.base_run}'}"
-            run_id = step0_start(config, mode_config["filters"], args.mode, args.input_text, notes)
+            run_id = step0_gather(config, mode_config["filters"], args.mode, args.input_text, notes)
             # Wait for Clay
             print("\n  Waiting for gathering to complete...")
             conn_errors = 0
@@ -2382,26 +2442,29 @@ def main():
         step3_prefilter(run_id)
     if "scrape" in steps and run_id:
         step4_scrape(run_id)
-    if "analyze" in steps and run_id:
-        cp2 = step5_analyze(config, run_id, prompt_text)
+    # ── Step 5: Classify ──
+    if "classify" in steps and run_id:
+        cp2 = step5_classify(config, run_id, prompt_text)
         if cp2.get("gate_id"):
             print(f"\n  ★ PAUSING AT CP2.")
             print(f"  Step 6: Verify targets with Claude Code in chat.")
-            print(f"  Step 7: If accuracy <90% → adjust prompt → re-analyze:")
+            print(f"  Step 7: If accuracy <90% → adjust prompt → re-classify:")
             print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
             print(f"  When accuracy ≥90% → approve gate and resume:")
             print(f"    --from-step verify --run-id {run_id}")
             return
 
+    # ── Steps 6-7: Verify + Adjust (manual, in chat) ──
     if "verify" in steps and run_id:
-        # Step 6-7 done in chat. Now: approve CP2 gate + export targets.
-        # No blacklist_approved_targets — CRM sync handles this automatically.
         approve_pending_gate(config, run_id)
-        targets = step9_export_targets(config, force=args.force)
+
+    # ── Step 8: Export Targets ──
+    if "export" in steps or "verify" in steps:
+        targets = step8_export_targets(config, force=args.force)
     else:
         targets = load_json(config.state_dir / "targets.json") or []
 
-    # ── Step 8: Apollo People Search ──
+    # ── Step 9: People Search ──
     if "people" in steps:
         if args.apollo_csv:
             all_contacts = []
@@ -2411,7 +2474,7 @@ def main():
                     if "platform" in slug.lower():
                         seg_override = seg_data["name"]
                         break
-            c1 = step10_import_apollo_csv(config, args.apollo_csv, targets, force=args.force,
+            c1 = step9_import_apollo_csv(config, args.apollo_csv, targets, force=args.force,
                                            segment_override=seg_override)
             all_contacts.extend(c1)
             if args.apollo_csv_agencies:
@@ -2420,14 +2483,14 @@ def main():
                     if "agenc" in slug.lower():
                         agencies_name = seg_data["name"]
                         break
-                c2 = step10_import_apollo_csv(config, args.apollo_csv_agencies, targets, force=True,
+                c2 = step9_import_apollo_csv(config, args.apollo_csv_agencies, targets, force=True,
                                                segment_override=agencies_name)
                 all_contacts.extend(c2)
                 save_json(config.state_dir / "contacts.json", all_contacts)
                 print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
             contacts = all_contacts
         else:
-            contacts = step10_apollo_people_search(config, targets, force=args.force)
+            contacts = step9_people_search(config, targets, force=args.force)
 
         # CP3: approve FindyMail cost before proceeding
         with_li = sum(1 for c in contacts if c.get("linkedin_url") and not c.get("email"))
@@ -2442,16 +2505,17 @@ def main():
         contacts = load_json(config.state_dir / "contacts.json") or \
                    load_json(config.state_dir / "enriched.json") or []
 
-    # ── Step 9: FindyMail email enrichment ──
+    # ── Step 10: FindyMail ──
     if "findymail" in steps:
-        contacts = asyncio.run(step11_findymail(config, contacts,
+        contacts = asyncio.run(step10_findymail(config, contacts,
                                                  max_contacts=args.max_findymail, force=args.force))
     else:
         contacts = load_json(config.state_dir / "enriched.json") or contacts
 
-    # ── Step 10: SmartLead upload ──
-    if "upload" in steps:
-        step12_upload(config, contacts)
+    # ── Steps 11-12: Sequences + SmartLead Upload ──
+    # Sequences are loaded/generated inside step12_smartlead (per segment).
+    if "sequences" in steps or "upload" in steps:
+        step12_smartlead(config, contacts)
 
 
 if __name__ == "__main__":
