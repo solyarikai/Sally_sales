@@ -163,9 +163,85 @@
 
 ---
 
-## Phase 5: Deep Research — Pains per Cluster
+## Phase 5: Deep Research — Geo & DM Cluster Analysis
 
-Pending.
+### Sources
+- Exa: Kolsquare/NewtonX 2025 (613 marketers, 12 countries), Sales.co (2M+ emails), Dealfront (EU cold email law)
+- Audience Research agent: Reddit/HN + industry reports
+- OnSocial internal docs analysis
+
+### 5.1 Cold Email Legal Risk by Country
+
+| Country | Risk | Rule | Recommendation |
+|---------|------|------|---------------|
+| **Germany** | 🔴 HIGH | UWG stricter than GDPR — prior consent required even B2B | LinkedIn outreach (GetSales), NOT email |
+| **France** | 🟡 MODERATE | B2B cold email OK under legitimate interest (CNIL) | Email OK, French language preferred |
+| **UK** | 🟢 LOW | PECR allows B2B cold email with opt-out | Email OK, English |
+| **Spain** | 🟡 MODERATE | GDPR OK, but 38% English proficiency | Email OK, Spanish preferred |
+| **Netherlands** | 🟢 LOW | Direct culture, high English | Email OK |
+| **Nordics** | 🟢 LOW | Data-driven, high English | Email OK |
+| **Poland/CEE** | 🟢 LOW | GDPR OK | Email OK, show local knowledge |
+| **MENA** | 🟢 LOW | Permissive, relationship-first | Email OK, formal tone |
+| **India/PH/APAC** | 🟢 LOW | Permissive, fast culture | Email OK, direct CTA |
+
+**Impact: 135 German leads should go to GetSales LinkedIn, NOT SmartLead email.**
+
+### 5.2 Regional IM Market Differences (Kolsquare/NewtonX 2025)
+
+| Dimension | UK | Germany | France | Spain | Nordics |
+|-----------|-----|---------|--------|-------|---------|
+| IM Budget | £849K avg | €5.74M (лидер!) | €3.45M | <€50K (30%) | Mid-range |
+| Оплата creators | Gifting + affiliate | Fixed fees (81%) | Fixed fees (77%) | Осторожный | Long-term |
+| Главная боль | Balance freedom/brand (42%) | Выбор правильных инфлюенсеров | Agent friction (37%) | Cost inflation (36%) | **Data reliability (51%)** |
+| ROI tracking | Data-driven | **Most analytical (44% ROAS)** | Ethics-first | ROI concerns | Metric-focused |
+| Язык контента | English | **Only German** | French preferred | Spanish preferred | English OK |
+| Тон | Performance, dry humour | Structured, critical | Authentic, storytelling | Lifestyle, emotional | Direct, egalitarian |
+
+### 5.3 Cold Email Benchmarks (Sales.co, 2M+ emails, 2026)
+
+- Average reply rate: **2.09%** (only 0.64% positive/interested)
+- **European countries reply 2-3x more than US** (lower inbox saturation)
+- Marketing Agencies industry: **5-9% reply rate** (agencies actively seek partnerships)
+- Signal-triggered vs cold list: **4-8% vs 1-2%**
+- C-level positive rate: **14.16%** (3.3x higher than managers)
+- Small companies (1-10): **18.20% positive** vs Enterprise (10K+): **3.43%**
+
+### 5.4 Pain Points by DM Cluster x Region
+
+**FOUNDERS/C-SUITE:**
+- Universal: Revenue impact, client retention, margin protection
+- UK/Nordics: ROI measurement, performance metrics
+- Germany: Compliance, fraud detection, data accuracy
+- MENA/India: White-label for margin protection (15-25% margins)
+- Spain/LATAM: Budget efficiency, cost optimization
+
+**CREATIVE LEADERSHIP:**
+- Universal: Creator discovery, content quality, campaign efficiency
+- UK: Balance influencer freedom with brand guidelines
+- Germany: Choosing right influencers (compliance-driven selection)
+- France: Agent friction, creative control
+- APAC: Platform fragmentation (TikTok vs IG vs YouTube)
+
+**ACCOUNT/OPS:**
+- Universal: Client reporting, multi-dashboard fatigue, time savings
+- UK: Performance tracking across campaigns
+- Germany: Structured analytics, ROAS proof
+- Nordics: Data reliability (#1 concern at 51%)
+- India: Scalable discovery across 38M+ creators
+
+### 5.5 Recommended Tone & CTA by Region
+
+| Region | Tone | CTA Style | Language |
+|--------|------|-----------|---------|
+| UK | Professional-casual | "Worth a quick chat?" | English |
+| Germany | N/A — LinkedIn only | N/A | German |
+| France | Formal, relationship | "Would you be open to discussing...?" | French preferred |
+| Spain | Warm, collaborative | "Let's explore..." | Spanish preferred |
+| Netherlands | Direct, egalitarian | Calendar link | English |
+| Nordics | Transparent, metric | Straightforward ask | English |
+| Poland/CEE | Respectful, local-aware | "Brief call to explore fit?" | English OK |
+| MENA | Formal, rapport-building | Low-pressure | English |
+| India/PH | Friendly, fast | "Quick 15-min call?" + link | English |
 
 ## Phase 6: Sequence Drafts
 
