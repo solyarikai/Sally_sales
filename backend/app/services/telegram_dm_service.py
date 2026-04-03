@@ -376,11 +376,32 @@ class TelegramDMService:
                     except Exception:
                         pass
 
+                    # Build last message preview — text or media type label
+                    last_msg_text = None
+                    if dialog.message:
+                        last_msg_text = dialog.message.text
+                        if not last_msg_text and dialog.message.media:
+                            from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
+                            if isinstance(dialog.message.media, MessageMediaPhoto):
+                                last_msg_text = "📷 Photo"
+                            elif isinstance(dialog.message.media, MessageMediaDocument) and dialog.message.media.document:
+                                mime = dialog.message.media.document.mime_type or ""
+                                if mime.startswith("video/"):
+                                    last_msg_text = "🎬 Video"
+                                elif mime.startswith("audio/"):
+                                    last_msg_text = "🎤 Voice message"
+                                elif mime.startswith("image/"):
+                                    last_msg_text = "📷 Photo"
+                                else:
+                                    last_msg_text = "📎 File"
+                            else:
+                                last_msg_text = "📎 Media"
+
                     dialogs.append({
                         "peer_id": dialog.id,
                         "peer_name": dialog.name or "Unknown",
                         "peer_username": getattr(entity, "username", None),
-                        "last_message": dialog.message.text if dialog.message else None,
+                        "last_message": last_msg_text,
                         "last_message_at": dialog.message.date.isoformat() if dialog.message and dialog.message.date else None,
                         "unread_count": dialog.unread_count,
                         "last_message_outbound": last_outbound,
@@ -552,6 +573,39 @@ class TelegramDMService:
         # Return in chronological order
         messages.reverse()
         return messages
+
+    async def download_message_media(self, account_id: int, peer_id: int, msg_id: int) -> tuple[bytes, str] | None:
+        """Download media for a specific message. Returns (bytes, content_type) or None."""
+        client = self._get_client(account_id)
+        try:
+            entity = await client.get_input_entity(peer_id)
+        except Exception:
+            try:
+                await client.get_dialogs(limit=100)
+                entity = await client.get_input_entity(peer_id)
+            except Exception:
+                entity = InputPeerUser(peer_id, 0)
+
+        msg = await client.get_messages(entity, ids=msg_id)
+        if not msg or not msg.media:
+            return None
+
+        import io
+        buffer = io.BytesIO()
+        await client.download_media(msg, file=buffer)
+        data = buffer.getvalue()
+        if not data:
+            return None
+
+        # Determine content type
+        content_type = "application/octet-stream"
+        from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
+        if isinstance(msg.media, MessageMediaPhoto):
+            content_type = "image/jpeg"
+        elif isinstance(msg.media, MessageMediaDocument) and msg.media.document:
+            content_type = msg.media.document.mime_type or "application/octet-stream"
+
+        return data, content_type
 
     async def send_message(self, account_id: int, peer_id: int, text: str, parse_mode: str = None, reply_to: int = None) -> dict:
         """Send a Telegram DM with optional formatting and reply."""

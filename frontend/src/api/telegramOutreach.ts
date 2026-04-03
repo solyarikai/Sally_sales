@@ -753,6 +753,9 @@ export const telegramOutreachApi = {
   updateCampaignTags: async (campaignId: number, tags: string[]) =>
     (await api.patch(`${BASE}/campaigns/${campaignId}/tags`, tags)).data,
 
+  getDialogMediaUrl: (dialogId: number, msgId: number) =>
+    `${api.defaults.baseURL}${BASE}/inbox/dialogs/${dialogId}/media/${msgId}`,
+
   createNewChat: async (accountId: number, username: string) =>
     (await api.post(`${BASE}/inbox/new-chat`, { account_id: accountId, username })).data,
 
