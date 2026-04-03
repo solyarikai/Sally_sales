@@ -1233,30 +1233,67 @@ Return ONLY valid JSON."""
         est_credits = max_pages if "api" in source_type else 0
         est_companies = max_pages * per_page
 
-        # Filter confirmation — probe Apollo with per_page=100 (same 1 credit, get 100 companies FREE)
+        # Filter confirmation — probe Apollo per-filter (1 credit each, much more accurate)
         if "api" in source_type and not args.get("confirm_filters"):
             total_available = 0
             probe_companies = []
+            probe_breakdown = []
             try:
                 ctx_probe = UserServiceContext(user.id, session)
                 apollo_probe = await ctx_probe.get_apollo_service()
                 if apollo_probe.is_configured():
-                    probe_result = await apollo_probe.search_organizations(
-                        keyword_tags=filters.get("q_organization_keyword_tags", []),
-                        locations=filters.get("organization_locations"),
-                        num_employees_ranges=filters.get("organization_num_employees_ranges"),
-                        industry_tag_ids=filters.get("organization_industry_tag_ids"),
-                        page=1, per_page=100,
-                    )
-                    total_available = probe_result.get("pagination", {}).get("total_entries", 0) if probe_result else 0
-                    # Save probe companies — page 1 is already fetched, reuse on confirm
-                    probe_companies = probe_result.get("organizations", []) if probe_result else []
+                    base_probe = {
+                        "locations": filters.get("organization_locations"),
+                        "num_employees_ranges": filters.get("organization_num_employees_ranges"),
+                    }
+                    # Probe each industry tag_id separately (1 credit each)
+                    for tag_id in (filters.get("organization_industry_tag_ids") or [])[:3]:
+                        try:
+                            r = await apollo_probe.search_organizations(
+                                industry_tag_ids=[tag_id],
+                                locations=base_probe["locations"],
+                                num_employees_ranges=base_probe["num_employees_ranges"],
+                                page=1, per_page=100,
+                            )
+                            t = r.get("pagination", {}).get("total_entries", 0) if r else 0
+                            orgs = r.get("organizations", []) if r else []
+                            ind_name = orgs[0].get("industry", tag_id[:8]) if orgs else tag_id[:8]
+                            probe_breakdown.append({"type": "industry", "name": ind_name, "total": t, "companies": len(orgs)})
+                            probe_companies.extend(orgs)
+                            total_available += t
+                        except Exception:
+                            pass
+                    # Probe top 3 keywords (1 credit each)
+                    for kw in (filters.get("q_organization_keyword_tags") or [])[:3]:
+                        try:
+                            r = await apollo_probe.search_organizations(
+                                keyword_tags=[kw],
+                                locations=base_probe["locations"],
+                                num_employees_ranges=base_probe["num_employees_ranges"],
+                                page=1, per_page=100,
+                            )
+                            t = r.get("pagination", {}).get("total_entries", 0) if r else 0
+                            orgs = r.get("organizations", []) if r else []
+                            probe_breakdown.append({"type": "keyword", "name": kw, "total": t, "companies": len(orgs)})
+                            probe_companies.extend(orgs)
+                            if t > total_available:
+                                total_available = t
+                        except Exception:
+                            pass
+                    # Dedup probe companies
+                    seen = set()
+                    unique_probe = []
+                    for org in probe_companies:
+                        d = org.get("primary_domain") or org.get("domain", "")
+                        if d and d not in seen:
+                            seen.add(d)
+                            unique_probe.append(org)
+                    probe_companies = unique_probe
                     if probe_companies:
-                        # Store in session so confirm step can skip page 1
-                        # We'll create the run + companies on confirm, not here (user hasn't approved yet)
                         filters["_probe_companies"] = probe_companies
                         filters["_probe_page_done"] = 1
-                        logger.info(f"Probe: {len(probe_companies)} companies from page 1 (total: {total_available})")
+                    filters["_probe_breakdown"] = probe_breakdown
+                    logger.info(f"Probe: {len(probe_companies)} unique companies, breakdown: {probe_breakdown}")
             except Exception as e:
                 logger.warning(f"Apollo probe failed: {e}")
 
@@ -1327,12 +1364,12 @@ Return ONLY valid JSON."""
                 "status": "awaiting_filter_confirmation",
                 "run_id": preview_run.id,
                 "total_available": total_available,
+                "probe_breakdown": filters.get("_probe_breakdown", []),
                 "filters_preview": {
                     "organization_industry_tag_ids": filters.get("organization_industry_tag_ids"),
                     "q_organization_keyword_tags": keywords,
                     "organization_locations": locations,
                     "organization_num_employees_ranges": sizes,
-                    "filter_strategy": filters.get("filter_strategy", "keywords_only"),
                 },
                 "cost_estimate": cost_est,
                 "next_action": {
@@ -1363,6 +1400,7 @@ Return ONLY valid JSON."""
         # Extract probe companies before passing filters to gathering (remove internal keys)
         probe_companies = filters.pop("_probe_companies", None)
         probe_page_done = filters.pop("_probe_page_done", 0)
+        filters.pop("_probe_breakdown", None)
 
         # If probe already got page 1, tell gathering to start from page 2
         if probe_page_done and probe_companies:

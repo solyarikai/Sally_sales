@@ -765,15 +765,54 @@ export default function PipelinePage() {
                       </div>
                     </div>
                   )}
-                  {/* Explanation at bottom (like People tab) */}
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '8px', background: 'var(--bg)', borderRadius: 4, lineHeight: 1.6 }}>
-                    <strong>Why {run.filters.filter_strategy === 'industry_first' ? 'Industry First' : 'Keywords First'}?</strong>{' '}
-                    {run.filters.filter_strategy === 'industry_first'
-                      ? `An AI classifier analyzed "${run.filters.q_organization_keyword_tags?.[0] || 'your query'}" against Apollo's 112 industry categories and found a SPECIFIC match. Industry-based search gives 45-90% target rate. Apollo's industry_tag_ids provide the best pagination (100 companies/page).`
-                      : `An AI classifier analyzed "${run.filters.q_organization_keyword_tags?.[0] || 'your query'}" and found Apollo's industries TOO BROAD. Specific keywords give 30-50% target rate for niche segments.`}
-                    <br /><br />
-                    <strong>Exhaustion logic:</strong> When 20 consecutive pages return 0 new companies, GPT generates 20-30 fresh keywords (synonyms, adjacent niches) and restarts. After 5 attempts with no results, switches to backlog strategy. Apollo applies industry + keywords as AND — that's why we use one at a time.
-                  </div>
+                  {/* Per-Keyword Stats */}
+                  {run.filters.keyword_stats && Object.keys(run.filters.keyword_stats).length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>KEYWORD PERFORMANCE</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {Object.entries(run.filters.keyword_stats)
+                          .sort((a: any, b: any) => (b[1].new_unique || 0) - (a[1].new_unique || 0))
+                          .map(([kw, stats]: [string, any]) => (
+                          <div key={kw} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, padding: '3px 8px', borderRadius: 4, background: 'var(--bg)' }}>
+                            <span style={{ minWidth: 160, fontWeight: 500, color: 'var(--text-secondary)' }}>{kw}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{stats.pages_fetched}p</span>
+                            <span>{stats.new_unique || 0} new</span>
+                            {stats.targets_found > 0 && <span style={{ color: '#22c55e', fontWeight: 600 }}>{stats.targets_found} targets ({Math.round((stats.target_rate || 0) * 100)}%)</span>}
+                            {stats.funded && <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>funded</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Per-Industry Stats */}
+                  {run.filters.industry_stats && Object.keys(run.filters.industry_stats).length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>INDUSTRY PERFORMANCE</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {Object.entries(run.filters.industry_stats)
+                          .sort((a: any, b: any) => (b[1].new_unique || 0) - (a[1].new_unique || 0))
+                          .map(([ind, stats]: [string, any]) => (
+                          <div key={ind} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, padding: '3px 8px', borderRadius: 4, background: 'var(--bg)' }}>
+                            <span style={{ minWidth: 160, fontWeight: 500, color: 'var(--text-secondary)' }}>{ind.length > 24 ? ind.slice(0, 8) + '...' : ind}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{stats.pages_fetched}p</span>
+                            <span>{stats.new_unique || 0} new</span>
+                            {stats.targets_found > 0 && <span style={{ color: '#22c55e', fontWeight: 600 }}>{stats.targets_found} targets ({Math.round((stats.target_rate || 0) * 100)}%)</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Pipeline Summary */}
+                  {run.filters.pipeline_summary && (
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '8px', background: 'var(--bg)', borderRadius: 4, lineHeight: 1.6 }}>
+                      <strong>Pipeline:</strong>{' '}
+                      {run.filters.pipeline_summary.keywords_used || 0} keywords used,{' '}
+                      {run.filters.pipeline_summary.industries_used || 0} industries,{' '}
+                      {run.filters.pipeline_summary.total_credits_used || 0} credits,{' '}
+                      target rate: {Math.round((run.filters.pipeline_summary.overall_target_rate || 0) * 100)}%
+                      {run.filters.pipeline_summary.kpi_met && <span style={{ color: '#22c55e', fontWeight: 600 }}> — KPI MET</span>}
+                    </div>
+                  )}
                 </div>
               )}
               {filtersTab === 'people' && (
