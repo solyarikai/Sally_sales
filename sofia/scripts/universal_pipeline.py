@@ -1373,7 +1373,7 @@ def step9_people_search(config: ProjectConfig, targets: list[dict],
     return all_contacts
 
 
-def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list[dict],
+def step9_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list[dict],
                               force: bool = False, segment_override: str = None) -> list[dict]:
     """Import contacts from a manual Apollo People Search CSV export."""
     contacts_file = config.state_dir / "contacts.json"
@@ -2456,7 +2456,7 @@ def main():
                     if "platform" in slug.lower():
                         seg_override = seg_data["name"]
                         break
-            c1 = step10_import_apollo_csv(config, args.apollo_csv, targets, force=args.force,
+            c1 = step9_import_apollo_csv(config, args.apollo_csv, targets, force=args.force,
                                            segment_override=seg_override)
             all_contacts.extend(c1)
             if args.apollo_csv_agencies:
@@ -2465,7 +2465,7 @@ def main():
                     if "agenc" in slug.lower():
                         agencies_name = seg_data["name"]
                         break
-                c2 = step10_import_apollo_csv(config, args.apollo_csv_agencies, targets, force=True,
+                c2 = step9_import_apollo_csv(config, args.apollo_csv_agencies, targets, force=True,
                                                segment_override=agencies_name)
                 all_contacts.extend(c2)
                 save_json(config.state_dir / "contacts.json", all_contacts)
