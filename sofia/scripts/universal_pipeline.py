@@ -1516,7 +1516,8 @@ def export_getsales(config: ProjectConfig, without_email: list[dict], today: str
     return out_path
 
 
-# ШАГ 11: ПОИСК EMAIL ЧЕРЕЗ FINDYMAIL
+# ══════════════════════════════════════════════════════════════════════════════
+# ШАГ 10: ПОИСК EMAIL ЧЕРЕЗ FINDYMAIL [скрипт → FindyMail API]
 # Для каждого человека с LinkedIn URL — FindyMail ищет рабочий email.
 # Оплата: $0.01 за каждый НАЙДЕННЫЙ email. Ненайденные — бесплатно.
 # Типичный hit rate: 60-80% (из 500 LinkedIn → ~350-400 email).
@@ -1524,6 +1525,7 @@ def export_getsales(config: ProjectConfig, without_email: list[dict], today: str
 #   1) "Verified Emails" — люди с email, готовы к отправке в SmartLead
 #   2) "No Email (LinkedIn only)" — люди без email, можно работать через LinkedIn
 # Оба сохраняются локально и в Google Sheets.
+# Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
