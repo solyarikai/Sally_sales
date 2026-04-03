@@ -1906,7 +1906,7 @@ def _show_social_proof_stats(contacts: list[dict], segment: str):
         print(f"    {cnt:3d}  {co}")
 
 
-def step12_upload(config: ProjectConfig, contacts: list[dict]):
+def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
     """SmartLead upload with checkpoints at every step."""
     print(f"\n{'='*60}")
     print(f"STEP 12: SmartLead Upload")
@@ -2496,7 +2496,7 @@ def main():
 
     # ── Step 10: SmartLead upload ──
     if "upload" in steps:
-        step12_upload(config, contacts)
+        step12_smartlead(config, contacts)
 
 
 if __name__ == "__main__":
