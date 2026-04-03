@@ -1308,7 +1308,7 @@ def step9_people_search(config: ProjectConfig, targets: list[dict],
     """Search Apollo People UI for contacts at target companies (automated)."""
     contacts_file = config.state_dir / "contacts.json"
     print(f"\n{'='*60}")
-    print(f"STEP 10: Apollo People UI Search (automated)")
+    print(f"STEP 9: PEOPLE SEARCH — Apollo UI (automated)")
     print(f"{'='*60}")
     if contacts_file.exists() and not force:
         contacts = load_json(contacts_file)
