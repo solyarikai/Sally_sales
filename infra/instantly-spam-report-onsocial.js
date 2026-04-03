@@ -22,25 +22,52 @@ async function getAnalytics(testId) {
   return items;
 }
 
-function getBadMailboxes(items) {
+function getMailboxStats(items) {
   const byEmail = {};
   for (const r of items) {
     if (!byEmail[r.sender_email]) byEmail[r.sender_email] = { total: 0, spam: 0 };
     byEmail[r.sender_email].total++;
     if (r.is_spam) byEmail[r.sender_email].spam++;
   }
-  return Object.entries(byEmail)
-    .filter(([, s]) => (1 - s.spam / s.total) < 0.8)
-    .map(([email]) => email);
+  return Object.entries(byEmail).map(([email, s]) => ({
+    email,
+    deliverability: Math.round((1 - s.spam / s.total) * 100),
+  }));
 }
 
-async function sendSlack(webhook, testId, badEmails) {
+async function sendSlack(webhook, testId, stats) {
+  const date = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const link = 'https://app.instantly.ai/app/inbox-placement-tests/' + testId;
-  const body = badEmails.length > 0 ? badEmails.join('\n') : 'все ящики здоровые';
+  const total = stats.length;
+  const bad = stats.filter(s => s.deliverability < 80);
+  const good = stats.filter(s => s.deliverability >= 80);
+
+  let text = '*OnSocial - Inbox Placement Report*\n' + date + '\n\n';
+
+  if (bad.length > 0) {
+    text += ':warning: *Проблемные ящики (' + bad.length + ' из ' + total + '):*\n';
+    for (const s of bad.sort((a, b) => a.deliverability - b.deliverability)) {
+      text += '  ' + s.email + ' - ' + s.deliverability + '%\n';
+    }
+  }
+
+  if (good.length > 0) {
+    text += '\n:white_check_mark: *Здоровые ящики (' + good.length + ' из ' + total + '):*\n';
+    for (const s of good.sort((a, b) => b.deliverability - a.deliverability)) {
+      text += '  ' + s.email + ' - ' + s.deliverability + '%\n';
+    }
+  }
+
+  if (total === 0) {
+    text += 'Нет данных по ящикам\n';
+  }
+
+  text += '\n<' + link + '|Открыть в Instantly>';
+
   const r = await fetch(webhook, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: link + '\n\n' + body }),
+    body: JSON.stringify({ text }),
   });
   return r.ok;
 }
