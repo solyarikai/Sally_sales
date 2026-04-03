@@ -571,7 +571,6 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
   const addMenuRef = useRef<HTMLDivElement>(null);
 
   // Modal states
-  const [showAddModal, setShowAddModal] = useState(false);
   const [showAddByPhoneModal, setShowAddByPhoneModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TgAccount | null>(null);
@@ -703,11 +702,6 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                 className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors font-medium"
                 style={{ color: A.text1 }}>
                 <Phone className="w-3.5 h-3.5 inline mr-2 opacity-50" />Add by Phone
-              </button>
-              <button onClick={() => { setShowAddMenu(false); setShowAddModal(true); }}
-                className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
-                style={{ color: A.text2 }}>
-                <Plus className="w-3.5 h-3.5 inline mr-2 opacity-50" />Manual Entry
               </button>
               <button onClick={() => { setShowAddMenu(false); setShowImportModal(true); }}
                 className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
@@ -1026,11 +1020,6 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
         <AddByPhoneModal t={t} toast={toast} isDark={isDark}
                          onClose={() => setShowAddByPhoneModal(false)}
                          onSaved={() => { setShowAddByPhoneModal(false); loadAccounts(); }} />
-      )}
-      {showAddModal && (
-        <AddAccountModal t={t} toast={toast} isDark={isDark}
-                         onClose={() => setShowAddModal(false)}
-                         onSaved={() => { setShowAddModal(false); loadAccounts(); }} />
       )}
       {editingAccount && (
         <EditAccountModal t={t} toast={toast} isDark={isDark}
@@ -2798,157 +2787,6 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </button>
             )}
           </div>
-        </div>
-      </div>
-    </ModalBackdrop>
-  );
-}
-
-
-// ══════════════════════════════════════════════════════════════════════
-// Add Account Modal
-// ══════════════════════════════════════════════════════════════════════
-
-function AddAccountModal({ t, toast, isDark, onClose, onSaved }: {
-  t: any; toast: any; isDark: boolean; onClose: () => void; onSaved: () => void;
-}) {
-  const [form, setForm] = useState({
-    phone: '', username: '', first_name: '', last_name: '', bio: '',
-    api_id: '', api_hash: '', device_model: 'Samsung SM-G998B', system_version: 'SDK 33',
-    app_version: '10.6.2', lang_code: 'en', system_lang_code: 'en-US',
-    two_fa_password: '', daily_message_limit: '5', is_premium: false,
-  });
-  const [saving, setSaving] = useState(false);
-
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
-  const inputCls = cn('w-full px-3 py-2 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
-  const labelCls = cn('block text-xs font-medium mb-1', t.text3);
-
-  const handleSave = async () => {
-    if (!form.phone.trim()) { toast('Phone is required', 'error'); return; }
-    setSaving(true);
-    try {
-      const data: Record<string, any> = { ...form };
-      data.api_id = data.api_id ? Number(data.api_id) : null;
-      data.daily_message_limit = Number(data.daily_message_limit) || (data.is_premium ? 10 : 5);
-      // Remove empty optional fields
-      for (const k of ['username', 'first_name', 'last_name', 'bio', 'api_hash', 'two_fa_password']) {
-        if (!data[k]) data[k] = null;
-      }
-      await telegramOutreachApi.createAccount(data);
-      toast('Account created', 'success');
-      onSaved();
-    } catch (e: any) {
-      toast(e?.response?.data?.detail || 'Failed to create account', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <ModalBackdrop onClose={onClose}>
-      <div className={cn('w-[560px] rounded-xl border shadow-xl', t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white')}>
-        {/* Header */}
-        <div className={cn('flex items-center justify-between px-6 py-4 border-b', t.cardBorder)}>
-          <h2 className={cn('text-lg font-semibold', t.text1)}>Add Account</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
-            <X className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-4 space-y-4">
-          {/* Identity */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className={labelCls}>Phone *</label>
-              <input value={form.phone} onChange={e => set('phone', e.target.value)}
-                     placeholder="351920619583" className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>First Name</label>
-              <input value={form.first_name} onChange={e => set('first_name', e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Last Name</label>
-              <input value={form.last_name} onChange={e => set('last_name', e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Username</label>
-              <input value={form.username} onChange={e => set('username', e.target.value)}
-                     placeholder="without @" className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Daily Message Limit</label>
-              <input type="number" value={form.daily_message_limit}
-                     onChange={e => set('daily_message_limit', e.target.value)} className={inputCls} />
-            </div>
-            <div className="col-span-2 rounded-lg px-3 py-2 border" style={{ borderColor: A?.border || '#E5E7EB' }}>
-              <div className="text-[10px]" style={{ color: '#9CA3AF' }}>
-                Premium status is auto-detected when you check the account
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className={labelCls}>Bio</label>
-            <textarea value={form.bio} onChange={e => set('bio', e.target.value)}
-                      rows={2} className={inputCls} />
-          </div>
-
-          {/* Technical */}
-          <details className="group">
-            <summary className={cn('text-xs font-semibold cursor-pointer select-none flex items-center gap-1', t.text3)}>
-              <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
-              Technical Settings
-            </summary>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div>
-                <label className={labelCls}>API ID</label>
-                <input value={form.api_id} onChange={e => set('api_id', e.target.value)}
-                       placeholder="2040" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>API Hash</label>
-                <input value={form.api_hash} onChange={e => set('api_hash', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>2FA Password</label>
-                <input value={form.two_fa_password} onChange={e => set('two_fa_password', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Device Model</label>
-                <input value={form.device_model} onChange={e => set('device_model', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>System Version</label>
-                <input value={form.system_version} onChange={e => set('system_version', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>App Version</label>
-                <input value={form.app_version} onChange={e => set('app_version', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Lang Code</label>
-                <input value={form.lang_code} onChange={e => set('lang_code', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>System Lang Code</label>
-                <input value={form.system_lang_code} onChange={e => set('system_lang_code', e.target.value)} className={inputCls} />
-              </div>
-            </div>
-          </details>
-        </div>
-
-        {/* Footer */}
-        <div className={cn('flex items-center justify-end gap-3 px-6 py-4 border-t', t.cardBorder)}>
-          <button onClick={onClose}
-                  className={cn('px-4 py-2 rounded-lg border text-sm', t.cardBorder, t.text1)}>Cancel</button>
-          <button onClick={handleSave} disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Create Account
-          </button>
         </div>
       </div>
     </ModalBackdrop>
