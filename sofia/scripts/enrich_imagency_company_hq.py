@@ -29,7 +29,7 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "requests", "-q"])
     import requests
 
-APOLLO_API_URL = "https://api.apollo.io/api/v1"
+APOLLO_API_URL = "https://api.apollo.io/v1"
 RATE_LIMIT = 0.35  # seconds between calls
 
 
