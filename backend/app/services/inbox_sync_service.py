@@ -12,11 +12,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.telegram_outreach import (
-    TgInboxDialog, TgRecipient, TgAccount, TgAccountStatus, TgOutreachMessage, TgProxy,
+    TgInboxDialog, TgRecipient, TgAccount, TgOutreachMessage, TgProxy,
 )
 from app.models.telegram_dm import TelegramDMAccount
 from app.services.telegram_dm_service import telegram_dm_service
-from app.services.infatica_proxy_service import infatica_proxy_service
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +46,6 @@ class InboxSyncService:
             row = tg_result.first()
             if row:
                 tg_account_id = row[0]
-                # Skip syncing dialogs for inactive accounts
-                tg_acc_obj = await session.get(TgAccount, tg_account_id)
-                if tg_acc_obj and tg_acc_obj.status in (TgAccountStatus.DEAD, TgAccountStatus.BANNED, TgAccountStatus.FROZEN):
-                    logger.debug(f"Inbox sync: TgAccount {tg_account_id} status={tg_acc_obj.status.value}, skipping")
-                    return 0
         if not tg_account_id:
             if not account.phone:
                 logger.warning(f"Inbox sync: account {account_id} has no phone — cannot sync")
@@ -84,19 +78,6 @@ class InboxSyncService:
                     "username": proxy.username, "password": proxy.password,
                 }
                 logger.info(f"Inbox sync: proxy fallback for {account.phone} ← {proxy.host}:{proxy.port}")
-
-        # Fallback: auto-generate Infatica proxy
-        if not proxy_cfg and infatica_proxy_service.is_configured:
-            infatica = infatica_proxy_service.get_proxy_for_account(
-                account.phone, getattr(account, 'id', None) or account_id
-            )
-            if infatica:
-                proxy_cfg = {
-                    "type": infatica["protocol"],
-                    "host": infatica["host"], "port": infatica["port"],
-                    "username": infatica["username"], "password": infatica["password"],
-                }
-                logger.info(f"Inbox sync: Infatica proxy for {account.phone} (geo auto-detect)")
 
         # Check if already connected — avoid disconnect at the end if so
         already_connected = telegram_dm_service.is_connected(account_id)

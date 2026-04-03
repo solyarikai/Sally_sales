@@ -509,19 +509,6 @@ class TgContact(Base, TimestampMixin):
     source_campaign_id = Column(Integer, ForeignKey("tg_campaigns.id", ondelete="SET NULL"), nullable=True)
 
 
-class TgCrmNote(Base):
-    """Notes attached to CRM contacts."""
-    __tablename__ = "tg_crm_notes"
-
-    id = Column(Integer, primary_key=True, index=True)
-    contact_id = Column(Integer, ForeignKey("tg_contacts.id", ondelete="CASCADE"), nullable=False, index=True)
-    text = Column(Text, nullable=False)
-    author = Column(String(100), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default=func.now())
-
-    contact = relationship("TgContact")
-
-
 class TgBlacklist(Base, TimestampMixin):
     """Blacklisted Telegram usernames — recipients matching these are filtered out on upload."""
     __tablename__ = "tg_blacklist"

@@ -305,7 +305,11 @@ class TelegramDMService:
                     account_data.append((acc.id, acc.string_session, proxy, fp))
 
             connected = 0
+            failed_proxies = set()  # Skip accounts on dead proxies (don't spam 2000+ retries)
             for acc_id, ss, proxy, fp in account_data:
+                proxy_key = proxy.get('host', '') if proxy else "direct"  # Group by host (all ports share same auth)
+                if proxy_key in failed_proxies:
+                    continue
                 try:
                     ok = await self.connect_account(acc_id, ss, proxy, **fp)
                     if ok:
@@ -320,8 +324,15 @@ class TelegramDMService:
                             await session.commit()
                     else:
                         logger.warning(f"Account {acc_id}: connect returned False")
+                        if proxy:
+                            failed_proxies.add(proxy_key)
+                            skipped = sum(1 for _, _, p, _ in account_data if p and p.get('host', '') == proxy_key)
+                            logger.warning(f"Proxy {proxy_key} failed — skipping {skipped} accounts on this host")
                 except Exception as e:
                     logger.warning(f"Failed to reconnect account {acc_id}: {e}")
+                    if proxy and ("407" in str(e) or "Proxy" in str(e) or "connect" in str(e).lower()):
+                        failed_proxies.add(proxy_key)
+                        logger.warning(f"Proxy {proxy_key} dead ({e.__class__.__name__}) — skipping remaining accounts")
                     async with async_session_maker() as session:
                         from sqlalchemy import update
                         await session.execute(
@@ -562,7 +573,6 @@ class TelegramDMService:
                             if etype == "pre" and hasattr(ent, "language") and ent.language:
                                 e["language"] = ent.language
                             entities_list.append(e)
-
                 messages.append({
                     "id": msg.id,
                     "direction": "outbound" if msg.sender_id == me.id else "inbound",

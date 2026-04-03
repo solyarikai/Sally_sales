@@ -28,7 +28,6 @@ from app.models.telegram_outreach import (
     TgWarmupLog, TgWarmupActionType, TgWarmupChannel,
 )
 from app.services.telegram_engine import telegram_engine
-from app.services.infatica_proxy_service import infatica_proxy_service
 from app.services.warmup_messages import ALL_QUESTIONS, ALL_ANSWERS
 
 logger = logging.getLogger(__name__)
@@ -224,11 +223,6 @@ class WarmupWorker:
                     "username": p.username, "password": p.password,
                     "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol,
                 }
-
-        # Fallback: auto-generate Infatica proxy
-        if proxy_dict is None and infatica_proxy_service.is_configured:
-            proxy_dict = infatica_proxy_service.get_proxy_for_account(account.phone, account.id)
-            logger.info(f"Warm-up {account.phone}: using Infatica proxy (geo auto-detect)")
 
         try:
             client = await telegram_engine.connect(

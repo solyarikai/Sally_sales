@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Users, Send, Shield, Plus, Search, Trash2,
-  Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown, Eye,
+  Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
   LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon,
-  BarChart3, ChevronUp, FolderOpen, ArrowLeft, StickyNote, Clock,
+  BarChart3, ChevronUp, FolderOpen,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -100,32 +100,25 @@ function Tick({ checked, indeterminate, onChange, className }: {
 // ── Sortable Header ──────────────────────────────────────────────────
 
 // ── Custom styled select (replaces native <select>) ─────────────────
-function StyledSelect({ value, onChange, options, placeholder, className: cls, renderOption, renderSelected, searchable }: {
+function StyledSelect({ value, onChange, options, placeholder, className: cls, renderOption, renderSelected }: {
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string; searchText?: string }[];
+  options: { value: string; label: string }[];
   placeholder?: string;
   className?: string;
   renderOption?: (opt: { value: string; label: string }, isSelected: boolean) => React.ReactNode;
   renderSelected?: (opt: { value: string; label: string }) => React.ReactNode;
-  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [openUp, setOpenUp] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const ref = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (!open) { setSearchTerm(''); return; }
+    if (!open) return;
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h);
-    if (searchable) setTimeout(() => searchInputRef.current?.focus(), 0);
     return () => document.removeEventListener('mousedown', h);
-  }, [open, searchable]);
+  }, [open]);
   const selected = options.find(o => o.value === value);
-  const filteredOpts = searchable && searchTerm
-    ? options.filter(o => (o.searchText || o.label).toLowerCase().includes(searchTerm.toLowerCase()))
-    : options;
   const handleOpen = () => {
     if (!open && ref.current) {
       const rect = ref.current.getBoundingClientRect();
@@ -142,46 +135,25 @@ function StyledSelect({ value, onChange, options, placeholder, className: cls, r
         <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: A.text3 }} />
       </button>
       {open && (
-        <div style={{ position: 'absolute', ...(openUp ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), left: 0, right: 0, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, maxHeight: 280, display: 'flex', flexDirection: 'column' }}>
-          {searchable && (
-            <div style={{ padding: '6px 6px 2px', flexShrink: 0 }}>
-              <div style={{ position: 'relative' }}>
-                <Search className="w-3 h-3" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: A.text3 }} />
-                <input
-                  ref={searchInputRef}
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  placeholder="Search..."
-                  className="w-full h-7 pl-7 pr-2 rounded-md text-xs outline-none"
-                  style={{ border: `1px solid ${A.border}`, background: '#F9FAFB', color: A.text1 }}
-                  onClick={e => e.stopPropagation()}
-                />
-              </div>
-            </div>
+        <div style={{ position: 'absolute', ...(openUp ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), left: 0, right: 0, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: '4px 0', maxHeight: 240, overflowY: 'auto' }}>
+          {placeholder && (
+            <button onClick={() => { onChange(''); setOpen(false); }}
+              className="w-full text-left px-3 py-1.5 text-xs"
+              style={{ color: A.text3, background: value === '' ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = '#F5F5F0'; }}
+              onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = ''; }}>
+              {placeholder}
+            </button>
           )}
-          <div style={{ padding: '4px 0', overflowY: 'auto', flex: 1 }}>
-            {placeholder && !searchTerm && (
-              <button onClick={() => { onChange(''); setOpen(false); }}
-                className="w-full text-left px-3 py-1.5 text-xs"
-                style={{ color: A.text3, background: value === '' ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = '#F5F5F0'; }}
-                onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = ''; }}>
-                {placeholder}
-              </button>
-            )}
-            {filteredOpts.map(o => (
-              <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
-                className={`w-full text-left px-3 ${renderOption ? 'py-2' : 'py-1.5'} text-xs`}
-                style={{ color: value === o.value ? A.blue : A.text1, background: value === o.value ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = '#F5F5F0'; }}
-                onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = ''; }}>
-                {renderOption ? renderOption(o, value === o.value) : o.label}
-              </button>
-            ))}
-            {searchable && searchTerm && filteredOpts.length === 0 && (
-              <div className="px-3 py-2 text-xs" style={{ color: A.text3 }}>No results</div>
-            )}
-          </div>
+          {options.map(o => (
+            <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`w-full text-left px-3 ${renderOption ? 'py-2' : 'py-1.5'} text-xs`}
+              style={{ color: value === o.value ? A.blue : A.text1, background: value === o.value ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
+              onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = '#F5F5F0'; }}
+              onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = ''; }}>
+              {renderOption ? renderOption(o, value === o.value) : o.label}
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -571,6 +543,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
   const addMenuRef = useRef<HTMLDivElement>(null);
 
   // Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
   const [showAddByPhoneModal, setShowAddByPhoneModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TgAccount | null>(null);
@@ -703,6 +676,11 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                 style={{ color: A.text1 }}>
                 <Phone className="w-3.5 h-3.5 inline mr-2 opacity-50" />Add by Phone
               </button>
+              <button onClick={() => { setShowAddMenu(false); setShowAddModal(true); }}
+                className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
+                style={{ color: A.text2 }}>
+                <Plus className="w-3.5 h-3.5 inline mr-2 opacity-50" />Manual Entry
+              </button>
               <button onClick={() => { setShowAddMenu(false); setShowImportModal(true); }}
                 className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
                 style={{ color: A.text2 }}>
@@ -786,7 +764,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
               <div className="p-4 space-y-4">
                 {/* Range toggle + metrics row */}
                 <div className="flex items-center justify-between">
-                  <div className="flex-1 flex items-center justify-center gap-6">
+                  <div className="flex items-center gap-6">
                     <div className="text-center">
                       <div className="text-2xl font-bold" style={{ color: A.blue, fontVariantNumeric: 'tabular-nums' }}>{sent}</div>
                       <div className="text-[10px] font-medium uppercase tracking-wider" style={{ color: A.text3 }}>Unique Sent</div>
@@ -965,9 +943,16 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                         const lines: string[] = [];
                         if (sessionDate) lines.push(`Сессия: ${fmt(sessionDate)} (${ageFmt(sessionDate)})`);
                         if (tgDate) lines.push(`TG аккаунт: ~${fmt(tgDate)} (${ageFmt(tgDate)})`);
+                        const sessionDays = sessionDate ? Math.floor((Date.now() - new Date(sessionDate).getTime()) / 86400000) : null;
+                        const showAgeWarn = !acc.skip_warmup && (acc.is_young_session || acc.warmup_day != null);
                         return (
                           <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             {ageFmt(primaryDate)}
+                            {showAgeWarn && (
+                              <span title={`Аккаунт слишком новый${sessionDays != null ? ` (${sessionDays} дн.)` : ''}, включён Warm-up`} style={{ display: 'inline-flex' }}>
+                                <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#d97706' }} />
+                              </span>
+                            )}
                             <span className="age-tooltip">{lines.join('\n')}</span>
                           </span>
                         );
@@ -979,6 +964,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                       {acc.is_premium && <span style={{ color: '#7C3AED', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Premium account — higher daily limits">⭐PRO</span>}
                       {acc.skip_warmup ? <span style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} title="Warm-up skipped (manual override)">SKIP</span>
                         : acc.warmup_day != null ? <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
+                      {!acc.skip_warmup && acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
                       {acc.warmup_active && acc.warmup_progress && (
                         acc.warmup_progress.phase === 'maintenance'
                           ? <span style={{ color: '#0891b2', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title={`Maintenance mode (day ${acc.warmup_progress.day}): 1-2 reactions/day to keep account healthy`}>✓MT</span>
@@ -1020,6 +1006,11 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
         <AddByPhoneModal t={t} toast={toast} isDark={isDark}
                          onClose={() => setShowAddByPhoneModal(false)}
                          onSaved={() => { setShowAddByPhoneModal(false); loadAccounts(); }} />
+      )}
+      {showAddModal && (
+        <AddAccountModal t={t} toast={toast} isDark={isDark}
+                         onClose={() => setShowAddModal(false)}
+                         onSaved={() => { setShowAddModal(false); loadAccounts(); }} />
       )}
       {editingAccount && (
         <EditAccountModal t={t} toast={toast} isDark={isDark}
@@ -1784,6 +1775,11 @@ function AppVersionPanel({ ids, loading, run, inputCls, inputStyle }: {
                 className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>
           Apply to {ids.length}
         </button>
+        <button onClick={() => run(`App version → ${targetVersion} (all)`, () => telegramOutreachApi.updateAllAppVersion(customVersion || undefined))}
+                disabled={loading || !targetVersion}
+                className="px-3 py-1 rounded-md text-[12px] font-medium" style={{ background: A.teal, color: '#fff' }}>
+          Apply to ALL
+        </button>
       </div>
     </div>
   );
@@ -1883,7 +1879,6 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   const inputStyle = { border: `1px solid ${A.border}`, background: A.surface, color: A.text1 };
 
   const [showActionsPopup, setShowActionsPopup] = useState(false);
-  const [showWarmupSettings, setShowWarmupSettings] = useState(false);
   const menuItemCls = 'w-full text-left px-4 py-2 text-[13px] flex items-center gap-2.5 transition-colors';
 
   return (
@@ -1903,10 +1898,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
             if (res.frozen) parts.push(`⚠ ${res.frozen} frozen`);
             if (res.banned) parts.push(`✕ ${res.banned} banned`);
             if (res.dead) parts.push(`☠ ${res.dead} dead`);
-            if (res.no_session) parts.push(`○ ${res.no_session} no session`);
-            if (res.errors) parts.push(`⚡ ${res.errors} errors`);
-            const allFailed = (res.alive ?? 0) === 0 && (res.errors > 0 || res.no_session > 0);
-            toast(parts.join(' · '), res.alive === res.total ? 'success' : allFailed ? 'error' : 'warning');
+            toast(parts.join(' · '), res.alive === res.total ? 'success' : 'warning');
             onDone();
           } catch { toast('Alive check failed', 'error'); }
           finally { setLoading(false); }
@@ -1973,8 +1965,32 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('limit'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Daily Limit
               </button>
-              <button onClick={() => { setShowActionsPopup(false); setShowWarmupSettings(true); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <Play className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Warm-up
+              <div className="flex items-center gap-1 px-2 py-1">
+                <span className="text-[10px] font-medium" style={{ color: '#d97706' }}>WARM-UP</span>
+                <span title="Warm-up gradually increases daily sending limit for new accounts: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days are capped at 5 msgs/day. Disabling warm-up removes all limits — use with caution on new sessions.">
+                  <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
+                </span>
+              </div>
+              <button onClick={() => { if (!window.confirm(`⚠ Отключить Warm-up для ${ids.length} аккаунтов?\nНовые аккаунты без прогрева рискуют получить бан.`)) return; setShowActionsPopup(false); run('Warm-up skipped', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Minus className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Skip Warm-up
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); run('Warm-up restored', () => telegramOutreachApi.bulkSkipWarmup(ids, false)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <RefreshCw className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Restore Warm-up
+              </button>
+              <div className="flex items-center gap-1 px-2 py-1 mt-1">
+                <span className="text-[10px] font-medium" style={{ color: '#059669' }}>ACTIVE WARM-UP</span>
+                <span title="Active warm-up simulates real user activity over 14 days: joins channels, adds reactions, exchanges messages. Significantly reduces ban risk for new accounts.">
+                  <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
+                </span>
+              </div>
+              <button onClick={() => { setShowActionsPopup(false); run('Active warm-up started', () => telegramOutreachApi.bulkWarmup(ids, 'start')); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Play className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Start Active Warm-up
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); run('Active warm-up stopped', () => telegramOutreachApi.bulkWarmup(ids, 'stop')); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Square className="w-3.5 h-3.5" style={{ color: '#dc2626' }} /> Stop Active Warm-up
+              </button>
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('warmup-channels'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Link2 className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Manage Channels
               </button>
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('2fa'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Shield className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Change 2FA
@@ -2009,76 +2025,6 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
         </ModalBackdrop>,
         document.body
       )}
-      {/* Warm-up Settings popup */}
-      {showWarmupSettings && createPortal(
-        <ModalBackdrop onClose={() => setShowWarmupSettings(false)}>
-          <div className="w-[360px] rounded-xl border shadow-xl" style={{ borderColor: A.border, background: A.surface }}>
-            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: `1px solid ${A.border}` }}>
-              <span className="text-sm font-semibold" style={{ color: A.text1 }}>Warm-up Settings</span>
-              <button onClick={() => setShowWarmupSettings(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <X className="w-4 h-4" style={{ color: A.text3 }} />
-              </button>
-            </div>
-            <div className="px-4 py-3 flex flex-col gap-3">
-              <div className="text-[12px]" style={{ color: A.text3 }}>{ids.length} accounts selected</div>
-
-              {/* Start / Stop */}
-              <div className="flex gap-2">
-                <button onClick={() => { setShowWarmupSettings(false); run('Active warm-up started', () => telegramOutreachApi.bulkWarmup(ids, 'start')); }}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-white transition-colors"
-                  style={{ background: '#059669' }}>
-                  <Play className="w-3.5 h-3.5" /> Start
-                </button>
-                <button onClick={() => { setShowWarmupSettings(false); run('Active warm-up stopped', () => telegramOutreachApi.bulkWarmup(ids, 'stop')); }}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-white transition-colors"
-                  style={{ background: '#dc2626' }}>
-                  <Square className="w-3.5 h-3.5" /> Stop
-                </button>
-              </div>
-
-              <div style={{ height: 1, background: A.border }} />
-
-              {/* Gradual daily limit toggle */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px]" style={{ color: A.text1 }}>Gradual daily limit increase</span>
-                  <div className="info-tip-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
-                    <Info className="w-3 h-3 cursor-help" style={{ color: A.text3 }} />
-                    <div className="info-tip" style={{ display: 'none', position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'normal', maxWidth: 240, background: '#1F2937', color: '#fff', fontSize: 10, padding: '4px 10px', borderRadius: 6, pointerEvents: 'none', zIndex: 50 }}>
-                      Gradually increases daily sending limit over time. Disabling removes limits — use with caution for new accounts.
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-1.5">
-                  <button onClick={() => { run('Warm-up restored', () => telegramOutreachApi.bulkSkipWarmup(ids, false)); }}
-                    className="px-2.5 py-1 rounded text-[11px] font-semibold transition-colors"
-                    style={{ background: '#05966915', color: '#059669', border: '1px solid #05966930' }}>
-                    On
-                  </button>
-                  <button onClick={() => { if (!window.confirm(`⚠ Disable gradual limit for ${ids.length} accounts?\nNew accounts without warm-up risk getting banned.`)) return; run('Warm-up skipped', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }}
-                    className="px-2.5 py-1 rounded text-[11px] font-semibold transition-colors"
-                    style={{ background: '#dc262615', color: '#dc2626', border: '1px solid #dc262630' }}>
-                    Off
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ height: 1, background: A.border }} />
-
-              {/* Manage Channels */}
-              <button onClick={() => { setShowWarmupSettings(false); setActivePanel('warmup-channels'); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors"
-                style={{ color: A.text1, background: '#F5F5F0' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#EEEEE8'}
-                onMouseLeave={e => e.currentTarget.style.background = '#F5F5F0'}>
-                <Link2 className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Manage Channels
-              </button>
-            </div>
-          </div>
-        </ModalBackdrop>,
-        document.body
-      )}
-
         {confirmDelete && createPortal(
           <ConfirmModal message={`Delete ${ids.length} accounts?`}
             onConfirm={async () => {
@@ -2428,35 +2374,6 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
 // Add by Phone Modal (multi-step auth wizard)
 // ══════════════════════════════════════════════════════════════════════
 
-// [ISO, dialCode, name]
-const PHONE_COUNTRIES: [string, string, string][] = [
-  ['US', '1', 'United States'], ['GB', '44', 'United Kingdom'], ['RU', '7', 'Russia'],
-  ['UA', '380', 'Ukraine'], ['DE', '49', 'Germany'], ['FR', '33', 'France'],
-  ['IT', '39', 'Italy'], ['ES', '34', 'Spain'], ['PT', '351', 'Portugal'],
-  ['NL', '31', 'Netherlands'], ['BE', '32', 'Belgium'], ['AT', '43', 'Austria'],
-  ['CH', '41', 'Switzerland'], ['SE', '46', 'Sweden'], ['NO', '47', 'Norway'],
-  ['DK', '45', 'Denmark'], ['FI', '358', 'Finland'], ['PL', '48', 'Poland'],
-  ['CZ', '420', 'Czech Republic'], ['RO', '40', 'Romania'], ['HU', '36', 'Hungary'],
-  ['GR', '30', 'Greece'], ['IE', '353', 'Ireland'], ['BY', '375', 'Belarus'],
-  ['KZ', '77', 'Kazakhstan'], ['UZ', '998', 'Uzbekistan'], ['GE', '995', 'Georgia'],
-  ['AM', '374', 'Armenia'], ['AZ', '994', 'Azerbaijan'], ['TR', '90', 'Turkey'],
-  ['IL', '972', 'Israel'], ['AE', '971', 'UAE'], ['SA', '966', 'Saudi Arabia'],
-  ['IN', '91', 'India'], ['CN', '86', 'China'], ['JP', '81', 'Japan'],
-  ['KR', '82', 'South Korea'], ['SG', '65', 'Singapore'], ['HK', '852', 'Hong Kong'],
-  ['TH', '66', 'Thailand'], ['ID', '62', 'Indonesia'], ['MY', '60', 'Malaysia'],
-  ['PH', '63', 'Philippines'], ['VN', '84', 'Vietnam'], ['AU', '61', 'Australia'],
-  ['NZ', '64', 'New Zealand'], ['BR', '55', 'Brazil'], ['MX', '52', 'Mexico'],
-  ['AR', '54', 'Argentina'], ['CO', '57', 'Colombia'], ['ZA', '27', 'South Africa'],
-  ['NG', '234', 'Nigeria'], ['EG', '20', 'Egypt'], ['KE', '254', 'Kenya'],
-  ['LT', '370', 'Lithuania'], ['LV', '371', 'Latvia'], ['EE', '372', 'Estonia'],
-  ['HR', '385', 'Croatia'], ['RS', '381', 'Serbia'], ['BG', '359', 'Bulgaria'],
-  ['SK', '421', 'Slovakia'], ['SI', '386', 'Slovenia'], ['CY', '357', 'Cyprus'],
-  ['MD', '373', 'Moldova'], ['CA', '1', 'Canada'], ['LU', '352', 'Luxembourg'],
-];
-
-const getCountryFlag = (iso: string) =>
-  String.fromCodePoint(...[...iso.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
-
 function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   t: any; toast: any; isDark: boolean; onClose: () => void; onSaved: () => void;
 }) {
@@ -2464,60 +2381,18 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [accountId, setAccountId] = useState<number | null>(null);
   const [deviceModel, setDeviceModel] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [countryIdx, setCountryIdx] = useState(0);
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [countrySearch, setCountrySearch] = useState('');
-  const [phoneFocused, setPhoneFocused] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
-  const countryRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  const fullPhone = PHONE_COUNTRIES[countryIdx][1] + phone.replace(/[^0-9]/g, '');
-
-  // Close country picker on click outside
-  useEffect(() => {
-    if (!showCountryPicker) return;
-    const handler = (e: MouseEvent) => {
-      if (countryRef.current && !countryRef.current.contains(e.target as Node)) {
-        setShowCountryPicker(false);
-        setCountrySearch('');
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showCountryPicker]);
-
-  // Auto-detect country when pasting a full number with country code
-  const handlePhoneInput = (val: string) => {
-    const raw = val.replace(/[^0-9+]/g, '');
-    const digits = raw.replace(/\+/g, '');
-    if ((val.includes('+') || digits.length > 10) && digits.length >= 7) {
-      for (const len of [3, 2, 1]) {
-        if (digits.length <= len) continue;
-        const prefix = digits.slice(0, len);
-        const idx = PHONE_COUNTRIES.findIndex(([, dial]) => dial === prefix);
-        if (idx !== -1) {
-          setCountryIdx(idx);
-          setPhone(digits.slice(len));
-          return;
-        }
-      }
-    }
-    setPhone(val);
-  };
 
   const inputCls = cn('w-full px-3 py-2.5 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
   const labelCls = cn('block text-xs font-medium mb-1.5', t.text3);
 
   const handleSendCode = async () => {
-    const localCleaned = phone.trim().replace(/[^0-9]/g, '');
-    if (!localCleaned || localCleaned.length < 4) { setError('Enter a valid phone number'); return; }
-    const cleaned = PHONE_COUNTRIES[countryIdx][1] + localCleaned;
+    const cleaned = phone.trim().replace(/[^0-9]/g, '');
+    if (!cleaned || cleaned.length < 7) { setError('Enter a valid phone number with country code'); return; }
     setLoading(true); setError('');
     try {
       const res = await telegramOutreachApi.addByPhone(cleaned);
@@ -2579,7 +2454,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
         <div className={cn('flex items-center justify-between px-6 py-4 border-b', t.cardBorder)}>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: '#059669' }}>
+              style={{ background: step === 'done' ? '#059669' : '#4F46E5' }}>
               {step === 'done'
                 ? <Check className="w-4 h-4 text-white" />
                 : <Phone className="w-4 h-4 text-white" />}
@@ -2603,74 +2478,14 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             <div className="space-y-4">
               <div>
                 <label className={labelCls}>Phone Number</label>
-                <div className={cn(
-                  'flex items-center rounded-lg border transition-colors',
-                  phoneFocused ? 'border-emerald-500 ring-2 ring-emerald-500/20' : t.cardBorder,
-                  t.cardBg
-                )}>
-                  {/* Country picker */}
-                  <div className="relative" ref={countryRef}>
-                    <button type="button"
-                      onClick={() => { setShowCountryPicker(!showCountryPicker); setTimeout(() => searchRef.current?.focus(), 50); }}
-                      className={cn(
-                        'flex items-center gap-1.5 px-3 py-2.5 border-r text-sm shrink-0 rounded-l-lg transition-colors',
-                        'hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder
-                      )}>
-                      <span className="text-lg leading-none">{getCountryFlag(PHONE_COUNTRIES[countryIdx][0])}</span>
-                      <span className={cn('text-sm', t.text2)}>+{PHONE_COUNTRIES[countryIdx][1]}</span>
-                      <ChevronDown className="w-3 h-3 text-gray-400" />
-                    </button>
-                    {showCountryPicker && (
-                      <div className={cn(
-                        'absolute top-full left-0 mt-1 w-72 max-h-60 overflow-auto rounded-lg border shadow-xl z-50',
-                        t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white'
-                      )}>
-                        <div className={cn('sticky top-0 p-2 border-b', t.cardBorder)}
-                          style={{ background: isDark ? '#111827' : '#fff' }}>
-                          <input ref={searchRef} value={countrySearch}
-                            onChange={e => setCountrySearch(e.target.value)}
-                            placeholder="Search country or code..."
-                            className={cn('w-full px-2.5 py-1.5 rounded border text-sm', t.cardBorder, t.cardBg, t.text1)} />
-                        </div>
-                        {PHONE_COUNTRIES.map(([iso, dial, name], i) => {
-                          const q = countrySearch.toLowerCase();
-                          if (q && !name.toLowerCase().includes(q) && !dial.includes(q) && !iso.toLowerCase().includes(q)) return null;
-                          return (
-                            <button key={iso + dial + i}
-                              onClick={() => { setCountryIdx(i); setShowCountryPicker(false); setCountrySearch(''); }}
-                              className={cn(
-                                'w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors',
-                                'hover:bg-gray-50 dark:hover:bg-gray-800',
-                                i === countryIdx && (isDark ? 'bg-emerald-900/20' : 'bg-emerald-50')
-                              )}>
-                              <span className="text-lg leading-none">{getCountryFlag(iso)}</span>
-                              <span className={cn('flex-1 truncate', t.text1)}>{name}</span>
-                              <span className={cn('text-xs tabular-nums', t.text3)}>+{dial}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  {/* Phone input */}
-                  <input value={phone}
-                    onChange={e => handlePhoneInput(e.target.value)}
-                    onFocus={() => setPhoneFocused(true)}
-                    onBlur={() => setPhoneFocused(false)}
-                    onKeyDown={e => e.key === 'Enter' && handleSendCode()}
-                    placeholder="920 619 583"
-                    className={cn('flex-1 px-3 py-2.5 bg-transparent text-sm outline-none rounded-r-lg', t.text1)}
-                    autoFocus />
+                <input value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSendCode()}
+                  placeholder="351920619583"
+                  className={inputCls} autoFocus />
+                <div className={cn('text-[11px] mt-1.5', t.text3)}>
+                  Include country code without + sign
                 </div>
-                {phone.trim() ? (
-                  <div className={cn('text-[11px] mt-1.5', t.text3)}>
-                    Full number: <span className="font-medium" style={{ color: '#059669' }}>+{fullPhone}</span>
-                  </div>
-                ) : (
-                  <div className={cn('text-[11px] mt-1.5', t.text3)}>
-                    Select country and enter the local number
-                  </div>
-                )}
               </div>
               <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
                 style={{ background: isDark ? '#1E293B' : '#F8FAFC' }}>
@@ -2684,7 +2499,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             <div className="space-y-4">
               <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
                 style={{ background: isDark ? '#1E293B' : '#F0FDF4' }}>
-                Code sent to <span className="font-medium" style={{ color: isDark ? '#86EFAC' : '#059669' }}>+{fullPhone}</span>
+                Code sent to <span className="font-medium" style={{ color: isDark ? '#86EFAC' : '#059669' }}>+{phone.replace(/[^0-9]/g, '')}</span>
                 {deviceModel && <span className="opacity-60"> (device: {deviceModel})</span>}
               </div>
               <div>
@@ -2710,17 +2525,11 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </div>
               <div>
                 <label className={labelCls}>2FA Password</label>
-                <div className="relative">
-                  <input value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleVerify2FA()}
-                    type={showPassword ? 'text' : 'password'} placeholder="Enter your cloud password"
-                    className={cn(inputCls, 'pr-9')} autoFocus />
-                  <button type="button" onClick={() => setShowPassword(v => !v)}
-                    className={cn('absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:opacity-80', t.text3)}>
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <input value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleVerify2FA()}
+                  type="password" placeholder="Enter your cloud password"
+                  className={inputCls} autoFocus />
               </div>
             </div>
           )}
@@ -2732,7 +2541,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </div>
               <div className={cn('text-sm font-medium', t.text1)}>Account successfully authorized</div>
               <div className={cn('text-xs', t.text3)}>
-                +{fullPhone} is ready to use
+                +{phone.replace(/[^0-9]/g, '')} is ready to use
                 {deviceModel && <> with device fingerprint <span className="font-mono text-[11px]">{deviceModel}</span></>}
               </div>
             </div>
@@ -2752,7 +2561,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
           <div className="flex items-center gap-1.5">
             {[1, 2, 3].map(s => (
               <div key={s} className="w-1.5 h-1.5 rounded-full transition-colors"
-                style={{ background: s <= stepNumber[step] ? '#059669' : isDark ? '#374151' : '#E5E7EB' }} />
+                style={{ background: s <= stepNumber[step] ? '#4F46E5' : isDark ? '#374151' : '#E5E7EB' }} />
             ))}
           </div>
           <div className="flex items-center gap-2">
@@ -2797,65 +2606,169 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
 
 
 // ══════════════════════════════════════════════════════════════════════
-// Proxy Test Button (used inside Edit Account Modal)
+// Add Account Modal
 // ══════════════════════════════════════════════════════════════════════
 
-function ProxyTestButton({ accountId, toast, hasProxy }: { accountId: number; toast: any; hasProxy: boolean }) {
-  const [state, setState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
-  const [result, setResult] = useState<{ ip?: string | null; latency_ms?: number | null; error?: string | null }>({});
+function AddAccountModal({ t, toast, isDark, onClose, onSaved }: {
+  t: any; toast: any; isDark: boolean; onClose: () => void; onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    phone: '', username: '', first_name: '', last_name: '', bio: '',
+    api_id: '', api_hash: '', device_model: 'Samsung SM-G998B', system_version: 'SDK 33',
+    app_version: '10.6.2', lang_code: 'en', system_lang_code: 'en-US',
+    two_fa_password: '', daily_message_limit: '5', is_premium: false,
+  });
+  const [saving, setSaving] = useState(false);
 
-  const runTest = useCallback(async () => {
-    setState('testing');
-    setResult({});
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const inputCls = cn('w-full px-3 py-2 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
+  const labelCls = cn('block text-xs font-medium mb-1', t.text3);
+
+  const handleSave = async () => {
+    if (!form.phone.trim()) { toast('Phone is required', 'error'); return; }
+    setSaving(true);
     try {
-      const r = await telegramOutreachApi.testAccountProxy(accountId);
-      if (r.ok) {
-        setState('ok');
-        setResult({ ip: r.ip, latency_ms: r.latency_ms });
-        toast(`Proxy OK — exit IP: ${r.ip} (${r.latency_ms}ms)`, 'success');
-      } else {
-        setState('error');
-        setResult({ error: r.error });
-        toast(`Proxy failed: ${r.error}`, 'error');
+      const data: Record<string, any> = { ...form };
+      data.api_id = data.api_id ? Number(data.api_id) : null;
+      data.daily_message_limit = Number(data.daily_message_limit) || (data.is_premium ? 10 : 5);
+      // Remove empty optional fields
+      for (const k of ['username', 'first_name', 'last_name', 'bio', 'api_hash', 'two_fa_password']) {
+        if (!data[k]) data[k] = null;
       }
+      await telegramOutreachApi.createAccount(data);
+      toast('Account created', 'success');
+      onSaved();
     } catch (e: any) {
-      setState('error');
-      setResult({ error: e.message });
-      toast('Proxy test failed', 'error');
+      toast(e?.response?.data?.detail || 'Failed to create account', 'error');
+    } finally {
+      setSaving(false);
     }
-  }, [accountId, toast]);
-
-  if (!hasProxy) {
-    return <span className="text-xs" style={{ color: '#9E9E9E' }}>No proxy</span>;
-  }
+  };
 
   return (
-    <div className="flex items-center gap-2">
-      {state === 'ok' && (
-        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#2E7D32' }}>
-          <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#4CAF50' }} />
-          {result.ip} <span style={{ color: '#9E9E9E' }}>({result.latency_ms}ms)</span>
-        </span>
-      )}
-      {state === 'error' && (
-        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#D32F2F' }}>
-          <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#F44336' }} />
-          Error
-        </span>
-      )}
-      {state === 'idle' && (
-        <span className="text-xs" style={{ color: '#9E9E9E' }}>Not tested</span>
-      )}
-      <button
-        onClick={runTest}
-        disabled={state === 'testing'}
-        className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors hover:opacity-80"
-        style={{ background: '#F5F5F5', color: '#616161', border: '1px solid #E0E0E0' }}
-      >
-        {state === 'testing' ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-        {state === 'testing' ? 'Testing…' : 'Test'}
-      </button>
-    </div>
+    <ModalBackdrop onClose={onClose}>
+      <div className={cn('w-[560px] rounded-xl border shadow-xl', t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white')}>
+        {/* Header */}
+        <div className={cn('flex items-center justify-between px-6 py-4 border-b', t.cardBorder)}>
+          <h2 className={cn('text-lg font-semibold', t.text1)}>Add Account</h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-4 space-y-4">
+          {/* Identity */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className={labelCls}>Phone *</label>
+              <input value={form.phone} onChange={e => set('phone', e.target.value)}
+                     placeholder="351920619583" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>First Name</label>
+              <input value={form.first_name} onChange={e => set('first_name', e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Last Name</label>
+              <input value={form.last_name} onChange={e => set('last_name', e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Username</label>
+              <input value={form.username} onChange={e => set('username', e.target.value)}
+                     placeholder="without @" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Daily Message Limit</label>
+              <input type="number" value={form.daily_message_limit}
+                     onChange={e => set('daily_message_limit', e.target.value)} className={inputCls} />
+            </div>
+            <div className="col-span-2 flex items-center justify-between rounded-lg px-3 py-2 border" style={{ borderColor: form.is_premium ? '#8B5CF6' : undefined }}>
+              <div>
+                <label className="text-xs font-medium" style={{ color: form.is_premium ? '#7C3AED' : undefined }}>
+                  ⭐ Premium Account
+                </label>
+                <div className="text-[10px]" style={{ color: '#9CA3AF' }}>
+                  Premium: limit 10 msgs/day. Standard: 5 msgs/day
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !form.is_premium;
+                  setForm(f => ({ ...f, is_premium: next, daily_message_limit: next ? '10' : '5' }));
+                }}
+                className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                style={{ background: form.is_premium ? '#7C3AED' : '#D1D5DB' }}
+              >
+                <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
+                      style={{ transform: form.is_premium ? 'translateX(17px)' : 'translateX(3px)' }} />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Bio</label>
+            <textarea value={form.bio} onChange={e => set('bio', e.target.value)}
+                      rows={2} className={inputCls} />
+          </div>
+
+          {/* Technical */}
+          <details className="group">
+            <summary className={cn('text-xs font-semibold cursor-pointer select-none flex items-center gap-1', t.text3)}>
+              <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
+              Technical Settings
+            </summary>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className={labelCls}>API ID</label>
+                <input value={form.api_id} onChange={e => set('api_id', e.target.value)}
+                       placeholder="2040" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>API Hash</label>
+                <input value={form.api_hash} onChange={e => set('api_hash', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>2FA Password</label>
+                <input value={form.two_fa_password} onChange={e => set('two_fa_password', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Device Model</label>
+                <input value={form.device_model} onChange={e => set('device_model', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>System Version</label>
+                <input value={form.system_version} onChange={e => set('system_version', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>App Version</label>
+                <input value={form.app_version} onChange={e => set('app_version', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Lang Code</label>
+                <input value={form.lang_code} onChange={e => set('lang_code', e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>System Lang Code</label>
+                <input value={form.system_lang_code} onChange={e => set('system_lang_code', e.target.value)} className={inputCls} />
+              </div>
+            </div>
+          </details>
+        </div>
+
+        {/* Footer */}
+        <div className={cn('flex items-center justify-end gap-3 px-6 py-4 border-t', t.cardBorder)}>
+          <button onClick={onClose}
+                  className={cn('px-4 py-2 rounded-lg border text-sm', t.cardBorder, t.text1)}>Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+            Create Account
+          </button>
+        </div>
+      </div>
+    </ModalBackdrop>
   );
 }
 
@@ -3131,45 +3044,53 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                        className={panelInputCls}
                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
               </div>
-              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: account.is_premium ? '#F5F3FF' : A.bg, border: `1px solid ${account.is_premium ? '#C4B5FD' : A.border}` }}>
+              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: form.is_premium === 'true' ? '#F5F3FF' : A.bg, border: `1px solid ${form.is_premium === 'true' ? '#C4B5FD' : A.border}` }}>
                 <div>
-                  <label className="text-xs font-medium" style={{ color: account.is_premium ? '#7C3AED' : A.text1 }}>
-                    {account.is_premium ? '⭐ Premium Account' : 'Standard Account'}
+                  <label className="text-xs font-medium" style={{ color: form.is_premium === 'true' ? '#7C3AED' : A.text1 }}>
+                    ⭐ Premium Account
                   </label>
                   <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {account.is_premium ? 'Higher limits: 10 msgs/day, young cap 10' : 'Standard: 5 msgs/day, young cap 5'}
-                  </div>
-                </div>
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: account.is_premium ? '#EDE9FE' : A.surface, color: account.is_premium ? '#7C3AED' : A.text3 }}>
-                  Auto-detected
-                </span>
-              </div>
-              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: A.bg, border: `1px solid ${A.border}` }}>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <label className="text-xs font-medium" style={{ color: A.text1 }}>Sending Warm-up</label>
-                    <div className="info-tip-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
-                      <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
-                      <div className="info-tip" style={{ display: 'none', position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', background: '#1F2937', color: '#fff', fontSize: 10, padding: '4px 10px', borderRadius: 6, pointerEvents: 'none', zIndex: 50 }}>
-                        Gradually increases daily limit: Day 1 = 2, Day 2 = 4, Day 3 = 6, etc.
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {account.warmup_day != null ? `Warm-up day ${account.warmup_day} · limit ${account.effective_daily_limit ?? '?'} msgs/day` : account.is_young_session ? 'Young session — warm-up active' : form.skip_warmup === 'true' ? 'Warm-up skipped — full limits' : 'No warm-up needed'}
+                    {form.is_premium === 'true' ? 'Higher limits: 10 msgs/day, young cap 10' : 'Standard: 5 msgs/day, young cap 5'}
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={async () => {
+                  onClick={() => {
+                    const next = form.is_premium !== 'true';
+                    setForm(f => ({ ...f, is_premium: next ? 'true' : 'false', daily_message_limit: next ? '10' : '5' }));
+                  }}
+                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                  style={{ background: form.is_premium === 'true' ? '#7C3AED' : A.border }}
+                >
+                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
+                        style={{ transform: form.is_premium === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: A.bg, border: `1px solid ${A.border}` }}>
+                <div>
+                  <div className="flex items-center gap-1">
+                    <label className="text-xs font-medium" style={{ color: A.text1 }}>Skip Warm-up</label>
+                    <span title="Gradually increases daily limit: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days capped at 5 msgs/day.">
+                      <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
+                    </span>
+                  </div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>
+                    {account.warmup_day != null ? `Warm-up day ${account.warmup_day} · limit ${account.effective_daily_limit ?? '?'} msgs/day` : account.is_young_session ? 'Young session' : 'No warm-up active'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
                     if (form.skip_warmup !== 'true') {
-                      if (!window.confirm('Skip warm-up removes all sending limits.\nNew accounts without warm-up risk getting banned.\n\nAre you sure?')) return;
+                      if (!window.confirm('⚠ Отключение Warm-up снимает все ограничения на отправку.\nНовые аккаунты без прогрева рискуют получить бан.\n\nВы уверены?')) return;
                     }
                     set('skip_warmup', form.skip_warmup === 'true' ? 'false' : 'true');
                   }}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-medium text-white"
-                  style={{ background: form.skip_warmup === 'true' ? '#059669' : '#d97706' }}>
-                  {form.skip_warmup === 'true' ? 'Resume' : 'Skip'}
+                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                  style={{ background: form.skip_warmup === 'true' ? '#d97706' : A.border }}
+                >
+                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
+                        style={{ transform: form.skip_warmup === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
                 </button>
               </div>
               {/* Active Warm-up — Enhanced */}
@@ -3217,12 +3138,9 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <label className="text-xs font-medium" style={{ color: A.text1 }}>Account Warmup</label>
-                        <div className="info-tip-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
+                        <span title="14-day program: joins channels, adds reactions, exchanges messages. Simulates real user activity to reduce ban risk.">
                           <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
-                          <div className="info-tip" style={{ display: 'none', position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', background: '#1F2937', color: '#fff', fontSize: 10, padding: '4px 10px', borderRadius: 6, pointerEvents: 'none', zIndex: 50 }}>
-                            14-day program: joins channels, reactions, conversations. Reduces ban risk.
-                          </div>
-                        </div>
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         {(isActive || isCompleted || (ws && ws.actions_done > 0)) && (
@@ -3336,34 +3254,8 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
           {/* ---- Section: Proxy ---- */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Proxy</h3>
-            <div className="rounded-lg p-3 space-y-2.5"
+            <div className="rounded-lg p-3 space-y-2"
                  style={{ background: A.bg, border: `1px solid ${A.border}` }}>
-              {/* Proxy Country */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Proxy Country</span>
-                {account.proxy_country ? (
-                  <span className="flex items-center gap-1.5 text-xs font-medium">
-                    <CountryFlag code={account.proxy_country} />
-                    <span style={{ color: A.text1 }}>{account.proxy_country_name || account.proxy_country}</span>
-                  </span>
-                ) : (
-                  <span className="text-xs" style={{ color: A.text3 }}>--</span>
-                )}
-              </div>
-              {/* Provider */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Provider</span>
-                {account.proxy_provider ? (
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-                        style={{ background: account.proxy_provider.includes('Infatica') ? '#E8F5E9' : A.blueBg,
-                                 color: account.proxy_provider.includes('Infatica') ? '#2E7D32' : A.blue }}>
-                    {account.proxy_provider}
-                  </span>
-                ) : (
-                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
-                )}
-              </div>
-              {/* Group */}
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium" style={{ color: A.text3 }}>Group</span>
                 {account.proxy_group_name ? (
@@ -3375,7 +3267,6 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                   <span className="text-xs" style={{ color: A.text3 }}>None</span>
                 )}
               </div>
-              {/* Assigned Proxy */}
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium" style={{ color: A.text3 }}>Assigned Proxy</span>
                 {account.assigned_proxy_host ? (
@@ -3391,11 +3282,6 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                 ) : (
                   <span className="text-xs" style={{ color: A.text3 }}>None</span>
                 )}
-              </div>
-              {/* Proxy Test */}
-              <div className="flex items-center justify-between pt-1" style={{ borderTop: `1px solid ${A.border}` }}>
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Proxy Status</span>
-                <ProxyTestButton accountId={account.id} toast={toast} hasProxy={!!account.proxy_provider} />
               </div>
             </div>
           </section>
@@ -3862,8 +3748,8 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
             ].map(f => (
               <button key={f.key}
                       onClick={() => { setFormat(f.key); setSelectedFiles([]); setParsedAccounts([]); setResult(null); }}
-                      className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                        format === f.key ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : cn(t.text3, 'hover:bg-gray-100 dark:hover:bg-gray-800'))}>
+                      className={cn('px-3 py-1.5 rounded-lg text-xs font-medium',
+                        format === f.key ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : t.text3)}>
                 {f.label}
               </button>
             ))}
@@ -3872,15 +3758,14 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
           {format !== 'paste' ? (
             <div>
               <div onClick={() => fileInputRef.current?.click()}
-                   onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('border-emerald-400'); }}
-                   onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('border-emerald-400'); }}
+                   onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('border-indigo-400'); }}
+                   onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('border-indigo-400'); }}
                    onDrop={e => {
                      e.preventDefault(); e.stopPropagation();
-                     e.currentTarget.classList.remove('border-emerald-400');
+                     e.currentTarget.classList.remove('border-indigo-400');
                      if (e.dataTransfer.files.length > 0) handleFilesSelected(e.dataTransfer.files);
                    }}
-                   className={cn('border border-dashed rounded-xl p-6 text-center cursor-pointer hover:border-emerald-400 transition-colors',
-                     isDark ? 'border-gray-700' : 'border-gray-300')}>
+                   className={cn('border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:border-indigo-400 transition-colors', t.cardBorder)}>
                 <Upload className={cn('w-8 h-8 mx-auto mb-2', t.text3)} />
                 <p className={cn('text-sm font-medium', t.text1)}>
                   {selectedFiles.length > 0
@@ -3912,7 +3797,7 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
                         placeholder='[{"phone":"351920619583","app_id":2040,...}]'
                         className={cn('w-full px-3 py-2 rounded-lg border text-xs font-mono', t.cardBorder, t.cardBg, t.text1)} />
               <button onClick={handleParse}
-                      className="mt-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700">
+                      className="mt-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700">
                 Parse
               </button>
             </div>
@@ -3966,7 +3851,7 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
         <div className={cn('flex items-center justify-end gap-3 px-6 py-4 border-t', t.cardBorder)}>
           {result ? (
             <button onClick={onImported}
-                    className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700">
+                    className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
               Done
             </button>
           ) : (
@@ -3974,7 +3859,7 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
               <button onClick={onClose}
                       className={cn('px-4 py-2 rounded-lg border text-sm', t.cardBorder, t.text1)}>Cancel</button>
               <button onClick={handleImport} disabled={importing || !canImport}
-                      className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                      className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
                 {importing && <Loader2 className="w-4 h-4 animate-spin" />}
                 Import
               </button>
@@ -5059,8 +4944,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
             value={filterAccount}
             onChange={setFilterAccount}
             placeholder="Account"
-            searchable
-            options={filteredAccounts.map((a: any) => ({ value: String(a.id), label: [a.first_name, a.last_name].filter(Boolean).join(' ') || a.phone || `#${a.id}`, searchText: [a.first_name, a.last_name, a.username, a.phone].filter(Boolean).join(' ') }))}
+            options={filteredAccounts.map((a: any) => ({ value: String(a.id), label: [a.first_name, a.last_name].filter(Boolean).join(' ') || a.phone || `#${a.id}` }))}
             renderSelected={(opt) => {
               const a = accountMap[opt.value];
               if (!a) return opt.label;
@@ -5097,7 +4981,6 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
               value={filterCampaign}
               onChange={(v) => { setFilterCampaign(v); setFilterAccount(''); }}
               placeholder="Campaign"
-              searchable
               className="flex-1 min-w-0"
               options={campaigns.map((c: any) => ({ value: String(c.id), label: c.name }))}
             />
@@ -5106,7 +4989,6 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 value={filterAccountTag}
                 onChange={(v) => { setFilterAccountTag(v); setFilterAccount(''); }}
                 placeholder="Account Tag"
-                searchable
                 className="flex-1 min-w-0"
                 options={accountTags.map(t => ({ value: t.name, label: t.name }))}
               />
@@ -5134,7 +5016,6 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 value={filterTag}
                 onChange={setFilterTag}
                 placeholder="Campaign Tag"
-                searchable
                 className="flex-1 min-w-0"
                 options={campaignTags.map(t => ({ value: t, label: t }))}
               />
@@ -6854,19 +6735,10 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [selectedContact, setSelectedContact] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
   const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [crmDeleteConfirm, setCrmDeleteConfirm] = useState<string | null>(null);
-  // Detail view state
-  const [dialogInfo, setDialogInfo] = useState<any>(null);
-  const [chatMessages, setChatMessages] = useState<any[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [chatMsgText, setChatMsgText] = useState('');
-  const [chatSending, setChatSending] = useState(false);
-  const [notes, setNotes] = useState<any[]>([]);
-  const [noteText, setNoteText] = useState('');
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const chatPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadContacts = useCallback(async () => {
     setLoading(true);
@@ -6892,71 +6764,15 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const openContact = async (c: any) => {
     setSelectedContact(c);
     setCampaignProgress([]);
-    setDialogInfo(null);
-    setChatMessages([]);
-    setNotes([]);
     try {
-      const [cp, dialogRes, notesRes] = await Promise.all([
+      const [h, cp] = await Promise.all([
+        telegramOutreachApi.getCrmContactHistory(c.id),
         telegramOutreachApi.getCrmContactCampaigns(c.id),
-        telegramOutreachApi.getCrmContactDialog(c.id),
-        telegramOutreachApi.getCrmContactNotes(c.id),
       ]);
+      setHistory(h.history);
       setCampaignProgress(cp.campaigns || []);
-      setNotes(notesRes.notes || []);
-      const dialogs = dialogRes.dialogs || [];
-      if (dialogs.length > 0) {
-        setDialogInfo(dialogs[0]);
-        loadChatMessages(dialogs[0].id);
-      }
-    } catch { setCampaignProgress([]); }
+    } catch { setHistory([]); setCampaignProgress([]); }
   };
-
-  const loadChatMessages = async (dialogId: number) => {
-    setChatLoading(true);
-    try {
-      const data = await telegramOutreachApi.getDialogMessages(dialogId, 50);
-      setChatMessages(data.messages || []);
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    } catch { setChatMessages([]); }
-    finally { setChatLoading(false); }
-  };
-
-  const sendChatMessage = async () => {
-    if (!dialogInfo || !chatMsgText.trim()) return;
-    setChatSending(true);
-    try {
-      await telegramOutreachApi.sendDialogMessage(dialogInfo.id, chatMsgText.trim());
-      setChatMsgText('');
-      await loadChatMessages(dialogInfo.id);
-    } catch { toast('Send failed', 'error'); }
-    finally { setChatSending(false); }
-  };
-
-  const addNote = async () => {
-    if (!selectedContact || !noteText.trim()) return;
-    try {
-      const n = await telegramOutreachApi.addCrmContactNote(selectedContact.id, noteText.trim());
-      setNotes(prev => [n, ...prev]);
-      setNoteText('');
-    } catch { toast('Failed to add note', 'error'); }
-  };
-
-  const deleteNote = async (noteId: number) => {
-    if (!selectedContact) return;
-    try {
-      await telegramOutreachApi.deleteCrmContactNote(selectedContact.id, noteId);
-      setNotes(prev => prev.filter((n: any) => n.id !== noteId));
-    } catch { toast('Failed to delete note', 'error'); }
-  };
-
-  // Poll chat messages when dialog is open
-  useEffect(() => {
-    if (chatPollRef.current) clearInterval(chatPollRef.current);
-    if (dialogInfo) {
-      chatPollRef.current = setInterval(() => loadChatMessages(dialogInfo.id), 10000);
-    }
-    return () => { if (chatPollRef.current) clearInterval(chatPollRef.current); };
-  }, [dialogInfo?.id]);
 
   const updateStatus = async (id: number, status: string) => {
     try {
@@ -6969,7 +6785,6 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
 
   return (
     <div className="space-y-4">
-      {!selectedContact && <>
       {/* Pipeline Stats */}
       <div className="grid grid-cols-8 gap-2">
         {CRM_PIPELINE.map(s => (
@@ -7099,211 +6914,158 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
           </div>
         </div>
       )}
-      </>}
 
-      {/* Contact Detail — 2-column layout (card + chat) */}
+      {/* Contact Detail Modal */}
       {selectedContact && (
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: A.border, background: A.surface }}>
-          {/* Header bar */}
-          <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: A.border, background: '#F9F9F7' }}>
-            <div className="flex items-center gap-3">
-              <button onClick={() => { setSelectedContact(null); if (chatPollRef.current) clearInterval(chatPollRef.current); }}
-                      className="p-1 rounded hover:bg-white transition-colors" title="Back to contacts">
-                <ArrowLeft className="w-4 h-4" style={{ color: A.text2 }} />
-              </button>
+        <ModalBackdrop onClose={() => setSelectedContact(null)}>
+          <div className="w-[600px] rounded-xl border shadow-xl max-h-[80vh] overflow-y-auto"
+               style={{ borderColor: A.border, background: A.surface }}>
+            <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: A.border }}>
               <div>
-                <h2 className="text-sm font-semibold" style={{ color: A.text1 }}>@{selectedContact.username}</h2>
-                <p className="text-[11px]" style={{ color: A.text3 }}>
+                <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>@{selectedContact.username}</h2>
+                <p className="text-xs" style={{ color: A.text3 }}>
                   {[selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ')}
-                  {selectedContact.company_name ? ` · ${selectedContact.company_name}` : ''}
+                  {selectedContact.company_name ? ` - ${selectedContact.company_name}` : ''}
                 </p>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCrmDeleteConfirm('single')}
+                  className="p-1.5 rounded transition-colors"
+                  style={{ cursor: 'pointer' }}
+                  title="Delete contact"
+                  onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <Trash2 className="w-4 h-4" style={{ color: '#E11D48' }} />
+                </button>
+                <button onClick={() => setSelectedContact(null)} className="p-1 hover:bg-[#F5F5F0] rounded">
+                  <X className="w-5 h-5" style={{ color: A.text3 }} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setCrmDeleteConfirm('single')}
-                      className="p-1.5 rounded transition-colors hover:bg-[#FFF1F2]" title="Delete contact">
-                <Trash2 className="w-3.5 h-3.5" style={{ color: '#E11D48' }} />
-              </button>
-            </div>
-          </div>
-
-          {/* 2-column body */}
-          <div className="flex" style={{ height: 'calc(100vh - 280px)', minHeight: 480 }}>
-            {/* Left: CRM Card (40%) */}
-            <div className="w-[40%] border-r overflow-y-auto p-4 space-y-4" style={{ borderColor: A.border }}>
-              {/* Status + Stats */}
+            <div className="px-6 py-4 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Status</label>
-                  <StyledSelect
-                    value={selectedContact.status}
-                    onChange={v => { updateStatus(selectedContact.id, v); setSelectedContact({ ...selectedContact, status: v }); }}
-                    options={CRM_PIPELINE.map(s => ({ value: s, label: s.replace('_', ' ') }))}
-                  />
+                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Status</label>
+                  <select value={selectedContact.status}
+                          onChange={e => { updateStatus(selectedContact.id, e.target.value); setSelectedContact({...selectedContact, status: e.target.value}); }}
+                          className="w-full px-3 py-2 rounded-lg border text-sm"
+                          style={{ borderColor: A.border, background: A.surface, color: A.text1 }}>
+                    {CRM_PIPELINE.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Campaigns</label>
-                  <div className="text-xs pt-1" style={{ color: A.text1 }}>
+                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Campaigns</label>
+                  <div className="text-xs pt-2" style={{ color: A.text1 }}>
                     {(selectedContact.campaigns || []).map((c: any) => c.name).join(', ') || 'None'}
                   </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-base font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
-                  <div className="text-[9px] uppercase tracking-wide" style={{ color: A.text3 }}>Sent</div>
+                  <div className="text-lg font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>Sent</div>
                 </div>
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-base font-bold text-green-600">{selectedContact.total_replies_received}</div>
-                  <div className="text-[9px] uppercase tracking-wide" style={{ color: A.text3 }}>Replies</div>
+                  <div className="text-lg font-bold text-green-600">{selectedContact.total_replies_received}</div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>Replies</div>
                 </div>
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-[11px] font-bold" style={{ color: A.text1 }}>
+                  <div className="text-lg font-bold" style={{ color: A.text1 }}>
                     {selectedContact.last_reply_at ? new Date(selectedContact.last_reply_at).toLocaleDateString() : '--'}
                   </div>
-                  <div className="text-[9px] uppercase tracking-wide" style={{ color: A.text3 }}>Last Reply</div>
+                  <div className="text-[10px]" style={{ color: A.text3 }}>Last Reply</div>
                 </div>
               </div>
-
-              {/* Campaign Progress */}
+              {/* Campaign Sequence Progress */}
               {campaignProgress.length > 0 && (
                 <div>
-                  <h3 className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: A.text3 }}>Campaign Progress</h3>
+                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Campaign Progress</h3>
                   <div className="space-y-2">
                     {campaignProgress.map((cp: any) => (
-                      <div key={cp.campaign_id} className="rounded-lg border p-2.5" style={{ borderColor: A.border }}>
-                        <div className="flex items-center justify-between mb-1.5">
+                      <div key={cp.campaign_id} className="rounded-lg border p-3" style={{ borderColor: A.border }}>
+                        <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-medium" style={{ color: A.text1 }}>{cp.campaign_name}</span>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[9px] px-1.5 py-0.5 rounded" style={{
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
                               background: cp.campaign_status === 'active' ? '#ECFDF5' : cp.campaign_status === 'paused' ? '#FEF3C7' : '#F3F4F6',
                               color: cp.campaign_status === 'active' ? '#059669' : cp.campaign_status === 'paused' ? '#D97706' : '#6B7280',
                             }}>{cp.campaign_status}</span>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded" style={{
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
                               background: cp.recipient_status === 'replied' ? '#ECFDF5' : cp.recipient_status === 'completed' ? '#F0F9FF' : cp.recipient_status === 'failed' ? '#FFF1F2' : '#F9F9F7',
                               color: cp.recipient_status === 'replied' ? '#059669' : cp.recipient_status === 'completed' ? '#0284C7' : cp.recipient_status === 'failed' ? '#E11D48' : A.text3,
                             }}>{cp.recipient_status}</span>
                           </div>
                         </div>
+                        {/* Step indicators */}
                         <div className="flex items-center gap-1">
                           {cp.steps.map((step: any, si: number) => {
                             const color = step.status === 'sent' ? '#9CA3AF' : step.status === 'read' ? '#3B82F6'
                               : step.status === 'replied' ? '#10B981' : step.status === 'failed' || step.status === 'spamblocked' ? '#EF4444'
                               : step.status === 'scheduled' ? '#F59E0B' : '#E5E7EB';
                             return (
-                              <div key={si} className="flex items-center" title={`${step.label}${step.sent_at ? `\nSent: ${new Date(step.sent_at).toLocaleString()}` : ''}`}>
-                                <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ background: color }}>{si + 1}</div>
-                                {si < cp.steps.length - 1 && <div className="w-3 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />}
+                              <div key={si} className="flex items-center" title={
+                                `${step.label}${step.sent_at ? `\nSent: ${new Date(step.sent_at).toLocaleString()}` : ''}${step.read_at ? `\nRead: ${new Date(step.read_at).toLocaleString()}` : ''}`
+                              }>
+                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: color }}>
+                                  {si + 1}
+                                </div>
+                                {si < cp.steps.length - 1 && (
+                                  <div className="w-4 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />
+                                )}
                               </div>
                             );
                           })}
-                          <span className="text-[9px] ml-1" style={{ color: A.text3 }}>{cp.current_step}/{cp.total_steps}</span>
+                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>
+                            {cp.current_step}/{cp.total_steps}
+                          </span>
+                        </div>
+                        {/* Current step text summary */}
+                        <div className="mt-1.5 text-[11px]" style={{ color: A.text3 }}>
+                          {cp.recipient_status === 'replied' ? (
+                            <>Replied after {cp.steps.find((s: any) => s.status === 'replied')?.label || `step ${cp.current_step}`}</>
+                          ) : cp.recipient_status === 'completed' ? (
+                            <>Completed all {cp.total_steps} steps</>
+                          ) : cp.current_step > 0 ? (
+                            <>Sent {cp.steps[cp.current_step - 1]?.label || `step ${cp.current_step}`}{cp.steps[cp.current_step]
+                              ? `, next: ${cp.steps[cp.current_step]?.label} (+${cp.steps[cp.current_step]?.delay_days}d)`
+                              : ''}</>
+                          ) : (
+                            <>Pending — not yet sent</>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              {/* Notes Section */}
               <div>
-                <h3 className="text-[10px] font-semibold uppercase tracking-wide mb-2 flex items-center gap-1" style={{ color: A.text3 }}>
-                  <StickyNote className="w-3 h-3" /> Notes ({notes.length})
-                </h3>
-                <div className="flex gap-1.5 mb-2">
-                  <input value={noteText} onChange={e => setNoteText(e.target.value)}
-                         onKeyDown={e => { if (e.key === 'Enter') addNote(); }}
-                         placeholder="Add a note..."
-                         className="flex-1 px-2.5 py-1.5 rounded border text-xs"
-                         style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
-                  <button onClick={addNote} disabled={!noteText.trim()}
-                          className="px-2.5 py-1.5 rounded text-xs font-medium text-white disabled:opacity-40"
-                          style={{ background: A.blue }}>Add</button>
-                </div>
-                {notes.length > 0 && (
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                    {notes.map((n: any) => (
-                      <div key={n.id} className="rounded border px-2.5 py-2 text-xs group" style={{ borderColor: A.border }}>
+                <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>History</h3>
+                {history.length === 0 ? (
+                  <p className="text-xs text-center py-4" style={{ color: A.text3 }}>No messages yet</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                    {history.map((h: any, i: number) => (
+                      <div key={i} className="rounded px-3 py-2 text-xs"
+                           style={{ background: h.type === 'sent' ? '#F9F9F7' : A.tealBg }}>
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[9px] flex items-center gap-1" style={{ color: A.text3 }}>
-                            <Clock className="w-2.5 h-2.5" />
-                            {n.created_at ? new Date(n.created_at).toLocaleString() : ''}
+                          <span className="font-medium" style={{ color: h.type === 'sent' ? A.text3 : A.teal }}>
+                            {h.type === 'sent' ? 'Sent' : 'Reply'}
                           </span>
-                          <button onClick={() => deleteNote(n.id)}
-                                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[#FFF1F2] transition-all">
-                            <X className="w-3 h-3" style={{ color: '#E11D48' }} />
-                          </button>
+                          <span className="text-[10px]" style={{ color: A.text3 }}>
+                            {h.time ? new Date(h.time).toLocaleString() : ''}
+                          </span>
                         </div>
-                        <p style={{ color: A.text1 }}>{n.text}</p>
+                        <p style={{ color: A.text1 }}>{h.text}</p>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             </div>
-
-            {/* Right: Chat (60%) */}
-            <div className="w-[60%] flex flex-col">
-              {dialogInfo ? (
-                <>
-                  {/* Chat header */}
-                  <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: A.border, background: '#F9F9F7' }}>
-                    <MessageCircle className="w-3.5 h-3.5" style={{ color: A.blue }} />
-                    <span className="text-xs font-medium" style={{ color: A.text1 }}>Chat with @{dialogInfo.peer_username || selectedContact.username}</span>
-                    {dialogInfo.unread_count > 0 && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold text-white" style={{ background: A.blue }}>{dialogInfo.unread_count}</span>
-                    )}
-                  </div>
-
-                  {/* Messages area */}
-                  <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2" style={{ background: '#FAFAF8' }}>
-                    {chatLoading && chatMessages.length === 0 && (
-                      <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} /></div>
-                    )}
-                    {chatMessages.map((msg: any) => (
-                      <div key={msg.id || msg.tg_message_id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                        <div className="max-w-[75%] px-3 py-2 rounded-xl text-xs"
-                             style={{
-                               background: msg.direction === 'outbound' ? '#DCE8FF' : '#FFFFFF',
-                               border: msg.direction === 'outbound' ? 'none' : `1px solid ${A.border}`,
-                             }}>
-                          <div className="whitespace-pre-wrap break-words" style={{ color: A.text1 }}>{msg.text}</div>
-                          <div className="text-[9px] mt-1 text-right" style={{ color: A.text3 }}>
-                            {msg.date ? new Date(msg.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    <div ref={chatEndRef} />
-                  </div>
-
-                  {/* Input area */}
-                  <div className="px-4 py-3 border-t flex gap-2" style={{ borderColor: A.border }}>
-                    <input value={chatMsgText} onChange={e => setChatMsgText(e.target.value)}
-                           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
-                           placeholder="Type a message..."
-                           className="flex-1 px-3 py-2 rounded-lg border text-xs outline-none"
-                           style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
-                    <button onClick={sendChatMessage} disabled={chatSending || !chatMsgText.trim()}
-                            className="px-3 py-2 rounded-lg flex items-center gap-1 text-xs font-medium text-white disabled:opacity-40"
-                            style={{ background: A.blue }}>
-                      {chatSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 flex items-center justify-center" style={{ background: '#FAFAF8' }}>
-                  <div className="text-center">
-                    <MessageCircle className="w-10 h-10 mx-auto mb-2 opacity-20" style={{ color: A.text3 }} />
-                    <p className="text-xs" style={{ color: A.text3 }}>No conversation yet</p>
-                    <p className="text-[10px] mt-1" style={{ color: A.text3 }}>Start a campaign to this contact first</p>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
       {crmDeleteConfirm === 'bulk' && (
         <ConfirmModal message={`Delete ${selectedIds.size} contacts?`}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen, Activity, Shield, Users, Gamepad2, Send, MessageCircle } from 'lucide-react';
+import { Settings, ChevronDown, Contact, ListTodo, FolderOpen, Moon, Sun, Search, Target, Layers, BarChart2, BookOpen, Activity, Shield, Users, Gamepad2, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
 import { useState, useEffect, useRef } from 'react';
@@ -60,7 +60,6 @@ export function Layout({ children }: LayoutProps) {
     { path: '/god-panel', icon: Shield, label: 'God Panel', global: true, badge: true },
     { path: '/igaming', icon: Gamepad2, label: 'iGaming', global: true },
     { path: '/outreach/campaigns', icon: Send, label: 'TG Outreach', global: true },
-    { path: '/inbox', icon: MessageCircle, label: 'Inbox', global: true },
     { path: '/contacts', icon: Contact, label: 'CRM', global: true },
     { path: '/settings', icon: Settings, label: 'Settings', global: true },
   ];

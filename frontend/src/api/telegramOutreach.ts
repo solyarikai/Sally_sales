@@ -40,9 +40,6 @@ export interface TgAccount {
   proxy_group_name?: string;
   assigned_proxy_id?: number;
   assigned_proxy_host?: string;
-  proxy_country?: string;
-  proxy_country_name?: string;
-  proxy_provider?: string;
   tags: TgAccountTag[];
   campaigns_count: number;
   country_code?: string;
@@ -212,11 +209,6 @@ export const telegramOutreachApi = {
   checkProxy: async (id: number) =>
     (await api.post<{ proxy_id: number; alive: boolean; latency_ms: number | null; error: string | null }>(
       `${BASE}/proxies/${id}/check`
-    )).data,
-
-  testAccountProxy: async (accountId: number) =>
-    (await api.post<{ ok: boolean; ip: string | null; latency_ms: number | null; provider: string | null; error: string | null }>(
-      `${BASE}/accounts/${accountId}/test-proxy`
     )).data,
 
   checkProxyGroup: async (groupId: number, autoDelete: boolean = false) =>
@@ -446,9 +438,6 @@ export const telegramOutreachApi = {
       period: string | null;
     },
 
-  getCampaignDailyStats: async (id: number, params: { period?: string; from_date?: string; to_date?: string } = {}) =>
-    (await api.get<{ daily: { date: string; sent: number; replied: number; failed: number }[] }>(`${BASE}/campaigns/${id}/daily-stats`, { params })).data,
-
   getCampaignTimeline: async (id: number, params: { page?: number; page_size?: number; search?: string; sort_by?: string; sort_dir?: string } = {}) =>
     (await api.get(`${BASE}/campaigns/${id}/timeline`, { params })).data as {
       steps: { step_order: number; step_id: number; delay_days: number }[];
@@ -576,7 +565,7 @@ export const telegramOutreachApi = {
     (await api.post<{ results: Record<string, any>[] }>(`${BASE}/accounts/bulk-check-live`, { account_ids: accountIds })).data,
 
   bulkCheckAlive: async (accountIds: number[]) =>
-    (await api.post<{ total: number; alive: number; frozen: number; banned: number; dead: number; no_session: number; errors: number; results: Record<string, any>[] }>(`${BASE}/accounts/bulk-check-alive`, { account_ids: accountIds })).data,
+    (await api.post<{ total: number; alive: number; frozen: number; banned: number; dead: number; results: Record<string, any>[] }>(`${BASE}/accounts/bulk-check-alive`, { account_ids: accountIds })).data,
 
   updateProfile: async (accountId: number, params: {
     first_name?: string; last_name?: string; about?: string; username?: string;
@@ -619,18 +608,6 @@ export const telegramOutreachApi = {
 
   getCrmPipeline: async (params: { search?: string; limit_per_status?: number; project_id?: number } = {}) =>
     (await api.get(`${BASE}/crm/pipeline`, { params })).data,
-
-  getCrmContactNotes: async (id: number) =>
-    (await api.get(`${BASE}/crm/contacts/${id}/notes`)).data,
-
-  addCrmContactNote: async (id: number, text: string, author?: string) =>
-    (await api.post(`${BASE}/crm/contacts/${id}/notes`, { text, author })).data,
-
-  deleteCrmContactNote: async (contactId: number, noteId: number) =>
-    (await api.delete(`${BASE}/crm/contacts/${contactId}/notes/${noteId}`)).data,
-
-  getCrmContactDialog: async (id: number) =>
-    (await api.get(`${BASE}/crm/contacts/${id}/dialog`)).data,
 
   // Tools
   checkPhones: async (phones: string[], accountId: number) =>
