@@ -374,6 +374,7 @@ class TelegramEngine:
                 result["first_name"] = me.first_name
                 result["last_name"] = me.last_name
                 result["telegram_user_id"] = me.id
+                result["is_premium"] = bool(getattr(me, "premium", False))
 
                 # Estimate account creation date from user ID
                 # Telegram IDs are roughly sequential — known reference points

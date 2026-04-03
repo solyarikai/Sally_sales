@@ -4492,6 +4492,12 @@ async def check_account(account_id: int, session: AsyncSession = Depends(get_ses
                 account.telegram_created_at = datetime.fromisoformat(result["telegram_created_at"])
             except Exception:
                 pass
+        # Auto-detect premium from Telethon
+        if "is_premium" in result:
+            was_premium = account.is_premium
+            account.is_premium = result["is_premium"]
+            if account.is_premium != was_premium:
+                account.daily_message_limit = 10 if account.is_premium else 5
     elif result.get("connected") and not result.get("authorized"):
         account.status = TgAccountStatus.DEAD
         account.last_checked_at = func.now()
@@ -4596,6 +4602,11 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                         if est:
                             from datetime import datetime as _dt
                             account.telegram_created_at = _dt.fromisoformat(est)
+                        # Auto-detect premium
+                        was_premium = account.is_premium
+                        account.is_premium = bool(getattr(me, "premium", False))
+                        if account.is_premium != was_premium:
+                            account.daily_message_limit = 10 if account.is_premium else 5
                 except Exception:
                     pass
 

@@ -684,6 +684,19 @@ textarea:focus {
   display: block;
 }
 
+/* Fast info tooltip (200ms delay) */
+.info-tip-wrap .info-tip {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease 0.2s, visibility 0s linear 0.2s;
+}
+.info-tip-wrap:hover .info-tip {
+  display: block !important;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.15s ease 0.2s, visibility 0s linear 0s;
+}
+
 /* Priority slider */
 .priority-slider {
   -webkit-appearance: none;

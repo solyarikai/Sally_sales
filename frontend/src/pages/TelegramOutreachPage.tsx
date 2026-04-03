@@ -1970,9 +1970,12 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               </button>
               <div className="flex items-center gap-1 px-2 py-1">
                 <span className="text-[10px] font-medium" style={{ color: '#d97706' }}>WARM-UP</span>
-                <span title="Warm-up gradually increases daily sending limit for new accounts: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days are capped at 5 msgs/day. Disabling warm-up removes all limits — use with caution on new sessions.">
+                <div className="info-tip-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
                   <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
-                </span>
+                  <div className="info-tip" style={{ display: 'none', position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'normal', maxWidth: 260, background: '#1F2937', color: '#fff', fontSize: 10, padding: '4px 10px', borderRadius: 6, pointerEvents: 'none', zIndex: 50 }}>
+                    Warm-up gradually increases daily limit. Disabling removes all limits — use with caution.
+                  </div>
+                </div>
               </div>
               <button onClick={() => { if (!window.confirm(`⚠ Отключить Warm-up для ${ids.length} аккаунтов?\nНовые аккаунты без прогрева рискуют получить бан.`)) return; setShowActionsPopup(false); run('Warm-up skipped', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Skip Warm-up
@@ -1982,9 +1985,12 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               </button>
               <div className="flex items-center gap-1 px-2 py-1 mt-1">
                 <span className="text-[10px] font-medium" style={{ color: '#059669' }}>ACTIVE WARM-UP</span>
-                <span title="Active warm-up simulates real user activity over 14 days: joins channels, adds reactions, exchanges messages. Significantly reduces ban risk for new accounts.">
+                <div className="info-tip-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
                   <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
-                </span>
+                  <div className="info-tip" style={{ display: 'none', position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'normal', maxWidth: 260, background: '#1F2937', color: '#fff', fontSize: 10, padding: '4px 10px', borderRadius: 6, pointerEvents: 'none', zIndex: 50 }}>
+                    14-day program: joins channels, reactions, conversations. Reduces ban risk for new accounts.
+                  </div>
+                </div>
               </div>
               <button onClick={() => { setShowActionsPopup(false); run('Active warm-up started', () => telegramOutreachApi.bulkWarmup(ids, 'start')); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Play className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Start Active Warm-up
@@ -2686,27 +2692,10 @@ function AddAccountModal({ t, toast, isDark, onClose, onSaved }: {
               <input type="number" value={form.daily_message_limit}
                      onChange={e => set('daily_message_limit', e.target.value)} className={inputCls} />
             </div>
-            <div className="col-span-2 flex items-center justify-between rounded-lg px-3 py-2 border" style={{ borderColor: form.is_premium ? '#8B5CF6' : undefined }}>
-              <div>
-                <label className="text-xs font-medium" style={{ color: form.is_premium ? '#7C3AED' : undefined }}>
-                  ⭐ Premium Account
-                </label>
-                <div className="text-[10px]" style={{ color: '#9CA3AF' }}>
-                  Premium: limit 10 msgs/day. Standard: 5 msgs/day
-                </div>
+            <div className="col-span-2 rounded-lg px-3 py-2 border" style={{ borderColor: A?.border || '#E5E7EB' }}>
+              <div className="text-[10px]" style={{ color: '#9CA3AF' }}>
+                Premium status is auto-detected when you check the account
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !form.is_premium;
-                  setForm(f => ({ ...f, is_premium: next, daily_message_limit: next ? '10' : '5' }));
-                }}
-                className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                style={{ background: form.is_premium ? '#7C3AED' : '#D1D5DB' }}
-              >
-                <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-                      style={{ transform: form.is_premium ? 'translateX(17px)' : 'translateX(3px)' }} />
-              </button>
             </div>
           </div>
 
@@ -3033,53 +3022,45 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                        className={panelInputCls}
                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
               </div>
-              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: form.is_premium === 'true' ? '#F5F3FF' : A.bg, border: `1px solid ${form.is_premium === 'true' ? '#C4B5FD' : A.border}` }}>
+              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: account.is_premium ? '#F5F3FF' : A.bg, border: `1px solid ${account.is_premium ? '#C4B5FD' : A.border}` }}>
                 <div>
-                  <label className="text-xs font-medium" style={{ color: form.is_premium === 'true' ? '#7C3AED' : A.text1 }}>
-                    ⭐ Premium Account
+                  <label className="text-xs font-medium" style={{ color: account.is_premium ? '#7C3AED' : A.text1 }}>
+                    {account.is_premium ? '⭐ Premium Account' : 'Standard Account'}
                   </label>
                   <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {form.is_premium === 'true' ? 'Higher limits: 10 msgs/day, young cap 10' : 'Standard: 5 msgs/day, young cap 5'}
+                    {account.is_premium ? 'Higher limits: 10 msgs/day, young cap 10' : 'Standard: 5 msgs/day, young cap 5'}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = form.is_premium !== 'true';
-                    setForm(f => ({ ...f, is_premium: next ? 'true' : 'false', daily_message_limit: next ? '10' : '5' }));
-                  }}
-                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                  style={{ background: form.is_premium === 'true' ? '#7C3AED' : A.border }}
-                >
-                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-                        style={{ transform: form.is_premium === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
-                </button>
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: account.is_premium ? '#EDE9FE' : A.surface, color: account.is_premium ? '#7C3AED' : A.text3 }}>
+                  Auto-detected
+                </span>
               </div>
               <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: A.bg, border: `1px solid ${A.border}` }}>
                 <div>
                   <div className="flex items-center gap-1">
-                    <label className="text-xs font-medium" style={{ color: A.text1 }}>Skip Warm-up</label>
-                    <span title="Gradually increases daily limit: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days capped at 5 msgs/day.">
+                    <label className="text-xs font-medium" style={{ color: A.text1 }}>Sending Warm-up</label>
+                    <div className="info-tip-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
                       <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
-                    </span>
+                      <div className="info-tip" style={{ display: 'none', position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', background: '#1F2937', color: '#fff', fontSize: 10, padding: '4px 10px', borderRadius: 6, pointerEvents: 'none', zIndex: 50 }}>
+                        Gradually increases daily limit: Day 1 = 2, Day 2 = 4, Day 3 = 6, etc.
+                      </div>
+                    </div>
                   </div>
                   <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {account.warmup_day != null ? `Warm-up day ${account.warmup_day} · limit ${account.effective_daily_limit ?? '?'} msgs/day` : account.is_young_session ? 'Young session' : 'No warm-up active'}
+                    {account.warmup_day != null ? `Warm-up day ${account.warmup_day} · limit ${account.effective_daily_limit ?? '?'} msgs/day` : account.is_young_session ? 'Young session — warm-up active' : form.skip_warmup === 'true' ? 'Warm-up skipped — full limits' : 'No warm-up needed'}
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (form.skip_warmup !== 'true') {
-                      if (!window.confirm('⚠ Отключение Warm-up снимает все ограничения на отправку.\nНовые аккаунты без прогрева рискуют получить бан.\n\nВы уверены?')) return;
+                      if (!window.confirm('Skip warm-up removes all sending limits.\nNew accounts without warm-up risk getting banned.\n\nAre you sure?')) return;
                     }
                     set('skip_warmup', form.skip_warmup === 'true' ? 'false' : 'true');
                   }}
-                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                  style={{ background: form.skip_warmup === 'true' ? '#d97706' : A.border }}
-                >
-                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-                        style={{ transform: form.skip_warmup === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
+                  className="px-2.5 py-1 rounded-md text-[11px] font-medium text-white"
+                  style={{ background: form.skip_warmup === 'true' ? '#059669' : '#d97706' }}>
+                  {form.skip_warmup === 'true' ? 'Resume' : 'Skip'}
                 </button>
               </div>
               {/* Active Warm-up — Enhanced */}
@@ -3127,9 +3108,12 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <label className="text-xs font-medium" style={{ color: A.text1 }}>Account Warmup</label>
-                        <span title="14-day program: joins channels, adds reactions, exchanges messages. Simulates real user activity to reduce ban risk.">
+                        <div className="info-tip-wrap" style={{ position: 'relative', display: 'inline-flex' }}>
                           <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
-                        </span>
+                          <div className="info-tip" style={{ display: 'none', position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', background: '#1F2937', color: '#fff', fontSize: 10, padding: '4px 10px', borderRadius: 6, pointerEvents: 'none', zIndex: 50 }}>
+                            14-day program: joins channels, reactions, conversations. Reduces ban risk.
+                          </div>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1.5">
                         {(isActive || isCompleted || (ws && ws.actions_done > 0)) && (
