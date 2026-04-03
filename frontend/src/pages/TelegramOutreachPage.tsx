@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
   LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon,
-  BarChart3, ChevronUp, FolderOpen,
+  BarChart3, ChevronUp, ChevronRight, FolderOpen,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -5333,7 +5333,13 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   // selectCls removed — using StyledSelect component
 
   return (
-    <div className="flex rounded-xl overflow-hidden" style={{ background: A.surface, border: `1px solid ${A.border}`, height: 'calc(100vh - 220px)', minHeight: 500 }}>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-end">
+        <Link to="/inbox-v2" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style={{ background: A.accent + '18', color: A.accent }}>
+          Try new Inbox (beta) <ChevronRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+    <div className="flex rounded-xl overflow-hidden" style={{ background: A.surface, border: `1px solid ${A.border}`, height: 'calc(100vh - 250px)', minHeight: 500 }}>
       {/* ── Left panel: Dialog list ── */}
       <div className="flex flex-col" style={{ width: 320, flexShrink: 0, overflow: 'hidden', borderRight: `1px solid ${A.border}` }}>
         {/* Search */}
@@ -6551,6 +6557,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
         </ModalBackdrop>,
         document.body,
       )}
+    </div>
     </div>
   );
 }
