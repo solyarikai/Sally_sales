@@ -1091,7 +1091,7 @@ def step8_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
             })
 
     if not targets:
-        print("  No targets found. Complete backend pipeline first (Steps 0-8).")
+        print("  No targets found. Complete backend pipeline first (Steps 0-7).")
         sys.exit(1)
 
     save_json(targets_file, targets)
