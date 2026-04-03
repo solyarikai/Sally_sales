@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search, Send, Loader2, MessageCircle, User, ChevronRight, ChevronLeft,
-  Tag, Hash, StickyNote,
+  Tag, Hash, StickyNote, FileText, Download, Mic, X,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -35,6 +35,14 @@ interface MessageEntity {
   language?: string;
 }
 
+interface MediaInfo {
+  type: 'photo' | 'video' | 'voice' | 'sticker' | 'video_note' | 'document';
+  duration?: number;
+  file_name?: string;
+  size?: number;
+  mime_type?: string;
+}
+
 interface InboxMessage {
   id: number;
   direction: 'inbound' | 'outbound';
@@ -42,7 +50,7 @@ interface InboxMessage {
   sent_at: string | null;
   sender_name: string;
   is_read: boolean;
-  media_type?: string | null;
+  media?: MediaInfo | null;
   reply_to_id?: number | null;
   entities?: MessageEntity[];
 }
@@ -209,6 +217,20 @@ function renderFormattedText(text: string, entities?: MessageEntity[]): React.Re
   return <>{parts}</>;
 }
 
+/* ─────────── media helpers ─────────── */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+
 /* ─────────── main component ─────────── */
 export function InboxV2Page() {
   const { isDark } = useTheme();
@@ -228,6 +250,7 @@ export function InboxV2Page() {
   const [crmLoading, setCrmLoading] = useState(false);
   const [showCrm, setShowCrm] = useState(true);
   const [noteText, setNoteText] = useState('');
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dialogPollRef = useRef(false);
@@ -533,7 +556,54 @@ export function InboxV2Page() {
                         className={`flex tg-msg-row ${spacing} ${isOut ? 'justify-end' : 'justify-start'}`}
                         style={{ paddingLeft: isOut ? 0 : (isLast ? 0 : 11), paddingRight: isOut ? (isLast ? 0 : 11) : 0 }}
                       >
-                        <div className={`tg-bubble ${isOut ? 'tg-bubble-out' : 'tg-bubble-in'} ${tail}`}>
+                        <div className={`tg-bubble ${isOut ? 'tg-bubble-out' : 'tg-bubble-in'} ${tail} ${msg.media && !msg.text ? 'tg-bubble-media-only' : ''}`}>
+                          {/* ── Media rendering ── */}
+                          {msg.media && selectedDialog && (() => {
+                            const mediaUrl = telegramOutreachApi.getDialogMediaUrl(selectedDialog.id, msg.id);
+                            const m = msg.media;
+                            switch (m.type) {
+                              case 'photo':
+                                return (
+                                  <div className="tg-media-photo" onClick={() => setLightboxUrl(mediaUrl)}>
+                                    <img src={mediaUrl} alt="" loading="lazy" />
+                                  </div>
+                                );
+                              case 'video':
+                              case 'video_note':
+                                return (
+                                  <div className={`tg-media-video ${m.type === 'video_note' ? 'tg-video-note' : ''}`}>
+                                    <video src={mediaUrl} controls preload="metadata" />
+                                  </div>
+                                );
+                              case 'voice':
+                                return (
+                                  <div className="tg-media-voice">
+                                    <Mic className="w-4 h-4 flex-shrink-0 opacity-60" />
+                                    <audio src={mediaUrl} controls preload="metadata" />
+                                    {m.duration != null && <span className="tg-voice-dur">{formatDuration(m.duration)}</span>}
+                                  </div>
+                                );
+                              case 'sticker':
+                                return (
+                                  <div className="tg-media-sticker">
+                                    <img src={mediaUrl} alt="sticker" loading="lazy" />
+                                  </div>
+                                );
+                              case 'document':
+                                return (
+                                  <a href={mediaUrl} download={m.file_name || 'file'} target="_blank" rel="noopener noreferrer" className="tg-media-doc">
+                                    <FileText className="w-8 h-8 flex-shrink-0 opacity-70" />
+                                    <div className="tg-doc-info">
+                                      <span className="tg-doc-name">{m.file_name || 'File'}</span>
+                                      {m.size != null && <span className="tg-doc-size">{formatFileSize(m.size)}</span>}
+                                    </div>
+                                    <Download className="w-4 h-4 flex-shrink-0 opacity-50" />
+                                  </a>
+                                );
+                              default:
+                                return null;
+                            }
+                          })()}
                           <span className={`tg-meta`}>
                             <span className={isOut ? 'tg-meta-time-out' : 'tg-meta-time'}>
                               {formatMessageTime(msg.sent_at)}
@@ -544,7 +614,7 @@ export function InboxV2Page() {
                               </span>
                             )}
                           </span>
-                          {renderFormattedText(msg.text, msg.entities)}
+                          {msg.text && renderFormattedText(msg.text, msg.entities)}
                         </div>
                       </div>
                     );
@@ -741,6 +811,16 @@ export function InboxV2Page() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Photo lightbox ── */}
+      {lightboxUrl && (
+        <div className="tg-lightbox" onClick={() => setLightboxUrl(null)}>
+          <button className="tg-lightbox-close" onClick={() => setLightboxUrl(null)}>
+            <X className="w-6 h-6" />
+          </button>
+          <img src={lightboxUrl} alt="" onClick={e => e.stopPropagation()} />
         </div>
       )}
     </div>

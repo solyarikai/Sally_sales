@@ -1038,3 +1038,176 @@ textarea:focus {
 .tg-crm-panel::-webkit-scrollbar-track { background: transparent; }
 .tg-crm-panel::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
 .dark .tg-crm-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); }
+
+/* ── Media in bubbles ── */
+.tg-bubble-media-only {
+  padding: 3px !important;
+  overflow: hidden;
+}
+.tg-bubble-media-only .tg-meta {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 10px;
+  padding: 2px 6px;
+  z-index: 2;
+}
+.tg-bubble-media-only .tg-meta-time,
+.tg-bubble-media-only .tg-meta-time-out,
+.tg-bubble-media-only .tg-meta-check {
+  color: #fff !important;
+}
+
+/* Photo */
+.tg-media-photo {
+  cursor: pointer;
+  margin: -3px -3px 2px;
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+.tg-media-photo img {
+  max-width: 320px;
+  max-height: 320px;
+  width: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+
+/* Video */
+.tg-media-video {
+  margin: -3px -3px 2px;
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+.tg-media-video video {
+  max-width: 320px;
+  max-height: 320px;
+  width: 100%;
+  display: block;
+  border-radius: 10px;
+}
+.tg-video-note video {
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.tg-video-note {
+  border-radius: 50% !important;
+}
+
+/* Voice */
+.tg-media-voice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 200px;
+  margin-bottom: 2px;
+}
+.tg-media-voice audio {
+  height: 28px;
+  flex: 1;
+  min-width: 0;
+}
+.tg-voice-dur {
+  font-size: 11px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+/* Sticker */
+.tg-media-sticker {
+  margin: -3px -3px 2px;
+  line-height: 0;
+}
+.tg-media-sticker img {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+}
+.tg-bubble:has(.tg-media-sticker) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.tg-bubble:has(.tg-media-sticker)::before,
+.tg-bubble:has(.tg-media-sticker)::after {
+  display: none !important;
+}
+
+/* Document */
+.tg-media-doc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  text-decoration: none !important;
+  color: inherit !important;
+  transition: background 0.15s;
+}
+.tg-media-doc:hover {
+  background: rgba(0,0,0,0.05);
+}
+.dark .tg-media-doc:hover {
+  background: rgba(255,255,255,0.05);
+}
+.tg-doc-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tg-doc-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tg-doc-size {
+  font-size: 11px;
+  opacity: 0.5;
+}
+
+/* Lightbox */
+.tg-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.tg-lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+  cursor: default;
+}
+.tg-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: white;
+  background: rgba(0,0,0,0.4);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10000;
+}
+.tg-lightbox-close:hover {
+  background: rgba(0,0,0,0.6);
+}
