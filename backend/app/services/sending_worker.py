@@ -22,13 +22,14 @@ from sqlalchemy.orm import selectinload
 
 from app.db import async_session_maker
 from app.models.telegram_outreach import (
-    TgCampaign, TgCampaignAccount, TgCampaignStatus,
+    TgCampaign, TgCampaignAccount, TgCampaignStatus, TgCampaignType,
     TgAccount, TgAccountStatus, TgSpamblockType,
     TgRecipient, TgRecipientStatus,
     TgSequence, TgSequenceStep, TgStepVariant,
     TgOutreachMessage, TgMessageStatus,
     TgProxy, TgContact, TgContactStatus,
-    TgIncomingReply,
+    TgIncomingReply, TgBlacklist,
+    TgCrmLeadFieldValue,
 )
 from app.services.telegram_engine import telegram_engine
 
@@ -420,9 +421,59 @@ class SendingWorker:
 
     # ── Campaign processing ───────────────────────────────────────────
 
+    async def _sync_dynamic_segment(self, campaign: TgCampaign, session: AsyncSession):
+        """For dynamic campaigns, periodically sync segment — add new matching CRM contacts."""
+        if campaign.campaign_type != "dynamic" or not campaign.segment_filters:
+            return
+        filters = campaign.segment_filters
+        if not filters.get("filters"):
+            return
+        # Only sync every 10 minutes
+        if campaign.segment_last_synced_at:
+            elapsed = (datetime.utcnow() - campaign.segment_last_synced_at).total_seconds()
+            if elapsed < 600:
+                return
+
+        cname = f"[Campaign {campaign.id}]"
+        from app.api.telegram_outreach import _build_segment_query
+        q = _build_segment_query(filters)
+        result = await session.execute(q)
+        contacts = result.scalars().all()
+
+        existing_q = await session.execute(
+            select(TgRecipient.username).where(TgRecipient.campaign_id == campaign.id)
+        )
+        existing_usernames = {r.lower() for r in existing_q.scalars().all()}
+        bl_q = await session.execute(select(TgBlacklist.username))
+        blacklisted = {r.lower() for r in bl_q.scalars().all()}
+
+        added = 0
+        for contact in contacts:
+            uname = (contact.username or "").lower()
+            if not uname or uname in existing_usernames or uname in blacklisted:
+                continue
+            session.add(TgRecipient(
+                campaign_id=campaign.id, username=contact.username,
+                first_name=contact.first_name, company_name=contact.company_name,
+                custom_variables=contact.custom_data or {},
+            ))
+            existing_usernames.add(uname)
+            added += 1
+
+        campaign.segment_last_synced_at = datetime.utcnow()
+        if added:
+            total_q = await session.execute(
+                select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign.id)
+            )
+            campaign.total_recipients = total_q.scalar() or 0
+            logger.info(f"{cname} Dynamic segment sync: +{added} new recipients (total={campaign.total_recipients})")
+
     async def _process_campaign(self, campaign: TgCampaign, session: AsyncSession):
         """Process a batch of sends for this campaign in parallel (one per available account)."""
         cname = f"[Campaign {campaign.id} '{campaign.name}']"
+
+        # Dynamic campaigns: auto-sync segment periodically
+        await self._sync_dynamic_segment(campaign, session)
 
         # Check timezone window
         if not is_within_send_window(campaign):

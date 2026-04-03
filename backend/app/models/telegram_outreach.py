@@ -41,6 +41,11 @@ class TgProxyProtocol(str, enum.Enum):
     MTPROTO = "mtproto"
 
 
+class TgCampaignType(str, enum.Enum):
+    ONE_TIME = "one_time"
+    DYNAMIC = "dynamic"
+
+
 class TgCampaignStatus(str, enum.Enum):
     DRAFT = "draft"
     ACTIVE = "active"
@@ -208,6 +213,15 @@ class TgCampaign(Base, TimestampMixin):
         SQLEnum(TgCampaignStatus, values_callable=lambda e: [x.value for x in e]),
         nullable=False, default=TgCampaignStatus.DRAFT, index=True,
     )
+
+    # Campaign type: one_time (fixed CSV list) or dynamic (CRM segment-based)
+    campaign_type = Column(
+        SQLEnum(TgCampaignType, values_callable=lambda e: [x.value for x in e]),
+        nullable=False, default=TgCampaignType.ONE_TIME,
+    )
+    # Filter criteria for dynamic campaigns (JSON: {logic, filters[]})
+    segment_filters = Column(JSONB, nullable=True, default=None)
+    segment_last_synced_at = Column(DateTime, nullable=True)
 
     # Sending settings
     daily_message_limit = Column(Integer, nullable=True)

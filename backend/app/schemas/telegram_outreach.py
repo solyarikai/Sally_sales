@@ -1,6 +1,6 @@
 """Pydantic schemas for Telegram Outreach module."""
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 
 
@@ -171,6 +171,17 @@ class TgAccountListResponse(BaseModel):
 
 # ── Campaign ───────────────────────────────────────────────────────────
 
+class SegmentFilter(BaseModel):
+    field: str  # "status", "tags", "owner", "custom:<field_id>"
+    operator: str  # "in", "not_in", "contains_any", "contains_all", "eq", "neq"
+    value: Any  # list[str] for in/contains, str for eq/neq
+
+
+class SegmentFilters(BaseModel):
+    logic: str = "AND"  # "AND" or "OR"
+    filters: list[SegmentFilter] = []
+
+
 class TgCampaignBase(BaseModel):
     name: str
     daily_message_limit: Optional[int] = None
@@ -189,6 +200,8 @@ class TgCampaignBase(BaseModel):
 
 class TgCampaignCreate(TgCampaignBase):
     project_id: Optional[int] = None
+    campaign_type: str = "one_time"  # "one_time" or "dynamic"
+    segment_filters: Optional[SegmentFilters] = None
     tags: Optional[list[str]] = None
     crm_tag_on_reply: Optional[list[str]] = None
     crm_status_on_reply: Optional[str] = None
@@ -199,6 +212,8 @@ class TgCampaignCreate(TgCampaignBase):
 class TgCampaignUpdate(BaseModel):
     project_id: Optional[int] = None
     name: Optional[str] = None
+    campaign_type: Optional[str] = None
+    segment_filters: Optional[dict] = None
     daily_message_limit: Optional[int] = None
     timezone: Optional[str] = None
     send_from_hour: Optional[int] = None
@@ -217,6 +232,9 @@ class TgCampaignResponse(TgCampaignBase):
     id: int
     project_id: Optional[int] = None
     status: str = "draft"
+    campaign_type: str = "one_time"
+    segment_filters: Optional[dict] = None
+    segment_last_synced_at: Optional[datetime] = None
     tags: list[str] = []
     crm_tag_on_reply: list[str] = []
     crm_status_on_reply: Optional[str] = None

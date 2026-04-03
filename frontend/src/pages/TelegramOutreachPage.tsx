@@ -1210,7 +1210,13 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
                   onMouseLeave={e => { e.currentTarget.style.background = ''; }}
                 >
                   <td style={{ padding: '12px 16px', fontWeight: 500, color: A.text1, maxWidth: 260 }}>
-                    <span className="truncate block">{c.name}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate">{c.name}</span>
+                      {c.campaign_type === 'dynamic' && (
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                          style={{ background: '#F3E8FF', color: '#7C3AED' }}>Dynamic</span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '12px 12px' }}>{statusBadge(c.status)}</td>
                   <td className="px-3 py-3" onClick={e => e.stopPropagation()}>

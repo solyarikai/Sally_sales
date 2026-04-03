@@ -15,6 +15,7 @@ import { telegramOutreachApi } from '../api/telegramOutreach';
 import type {
   TgCampaign, TgSequence, TgSequenceStep, TgStepVariant,
   TgRecipient, TgCampaignStats, TgAccount, MessageType,
+  SegmentFilters, SegmentFilter,
 } from '../api/telegramOutreach';
 
 type Tab = 'recipients' | 'messages' | 'accounts' | 'review';
@@ -242,6 +243,8 @@ interface TabProps {
 function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { campaign: TgCampaign; onUpdate: () => void }) {
   const [form, setForm] = useState({
     name: campaign.name,
+    campaign_type: campaign.campaign_type || 'one_time',
+    segment_filters: (campaign.segment_filters || { logic: 'AND', filters: [] }) as SegmentFilters,
     daily_message_limit: campaign.daily_message_limit ?? '',
     timezone: campaign.timezone,
     send_from_hour: campaign.send_from_hour,
@@ -256,6 +259,75 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
   });
   const [saving, setSaving] = useState(false);
   const [newCrmTag, setNewCrmTag] = useState('');
+
+  // Dynamic segment state
+  const [segmentPreview, setSegmentPreview] = useState<{ total: number; contacts: any[] } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [customFields, setCustomFields] = useState<{ id: number; name: string; field_type: string; options_json: string[] }[]>([]);
+
+  useEffect(() => {
+    if (form.campaign_type === 'dynamic') {
+      telegramOutreachApi.listCustomFields().then((data: any) => setCustomFields(data || [])).catch(() => {});
+    }
+  }, [form.campaign_type]);
+
+  const handlePreviewSegment = async () => {
+    setPreviewLoading(true);
+    try {
+      // Save filters first
+      await telegramOutreachApi.updateCampaign(campaign.id, {
+        campaign_type: form.campaign_type,
+        segment_filters: form.segment_filters,
+      });
+      const preview = await telegramOutreachApi.segmentPreview(campaign.id);
+      setSegmentPreview(preview);
+    } catch { toast('Failed to preview segment', 'error'); }
+    finally { setPreviewLoading(false); }
+  };
+
+  const handleSyncSegment = async () => {
+    setSyncing(true);
+    try {
+      const result = await telegramOutreachApi.syncSegment(campaign.id);
+      toast(`Synced: +${result.added} new recipients (total: ${result.total_recipients})`, 'success');
+      onUpdate();
+    } catch { toast('Failed to sync segment', 'error'); }
+    finally { setSyncing(false); }
+  };
+
+  const addFilter = () => {
+    setForm(f => ({
+      ...f,
+      segment_filters: {
+        ...f.segment_filters,
+        filters: [...f.segment_filters.filters, { field: 'status', operator: 'in', value: [] }],
+      },
+    }));
+  };
+
+  const updateFilter = (idx: number, patch: Partial<SegmentFilter>) => {
+    setForm(f => {
+      const filters = [...f.segment_filters.filters];
+      filters[idx] = { ...filters[idx], ...patch };
+      // Reset value when field changes
+      if (patch.field && patch.field !== f.segment_filters.filters[idx].field) {
+        filters[idx].value = patch.field === 'owner' ? '' : [];
+        filters[idx].operator = patch.field === 'owner' ? 'eq' : 'in';
+      }
+      return { ...f, segment_filters: { ...f.segment_filters, filters } };
+    });
+  };
+
+  const removeFilter = (idx: number) => {
+    setForm(f => ({
+      ...f,
+      segment_filters: {
+        ...f.segment_filters,
+        filters: f.segment_filters.filters.filter((_, i) => i !== idx),
+      },
+    }));
+  };
 
   // Accounts management
   const [allAccounts, setAllAccounts] = useState<TgAccount[]>([]);
@@ -287,6 +359,8 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
       else updateData.daily_message_limit = Number(updateData.daily_message_limit);
       if (updateData.crm_status_on_reply === '') updateData.crm_status_on_reply = null;
       if (updateData.crm_owner_on_reply === '') updateData.crm_owner_on_reply = null;
+      // For one_time campaigns, clear segment_filters
+      if (updateData.campaign_type === 'one_time') updateData.segment_filters = null;
 
       await telegramOutreachApi.updateCampaign(campaign.id, updateData);
       await telegramOutreachApi.setCampaignAccounts(campaign.id, Array.from(campaignAccountIds));
@@ -324,6 +398,219 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                  className={inputCls} />
         </div>
+      </div>
+
+      {/* Campaign Type */}
+      <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
+        <h3 className={cn('text-sm font-semibold mb-1', t.text1)}>Campaign Type</h3>
+        <p className={cn('text-xs mb-4', t.text3)}>One-Time uses a fixed recipient list. Dynamic auto-adds CRM contacts matching your filters.</p>
+
+        <div className="flex gap-2 mb-4">
+          {(['one_time', 'dynamic'] as const).map(ct => (
+            <button key={ct} onClick={() => setForm(f => ({ ...f, campaign_type: ct }))}
+              className={cn('px-4 py-2 rounded-lg text-sm font-medium transition-colors border',
+                form.campaign_type === ct
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : cn('border-gray-200 dark:border-gray-700', t.text2, 'hover:border-indigo-400'))}>
+              {ct === 'one_time' ? 'One-Time' : 'Dynamic (Evergreen)'}
+            </button>
+          ))}
+        </div>
+
+        {form.campaign_type === 'dynamic' && (
+          <div className={cn('rounded-lg border p-4', 'border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/20')}>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className={cn('text-sm font-semibold', t.text1)}>Segment Filters</h4>
+              <div className="flex items-center gap-2">
+                <select value={form.segment_filters.logic}
+                  onChange={e => setForm(f => ({ ...f, segment_filters: { ...f.segment_filters, logic: e.target.value as 'AND' | 'OR' } }))}
+                  className={cn('px-2 py-1 rounded text-xs border', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)}>
+                  <option value="AND">Match ALL (AND)</option>
+                  <option value="OR">Match ANY (OR)</option>
+                </select>
+                <button onClick={addFilter}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                  <Plus className="w-3 h-3" /> Add Filter
+                </button>
+              </div>
+            </div>
+
+            {form.segment_filters.filters.length === 0 && (
+              <p className={cn('text-xs py-3 text-center', t.text3)}>No filters yet. Add a filter to define your target segment.</p>
+            )}
+
+            <div className="space-y-2">
+              {form.segment_filters.filters.map((filter, idx) => {
+                const fieldOptions = [
+                  { value: 'status', label: 'Status' },
+                  { value: 'tags', label: 'Tags' },
+                  { value: 'owner', label: 'Owner' },
+                  ...customFields.map(cf => ({ value: `custom:${cf.id}`, label: cf.name })),
+                ];
+                const isArrayField = ['status', 'tags'].includes(filter.field) || filter.field.startsWith('custom:');
+                const statusOptions = ['cold', 'contacted', 'replied', 'interested', 'qualified', 'meeting_set', 'converted', 'not_interested'];
+
+                // Get custom field info
+                const customField = filter.field.startsWith('custom:')
+                  ? customFields.find(cf => cf.id === parseInt(filter.field.split(':')[1]))
+                  : null;
+
+                return (
+                  <div key={idx} className={cn('flex items-center gap-2 p-2 rounded-lg', isDark ? 'bg-gray-800/50' : 'bg-white')}>
+                    {/* Field selector */}
+                    <select value={filter.field} onChange={e => updateFilter(idx, { field: e.target.value })}
+                      className={cn('px-2 py-1.5 rounded text-xs border w-32', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)}>
+                      {fieldOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+
+                    {/* Operator selector */}
+                    <select value={filter.operator} onChange={e => updateFilter(idx, { operator: e.target.value })}
+                      className={cn('px-2 py-1.5 rounded text-xs border w-28', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)}>
+                      {filter.field === 'tags' ? (
+                        <>
+                          <option value="contains_any">has any of</option>
+                          <option value="contains_all">has all of</option>
+                        </>
+                      ) : filter.field === 'owner' ? (
+                        <>
+                          <option value="eq">equals</option>
+                          <option value="neq">not equals</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="in">is any of</option>
+                          <option value="not_in">is not</option>
+                          {!isArrayField && <option value="eq">equals</option>}
+                        </>
+                      )}
+                    </select>
+
+                    {/* Value input */}
+                    <div className="flex-1">
+                      {filter.field === 'status' ? (
+                        <div className="flex flex-wrap gap-1">
+                          {statusOptions.map(s => {
+                            const vals = Array.isArray(filter.value) ? filter.value : [];
+                            const active = vals.includes(s);
+                            return (
+                              <button key={s} onClick={() => {
+                                const newVal = active ? vals.filter((v: string) => v !== s) : [...vals, s];
+                                updateFilter(idx, { value: newVal });
+                              }}
+                                className={cn('px-2 py-0.5 rounded-full text-xs border transition-colors',
+                                  active ? 'bg-indigo-600 text-white border-indigo-600' : cn('border-gray-200 dark:border-gray-700', t.text3))}>
+                                {s.replace('_', ' ')}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : filter.field === 'tags' ? (
+                        <input type="text" placeholder="tag1, tag2, ..."
+                          value={Array.isArray(filter.value) ? filter.value.join(', ') : ''}
+                          onChange={e => updateFilter(idx, { value: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                          className={cn('w-full px-2 py-1.5 rounded text-xs border', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)} />
+                      ) : filter.field === 'owner' ? (
+                        <input type="text" placeholder="Owner name"
+                          value={typeof filter.value === 'string' ? filter.value : ''}
+                          onChange={e => updateFilter(idx, { value: e.target.value })}
+                          className={cn('w-full px-2 py-1.5 rounded text-xs border', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)} />
+                      ) : customField && (customField.field_type === 'select' || customField.field_type === 'multi_select') ? (
+                        <div className="flex flex-wrap gap-1">
+                          {(customField.options_json || []).map((opt: string) => {
+                            const vals = Array.isArray(filter.value) ? filter.value : [];
+                            const active = vals.includes(opt);
+                            return (
+                              <button key={opt} onClick={() => {
+                                const newVal = active ? vals.filter((v: string) => v !== opt) : [...vals, opt];
+                                updateFilter(idx, { value: newVal });
+                              }}
+                                className={cn('px-2 py-0.5 rounded-full text-xs border transition-colors',
+                                  active ? 'bg-indigo-600 text-white border-indigo-600' : cn('border-gray-200 dark:border-gray-700', t.text3))}>
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <input type="text" placeholder="Value"
+                          value={typeof filter.value === 'string' ? filter.value : (Array.isArray(filter.value) ? filter.value.join(', ') : '')}
+                          onChange={e => updateFilter(idx, { value: e.target.value })}
+                          className={cn('w-full px-2 py-1.5 rounded text-xs border', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)} />
+                      )}
+                    </div>
+
+                    {/* Remove button */}
+                    <button onClick={() => removeFilter(idx)}
+                      className={cn('p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors', t.text3, 'hover:text-red-500')}>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Preview & Sync buttons */}
+            {form.segment_filters.filters.length > 0 && (
+              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-indigo-200 dark:border-indigo-800">
+                <button onClick={handlePreviewSegment} disabled={previewLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-400 transition-colors">
+                  {previewLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
+                  Preview Segment
+                </button>
+                {campaign.campaign_type === 'dynamic' && (
+                  <button onClick={handleSyncSegment} disabled={syncing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                    {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    Sync Now
+                  </button>
+                )}
+                {segmentPreview && (
+                  <span className={cn('text-xs', t.text2)}>
+                    <strong>{segmentPreview.total}</strong> contacts match
+                  </span>
+                )}
+                {campaign.segment_last_synced_at && (
+                  <span className={cn('text-xs ml-auto', t.text3)}>
+                    Last synced: {new Date(campaign.segment_last_synced_at).toLocaleString()}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Preview results */}
+            {segmentPreview && segmentPreview.contacts.length > 0 && (
+              <div className={cn('mt-3 rounded-lg border overflow-hidden max-h-48 overflow-y-auto', 'border-gray-200 dark:border-gray-700')}>
+                <table className="w-full text-xs">
+                  <thead className={cn('border-b sticky top-0 z-10', isDark ? 'bg-gray-800' : 'bg-gray-50')}>
+                    <tr>
+                      <th className={cn('text-left px-3 py-1.5 font-medium', t.text3)}>Username</th>
+                      <th className={cn('text-left px-3 py-1.5 font-medium', t.text3)}>Name</th>
+                      <th className={cn('text-left px-3 py-1.5 font-medium', t.text3)}>Status</th>
+                      <th className={cn('text-left px-3 py-1.5 font-medium', t.text3)}>Tags</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {segmentPreview.contacts.map(c => (
+                      <tr key={c.id} className={cn('border-b', 'border-gray-100 dark:border-gray-800')}>
+                        <td className={cn('px-3 py-1.5', t.text1)}>@{c.username}</td>
+                        <td className={cn('px-3 py-1.5', t.text2)}>{c.first_name || '—'}</td>
+                        <td className="px-3 py-1.5">
+                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className={cn('px-3 py-1.5', t.text3)}>{(c.tags || []).join(', ') || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {segmentPreview.total > 50 && (
+                  <p className={cn('text-[10px] text-center py-1', t.text3)}>Showing 50 of {segmentPreview.total} matching contacts</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Sending Settings */}

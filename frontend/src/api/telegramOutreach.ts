@@ -80,11 +80,25 @@ export interface TgProxy {
   created_at?: string;
 }
 
+export interface SegmentFilter {
+  field: string;    // "status", "tags", "owner", "custom:<field_id>"
+  operator: string; // "in", "not_in", "contains_any", "contains_all", "eq", "neq"
+  value: any;
+}
+
+export interface SegmentFilters {
+  logic: 'AND' | 'OR';
+  filters: SegmentFilter[];
+}
+
 export interface TgCampaign {
   id: number;
   project_id?: number;
   name: string;
   status: string;
+  campaign_type: string;  // "one_time" | "dynamic"
+  segment_filters?: SegmentFilters | null;
+  segment_last_synced_at?: string | null;
   daily_message_limit?: number;
   timezone: string;
   send_from_hour: number;
@@ -430,6 +444,12 @@ export const telegramOutreachApi = {
 
   getCampaignStats: async (id: number) =>
     (await api.get<TgCampaignStats>(`${BASE}/campaigns/${id}/stats`)).data,
+
+  segmentPreview: async (id: number) =>
+    (await api.post<{ total: number; contacts: { id: number; username: string; first_name?: string; status: string; tags: string[] }[] }>(`${BASE}/campaigns/${id}/segment-preview`)).data,
+
+  syncSegment: async (id: number) =>
+    (await api.post<{ ok: boolean; added: number; total_recipients: number; synced_at: string | null }>(`${BASE}/campaigns/${id}/sync-segment`)).data,
 
   getCampaignStepStats: async (id: number, params: { period?: string; from_date?: string; to_date?: string } = {}) =>
     (await api.get(`${BASE}/campaigns/${id}/step-stats`, { params })).data as {

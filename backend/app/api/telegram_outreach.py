@@ -9,7 +9,7 @@ import re as _re
 from datetime import datetime as _dt, timedelta as _td
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
-from sqlalchemy import select, func, desc, asc, delete as sa_delete, insert as sa_insert, and_
+from sqlalchemy import select, func, desc, asc, delete as sa_delete, insert as sa_insert, and_, or_, text as sa_text, literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
@@ -19,7 +19,7 @@ from app.models.telegram_outreach import (
     TgProxyGroup, TgProxy,
     TgCampaign, TgCampaignAccount,
     TgRecipient, TgSequence, TgSequenceStep, TgStepVariant, TgOutreachMessage,
-    TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgRecipientStatus, TgMessageStatus,
+    TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgCampaignType, TgRecipientStatus, TgMessageStatus,
     TgInboxDialog, TgContact, TgContactStatus,
     TgIncomingReply, TgBlacklist,
     TgWarmupLog, TgWarmupActionType, TgWarmupChannel,
@@ -2915,6 +2915,9 @@ async def list_campaigns(
         )
         items.append(TgCampaignResponse(
             id=c.id, project_id=c.project_id, name=c.name, status=c.status.value,
+            campaign_type=c.campaign_type or "one_time",
+            segment_filters=c.segment_filters,
+            segment_last_synced_at=c.segment_last_synced_at,
             daily_message_limit=c.daily_message_limit,
             timezone=c.timezone, send_from_hour=c.send_from_hour, send_to_hour=c.send_to_hour,
             delay_between_sends_min=c.delay_between_sends_min,
@@ -2948,6 +2951,8 @@ async def create_campaign(data: TgCampaignCreate, session: AsyncSession = Depend
         delay_randomness_percent=data.delay_randomness_percent,
         spamblock_errors_to_skip=data.spamblock_errors_to_skip,
         followup_priority=data.followup_priority,
+        campaign_type=data.campaign_type or "one_time",
+        segment_filters=data.segment_filters.model_dump() if data.segment_filters else None,
         tags=data.tags or [],
         crm_tag_on_reply=data.crm_tag_on_reply or [],
         crm_status_on_reply=data.crm_status_on_reply,
@@ -2963,6 +2968,9 @@ async def create_campaign(data: TgCampaignCreate, session: AsyncSession = Depend
 
     return TgCampaignResponse(
         id=campaign.id, name=campaign.name, status="draft",
+        campaign_type=campaign.campaign_type or "one_time",
+        segment_filters=campaign.segment_filters,
+        segment_last_synced_at=campaign.segment_last_synced_at,
         daily_message_limit=campaign.daily_message_limit,
         timezone=campaign.timezone, send_from_hour=campaign.send_from_hour,
         send_to_hour=campaign.send_to_hour,
@@ -2993,6 +3001,9 @@ async def update_campaign(campaign_id: int, data: TgCampaignUpdate, session: Asy
     )
     return TgCampaignResponse(
         id=campaign.id, name=campaign.name, status=campaign.status.value,
+        campaign_type=campaign.campaign_type or "one_time",
+        segment_filters=campaign.segment_filters,
+        segment_last_synced_at=campaign.segment_last_synced_at,
         daily_message_limit=campaign.daily_message_limit,
         timezone=campaign.timezone, send_from_hour=campaign.send_from_hour,
         send_to_hour=campaign.send_to_hour,
@@ -3030,6 +3041,34 @@ async def start_campaign(campaign_id: int, session: AsyncSession = Depends(get_s
         raise HTTPException(404, "Campaign not found")
     if campaign.status != TgCampaignStatus.DRAFT and campaign.status != TgCampaignStatus.PAUSED:
         raise HTTPException(400, f"Cannot start campaign with status {campaign.status.value}")
+
+    # For dynamic campaigns, auto-sync segment on start
+    if campaign.campaign_type == "dynamic" and campaign.segment_filters and campaign.segment_filters.get("filters"):
+        q = _build_segment_query(campaign.segment_filters)
+        result = await session.execute(q)
+        contacts = result.scalars().all()
+        existing_q = await session.execute(
+            select(TgRecipient.username).where(TgRecipient.campaign_id == campaign_id)
+        )
+        existing_usernames = {r.lower() for r in existing_q.scalars().all()}
+        bl_q = await session.execute(select(TgBlacklist.username))
+        blacklisted = {r.lower() for r in bl_q.scalars().all()}
+        for contact in contacts:
+            uname = (contact.username or "").lower()
+            if not uname or uname in existing_usernames or uname in blacklisted:
+                continue
+            session.add(TgRecipient(
+                campaign_id=campaign_id, username=contact.username,
+                first_name=contact.first_name, company_name=contact.company_name,
+                custom_variables=contact.custom_data or {},
+            ))
+            existing_usernames.add(uname)
+        campaign.segment_last_synced_at = _dt.utcnow()
+        total_q = await session.execute(
+            select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
+        )
+        campaign.total_recipients = total_q.scalar() or 0
+
     campaign.status = TgCampaignStatus.ACTIVE
     return {"ok": True, "status": "active"}
 
@@ -3041,6 +3080,150 @@ async def pause_campaign(campaign_id: int, session: AsyncSession = Depends(get_s
         raise HTTPException(404, "Campaign not found")
     campaign.status = TgCampaignStatus.PAUSED
     return {"ok": True, "status": "paused"}
+
+
+# ── Dynamic segment helpers ────────────────────────────────────────────
+
+def _build_segment_query(filters_data: dict) -> "Select":
+    """Build a SQLAlchemy query to find TgContacts matching segment filters."""
+    logic = filters_data.get("logic", "AND")
+    filters = filters_data.get("filters", [])
+    if not filters:
+        return select(TgContact)
+
+    conditions = []
+    for f in filters:
+        field = f.get("field", "")
+        op = f.get("operator", "eq")
+        val = f.get("value")
+
+        if field == "status":
+            vals = val if isinstance(val, list) else [val]
+            if op == "in":
+                conditions.append(TgContact.status.in_(vals))
+            elif op == "not_in":
+                conditions.append(~TgContact.status.in_(vals))
+        elif field == "tags":
+            vals = val if isinstance(val, list) else [val]
+            if op == "contains_any":
+                # JSONB ?| operator: tags contain ANY of the values
+                tag_conds = [TgContact.tags.op("?")(v) for v in vals]
+                conditions.append(or_(*tag_conds) if tag_conds else sa_text("true"))
+            elif op == "contains_all":
+                tag_conds = [TgContact.tags.op("?")(v) for v in vals]
+                conditions.append(and_(*tag_conds) if tag_conds else sa_text("true"))
+        elif field == "owner":
+            # Owner stored in custom_data->>'owner'
+            owner_col = TgContact.custom_data["owner"].astext
+            if op == "eq":
+                conditions.append(owner_col == val)
+            elif op == "neq":
+                conditions.append(owner_col != val)
+            elif op == "in":
+                vals = val if isinstance(val, list) else [val]
+                conditions.append(owner_col.in_(vals))
+        elif field.startswith("custom:"):
+            # Custom field: "custom:<field_id>"
+            field_id = int(field.split(":")[1])
+            sub = select(TgCrmLeadFieldValue.lead_id).where(
+                TgCrmLeadFieldValue.field_id == field_id,
+            )
+            if op == "eq":
+                sub = sub.where(TgCrmLeadFieldValue.value == str(val))
+            elif op == "neq":
+                sub = sub.where(TgCrmLeadFieldValue.value != str(val))
+            elif op == "in":
+                vals = val if isinstance(val, list) else [val]
+                sub = sub.where(TgCrmLeadFieldValue.value.in_([str(v) for v in vals]))
+            conditions.append(TgContact.id.in_(sub))
+        elif field == "campaign":
+            # Filter by campaign participation — campaigns is JSONB array of {id, name}
+            vals = val if isinstance(val, list) else [val]
+            camp_conds = [TgContact.campaigns.op("@>")(f'[{{"id": {v}}}]') for v in vals]
+            if op == "in":
+                conditions.append(or_(*camp_conds) if camp_conds else sa_text("true"))
+            elif op == "not_in":
+                conditions.append(~or_(*camp_conds) if camp_conds else sa_text("true"))
+
+    q = select(TgContact)
+    if logic == "OR":
+        q = q.where(or_(*conditions) if conditions else sa_text("true"))
+    else:
+        q = q.where(and_(*conditions) if conditions else sa_text("true"))
+    return q
+
+
+@router.post("/campaigns/{campaign_id}/segment-preview")
+async def segment_preview(campaign_id: int, session: AsyncSession = Depends(get_session)):
+    """Preview how many CRM contacts match the campaign's segment filters."""
+    campaign = await session.get(TgCampaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+    if not campaign.segment_filters:
+        return {"total": 0, "contacts": []}
+    q = _build_segment_query(campaign.segment_filters)
+    count_q = await session.execute(select(func.count()).select_from(q.subquery()))
+    total = count_q.scalar() or 0
+    # Return first 50 contacts for preview
+    preview_q = await session.execute(q.limit(50))
+    contacts = [{"id": c.id, "username": c.username, "first_name": c.first_name,
+                 "status": c.status.value if hasattr(c.status, 'value') else c.status,
+                 "tags": c.tags or []}
+                for c in preview_q.scalars().all()]
+    return {"total": total, "contacts": contacts}
+
+
+@router.post("/campaigns/{campaign_id}/sync-segment")
+async def sync_segment(campaign_id: int, session: AsyncSession = Depends(get_session)):
+    """Resolve dynamic segment and add new matching contacts as pending recipients."""
+    campaign = await session.get(TgCampaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+    if campaign.campaign_type != "dynamic":
+        raise HTTPException(400, "Only dynamic campaigns can sync segments")
+    if not campaign.segment_filters or not campaign.segment_filters.get("filters"):
+        raise HTTPException(400, "No segment filters configured")
+
+    q = _build_segment_query(campaign.segment_filters)
+    result = await session.execute(q)
+    contacts = result.scalars().all()
+
+    # Get existing recipient usernames to avoid duplicates
+    existing_q = await session.execute(
+        select(TgRecipient.username).where(TgRecipient.campaign_id == campaign_id)
+    )
+    existing_usernames = {r.lower() for r in existing_q.scalars().all()}
+
+    # Also check blacklist
+    bl_q = await session.execute(select(TgBlacklist.username))
+    blacklisted = {r.lower() for r in bl_q.scalars().all()}
+
+    added = 0
+    for contact in contacts:
+        uname = (contact.username or "").lower()
+        if not uname or uname in existing_usernames or uname in blacklisted:
+            continue
+        recipient = TgRecipient(
+            campaign_id=campaign_id,
+            username=contact.username,
+            first_name=contact.first_name,
+            company_name=contact.company_name,
+            custom_variables=contact.custom_data or {},
+        )
+        session.add(recipient)
+        existing_usernames.add(uname)
+        added += 1
+
+    campaign.segment_last_synced_at = _dt.utcnow()
+    # Update total_recipients
+    total_q = await session.execute(
+        select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign_id)
+    )
+    campaign.total_recipients = (total_q.scalar() or 0) + added
+    await session.flush()
+
+    return {"ok": True, "added": added, "total_recipients": campaign.total_recipients,
+            "synced_at": campaign.segment_last_synced_at.isoformat() if campaign.segment_last_synced_at else None}
 
 
 @router.get("/campaigns/{campaign_id}/stats", response_model=TgCampaignStatsResponse)
