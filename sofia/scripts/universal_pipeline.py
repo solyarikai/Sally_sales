@@ -2363,7 +2363,7 @@ def main():
         print(f"  Steps: {' → '.join(steps)}")
         return
 
-    # ── Steps 0-8: Backend gathering API ──
+    # ── Steps 0-5: Gathering + Backend pipeline ──
     if "start" in steps:
         if not mode_config:
             print("ERROR: no filters resolved")
