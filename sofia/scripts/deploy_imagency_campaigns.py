@@ -104,7 +104,7 @@ CAMPAIGNS = [
             },
             {
                 "seq_number": 3,
-                "delay_days": 8,
+                "delay_days": 4,  # delay from prev email, not from start (Day 4+4=Day 8)
                 "subject": "Re: creator vetting - {{company_name}}",
                 "body": (
                     "Hi {{first_name}}, last note.<br><br>"
