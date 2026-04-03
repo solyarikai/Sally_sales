@@ -2505,7 +2505,7 @@ def main():
         contacts = load_json(config.state_dir / "contacts.json") or \
                    load_json(config.state_dir / "enriched.json") or []
 
-    # ── Step 9: FindyMail email enrichment ──
+    # ── Step 10: FindyMail ──
     if "findymail" in steps:
         contacts = asyncio.run(step10_findymail(config, contacts,
                                                  max_contacts=args.max_findymail, force=args.force))
