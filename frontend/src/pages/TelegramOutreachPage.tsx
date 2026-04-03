@@ -1784,11 +1784,6 @@ function AppVersionPanel({ ids, loading, run, inputCls, inputStyle }: {
                 className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>
           Apply to {ids.length}
         </button>
-        <button onClick={() => run(`App version → ${targetVersion} (all)`, () => telegramOutreachApi.updateAllAppVersion(customVersion || undefined))}
-                disabled={loading || !targetVersion}
-                className="px-3 py-1 rounded-md text-[12px] font-medium" style={{ background: A.teal, color: '#fff' }}>
-          Apply to ALL
-        </button>
       </div>
     </div>
   );
