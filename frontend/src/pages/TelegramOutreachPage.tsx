@@ -943,16 +943,9 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                         const lines: string[] = [];
                         if (sessionDate) lines.push(`Сессия: ${fmt(sessionDate)} (${ageFmt(sessionDate)})`);
                         if (tgDate) lines.push(`TG аккаунт: ~${fmt(tgDate)} (${ageFmt(tgDate)})`);
-                        const sessionDays = sessionDate ? Math.floor((Date.now() - new Date(sessionDate).getTime()) / 86400000) : null;
-                        const showAgeWarn = !acc.skip_warmup && (acc.is_young_session || acc.warmup_day != null);
                         return (
                           <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             {ageFmt(primaryDate)}
-                            {showAgeWarn && (
-                              <span title={`Аккаунт слишком новый${sessionDays != null ? ` (${sessionDays} дн.)` : ''}, включён Warm-up`} style={{ display: 'inline-flex' }}>
-                                <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#d97706' }} />
-                              </span>
-                            )}
                             <span className="age-tooltip">{lines.join('\n')}</span>
                           </span>
                         );
@@ -964,7 +957,6 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                       {acc.is_premium && <span style={{ color: '#7C3AED', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Premium account — higher daily limits">⭐PRO</span>}
                       {acc.skip_warmup ? <span style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} title="Warm-up skipped (manual override)">SKIP</span>
                         : acc.warmup_day != null ? <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
-                      {!acc.skip_warmup && acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
                       {acc.warmup_active && acc.warmup_progress && (
                         acc.warmup_progress.phase === 'maintenance'
                           ? <span style={{ color: '#0891b2', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title={`Maintenance mode (day ${acc.warmup_progress.day}): 1-2 reactions/day to keep account healthy`}>✓MT</span>
