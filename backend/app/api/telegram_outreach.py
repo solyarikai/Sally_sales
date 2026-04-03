@@ -3779,10 +3779,12 @@ async def get_sequence(campaign_id: int, session: AsyncSession = Depends(get_ses
         steps=[
             TgSequenceStepSchema(
                 id=step.id, step_order=step.step_order, delay_days=step.delay_days,
+                message_type=step.message_type or "text",
                 variants=[
                     TgStepVariantSchema(
                         id=v.id, variant_label=v.variant_label,
                         message_text=v.message_text, weight_percent=v.weight_percent,
+                        media_file_path=v.media_file_path,
                     ) for v in step.variants
                 ],
             ) for step in seq.steps
