@@ -5335,7 +5335,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-end">
-        <Link to="/inbox-v2" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style={{ background: A.accent + '18', color: A.accent }}>
+        <Link to="/inbox-v2" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style={{ background: A.blueBg, color: A.blue }}>
           Try new Inbox (beta) <ChevronRight className="w-3.5 h-3.5" />
         </Link>
       </div>
