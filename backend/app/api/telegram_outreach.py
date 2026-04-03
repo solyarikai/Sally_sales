@@ -20,7 +20,7 @@ from app.models.telegram_outreach import (
     TgCampaign, TgCampaignAccount,
     TgRecipient, TgSequence, TgSequenceStep, TgStepVariant, TgOutreachMessage,
     TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgRecipientStatus, TgMessageStatus,
-    TgInboxDialog, TgContact, TgContactStatus,
+    TgInboxDialog, TgContact, TgContactStatus, TgCrmNote,
     TgIncomingReply, TgBlacklist,
     TgWarmupLog, TgWarmupActionType, TgWarmupChannel,
 )
@@ -5733,6 +5733,98 @@ async def get_contact_campaigns(contact_id: int, session: AsyncSession = Depends
         })
 
     return {"campaigns": campaigns}
+
+
+# ── CRM Notes ────────────────────────────────────────────────────────
+
+@router.get("/crm/contacts/{contact_id}/notes")
+async def list_contact_notes(contact_id: int, session: AsyncSession = Depends(get_session)):
+    """List notes for a CRM contact."""
+    contact = await session.get(TgContact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+    result = await session.execute(
+        select(TgCrmNote)
+        .where(TgCrmNote.contact_id == contact_id)
+        .order_by(desc(TgCrmNote.created_at))
+    )
+    notes = result.scalars().all()
+    return {"notes": [{
+        "id": n.id,
+        "text": n.text,
+        "author": n.author,
+        "created_at": n.created_at.isoformat() if n.created_at else None,
+    } for n in notes]}
+
+
+@router.post("/crm/contacts/{contact_id}/notes")
+async def add_contact_note(
+    contact_id: int,
+    body: dict,
+    session: AsyncSession = Depends(get_session),
+):
+    """Add a note to a CRM contact."""
+    contact = await session.get(TgContact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, "Note text is required")
+    note = TgCrmNote(contact_id=contact_id, text=text, author=body.get("author"))
+    session.add(note)
+    await session.commit()
+    await session.refresh(note)
+    return {
+        "id": note.id,
+        "text": note.text,
+        "author": note.author,
+        "created_at": note.created_at.isoformat() if note.created_at else None,
+    }
+
+
+@router.delete("/crm/contacts/{contact_id}/notes/{note_id}")
+async def delete_contact_note(
+    contact_id: int,
+    note_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete a CRM note."""
+    note = await session.get(TgCrmNote, note_id)
+    if not note or note.contact_id != contact_id:
+        raise HTTPException(404, "Note not found")
+    await session.delete(note)
+    await session.commit()
+    return {"ok": True}
+
+
+# ── CRM Contact → Dialog lookup ──────────────────────────────────────
+
+@router.get("/crm/contacts/{contact_id}/dialog")
+async def get_contact_dialog(contact_id: int, session: AsyncSession = Depends(get_session)):
+    """Find inbox dialog(s) for a CRM contact by matching username."""
+    contact = await session.get(TgContact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+    if not contact.username:
+        return {"dialogs": []}
+    result = await session.execute(
+        select(TgInboxDialog)
+        .where(TgInboxDialog.peer_username == contact.username)
+        .order_by(desc(TgInboxDialog.last_message_at))
+    )
+    dialogs = result.scalars().all()
+    return {"dialogs": [{
+        "id": d.id,
+        "account_id": d.account_id,
+        "peer_id": d.peer_id,
+        "peer_name": d.peer_name,
+        "peer_username": d.peer_username,
+        "last_message_text": d.last_message_text,
+        "last_message_at": d.last_message_at.isoformat() if d.last_message_at else None,
+        "unread_count": d.unread_count,
+        "campaign_id": d.campaign_id,
+        "inbox_tag": d.inbox_tag,
+    } for d in dialogs]}
 
 
 # ═══════════════════════════════════════════════════════════════════════

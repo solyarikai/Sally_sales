@@ -7,7 +7,7 @@ import {
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
   LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon,
-  BarChart3, ChevronUp, FolderOpen,
+  BarChart3, ChevronUp, FolderOpen, ArrowLeft, StickyNote, Clock,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -6837,6 +6837,16 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [crmDeleteConfirm, setCrmDeleteConfirm] = useState<string | null>(null);
+  // Detail view state
+  const [dialogInfo, setDialogInfo] = useState<any>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatMsgText, setChatMsgText] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [noteText, setNoteText] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadContacts = useCallback(async () => {
     setLoading(true);
@@ -6862,15 +6872,73 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const openContact = async (c: any) => {
     setSelectedContact(c);
     setCampaignProgress([]);
+    setDialogInfo(null);
+    setChatMessages([]);
+    setNotes([]);
     try {
-      const [h, cp] = await Promise.all([
+      const [h, cp, dialogRes, notesRes] = await Promise.all([
         telegramOutreachApi.getCrmContactHistory(c.id),
         telegramOutreachApi.getCrmContactCampaigns(c.id),
+        telegramOutreachApi.getCrmContactDialog(c.id),
+        telegramOutreachApi.getCrmContactNotes(c.id),
       ]);
       setHistory(h.history);
       setCampaignProgress(cp.campaigns || []);
+      setNotes(notesRes.notes || []);
+      const dialogs = dialogRes.dialogs || [];
+      if (dialogs.length > 0) {
+        setDialogInfo(dialogs[0]);
+        loadChatMessages(dialogs[0].id);
+      }
     } catch { setHistory([]); setCampaignProgress([]); }
   };
+
+  const loadChatMessages = async (dialogId: number) => {
+    setChatLoading(true);
+    try {
+      const data = await telegramOutreachApi.getDialogMessages(dialogId, 50);
+      setChatMessages(data.messages || []);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } catch { setChatMessages([]); }
+    finally { setChatLoading(false); }
+  };
+
+  const sendChatMessage = async () => {
+    if (!dialogInfo || !chatMsgText.trim()) return;
+    setChatSending(true);
+    try {
+      await telegramOutreachApi.sendDialogMessage(dialogInfo.id, chatMsgText.trim());
+      setChatMsgText('');
+      await loadChatMessages(dialogInfo.id);
+    } catch { toast('Send failed', 'error'); }
+    finally { setChatSending(false); }
+  };
+
+  const addNote = async () => {
+    if (!selectedContact || !noteText.trim()) return;
+    try {
+      const n = await telegramOutreachApi.addCrmContactNote(selectedContact.id, noteText.trim());
+      setNotes(prev => [n, ...prev]);
+      setNoteText('');
+    } catch { toast('Failed to add note', 'error'); }
+  };
+
+  const deleteNote = async (noteId: number) => {
+    if (!selectedContact) return;
+    try {
+      await telegramOutreachApi.deleteCrmContactNote(selectedContact.id, noteId);
+      setNotes(prev => prev.filter((n: any) => n.id !== noteId));
+    } catch { toast('Failed to delete note', 'error'); }
+  };
+
+  // Poll chat messages when dialog is open
+  useEffect(() => {
+    if (chatPollRef.current) clearInterval(chatPollRef.current);
+    if (dialogInfo) {
+      chatPollRef.current = setInterval(() => loadChatMessages(dialogInfo.id), 10000);
+    }
+    return () => { if (chatPollRef.current) clearInterval(chatPollRef.current); };
+  }, [dialogInfo?.id]);
 
   const updateStatus = async (id: number, status: string) => {
     try {
@@ -6883,6 +6951,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
 
   return (
     <div className="space-y-4">
+      {!selectedContact && <>
       {/* Pipeline Stats */}
       <div className="grid grid-cols-8 gap-2">
         {CRM_PIPELINE.map(s => (
@@ -7012,158 +7081,211 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
           </div>
         </div>
       )}
+      </>}
 
-      {/* Contact Detail Modal */}
+      {/* Contact Detail — 2-column layout (card + chat) */}
       {selectedContact && (
-        <ModalBackdrop onClose={() => setSelectedContact(null)}>
-          <div className="w-[600px] rounded-xl border shadow-xl max-h-[80vh] overflow-y-auto"
-               style={{ borderColor: A.border, background: A.surface }}>
-            <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: A.border }}>
+        <div className="rounded-xl border overflow-hidden" style={{ borderColor: A.border, background: A.surface }}>
+          {/* Header bar */}
+          <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: A.border, background: '#F9F9F7' }}>
+            <div className="flex items-center gap-3">
+              <button onClick={() => { setSelectedContact(null); if (chatPollRef.current) clearInterval(chatPollRef.current); }}
+                      className="p-1 rounded hover:bg-white transition-colors" title="Back to contacts">
+                <ArrowLeft className="w-4 h-4" style={{ color: A.text2 }} />
+              </button>
               <div>
-                <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>@{selectedContact.username}</h2>
-                <p className="text-xs" style={{ color: A.text3 }}>
+                <h2 className="text-sm font-semibold" style={{ color: A.text1 }}>@{selectedContact.username}</h2>
+                <p className="text-[11px]" style={{ color: A.text3 }}>
                   {[selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ')}
-                  {selectedContact.company_name ? ` - ${selectedContact.company_name}` : ''}
+                  {selectedContact.company_name ? ` · ${selectedContact.company_name}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCrmDeleteConfirm('single')}
-                  className="p-1.5 rounded transition-colors"
-                  style={{ cursor: 'pointer' }}
-                  title="Delete contact"
-                  onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <Trash2 className="w-4 h-4" style={{ color: '#E11D48' }} />
-                </button>
-                <button onClick={() => setSelectedContact(null)} className="p-1 hover:bg-[#F5F5F0] rounded">
-                  <X className="w-5 h-5" style={{ color: A.text3 }} />
-                </button>
-              </div>
             </div>
-            <div className="px-6 py-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCrmDeleteConfirm('single')}
+                      className="p-1.5 rounded transition-colors hover:bg-[#FFF1F2]" title="Delete contact">
+                <Trash2 className="w-3.5 h-3.5" style={{ color: '#E11D48' }} />
+              </button>
+            </div>
+          </div>
+
+          {/* 2-column body */}
+          <div className="flex" style={{ height: 'calc(100vh - 280px)', minHeight: 480 }}>
+            {/* Left: CRM Card (40%) */}
+            <div className="w-[40%] border-r overflow-y-auto p-4 space-y-4" style={{ borderColor: A.border }}>
+              {/* Status + Stats */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Status</label>
-                  <select value={selectedContact.status}
-                          onChange={e => { updateStatus(selectedContact.id, e.target.value); setSelectedContact({...selectedContact, status: e.target.value}); }}
-                          className="w-full px-3 py-2 rounded-lg border text-sm"
-                          style={{ borderColor: A.border, background: A.surface, color: A.text1 }}>
-                    {CRM_PIPELINE.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                  </select>
+                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Status</label>
+                  <StyledSelect
+                    value={selectedContact.status}
+                    onChange={v => { updateStatus(selectedContact.id, v); setSelectedContact({ ...selectedContact, status: v }); }}
+                    options={CRM_PIPELINE.map(s => ({ value: s, label: s.replace('_', ' ') }))}
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Campaigns</label>
-                  <div className="text-xs pt-2" style={{ color: A.text1 }}>
+                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Campaigns</label>
+                  <div className="text-xs pt-1" style={{ color: A.text1 }}>
                     {(selectedContact.campaigns || []).map((c: any) => c.name).join(', ') || 'None'}
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
+
+              <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-lg font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>Sent</div>
+                  <div className="text-base font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
+                  <div className="text-[9px] uppercase tracking-wide" style={{ color: A.text3 }}>Sent</div>
                 </div>
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-lg font-bold text-green-600">{selectedContact.total_replies_received}</div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>Replies</div>
+                  <div className="text-base font-bold text-green-600">{selectedContact.total_replies_received}</div>
+                  <div className="text-[9px] uppercase tracking-wide" style={{ color: A.text3 }}>Replies</div>
                 </div>
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-lg font-bold" style={{ color: A.text1 }}>
+                  <div className="text-[11px] font-bold" style={{ color: A.text1 }}>
                     {selectedContact.last_reply_at ? new Date(selectedContact.last_reply_at).toLocaleDateString() : '--'}
                   </div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>Last Reply</div>
+                  <div className="text-[9px] uppercase tracking-wide" style={{ color: A.text3 }}>Last Reply</div>
                 </div>
               </div>
-              {/* Campaign Sequence Progress */}
+
+              {/* Campaign Progress */}
               {campaignProgress.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Campaign Progress</h3>
+                  <h3 className="text-[10px] font-semibold uppercase tracking-wide mb-2" style={{ color: A.text3 }}>Campaign Progress</h3>
                   <div className="space-y-2">
                     {campaignProgress.map((cp: any) => (
-                      <div key={cp.campaign_id} className="rounded-lg border p-3" style={{ borderColor: A.border }}>
-                        <div className="flex items-center justify-between mb-2">
+                      <div key={cp.campaign_id} className="rounded-lg border p-2.5" style={{ borderColor: A.border }}>
+                        <div className="flex items-center justify-between mb-1.5">
                           <span className="text-xs font-medium" style={{ color: A.text1 }}>{cp.campaign_name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                          <div className="flex items-center gap-1">
+                            <span className="text-[9px] px-1.5 py-0.5 rounded" style={{
                               background: cp.campaign_status === 'active' ? '#ECFDF5' : cp.campaign_status === 'paused' ? '#FEF3C7' : '#F3F4F6',
                               color: cp.campaign_status === 'active' ? '#059669' : cp.campaign_status === 'paused' ? '#D97706' : '#6B7280',
                             }}>{cp.campaign_status}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                            <span className="text-[9px] px-1.5 py-0.5 rounded" style={{
                               background: cp.recipient_status === 'replied' ? '#ECFDF5' : cp.recipient_status === 'completed' ? '#F0F9FF' : cp.recipient_status === 'failed' ? '#FFF1F2' : '#F9F9F7',
                               color: cp.recipient_status === 'replied' ? '#059669' : cp.recipient_status === 'completed' ? '#0284C7' : cp.recipient_status === 'failed' ? '#E11D48' : A.text3,
                             }}>{cp.recipient_status}</span>
                           </div>
                         </div>
-                        {/* Step indicators */}
                         <div className="flex items-center gap-1">
                           {cp.steps.map((step: any, si: number) => {
                             const color = step.status === 'sent' ? '#9CA3AF' : step.status === 'read' ? '#3B82F6'
                               : step.status === 'replied' ? '#10B981' : step.status === 'failed' || step.status === 'spamblocked' ? '#EF4444'
                               : step.status === 'scheduled' ? '#F59E0B' : '#E5E7EB';
                             return (
-                              <div key={si} className="flex items-center" title={
-                                `${step.label}${step.sent_at ? `\nSent: ${new Date(step.sent_at).toLocaleString()}` : ''}${step.read_at ? `\nRead: ${new Date(step.read_at).toLocaleString()}` : ''}`
-                              }>
-                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: color }}>
-                                  {si + 1}
-                                </div>
-                                {si < cp.steps.length - 1 && (
-                                  <div className="w-4 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />
-                                )}
+                              <div key={si} className="flex items-center" title={`${step.label}${step.sent_at ? `\nSent: ${new Date(step.sent_at).toLocaleString()}` : ''}`}>
+                                <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ background: color }}>{si + 1}</div>
+                                {si < cp.steps.length - 1 && <div className="w-3 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />}
                               </div>
                             );
                           })}
-                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>
-                            {cp.current_step}/{cp.total_steps}
-                          </span>
-                        </div>
-                        {/* Current step text summary */}
-                        <div className="mt-1.5 text-[11px]" style={{ color: A.text3 }}>
-                          {cp.recipient_status === 'replied' ? (
-                            <>Replied after {cp.steps.find((s: any) => s.status === 'replied')?.label || `step ${cp.current_step}`}</>
-                          ) : cp.recipient_status === 'completed' ? (
-                            <>Completed all {cp.total_steps} steps</>
-                          ) : cp.current_step > 0 ? (
-                            <>Sent {cp.steps[cp.current_step - 1]?.label || `step ${cp.current_step}`}{cp.steps[cp.current_step]
-                              ? `, next: ${cp.steps[cp.current_step]?.label} (+${cp.steps[cp.current_step]?.delay_days}d)`
-                              : ''}</>
-                          ) : (
-                            <>Pending — not yet sent</>
-                          )}
+                          <span className="text-[9px] ml-1" style={{ color: A.text3 }}>{cp.current_step}/{cp.total_steps}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* Notes Section */}
               <div>
-                <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>History</h3>
-                {history.length === 0 ? (
-                  <p className="text-xs text-center py-4" style={{ color: A.text3 }}>No messages yet</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                    {history.map((h: any, i: number) => (
-                      <div key={i} className="rounded px-3 py-2 text-xs"
-                           style={{ background: h.type === 'sent' ? '#F9F9F7' : A.tealBg }}>
+                <h3 className="text-[10px] font-semibold uppercase tracking-wide mb-2 flex items-center gap-1" style={{ color: A.text3 }}>
+                  <StickyNote className="w-3 h-3" /> Notes ({notes.length})
+                </h3>
+                <div className="flex gap-1.5 mb-2">
+                  <input value={noteText} onChange={e => setNoteText(e.target.value)}
+                         onKeyDown={e => { if (e.key === 'Enter') addNote(); }}
+                         placeholder="Add a note..."
+                         className="flex-1 px-2.5 py-1.5 rounded border text-xs"
+                         style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
+                  <button onClick={addNote} disabled={!noteText.trim()}
+                          className="px-2.5 py-1.5 rounded text-xs font-medium text-white disabled:opacity-40"
+                          style={{ background: A.blue }}>Add</button>
+                </div>
+                {notes.length > 0 && (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {notes.map((n: any) => (
+                      <div key={n.id} className="rounded border px-2.5 py-2 text-xs group" style={{ borderColor: A.border }}>
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="font-medium" style={{ color: h.type === 'sent' ? A.text3 : A.teal }}>
-                            {h.type === 'sent' ? 'Sent' : 'Reply'}
+                          <span className="text-[9px] flex items-center gap-1" style={{ color: A.text3 }}>
+                            <Clock className="w-2.5 h-2.5" />
+                            {n.created_at ? new Date(n.created_at).toLocaleString() : ''}
                           </span>
-                          <span className="text-[10px]" style={{ color: A.text3 }}>
-                            {h.time ? new Date(h.time).toLocaleString() : ''}
-                          </span>
+                          <button onClick={() => deleteNote(n.id)}
+                                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[#FFF1F2] transition-all">
+                            <X className="w-3 h-3" style={{ color: '#E11D48' }} />
+                          </button>
                         </div>
-                        <p style={{ color: A.text1 }}>{h.text}</p>
+                        <p style={{ color: A.text1 }}>{n.text}</p>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Right: Chat (60%) */}
+            <div className="w-[60%] flex flex-col">
+              {dialogInfo ? (
+                <>
+                  {/* Chat header */}
+                  <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: A.border, background: '#F9F9F7' }}>
+                    <MessageCircle className="w-3.5 h-3.5" style={{ color: A.blue }} />
+                    <span className="text-xs font-medium" style={{ color: A.text1 }}>Chat with @{dialogInfo.peer_username || selectedContact.username}</span>
+                    {dialogInfo.unread_count > 0 && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold text-white" style={{ background: A.blue }}>{dialogInfo.unread_count}</span>
+                    )}
+                  </div>
+
+                  {/* Messages area */}
+                  <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2" style={{ background: '#FAFAF8' }}>
+                    {chatLoading && chatMessages.length === 0 && (
+                      <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} /></div>
+                    )}
+                    {chatMessages.map((msg: any) => (
+                      <div key={msg.id || msg.tg_message_id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                        <div className="max-w-[75%] px-3 py-2 rounded-xl text-xs"
+                             style={{
+                               background: msg.direction === 'outbound' ? '#DCE8FF' : '#FFFFFF',
+                               border: msg.direction === 'outbound' ? 'none' : `1px solid ${A.border}`,
+                             }}>
+                          <div className="whitespace-pre-wrap break-words" style={{ color: A.text1 }}>{msg.text}</div>
+                          <div className="text-[9px] mt-1 text-right" style={{ color: A.text3 }}>
+                            {msg.date ? new Date(msg.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={chatEndRef} />
+                  </div>
+
+                  {/* Input area */}
+                  <div className="px-4 py-3 border-t flex gap-2" style={{ borderColor: A.border }}>
+                    <input value={chatMsgText} onChange={e => setChatMsgText(e.target.value)}
+                           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                           placeholder="Type a message..."
+                           className="flex-1 px-3 py-2 rounded-lg border text-xs outline-none"
+                           style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
+                    <button onClick={sendChatMessage} disabled={chatSending || !chatMsgText.trim()}
+                            className="px-3 py-2 rounded-lg flex items-center gap-1 text-xs font-medium text-white disabled:opacity-40"
+                            style={{ background: A.blue }}>
+                      {chatSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center" style={{ background: '#FAFAF8' }}>
+                  <div className="text-center">
+                    <MessageCircle className="w-10 h-10 mx-auto mb-2 opacity-20" style={{ color: A.text3 }} />
+                    <p className="text-xs" style={{ color: A.text3 }}>No conversation yet</p>
+                    <p className="text-[10px] mt-1" style={{ color: A.text3 }}>Start a campaign to this contact first</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </ModalBackdrop>
+        </div>
       )}
       {crmDeleteConfirm === 'bulk' && (
         <ConfirmModal message={`Delete ${selectedIds.size} contacts?`}

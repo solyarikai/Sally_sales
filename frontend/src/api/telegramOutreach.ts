@@ -620,6 +620,18 @@ export const telegramOutreachApi = {
   getCrmPipeline: async (params: { search?: string; limit_per_status?: number; project_id?: number } = {}) =>
     (await api.get(`${BASE}/crm/pipeline`, { params })).data,
 
+  getCrmContactNotes: async (id: number) =>
+    (await api.get(`${BASE}/crm/contacts/${id}/notes`)).data,
+
+  addCrmContactNote: async (id: number, text: string, author?: string) =>
+    (await api.post(`${BASE}/crm/contacts/${id}/notes`, { text, author })).data,
+
+  deleteCrmContactNote: async (contactId: number, noteId: number) =>
+    (await api.delete(`${BASE}/crm/contacts/${contactId}/notes/${noteId}`)).data,
+
+  getCrmContactDialog: async (id: number) =>
+    (await api.get(`${BASE}/crm/contacts/${id}/dialog`)).data,
+
   // Tools
   checkPhones: async (phones: string[], accountId: number) =>
     (await api.post(`${BASE}/tools/check-phones`, phones, { params: { account_id: accountId } })).data,
