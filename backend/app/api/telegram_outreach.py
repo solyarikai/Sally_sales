@@ -3040,11 +3040,31 @@ async def get_campaign_stats(campaign_id: int, session: AsyncSession = Depends(g
 
 
 @router.get("/campaigns/{campaign_id}/step-stats")
-async def get_campaign_step_stats(campaign_id: int, session: AsyncSession = Depends(get_session)):
-    """Per-step analytics: sent, read, replied counts for each sequence step."""
+async def get_campaign_step_stats(
+    campaign_id: int,
+    period: Optional[str] = Query(None, description="7d, 30d, or custom"),
+    from_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    to_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Per-step analytics: sent, read, replied counts for each sequence step.
+    Optional period filtering: period=7d|30d|custom with from_date/to_date."""
     campaign = await session.get(TgCampaign, campaign_id)
     if not campaign:
         raise HTTPException(404, "Campaign not found")
+
+    # Compute date range filter
+    date_from = None
+    date_to = None
+    if period == "7d":
+        date_from = _dt.utcnow() - _td(days=7)
+    elif period == "30d":
+        date_from = _dt.utcnow() - _td(days=30)
+    elif period == "custom":
+        if from_date:
+            date_from = _dt.fromisoformat(from_date)
+        if to_date:
+            date_to = _dt.fromisoformat(to_date + "T23:59:59") if "T" not in to_date else _dt.fromisoformat(to_date)
 
     # Get sequence steps ordered
     seq_q = await session.execute(
@@ -3052,7 +3072,7 @@ async def get_campaign_step_stats(campaign_id: int, session: AsyncSession = Depe
     )
     sequence = seq_q.scalar()
     if not sequence:
-        return {"steps": [], "totals": {"sent": 0, "read": 0, "replied": 0}}
+        return {"steps": [], "totals": {"sent": 0, "read": 0, "replied": 0, "total_recipients": 0}, "period": period}
 
     steps_q = await session.execute(
         select(TgSequenceStep)
@@ -3061,21 +3081,43 @@ async def get_campaign_step_stats(campaign_id: int, session: AsyncSession = Depe
     )
     steps = steps_q.scalars().all()
 
+    # Build message filters
+    msg_filters = [
+        TgOutreachMessage.campaign_id == campaign_id,
+        TgOutreachMessage.status == TgMessageStatus.SENT,
+    ]
+    if date_from:
+        msg_filters.append(TgOutreachMessage.sent_at >= date_from)
+    if date_to:
+        msg_filters.append(TgOutreachMessage.sent_at <= date_to)
+
     # Per-step sent & read counts from outreach messages
-    from sqlalchemy import case
     msg_stats_q = await session.execute(
         select(
             TgOutreachMessage.step_id,
             func.count(TgOutreachMessage.id).label("sent"),
             func.count(TgOutreachMessage.read_at).label("read"),
         )
-        .where(
-            TgOutreachMessage.campaign_id == campaign_id,
-            TgOutreachMessage.status == TgMessageStatus.SENT,
-        )
+        .where(*msg_filters)
         .group_by(TgOutreachMessage.step_id)
     )
     msg_stats = {row.step_id: {"sent": row.sent, "read": row.read} for row in msg_stats_q}
+
+    # Build reply filters
+    reply_msg_filters = [
+        TgOutreachMessage.campaign_id == campaign_id,
+        TgOutreachMessage.status == TgMessageStatus.SENT,
+    ]
+    if date_from:
+        reply_msg_filters.append(TgOutreachMessage.sent_at >= date_from)
+    if date_to:
+        reply_msg_filters.append(TgOutreachMessage.sent_at <= date_to)
+
+    reply_date_filters = [TgIncomingReply.campaign_id == campaign_id]
+    if date_from:
+        reply_date_filters.append(TgIncomingReply.received_at >= date_from)
+    if date_to:
+        reply_date_filters.append(TgIncomingReply.received_at <= date_to)
 
     # Per-step replied: for each recipient who replied, attribute to the latest step they received
     latest_step_sub = (
@@ -3083,10 +3125,7 @@ async def get_campaign_step_stats(campaign_id: int, session: AsyncSession = Depe
             TgOutreachMessage.recipient_id,
             func.max(TgOutreachMessage.step_id).label("last_step_id"),
         )
-        .where(
-            TgOutreachMessage.campaign_id == campaign_id,
-            TgOutreachMessage.status == TgMessageStatus.SENT,
-        )
+        .where(*reply_msg_filters)
         .group_by(TgOutreachMessage.recipient_id)
         .subquery()
     )
@@ -3097,7 +3136,7 @@ async def get_campaign_step_stats(campaign_id: int, session: AsyncSession = Depe
         )
         .select_from(TgIncomingReply)
         .join(latest_step_sub, TgIncomingReply.recipient_id == latest_step_sub.c.recipient_id)
-        .where(TgIncomingReply.campaign_id == campaign_id)
+        .where(*reply_date_filters)
         .group_by(latest_step_sub.c.last_step_id)
     )
     reply_by_step = {row.last_step_id: row.replied for row in reply_correct_q}
@@ -3130,7 +3169,136 @@ async def get_campaign_step_stats(campaign_id: int, session: AsyncSession = Depe
             "replied": total_replied,
             "total_recipients": campaign.total_recipients,
         },
+        "period": period,
     }
+
+
+@router.get("/campaigns/{campaign_id}/analytics/export-csv")
+async def export_campaign_analytics_csv(
+    campaign_id: int,
+    period: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Export campaign analytics as CSV: per-recipient status with step details."""
+    from fastapi.responses import StreamingResponse
+    import csv
+    import io
+
+    campaign = await session.get(TgCampaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    # Date range
+    date_from = None
+    date_to = None
+    if period == "7d":
+        date_from = _dt.utcnow() - _td(days=7)
+    elif period == "30d":
+        date_from = _dt.utcnow() - _td(days=30)
+    elif period == "custom":
+        if from_date:
+            date_from = _dt.fromisoformat(from_date)
+        if to_date:
+            date_to = _dt.fromisoformat(to_date + "T23:59:59") if "T" not in to_date else _dt.fromisoformat(to_date)
+
+    # Get steps
+    seq_q = await session.execute(
+        select(TgSequence).where(TgSequence.campaign_id == campaign_id)
+    )
+    sequence = seq_q.scalar()
+    steps = []
+    if sequence:
+        steps_q = await session.execute(
+            select(TgSequenceStep)
+            .where(TgSequenceStep.sequence_id == sequence.id)
+            .order_by(TgSequenceStep.step_order)
+        )
+        steps = steps_q.scalars().all()
+
+    # Get recipients
+    recip_q = await session.execute(
+        select(TgRecipient).where(TgRecipient.campaign_id == campaign_id).order_by(TgRecipient.id)
+    )
+    recipients = recip_q.scalars().all()
+
+    # Get messages with optional date filter
+    msg_filters = [TgOutreachMessage.campaign_id == campaign_id, TgOutreachMessage.status == TgMessageStatus.SENT]
+    if date_from:
+        msg_filters.append(TgOutreachMessage.sent_at >= date_from)
+    if date_to:
+        msg_filters.append(TgOutreachMessage.sent_at <= date_to)
+    msgs_q = await session.execute(select(TgOutreachMessage).where(*msg_filters))
+    messages = msgs_q.scalars().all()
+
+    # Index messages by (recipient_id, step_id)
+    msg_map: dict[tuple[int, int], TgOutreachMessage] = {}
+    for m in messages:
+        msg_map[(m.recipient_id, m.step_id)] = m
+
+    # Get replies
+    reply_filters = [TgIncomingReply.campaign_id == campaign_id]
+    if date_from:
+        reply_filters.append(TgIncomingReply.received_at >= date_from)
+    if date_to:
+        reply_filters.append(TgIncomingReply.received_at <= date_to)
+    replies_q = await session.execute(select(TgIncomingReply).where(*reply_filters))
+    replies = replies_q.scalars().all()
+    replied_recipients = {r.recipient_id for r in replies}
+
+    # Build CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header
+    header = ["Username", "First Name", "Company", "Status", "Replied"]
+    for step in steps:
+        prefix = f"Step {step.step_order}"
+        header.extend([f"{prefix} Sent At", f"{prefix} Read At", f"{prefix} Status"])
+    writer.writerow(header)
+
+    # Rows
+    for r in recipients:
+        row = [
+            r.username or "",
+            r.first_name or "",
+            r.company_name or "",
+            r.status.value if r.status else "",
+            "Yes" if r.id in replied_recipients else "No",
+        ]
+        for step in steps:
+            msg = msg_map.get((r.id, step.id))
+            if msg:
+                row.append(msg.sent_at.strftime("%Y-%m-%d %H:%M") if msg.sent_at else "")
+                row.append(msg.read_at.strftime("%Y-%m-%d %H:%M") if msg.read_at else "")
+                row.append("Read" if msg.read_at else "Sent")
+            else:
+                row.extend(["", "", "Not sent"])
+        writer.writerow(row)
+
+    # Summary rows
+    writer.writerow([])
+    writer.writerow(["=== SUMMARY ==="])
+    writer.writerow(["Total Recipients", len(recipients)])
+    writer.writerow(["Total Replied", len(replied_recipients)])
+    writer.writerow(["Reply Rate", f"{round(len(replied_recipients) / max(len(recipients), 1) * 100, 1)}%"])
+    for step in steps:
+        step_msgs = [m for m in messages if m.step_id == step.id]
+        step_read = sum(1 for m in step_msgs if m.read_at)
+        writer.writerow([
+            f"Step {step.step_order}",
+            f"Sent: {len(step_msgs)}",
+            f"Read: {step_read} ({round(step_read / max(len(step_msgs), 1) * 100, 1)}%)",
+        ])
+
+    output.seek(0)
+    safe_name = _re.sub(r'[^\w\-]', '_', campaign.name or f"campaign_{campaign_id}")
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="analytics_{safe_name}.csv"'},
+    )
 
 
 # ── Campaign Timeline ─────────────────────────────────────────────────

@@ -424,10 +424,11 @@ export const telegramOutreachApi = {
   getCampaignStats: async (id: number) =>
     (await api.get<TgCampaignStats>(`${BASE}/campaigns/${id}/stats`)).data,
 
-  getCampaignStepStats: async (id: number) =>
-    (await api.get(`${BASE}/campaigns/${id}/step-stats`)).data as {
+  getCampaignStepStats: async (id: number, params: { period?: string; from_date?: string; to_date?: string } = {}) =>
+    (await api.get(`${BASE}/campaigns/${id}/step-stats`, { params })).data as {
       steps: { step_order: number; step_id: number; delay_days: number; sent: number; read: number; replied: number }[];
       totals: { sent: number; read: number; replied: number; total_recipients: number };
+      period: string | null;
     },
 
   getCampaignTimeline: async (id: number, params: { page?: number; page_size?: number; search?: string; sort_by?: string; sort_dir?: string } = {}) =>
@@ -646,6 +647,15 @@ export const telegramOutreachApi = {
   // Reports
   downloadReportURL: (campaignId: number, format: string = 'html') =>
     `${api.defaults.baseURL}${BASE}/campaigns/${campaignId}/report?format=${format}`,
+
+  analyticsExportCSVURL: (campaignId: number, params: { period?: string; from_date?: string; to_date?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.period) qs.set('period', params.period);
+    if (params.from_date) qs.set('from_date', params.from_date);
+    if (params.to_date) qs.set('to_date', params.to_date);
+    const q = qs.toString();
+    return `${api.defaults.baseURL}${BASE}/campaigns/${campaignId}/analytics/export-csv${q ? '?' + q : ''}`;
+  },
 
   // Activity log
   getCampaignActivity: async (campaignId: number, limit: number = 50) =>

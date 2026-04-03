@@ -1992,16 +1992,26 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
   const [stepStats, setStepStats] = useState<{
     steps: { step_order: number; step_id: number; delay_days: number; sent: number; read: number; replied: number }[];
     totals: { sent: number; read: number; replied: number; total_recipients: number };
+    period: string | null;
   } | null>(null);
   const [activity, setActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<string>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+
+  const periodParams = useMemo(() => {
+    if (period === 'all') return {};
+    if (period === 'custom') return { period: 'custom', from_date: customFrom || undefined, to_date: customTo || undefined };
+    return { period };
+  }, [period, customFrom, customTo]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [s, ss, a] = await Promise.all([
         telegramOutreachApi.getCampaignStats(campaignId),
-        telegramOutreachApi.getCampaignStepStats(campaignId),
+        telegramOutreachApi.getCampaignStepStats(campaignId, periodParams),
         telegramOutreachApi.getCampaignActivity(campaignId, 200),
       ]);
       setStats(s);
@@ -2009,7 +2019,7 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
       setActivity(a.activity || []);
     } catch { toast('Failed to load analytics', 'error'); }
     finally { setLoading(false); }
-  }, [campaignId, toast]);
+  }, [campaignId, toast, periodParams]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -2042,6 +2052,37 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
 
   return (
     <div className="space-y-6">
+      {/* Period Selector */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 rounded-lg p-0.5" style={{ background: B.bg, border: `1px solid ${B.border}` }}>
+          {[
+            { key: 'all', label: 'All Time' },
+            { key: '7d', label: '7 Days' },
+            { key: '30d', label: '30 Days' },
+            { key: 'custom', label: 'Custom' },
+          ].map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className="px-3 py-1.5 text-xs font-medium rounded-md transition-all"
+              style={{
+                background: period === p.key ? B.surface : 'transparent',
+                color: period === p.key ? B.blue : B.text3,
+                boxShadow: period === p.key ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {period === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+              className="px-2 py-1 text-xs rounded-md" style={{ border: `1px solid ${B.border}`, color: B.text1, background: B.surface }} />
+            <span className="text-xs" style={{ color: B.text3 }}>to</span>
+            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+              className="px-2 py-1 text-xs rounded-md" style={{ border: `1px solid ${B.border}`, color: B.text1, background: B.surface }} />
+          </div>
+        )}
+      </div>
+
       {/* Summary Cards — Sent / Read / Replied */}
       {stepStats && (
         <div className="grid grid-cols-3 gap-4">
@@ -2185,6 +2226,11 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
       )}
 
       <div className="flex items-center gap-3">
+        <a href={telegramOutreachApi.analyticsExportCSVURL(campaignId, periodParams)}
+           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium hover:opacity-80"
+           style={{ border: `1px solid ${B.blue}`, color: B.blue, background: B.blueBg }}>
+          <Download className="w-3.5 h-3.5" /> CSV Export
+        </a>
         <a href={telegramOutreachApi.downloadReportURL(campaignId, 'html')}
            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium hover:opacity-80"
            style={{ border: `1px solid ${B.border}`, color: B.text2 }}>
