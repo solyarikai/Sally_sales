@@ -25,6 +25,7 @@ from app.models.telegram_outreach import (
     TgWarmupLog, TgWarmupActionType, TgWarmupChannel,
 )
 from app.models.telegram_dm import TelegramDMAccount
+from app.services.infatica_proxy_service import infatica_proxy_service
 
 logger = logging.getLogger(__name__)
 
@@ -178,9 +179,18 @@ async def _extract_and_save_string_session(
         )
         existing_dm = result.scalar()
 
+    # Auto-generate Infatica proxy config for DM account
+    dm_proxy_config = None
+    if infatica_proxy_service.is_configured:
+        dm_proxy_config = infatica_proxy_service.get_proxy_for_account(
+            phone, tg_account.id if tg_account else None
+        )
+
     if existing_dm:
         existing_dm.string_session = string_session
         existing_dm.auth_status = "active"
+        if dm_proxy_config and not existing_dm.proxy_config:
+            existing_dm.proxy_config = dm_proxy_config
         if tg_user_id:
             existing_dm.telegram_user_id = tg_user_id
         if username:
@@ -201,6 +211,7 @@ async def _extract_and_save_string_session(
             auth_status="active",
             company_id=1,
             is_connected=False,
+            proxy_config=dm_proxy_config,
         )
         db.add(dm_account)
         logger.info(f"Created TelegramDMAccount for {phone} with StringSession")
@@ -2687,7 +2698,15 @@ async def import_account_bundle(
         if not telegram_engine.session_file_exists(acc.phone):
             continue
         try:
-            kwargs = _account_connect_kwargs(acc)
+            avatar_proxy = None
+            if acc.assigned_proxy_id:
+                p = await session.get(TgProxy, acc.assigned_proxy_id)
+                if p:
+                    avatar_proxy = {"host": p.host, "port": p.port, "username": p.username,
+                                    "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
+            if avatar_proxy is None and infatica_proxy_service.is_configured:
+                avatar_proxy = infatica_proxy_service.get_proxy_for_account(acc.phone, acc.id)
+            kwargs = _account_connect_kwargs(acc, proxy=avatar_proxy)
             client = await telegram_engine.connect(acc.id, **kwargs)
             if await client.is_user_authorized():
                 me = await client.get_me()
@@ -2732,7 +2751,15 @@ async def fetch_missing_avatars(session: AsyncSession = Depends(get_session)):
         if not telegram_engine.session_file_exists(acc.phone):
             continue
         try:
-            kwargs = _account_connect_kwargs(acc)
+            avatar_proxy = None
+            if acc.assigned_proxy_id:
+                p = await session.get(TgProxy, acc.assigned_proxy_id)
+                if p:
+                    avatar_proxy = {"host": p.host, "port": p.port, "username": p.username,
+                                    "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
+            if avatar_proxy is None and infatica_proxy_service.is_configured:
+                avatar_proxy = infatica_proxy_service.get_proxy_for_account(acc.phone, acc.id)
+            kwargs = _account_connect_kwargs(acc, proxy=avatar_proxy)
             client = await telegram_engine.connect(acc.id, **kwargs)
             if await client.is_user_authorized():
                 me = await client.get_me()
@@ -4205,6 +4232,10 @@ async def _get_account_with_proxy(account_id: int, session: AsyncSession) -> tup
             proxy = {"host": p.host, "port": p.port, "username": p.username,
                      "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
 
+    # Fallback: auto-generate Infatica residential proxy from phone number
+    if proxy is None and infatica_proxy_service.is_configured:
+        proxy = infatica_proxy_service.get_proxy_for_account(account.phone, account.id)
+
     return account, proxy
 
 
@@ -4341,8 +4372,13 @@ async def add_by_phone(
     session.add(account)
     await session.flush()
 
+    # Auto-assign Infatica proxy for initial connection
+    proxy = None
+    if infatica_proxy_service.is_configured:
+        proxy = infatica_proxy_service.get_proxy_for_account(phone, account.id)
+
     # Send auth code
-    kwargs = _account_connect_kwargs(account, proxy=None)
+    kwargs = _account_connect_kwargs(account, proxy=proxy)
     try:
         result = await telegram_engine.send_code(account.id, **kwargs)
     except Exception as e:
