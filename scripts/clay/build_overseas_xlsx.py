@@ -145,6 +145,11 @@ def main():
             country_totals[country] = country_totals.get(country, 0) + count
     sorted_countries = sorted(country_totals.keys(), key=lambda x: -country_totals[x])
 
+    # Build company lookup by normalized domain (for merging into People sheet)
+    company_lookup = {}
+    for c in companies:
+        company_lookup[c['Domain_normalized']] = c
+
     # Read people
     with open(args.people) as f:
         people = json.load(f)
@@ -163,8 +168,14 @@ def main():
     header_font = Font(bold=True)
     header_fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
 
+    # Count DMs per company domain
+    dm_per_company = {}
+    for p in people:
+        d = normalize_domain(p.get('Company Domain', ''))
+        dm_per_company[d] = dm_per_company.get(d, 0) + 1
+
     # Headers
-    base_headers = ['Company', 'Domain', 'Domain (core)', 'Total Employees', 'US Employees', 'Non-US Employees']
+    base_headers = ['Company', 'Domain', 'Domain (core)', 'DMs Found', 'Total Employees', 'US Employees', 'Non-US Employees']
     country_headers = sorted_countries  # country1, country2, etc.
     all_headers = base_headers + country_headers
 
@@ -178,10 +189,11 @@ def main():
         ws1.cell(row=row_idx, column=1, value=co['Company'])
         ws1.cell(row=row_idx, column=2, value=co['Domain'])
         ws1.cell(row=row_idx, column=3, value=co['Domain_core'])
-        ws1.cell(row=row_idx, column=4, value=co['Total Employees'])
-        ws1.cell(row=row_idx, column=5, value=co['US Employees'])
-        ws1.cell(row=row_idx, column=6, value=co['Non-US Employees'])
-        for col_idx, country in enumerate(country_headers, 7):
+        ws1.cell(row=row_idx, column=4, value=dm_per_company.get(co['Domain_normalized'], 0))
+        ws1.cell(row=row_idx, column=5, value=co['Total Employees'])
+        ws1.cell(row=row_idx, column=6, value=co['US Employees'])
+        ws1.cell(row=row_idx, column=7, value=co['Non-US Employees'])
+        for col_idx, country in enumerate(country_headers, 8):
             count = co['countries'].get(country, 0)
             if count > 0:
                 ws1.cell(row=row_idx, column=col_idx, value=count)
@@ -193,28 +205,64 @@ def main():
     # --- Sheet 2: People (Decision Makers) ---
     ws2 = wb.create_sheet('Decision Makers')
 
-    people_headers = ['Full Name', 'Job Title', 'Company', 'Domain', 'Domain (core)', 'Location', 'Country', 'LinkedIn Profile']
+    people_headers = ['# in Company', 'First Name', 'Last Name', 'Full Name', 'Email', 'Email Verified',
+                      'Job Title', 'Company', 'Domain', 'Domain (core)', 'Location', 'Country', 'LinkedIn Profile',
+                      'Overseas Employees', 'Overseas Breakdown',
+                      'Top Country 1', 'Count 1', 'Top Country 2', 'Count 2', 'Top Country 3', 'Count 3']
     for col, header in enumerate(people_headers, 1):
         cell = ws2.cell(row=1, column=col, value=header)
         cell.font = header_font
         cell.fill = header_fill
 
+    # Sequential numbering per company + merge overseas data
+    seq_counters = {}
     for row_idx, p in enumerate(people, 2):
         location = p.get('Location', '')
         country = to_country(location.split(',')[-1].strip() if ',' in location else location)
-        domain = p.get('Company Domain', '')
+        domain = p.get('Company Domain', '') or ''
+        norm_domain = normalize_domain(domain)
 
-        ws2.cell(row=row_idx, column=1, value=p.get('Full Name', ''))
-        ws2.cell(row=row_idx, column=2, value=p.get('Job Title', ''))
-        ws2.cell(row=row_idx, column=3, value=p.get('Company Name', p.get('Company Table Data', '')))
-        ws2.cell(row=row_idx, column=4, value=domain)
-        ws2.cell(row=row_idx, column=5, value=core_domain(domain))
-        ws2.cell(row=row_idx, column=6, value=location)
-        ws2.cell(row=row_idx, column=7, value=country)
-        ws2.cell(row=row_idx, column=8, value=p.get('LinkedIn Profile', ''))
+        # Sequential number within company
+        seq_counters[norm_domain] = seq_counters.get(norm_domain, 0) + 1
 
-    for col in range(1, 9):
-        ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 20
+        # Get company overseas data via lookup
+        co = company_lookup.get(norm_domain, {})
+        co_countries = co.get('countries', {})
+        top3 = sorted(co_countries.items(), key=lambda x: -x[1])[:3]
+
+        # Split name if First/Last not provided
+        first = p.get('First Name', '').strip()
+        last = p.get('Last Name', '').strip()
+        full = p.get('Full Name', '').strip()
+        if not first and not last and full:
+            name_parts = full.split()
+            first = name_parts[0] if name_parts else ''
+            last = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+
+        ws2.cell(row=row_idx, column=1, value=seq_counters[norm_domain])
+        ws2.cell(row=row_idx, column=2, value=first)
+        ws2.cell(row=row_idx, column=3, value=last)
+        ws2.cell(row=row_idx, column=4, value=full)
+        ws2.cell(row=row_idx, column=5, value=p.get('Email', ''))
+        ws2.cell(row=row_idx, column=6, value='Yes' if p.get('Email_Verified') else ('No' if p.get('Email') else ''))
+        ws2.cell(row=row_idx, column=7, value=p.get('Job Title', ''))
+        ws2.cell(row=row_idx, column=8, value=p.get('Company Name', p.get('Company Table Data', '')))
+        ws2.cell(row=row_idx, column=9, value=domain)
+        ws2.cell(row=row_idx, column=10, value=core_domain(domain))
+        ws2.cell(row=row_idx, column=11, value=location)
+        ws2.cell(row=row_idx, column=12, value=country)
+        ws2.cell(row=row_idx, column=13, value=p.get('LinkedIn Profile', ''))
+        ws2.cell(row=row_idx, column=14, value=sum(co_countries.values()))
+        ws2.cell(row=row_idx, column=15, value=', '.join(f'{c}: {n}' for c, n in sorted(co_countries.items(), key=lambda x: -x[1])))
+        for i in range(3):
+            if i < len(top3):
+                ws2.cell(row=row_idx, column=16 + i*2, value=top3[i][0])
+                ws2.cell(row=row_idx, column=17 + i*2, value=top3[i][1])
+
+    for col in range(1, 22):
+        ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 18
+    ws2.column_dimensions['A'].width = 12
+    ws2.column_dimensions['E'].width = 25
 
     # Save
     wb.save(args.output)
