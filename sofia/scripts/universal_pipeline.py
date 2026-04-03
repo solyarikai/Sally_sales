@@ -2002,7 +2002,7 @@ def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
             upload_log[seg_name]["uploaded_at"] = ts()
             save_json(config.state_dir / "upload_log.json", upload_log)
 
-        # ── 12d: Load and upload sequences ──
+        # ── Upload sequences (from step 11) ──
         sequences = get_sequences(config, seg_slug) if seg_slug else None
         if sequences:
             if not _checkpoint(f"Upload {len(sequences)} email steps to '{campaign_name}'?"):
