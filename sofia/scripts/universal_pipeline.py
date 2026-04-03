@@ -970,7 +970,7 @@ def step4_scrape(run_id: int) -> dict:
 def step5_classify(config: ProjectConfig, run_id: int, prompt_text: str = None) -> dict:
     """Run GPT classification. Uses prompt_text from gathering_prompts.
     Note: backend API requires prompt_text, not prompt_id."""
-    print(f"\n  Step 5: Analyze (run #{run_id})")
+    print(f"\n  STEP 5: CLASSIFY (run #{run_id})")
     # Resolve prompt text: argument > config > error
     text = prompt_text or config.prompt_text
     if not text:
