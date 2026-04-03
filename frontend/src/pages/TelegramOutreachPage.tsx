@@ -100,25 +100,32 @@ function Tick({ checked, indeterminate, onChange, className }: {
 // ── Sortable Header ──────────────────────────────────────────────────
 
 // ── Custom styled select (replaces native <select>) ─────────────────
-function StyledSelect({ value, onChange, options, placeholder, className: cls, renderOption, renderSelected }: {
+function StyledSelect({ value, onChange, options, placeholder, className: cls, renderOption, renderSelected, searchable }: {
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; searchText?: string }[];
   placeholder?: string;
   className?: string;
   renderOption?: (opt: { value: string; label: string }, isSelected: boolean) => React.ReactNode;
   renderSelected?: (opt: { value: string; label: string }) => React.ReactNode;
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [openUp, setOpenUp] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setSearchTerm(''); return; }
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h);
+    if (searchable) setTimeout(() => searchInputRef.current?.focus(), 0);
     return () => document.removeEventListener('mousedown', h);
-  }, [open]);
+  }, [open, searchable]);
   const selected = options.find(o => o.value === value);
+  const filteredOpts = searchable && searchTerm
+    ? options.filter(o => (o.searchText || o.label).toLowerCase().includes(searchTerm.toLowerCase()))
+    : options;
   const handleOpen = () => {
     if (!open && ref.current) {
       const rect = ref.current.getBoundingClientRect();
@@ -135,25 +142,46 @@ function StyledSelect({ value, onChange, options, placeholder, className: cls, r
         <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: A.text3 }} />
       </button>
       {open && (
-        <div style={{ position: 'absolute', ...(openUp ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), left: 0, right: 0, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: '4px 0', maxHeight: 240, overflowY: 'auto' }}>
-          {placeholder && (
-            <button onClick={() => { onChange(''); setOpen(false); }}
-              className="w-full text-left px-3 py-1.5 text-xs"
-              style={{ color: A.text3, background: value === '' ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
-              onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = '#F5F5F0'; }}
-              onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = ''; }}>
-              {placeholder}
-            </button>
+        <div style={{ position: 'absolute', ...(openUp ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), left: 0, right: 0, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, maxHeight: 280, display: 'flex', flexDirection: 'column' }}>
+          {searchable && (
+            <div style={{ padding: '6px 6px 2px', flexShrink: 0 }}>
+              <div style={{ position: 'relative' }}>
+                <Search className="w-3 h-3" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: A.text3 }} />
+                <input
+                  ref={searchInputRef}
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full h-7 pl-7 pr-2 rounded-md text-xs outline-none"
+                  style={{ border: `1px solid ${A.border}`, background: '#F9FAFB', color: A.text1 }}
+                  onClick={e => e.stopPropagation()}
+                />
+              </div>
+            </div>
           )}
-          {options.map(o => (
-            <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-3 ${renderOption ? 'py-2' : 'py-1.5'} text-xs`}
-              style={{ color: value === o.value ? A.blue : A.text1, background: value === o.value ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
-              onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = '#F5F5F0'; }}
-              onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = ''; }}>
-              {renderOption ? renderOption(o, value === o.value) : o.label}
-            </button>
-          ))}
+          <div style={{ padding: '4px 0', overflowY: 'auto', flex: 1 }}>
+            {placeholder && !searchTerm && (
+              <button onClick={() => { onChange(''); setOpen(false); }}
+                className="w-full text-left px-3 py-1.5 text-xs"
+                style={{ color: A.text3, background: value === '' ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = '#F5F5F0'; }}
+                onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = ''; }}>
+                {placeholder}
+              </button>
+            )}
+            {filteredOpts.map(o => (
+              <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`w-full text-left px-3 ${renderOption ? 'py-2' : 'py-1.5'} text-xs`}
+                style={{ color: value === o.value ? A.blue : A.text1, background: value === o.value ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = '#F5F5F0'; }}
+                onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = ''; }}>
+                {renderOption ? renderOption(o, value === o.value) : o.label}
+              </button>
+            ))}
+            {searchable && searchTerm && filteredOpts.length === 0 && (
+              <div className="px-3 py-2 text-xs" style={{ color: A.text3 }}>No results</div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -5080,7 +5108,8 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
             value={filterAccount}
             onChange={setFilterAccount}
             placeholder="Account"
-            options={filteredAccounts.map((a: any) => ({ value: String(a.id), label: [a.first_name, a.last_name].filter(Boolean).join(' ') || a.phone || `#${a.id}` }))}
+            searchable
+            options={filteredAccounts.map((a: any) => ({ value: String(a.id), label: [a.first_name, a.last_name].filter(Boolean).join(' ') || a.phone || `#${a.id}`, searchText: [a.first_name, a.last_name, a.username, a.phone].filter(Boolean).join(' ') }))}
             renderSelected={(opt) => {
               const a = accountMap[opt.value];
               if (!a) return opt.label;
@@ -5117,6 +5146,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
               value={filterCampaign}
               onChange={(v) => { setFilterCampaign(v); setFilterAccount(''); }}
               placeholder="Campaign"
+              searchable
               className="flex-1 min-w-0"
               options={campaigns.map((c: any) => ({ value: String(c.id), label: c.name }))}
             />
@@ -5125,6 +5155,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 value={filterAccountTag}
                 onChange={(v) => { setFilterAccountTag(v); setFilterAccount(''); }}
                 placeholder="Account Tag"
+                searchable
                 className="flex-1 min-w-0"
                 options={accountTags.map(t => ({ value: t.name, label: t.name }))}
               />
@@ -5152,6 +5183,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 value={filterTag}
                 onChange={setFilterTag}
                 placeholder="Campaign Tag"
+                searchable
                 className="flex-1 min-w-0"
                 options={campaignTags.map(t => ({ value: t, label: t }))}
               />
