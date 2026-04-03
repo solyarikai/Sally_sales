@@ -3839,6 +3839,9 @@ async def update_sequence(campaign_id: int, data: TgSequenceSchema,
 
     await session.flush()
 
+    # Expire session cache so re-read gets fresh data
+    session.expire_all()
+
     # Re-read and return
     return await get_sequence(campaign_id, session)
 
