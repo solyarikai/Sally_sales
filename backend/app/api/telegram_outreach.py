@@ -2909,6 +2909,10 @@ async def list_campaigns(session: AsyncSession = Depends(get_session)):
             spamblock_errors_to_skip=c.spamblock_errors_to_skip,
             followup_priority=c.followup_priority,
             tags=c.tags or [],
+            crm_tag_on_reply=c.crm_tag_on_reply or [],
+            crm_status_on_reply=c.crm_status_on_reply,
+            crm_owner_on_reply=c.crm_owner_on_reply,
+            crm_auto_create_contact=c.crm_auto_create_contact if c.crm_auto_create_contact is not None else True,
             messages_sent_today=c.messages_sent_today,
             total_messages_sent=c.total_messages_sent,
             total_recipients=c.total_recipients,
@@ -2930,6 +2934,10 @@ async def create_campaign(data: TgCampaignCreate, session: AsyncSession = Depend
         spamblock_errors_to_skip=data.spamblock_errors_to_skip,
         followup_priority=data.followup_priority,
         tags=data.tags or [],
+        crm_tag_on_reply=data.crm_tag_on_reply or [],
+        crm_status_on_reply=data.crm_status_on_reply,
+        crm_owner_on_reply=data.crm_owner_on_reply,
+        crm_auto_create_contact=data.crm_auto_create_contact,
     )
     session.add(campaign)
     await session.flush()
@@ -2949,6 +2957,10 @@ async def create_campaign(data: TgCampaignCreate, session: AsyncSession = Depend
         spamblock_errors_to_skip=campaign.spamblock_errors_to_skip,
         followup_priority=campaign.followup_priority,
         tags=campaign.tags or [],
+        crm_tag_on_reply=campaign.crm_tag_on_reply or [],
+        crm_status_on_reply=campaign.crm_status_on_reply,
+        crm_owner_on_reply=campaign.crm_owner_on_reply,
+        crm_auto_create_contact=campaign.crm_auto_create_contact,
         accounts_count=0, created_at=campaign.created_at, updated_at=campaign.updated_at,
     )
 
@@ -2975,6 +2987,10 @@ async def update_campaign(campaign_id: int, data: TgCampaignUpdate, session: Asy
         spamblock_errors_to_skip=campaign.spamblock_errors_to_skip,
         followup_priority=campaign.followup_priority,
         tags=campaign.tags or [],
+        crm_tag_on_reply=campaign.crm_tag_on_reply or [],
+        crm_status_on_reply=campaign.crm_status_on_reply,
+        crm_owner_on_reply=campaign.crm_owner_on_reply,
+        crm_auto_create_contact=campaign.crm_auto_create_contact,
         messages_sent_today=campaign.messages_sent_today,
         total_messages_sent=campaign.total_messages_sent,
         total_recipients=campaign.total_recipients,

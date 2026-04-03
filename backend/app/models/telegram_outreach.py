@@ -232,6 +232,12 @@ class TgCampaign(Base, TimestampMixin):
     # Tags for organization (project names, etc.)
     tags = Column(JSONB, nullable=False, default=list)
 
+    # CRM settings — auto-apply on reply
+    crm_tag_on_reply = Column(JSONB, nullable=False, default=list)        # list[str] tags to add to CRM contact on reply
+    crm_status_on_reply = Column(String(50), nullable=True, default=None) # TgContactStatus value to set (e.g. "interested")
+    crm_owner_on_reply = Column(String(100), nullable=True, default=None) # owner name to assign
+    crm_auto_create_contact = Column(Boolean, nullable=False, default=True)  # auto-create CRM contact on reply if missing
+
     # Counters
     messages_sent_today = Column(Integer, nullable=False, default=0)
     total_messages_sent = Column(Integer, nullable=False, default=0)

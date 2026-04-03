@@ -752,6 +752,16 @@ class SendingWorker:
                     else:
                         recipient.status = TgRecipientStatus.COMPLETED
                         recipient.next_message_at = None
+                        # Pipeline: no reply after all steps → NOT_INTERESTED
+                        try:
+                            crm_q2 = await session.execute(
+                                select(TgContact).where(TgContact.username == recipient.username)
+                            )
+                            c2 = crm_q2.scalar()
+                            if c2 and c2.status in (TgContactStatus.COLD, TgContactStatus.CONTACTED):
+                                c2.status = TgContactStatus.NOT_INTERESTED
+                        except Exception:
+                            pass
                 elif status == "spamblocked":
                     # Increment per-account spamblock counter
                     if ca_link:

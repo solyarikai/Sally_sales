@@ -95,6 +95,10 @@ export interface TgCampaign {
   total_messages_sent: number;
   total_recipients: number;
   tags: string[];
+  crm_tag_on_reply: string[];
+  crm_status_on_reply?: string;
+  crm_owner_on_reply?: string;
+  crm_auto_create_contact: boolean;
   accounts_count: number;
   replies_count: number;
   created_at?: string;

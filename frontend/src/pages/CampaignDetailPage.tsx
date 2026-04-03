@@ -249,8 +249,13 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
     link_preview: (campaign as any).link_preview || false,
     silent: (campaign as any).silent || false,
     delete_dialog_after: (campaign as any).delete_dialog_after || false,
+    crm_tag_on_reply: campaign.crm_tag_on_reply || [],
+    crm_status_on_reply: campaign.crm_status_on_reply || '',
+    crm_owner_on_reply: campaign.crm_owner_on_reply || '',
+    crm_auto_create_contact: campaign.crm_auto_create_contact !== false,
   });
   const [saving, setSaving] = useState(false);
+  const [newCrmTag, setNewCrmTag] = useState('');
 
   // Accounts management
   const [allAccounts, setAllAccounts] = useState<TgAccount[]>([]);
@@ -280,6 +285,8 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
       const updateData: Record<string, any> = { ...form };
       if (updateData.daily_message_limit === '') updateData.daily_message_limit = null;
       else updateData.daily_message_limit = Number(updateData.daily_message_limit);
+      if (updateData.crm_status_on_reply === '') updateData.crm_status_on_reply = null;
+      if (updateData.crm_owner_on_reply === '') updateData.crm_owner_on_reply = null;
 
       await telegramOutreachApi.updateCampaign(campaign.id, updateData);
       await telegramOutreachApi.setCampaignAccounts(campaign.id, Array.from(campaignAccountIds));
@@ -378,6 +385,84 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
                    className="rounded" style={{ accentColor: '#4F6BF0' }} />
             <span className={cn('text-sm', t.text1)}>Delete Dialog After Send</span>
           </label>
+        </div>
+      </div>
+
+      {/* CRM Lead Settings */}
+      <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
+        <h3 className={cn('text-sm font-semibold mb-1', t.text1)}>CRM Lead Settings</h3>
+        <p className={cn('text-xs mb-4', t.text3)}>Auto-apply tags, status and owner when a lead replies to this campaign.</p>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* Status on reply */}
+          <div>
+            <label className={labelCls}>Status on Reply</label>
+            <select value={form.crm_status_on_reply}
+                    onChange={e => setForm(f => ({ ...f, crm_status_on_reply: e.target.value }))}
+                    className={inputCls}>
+              <option value="">Default (replied)</option>
+              <option value="replied">Replied</option>
+              <option value="interested">Interested</option>
+              <option value="qualified">Qualified</option>
+              <option value="meeting_set">Meeting Set</option>
+              <option value="converted">Converted</option>
+              <option value="not_interested">Not Interested</option>
+            </select>
+          </div>
+
+          {/* Owner on reply */}
+          <div>
+            <label className={labelCls}>Owner on Reply</label>
+            <input type="text" value={form.crm_owner_on_reply}
+                   onChange={e => setForm(f => ({ ...f, crm_owner_on_reply: e.target.value }))}
+                   placeholder="e.g. John"
+                   className={inputCls} />
+          </div>
+        </div>
+
+        {/* Tags on reply */}
+        <div className="mt-4">
+          <label className={labelCls}>Tags on Reply</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {form.crm_tag_on_reply.map(tag => (
+              <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                {tag}
+                <button onClick={() => setForm(f => ({ ...f, crm_tag_on_reply: f.crm_tag_on_reply.filter(t2 => t2 !== tag) }))}
+                        className="hover:text-red-500 transition-colors">&times;</button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input type="text" value={newCrmTag}
+                   onChange={e => setNewCrmTag(e.target.value)}
+                   onKeyDown={e => {
+                     if (e.key === 'Enter' && newCrmTag.trim()) {
+                       e.preventDefault();
+                       if (!form.crm_tag_on_reply.includes(newCrmTag.trim())) {
+                         setForm(f => ({ ...f, crm_tag_on_reply: [...f.crm_tag_on_reply, newCrmTag.trim()] }));
+                       }
+                       setNewCrmTag('');
+                     }
+                   }}
+                   placeholder="Add tag and press Enter"
+                   className={inputCls} />
+          </div>
+        </div>
+
+        {/* Auto-create contact */}
+        <div className="flex items-center gap-2 mt-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={form.crm_auto_create_contact}
+                   onChange={e => setForm(f => ({ ...f, crm_auto_create_contact: e.target.checked }))}
+                   className="rounded" style={{ accentColor: '#4F6BF0' }} />
+            <span className={cn('text-sm', t.text1)}>Auto-create CRM contact on reply (if not exists)</span>
+          </label>
+        </div>
+
+        {/* Pipeline info */}
+        <div className={cn('mt-4 p-3 rounded-lg text-xs', 'bg-gray-50 dark:bg-gray-800/50', t.text3)}>
+          <span className="font-medium">Pipeline automation:</span>{' '}
+          Sent &rarr; Contacted &bull; Replied &rarr; {form.crm_status_on_reply || 'Replied'} &bull; No reply after all steps &rarr; Not Interested
         </div>
       </div>
 
