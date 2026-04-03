@@ -367,26 +367,24 @@ class StreamingPipeline:
 
     # ── Apollo page fetching + streaming workers ──
 
-    # Per-strategy page limits — aggressive to hit 100 people KPI
-    PAGES_PER_STRATEGY = 25       # Per stream (run 450 hit KPI in 39 pages total)
-    PAGES_PER_REGEN_CYCLE = 20    # Per regen cycle
-    MAX_KEYWORD_REGENERATIONS = 5  # 5 regen cycles with different angles
-    EXHAUSTION_THRESHOLD = 10     # 10 consecutive APOLLO-EMPTY pages (not dedup-empty)
-    MAX_TOTAL_PAGES = 150         # Safety cap
+    # KPIs and limits
+    MAX_PAGES_PER_KEYWORD = 5     # Max pages per single keyword/industry request
+    MAX_KEYWORD_REGENERATIONS = 5  # Regen cycles with different angles
+    LOW_YIELD_THRESHOLD = 10      # If keyword returns <10 companies on page 1, stop
+    MAX_TOTAL_CREDITS = 200       # Safety cap on total Apollo credits
 
     async def _feed_apollo_pages(self, filters: Dict):
-        """3-level strategy cascade per pipeline_spec.md.
+        """1-filter-per-request parallel gathering with lazy keyword batching.
 
-        Uses Apollo service DIRECTLY (not main app's GatheringService adapter).
-        Industry-first: L1 industry(25p) → L2 keywords(25p) → L3 regen(5×20p)
-        Keywords-first:  L1 keywords(25p) → L2 regen(5×20p) → L3 industry(25p)
+        Each keyword/industry runs as its own parallel Apollo request (1 filter per call).
+        Verified: 1 keyword per request finds 7.4x more companies than all-together.
+        Verified: 1 industry per request finds 3.7x more companies than all-together.
         """
         if not self.apollo:
             logger.warning("No Apollo service — cannot feed pages")
             return
 
-        # Pre-load domains from THIS RUN only (not all previous runs)
-        # Each run discovers companies independently — cross-run dedup at SmartLead level
+        # Pre-load domains from THIS RUN
         from app.db import async_session_maker as _asm
         async with _asm() as _ws:
             existing_result = await _ws.execute(
@@ -399,7 +397,7 @@ class StreamingPipeline:
 
         per_page = filters.get("per_page", 100)
 
-        # AUTO-EXPAND keywords before search — turn 30 base into 80-100 specific ones
+        # AUTO-EXPAND keywords
         base_kw = (filters.get("q_organization_keyword_tags") or
                    filters.get("mapping_details", {}).get("keywords_selected", []))
         if base_kw and len(base_kw) < 60:
@@ -408,141 +406,200 @@ class StreamingPipeline:
                 filters["q_organization_keyword_tags"] = expanded
                 logger.info(f"Keywords expanded: {len(base_kw)} → {len(expanded)}")
 
-        all_tried_keywords = set(k.lower() for k in (filters.get("q_organization_keyword_tags") or []))
-
-        # HARD FILTERS from project — ALWAYS applied, never dropped
-        # Inject project locations if not already in filters
+        # HARD FILTERS from project — ALWAYS applied
         if not filters.get("organization_locations") and getattr(self, '_project_locations', None):
             filters["organization_locations"] = self._project_locations
-            logger.info(f"Injected project locations: {self._project_locations}")
-        # Inject project employee range if not already in filters
         if not filters.get("organization_num_employees_ranges") and getattr(self, '_project_employee_range', None):
             filters["organization_num_employees_ranges"] = [self._project_employee_range]
 
-        # PARALLEL STREAMS — keywords + industry simultaneously
-        # Both feed same scrape_queue, dedup by self._domains_seen
-        has_industry = bool(filters.get("organization_industry_tag_ids") or
-                           filters.get("mapping_details", {}).get("industry_tag_ids"))
-        has_keywords = bool(filters.get("q_organization_keyword_tags") or
-                           filters.get("mapping_details", {}).get("keywords_selected"))
-        has_funding = bool(filters.get("organization_latest_funding_stage_cd") or
-                          filters.get("mapping_details", {}).get("funding_stages"))
-
+        # Extract all keywords and industry_tag_ids
+        all_keywords = list(filters.get("q_organization_keyword_tags") or
+                           filters.get("mapping_details", {}).get("keywords_selected", []))
+        all_industry_ids = list(filters.get("organization_industry_tag_ids") or
+                               filters.get("mapping_details", {}).get("industry_tag_ids", []))
         funding_stages = (filters.get("organization_latest_funding_stage_cd") or
                          filters.get("mapping_details", {}).get("funding_stages"))
 
-        kw_filters = self._make_keywords_filters(filters) if has_keywords else None
-        ind_filters = self._make_industry_filters(filters) if has_industry else None
+        # Base filters (geo + size) — shared by all requests
+        base_filters = {}
+        if filters.get("organization_locations"):
+            base_filters["organization_locations"] = filters["organization_locations"]
+        if filters.get("organization_num_employees_ranges"):
+            base_filters["organization_num_employees_ranges"] = filters["organization_num_employees_ranges"]
 
-        # ── ALL STREAMS IN PARALLEL — no sequential fallback ──
-        # Funded + unfunded + industry all launch simultaneously
-        # _kpi_met flag stops all streams when target reached
-        streams = []
+        # Tracking
+        self._keyword_stats = {}
+        self._industry_stats = {}
+        self._search_requests = []
+        all_tried_keywords = set(k.lower() for k in all_keywords)
+        keyword_cursor = 0
 
-        if kw_filters and has_funding and funding_stages:
-            kw_funded = dict(kw_filters)
-            kw_funded["organization_latest_funding_stage_cd"] = funding_stages
-            streams.append(self._run_level(kw_funded, per_page, "L0_kw_funded", max_pages=25, start_page=1))
+        logger.info(f"Pipeline: {len(all_keywords)} keywords, {len(all_industry_ids)} industries, "
+                    f"funding={'yes' if funding_stages else 'no'}")
 
-        if ind_filters and has_funding and funding_stages:
-            ind_funded = dict(ind_filters)
-            ind_funded["organization_latest_funding_stage_cd"] = funding_stages
-            streams.append(self._run_level(ind_funded, per_page, "L0_ind_funded", max_pages=25, start_page=1))
+        # ── ROUND-BASED GATHERING ──
+        round_num = 0
+        while not self._shutdown.is_set() and not self._stop:
+            round_num += 1
+            round_start_companies = self.total_companies
+            streams = []
 
-        if kw_filters:
-            streams.append(self._run_level(
-                kw_filters, per_page, "L1_keywords",
-                max_pages=self.PAGES_PER_STRATEGY,
-                start_page=(self._tam_pages + 1) if self._tam_pages else 1,
-            ))
+            # Industry streams — all industries in round 1 (typically 2-3)
+            if round_num == 1 and all_industry_ids:
+                for tag_id in all_industry_ids:
+                    ind_filter = dict(base_filters)
+                    ind_filter["organization_industry_tag_ids"] = [tag_id]
+                    label = f"R{round_num}_ind_{tag_id[:8]}"
+                    if funding_stages:
+                        funded_f = dict(ind_filter)
+                        funded_f["organization_latest_funding_stage_cd"] = funding_stages
+                        streams.append(self._run_single_filter(
+                            funded_f, per_page, f"{label}_funded",
+                            filter_type="industry", filter_value=tag_id, round_num=round_num, funded=True))
+                    streams.append(self._run_single_filter(
+                        ind_filter, per_page, label,
+                        filter_type="industry", filter_value=tag_id, round_num=round_num, funded=False))
 
-        if ind_filters:
-            streams.append(self._run_level(
-                ind_filters, per_page, "L1_industry",
-                max_pages=self.PAGES_PER_STRATEGY, start_page=1,
-            ))
+            # Keyword streams — 1 keyword per request, all remaining in parallel
+            remaining = all_keywords[keyword_cursor:]
+            if remaining:
+                for kw in remaining:
+                    kw_filter = dict(base_filters)
+                    kw_filter["q_organization_keyword_tags"] = [kw]
+                    label = f"R{round_num}_kw_{kw[:20].replace(' ', '_')}"
+                    if funding_stages:
+                        funded_f = dict(kw_filter)
+                        funded_f["organization_latest_funding_stage_cd"] = funding_stages
+                        streams.append(self._run_single_filter(
+                            funded_f, per_page, f"{label}_funded",
+                            filter_type="keyword", filter_value=kw, round_num=round_num, funded=True))
+                    streams.append(self._run_single_filter(
+                        kw_filter, per_page, label,
+                        filter_type="keyword", filter_value=kw, round_num=round_num, funded=False))
+                keyword_cursor += len(remaining)
 
-        if streams:
-            logger.info(f"Launching {len(streams)} parallel streams (funded={has_funding}, keywords={has_keywords}, industry={has_industry})")
+            if not streams:
+                logger.info(f"Round {round_num}: no more filters to try")
+                break
+
+            logger.info(f"Round {round_num}: launching {len(streams)} parallel streams")
             await asyncio.gather(*streams)
 
-        # ── L2: Keyword regeneration (sequential — needs previous results) ──
-        if not self._shutdown.is_set() and not self._stop:
-            for regen_num in range(1, self.MAX_KEYWORD_REGENERATIONS + 1):
-                if self._shutdown.is_set() or self._stop:
-                    break
-                regen_base = kw_filters or filters
-                new_kw = await self._regenerate_keywords(regen_base, all_tried_keywords, cycle_num=regen_num)
-                if not new_kw:
-                    logger.info(f"Regen #{regen_num}: no new keywords.")
-                    break
-                all_tried_keywords.update(k.lower() for k in new_kw)
-                regen_filters = dict(regen_base)
-                regen_filters["q_organization_keyword_tags"] = new_kw
-                regen_filters.pop("organization_industry_tag_ids", None)
+            round_new = self.total_companies - round_start_companies
+            logger.info(f"Round {round_num} done: +{round_new} companies "
+                        f"(total: {self.total_companies}, targets: {self.total_targets}, people: {self.total_people})")
 
-                regen_exhausted = await self._run_level(
-                    regen_filters, per_page, f"regen_{regen_num}",
-                    max_pages=self.PAGES_PER_REGEN_CYCLE, start_page=1,
-                )
-                if not regen_exhausted:
-                        break  # Got results, KPI may be met
+            # Wait for processing to catch up
+            await self._wait_for_processing()
+
+            if self._shutdown.is_set() or self._kpi_met:
+                logger.info(f"KPI met after round {round_num}")
+                break
+
+            # Keyword regeneration if all exhausted
+            if keyword_cursor >= len(all_keywords) and round_num <= self.MAX_KEYWORD_REGENERATIONS:
+                new_kw = await self._regenerate_keywords(filters, all_tried_keywords, cycle_num=round_num)
+                if new_kw:
+                    all_keywords.extend(new_kw)
+                    all_tried_keywords.update(k.lower() for k in new_kw)
+                    logger.info(f"Regenerated {len(new_kw)} keywords for round {round_num + 1}")
+                else:
+                    logger.info("No more keywords to regenerate")
+                    break
+            elif keyword_cursor >= len(all_keywords):
+                logger.info(f"All keywords exhausted after round {round_num}")
+                break
+
+        # Persist tracking stats
+        await self._persist_tracking_stats()
 
         if not self._kpi_met:
-            logger.info(f"Phase 2 fully exhausted: {self.pages_fetched} pages, "
+            logger.info(f"Gathering exhausted: {self.pages_fetched} pages, "
                        f"{self.total_companies} companies, {self.total_people} people")
 
-    async def _run_level(self, filters: Dict, per_page: int,
-                          label: str, max_pages: int, start_page: int = 1) -> bool:
-        """Run one strategy level. Returns True if exhausted (10 consecutive empty)."""
-        consecutive_empty = 0
-        pages_this_level = 0
-        page = start_page
+    async def _run_single_filter(self, filters: Dict, per_page: int, label: str,
+                                  filter_type: str, filter_value: str,
+                                  round_num: int, funded: bool) -> None:
+        """Run a single keyword or industry_tag_id across pages. Stops on low yield or KPI."""
+        pages_fetched = 0
+        raw_total = 0
+        new_unique = 0
 
-        logger.info(f"[{label}] start page={page}, max={max_pages} pages")
-
-        while pages_this_level < max_pages:
+        for page in range(1, self.MAX_PAGES_PER_KEYWORD + 1):
             if self._shutdown.is_set() or self._stop:
-                return False
-
-            batch_size = min(10, max_pages - pages_this_level)
-            # Fetches pages AND feeds companies to scrape queue AS each page arrives
-            page_counts = await self._fetch_pages_parallel(
-                filters, per_page, page, batch_size
-            )
-
-            # Process results (companies already in scrape queue from fetch_and_feed)
-            for page_num, new_count, apollo_raw in page_counts:
-                if self._shutdown.is_set() or self._stop:
-                    return False
+                break
+            page_counts = await self._fetch_pages_parallel(filters, per_page, page, 1)
+            for page_num, page_new, apollo_raw in page_counts:
+                pages_fetched += 1
                 self.pages_fetched += 1
-                pages_this_level += 1
-                # Exhaustion based on APOLLO returning nothing (not dedup)
-                # Apollo returning companies that are all dupes = pool still has data
-                if apollo_raw <= 0:  # Apollo returned NOTHING = truly empty page
-                    consecutive_empty += 1
-                else:
-                    consecutive_empty = 0
-
-                if consecutive_empty >= self.EXHAUSTION_THRESHOLD:
-                    logger.info(f"[{label}] exhausted after {pages_this_level} pages "
-                               f"({consecutive_empty} consecutive empty)")
-                    await self._persist_progress()
-                    return True
-
-            logger.info(f"[{label}] batch pages {page}-{page+batch_size-1}: "
-                       f"{self.total_companies} companies, {self.total_people} people")
+                raw_total += apollo_raw
+                new_unique += max(0, page_new)
+                if apollo_raw < self.LOW_YIELD_THRESHOLD and page == 1:
+                    logger.debug(f"[{label}] low yield: {apollo_raw} on page 1")
+                    break
+                if apollo_raw <= 0:
+                    break
             await self._persist_progress()
-            page += batch_size
 
-        logger.info(f"[{label}] completed {pages_this_level}/{max_pages} pages")
-        # Track level stats for UI
-        self._level_stats[label] = {
-            "pages": pages_this_level,
-            "max_pages": max_pages,
-            "exhausted": pages_this_level >= max_pages or consecutive_empty >= self.EXHAUSTION_THRESHOLD,
-        }
-        return pages_this_level >= max_pages  # Hit page limit = exhausted
+        # Track stats
+        stat_dict = self._keyword_stats if filter_type == "keyword" else self._industry_stats
+        stat_key = filter_value
+        if stat_key not in stat_dict:
+            stat_dict[stat_key] = {"pages_fetched": 0, "raw_companies": 0, "new_unique": 0,
+                                    "credits_used": 0, "funded": funded, "round": round_num}
+        stat_dict[stat_key]["pages_fetched"] += pages_fetched
+        stat_dict[stat_key]["raw_companies"] += raw_total
+        stat_dict[stat_key]["new_unique"] += new_unique
+        stat_dict[stat_key]["credits_used"] += pages_fetched
+
+        self._search_requests.append({
+            "type": filter_type, "filter_value": filter_value,
+            "round": round_num, "funded": funded,
+            "pages": pages_fetched, "raw": raw_total, "new_unique": new_unique,
+        })
+        if new_unique > 0:
+            logger.info(f"[{label}] {pages_fetched}p, {raw_total} raw, {new_unique} new")
+
+    async def _wait_for_processing(self):
+        """Wait for scrape + classify queues to drain."""
+        max_wait = 300
+        waited = 0
+        while waited < max_wait:
+            if self._shutdown.is_set():
+                return
+            if self.scrape_queue.qsize() == 0 and self.classify_queue.qsize() == 0:
+                await asyncio.sleep(2)
+                return
+            await asyncio.sleep(3)
+            waited += 3
+            if waited % 30 == 0:
+                logger.info(f"Waiting: {self.scrape_queue.qsize()} scrape, {self.classify_queue.qsize()} classify")
+        logger.warning(f"Processing wait timeout ({max_wait}s)")
+
+    async def _persist_tracking_stats(self):
+        """Save per-keyword/industry tracking stats to gathering_run."""
+        try:
+            from app.db import async_session_maker
+            async with async_session_maker() as ws:
+                run = await ws.get(GatheringRun, self.run.id)
+                if run and run.filters:
+                    f = dict(run.filters)
+                    f["keyword_stats"] = getattr(self, '_keyword_stats', {})
+                    f["industry_stats"] = getattr(self, '_industry_stats', {})
+                    f["search_requests"] = getattr(self, '_search_requests', [])
+                    f["pipeline_summary"] = {
+                        "total_credits_used": self.run.credits_used or 0,
+                        "total_unique_companies": self.total_companies,
+                        "total_targets": self.total_targets,
+                        "keywords_used": len(getattr(self, '_keyword_stats', {})),
+                        "industries_used": len(getattr(self, '_industry_stats', {})),
+                        "kpi_met": self._kpi_met,
+                        "total_people": self.total_people,
+                    }
+                    run.filters = f
+                    await ws.commit()
+        except Exception as e:
+            logger.debug(f"Tracking stats persist failed: {e}")
 
     async def _expand_keywords(self, base_keywords: list) -> list:
         """Auto-expand base keywords to 80-100 segment-specific ones using GPT.
@@ -594,30 +651,6 @@ class StreamingPipeline:
         except Exception as e:
             logger.warning(f"Keyword expansion failed: {e}")
             return base_keywords
-
-    def _make_industry_filters(self, base: Dict) -> Dict:
-        """Industry-only filters (drop keywords). Pulls industry_tag_ids from mapping_details if needed."""
-        f = dict(base)
-        f.pop("q_organization_keyword_tags", None)
-        # Ensure industry_tag_ids is at top level (might be in mapping_details)
-        if not f.get("organization_industry_tag_ids"):
-            md_ids = f.get("mapping_details", {}).get("industry_tag_ids")
-            if md_ids:
-                f["organization_industry_tag_ids"] = md_ids if isinstance(md_ids, list) else [md_ids]
-        f["filter_strategy"] = "industry_first"
-        return f
-
-    def _make_keywords_filters(self, base: Dict) -> Dict:
-        """Keywords-only filters (drop industry). Pulls keywords from mapping_details if needed."""
-        f = dict(base)
-        f.pop("organization_industry_tag_ids", None)
-        # Ensure keywords at top level (might be in mapping_details)
-        if not f.get("q_organization_keyword_tags"):
-            md_kw = f.get("mapping_details", {}).get("keywords_selected")
-            if md_kw:
-                f["q_organization_keyword_tags"] = md_kw
-        f["filter_strategy"] = "keywords_first"
-        return f
 
     async def _fetch_pages_parallel(self, filters: Dict, per_page: int,
                                      start_page: int, count: int) -> list:
