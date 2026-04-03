@@ -180,7 +180,7 @@ export function CampaignDetailPage() {
           )}
           {tab === 'messages' && (
             <div className="space-y-8">
-              <SequenceTab campaignId={campaignId} t={t} toast={toast} />
+              <SequenceTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
               <div className="border-t pt-8" style={{ borderColor: B.border }}>
                 <AutoReplyTab campaignId={campaignId} t={t} toast={toast} isDark={isDark} />
               </div>
@@ -561,7 +561,7 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
 // Sequence Tab
 // ══════════════════════════════════════════════════════════════════════
 
-function SequenceTab({ campaignId, t, toast }: TabProps & { campaignId: number }) {
+function SequenceTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { campaignId: number }) {
   const [sequence, setSequence] = useState<TgSequence | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
