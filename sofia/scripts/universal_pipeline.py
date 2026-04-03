@@ -922,7 +922,7 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
 def step2_blacklist(config: ProjectConfig, run_id: int) -> dict:
     """Run blacklist check → creates CP1 gate."""
     print(f"\n{'='*60}")
-    print(f"STEP 2: Blacklist Check (run #{run_id})")
+    print(f"STEP 2: BLACKLIST (run #{run_id})")
     print(f"{'='*60}")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
     gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
