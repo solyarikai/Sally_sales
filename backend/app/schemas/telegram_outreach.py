@@ -188,6 +188,10 @@ class TgCampaignBase(BaseModel):
 
 class TgCampaignCreate(TgCampaignBase):
     tags: Optional[list[str]] = None
+    crm_tag_on_reply: Optional[list[str]] = None
+    crm_status_on_reply: Optional[str] = None
+    crm_owner_on_reply: Optional[str] = None
+    crm_auto_create_contact: bool = True
 
 
 class TgCampaignUpdate(BaseModel):
@@ -200,12 +204,20 @@ class TgCampaignUpdate(BaseModel):
     silent: Optional[bool] = None
     delete_dialog_after: Optional[bool] = None
     tags: Optional[list[str]] = None
+    crm_tag_on_reply: Optional[list[str]] = None
+    crm_status_on_reply: Optional[str] = None
+    crm_owner_on_reply: Optional[str] = None
+    crm_auto_create_contact: Optional[bool] = None
 
 
 class TgCampaignResponse(TgCampaignBase):
     id: int
     status: str = "draft"
     tags: list[str] = []
+    crm_tag_on_reply: list[str] = []
+    crm_status_on_reply: Optional[str] = None
+    crm_owner_on_reply: Optional[str] = None
+    crm_auto_create_contact: bool = True
     messages_sent_today: int = 0
     total_messages_sent: int = 0
     total_recipients: int = 0

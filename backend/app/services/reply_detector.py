@@ -263,19 +263,59 @@ class ReplyDetector:
             recipient.status = TgRecipientStatus.REPLIED
             recipient.next_message_at = None  # Stop follow-ups
 
-            # CRM: update contact status to REPLIED
+            # CRM: update/create contact with campaign CRM settings
             try:
                 from app.models.telegram_outreach import TgContact, TgContactStatus
                 crm_q = await session.execute(
                     select(TgContact).where(TgContact.username == username)
                 )
                 contact = crm_q.scalar()
+                now = datetime.utcnow()
+
+                # Determine target status from campaign settings
+                target_status = TgContactStatus.REPLIED
+                if campaign.crm_status_on_reply:
+                    try:
+                        target_status = TgContactStatus(campaign.crm_status_on_reply)
+                    except ValueError:
+                        pass
+
                 if contact:
-                    contact.status = TgContactStatus.REPLIED
+                    contact.status = target_status
                     contact.total_replies_received += 1
-                    contact.last_reply_at = datetime.utcnow()
+                    contact.last_reply_at = now
+                elif getattr(campaign, 'crm_auto_create_contact', True):
+                    # Auto-create CRM contact
+                    contact = TgContact(
+                        username=username,
+                        first_name=recipient.first_name if hasattr(recipient, 'first_name') else None,
+                        company_name=recipient.company_name if hasattr(recipient, 'company_name') else None,
+                        status=target_status,
+                        campaigns=[{"id": campaign.id, "name": campaign.name}],
+                        total_replies_received=1,
+                        last_reply_at=now,
+                        source_campaign_id=campaign.id,
+                    )
+                    session.add(contact)
+
+                # Apply campaign CRM tags
+                if contact:
+                    crm_tags = getattr(campaign, 'crm_tag_on_reply', None) or []
+                    if crm_tags:
+                        existing_tags = contact.tags or []
+                        for tag in crm_tags:
+                            if tag not in existing_tags:
+                                existing_tags.append(tag)
+                        contact.tags = existing_tags
+
+                    # Apply campaign CRM owner
+                    crm_owner = getattr(campaign, 'crm_owner_on_reply', None)
+                    if crm_owner:
+                        custom = contact.custom_data or {}
+                        custom['owner'] = crm_owner
+                        contact.custom_data = custom
             except Exception:
-                pass
+                logger.exception("CRM update failed for %s", username)
 
             self._last_seen[cache_key] = msg_id
 
