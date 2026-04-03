@@ -1029,7 +1029,7 @@ def step5_reclassify(config: ProjectConfig, run_id: int,
     # at already-targeted companies. See TAM_GATHERING_ARCHITECTURE.md.
 
 
-def step6_prepare_verify(run_id: int) -> dict:
+def step6_verify(run_id: int) -> dict:
     """Prepare FindyMail verification → creates CP3 with cost estimate."""
     print(f"\n  Step 6: Prepare Verification (run #{run_id})")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/prepare-verification")
