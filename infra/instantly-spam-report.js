@@ -4,7 +4,7 @@
 // Usage:
 //   node instantly-spam-report.js
 
-const API_KEY = 'OWRlZDdiNDctMjU0Ni00N2VhLTk5NjQtNWM3MWQ1N2I3OGI2OnJoWER1SGpuakVodA==';
+const API_KEY = 'OWRlZDdiNDctMjU0Ni00N2VhLTk5NjQtNWM3MWQ1N2I3OGI2OmlTb0RjaU5ZdVlFcQ==';
 const headers = { 'Authorization': 'Bearer ' + API_KEY, 'Content-Type': 'application/json' };
 
 const WEBHOOKS = {
