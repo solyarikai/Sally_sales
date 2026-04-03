@@ -344,8 +344,10 @@ def _resolve_proxy_meta(acc) -> tuple[Optional[str], Optional[str], Optional[str
     if acc.assigned_proxy_id or acc.proxy_group_id:
         country = None
         if acc.proxy_group and acc.proxy_group.country:
-            country = acc.proxy_group.country.upper()
-        elif acc.phone:
+            raw = acc.proxy_group.country.strip()
+            # Accept only 2-letter ISO codes; ignore full names
+            country = raw.upper() if len(raw) == 2 else None
+        if not country and acc.phone:
             country = _detect_country(acc.phone)
         return (country, _country_name(country) if country else None, "Custom")
 
