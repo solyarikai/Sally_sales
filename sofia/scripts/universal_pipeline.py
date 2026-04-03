@@ -1993,7 +1993,7 @@ def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
                 else:
                     print(f"  ⚠ Email accounts error: {r.status_code} {r.text[:200]}")
 
-        # ── 12c: Upload leads ──
+        # ── Upload leads ──
         if not _checkpoint(f"Upload {len(seg_contacts)} leads to '{campaign_name}'?"):
             print("  Skipping leads upload.")
         else:
