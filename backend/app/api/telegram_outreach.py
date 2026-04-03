@@ -4308,7 +4308,9 @@ async def upload_session(account_id: int, file: UploadFile = File(...),
 
 
 async def _save_session_after_auth(account_id: int, account, session: AsyncSession):
-    """After successful auth, save StringSession and user info from get_me()."""
+    """After successful auth, save StringSession and user info from get_me().
+    Also creates/updates TelegramDMAccount so the account appears in Inbox.
+    """
     client = telegram_engine.get_client(account_id)
     if not client:
         return
@@ -4323,11 +4325,57 @@ async def _save_session_after_auth(account_id: int, account, session: AsyncSessi
                     account.first_name = me.first_name
                 if me.last_name:
                     account.last_name = me.last_name
-            account.string_session = StringSession.save(client.session)
+            string_session = StringSession.save(client.session)
+            account.string_session = string_session
             account.session_file = account.phone
             account.status = TgAccountStatus.ACTIVE
             account.last_connected_at = func.now()
             logger.info(f"Session saved for account {account_id} ({account.phone})")
+
+            # Create or update TelegramDMAccount so account appears in Inbox
+            try:
+                result = await session.execute(
+                    select(TelegramDMAccount).where(TelegramDMAccount.phone == account.phone)
+                )
+                existing_dm = result.scalar()
+
+                dm_proxy_config = None
+                if infatica_proxy_service.is_configured:
+                    dm_proxy_config = infatica_proxy_service.get_proxy_for_account(
+                        account.phone, account.id
+                    )
+
+                if existing_dm:
+                    existing_dm.string_session = string_session
+                    existing_dm.auth_status = "active"
+                    if account.telegram_user_id:
+                        existing_dm.telegram_user_id = account.telegram_user_id
+                    if account.username:
+                        existing_dm.username = account.username
+                    if account.first_name:
+                        existing_dm.first_name = account.first_name
+                    if account.last_name:
+                        existing_dm.last_name = account.last_name
+                    if dm_proxy_config and not existing_dm.proxy_config:
+                        existing_dm.proxy_config = dm_proxy_config
+                    logger.info(f"Updated TelegramDMAccount for {account.phone} after phone auth")
+                else:
+                    dm_account = TelegramDMAccount(
+                        phone=account.phone,
+                        telegram_user_id=account.telegram_user_id,
+                        username=account.username,
+                        first_name=account.first_name,
+                        last_name=account.last_name,
+                        string_session=string_session,
+                        auth_status="active",
+                        company_id=1,
+                        is_connected=False,
+                        proxy_config=dm_proxy_config,
+                    )
+                    session.add(dm_account)
+                    logger.info(f"Created TelegramDMAccount for {account.phone} after phone auth")
+            except Exception as e:
+                logger.warning(f"Failed to create/update TelegramDMAccount for {account.phone}: {e}")
     except Exception as e:
         logger.warning(f"Failed to save session after auth for {account_id}: {e}")
 
