@@ -22,6 +22,9 @@ export function TelegramInboxPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dialogPollInFlight = useRef(false);
+  const messagePollInFlight = useRef(false);
+  const prevMsgCount = useRef(0);
 
   // ── Load accounts on mount ─────────────────────────────────────
   useEffect(() => {
@@ -51,6 +54,7 @@ export function TelegramInboxPage() {
     }
     setSelectedDialog(null);
     setMessages([]);
+    prevMsgCount.current = 0;
   }, [selectedAccount?.id]);
 
   const loadDialogs = async (accountId: number) => {
@@ -64,6 +68,23 @@ export function TelegramInboxPage() {
     setLoading(l => ({ ...l, dialogs: false }));
   };
 
+  // ── Auto-poll dialogs every 15s ─────────────────────────────────
+  useEffect(() => {
+    if (!selectedAccount?.is_connected) return;
+    const accountId = selectedAccount.id;
+    const poll = async () => {
+      if (dialogPollInFlight.current) return;
+      dialogPollInFlight.current = true;
+      try {
+        const d = await tgApi.getDialogs(accountId);
+        setDialogs(d);
+      } catch { /* silent — don't show errors for background polls */ }
+      dialogPollInFlight.current = false;
+    };
+    const interval = setInterval(poll, 15000);
+    return () => clearInterval(interval);
+  }, [selectedAccount?.id, selectedAccount?.is_connected]);
+
   // ── Load messages when dialog selected ─────────────────────────
   useEffect(() => {
     if (selectedAccount && selectedDialog) {
@@ -71,8 +92,30 @@ export function TelegramInboxPage() {
     }
   }, [selectedAccount?.id, selectedDialog?.peer_id]);
 
+  // ── Auto-poll messages every 8s ──────────────────────────────────
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!selectedAccount || !selectedDialog) return;
+    const accountId = selectedAccount.id;
+    const peerId = selectedDialog.peer_id;
+    const poll = async () => {
+      if (messagePollInFlight.current) return;
+      messagePollInFlight.current = true;
+      try {
+        const msgs = await tgApi.getMessages(accountId, peerId);
+        setMessages(msgs);
+      } catch { /* silent */ }
+      messagePollInFlight.current = false;
+    };
+    const interval = setInterval(poll, 8000);
+    return () => clearInterval(interval);
+  }, [selectedAccount?.id, selectedDialog?.peer_id]);
+
+  // ── Auto-scroll only when new messages arrive ──────────────────
+  useEffect(() => {
+    if (messages.length > prevMsgCount.current || prevMsgCount.current === 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevMsgCount.current = messages.length;
   }, [messages]);
 
   const loadMessages = async (accountId: number, peerId: number) => {
