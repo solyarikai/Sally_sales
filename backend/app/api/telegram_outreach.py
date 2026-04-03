@@ -729,6 +729,7 @@ async def list_accounts(
     tag_id: Optional[int] = None,
     proxy_group_id: Optional[int] = None,
     search: Optional[str] = None,
+    project_id: Optional[int] = None,
     session: AsyncSession = Depends(get_session),
 ):
     query = select(TgAccount).options(
@@ -737,6 +738,9 @@ async def list_accounts(
     count_query = select(func.count(TgAccount.id))
 
     # Filters
+    if project_id is not None:
+        query = query.where(TgAccount.project_id == project_id)
+        count_query = count_query.where(TgAccount.project_id == project_id)
     if status:
         query = query.where(TgAccount.status == status)
         count_query = count_query.where(TgAccount.status == status)
@@ -2888,8 +2892,15 @@ async def upload_tdata(account_id: int, files: list[UploadFile] = File(...),
 # ═══════════════════════════════════════════════════════════════════════
 
 @router.get("/campaigns", response_model=TgCampaignListResponse)
-async def list_campaigns(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(TgCampaign).order_by(desc(TgCampaign.created_at)))
+async def list_campaigns(
+    project_id: Optional[int] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    query = select(TgCampaign)
+    if project_id is not None:
+        query = query.where(TgCampaign.project_id == project_id)
+    query = query.order_by(desc(TgCampaign.created_at))
+    result = await session.execute(query)
     campaigns = result.scalars().all()
     items = []
     for c in campaigns:
@@ -2900,7 +2911,7 @@ async def list_campaigns(session: AsyncSession = Depends(get_session)):
             select(func.count(TgIncomingReply.id)).where(TgIncomingReply.campaign_id == c.id)
         )
         items.append(TgCampaignResponse(
-            id=c.id, name=c.name, status=c.status.value,
+            id=c.id, project_id=c.project_id, name=c.name, status=c.status.value,
             daily_message_limit=c.daily_message_limit,
             timezone=c.timezone, send_from_hour=c.send_from_hour, send_to_hour=c.send_to_hour,
             delay_between_sends_min=c.delay_between_sends_min,
@@ -2926,6 +2937,7 @@ async def list_campaigns(session: AsyncSession = Depends(get_session)):
 @router.post("/campaigns", response_model=TgCampaignResponse)
 async def create_campaign(data: TgCampaignCreate, session: AsyncSession = Depends(get_session)):
     campaign = TgCampaign(
+        project_id=data.project_id,
         name=data.name, daily_message_limit=data.daily_message_limit,
         timezone=data.timezone, send_from_hour=data.send_from_hour, send_to_hour=data.send_to_hour,
         delay_between_sends_min=data.delay_between_sends_min,
@@ -5109,10 +5121,15 @@ async def list_crm_contacts(
     search: Optional[str] = None,
     campaign_id: Optional[int] = None,
     exclude_campaign_id: Optional[int] = None,
+    project_id: Optional[int] = None,
     session: AsyncSession = Depends(get_session),
 ):
     query = select(TgContact)
     count_query = select(func.count(TgContact.id))
+
+    if project_id is not None:
+        query = query.join(TgCampaign, TgContact.source_campaign_id == TgCampaign.id).where(TgCampaign.project_id == project_id)
+        count_query = count_query.join(TgCampaign, TgContact.source_campaign_id == TgCampaign.id).where(TgCampaign.project_id == project_id)
 
     if status:
         query = query.where(TgContact.status == status)
@@ -5221,13 +5238,17 @@ async def bulk_delete_crm_contacts(body: dict, session: AsyncSession = Depends(g
 
 
 @router.get("/crm/stats")
-async def crm_pipeline_stats(session: AsyncSession = Depends(get_session)):
+async def crm_pipeline_stats(
+    project_id: Optional[int] = None,
+    session: AsyncSession = Depends(get_session),
+):
     """Pipeline stats for CRM dashboard."""
     stats = {}
     for st in TgContactStatus:
-        count = (await session.execute(
-            select(func.count(TgContact.id)).where(TgContact.status == st)
-        )).scalar() or 0
+        q = select(func.count(TgContact.id)).where(TgContact.status == st)
+        if project_id is not None:
+            q = q.join(TgCampaign, TgContact.source_campaign_id == TgCampaign.id).where(TgCampaign.project_id == project_id)
+        count = (await session.execute(q)).scalar() or 0
         stats[st.value] = count
     total = sum(stats.values())
     return {"total": total, **stats}
@@ -5236,6 +5257,7 @@ async def crm_pipeline_stats(session: AsyncSession = Depends(get_session)):
 @router.get("/crm/pipeline")
 async def crm_pipeline(
     search: Optional[str] = None,
+    project_id: Optional[int] = None,
     limit_per_status: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
 ):
@@ -5244,6 +5266,10 @@ async def crm_pipeline(
     for st in TgContactStatus:
         query = select(TgContact).where(TgContact.status == st)
         count_query = select(func.count(TgContact.id)).where(TgContact.status == st)
+
+        if project_id is not None:
+            query = query.join(TgCampaign, TgContact.source_campaign_id == TgCampaign.id).where(TgCampaign.project_id == project_id)
+            count_query = count_query.join(TgCampaign, TgContact.source_campaign_id == TgCampaign.id).where(TgCampaign.project_id == project_id)
 
         if search:
             like = f"%{search}%"
@@ -5745,6 +5771,7 @@ async def list_inbox_threads(
     account_id: Optional[int] = None,
     campaign_tag: Optional[str] = None,
     tag: Optional[str] = None,  # recipient inbox_tag filter
+    project_id: Optional[int] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
@@ -5789,6 +5816,10 @@ async def list_inbox_threads(
     )
 
     # Filters
+    if project_id is not None:
+        query = query.where(TgCampaign.project_id == project_id)
+        count_query = count_query.where(TgCampaign.project_id == project_id)
+
     if campaign_id is not None:
         query = query.where(TgRecipient.campaign_id == campaign_id)
         count_query = count_query.where(TgRecipient.campaign_id == campaign_id)
@@ -6102,12 +6133,13 @@ async def list_inbox_dialogs(
     lead_status: Optional[str] = None,
     unread_only: bool = False,
     replied: Optional[str] = None,  # "replied" | "not_replied"
+    project_id: Optional[int] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
 ):
     """List cached dialogs. At least one filter required."""
-    has_any_filter = account_id or campaign_id or campaign_tag or tag or lead_status or unread_only or replied
+    has_any_filter = account_id or campaign_id or campaign_tag or tag or lead_status or unread_only or replied or project_id
     if not has_any_filter:
         raise HTTPException(400, "Select at least one filter")
 
@@ -6140,6 +6172,14 @@ async def list_inbox_dialogs(
         count_q = count_q.join(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(
             TgCampaign.tags.op("@>")(tag_json)
         )
+    if project_id is not None and not campaign_tag:
+        # Join TgCampaign only if not already joined above (via campaign_tag)
+        query = query.join(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(TgCampaign.project_id == project_id)
+        count_q = count_q.join(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(TgCampaign.project_id == project_id)
+    elif project_id is not None and campaign_tag:
+        # TgCampaign already joined via campaign_tag filter above
+        query = query.where(TgCampaign.project_id == project_id)
+        count_q = count_q.where(TgCampaign.project_id == project_id)
     if tag:
         query = query.where(TgInboxDialog.inbox_tag == tag)
         count_q = count_q.where(TgInboxDialog.inbox_tag == tag)

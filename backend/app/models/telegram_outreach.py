@@ -122,6 +122,7 @@ class TgAccount(Base, TimestampMixin):
     __tablename__ = "tg_accounts"
 
     id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     phone = Column(String(20), nullable=False, unique=True, index=True)
     username = Column(String(100), nullable=True)
     first_name = Column(String(100), nullable=True)
@@ -201,6 +202,7 @@ class TgCampaign(Base, TimestampMixin):
     __tablename__ = "tg_campaigns"
 
     id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     name = Column(String(255), nullable=False)
     status = Column(
         SQLEnum(TgCampaignStatus, values_callable=lambda e: [x.value for x in e]),
