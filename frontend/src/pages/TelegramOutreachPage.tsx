@@ -2424,6 +2424,35 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
 // Add by Phone Modal (multi-step auth wizard)
 // ══════════════════════════════════════════════════════════════════════
 
+// [ISO, dialCode, name]
+const PHONE_COUNTRIES: [string, string, string][] = [
+  ['US', '1', 'United States'], ['GB', '44', 'United Kingdom'], ['RU', '7', 'Russia'],
+  ['UA', '380', 'Ukraine'], ['DE', '49', 'Germany'], ['FR', '33', 'France'],
+  ['IT', '39', 'Italy'], ['ES', '34', 'Spain'], ['PT', '351', 'Portugal'],
+  ['NL', '31', 'Netherlands'], ['BE', '32', 'Belgium'], ['AT', '43', 'Austria'],
+  ['CH', '41', 'Switzerland'], ['SE', '46', 'Sweden'], ['NO', '47', 'Norway'],
+  ['DK', '45', 'Denmark'], ['FI', '358', 'Finland'], ['PL', '48', 'Poland'],
+  ['CZ', '420', 'Czech Republic'], ['RO', '40', 'Romania'], ['HU', '36', 'Hungary'],
+  ['GR', '30', 'Greece'], ['IE', '353', 'Ireland'], ['BY', '375', 'Belarus'],
+  ['KZ', '77', 'Kazakhstan'], ['UZ', '998', 'Uzbekistan'], ['GE', '995', 'Georgia'],
+  ['AM', '374', 'Armenia'], ['AZ', '994', 'Azerbaijan'], ['TR', '90', 'Turkey'],
+  ['IL', '972', 'Israel'], ['AE', '971', 'UAE'], ['SA', '966', 'Saudi Arabia'],
+  ['IN', '91', 'India'], ['CN', '86', 'China'], ['JP', '81', 'Japan'],
+  ['KR', '82', 'South Korea'], ['SG', '65', 'Singapore'], ['HK', '852', 'Hong Kong'],
+  ['TH', '66', 'Thailand'], ['ID', '62', 'Indonesia'], ['MY', '60', 'Malaysia'],
+  ['PH', '63', 'Philippines'], ['VN', '84', 'Vietnam'], ['AU', '61', 'Australia'],
+  ['NZ', '64', 'New Zealand'], ['BR', '55', 'Brazil'], ['MX', '52', 'Mexico'],
+  ['AR', '54', 'Argentina'], ['CO', '57', 'Colombia'], ['ZA', '27', 'South Africa'],
+  ['NG', '234', 'Nigeria'], ['EG', '20', 'Egypt'], ['KE', '254', 'Kenya'],
+  ['LT', '370', 'Lithuania'], ['LV', '371', 'Latvia'], ['EE', '372', 'Estonia'],
+  ['HR', '385', 'Croatia'], ['RS', '381', 'Serbia'], ['BG', '359', 'Bulgaria'],
+  ['SK', '421', 'Slovakia'], ['SI', '386', 'Slovenia'], ['CY', '357', 'Cyprus'],
+  ['MD', '373', 'Moldova'], ['CA', '1', 'Canada'], ['LU', '352', 'Luxembourg'],
+];
+
+const getCountryFlag = (iso: string) =>
+  String.fromCodePoint(...[...iso.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+
 function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   t: any; toast: any; isDark: boolean; onClose: () => void; onSaved: () => void;
 }) {
@@ -2435,14 +2464,55 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   const [deviceModel, setDeviceModel] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [countryIdx, setCountryIdx] = useState(0);
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+  const [phoneFocused, setPhoneFocused] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
+  const countryRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const fullPhone = PHONE_COUNTRIES[countryIdx][1] + phone.replace(/[^0-9]/g, '');
+
+  // Close country picker on click outside
+  useEffect(() => {
+    if (!showCountryPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (countryRef.current && !countryRef.current.contains(e.target as Node)) {
+        setShowCountryPicker(false);
+        setCountrySearch('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCountryPicker]);
+
+  // Auto-detect country when pasting a full number with country code
+  const handlePhoneInput = (val: string) => {
+    const raw = val.replace(/[^0-9+]/g, '');
+    const digits = raw.replace(/\+/g, '');
+    if ((val.includes('+') || digits.length > 10) && digits.length >= 7) {
+      for (const len of [3, 2, 1]) {
+        if (digits.length <= len) continue;
+        const prefix = digits.slice(0, len);
+        const idx = PHONE_COUNTRIES.findIndex(([, dial]) => dial === prefix);
+        if (idx !== -1) {
+          setCountryIdx(idx);
+          setPhone(digits.slice(len));
+          return;
+        }
+      }
+    }
+    setPhone(val);
+  };
 
   const inputCls = cn('w-full px-3 py-2.5 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
   const labelCls = cn('block text-xs font-medium mb-1.5', t.text3);
 
   const handleSendCode = async () => {
-    const cleaned = phone.trim().replace(/[^0-9]/g, '');
-    if (!cleaned || cleaned.length < 7) { setError('Enter a valid phone number with country code'); return; }
+    const localCleaned = phone.trim().replace(/[^0-9]/g, '');
+    if (!localCleaned || localCleaned.length < 4) { setError('Enter a valid phone number'); return; }
+    const cleaned = PHONE_COUNTRIES[countryIdx][1] + localCleaned;
     setLoading(true); setError('');
     try {
       const res = await telegramOutreachApi.addByPhone(cleaned);
@@ -2504,7 +2574,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
         <div className={cn('flex items-center justify-between px-6 py-4 border-b', t.cardBorder)}>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: step === 'done' ? '#059669' : '#4F46E5' }}>
+              style={{ background: '#059669' }}>
               {step === 'done'
                 ? <Check className="w-4 h-4 text-white" />
                 : <Phone className="w-4 h-4 text-white" />}
@@ -2528,14 +2598,74 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             <div className="space-y-4">
               <div>
                 <label className={labelCls}>Phone Number</label>
-                <input value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSendCode()}
-                  placeholder="351920619583"
-                  className={inputCls} autoFocus />
-                <div className={cn('text-[11px] mt-1.5', t.text3)}>
-                  Include country code without + sign
+                <div className={cn(
+                  'flex items-center rounded-lg border transition-colors',
+                  phoneFocused ? 'border-emerald-500 ring-2 ring-emerald-500/20' : t.cardBorder,
+                  t.cardBg
+                )}>
+                  {/* Country picker */}
+                  <div className="relative" ref={countryRef}>
+                    <button type="button"
+                      onClick={() => { setShowCountryPicker(!showCountryPicker); setTimeout(() => searchRef.current?.focus(), 50); }}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-2.5 border-r text-sm shrink-0 rounded-l-lg transition-colors',
+                        'hover:bg-gray-50 dark:hover:bg-gray-800', t.cardBorder
+                      )}>
+                      <span className="text-lg leading-none">{getCountryFlag(PHONE_COUNTRIES[countryIdx][0])}</span>
+                      <span className={cn('text-sm', t.text2)}>+{PHONE_COUNTRIES[countryIdx][1]}</span>
+                      <ChevronDown className="w-3 h-3 text-gray-400" />
+                    </button>
+                    {showCountryPicker && (
+                      <div className={cn(
+                        'absolute top-full left-0 mt-1 w-72 max-h-60 overflow-auto rounded-lg border shadow-xl z-50',
+                        t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white'
+                      )}>
+                        <div className={cn('sticky top-0 p-2 border-b', t.cardBorder)}
+                          style={{ background: isDark ? '#111827' : '#fff' }}>
+                          <input ref={searchRef} value={countrySearch}
+                            onChange={e => setCountrySearch(e.target.value)}
+                            placeholder="Search country or code..."
+                            className={cn('w-full px-2.5 py-1.5 rounded border text-sm', t.cardBorder, t.cardBg, t.text1)} />
+                        </div>
+                        {PHONE_COUNTRIES.map(([iso, dial, name], i) => {
+                          const q = countrySearch.toLowerCase();
+                          if (q && !name.toLowerCase().includes(q) && !dial.includes(q) && !iso.toLowerCase().includes(q)) return null;
+                          return (
+                            <button key={iso + dial + i}
+                              onClick={() => { setCountryIdx(i); setShowCountryPicker(false); setCountrySearch(''); }}
+                              className={cn(
+                                'w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors',
+                                'hover:bg-gray-50 dark:hover:bg-gray-800',
+                                i === countryIdx && (isDark ? 'bg-emerald-900/20' : 'bg-emerald-50')
+                              )}>
+                              <span className="text-lg leading-none">{getCountryFlag(iso)}</span>
+                              <span className={cn('flex-1 truncate', t.text1)}>{name}</span>
+                              <span className={cn('text-xs tabular-nums', t.text3)}>+{dial}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {/* Phone input */}
+                  <input value={phone}
+                    onChange={e => handlePhoneInput(e.target.value)}
+                    onFocus={() => setPhoneFocused(true)}
+                    onBlur={() => setPhoneFocused(false)}
+                    onKeyDown={e => e.key === 'Enter' && handleSendCode()}
+                    placeholder="920 619 583"
+                    className={cn('flex-1 px-3 py-2.5 bg-transparent text-sm outline-none rounded-r-lg', t.text1)}
+                    autoFocus />
                 </div>
+                {phone.trim() ? (
+                  <div className={cn('text-[11px] mt-1.5', t.text3)}>
+                    Full number: <span className="font-medium" style={{ color: '#059669' }}>+{fullPhone}</span>
+                  </div>
+                ) : (
+                  <div className={cn('text-[11px] mt-1.5', t.text3)}>
+                    Select country and enter the local number
+                  </div>
+                )}
               </div>
               <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
                 style={{ background: isDark ? '#1E293B' : '#F8FAFC' }}>
@@ -2549,7 +2679,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             <div className="space-y-4">
               <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
                 style={{ background: isDark ? '#1E293B' : '#F0FDF4' }}>
-                Code sent to <span className="font-medium" style={{ color: isDark ? '#86EFAC' : '#059669' }}>+{phone.replace(/[^0-9]/g, '')}</span>
+                Code sent to <span className="font-medium" style={{ color: isDark ? '#86EFAC' : '#059669' }}>+{fullPhone}</span>
                 {deviceModel && <span className="opacity-60"> (device: {deviceModel})</span>}
               </div>
               <div>
@@ -2591,7 +2721,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </div>
               <div className={cn('text-sm font-medium', t.text1)}>Account successfully authorized</div>
               <div className={cn('text-xs', t.text3)}>
-                +{phone.replace(/[^0-9]/g, '')} is ready to use
+                +{fullPhone} is ready to use
                 {deviceModel && <> with device fingerprint <span className="font-mono text-[11px]">{deviceModel}</span></>}
               </div>
             </div>
@@ -2611,7 +2741,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
           <div className="flex items-center gap-1.5">
             {[1, 2, 3].map(s => (
               <div key={s} className="w-1.5 h-1.5 rounded-full transition-colors"
-                style={{ background: s <= stepNumber[step] ? '#4F46E5' : isDark ? '#374151' : '#E5E7EB' }} />
+                style={{ background: s <= stepNumber[step] ? '#059669' : isDark ? '#374151' : '#E5E7EB' }} />
             ))}
           </div>
           <div className="flex items-center gap-2">
