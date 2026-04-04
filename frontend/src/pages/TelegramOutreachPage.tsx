@@ -3782,8 +3782,10 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
             ].map(f => (
               <button key={f.key}
                       onClick={() => { setFormat(f.key); setSelectedFiles([]); setParsedAccounts([]); setResult(null); }}
-                      className={cn('px-3 py-1.5 rounded-lg text-xs font-medium',
-                        format === f.key ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : t.text3)}>
+                      className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                        format === f.key
+                          ? (isDark ? 'bg-emerald-900/20 text-emerald-400' : 'bg-emerald-50 text-emerald-700')
+                          : cn(t.text3, isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'))}>
                 {f.label}
               </button>
             ))}
@@ -3792,14 +3794,15 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
           {format !== 'paste' ? (
             <div>
               <div onClick={() => fileInputRef.current?.click()}
-                   onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('border-indigo-400'); }}
-                   onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('border-indigo-400'); }}
+                   onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('border-emerald-400'); }}
+                   onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('border-emerald-400'); }}
                    onDrop={e => {
                      e.preventDefault(); e.stopPropagation();
-                     e.currentTarget.classList.remove('border-indigo-400');
+                     e.currentTarget.classList.remove('border-emerald-400');
                      if (e.dataTransfer.files.length > 0) handleFilesSelected(e.dataTransfer.files);
                    }}
-                   className={cn('border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:border-indigo-400 transition-colors', t.cardBorder)}>
+                   className={cn('border border-dashed rounded-xl p-6 text-center cursor-pointer hover:border-emerald-400 transition-colors',
+                     isDark ? 'border-gray-700' : 'border-gray-300')}>
                 <Upload className={cn('w-8 h-8 mx-auto mb-2', t.text3)} />
                 <p className={cn('text-sm font-medium', t.text1)}>
                   {selectedFiles.length > 0
@@ -3831,7 +3834,7 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
                         placeholder='[{"phone":"351920619583","app_id":2040,...}]'
                         className={cn('w-full px-3 py-2 rounded-lg border text-xs font-mono', t.cardBorder, t.cardBg, t.text1)} />
               <button onClick={handleParse}
-                      className="mt-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700">
+                      className="mt-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700">
                 Parse
               </button>
             </div>
@@ -3885,15 +3888,16 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
         <div className={cn('flex items-center justify-end gap-3 px-6 py-4 border-t', t.cardBorder)}>
           {result ? (
             <button onClick={onImported}
-                    className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                    className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700">
               Done
             </button>
           ) : (
             <>
               <button onClick={onClose}
-                      className={cn('px-4 py-2 rounded-lg border text-sm', t.cardBorder, t.text1)}>Cancel</button>
+                      className={cn('px-4 py-2 rounded-lg text-sm transition-colors',
+                        isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}>Cancel</button>
               <button onClick={handleImport} disabled={importing || !canImport}
-                      className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                      className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
                 {importing && <Loader2 className="w-4 h-4 animate-spin" />}
                 Import
               </button>
