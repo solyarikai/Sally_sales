@@ -1929,7 +1929,7 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
                             await client.disconnect()
                         continue
 
-                    result = await client(functions.auth.GetAuthorizationsRequest())
+                    result = await client(functions.account.GetAuthorizationsRequest())
                     all_sessions = result.authorizations
                     other_sessions = [a for a in all_sessions if not a.current]
                     logger.info(f"[REVOKE] {account.phone}: found {len(all_sessions)} total sessions, {len(other_sessions)} other")
@@ -2275,7 +2275,7 @@ async def bulk_audit_sessions(data: TgBulkAccountIds, session: AsyncSession = De
                 results.append(entry)
                 continue
 
-            result = await client(functions.auth.GetAuthorizationsRequest())
+            result = await client(functions.account.GetAuthorizationsRequest())
             for auth in result.authorizations:
                 sess_info = {
                     "current": auth.current,
@@ -2356,7 +2356,7 @@ async def bulk_reauthorize(
             if close_old_sessions:
                 from telethon import functions
                 try:
-                    result = await client(functions.auth.GetAuthorizationsRequest())
+                    result = await client(functions.account.GetAuthorizationsRequest())
                     for auth in result.authorizations:
                         if not auth.current:
                             try:
