@@ -5,7 +5,7 @@ import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
-  MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
+  MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2,
   LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon,
   BarChart3, ChevronUp, ChevronRight, FolderOpen,
 } from 'lucide-react';
@@ -2209,7 +2209,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
       )}
       {/* Warmup modal — portaled to body */}
       {showWarmupModal && createPortal(
-        <WarmupModal ids={ids} loading={loading} setLoading={setLoading} toast={toast} onClose={() => setShowWarmupModal(false)} />,
+        <WarmupModal ids={ids} toast={toast} onClose={() => setShowWarmupModal(false)} />,
         document.body
       )}
 
@@ -2376,8 +2376,8 @@ function WarmupTooltip({ text }: { text: string }) {
   );
 }
 
-function WarmupModal({ ids, loading: parentLoading, setLoading, toast, onClose }: {
-  ids: number[]; loading: boolean; setLoading: (v: boolean) => void;
+function WarmupModal({ ids, toast, onClose }: {
+  ids: number[];
   toast: (msg: string, type: 'success' | 'error' | 'info') => void; onClose: () => void;
 }) {
   const [warmupOn, setWarmupOn] = useState(false);
