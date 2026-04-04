@@ -267,6 +267,8 @@ export function InboxV2Page() {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; msg: InboxMessage } | null>(null);
   const [editingMsg, setEditingMsg] = useState<{ id: number; originalText: string } | null>(null);
   const [replyTo, setReplyTo] = useState<InboxMessage | null>(null);
+  const [forwardPopup, setForwardPopup] = useState<{ msgIds: number[] } | null>(null);
+  const [forwardSearch, setForwardSearch] = useState('');
 
   const [msgError, setMsgError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1059,7 +1061,7 @@ export function InboxV2Page() {
             { icon: Reply, label: 'Reply', action: () => handleReplyTo(ctxMenu.msg), show: true },
             { icon: Pencil, label: 'Edit', action: () => handleEditStart(ctxMenu.msg), show: ctxMenu.msg.direction === 'outbound' && !!ctxMenu.msg.text },
             { icon: Copy, label: 'Copy Text', action: () => handleCopyText(ctxMenu.msg), show: !!ctxMenu.msg.text },
-            { icon: CornerUpRight, label: 'Forward', action: () => { /* TODO: forward dialog picker */ setCtxMenu(null); }, show: true },
+            { icon: CornerUpRight, label: 'Forward', action: () => { setForwardPopup({ msgIds: [ctxMenu.msg.id] }); setForwardSearch(''); setCtxMenu(null); }, show: true },
             { icon: Trash2, label: 'Delete', action: () => handleDeleteMsg(ctxMenu.msg), show: ctxMenu.msg.direction === 'outbound', danger: true },
           ].filter(item => item.show).map((item, i) => (
             <button
@@ -1076,6 +1078,75 @@ export function InboxV2Page() {
               {item.label}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* ── Forward dialog picker ── */}
+      {forwardPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={() => setForwardPopup(null)}>
+          <div
+            className="rounded-xl shadow-xl w-[400px] flex flex-col"
+            style={{ background: isDark ? '#1E2C3A' : '#fff', maxHeight: '70vh', overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}` }}>
+              <h3 className="text-[15px] font-semibold mb-2.5" style={{ color: t.text1 }}>
+                Forward {forwardPopup.msgIds.length > 1 ? `${forwardPopup.msgIds.length} messages` : 'message'}...
+              </h3>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: t.text3 }} />
+                <input
+                  value={forwardSearch}
+                  onChange={e => setForwardSearch(e.target.value)}
+                  placeholder="Search contacts..."
+                  className="w-full h-8 pl-8 pr-3 rounded-lg text-xs outline-none"
+                  style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)'}`, color: t.text1, background: isDark ? '#17212B' : '#F9FAFB' }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+              {dialogs
+                .filter(d => d.id !== selectedDialog?.id)
+                .filter(d => !forwardSearch || (d.peer_name || '').toLowerCase().includes(forwardSearch.toLowerCase()) || (d.peer_username || '').toLowerCase().includes(forwardSearch.toLowerCase()))
+                .map(d => (
+                  <button
+                    key={d.id}
+                    onClick={async () => {
+                      if (!selectedDialog) return;
+                      try {
+                        await telegramOutreachApi.forwardDialogMessages(selectedDialog.id, d.id, forwardPopup.msgIds);
+                        setForwardPopup(null);
+                      } catch { /* handled by API client */ }
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors"
+                    style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = isDark ? '#242F3D' : '#F0F2F5')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div
+                      className="flex-shrink-0 flex items-center justify-center text-white text-[13px] font-semibold"
+                      style={{ width: 36, height: 36, borderRadius: 18, background: `hsl(${(d.peer_id || 0) % 360}, 45%, 55%)` }}
+                    >
+                      {((d.peer_name || '?')[0] || '?').toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: t.text1 }}>{d.peer_name || 'Unknown'}</p>
+                      {d.peer_username && <p className="text-[11px] truncate" style={{ color: t.text3 }}>@{d.peer_username}</p>}
+                    </div>
+                  </button>
+                ))}
+            </div>
+            <div style={{ padding: '12px 20px', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`, textAlign: 'right' }}>
+              <button
+                onClick={() => setForwardPopup(null)}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium"
+                style={{ background: isDark ? '#242F3D' : '#F0F2F5', color: t.text3 }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
