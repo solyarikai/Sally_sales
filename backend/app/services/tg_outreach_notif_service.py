@@ -15,6 +15,7 @@ from typing import Optional
 import httpx
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.device_fingerprints import get_default_app_version
 
 from app.core.config import settings
 from app.db import async_session_maker
@@ -223,7 +224,7 @@ class TgOutreachNotifService:
                     api_hash=account.api_hash,
                     device_model=account.device_model or "PC 64bit",
                     system_version=account.system_version or "Windows 10",
-                    app_version=account.app_version or "6.5.1 x64",
+                    app_version=account.app_version or get_default_app_version(),
                     lang_code=account.lang_code or "en",
                     system_lang_code=account.system_lang_code or "en-US",
                     proxy=proxy_dict,

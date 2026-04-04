@@ -86,7 +86,7 @@ class TgAccountBase(BaseModel):
     api_hash: Optional[str] = None
     device_model: Optional[str] = "PC 64bit"
     system_version: Optional[str] = "Windows 10"
-    app_version: Optional[str] = "6.5.1 x64"
+    app_version: Optional[str] = "6.7.1 x64"
     lang_code: Optional[str] = "en"
     system_lang_code: Optional[str] = "en-US"
     two_fa_password: Optional[str] = None

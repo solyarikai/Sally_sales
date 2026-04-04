@@ -15,6 +15,7 @@ from typing import Optional
 
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
+from app.services.device_fingerprints import get_default_app_version, APP_VERSIONS
 from telethon.tl.types import User, InputPeerUser, UpdateUserTyping, SendMessageTypingAction
 from telethon.errors import (
     FloodWaitError,
@@ -90,7 +91,7 @@ class TelegramDMService:
                     import random as _rnd
                     _fp_models = ["PC 64bit", "ThinkPadT480", "XPS15-9510", "Latitude5520", "VivoBookS15"]
                     _fp_os = ["Windows 10", "Windows 11"]
-                    _fp_app = ["5.5.3 x64", "6.5.1 x64"]
+                    _fp_app = APP_VERSIONS
                     client = TelegramClient(
                         StringSession(acc_data["string_session"]),
                         self.api_id, self.api_hash,
@@ -215,7 +216,7 @@ class TelegramDMService:
                     self.api_hash,
                     device_model=device_model or "PC 64bit",
                     system_version=system_version or "Windows 10",
-                    app_version=app_version or "6.5.1 x64",
+                    app_version=app_version or get_default_app_version(),
                     lang_code=lang_code or "en",
                     system_lang_code=system_lang_code or "en-US",
                     proxy=self._parse_proxy(proxy_config),

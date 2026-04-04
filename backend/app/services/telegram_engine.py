@@ -15,6 +15,8 @@ from typing import Optional
 from telethon import TelegramClient, errors, functions, types
 from telethon.sessions import SQLiteSession, StringSession
 
+from app.services.device_fingerprints import get_default_app_version
+
 logger = logging.getLogger(__name__)
 
 
@@ -186,11 +188,13 @@ class TelegramEngine:
         api_hash: str,
         device_model: str = "PC 64bit",
         system_version: str = "Windows 10",
-        app_version: str = "6.5.1 x64",
+        app_version: str = None,
         lang_code: str = "en",
         system_lang_code: str = "en-US",
         proxy: Optional[dict] = None,
     ) -> TelegramClient:
+        if app_version is None:
+            app_version = get_default_app_version()
         session = str(self.session_path(phone))
         proxy_tuple = self._proxy_to_tuple(proxy)
 
@@ -219,12 +223,14 @@ class TelegramEngine:
         api_hash: str,
         device_model: str = "PC 64bit",
         system_version: str = "Windows 10",
-        app_version: str = "6.5.1 x64",
+        app_version: str = None,
         lang_code: str = "en",
         system_lang_code: str = "en-US",
         proxy: Optional[dict] = None,
     ) -> TelegramClient:
         """Connect (or reuse) a Telethon client for the given account."""
+        if app_version is None:
+            app_version = get_default_app_version()
         new_proxy_key = self._proxy_key(proxy)
 
         async with self._lock:

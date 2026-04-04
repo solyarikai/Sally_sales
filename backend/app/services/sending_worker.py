@@ -18,6 +18,7 @@ from typing import Optional
 
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.device_fingerprints import get_default_app_version
 from sqlalchemy.orm import selectinload
 
 from app.db import async_session_maker
@@ -404,7 +405,7 @@ class SendingWorker:
                         api_hash=account.api_hash,
                         device_model=account.device_model or "PC 64bit",
                         system_version=account.system_version or "Windows 10",
-                        app_version=account.app_version or "6.5.1 x64",
+                        app_version=account.app_version or get_default_app_version(),
                         lang_code=account.lang_code or "en",
                         system_lang_code=account.system_lang_code or "en-US",
                     )
@@ -685,7 +686,7 @@ class SendingWorker:
                 await telegram_engine.connect(
                     account.id, phone=account.phone, api_id=account.api_id, api_hash=account.api_hash,
                     device_model=account.device_model or "PC 64bit", system_version=account.system_version or "Windows 10",
-                    app_version=account.app_version or "6.5.1 x64", lang_code=account.lang_code or "en",
+                    app_version=account.app_version or get_default_app_version(), lang_code=account.lang_code or "en",
                     system_lang_code=account.system_lang_code or "en-US", proxy=proxy_dict,
                 )
             except Exception as e:

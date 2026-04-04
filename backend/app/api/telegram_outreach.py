@@ -52,7 +52,10 @@ async def fetch_latest_tdesktop_version() -> Optional[str]:
                 if _re.match(r"\d+\.\d+(\.\d+)?", version):
                     _latest_tdesktop_version = version
                     _latest_tdesktop_checked_at = _dt.utcnow()
-                    logger.info(f"Latest TG Desktop version: {version}")
+                    # Update the fingerprint pool so new accounts get the latest version
+                    from app.services.device_fingerprints import update_app_versions_pool
+                    update_app_versions_pool(version)
+                    logger.info(f"Latest TG Desktop version: {version} (pool updated)")
                     return version
     except Exception as e:
         logger.warning(f"Failed to fetch latest TG Desktop version: {e}")
@@ -1378,13 +1381,7 @@ SYSTEM_VERSIONS = [
     "macOS 12.6", "macOS 13.4", "macOS 14.2",
     "Ubuntu 22.04", "Fedora 38",
 ]
-APP_VERSIONS = [
-    "5.1.5 x64", "5.2.3 x64", "5.3.1 x64",
-    "5.4.0 x64", "5.5.3 x64", "5.6.2 x64",
-    "6.0.0 x64", "6.1.3 x64", "6.2.4 x64",
-    "6.3.0 x64", "6.4.1 x64", "6.5.1 x64", "6.6.2 x64",
-    "6.7.1 x64",
-]
+from app.services.device_fingerprints import APP_VERSIONS, get_default_app_version
 LANG_PRESETS = ["en", "pt", "es", "de", "fr", "it", "nl", "ru", "pl", "tr", "uk", "cs", "sv", "da", "fi"]
 SYSTEM_LANG_PRESETS = [
     "en-US", "en-GB", "pt-PT", "pt-BR", "es-ES", "de-DE", "fr-FR",
@@ -1963,7 +1960,7 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
                                 api_id, api_hash,
                                 device_model=account.device_model or "PC 64bit",
                                 system_version=account.system_version or "Windows 10",
-                                app_version=account.app_version or "6.5.1 x64",
+                                app_version=account.app_version or get_default_app_version(),
                                 lang_code=account.lang_code or "en",
                                 system_lang_code=account.system_lang_code or "en-US",
                                 proxy=proxy_tuple,
@@ -1982,7 +1979,7 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
                                 api_id, api_hash,
                                 device_model=account.device_model or "PC 64bit",
                                 system_version=account.system_version or "Windows 10",
-                                app_version=account.app_version or "6.5.1 x64",
+                                app_version=account.app_version or get_default_app_version(),
                                 lang_code=account.lang_code or "en",
                                 system_lang_code=account.system_lang_code or "en-US",
                                 timeout=30,
@@ -2991,7 +2988,7 @@ async def convert_account_to_tdata(account_id: int, session: AsyncSession = Depe
             await telegram_engine.connect(
                 account_id, phone=account.phone, api_id=account.api_id, api_hash=account.api_hash,
                 device_model=account.device_model or "PC 64bit", system_version=account.system_version or "Windows 10",
-                app_version=account.app_version or "6.5.1 x64", lang_code=account.lang_code or "en",
+                app_version=account.app_version or get_default_app_version(), lang_code=account.lang_code or "en",
                 system_lang_code=account.system_lang_code or "en-US",
             )
             await telegram_engine.disconnect(account_id)
@@ -4625,7 +4622,7 @@ def _account_connect_kwargs(account, proxy=None) -> dict:
         api_hash=account.api_hash,
         device_model=account.device_model or "PC 64bit",
         system_version=account.system_version or "Windows 10",
-        app_version=account.app_version or "6.5.1 x64",
+        app_version=account.app_version or get_default_app_version(),
         lang_code=account.lang_code or "en",
         system_lang_code=account.system_lang_code or "en-US",
         proxy=proxy,
