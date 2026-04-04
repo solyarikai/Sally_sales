@@ -52,6 +52,22 @@ function pathToTab(pathname: string): Tab {
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
+const COUNTRY_NAMES: Record<string, string> = {
+  US: 'United States', GB: 'United Kingdom', DE: 'Germany', FR: 'France', PT: 'Portugal',
+  ES: 'Spain', IT: 'Italy', NL: 'Netherlands', NO: 'Norway', SE: 'Sweden', DK: 'Denmark',
+  FI: 'Finland', RU: 'Russia', UA: 'Ukraine', BY: 'Belarus', PL: 'Poland', CZ: 'Czechia',
+  AT: 'Austria', CH: 'Switzerland', TR: 'Turkey', AE: 'UAE', SA: 'Saudi Arabia',
+  IN: 'India', CN: 'China', KR: 'South Korea', JP: 'Japan', BR: 'Brazil', CA: 'Canada',
+  AU: 'Australia', IL: 'Israel', KZ: 'Kazakhstan', GE: 'Georgia', AM: 'Armenia',
+  AZ: 'Azerbaijan', UZ: 'Uzbekistan', TH: 'Thailand', VN: 'Vietnam', SG: 'Singapore',
+  MY: 'Malaysia', ID: 'Indonesia', PH: 'Philippines', MX: 'Mexico', AR: 'Argentina',
+  CO: 'Colombia', CL: 'Chile', EG: 'Egypt', NG: 'Nigeria', ZA: 'South Africa',
+  KE: 'Kenya', GH: 'Ghana', IE: 'Ireland', BE: 'Belgium', LU: 'Luxembourg',
+  GR: 'Greece', RO: 'Romania', BG: 'Bulgaria', HU: 'Hungary', SK: 'Slovakia',
+  HR: 'Croatia', RS: 'Serbia', LT: 'Lithuania', LV: 'Latvia', EE: 'Estonia',
+  HK: 'Hong Kong', TW: 'Taiwan', NZ: 'New Zealand',
+};
+
 /** Country flag as small image (emoji flags don't render on Windows). Uses flagcdn.com SVGs. */
 function CountryFlag({ code }: { code: string }) {
   const lower = code.toLowerCase();
@@ -2967,6 +2983,22 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     await doSave();
   };
 
+  // Proxy test state
+  const [proxyTesting, setProxyTesting] = useState(false);
+  const [proxyTestResult, setProxyTestResult] = useState<{ alive: boolean; latency_ms: number | null; exit_ip: string | null; error: string | null } | null>(null);
+  const handleTestProxy = async () => {
+    setProxyTesting(true);
+    setProxyTestResult(null);
+    try {
+      const res = await telegramOutreachApi.testAccountProxy(account.id);
+      setProxyTestResult(res);
+    } catch {
+      setProxyTestResult({ alive: false, latency_ms: null, exit_ip: null, error: 'Request failed' });
+    } finally {
+      setProxyTesting(false);
+    }
+  };
+
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const handleDelete = async () => {
     setConfirmDeleteAccount(true);
@@ -3288,35 +3320,109 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
           {/* ---- Section: Proxy ---- */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Proxy</h3>
-            <div className="rounded-lg p-3 space-y-2"
+            <div className="rounded-lg p-3 space-y-2.5"
                  style={{ background: A.bg, border: `1px solid ${A.border}` }}>
+              {/* Proxy Country */}
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Group</span>
-                {account.proxy_group_name ? (
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Country</span>
+                {account.proxy_country ? (
+                  <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: A.text1 }}>
+                    <CountryFlag code={account.proxy_country} />
+                    {COUNTRY_NAMES[account.proxy_country] || account.proxy_country}
+                  </span>
+                ) : (
+                  <span className="text-xs" style={{ color: A.text3 }}>
+                    {account.assigned_proxy_host ? 'Unknown' : 'None'}
+                  </span>
+                )}
+              </div>
+              {/* Proxy Status */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Status</span>
+                {account.assigned_proxy_id ? (
+                  <span className="flex items-center gap-1.5 text-xs font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full"
+                          style={{ background: account.proxy_is_active !== false ? '#22c55e' : '#ef4444' }} />
+                    <span style={{ color: account.proxy_is_active !== false ? '#16a34a' : '#dc2626' }}>
+                      {account.proxy_is_active !== false ? 'Connected' : 'Error'}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
+                )}
+              </div>
+              {/* Provider */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Provider</span>
+                {account.assigned_proxy_host ? (
                   <span className="text-xs font-medium px-2 py-0.5 rounded-full"
                         style={{ background: A.blueBg, color: A.blue }}>
-                    {account.proxy_group_name}
+                    {account.proxy_group_name?.toLowerCase().includes('infatica') ? 'Auto (Infatica)' : 'Custom'}
                   </span>
                 ) : (
                   <span className="text-xs" style={{ color: A.text3 }}>None</span>
                 )}
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Assigned Proxy</span>
-                {account.assigned_proxy_host ? (
+              {/* Protocol */}
+              {account.proxy_protocol && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium" style={{ color: A.text3 }}>Protocol</span>
                   <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full"
-                        style={{ background: '#E8F5E9', color: '#2E7D32' }}>
+                        style={{ background: '#F3F4F6', color: A.text2 }}>
+                    {account.proxy_protocol.toUpperCase()}
+                  </span>
+                </div>
+              )}
+              {/* Host */}
+              {account.assigned_proxy_host && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium" style={{ color: A.text3 }}>Host</span>
+                  <span className="text-xs font-mono" style={{ color: A.text2 }}>
                     {account.assigned_proxy_host}
                   </span>
-                ) : account.proxy_group_name ? (
-                  <span className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ background: '#FFF3E0', color: '#E65100' }}>
-                    No free proxy
-                  </span>
-                ) : (
-                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
-                )}
-              </div>
+                </div>
+              )}
+              {/* Test Proxy Button */}
+              {account.assigned_proxy_id && (
+                <div className="pt-1">
+                  <button onClick={handleTestProxy} disabled={proxyTesting}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                    style={{ border: `1px solid ${A.border}`, color: A.text1, opacity: proxyTesting ? 0.6 : 1 }}>
+                    {proxyTesting ? (
+                      <><Loader2 className="w-3 h-3 animate-spin" /> Testing...</>
+                    ) : (
+                      <><RefreshCw className="w-3 h-3" /> Test Proxy</>
+                    )}
+                  </button>
+                  {proxyTestResult && (
+                    <div className="mt-2 rounded-lg p-2.5 text-xs space-y-1"
+                         style={{ background: proxyTestResult.alive ? '#F0FDF4' : '#FEF2F2',
+                                  border: `1px solid ${proxyTestResult.alive ? '#BBF7D0' : '#FECACA'}` }}>
+                      <div className="flex items-center gap-1.5 font-medium"
+                           style={{ color: proxyTestResult.alive ? '#16a34a' : '#dc2626' }}>
+                        {proxyTestResult.alive ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                        {proxyTestResult.alive ? 'Proxy is working' : 'Proxy failed'}
+                      </div>
+                      {proxyTestResult.exit_ip && (
+                        <div style={{ color: A.text2 }}>Exit IP: <b className="font-mono">{proxyTestResult.exit_ip}</b></div>
+                      )}
+                      {proxyTestResult.latency_ms != null && (
+                        <div style={{ color: A.text2 }}>Latency: {proxyTestResult.latency_ms}ms</div>
+                      )}
+                      {proxyTestResult.error && (
+                        <div style={{ color: '#dc2626' }}>{proxyTestResult.error}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* No proxy assigned */}
+              {!account.assigned_proxy_id && account.proxy_group_name && (
+                <div className="text-xs px-2 py-1.5 rounded-lg text-center"
+                     style={{ background: '#FFF3E0', color: '#E65100' }}>
+                  No free proxy in group
+                </div>
+              )}
             </div>
           </section>
 

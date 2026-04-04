@@ -150,6 +150,10 @@ class TgAccountResponse(BaseModel):
     proxy_group_name: Optional[str] = None
     assigned_proxy_id: Optional[int] = None
     assigned_proxy_host: Optional[str] = None
+    proxy_country: Optional[str] = None
+    proxy_protocol: Optional[str] = None
+    proxy_is_active: Optional[bool] = None
+    proxy_last_checked_at: Optional[datetime] = None
     tags: list[TgAccountTagResponse] = []
     campaigns_count: int = 0
     country_code: Optional[str] = None

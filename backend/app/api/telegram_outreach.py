@@ -473,6 +473,33 @@ async def _auto_assign_infatica_proxy(account: TgAccount, session: AsyncSession)
     }
 
 
+def _extract_proxy_info(account) -> dict:
+    """Extract proxy country, protocol, is_active from account's assigned proxy."""
+    import re
+    proxy = account.assigned_proxy
+    group = account.proxy_group
+    if not proxy:
+        return {"proxy_country": None, "proxy_protocol": None, "proxy_is_active": None, "proxy_last_checked_at": None}
+
+    protocol = proxy.protocol.value if hasattr(proxy.protocol, 'value') else proxy.protocol
+
+    # Determine country: group.country → Infatica username pattern → None
+    country = None
+    if group and group.country:
+        country = group.country.upper()
+    elif proxy.username:
+        m = re.search(r'_c_([A-Za-z]{2})(?:_|$)', proxy.username)
+        if m:
+            country = m.group(1).upper()
+
+    return {
+        "proxy_country": country,
+        "proxy_protocol": protocol,
+        "proxy_is_active": proxy.is_active,
+        "proxy_last_checked_at": proxy.last_checked_at,
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # PROXY GROUPS
 # ═══════════════════════════════════════════════════════════════════════
@@ -651,6 +678,73 @@ async def check_single_proxy(proxy_id: int, session: AsyncSession = Depends(get_
     proxy.is_active = result["alive"]
     proxy.last_checked_at = func.now()
     return {"proxy_id": proxy_id, **result}
+
+
+@router.post("/accounts/{account_id}/test-proxy")
+async def test_account_proxy(account_id: int, session: AsyncSession = Depends(get_session)):
+    """Test the proxy assigned to an account. Returns alive status and exit IP."""
+    import asyncio
+    import time
+
+    account = await session.get(TgAccount, account_id)
+    if not account:
+        raise HTTPException(404, "Account not found")
+    if not account.assigned_proxy_id:
+        raise HTTPException(400, "No proxy assigned to this account")
+
+    proxy = await session.get(TgProxy, account.assigned_proxy_id)
+    if not proxy:
+        raise HTTPException(404, "Assigned proxy not found")
+
+    protocol = proxy.protocol.value if hasattr(proxy.protocol, 'value') else proxy.protocol
+    start = time.monotonic()
+    exit_ip = None
+
+    try:
+        if protocol == "socks5":
+            import socks
+            import socket
+
+            def _socks_get_ip():
+                s = socks.socksocket()
+                s.set_proxy(socks.SOCKS5, proxy.host, proxy.port,
+                            rdns=True, username=proxy.username, password=proxy.password)
+                s.settimeout(15)
+                s.connect(("api.ipify.org", 80))
+                s.sendall(b"GET /?format=text HTTP/1.1\r\nHost: api.ipify.org\r\nConnection: close\r\n\r\n")
+                data = s.recv(4096).decode()
+                s.close()
+                return data.split("\r\n\r\n", 1)[-1].strip()
+
+            exit_ip = await asyncio.to_thread(_socks_get_ip)
+        elif protocol in ("http", "https"):
+            import aiohttp
+            proxy_url = f"http://{proxy.host}:{proxy.port}"
+            proxy_auth = aiohttp.BasicAuth(proxy.username, proxy.password) if proxy.username else None
+            async with aiohttp.ClientSession() as cs:
+                async with cs.get("http://api.ipify.org?format=text",
+                                  proxy=proxy_url, proxy_auth=proxy_auth,
+                                  timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    if resp.status == 200:
+                        exit_ip = (await resp.text()).strip()
+                    else:
+                        raise Exception(f"HTTP {resp.status}")
+        else:
+            # MTProto — just connectivity check, no IP
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(proxy.host, proxy.port), timeout=10)
+            writer.close()
+            await writer.wait_closed()
+
+        latency = round((time.monotonic() - start) * 1000)
+        proxy.is_active = True
+        proxy.last_checked_at = func.now()
+        return {"alive": True, "latency_ms": latency, "exit_ip": exit_ip, "error": None}
+
+    except Exception as e:
+        proxy.is_active = False
+        proxy.last_checked_at = func.now()
+        return {"alive": False, "latency_ms": None, "exit_ip": None, "error": str(e)[:200]}
 
 
 @router.post("/proxy-groups/{group_id}/check")
@@ -903,6 +997,7 @@ async def list_accounts(
             proxy_group_name=acc.proxy_group.name if acc.proxy_group else None,
             assigned_proxy_id=acc.assigned_proxy_id,
             assigned_proxy_host=f"{acc.assigned_proxy.host}:{acc.assigned_proxy.port}" if acc.assigned_proxy else None,
+            **_extract_proxy_info(acc),
             tags=[TgAccountTagResponse.model_validate(t) for t in acc.tags],
             campaigns_count=camp_count_q.scalar() or 0,
             country_code=acc.country_code,
@@ -1044,6 +1139,7 @@ async def update_account(account_id: int, data: TgAccountUpdate, session: AsyncS
         proxy_group_name=account.proxy_group.name if account.proxy_group else None,
         assigned_proxy_id=account.assigned_proxy_id,
         assigned_proxy_host=f"{account.assigned_proxy.host}:{account.assigned_proxy.port}" if account.assigned_proxy else None,
+        **_extract_proxy_info(account),
         tags=[TgAccountTagResponse.model_validate(t) for t in account.tags],
         campaigns_count=camp_count_q.scalar() or 0,
         last_connected_at=account.last_connected_at,

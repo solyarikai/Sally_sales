@@ -40,6 +40,10 @@ export interface TgAccount {
   proxy_group_name?: string;
   assigned_proxy_id?: number;
   assigned_proxy_host?: string;
+  proxy_country?: string;
+  proxy_protocol?: string;
+  proxy_is_active?: boolean;
+  proxy_last_checked_at?: string;
   tags: TgAccountTag[];
   campaigns_count: number;
   country_code?: string;
@@ -597,6 +601,9 @@ export const telegramOutreachApi = {
 
   suggestUsernames: async (accountId: number, firstName: string, lastName: string) =>
     (await api.post<{ suggestions: string[] }>(`${BASE}/accounts/${accountId}/suggest-usernames`, null, { params: { first_name: firstName, last_name: lastName } })).data,
+
+  testAccountProxy: async (accountId: number) =>
+    (await api.post<{ alive: boolean; latency_ms: number | null; exit_ip: string | null; error: string | null }>(`${BASE}/accounts/${accountId}/test-proxy`)).data,
 
   // CRM
   listCrmContacts: async (params: { page?: number; page_size?: number; status?: string; search?: string; project_id?: number } = {}) =>
