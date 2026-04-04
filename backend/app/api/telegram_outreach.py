@@ -5141,31 +5141,50 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                 kwargs_direct = _account_connect_kwargs(account, None)
                 await telegram_engine.connect(aid, **kwargs_direct)
             client = telegram_engine.get_client(aid)
-            authorized = await client.is_user_authorized()
+            from telethon import errors as _terr
+
+            # ── Auth check via get_me() — replaces is_user_authorized() ──
+            # is_user_authorized() catches ALL RPCError (including FloodWait,
+            # ServerError) and returns False, falsely marking live accounts dead.
+            me = None
+            authorized = False
+            try:
+                me = await client.get_me()
+                authorized = me is not None
+            except (_terr.AuthKeyUnregisteredError, _terr.UserDeactivatedError, _terr.UserDeactivatedBanError):
+                authorized = False  # truly dead — will be marked DEAD below
+            except _terr.FloodWaitError as fw:
+                logger.warning(f"[ALIVE] {account.phone} FloodWait {fw.seconds}s — skipping, keeping current status")
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": f"FloodWait {fw.seconds}s"})
+                await telegram_engine.disconnect(aid)
+                continue
+            except Exception as auth_err:
+                err_str = str(auth_err).lower()
+                if "deactivated" in err_str or "banned" in err_str or "unregistered" in err_str:
+                    authorized = False  # truly dead
+                else:
+                    logger.warning(f"[ALIVE] {account.phone} auth check error (transient): {auth_err}")
+                    results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": str(auth_err)[:80]})
+                    await telegram_engine.disconnect(aid)
+                    continue
 
             if authorized:
                 account.last_connected_at = func.now()
-                # Fetch tgid + estimate account age
-                try:
-                    me = await client.get_me()
-                    if me:
-                        account.telegram_user_id = me.id
-                        account.is_premium = getattr(me, "premium", False) or False
-                        if not account.telegram_created_at:
-                            from app.services.telegram_engine import _estimate_creation_date
-                            est = _estimate_creation_date(me.id)
-                            if est:
-                                from datetime import datetime as _dt
-                                account.telegram_created_at = _dt.fromisoformat(est)
-                except Exception:
-                    pass
+                # me already fetched from auth check above
+                account.telegram_user_id = me.id
+                account.is_premium = getattr(me, "premium", False) or False
+                if not account.telegram_created_at:
+                    from app.services.telegram_engine import _estimate_creation_date
+                    est = _estimate_creation_date(me.id)
+                    if est:
+                        from datetime import datetime as _dt
+                        account.telegram_created_at = _dt.fromisoformat(est)
 
                 # ── Self-message test: detect frozen / banned ────────
                 frozen = False
                 banned = False
                 ban_reason = None
                 try:
-                    from telethon import errors as _terr
                     msg = await client.send_message("me", ".")
                     try:
                         await msg.delete()
@@ -5282,10 +5301,15 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                 account.status = TgAccountStatus.DEAD
                 results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "not_authorized"})
 
+            await session.commit()
             await telegram_engine.disconnect(aid)
         except Exception as e:
             logger.error(f"[ALIVE] account {aid} error: {e}")
             results.append({"account_id": aid, "alive": False, "reason": "error", "error": str(e)[:80]})
+            try:
+                await telegram_engine.disconnect(aid)
+            except Exception:
+                pass
 
     alive_count = sum(1 for r in results if r.get("alive"))
     frozen_count = sum(1 for r in results if r.get("reason") == "frozen")
