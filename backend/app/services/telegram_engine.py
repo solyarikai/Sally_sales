@@ -553,6 +553,19 @@ class TelegramEngine:
                     logger.warning(f"SpamBot check failed for {phone}: {e}")
                     result["spamblock"] = "unknown"
 
+            # ── Frozen detection: contacts.Search probe ──────────────
+            # Frozen accounts pass SpamBot check (say "no limits") but
+            # cannot resolve usernames or search — making them useless
+            # for outreach.  A quick SearchRequest catches this.
+            if not result["frozen"] and not result["banned"]:
+                try:
+                    await client(functions.contacts.SearchRequest(q="test", limit=1))
+                except Exception as e:
+                    if "Frozen" in type(e).__name__:
+                        result["frozen"] = True
+                        result["spamblock"] = "temporary"
+                        logger.warning(f"Account {phone} frozen — contacts.Search returned FrozenMethodInvalidError")
+
         except errors.AuthKeyUnregisteredError:
             result["connected"] = True
             result["authorized"] = False
