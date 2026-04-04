@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload, joinedload
 from app.db import get_session
 from app.models.telegram_outreach import (
     TgAccount, TgAccountTag, TgAccountTagLink,
-    TgProxyGroup, TgProxy,
+    TgProxyGroup, TgProxy, TgProxyProtocol,
     TgCampaign, TgCampaignAccount,
     TgRecipient, TgSequence, TgSequenceStep, TgStepVariant, TgOutreachMessage,
     TgAccountStatus, TgSpamblockType, TgCampaignStatus, TgCampaignType, TgRecipientStatus, TgMessageStatus,
@@ -25,6 +25,7 @@ from app.models.telegram_outreach import (
     TgWarmupLog, TgWarmupActionType, TgWarmupChannel,
     TgCrmCustomField, TgCrmCustomFieldType, TgCrmLeadFieldValue,
 )
+from app.services.infatica_proxy_service import infatica_proxy_service
 from app.models.telegram_dm import TelegramDMAccount
 
 logger = logging.getLogger(__name__)
@@ -398,6 +399,75 @@ async def _sync_proxy_to_dm_account(session: AsyncSession, phone: str, proxy: Tg
     else:
         dm_acc.proxy_config = None
     logger.info(f"Proxy sync: dm_account {dm_acc.id} ({phone}) ← proxy {'%s:%s' % (proxy.host, proxy.port) if proxy else 'cleared'}")
+
+
+# ── Infatica auto-assign ─────────────────────────────────────────────
+
+_infatica_group_id: int | None = None   # cached after first lookup
+
+
+async def _get_or_create_infatica_group(session: AsyncSession) -> int:
+    """Get (or create) the 'Infatica' proxy group and return its id."""
+    global _infatica_group_id
+    if _infatica_group_id is not None:
+        return _infatica_group_id
+    result = await session.execute(
+        select(TgProxyGroup).where(TgProxyGroup.name == "Infatica")
+    )
+    group = result.scalar_one_or_none()
+    if not group:
+        group = TgProxyGroup(name="Infatica", description="Auto-assigned Infatica residential proxies")
+        session.add(group)
+        await session.flush()
+    _infatica_group_id = group.id
+    return group.id
+
+
+async def _auto_assign_infatica_proxy(account: TgAccount, session: AsyncSession) -> dict | None:
+    """Generate Infatica proxy for account, save as TgProxy, assign to account.
+
+    Returns proxy dict compatible with telegram_engine.connect() or None if
+    Infatica is not configured or account already has a proxy.
+    """
+    if account.assigned_proxy_id:
+        return None
+    if not infatica_proxy_service.is_configured:
+        return None
+
+    cfg = infatica_proxy_service.get_proxy_for_account(account.phone, account.id)
+
+    group_id = await _get_or_create_infatica_group(session)
+
+    proxy = TgProxy(
+        proxy_group_id=group_id,
+        host=cfg["host"],
+        port=cfg["port"],
+        username=cfg["username"],
+        password=cfg["password"],
+        protocol=TgProxyProtocol.SOCKS5,
+        is_active=True,
+    )
+    session.add(proxy)
+    await session.flush()
+
+    account.proxy_group_id = group_id
+    account.assigned_proxy_id = proxy.id
+
+    # Sync to DM account if one exists
+    await _sync_proxy_to_dm_account(session, account.phone, proxy)
+
+    logger.info(
+        f"[INFATICA] Auto-assigned proxy {proxy.id} to account {account.id} "
+        f"({account.phone}) — {cfg['username']}@{cfg['host']}:{cfg['port']}"
+    )
+
+    return {
+        "host": cfg["host"],
+        "port": cfg["port"],
+        "username": cfg["username"],
+        "password": cfg["password"],
+        "protocol": "socks5",
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -2416,6 +2486,7 @@ async def import_teleraptor_accounts(data: TgTeleRaptorImportRequest,
     added = 0
     skipped = 0
     errors = []
+    new_accounts: list[TgAccount] = []
 
     for i, raw in enumerate(data.accounts):
         phone = (raw.phone or "").strip()
@@ -2468,10 +2539,14 @@ async def import_teleraptor_accounts(data: TgTeleRaptorImportRequest,
             telegram_created_at=_parse_session_date(raw.register_time, raw.tgid, raw.reg_date) or (_parse_session_date(None, raw.tgid) if raw.tgid else None),
         )
         session.add(account)
+        new_accounts.append(account)
         added += 1
 
     if added > 0:
         await session.flush()
+        # Auto-assign Infatica proxies to all newly imported accounts
+        for acc in new_accounts:
+            await _auto_assign_infatica_proxy(acc, session)
 
     return TgTeleRaptorImportResponse(added=added, skipped=skipped, errors=errors)
 
@@ -2731,6 +2806,7 @@ async def import_account_bundle(
     sessions_saved = 0
     string_sessions_created = 0
     errors = []
+    new_accounts: list[TgAccount] = []
 
     for pair in pairs:
         phone = pair["phone"].strip()
@@ -2801,6 +2877,7 @@ async def import_account_bundle(
             session_created_at=last_connected or func.now(),
         )
         session.add(account)
+        new_accounts.append(account)
 
         # Save session file + extract StringSession
         if pair["has_session"]:
@@ -2822,6 +2899,9 @@ async def import_account_bundle(
 
     if added > 0:
         await session.flush()
+        # Auto-assign Infatica proxies to all newly imported accounts
+        for acc in new_accounts:
+            await _auto_assign_infatica_proxy(acc, session)
 
     # Download avatars for all accounts with sessions (best-effort, background)
     avatars_fetched = 0
@@ -4671,8 +4751,11 @@ async def add_by_phone(
     session.add(account)
     await session.flush()
 
-    # Send auth code
-    kwargs = _account_connect_kwargs(account, proxy=None)
+    # Auto-assign Infatica proxy (before connecting to TG)
+    proxy_dict = await _auto_assign_infatica_proxy(account, session)
+
+    # Send auth code (through proxy if assigned)
+    kwargs = _account_connect_kwargs(account, proxy=proxy_dict)
     try:
         result = await telegram_engine.send_code(account.id, **kwargs)
     except Exception as e:
