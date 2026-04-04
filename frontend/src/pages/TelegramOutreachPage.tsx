@@ -4385,7 +4385,7 @@ function CustomFieldsTab({ toast }: { toast: (msg: string, type?: 'success' | 'e
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: A.text2 }} /></div>;
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 max-w-2xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>Custom Properties</h2>
