@@ -16,17 +16,19 @@
 
 Новая таблица `tg_blacklist` с CRUD API и UI-подвкладкой в CRM.
 
-**Модель** (`backend/app/models/telegram_outreach.py:512-520`):
+**Модель** (`backend/app/models/telegram_outreach.py:576-583`):
 ```python
 class TgBlacklist(Base, TimestampMixin):
+    """Blacklisted Telegram usernames — recipients matching these are filtered out on upload."""
     __tablename__ = "tg_blacklist"
+
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(100), nullable=False, unique=True, index=True)
     reason = Column(String(255), nullable=True)
     added_by = Column(String(100), nullable=True)
 ```
 
-**Нормализация usernames** (`backend/app/api/telegram_outreach.py:7014`):
+**Нормализация usernames** (`backend/app/api/telegram_outreach.py:8166`):
 Функция `_normalize_username` приводит все форматы Telegram-ссылок к чистому username:
 - `@user` → `user`
 - `t.me/user` → `user`
@@ -75,7 +77,7 @@ return {"ok": True, "added": added, "total": campaign.total_recipients,
         "blacklisted": blacklisted_count}
 ```
 
-**UI** — подвкладка "Blacklist" в TG Outreach (`frontend/src/pages/TelegramOutreachPage.tsx:6096-6330`):
+**UI** — подвкладка "Blacklist" в TG Outreach (`frontend/src/pages/TelegramOutreachPage.tsx:6909-7131`):
 - Поиск по username с live-фильтрацией
 - Кнопка "Add Usernames" — textarea для массовой загрузки с необязательным полем reason
 - Таблица: Username | Reason | Added by | Дата добавления
@@ -84,7 +86,7 @@ return {"ok": True, "added": added, "total": campaign.total_recipients,
 
 ### 8kx.2 — Добавление лидов из CRM в кампанию
 
-Endpoint `POST /campaigns/{campaign_id}/recipients/add-from-crm` (`backend/app/api/telegram_outreach.py:3626`) принимает массив `contact_ids` из CRM и добавляет их как recipients кампании:
+Endpoint `POST /campaigns/{campaign_id}/recipients/add-from-crm` (`backend/app/api/telegram_outreach.py:4178`) принимает массив `contact_ids` из CRM и добавляет их как recipients кампании:
 
 ```python
 @router.post("/campaigns/{campaign_id}/recipients/add-from-crm")
@@ -99,7 +101,7 @@ async def add_recipients_from_crm(campaign_id: int, data: dict,
             "total": campaign.total_recipients, "blacklisted": blacklisted_count}
 ```
 
-**Frontend** — модальное окно "Add from CRM" (`frontend/src/pages/CampaignDetailPage.tsx:1739-1863`):
+**Frontend** — модальное окно "Add from CRM" (`frontend/src/pages/CampaignDetailPage.tsx:1740-2300`):
 - Открывается кнопкой рядом с CSV upload в Recipients tab
 - Левая панель фильтров: поиск по username, фильтр по статусу контакта
 - Таблица контактов: Username, Name, Company, Status, Sent, Replies
@@ -108,7 +110,7 @@ async def add_recipients_from_crm(campaign_id: int, data: dict,
 - Кнопка "Add X Selected" — добавляет выбранные контакты в кампанию
 - Toast-уведомления: added, skipped (дубликаты), blacklisted, cross-campaign duplicates
 
-**Frontend API** (`frontend/src/api/telegramOutreach.ts:582-610`):
+**Frontend API** (`frontend/src/api/telegramOutreach.ts:514`):
 ```typescript
 addRecipientsFromCrm: async (campaignId: number, contactIds: number[]) =>
   (await api.post(`${BASE}/campaigns/${campaignId}/recipients/add-from-crm`,
