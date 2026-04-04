@@ -250,6 +250,7 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
     timezone: campaign.timezone,
     send_from_hour: campaign.send_from_hour,
     send_to_hour: campaign.send_to_hour,
+    send_days: campaign.send_days ?? [0, 1, 2, 3, 4, 5, 6],
     link_preview: (campaign as any).link_preview || false,
     silent: (campaign as any).silent || false,
     delete_dialog_after: (campaign as any).delete_dialog_after || false,
@@ -640,16 +641,52 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
             </select>
           </div>
           <div>
-            <label className={labelCls}>Send From (hour)</label>
-            <input type="number" min={0} max={23} value={form.send_from_hour}
-                   onChange={e => setForm(f => ({ ...f, send_from_hour: Number(e.target.value) }))}
-                   className={inputCls} />
+            <label className={labelCls}>Send From</label>
+            <select value={form.send_from_hour}
+                    onChange={e => setForm(f => ({ ...f, send_from_hour: Number(e.target.value) }))}
+                    className={inputCls}>
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className={labelCls}>Send To (hour)</label>
-            <input type="number" min={0} max={23} value={form.send_to_hour}
-                   onChange={e => setForm(f => ({ ...f, send_to_hour: Number(e.target.value) }))}
-                   className={inputCls} />
+            <label className={labelCls}>Send To</label>
+            <select value={form.send_to_hour}
+                    onChange={e => setForm(f => ({ ...f, send_to_hour: Number(e.target.value) }))}
+                    className={inputCls}>
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Send Days */}
+        <div className="mt-3">
+          <label className={labelCls}>Send Days</label>
+          <div className="flex gap-1.5 mt-1">
+            {(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const).map((day, idx) => {
+              const active = form.send_days.includes(idx);
+              return (
+                <button key={day} type="button"
+                  onClick={() => setForm(f => ({
+                    ...f,
+                    send_days: active ? f.send_days.filter(d => d !== idx) : [...f.send_days, idx].sort(),
+                  }))}
+                  className={cn(
+                    'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
+                    active
+                      ? 'bg-indigo-500 text-white shadow-sm'
+                      : isDark
+                        ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
+                  )}
+                >
+                  {day}
+                </button>
+              );
+            })}
           </div>
         </div>
 

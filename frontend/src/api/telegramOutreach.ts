@@ -107,6 +107,7 @@ export interface TgCampaign {
   timezone: string;
   send_from_hour: number;
   send_to_hour: number;
+  send_days: number[];  // 0=Mon..6=Sun
   delay_between_sends_min: number;
   delay_between_sends_max: number;
   delay_randomness_percent: number;
