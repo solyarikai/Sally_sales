@@ -52,10 +52,19 @@ MAX_COLD_PER_HOUR_PER_ACCOUNT = 2  # hard limit: max cold messages per hour per 
 
 
 def get_session_age_days(account) -> int | None:
-    """Return session age in days, or None if unknown."""
-    if not account.session_created_at:
+    """Return account age in days, or None if unknown.
+
+    Prefers telegram_created_at (real Telegram account age) over
+    session_created_at (when session was added to our system).
+    Uses the older of the two so old accounts aren't stuck in warm-up.
+    """
+    created = getattr(account, "telegram_created_at", None) or account.session_created_at
+    if not created:
+        # Fallback: if only session_created_at exists
+        created = account.session_created_at
+    if not created:
         return None
-    return (datetime.utcnow() - account.session_created_at).days
+    return (datetime.utcnow() - created).days
 
 
 def is_young_session(account) -> bool:

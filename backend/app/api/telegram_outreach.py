@@ -107,8 +107,9 @@ def _warmup_info(acc) -> dict:
     from datetime import datetime
     eff = get_effective_daily_limit(acc)
     day = None
-    if not getattr(acc, "skip_warmup", False) and acc.session_created_at:
-        age = (datetime.utcnow() - acc.session_created_at).days
+    created = getattr(acc, "telegram_created_at", None) or acc.session_created_at
+    if not getattr(acc, "skip_warmup", False) and created:
+        age = (datetime.utcnow() - created).days
         base = acc.daily_message_limit or 10
         if WARMUP_MSGS_PER_DAY * (age + 1) < base:
             day = age + 1
@@ -788,7 +789,7 @@ async def list_accounts(
                 if not acc.telegram_created_at:
                     acc.telegram_created_at = est
                     dirty = True
-                if not acc.session_created_at:
+                if not acc.session_created_at or (acc.session_created_at and est < acc.session_created_at):
                     acc.session_created_at = est
                     dirty = True
     if dirty:
@@ -4655,9 +4656,13 @@ async def check_account(account_id: int, session: AsyncSession = Depends(get_ses
                 account.daily_message_limit = max(account.daily_message_limit or 5, 5)
             else:
                 account.daily_message_limit = max(account.daily_message_limit or 10, 10)
-        if result.get("telegram_created_at") and not account.telegram_created_at:
+        if result.get("telegram_created_at"):
             try:
-                account.telegram_created_at = datetime.fromisoformat(result["telegram_created_at"])
+                tg_created = datetime.fromisoformat(result["telegram_created_at"])
+                if not account.telegram_created_at:
+                    account.telegram_created_at = tg_created
+                if not account.session_created_at or tg_created < account.session_created_at:
+                    account.session_created_at = tg_created
             except Exception:
                 pass
     elif result.get("connected") and not result.get("authorized"):
@@ -4718,7 +4723,7 @@ async def bulk_check_live(data: TgBulkAccountIds, session: AsyncSession = Depend
                             account.telegram_user_id = me.id
                             est = _parse_session_date(None, me.id)
                             if est:
-                                if not account.session_created_at:
+                                if not account.session_created_at or est < account.session_created_at:
                                     account.session_created_at = est
                                 if not account.telegram_created_at:
                                     account.telegram_created_at = est
