@@ -1875,25 +1875,50 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
 
                     if has_session_file:
                         kwargs = _account_connect_kwargs(account, proxy)
-                        await telegram_engine.connect(aid, **kwargs)
+                        try:
+                            await telegram_engine.connect(aid, **kwargs)
+                        except Exception as conn_err:
+                            logger.warning(f"[REVOKE] {account.phone}: proxy connect failed: {conn_err}, retrying direct")
+                            await telegram_engine.disconnect(aid)
+                            kwargs_direct = _account_connect_kwargs(account, None)
+                            await telegram_engine.connect(aid, **kwargs_direct)
                         client = telegram_engine.get_client(aid)
                     else:
                         # Connect via StringSession directly
                         used_string_session = True
                         proxy_tuple = telegram_engine._proxy_to_tuple(proxy)
-                        client = TelegramClient(
-                            StringSession(account.string_session),
-                            api_id, api_hash,
-                            device_model=account.device_model or "PC 64bit",
-                            system_version=account.system_version or "Windows 10",
-                            app_version=account.app_version or "6.5.1 x64",
-                            lang_code=account.lang_code or "en",
-                            system_lang_code=account.system_lang_code or "en-US",
-                            proxy=proxy_tuple,
-                            timeout=30,
-                            connection_retries=2,
-                        )
-                        await client.connect()
+                        try:
+                            client = TelegramClient(
+                                StringSession(account.string_session),
+                                api_id, api_hash,
+                                device_model=account.device_model or "PC 64bit",
+                                system_version=account.system_version or "Windows 10",
+                                app_version=account.app_version or "6.5.1 x64",
+                                lang_code=account.lang_code or "en",
+                                system_lang_code=account.system_lang_code or "en-US",
+                                proxy=proxy_tuple,
+                                timeout=30,
+                                connection_retries=2,
+                            )
+                            await client.connect()
+                        except Exception as conn_err:
+                            logger.warning(f"[REVOKE] {account.phone}: proxy connect failed: {conn_err}, retrying direct")
+                            try:
+                                await client.disconnect()
+                            except Exception:
+                                pass
+                            client = TelegramClient(
+                                StringSession(account.string_session),
+                                api_id, api_hash,
+                                device_model=account.device_model or "PC 64bit",
+                                system_version=account.system_version or "Windows 10",
+                                app_version=account.app_version or "6.5.1 x64",
+                                lang_code=account.lang_code or "en",
+                                system_lang_code=account.system_lang_code or "en-US",
+                                timeout=30,
+                                connection_retries=2,
+                            )
+                            await client.connect()
                         logger.info(f"[REVOKE] {account.phone}: connected via StringSession")
 
                     if not client or not await client.is_user_authorized():
