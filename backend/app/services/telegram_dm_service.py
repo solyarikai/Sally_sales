@@ -484,6 +484,7 @@ class TelegramDMService:
                         MessageMediaDocument, MessageMediaPhoto,
                         DocumentAttributeFilename, DocumentAttributeAudio,
                         DocumentAttributeVideo, DocumentAttributeSticker,
+                        DocumentAttributeAnimated,
                     )
                     if isinstance(msg.media, MessageMediaPhoto):
                         media_info = {"type": "photo"}
@@ -494,6 +495,7 @@ class TelegramDMService:
                         is_video_note = False
                         is_sticker = False
                         is_video = False
+                        is_gif = False
                         for attr in (doc.attributes or []):
                             if isinstance(attr, DocumentAttributeFilename):
                                 fname = attr.file_name
@@ -504,7 +506,11 @@ class TelegramDMService:
                                 is_video_note = attr.round_message or False
                             elif isinstance(attr, DocumentAttributeSticker):
                                 is_sticker = True
-                        if is_voice:
+                            elif isinstance(attr, DocumentAttributeAnimated):
+                                is_gif = True
+                        if is_gif:
+                            media_info = {"type": "gif", "file_name": fname, "size": doc.size}
+                        elif is_voice:
                             media_info = {"type": "voice", "duration": next((a.duration for a in doc.attributes if isinstance(a, DocumentAttributeAudio)), 0)}
                         elif is_sticker:
                             media_info = {"type": "sticker"}

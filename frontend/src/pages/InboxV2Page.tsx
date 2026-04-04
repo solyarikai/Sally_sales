@@ -39,7 +39,7 @@ interface MessageEntity {
 }
 
 interface MediaInfo {
-  type: 'photo' | 'video' | 'voice' | 'sticker' | 'video_note' | 'document';
+  type: 'photo' | 'video' | 'voice' | 'sticker' | 'video_note' | 'document' | 'gif';
   duration?: number;
   file_name?: string;
   size?: number;
@@ -962,6 +962,13 @@ export function InboxV2Page() {
                                 return (
                                   <div className={`tg-media-video ${m.type === 'video_note' ? 'tg-video-note' : ''}`}>
                                     <video src={mediaUrl} controls preload="metadata" />
+                                  </div>
+                                );
+                              case 'gif':
+                                return (
+                                  <div className="tg-media-gif" onClick={() => setLightboxUrl(mediaUrl)}>
+                                    <video src={mediaUrl} autoPlay loop muted playsInline />
+                                    <span className="tg-gif-badge">GIF</span>
                                   </div>
                                 );
                               case 'voice':

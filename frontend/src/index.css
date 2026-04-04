@@ -1186,6 +1186,35 @@ textarea:focus {
   border-radius: 50% !important;
 }
 
+/* GIF — auto-play */
+.tg-media-gif {
+  position: relative;
+  cursor: pointer;
+  margin: -3px -3px 2px;
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+.tg-media-gif video {
+  max-width: 320px;
+  max-height: 320px;
+  width: 100%;
+  display: block;
+  border-radius: 10px;
+}
+.tg-gif-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
 /* Voice — custom waveform player */
 .tg-voice-player {
   display: flex;
