@@ -7327,6 +7327,7 @@ async def list_inbox_dialogs(
 async def get_dialog_messages(
     dialog_id: int,
     limit: int = Query(30, ge=1, le=100),
+    offset_id: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
 ):
     """Fetch real messages from Telegram for a dialog via telegram_dm_service."""
@@ -7375,12 +7376,12 @@ async def get_dialog_messages(
 
         # Retry once on transient network errors (connection drop, timeout)
         try:
-            messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit, peer_username=dialog.peer_username)
+            messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit, peer_username=dialog.peer_username, offset_id=offset_id)
         except (ConnectionError, OSError, TimeoutError) as e:
             logger.warning(f"Transient error fetching messages for dialog {dialog_id}, retrying: {e}")
             import asyncio as _aio
             await _aio.sleep(1)
-            messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit, peer_username=dialog.peer_username)
+            messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit, peer_username=dialog.peer_username, offset_id=offset_id)
 
         # Map field names to match existing frontend expectations
         formatted = []

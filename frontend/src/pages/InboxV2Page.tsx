@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search, Send, Loader2, MessageCircle, User, ChevronRight, ChevronLeft,
-  Tag, Hash, StickyNote, FileText, Download, Mic, X, Plus,
+  Tag, Hash, StickyNote, FileText, Download, Mic, X, Plus, Paperclip,
   Pencil, Copy, Trash2, Reply, CornerUpRight,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
@@ -272,12 +272,16 @@ export function InboxV2Page() {
 
   const [msgError, setMsgError] = useState<string | null>(null);
   const [peerTyping, setPeerTyping] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const dialogPollRef = useRef(false);
   const msgPollRef = useRef(false);
   const prevMsgCount = useRef(0);
   const msgErrorCount = useRef(0);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* ── load accounts ── */
   useEffect(() => {
@@ -311,13 +315,16 @@ export function InboxV2Page() {
   }, [loadDialogs]);
 
   /* ── load messages ── */
+  const MSG_PAGE_SIZE = 50;
   const loadMessages = useCallback(async (dialogId: number, silent = false) => {
     if (msgPollRef.current) return;
     msgPollRef.current = true;
     if (!silent) setLoading(l => ({ ...l, messages: true }));
     try {
-      const data = await telegramOutreachApi.getDialogMessages(dialogId, 50);
-      setMessages(data.messages || data || []);
+      const data = await telegramOutreachApi.getDialogMessages(dialogId, MSG_PAGE_SIZE);
+      const msgs = data.messages || data || [];
+      setMessages(msgs);
+      setHasOlderMessages(msgs.length >= MSG_PAGE_SIZE);
       msgErrorCount.current = 0;
       setMsgError(null);
     } catch (e: any) {
@@ -332,12 +339,42 @@ export function InboxV2Page() {
     msgPollRef.current = false;
   }, []);
 
+  /* ── load older messages (scroll-up pagination) ── */
+  const loadOlderMessages = useCallback(async () => {
+    if (!selectedDialog || loadingOlder || !hasOlderMessages || messages.length === 0) return;
+    const oldestId = Math.min(...messages.map(m => m.id));
+    setLoadingOlder(true);
+    try {
+      const data = await telegramOutreachApi.getDialogMessages(selectedDialog.id, MSG_PAGE_SIZE, oldestId);
+      const older = data.messages || data || [];
+      if (older.length === 0) {
+        setHasOlderMessages(false);
+      } else {
+        // Preserve scroll position: measure before prepending
+        const container = messagesContainerRef.current;
+        const prevScrollHeight = container?.scrollHeight || 0;
+        const existingIds = new Set(messages.map(m => m.id));
+        const newMsgs = older.filter((m: InboxMessage) => !existingIds.has(m.id));
+        setMessages(prev => [...newMsgs, ...prev]);
+        setHasOlderMessages(older.length >= MSG_PAGE_SIZE);
+        // Restore scroll position after DOM update
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight - prevScrollHeight;
+          }
+        });
+      }
+    } catch { /* silent */ }
+    setLoadingOlder(false);
+  }, [selectedDialog, loadingOlder, hasOlderMessages, messages]);
+
   // On dialog select
   const selectDialog = useCallback((d: InboxDialog) => {
     setSelectedDialog(d);
     setMessages([]);
     setCrmData(null);
     setMsgError(null);
+    setHasOlderMessages(true);
     msgErrorCount.current = 0;
     prevMsgCount.current = 0;
     loadMessages(d.id);
@@ -395,6 +432,25 @@ export function InboxV2Page() {
       await loadMessages(selectedDialog.id, true);
     } catch { /* error handled by API client toast */ }
     setSending(false);
+    editorRef.current?.focus();
+  };
+
+  /* ── send file attachment ── */
+  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedDialog) return;
+    setSending(true);
+    try {
+      await telegramOutreachApi.sendDialogFile(selectedDialog.id, file, {
+        caption: messageText.trim() || undefined,
+        replyTo: replyTo?.id,
+      });
+      setMessageText('');
+      setReplyTo(null);
+      await loadMessages(selectedDialog.id, true);
+    } catch { /* error handled by API client toast */ }
+    setSending(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     editorRef.current?.focus();
   };
 
@@ -713,8 +769,26 @@ export function InboxV2Page() {
 
             {/* Messages area */}
             <div
+              ref={messagesContainerRef}
               className="flex-1 overflow-y-auto px-4 py-3 tg-chat-bg tg-chat-scroll"
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                if (el.scrollTop < 80 && hasOlderMessages && !loadingOlder) {
+                  loadOlderMessages();
+                }
+              }}
             >
+              {/* Load older indicator */}
+              {loadingOlder && (
+                <div className="flex justify-center py-2">
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: t.text4 }} />
+                </div>
+              )}
+              {!hasOlderMessages && messages.length > 0 && (
+                <div className="text-center py-2 text-xs" style={{ color: t.text5 }}>
+                  Beginning of conversation
+                </div>
+              )}
               {loading.messages && messages.length === 0 && (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} />
@@ -878,6 +952,21 @@ export function InboxV2Page() {
 
             {/* Input area — Telegram-style composer */}
             <div className="tg-composer tg-header" style={{ borderTop: `1px solid ${borderColor}`, borderBottom: 'none' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleFileAttach}
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending}
+                className="tg-attach-btn"
+                title="Attach file"
+              >
+                <Paperclip className="w-[18px] h-[18px]" />
+              </button>
               <textarea
                 ref={editorRef}
                 value={messageText}

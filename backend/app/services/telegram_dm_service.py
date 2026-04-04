@@ -447,7 +447,7 @@ class TelegramDMService:
         logger.info(f"Account {account_id}: get_dialogs total_seen={total_seen}, dm_count={len(dialogs)}")
         return dialogs
 
-    async def get_messages(self, account_id: int, peer_id: int, limit: int = 50, peer_username: str = None) -> list[dict]:
+    async def get_messages(self, account_id: int, peer_id: int, limit: int = 50, peer_username: str = None, offset_id: int = 0) -> list[dict]:
         """Fetch conversation thread with a specific peer."""
         client = self._get_client(account_id)
         me = await client.get_me()
@@ -474,7 +474,7 @@ class TelegramDMService:
             entity = InputPeerUser(peer_id, 0)  # Last resort: use raw ID with access_hash=0
 
         try:
-            async for msg in client.iter_messages(entity, limit=limit):
+            async for msg in client.iter_messages(entity, limit=limit, offset_id=offset_id):
                 if not msg.text and not msg.media:
                     continue
                 # Extract media info

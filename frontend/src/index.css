@@ -1016,6 +1016,28 @@ textarea:focus {
   opacity: 0.4;
   cursor: not-allowed;
 }
+.tg-attach-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: transparent;
+  color: #7B8FA3;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.tg-attach-btn:hover {
+  color: #3390EC;
+  background: rgba(51, 144, 236, 0.08);
+}
+.tg-attach-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 /* ── Chat area thin scrollbar (from _mixins.scss) ── */
 .tg-chat-scroll::-webkit-scrollbar {

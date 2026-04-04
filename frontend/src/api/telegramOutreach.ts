@@ -748,8 +748,8 @@ export const telegramOutreachApi = {
   listInboxDialogs: async (params: { account_id?: number; campaign_id?: number; campaign_tag?: string; tag?: string; search?: string; project_id?: number; page?: number; page_size?: number }) =>
     (await api.get(`${BASE}/inbox/dialogs`, { params })).data,
 
-  getDialogMessages: async (dialogId: number, limit: number = 30) =>
-    (await api.get(`${BASE}/inbox/dialogs/${dialogId}/messages`, { params: { limit } })).data,
+  getDialogMessages: async (dialogId: number, limit: number = 30, offsetId: number = 0) =>
+    (await api.get(`${BASE}/inbox/dialogs/${dialogId}/messages`, { params: { limit, offset_id: offsetId } })).data,
 
   getDialogTyping: async (dialogId: number): Promise<{ typing: boolean }> =>
     (await api.get(`${BASE}/inbox/dialogs/${dialogId}/typing`)).data,
