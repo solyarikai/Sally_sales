@@ -388,8 +388,6 @@ export function InboxV2Page() {
     setCtxMenu({ x: e.clientX, y: e.clientY, msg });
   };
 
-  const closeCtxMenu = () => setCtxMenu(null);
-
   const handleReplyTo = (msg: InboxMessage) => {
     setEditingMsg(null);
     setReplyTo(msg);
@@ -427,7 +425,7 @@ export function InboxV2Page() {
   // Close context menu on click outside or Escape
   useEffect(() => {
     if (!ctxMenu) return;
-    const close = (e: MouseEvent) => setCtxMenu(null);
+    const close = () => setCtxMenu(null);
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
     document.addEventListener('click', close);
     document.addEventListener('keydown', esc);
