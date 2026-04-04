@@ -233,7 +233,7 @@ export const telegramOutreachApi = {
   checkProxyGroup: async (groupId: number, autoDelete: boolean = false) =>
     (await api.post<{
       total: number; alive: number; dead: number; deleted: number;
-      deleted_ids: number[];
+      deleted_ids: number[]; reassigned: number; infatica_assigned: number;
       results: { proxy_id: number; host: string; port: number; alive: boolean; latency_ms: number | null; error: string | null }[];
     }>(`${BASE}/proxy-groups/${groupId}/check`, null, { params: { auto_delete: autoDelete } })).data,
 
