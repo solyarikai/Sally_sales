@@ -223,6 +223,8 @@ class WarmupWorker:
                     "username": p.username, "password": p.password,
                     "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol,
                 }
+        if not proxy_dict:
+            logger.warning(f"[WARMUP] Account {account.phone}: no proxy assigned, Infatica fallback will apply")
 
         try:
             client = await telegram_engine.connect(

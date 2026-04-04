@@ -245,6 +245,21 @@ class TelegramEngine:
                 self._clients.pop(account_id, None)
                 self._client_proxy.pop(account_id, None)
 
+        # Infatica fallback: auto-generate proxy if none assigned
+        if not proxy:
+            try:
+                from app.services.infatica_proxy_service import infatica_proxy_service
+                if infatica_proxy_service.is_configured:
+                    proxy = infatica_proxy_service.get_proxy_for_account(phone, account_id)
+                    new_proxy_key = self._proxy_key(proxy)
+                    country = infatica_proxy_service.get_country_for_phone(phone)
+                    logger.info(
+                        f"[PROXY] Account {phone} (id={account_id}): "
+                        f"Infatica auto-proxy, geo={country}"
+                    )
+            except Exception as e:
+                logger.warning(f"[PROXY] Infatica fallback failed for {phone}: {e}")
+
         if proxy:
             logger.info(f"[PROXY] Account {phone} (id={account_id}): connecting via {new_proxy_key}")
         else:
