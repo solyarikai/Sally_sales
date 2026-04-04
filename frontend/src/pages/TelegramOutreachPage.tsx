@@ -3334,7 +3334,6 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                                 toast('Active warm-up started', 'success');
                               }
                               refreshWarmupStatus();
-                              onSaved();
                             } catch { toast('Failed to toggle warm-up', 'error'); }
                           }}
                           className="px-2.5 py-1 rounded-md text-[11px] font-medium text-white"
@@ -3367,6 +3366,35 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                         </div>
                       </div>
                     )}
+
+                    {/* Gradual daily limit toggle */}
+                    <div className="flex items-center justify-between pt-1" style={{ borderTop: `1px solid ${isActive ? '#BBF7D0' : A.border}` }}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-medium" style={{ color: A.text1 }}>Gradual daily limit</span>
+                        <span className="tip" data-tip="Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6… Ramps up sending limit automatically. Disabling removes all limits — risky on new sessions.">
+                          <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px]" style={{ color: form.skip_warmup === 'false' ? '#059669' : A.text3 }}>
+                          {form.skip_warmup === 'false' ? 'On' : 'Off'}
+                        </span>
+                        <button type="button"
+                          onClick={async () => {
+                            const newSkip = form.skip_warmup === 'false';
+                            try {
+                              await telegramOutreachApi.bulkSkipWarmup([account.id], newSkip);
+                              set('skip_warmup', newSkip ? 'true' : 'false');
+                              toast(newSkip ? 'Gradual limit disabled' : 'Gradual limit enabled', 'success');
+                            } catch { toast('Failed to toggle gradual limit', 'error'); }
+                          }}
+                          className="relative w-8 h-[18px] rounded-full transition-colors duration-200"
+                          style={{ background: form.skip_warmup === 'false' ? '#059669' : '#D1D5DB', cursor: 'pointer', border: 'none' }}>
+                          <span className="absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform duration-200"
+                                style={{ transform: form.skip_warmup === 'false' ? 'translateX(14px)' : 'translateX(0)' }} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
