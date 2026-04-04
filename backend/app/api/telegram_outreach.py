@@ -6886,7 +6886,7 @@ async def list_inbox_accounts(session: AsyncSession = Depends(get_session)):
         # Skip accounts whose TgAccount was deleted or is dead/banned
         if not tg:
             continue
-        if tg.status in (TgAccountStatus.DEAD, TgAccountStatus.BANNED):
+        if tg.status in (TgAccountStatus.DEAD, TgAccountStatus.BANNED, TgAccountStatus.FROZEN):
             continue
         campaign_ids = [cl.campaign_id for cl in tg.campaign_links] if tg else []
         tag_names = [t.name for t in tg.tags] if tg else []
@@ -6927,6 +6927,13 @@ async def list_inbox_dialogs(
 
     query = select(TgInboxDialog).order_by(TgInboxDialog.last_message_at.desc().nullslast())
     count_q = select(func.count(TgInboxDialog.id))
+
+    # Filter out dialogs from inactive/deleted accounts (banned, dead, frozen)
+    active_account_ids = select(TgAccount.id).where(
+        TgAccount.status.notin_([TgAccountStatus.BANNED, TgAccountStatus.DEAD, TgAccountStatus.FROZEN])
+    )
+    query = query.where(TgInboxDialog.account_id.in_(active_account_ids))
+    count_q = count_q.where(TgInboxDialog.account_id.in_(active_account_ids))
 
     if account_id:
         # Dialogs are stored with DM account IDs (from inbox_sync_service).
