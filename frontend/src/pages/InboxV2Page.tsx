@@ -261,10 +261,12 @@ export function InboxV2Page() {
   const [newChatLoading, setNewChatLoading] = useState(false);
   const [newChatError, setNewChatError] = useState('');
 
+  const [msgError, setMsgError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dialogPollRef = useRef(false);
   const msgPollRef = useRef(false);
   const prevMsgCount = useRef(0);
+  const msgErrorCount = useRef(0);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
   /* ── load accounts ── */
@@ -306,7 +308,16 @@ export function InboxV2Page() {
     try {
       const data = await telegramOutreachApi.getDialogMessages(dialogId, 50);
       setMessages(data.messages || data || []);
-    } catch { /* silent */ }
+      msgErrorCount.current = 0;
+      setMsgError(null);
+    } catch (e: any) {
+      msgErrorCount.current++;
+      // Show error only after 3 consecutive failures (avoid flashing on single blip)
+      if (msgErrorCount.current >= 3) {
+        const detail = e?.response?.data?.detail || 'Connection lost — retrying…';
+        setMsgError(typeof detail === 'string' ? detail : 'Failed to load messages');
+      }
+    }
     if (!silent) setLoading(l => ({ ...l, messages: false }));
     msgPollRef.current = false;
   }, []);
@@ -316,6 +327,8 @@ export function InboxV2Page() {
     setSelectedDialog(d);
     setMessages([]);
     setCrmData(null);
+    setMsgError(null);
+    msgErrorCount.current = 0;
     prevMsgCount.current = 0;
     loadMessages(d.id);
     // Load CRM
@@ -606,6 +619,16 @@ export function InboxV2Page() {
               {loading.messages && messages.length === 0 && (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-5 h-5 animate-spin" style={{ color: t.text4 }} />
+                </div>
+              )}
+              {msgError && (
+                <div className="flex items-center justify-center gap-2 py-2 px-3 mx-auto my-1 rounded-full text-xs max-w-fit"
+                  style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>
+                  <span>{msgError}</span>
+                  <button className="underline opacity-80 hover:opacity-100"
+                    onClick={() => { setMsgError(null); msgErrorCount.current = 0; selectedDialog && loadMessages(selectedDialog.id); }}>
+                    Retry
+                  </button>
                 </div>
               )}
               {groupedMessages.map((group, gi) => (

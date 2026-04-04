@@ -7315,11 +7315,9 @@ async def get_dialog_messages(
 
     proxy_cfg = await _resolve_dm_proxy(account, session)
 
-    # Check if already connected — avoid disconnect at the end if so
-    already_connected = telegram_dm_service.is_connected(account.id)
-
+    # Keep connection alive across polls — avoids expensive reconnect + entity cache loss every 6s
     try:
-        if not already_connected:
+        if not telegram_dm_service.is_connected(account.id):
             ok = await telegram_dm_service.connect_account(account.id, account.string_session, proxy_cfg)
             if not ok:
                 # Retry once for temporary connection failures (network/proxy)
@@ -7329,7 +7327,14 @@ async def get_dialog_messages(
                 if not ok:
                     raise HTTPException(503, "Temporary connection error — please try again")
 
-        messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit, peer_username=dialog.peer_username)
+        # Retry once on transient network errors (connection drop, timeout)
+        try:
+            messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit, peer_username=dialog.peer_username)
+        except (ConnectionError, OSError, TimeoutError) as e:
+            logger.warning(f"Transient error fetching messages for dialog {dialog_id}, retrying: {e}")
+            import asyncio as _aio
+            await _aio.sleep(1)
+            messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit, peer_username=dialog.peer_username)
 
         # Map field names to match existing frontend expectations
         formatted = []
@@ -7387,9 +7392,6 @@ async def get_dialog_messages(
         except Exception as e:
             logger.debug(f"Failed to get peer status for dialog {dialog_id}: {e}")
 
-        if not already_connected:
-            await telegram_dm_service.disconnect_account(account.id)
-
         return {
             "messages": formatted,
             "peer_name": dialog.peer_name,
@@ -7402,18 +7404,13 @@ async def get_dialog_messages(
     except HTTPException:
         raise
     except (AuthKeyUnregisteredError, SessionRevokedError, UserDeactivatedBanError):
+        # Auth is dead — disconnect so next attempt creates a fresh client
         try:
-            if not already_connected:
-                await telegram_dm_service.disconnect_account(account.id)
+            await telegram_dm_service.disconnect_account(account.id)
         except Exception:
             pass
         raise HTTPException(401, "Session expired — re-authorize the account")
     except Exception as e:
-        try:
-            if not already_connected:
-                await telegram_dm_service.disconnect_account(account.id)
-        except:
-            pass
         raise HTTPException(500, f"Failed to fetch messages: {str(e)[:100]}")
 
 

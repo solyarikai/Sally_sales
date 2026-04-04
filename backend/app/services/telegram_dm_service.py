@@ -606,7 +606,7 @@ class TelegramDMService:
             logger.warning(f"Account {account_id} FloodWait on messages: {e.seconds}s")
             if e.seconds < 60:
                 await asyncio.sleep(e.seconds + 1)
-                return await self.get_messages(account_id, peer_id, limit)
+                return await self.get_messages(account_id, peer_id, limit, peer_username=peer_username)
             raise
 
         # Get read status: fetch only the specific dialog, not all
