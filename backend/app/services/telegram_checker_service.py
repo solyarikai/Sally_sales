@@ -71,9 +71,8 @@ class TelegramCheckerService:
                 if infatica_proxy_service.is_configured and self.phone:
                     proxy_cfg = infatica_proxy_service.get_proxy_for_account(self.phone)
                     import socks
-                    proto_map = {"http": socks.HTTP, "socks5": socks.SOCKS5}
                     proxy_tuple = (
-                        proto_map.get(proxy_cfg.get("protocol", "socks5"), socks.SOCKS5),
+                        socks.SOCKS5,  # always SOCKS5: HTTP CONNECT fails 407 on residential proxies
                         proxy_cfg["host"],
                         proxy_cfg["port"],
                         True,

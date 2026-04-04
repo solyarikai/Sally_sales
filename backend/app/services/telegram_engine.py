@@ -157,16 +157,18 @@ class TelegramEngine:
 
     @staticmethod
     def _proxy_to_tuple(proxy: Optional[dict]):
-        """Convert proxy dict to Telethon-compatible tuple. Returns None if no proxy."""
+        """Convert proxy dict to Telethon-compatible tuple. Returns None if no proxy.
+
+        Always uses SOCKS5 for Telethon connections: HTTP CONNECT tunneling
+        fails with 407 on many residential proxies (Infatica etc.) because
+        PySocks' HTTP auth isn't accepted, while SOCKS5 works on the same
+        host:port with the same credentials.
+        """
         if not proxy:
             return None
         import socks
-        proto_map = {"http": socks.HTTP, "socks5": socks.SOCKS5}
-        protocol = proxy.get("protocol", "http")
-        if protocol not in proto_map:
-            logger.warning(f"Unsupported proxy protocol '{protocol}', falling back to HTTP")
         return (
-            proto_map.get(protocol, socks.HTTP),
+            socks.SOCKS5,
             proxy["host"],
             proxy["port"],
             True,  # rdns
