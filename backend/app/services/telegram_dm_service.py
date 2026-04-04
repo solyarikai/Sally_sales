@@ -447,13 +447,14 @@ class TelegramDMService:
         logger.info(f"Account {account_id}: get_dialogs total_seen={total_seen}, dm_count={len(dialogs)}")
         return dialogs
 
-    async def get_messages(self, account_id: int, peer_id: int, limit: int = 50) -> list[dict]:
+    async def get_messages(self, account_id: int, peer_id: int, limit: int = 50, peer_username: str = None) -> list[dict]:
         """Fetch conversation thread with a specific peer."""
         client = self._get_client(account_id)
         me = await client.get_me()
         messages = []
 
         # Resolve peer entity — StringSession has no entity cache, so try InputPeerUser first
+        entity = None
         try:
             entity = await client.get_input_entity(peer_id)
         except Exception:
@@ -462,7 +463,15 @@ class TelegramDMService:
                 await client.get_dialogs(limit=100)
                 entity = await client.get_input_entity(peer_id)
             except Exception:
-                entity = InputPeerUser(peer_id, 0)  # Last resort: use raw ID with access_hash=0
+                pass
+        if entity is None and peer_username:
+            # Resolve via @username — much more reliable than raw ID with access_hash=0
+            try:
+                entity = await client.get_input_entity(peer_username.lstrip("@"))
+            except Exception:
+                pass
+        if entity is None:
+            entity = InputPeerUser(peer_id, 0)  # Last resort: use raw ID with access_hash=0
 
         try:
             async for msg in client.iter_messages(entity, limit=limit):
@@ -656,7 +665,7 @@ class TelegramDMService:
 
         return data, content_type
 
-    async def send_message(self, account_id: int, peer_id: int, text: str, parse_mode: str = None, reply_to: int = None) -> dict:
+    async def send_message(self, account_id: int, peer_id: int, text: str, parse_mode: str = None, reply_to: int = None, peer_username: str = None) -> dict:
         """Send a Telegram DM with optional formatting and reply."""
         client = self._get_client(account_id)
 
@@ -666,8 +675,14 @@ class TelegramDMService:
                 entity = await client.get_entity(peer_id)
             except Exception:
                 # Fallback: load dialogs to populate cache, then retry
-                await client.get_dialogs(limit=50)
-                entity = await client.get_entity(peer_id)
+                try:
+                    await client.get_dialogs(limit=50)
+                    entity = await client.get_entity(peer_id)
+                except Exception:
+                    if peer_username:
+                        entity = await client.get_entity(peer_username.lstrip("@"))
+                    else:
+                        raise
 
             pm = None
             if parse_mode == 'md':

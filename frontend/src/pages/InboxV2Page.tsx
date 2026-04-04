@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search, Send, Loader2, MessageCircle, User, ChevronRight, ChevronLeft,
-  Tag, Hash, StickyNote, FileText, Download, Mic, X,
+  Tag, Hash, StickyNote, FileText, Download, Mic, X, Plus,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -255,6 +255,11 @@ export function InboxV2Page() {
   const [showCrm, setShowCrm] = useState(true);
   const [noteText, setNoteText] = useState('');
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [newChatUsername, setNewChatUsername] = useState('');
+  const [newChatAccountId, setNewChatAccountId] = useState<number | ''>('');
+  const [newChatLoading, setNewChatLoading] = useState(false);
+  const [newChatError, setNewChatError] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dialogPollRef = useRef(false);
@@ -359,6 +364,43 @@ export function InboxV2Page() {
     } catch { /* silent */ }
   };
 
+  /* ── new chat ── */
+  const handleNewChat = async () => {
+    if (!newChatAccountId || !newChatUsername.trim()) return;
+    setNewChatLoading(true);
+    setNewChatError('');
+    try {
+      const result = await telegramOutreachApi.createNewChat(Number(newChatAccountId), newChatUsername.trim());
+      setShowNewChat(false);
+      setNewChatUsername('');
+      setNewChatAccountId('');
+      await loadDialogs();
+      // Auto-select the new dialog
+      if (result?.id) {
+        const d: InboxDialog = {
+          id: result.id,
+          peer_id: result.peer_id,
+          peer_name: result.peer_name || result.peer_username || 'Unknown',
+          peer_username: result.peer_username,
+          account_id: result.account_id,
+          account_phone: '',
+          account_username: null,
+          last_message: result.last_message_text || null,
+          last_message_at: result.last_message_at || null,
+          last_direction: null,
+          unread_count: 0,
+          tag: result.tag || null,
+          campaign_name: null,
+          lead_status: null,
+        };
+        selectDialog(d);
+      }
+    } catch (err: any) {
+      setNewChatError(err?.response?.data?.detail || err?.userMessage || 'Failed to create chat');
+    }
+    setNewChatLoading(false);
+  };
+
   /* ── group messages by date ── */
   const groupedMessages = (() => {
     const groups: { date: string; msgs: InboxMessage[] }[] = [];
@@ -392,6 +434,14 @@ export function InboxV2Page() {
         <div className="px-3 pt-3 pb-2" style={{ borderBottom: `1px solid ${borderColor}` }}>
           <div className="flex items-center gap-2 mb-2">
             <h2 className="text-base font-semibold flex-1" style={{ color: t.text1 }}>Inbox</h2>
+            <button
+              onClick={() => setShowNewChat(true)}
+              className="p-1 rounded transition-colors"
+              style={{ background: isDark ? '#242F3D' : '#F0F2F5', color: t.text4 }}
+              title="New chat"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
             <Link
               to="/outreach/inbox"
               className="text-[11px] px-2 py-0.5 rounded transition-colors"
@@ -848,6 +898,71 @@ export function InboxV2Page() {
             <X className="w-6 h-6" />
           </button>
           <img src={lightboxUrl} alt="" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+
+      {/* ── New Chat modal ── */}
+      {showNewChat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowNewChat(false)}>
+          <div
+            className="rounded-xl shadow-xl w-[380px] p-5"
+            style={{ background: isDark ? '#1E2C3A' : '#fff' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold mb-4" style={{ color: t.text1 }}>New Chat</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-medium mb-1 block" style={{ color: t.text3 }}>Account</label>
+                <select
+                  value={newChatAccountId}
+                  onChange={e => setNewChatAccountId(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full px-3 py-2 rounded-lg text-xs outline-none"
+                  style={{ background: isDark ? '#242F3D' : '#F0F2F5', color: t.text1, border: 'none' }}
+                >
+                  <option value="">Select account...</option>
+                  {accounts.filter(a => a.auth_status === 'active').map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.first_name || acc.username || acc.phone || `#${acc.id}`}
+                      {acc.phone ? ` (${acc.phone})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium mb-1 block" style={{ color: t.text3 }}>Username</label>
+                <input
+                  type="text"
+                  placeholder="@username"
+                  value={newChatUsername}
+                  onChange={e => setNewChatUsername(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleNewChat()}
+                  className="w-full px-3 py-2 rounded-lg text-xs outline-none"
+                  style={{ background: isDark ? '#242F3D' : '#F0F2F5', color: t.text1, border: 'none' }}
+                  autoFocus
+                />
+              </div>
+              {newChatError && (
+                <div className="text-[11px] text-red-400">{newChatError}</div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setShowNewChat(false)}
+                className="px-3 py-1.5 rounded-lg text-xs"
+                style={{ background: isDark ? '#242F3D' : '#F0F2F5', color: t.text3 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleNewChat}
+                disabled={newChatLoading || !newChatAccountId || !newChatUsername.trim()}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50"
+                style={{ background: '#419FD9' }}
+              >
+                {newChatLoading ? 'Creating...' : 'Start Chat'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

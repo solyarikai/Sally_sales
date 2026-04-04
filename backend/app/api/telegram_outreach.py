@@ -7075,10 +7075,7 @@ async def list_inbox_dialogs(
     page_size: int = Query(50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
 ):
-    """List cached dialogs. At least one filter required."""
-    has_any_filter = account_id or campaign_id or campaign_tag or tag or lead_status or unread_only or replied or project_id
-    if not has_any_filter:
-        raise HTTPException(400, "Select at least one filter")
+    """List cached dialogs."""
 
     query = select(TgInboxDialog).order_by(TgInboxDialog.last_message_at.desc().nullslast())
     count_q = select(func.count(TgInboxDialog.id))
@@ -7117,9 +7114,13 @@ async def list_inbox_dialogs(
             TgCampaign.tags.op("@>")(tag_json)
         )
     if project_id is not None and not campaign_tag:
-        # Join TgCampaign only if not already joined above (via campaign_tag)
-        query = query.join(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(TgCampaign.project_id == project_id)
-        count_q = count_q.join(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(TgCampaign.project_id == project_id)
+        # Use outerjoin so dialogs without campaign (e.g. new chats) still show
+        query = query.outerjoin(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(
+            (TgCampaign.project_id == project_id) | (TgInboxDialog.campaign_id.is_(None))
+        )
+        count_q = count_q.outerjoin(TgCampaign, TgInboxDialog.campaign_id == TgCampaign.id).where(
+            (TgCampaign.project_id == project_id) | (TgInboxDialog.campaign_id.is_(None))
+        )
     elif project_id is not None and campaign_tag:
         # TgCampaign already joined via campaign_tag filter above
         query = query.where(TgCampaign.project_id == project_id)
@@ -7206,8 +7207,10 @@ async def list_inbox_dialogs(
             "peer_id": d.peer_id,
             "peer_name": d.peer_name or "Unknown",
             "peer_username": d.peer_username,
+            "last_message": d.last_message_text,
             "last_message_text": d.last_message_text,
             "last_message_at": d.last_message_at.isoformat() if d.last_message_at else None,
+            "last_direction": "outbound" if d.last_message_outbound else ("inbound" if d.last_message_outbound is not None else None),
             "last_message_outbound": d.last_message_outbound,
             "unread_count": d.unread_count,
             "campaign_id": d.campaign_id,
@@ -7270,22 +7273,26 @@ async def get_dialog_messages(
                 if not ok:
                     raise HTTPException(503, "Temporary connection error — please try again")
 
-        messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit)
+        messages = await telegram_dm_service.get_messages(account.id, dialog.peer_id, limit=limit, peer_username=dialog.peer_username)
 
         # Map field names to match existing frontend expectations
         formatted = []
         for m in messages:
+            reply_to = m.get("reply_to")
             formatted.append({
                 "id": m["id"],
                 "direction": m["direction"],
                 "text": m.get("text", ""),
+                "sent_at": m.get("sent_at"),
                 "timestamp": m.get("sent_at"),
-                "reply_to": m.get("reply_to"),
+                "reply_to": reply_to,
+                "reply_to_id": reply_to.get("msg_id") if isinstance(reply_to, dict) else None,
                 "reactions": m.get("reactions", []),
                 "sender_name": m.get("sender_name", ""),
                 "is_read": m.get("is_read", False),
                 "fwd_from": m.get("fwd_from"),
                 "media": m.get("media"),
+                "entities": m.get("entities", []),
             })
 
         # Get peer online status + block detection
@@ -7423,7 +7430,7 @@ async def send_dialog_message(
             if not ok:
                 raise HTTPException(500, "Failed to connect account")
 
-        result = await telegram_dm_service.send_message(account.id, dialog.peer_id, text, reply_to=body.get("replyTo"), parse_mode=body.get("parseMode"))
+        result = await telegram_dm_service.send_message(account.id, dialog.peer_id, text, reply_to=body.get("replyTo"), parse_mode=body.get("parseMode"), peer_username=dialog.peer_username)
 
         if not already_connected:
             await telegram_dm_service.disconnect_account(account.id)
