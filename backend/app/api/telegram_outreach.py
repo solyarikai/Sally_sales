@@ -5146,30 +5146,39 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
             client = telegram_engine.get_client(aid)
             from telethon import errors as _terr
 
-            # ── Auth check via get_me() — replaces is_user_authorized() ──
-            # is_user_authorized() catches ALL RPCError (including FloodWait,
-            # ServerError) and returns False, falsely marking live accounts dead.
+            # ── Auth check via get_me() with retry for transient errors ──
             me = None
             authorized = False
-            try:
-                me = await client.get_me()
-                authorized = me is not None
-            except (_terr.AuthKeyUnregisteredError, _terr.UserDeactivatedError, _terr.UserDeactivatedBanError):
-                authorized = False  # truly dead — will be marked DEAD below
-            except _terr.FloodWaitError as fw:
-                logger.warning(f"[ALIVE] {account.phone} FloodWait {fw.seconds}s — skipping, keeping current status")
-                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": f"FloodWait {fw.seconds}s"})
-                await telegram_engine.disconnect(aid)
-                continue
-            except Exception as auth_err:
-                err_str = str(auth_err).lower()
-                if "deactivated" in err_str or "banned" in err_str or "unregistered" in err_str:
-                    authorized = False  # truly dead
-                else:
-                    logger.warning(f"[ALIVE] {account.phone} auth check error (transient): {auth_err}")
-                    results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": str(auth_err)[:80]})
+            _skip = False
+            for _attempt in range(2):
+                try:
+                    me = await client.get_me()
+                    authorized = me is not None
+                    break
+                except (_terr.AuthKeyUnregisteredError, _terr.UserDeactivatedError, _terr.UserDeactivatedBanError):
+                    authorized = False
+                    break  # definitive — no retry
+                except _terr.FloodWaitError as fw:
+                    logger.warning(f"[ALIVE] {account.phone} FloodWait {fw.seconds}s — skipping")
+                    results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": f"FloodWait {fw.seconds}s"})
                     await telegram_engine.disconnect(aid)
-                    continue
+                    _skip = True
+                    break
+                except Exception as auth_err:
+                    err_str = str(auth_err).lower()
+                    if "deactivated" in err_str or "banned" in err_str or "unregistered" in err_str:
+                        authorized = False
+                        break  # definitive
+                    if _attempt == 0:
+                        logger.warning(f"[ALIVE] {account.phone} get_me() error, retrying in 2s: {auth_err}")
+                        await _asyncio.sleep(2)
+                    else:
+                        logger.warning(f"[ALIVE] {account.phone} get_me() failed after 2 attempts: {auth_err}")
+                        results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": str(auth_err)[:80]})
+                        await telegram_engine.disconnect(aid)
+                        _skip = True
+            if _skip:
+                continue
 
             if authorized:
                 account.last_connected_at = func.now()
@@ -5297,9 +5306,47 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                     if spamblock_detected:
                         results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": spamblock_reason})
                     else:
-                        account.status = TgAccountStatus.ACTIVE
-                        account.spamblock_type = TgSpamblockType.NONE
-                        results.append({"account_id": aid, "phone": account.phone, "alive": True})
+                        # ── Secondary frozen check ──────────────────────────
+                        # SpamBot only detects spam limits, NOT account-level
+                        # freezes. Frozen accounts can message bots and get
+                        # "no limits" from SpamBot while still being unable to
+                        # message regular users. Verify via write operations.
+                        secondary_frozen = False
+                        try:
+                            from telethon.tl.functions.account import UpdateStatusRequest
+                            await client(UpdateStatusRequest(offline=False))
+                        except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
+                            secondary_frozen = True
+                            logger.warning(f"[ALIVE] {account.phone} frozen — UpdateStatus restricted")
+                        except _terr.FloodWaitError:
+                            pass  # rate limit, not frozen
+                        except Exception:
+                            pass
+
+                        if not secondary_frozen:
+                            try:
+                                from telethon.tl.functions.users import GetFullUserRequest
+                                from telethon.tl.types import InputUserSelf
+                                from telethon.tl.functions.account import UpdateProfileRequest
+                                full = await client(GetFullUserRequest(id=InputUserSelf()))
+                                current_about = getattr(full.full_user, 'about', '') or ''
+                                await client(UpdateProfileRequest(about=current_about))
+                            except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
+                                secondary_frozen = True
+                                logger.warning(f"[ALIVE] {account.phone} frozen — UpdateProfile restricted")
+                            except _terr.FloodWaitError:
+                                pass
+                            except Exception:
+                                pass
+
+                        if secondary_frozen:
+                            account.status = TgAccountStatus.FROZEN
+                            account.spamblock_type = TgSpamblockType.TEMPORARY
+                            results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "frozen"})
+                        else:
+                            account.status = TgAccountStatus.ACTIVE
+                            account.spamblock_type = TgSpamblockType.NONE
+                            results.append({"account_id": aid, "phone": account.phone, "alive": True})
             else:
                 account.status = TgAccountStatus.DEAD
                 results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "not_authorized"})

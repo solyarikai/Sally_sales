@@ -382,35 +382,53 @@ class TelegramEngine:
             client = await self.connect(account_id, phone, api_id, api_hash, **kwargs)
             result["connected"] = True
 
-            if not await client.is_user_authorized():
+            # Auth check via get_me() — is_user_authorized() catches ALL RPCError
+            # (including FloodWait, ServerError) and returns False, falsely marking
+            # live accounts dead.
+            me = None
+            try:
+                me = await client.get_me()
+            except (errors.AuthKeyUnregisteredError, errors.UserDeactivatedError, errors.UserDeactivatedBanError):
+                result["authorized"] = False
+                result["banned"] = True
+                result["ban_reason"] = "deactivated"
+                return result
+            except errors.FloodWaitError as fw:
+                logger.warning(f"Account {phone} FloodWait {fw.seconds}s during auth — skipping")
+                result["error"] = f"FloodWait {fw.seconds}s"
+                return result
+            except Exception as e:
+                err_str = str(e).lower()
+                if "deactivated" in err_str or "banned" in err_str or "unregistered" in err_str:
+                    result["authorized"] = False
+                    result["banned"] = True
+                    result["ban_reason"] = "deactivated"
+                    return result
+                logger.warning(f"Account {phone} get_me error (transient): {e}")
+                result["error"] = str(e)
+                return result
+
+            if me is None:
                 result["authorized"] = False
                 return result
 
             result["authorized"] = True
+            result["username"] = me.username
+            result["first_name"] = me.first_name
+            result["last_name"] = me.last_name
+            result["telegram_user_id"] = me.id
+            result["is_premium"] = getattr(me, "premium", False) or False
+            result["telegram_created_at"] = _estimate_creation_date(me.id)
 
-            # Get self info
-            me = await client.get_me()
-            if me:
-                result["username"] = me.username
-                result["first_name"] = me.first_name
-                result["last_name"] = me.last_name
-                result["telegram_user_id"] = me.id
-                result["is_premium"] = getattr(me, "premium", False) or False
-
-                # Estimate account creation date from user ID
-                # Note: Telegram API has no direct registration date field;
-                # user ID interpolation is the only method available via Telethon.
-                result["telegram_created_at"] = _estimate_creation_date(me.id)
-
-                # Download avatar
-                try:
-                    avatar_path = SESSIONS_DIR.parent / "tg_photos" / f"{phone}.jpg"
-                    avatar_path.parent.mkdir(parents=True, exist_ok=True)
-                    downloaded = await client.download_profile_photo(me, file=str(avatar_path))
-                    if downloaded:
-                        result["avatar_path"] = str(avatar_path)
-                except Exception:
-                    pass  # avatar download is best-effort
+            # Download avatar
+            try:
+                avatar_path = SESSIONS_DIR.parent / "tg_photos" / f"{phone}.jpg"
+                avatar_path.parent.mkdir(parents=True, exist_ok=True)
+                downloaded = await client.download_profile_photo(me, file=str(avatar_path))
+                if downloaded:
+                    result["avatar_path"] = str(avatar_path)
+            except Exception:
+                pass  # avatar download is best-effort
 
             # ── Check for Abuse Notifications (permanent ban) ─────────
             try:
