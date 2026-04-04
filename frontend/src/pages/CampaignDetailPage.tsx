@@ -5,7 +5,7 @@ import {
   Plus, Trash2, Save, Upload, Loader2, Play, Pause,
   ChevronLeft, ChevronRight, RefreshCw, Type, BarChart3, X, Search, UserPlus, Check,
   Table2, AlertTriangle, Image, Video, FileText, Mic, Paperclip,
-  Bold, Italic, Code, Clock, Pencil,
+  Bold, Italic, Code, Clock, Pencil, Send, Bot, Globe,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -3069,6 +3069,11 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
+  // Test dialog state
+  const [testMsg, setTestMsg] = useState('');
+  const [testHistory, setTestHistory] = useState<{ role: string; text: string }[]>([]);
+  const [testLoading, setTestLoading] = useState(false);
+  const testEndRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -3098,16 +3103,67 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
     finally { setSaving(false); }
   };
 
+  const handleTestSend = async () => {
+    if (!testMsg.trim() || testLoading) return;
+    const msg = testMsg.trim();
+    setTestMsg('');
+    const newHistory = [...testHistory, { role: 'user', text: msg }];
+    setTestHistory(newHistory);
+    setTestLoading(true);
+    try {
+      const resp = await telegramOutreachApi.testAutoReply(campaignId, {
+        message: msg,
+        history: newHistory.slice(0, -1),
+        system_prompt: config?.system_prompt,
+        model_provider: config?.model_provider || 'gemini',
+        knowledge_base: config?.knowledge_base,
+      });
+      setTestHistory(h => [...h, { role: 'assistant', text: resp.response }]);
+    } catch {
+      setTestHistory(h => [...h, { role: 'assistant', text: '(error generating response)' }]);
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  useEffect(() => { testEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [testHistory]);
+
   if (loading) return <div className="flex justify-center py-12"><Loader2 className={cn('w-6 h-6 animate-spin', t.text3)} /></div>;
 
   const inputCls = cn('w-full px-3 py-2 rounded-lg border text-sm', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1);
   const labelCls = cn('block text-xs font-medium mb-1', t.text2);
 
+  const Toggle = ({ value, onChange, label }: { value: boolean; onChange: () => void; label: string }) => (
+    <label className="flex items-center gap-2 cursor-pointer">
+      <button onClick={onChange}
+              style={{ width: 36, height: 20, borderRadius: 10, background: value ? '#4F6BF0' : '#D1D5DB', transition: 'background 0.2s', position: 'relative', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <div style={{ width: 16, height: 16, borderRadius: 8, background: '#fff', position: 'absolute', top: 2, left: value ? 18 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+      </button>
+      <span className={cn('text-sm', t.text1)}>{label}</span>
+    </label>
+  );
+
+  const modelOptions = [
+    { value: 'gemini', label: 'Gemini 2.5 Flash', desc: 'Fast & free' },
+    { value: 'openai', label: 'GPT-4o Mini', desc: 'OpenAI' },
+    { value: 'anthropic', label: 'Claude Haiku', desc: 'Anthropic' },
+  ];
+
+  const timezones = [
+    'UTC', 'Europe/Moscow', 'Europe/London', 'Europe/Berlin', 'Europe/Paris',
+    'America/New_York', 'America/Los_Angeles', 'America/Chicago', 'Asia/Dubai',
+    'Asia/Singapore', 'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Kolkata',
+  ];
+
   return (
     <div className="max-w-4xl space-y-6">
+      {/* Main Config */}
       <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={cn('text-sm font-semibold', t.text1)}>Auto-Reply (Gemini AI)</h3>
+          <div className="flex items-center gap-2">
+            <Bot className={cn('w-4 h-4', t.text2)} />
+            <h3 className={cn('text-sm font-semibold', t.text1)}>AI Auto-Responder</h3>
+          </div>
           <button onClick={() => setConfig((c: any) => ({ ...c, enabled: !c?.enabled }))}
                   className="flex items-center gap-2 cursor-pointer">
             <div style={{ width: 36, height: 20, borderRadius: 10, background: config?.enabled ? '#4F6BF0' : '#D1D5DB', transition: 'background 0.2s', position: 'relative' }}>
@@ -3119,17 +3175,48 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
           </button>
         </div>
         <div className="space-y-4">
+          {/* Model selector */}
+          <div>
+            <label className={labelCls}>AI Model</label>
+            <div className="grid grid-cols-3 gap-2">
+              {modelOptions.map(m => (
+                <button key={m.value}
+                  onClick={() => setConfig((c: any) => ({ ...c, model_provider: m.value }))}
+                  className={cn('rounded-lg border px-3 py-2.5 text-left transition-all',
+                    (config?.model_provider || 'gemini') === m.value
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-indigo-500'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300')}>
+                  <div className={cn('text-sm font-medium', t.text1)}>{m.label}</div>
+                  <div className={cn('text-xs', t.text3)}>{m.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
           <div>
             <label className={labelCls}>System Prompt</label>
             <textarea rows={4} value={config?.system_prompt || ''}
                       onChange={e => setConfig((c: any) => ({ ...c, system_prompt: e.target.value }))}
-                      className={inputCls} />
+                      className={inputCls}
+                      placeholder="You are a helpful business development manager. Reply concisely and professionally..." />
           </div>
           <div>
-            <label className={labelCls}>Stop Phrases (one per line)</label>
+            <label className={labelCls}>Knowledge Base (FAQ, product info, docs — included in AI context)</label>
+            <textarea rows={5} value={config?.knowledge_base || ''}
+                      onChange={e => setConfig((c: any) => ({ ...c, knowledge_base: e.target.value }))}
+                      className={inputCls}
+                      placeholder="Paste your product FAQ, company info, pricing details, or any reference material the AI should use when answering..." />
+            {config?.knowledge_base && (
+              <p className={cn('text-xs mt-1', t.text3)}>
+                {config.knowledge_base.length.toLocaleString()} characters
+              </p>
+            )}
+          </div>
+          <div>
+            <label className={labelCls}>Stop Phrases (one per line — bot stops & escalates to manager)</label>
             <textarea rows={3} value={(config?.stop_phrases || []).join('\n')}
                       onChange={e => setConfig((c: any) => ({ ...c, stop_phrases: e.target.value.split('\n').filter((s: string) => s.trim()) }))}
-                      className={inputCls} />
+                      className={inputCls}
+                      placeholder="call me&#10;human agent&#10;speak to manager" />
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -3145,15 +3232,50 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
                      className={inputCls} />
             </div>
             <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <button onClick={() => setConfig((c: any) => ({ ...c, simulate_human: !(c?.simulate_human ?? true) }))}
-                        style={{ width: 36, height: 20, borderRadius: 10, background: (config?.simulate_human ?? true) ? '#4F6BF0' : '#D1D5DB', transition: 'background 0.2s', position: 'relative', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  <div style={{ width: 16, height: 16, borderRadius: 8, background: '#fff', position: 'absolute', top: 2, left: (config?.simulate_human ?? true) ? 18 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                </button>
-                <span className={cn('text-sm', t.text1)}>Simulate Human</span>
-              </label>
+              <Toggle value={config?.simulate_human ?? true}
+                      onChange={() => setConfig((c: any) => ({ ...c, simulate_human: !(c?.simulate_human ?? true) }))}
+                      label="Simulate Human" />
             </div>
           </div>
+
+          {/* Working Hours */}
+          <div className={cn('rounded-lg border p-4', 'border-gray-200 dark:border-gray-700')}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Clock className={cn('w-3.5 h-3.5', t.text2)} />
+                <span className={cn('text-xs font-semibold', t.text1)}>Working Hours</span>
+                <span className={cn('text-xs', t.text3)}>— only reply during these hours</span>
+              </div>
+              <Toggle value={config?.working_hours_enabled ?? false}
+                      onChange={() => setConfig((c: any) => ({ ...c, working_hours_enabled: !c?.working_hours_enabled }))}
+                      label="" />
+            </div>
+            {config?.working_hours_enabled && (
+              <div className="grid grid-cols-3 gap-4 mt-2">
+                <div>
+                  <label className={labelCls}>From</label>
+                  <input type="time" value={config?.working_hours_start || '09:00'}
+                         onChange={e => setConfig((c: any) => ({ ...c, working_hours_start: e.target.value }))}
+                         className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>To</label>
+                  <input type="time" value={config?.working_hours_end || '18:00'}
+                         onChange={e => setConfig((c: any) => ({ ...c, working_hours_end: e.target.value }))}
+                         className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Timezone</label>
+                  <select value={config?.working_hours_timezone || 'UTC'}
+                          onChange={e => setConfig((c: any) => ({ ...c, working_hours_timezone: e.target.value }))}
+                          className={inputCls}>
+                    {timezones.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end">
             <button onClick={handleSave} disabled={saving}
                     className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
@@ -3162,6 +3284,61 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
           </div>
         </div>
       </div>
+
+      {/* Test Dialog */}
+      <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <MessageSquare className={cn('w-4 h-4', t.text2)} />
+            <h3 className={cn('text-sm font-semibold', t.text1)}>Test Dialog</h3>
+            <span className={cn('text-xs', t.text3)}>— preview how the bot responds</span>
+          </div>
+          {testHistory.length > 0 && (
+            <button onClick={() => setTestHistory([])}
+                    className={cn('text-xs hover:underline', t.text3)}>Clear</button>
+          )}
+        </div>
+        <div className={cn('rounded-lg border overflow-hidden', 'border-gray-200 dark:border-gray-700')}>
+          <div className={cn('h-64 overflow-y-auto p-3 space-y-2', 'bg-gray-50 dark:bg-gray-900/50')}>
+            {testHistory.length === 0 && (
+              <p className={cn('text-xs text-center py-8', t.text3)}>
+                Send a test message to see how the bot responds with your current config
+              </p>
+            )}
+            {testHistory.map((msg, i) => (
+              <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                <div className={cn('rounded-lg px-3 py-2 text-sm max-w-[80%]',
+                  msg.role === 'user'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 ' + t.text1)}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {testLoading && (
+              <div className="flex justify-start">
+                <div className={cn('rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700', t.text3)}>
+                  <Loader2 className="w-4 h-4 animate-spin inline" /> Thinking...
+                </div>
+              </div>
+            )}
+            <div ref={testEndRef} />
+          </div>
+          <div className={cn('flex border-t', 'border-gray-200 dark:border-gray-700')}>
+            <input type="text" value={testMsg}
+                   onChange={e => setTestMsg(e.target.value)}
+                   onKeyDown={e => e.key === 'Enter' && handleTestSend()}
+                   placeholder="Type a test message..."
+                   className={cn('flex-1 px-3 py-2.5 text-sm border-none outline-none', 'bg-white dark:bg-gray-900', t.text1)} />
+            <button onClick={handleTestSend} disabled={testLoading || !testMsg.trim()}
+                    className="px-4 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-30 transition-colors">
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Conversations */}
       <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
         <h3 className={cn('text-sm font-semibold mb-3', t.text1)}>Conversations ({conversations.length})</h3>
         {conversations.length === 0 ? (

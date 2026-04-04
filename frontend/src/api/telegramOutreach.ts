@@ -685,6 +685,9 @@ export const telegramOutreachApi = {
   stopConversation: async (campaignId: number, convId: number) =>
     (await api.post(`${BASE}/campaigns/${campaignId}/conversations/${convId}/stop`)).data,
 
+  testAutoReply: async (campaignId: number, body: { message: string; history?: any[]; system_prompt?: string; model_provider?: string; knowledge_base?: string }) =>
+    (await api.post(`${BASE}/campaigns/${campaignId}/auto-reply/test`, body)).data,
+
   // Reports
   downloadReportURL: (campaignId: number, format: string = 'html') =>
     `${api.defaults.baseURL}${BASE}/campaigns/${campaignId}/report?format=${format}`,

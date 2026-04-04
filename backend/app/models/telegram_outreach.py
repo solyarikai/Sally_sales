@@ -431,6 +431,12 @@ class TgAutoReplyConfig(Base):
     max_replies_per_conversation = Column(Integer, nullable=False, default=5)
     dialog_timeout_hours = Column(Integer, nullable=False, default=24)
     simulate_human = Column(Boolean, nullable=False, default=True)
+    model_provider = Column(String(20), nullable=False, default="gemini")  # gemini, openai, anthropic
+    knowledge_base = Column(Text, nullable=True)  # plain text KB for AI context
+    working_hours_enabled = Column(Boolean, nullable=False, default=False)
+    working_hours_start = Column(String(5), nullable=False, default="09:00")  # HH:MM
+    working_hours_end = Column(String(5), nullable=False, default="18:00")
+    working_hours_timezone = Column(String(50), nullable=False, default="UTC")
 
     campaign = relationship("TgCampaign")
 

@@ -5569,11 +5569,16 @@ async def get_auto_reply_config(campaign_id: int, session: AsyncSession = Depend
     config = result.scalar()
     if not config:
         return {"enabled": False, "system_prompt": "", "stop_phrases": [], "max_replies_per_conversation": 5,
-                "dialog_timeout_hours": 24, "simulate_human": True}
+                "dialog_timeout_hours": 24, "simulate_human": True, "model_provider": "gemini",
+                "knowledge_base": "", "working_hours_enabled": False, "working_hours_start": "09:00",
+                "working_hours_end": "18:00", "working_hours_timezone": "UTC"}
     return {
         "id": config.id, "enabled": config.enabled, "system_prompt": config.system_prompt,
         "stop_phrases": config.stop_phrases or [], "max_replies_per_conversation": config.max_replies_per_conversation,
         "dialog_timeout_hours": config.dialog_timeout_hours, "simulate_human": config.simulate_human,
+        "model_provider": config.model_provider or "gemini", "knowledge_base": config.knowledge_base or "",
+        "working_hours_enabled": config.working_hours_enabled, "working_hours_start": config.working_hours_start or "09:00",
+        "working_hours_end": config.working_hours_end or "18:00", "working_hours_timezone": config.working_hours_timezone or "UTC",
     }
 
 
@@ -5589,7 +5594,8 @@ async def update_auto_reply_config(campaign_id: int, body: dict, session: AsyncS
         await session.flush()
 
     for key in ["enabled", "system_prompt", "stop_phrases", "max_replies_per_conversation",
-                "dialog_timeout_hours", "simulate_human"]:
+                "dialog_timeout_hours", "simulate_human", "model_provider", "knowledge_base",
+                "working_hours_enabled", "working_hours_start", "working_hours_end", "working_hours_timezone"]:
         if key in body:
             setattr(config, key, body[key])
 
@@ -5623,6 +5629,44 @@ async def stop_conversation(campaign_id: int, conv_id: int, session: AsyncSessio
         raise HTTPException(404, "Conversation not found")
     conv.status = "stopped"
     return {"ok": True}
+
+
+@router.post("/campaigns/{campaign_id}/auto-reply/test")
+async def test_auto_reply(campaign_id: int, body: dict, session: AsyncSession = Depends(get_session)):
+    """Test auto-reply: send a mock message and get AI response."""
+    from app.services.auto_responder import auto_responder
+
+    message = body.get("message", "").strip()
+    if not message:
+        raise HTTPException(400, "message is required")
+
+    # Load config
+    result = await session.execute(
+        select(TgAutoReplyConfig).where(TgAutoReplyConfig.campaign_id == campaign_id)
+    )
+    config = result.scalar()
+    system_prompt = config.system_prompt if config else "You are a helpful business development manager."
+    model_provider = config.model_provider if config else body.get("model_provider", "gemini")
+    knowledge_base = config.knowledge_base if config else body.get("knowledge_base")
+
+    # Allow overrides from body for testing
+    if "system_prompt" in body:
+        system_prompt = body["system_prompt"]
+    if "model_provider" in body:
+        model_provider = body["model_provider"]
+    if "knowledge_base" in body:
+        knowledge_base = body["knowledge_base"]
+
+    # Build mock conversation
+    history = body.get("history", [])
+    history.append({"role": "user", "text": message})
+
+    response = await auto_responder._generate_response(
+        system_prompt, history,
+        model_provider=model_provider or "gemini",
+        knowledge_base=knowledge_base,
+    )
+    return {"response": response or "(no response generated)", "model_provider": model_provider}
 
 
 # ═══════════════════════════════════════════════════════════════════════
