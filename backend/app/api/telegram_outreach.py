@@ -7079,12 +7079,9 @@ async def list_inbox_dialogs(
     query = select(TgInboxDialog).order_by(TgInboxDialog.last_message_at.desc().nullslast())
     count_q = select(func.count(TgInboxDialog.id))
 
-    # Filter out dialogs from inactive/deleted accounts (banned, dead, frozen)
-    active_account_ids = select(TgAccount.id).where(
-        TgAccount.status.notin_([TgAccountStatus.BANNED, TgAccountStatus.DEAD, TgAccountStatus.FROZEN])
-    )
-    query = query.where(TgInboxDialog.account_id.in_(active_account_ids))
-    count_q = count_q.where(TgInboxDialog.account_id.in_(active_account_ids))
+    # Keep dialogs from all accounts (including dead/frozen/banned) so users
+    # can see existing conversations, but include account_status in response
+    # so the frontend can flag non-sendable accounts visually.
 
     if account_id:
         # Dialogs are stored with DM account IDs (from inbox_sync_service).
@@ -7170,24 +7167,27 @@ async def list_inbox_dialogs(
     dialogs = result.scalars().all()
 
     # Get account info: resolve TG outreach account → phone → DM account
-    account_cache = {}
+    account_cache: dict[int, tuple] = {}  # account_id -> (dm_account, tg_status)
     campaign_cache = {}
     items = []
     for d in dialogs:
         if d.account_id not in account_cache:
             # Always resolve via TG outreach account (account_id is tg_accounts.id)
             acc = None
+            tg_status = None
             tg_acc = await session.get(TgAccount, d.account_id)
-            if tg_acc and tg_acc.phone:
-                dm_r = await session.execute(
-                    select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone).limit(1)
-                )
-                acc = dm_r.scalar()
+            if tg_acc:
+                tg_status = tg_acc.status.value if tg_acc.status else None
+                if tg_acc.phone:
+                    dm_r = await session.execute(
+                        select(TelegramDMAccount).where(TelegramDMAccount.phone == tg_acc.phone).limit(1)
+                    )
+                    acc = dm_r.scalar()
             if not acc:
                 # Fallback: try DM account by ID
                 acc = await session.get(TelegramDMAccount, d.account_id)
-            account_cache[d.account_id] = acc
-        acc = account_cache[d.account_id]
+            account_cache[d.account_id] = (acc, tg_status)
+        acc, tg_status = account_cache[d.account_id]
 
         # Get campaign name
         campaign_name = None
@@ -7203,6 +7203,7 @@ async def list_inbox_dialogs(
             "account_phone": acc.phone if acc else None,
             "account_username": acc.username if acc else None,
             "account_name": f"{acc.first_name or ''} {acc.last_name or ''}".strip() if acc else None,
+            "account_status": tg_status,
             "peer_id": d.peer_id,
             "peer_name": d.peer_name or "Unknown",
             "peer_username": d.peer_username,

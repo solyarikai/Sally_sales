@@ -6355,17 +6355,21 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   </div>
 
                   {/* Row 4: Account signature */}
-                  {selectedDialog && (selectedDialog.account_username || selectedDialog.account_phone) && (
-                    <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: A.text3 }}>
+                  {selectedDialog && (selectedDialog.account_username || selectedDialog.account_phone) && (() => {
+                    const dead = ['dead', 'frozen', 'banned'].includes(selectedDialog.account_status || '');
+                    return (
+                    <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: dead ? '#EF4444' : A.text3 }}>
                       <span>via</span>
-                      <span className="font-medium" style={{ color: A.text2 }}>
+                      <span className="font-medium" style={{ color: dead ? '#EF4444' : A.text2 }}>
                         {selectedDialog.account_username ? `@${selectedDialog.account_username}` : selectedDialog.account_phone}
                       </span>
                       {selectedDialog.account_name && (
-                        <span style={{ color: A.text3 }}>({selectedDialog.account_name})</span>
+                        <span style={{ color: dead ? '#EF4444' : A.text3 }}>({selectedDialog.account_name})</span>
                       )}
+                      {dead && <span className="font-medium">— {selectedDialog.account_status}</span>}
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
 
