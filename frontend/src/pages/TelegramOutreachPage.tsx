@@ -2441,70 +2441,70 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
 // ══════════════════════════════════════════════════════════════════════
 
 const PHONE_COUNTRIES = [
-  { code: '1', flag: '\u{1F1FA}\u{1F1F8}', name: 'United States' },
-  { code: '44', flag: '\u{1F1EC}\u{1F1E7}', name: 'United Kingdom' },
-  { code: '49', flag: '\u{1F1E9}\u{1F1EA}', name: 'Germany' },
-  { code: '33', flag: '\u{1F1EB}\u{1F1F7}', name: 'France' },
-  { code: '351', flag: '\u{1F1F5}\u{1F1F9}', name: 'Portugal' },
-  { code: '34', flag: '\u{1F1EA}\u{1F1F8}', name: 'Spain' },
-  { code: '39', flag: '\u{1F1EE}\u{1F1F9}', name: 'Italy' },
-  { code: '31', flag: '\u{1F1F3}\u{1F1F1}', name: 'Netherlands' },
-  { code: '47', flag: '\u{1F1F3}\u{1F1F4}', name: 'Norway' },
-  { code: '46', flag: '\u{1F1F8}\u{1F1EA}', name: 'Sweden' },
-  { code: '45', flag: '\u{1F1E9}\u{1F1F0}', name: 'Denmark' },
-  { code: '358', flag: '\u{1F1EB}\u{1F1EE}', name: 'Finland' },
-  { code: '7', flag: '\u{1F1F7}\u{1F1FA}', name: 'Russia' },
-  { code: '380', flag: '\u{1F1FA}\u{1F1E6}', name: 'Ukraine' },
-  { code: '375', flag: '\u{1F1E7}\u{1F1FE}', name: 'Belarus' },
-  { code: '48', flag: '\u{1F1F5}\u{1F1F1}', name: 'Poland' },
-  { code: '420', flag: '\u{1F1E8}\u{1F1FF}', name: 'Czechia' },
-  { code: '43', flag: '\u{1F1E6}\u{1F1F9}', name: 'Austria' },
-  { code: '41', flag: '\u{1F1E8}\u{1F1ED}', name: 'Switzerland' },
-  { code: '90', flag: '\u{1F1F9}\u{1F1F7}', name: 'Turkey' },
-  { code: '971', flag: '\u{1F1E6}\u{1F1EA}', name: 'UAE' },
-  { code: '966', flag: '\u{1F1F8}\u{1F1E6}', name: 'Saudi Arabia' },
-  { code: '91', flag: '\u{1F1EE}\u{1F1F3}', name: 'India' },
-  { code: '86', flag: '\u{1F1E8}\u{1F1F3}', name: 'China' },
-  { code: '82', flag: '\u{1F1F0}\u{1F1F7}', name: 'South Korea' },
-  { code: '81', flag: '\u{1F1EF}\u{1F1F5}', name: 'Japan' },
-  { code: '65', flag: '\u{1F1F8}\u{1F1EC}', name: 'Singapore' },
-  { code: '60', flag: '\u{1F1F2}\u{1F1FE}', name: 'Malaysia' },
-  { code: '62', flag: '\u{1F1EE}\u{1F1E9}', name: 'Indonesia' },
-  { code: '55', flag: '\u{1F1E7}\u{1F1F7}', name: 'Brazil' },
-  { code: '52', flag: '\u{1F1F2}\u{1F1FD}', name: 'Mexico' },
-  { code: '234', flag: '\u{1F1F3}\u{1F1EC}', name: 'Nigeria' },
-  { code: '27', flag: '\u{1F1FF}\u{1F1E6}', name: 'South Africa' },
-  { code: '61', flag: '\u{1F1E6}\u{1F1FA}', name: 'Australia' },
-  { code: '64', flag: '\u{1F1F3}\u{1F1FF}', name: 'New Zealand' },
-  { code: '1', flag: '\u{1F1E8}\u{1F1E6}', name: 'Canada' },
-  { code: '972', flag: '\u{1F1EE}\u{1F1F1}', name: 'Israel' },
-  { code: '998', flag: '\u{1F1FA}\u{1F1FF}', name: 'Uzbekistan' },
-  { code: '995', flag: '\u{1F1EC}\u{1F1EA}', name: 'Georgia' },
-  { code: '374', flag: '\u{1F1E6}\u{1F1F2}', name: 'Armenia' },
-  { code: '994', flag: '\u{1F1E6}\u{1F1FF}', name: 'Azerbaijan' },
-  { code: '370', flag: '\u{1F1F1}\u{1F1F9}', name: 'Lithuania' },
-  { code: '371', flag: '\u{1F1F1}\u{1F1FB}', name: 'Latvia' },
-  { code: '372', flag: '\u{1F1EA}\u{1F1EA}', name: 'Estonia' },
-  { code: '353', flag: '\u{1F1EE}\u{1F1EA}', name: 'Ireland' },
-  { code: '32', flag: '\u{1F1E7}\u{1F1EA}', name: 'Belgium' },
-  { code: '30', flag: '\u{1F1EC}\u{1F1F7}', name: 'Greece' },
-  { code: '36', flag: '\u{1F1ED}\u{1F1FA}', name: 'Hungary' },
-  { code: '40', flag: '\u{1F1F7}\u{1F1F4}', name: 'Romania' },
-  { code: '359', flag: '\u{1F1E7}\u{1F1EC}', name: 'Bulgaria' },
-  { code: '385', flag: '\u{1F1ED}\u{1F1F7}', name: 'Croatia' },
-  { code: '381', flag: '\u{1F1F7}\u{1F1F8}', name: 'Serbia' },
-  { code: '66', flag: '\u{1F1F9}\u{1F1ED}', name: 'Thailand' },
-  { code: '63', flag: '\u{1F1F5}\u{1F1ED}', name: 'Philippines' },
-  { code: '84', flag: '\u{1F1FB}\u{1F1F3}', name: 'Vietnam' },
-  { code: '880', flag: '\u{1F1E7}\u{1F1E9}', name: 'Bangladesh' },
-  { code: '92', flag: '\u{1F1F5}\u{1F1F0}', name: 'Pakistan' },
-  { code: '20', flag: '\u{1F1EA}\u{1F1EC}', name: 'Egypt' },
-  { code: '212', flag: '\u{1F1F2}\u{1F1E6}', name: 'Morocco' },
-  { code: '254', flag: '\u{1F1F0}\u{1F1EA}', name: 'Kenya' },
-  { code: '57', flag: '\u{1F1E8}\u{1F1F4}', name: 'Colombia' },
-  { code: '54', flag: '\u{1F1E6}\u{1F1F7}', name: 'Argentina' },
-  { code: '56', flag: '\u{1F1E8}\u{1F1F1}', name: 'Chile' },
-  { code: '51', flag: '\u{1F1F5}\u{1F1EA}', name: 'Peru' },
+  { code: '1', iso: 'US', name: 'United States' },
+  { code: '44', iso: 'GB', name: 'United Kingdom' },
+  { code: '49', iso: 'DE', name: 'Germany' },
+  { code: '33', iso: 'FR', name: 'France' },
+  { code: '351', iso: 'PT', name: 'Portugal' },
+  { code: '34', iso: 'ES', name: 'Spain' },
+  { code: '39', iso: 'IT', name: 'Italy' },
+  { code: '31', iso: 'NL', name: 'Netherlands' },
+  { code: '47', iso: 'NO', name: 'Norway' },
+  { code: '46', iso: 'SE', name: 'Sweden' },
+  { code: '45', iso: 'DK', name: 'Denmark' },
+  { code: '358', iso: 'FI', name: 'Finland' },
+  { code: '7', iso: 'RU', name: 'Russia' },
+  { code: '380', iso: 'UA', name: 'Ukraine' },
+  { code: '375', iso: 'BY', name: 'Belarus' },
+  { code: '48', iso: 'PL', name: 'Poland' },
+  { code: '420', iso: 'CZ', name: 'Czechia' },
+  { code: '43', iso: 'AT', name: 'Austria' },
+  { code: '41', iso: 'CH', name: 'Switzerland' },
+  { code: '90', iso: 'TR', name: 'Turkey' },
+  { code: '971', iso: 'AE', name: 'UAE' },
+  { code: '966', iso: 'SA', name: 'Saudi Arabia' },
+  { code: '91', iso: 'IN', name: 'India' },
+  { code: '86', iso: 'CN', name: 'China' },
+  { code: '82', iso: 'KR', name: 'South Korea' },
+  { code: '81', iso: 'JP', name: 'Japan' },
+  { code: '65', iso: 'SG', name: 'Singapore' },
+  { code: '60', iso: 'MY', name: 'Malaysia' },
+  { code: '62', iso: 'ID', name: 'Indonesia' },
+  { code: '55', iso: 'BR', name: 'Brazil' },
+  { code: '52', iso: 'MX', name: 'Mexico' },
+  { code: '234', iso: 'NG', name: 'Nigeria' },
+  { code: '27', iso: 'ZA', name: 'South Africa' },
+  { code: '61', iso: 'AU', name: 'Australia' },
+  { code: '64', iso: 'NZ', name: 'New Zealand' },
+  { code: '1', iso: 'CA', name: 'Canada' },
+  { code: '972', iso: 'IL', name: 'Israel' },
+  { code: '998', iso: 'UZ', name: 'Uzbekistan' },
+  { code: '995', iso: 'GE', name: 'Georgia' },
+  { code: '374', iso: 'AM', name: 'Armenia' },
+  { code: '994', iso: 'AZ', name: 'Azerbaijan' },
+  { code: '370', iso: 'LT', name: 'Lithuania' },
+  { code: '371', iso: 'LV', name: 'Latvia' },
+  { code: '372', iso: 'EE', name: 'Estonia' },
+  { code: '353', iso: 'IE', name: 'Ireland' },
+  { code: '32', iso: 'BE', name: 'Belgium' },
+  { code: '30', iso: 'GR', name: 'Greece' },
+  { code: '36', iso: 'HU', name: 'Hungary' },
+  { code: '40', iso: 'RO', name: 'Romania' },
+  { code: '359', iso: 'BG', name: 'Bulgaria' },
+  { code: '385', iso: 'HR', name: 'Croatia' },
+  { code: '381', iso: 'RS', name: 'Serbia' },
+  { code: '66', iso: 'TH', name: 'Thailand' },
+  { code: '63', iso: 'PH', name: 'Philippines' },
+  { code: '84', iso: 'VN', name: 'Vietnam' },
+  { code: '880', iso: 'BD', name: 'Bangladesh' },
+  { code: '92', iso: 'PK', name: 'Pakistan' },
+  { code: '20', iso: 'EG', name: 'Egypt' },
+  { code: '212', iso: 'MA', name: 'Morocco' },
+  { code: '254', iso: 'KE', name: 'Kenya' },
+  { code: '57', iso: 'CO', name: 'Colombia' },
+  { code: '54', iso: 'AR', name: 'Argentina' },
+  { code: '56', iso: 'CL', name: 'Chile' },
+  { code: '51', iso: 'PE', name: 'Peru' },
 ];
 
 function detectCountryFromDigits(digits: string): { country: typeof PHONE_COUNTRIES[number]; rest: string } | null {
@@ -2540,7 +2540,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   const fullNumber = selectedCountry.code + phone.replace(/[^0-9]/g, '');
 
   const inputCls = cn('w-full px-3 py-2.5 rounded-lg border text-sm transition-colors', t.cardBg, t.text1,
-    'border-gray-200 dark:border-gray-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none');
+    'border-emerald-300 dark:border-emerald-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none');
   const labelCls = cn('block text-xs font-medium mb-1.5', t.text3);
 
   // Close country dropdown on outside click
@@ -2671,9 +2671,9 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
                     <button type="button"
                       onClick={() => { setShowCountryDD(!showCountryDD); setCountrySearch(''); }}
                       className={cn('flex items-center gap-1.5 px-3 py-2.5 rounded-l-lg border border-r-0 text-sm transition-colors h-full',
-                        isDark ? 'bg-gray-800 border-gray-700 hover:bg-gray-750' : 'bg-gray-50 border-gray-200 hover:bg-gray-100',
+                        isDark ? 'bg-gray-800 border-emerald-700 hover:bg-gray-750' : 'bg-gray-50 border-emerald-300 hover:bg-gray-100',
                         showCountryDD && 'border-emerald-500 ring-2 ring-emerald-500/20')}>
-                      <span className="text-base leading-none">{selectedCountry.flag}</span>
+                      <CountryFlag code={selectedCountry.iso} />
                       <span className={cn('text-sm font-medium', t.text1)}>+{selectedCountry.code}</span>
                       <ChevronDown className="w-3 h-3 opacity-40" />
                     </button>
@@ -2686,7 +2686,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
                             onChange={e => setCountrySearch(e.target.value)}
                             placeholder="Search country..."
                             className={cn('w-full px-2.5 py-1.5 rounded text-sm outline-none', t.cardBg, t.text1,
-                              'border border-gray-200 dark:border-gray-700 focus:border-emerald-500')} />
+                              'border border-emerald-300 dark:border-emerald-700 focus:border-emerald-500')} />
                         </div>
                         <div className="max-h-52 overflow-y-auto">
                           {filteredCountries.map((c, i) => (
@@ -2696,7 +2696,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
                                 selectedCountry === c
                                   ? (isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-700')
                                   : (isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'))}>
-                              <span className="text-base">{c.flag}</span>
+                              <CountryFlag code={c.iso} />
                               <span className={cn('flex-1 text-left', t.text1)}>{c.name}</span>
                               <span className={cn('text-xs', t.text3)}>+{c.code}</span>
                             </button>
@@ -2712,7 +2712,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
                     placeholder="Phone number"
                     className={cn('flex-1 px-3 py-2.5 rounded-r-lg border text-sm transition-colors outline-none',
                       t.cardBg, t.text1,
-                      'border-gray-200 dark:border-gray-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20')}
+                      'border-emerald-300 dark:border-emerald-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20')}
                     autoFocus />
                 </div>
                 {/* Full number hint */}
