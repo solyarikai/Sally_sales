@@ -7,7 +7,7 @@ import {
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2,
   LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon, Eye,
-  BarChart3, ChevronUp, ChevronRight, FolderOpen, ArrowLeft, StickyNote, Mic,
+  BarChart3, ChevronUp, ChevronRight, FolderOpen, ArrowLeft, Mic,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -7501,7 +7501,6 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [selectedContact, setSelectedContact] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
   const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [crmDeleteConfirm, setCrmDeleteConfirm] = useState<string | null>(null);
@@ -7570,15 +7569,13 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
     // Stop existing poll
     if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; }
     try {
-      const [h, cp, fds, fvs, dlg, detail] = await Promise.all([
-        telegramOutreachApi.getCrmContactHistory(c.id),
+      const [cp, fds, fvs, dlg, detail] = await Promise.all([
         telegramOutreachApi.getCrmContactCampaigns(c.id),
         telegramOutreachApi.listCustomFields(),
         telegramOutreachApi.getContactCustomFields(c.id),
         telegramOutreachApi.getCrmContactDialog(c.id),
         telegramOutreachApi.getCrmContact(c.id),
       ]);
-      setHistory(h.history);
       setCampaignProgress(cp.campaigns || []);
       setContactFieldDefs(fds);
       setContactFieldVals(fvs);
@@ -7589,7 +7586,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
         // Start polling for new messages
         chatPollRef.current = setInterval(() => loadChatMessages(dlg.dialog.id), 8000);
       }
-    } catch { setHistory([]); setCampaignProgress([]); }
+    } catch { setCampaignProgress([]); }
     finally { setChatLoading(false); }
   };
 
