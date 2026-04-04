@@ -965,14 +965,14 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap tabular-nums">
                       <span style={{ color: atLimit ? A.rose : A.text1, fontWeight: atLimit ? 600 : 400 }}>{acc.messages_sent_today}</span>
                       <span style={{ color: A.text3 }}>/{effLimit}</span>
-                      {acc.is_premium && <span style={{ color: '#7C3AED', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Premium account — higher daily limits">⭐PRO</span>}
-                      {acc.skip_warmup ? <span style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} title="Warm-up skipped (manual override)">SKIP</span>
-                        : acc.warmup_day != null ? <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
-                      {!acc.skip_warmup && acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
+                      {acc.is_premium && <span className="tip" style={{ color: '#7C3AED', fontSize: 10, marginLeft: 3, fontWeight: 600 }} data-tip="Premium account — higher daily limits">⭐PRO</span>}
+                      {acc.skip_warmup ? <span className="tip" style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} data-tip="Warm-up skipped (manual override)">SKIP</span>
+                        : acc.warmup_day != null ? <span className="tip" style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} data-tip={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
+                      {!acc.skip_warmup && acc.is_young_session && <span className="tip" style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} data-tip="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
                       {acc.warmup_active && acc.warmup_progress && (
                         acc.warmup_progress.phase === 'maintenance'
-                          ? <span style={{ color: '#0891b2', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title={`Maintenance mode (day ${acc.warmup_progress.day}): 1-2 reactions/day to keep account healthy`}>✓MT</span>
-                          : <span style={{ color: '#059669', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title={`Active warm-up: day ${acc.warmup_progress.day}/${acc.warmup_progress.total_days}, ${acc.warmup_actions_done || 0} actions done`}>🔥D{acc.warmup_progress.day}</span>
+                          ? <span className="tip" style={{ color: '#0891b2', fontSize: 10, marginLeft: 3, fontWeight: 600 }} data-tip={`Maintenance mode (day ${acc.warmup_progress.day}): 1-2 reactions/day to keep account healthy`}>✓MT</span>
+                          : <span className="tip" style={{ color: '#059669', fontSize: 10, marginLeft: 3, fontWeight: 600 }} data-tip={`Active warm-up: day ${acc.warmup_progress.day}/${acc.warmup_progress.total_days}, ${acc.warmup_actions_done || 0} actions done`}>🔥D{acc.warmup_progress.day}</span>
                       )}
                     </td>
                     <td className="px-1 py-2.5" onClick={e => e.stopPropagation()}>
@@ -2694,27 +2694,11 @@ function AddAccountModal({ t, toast, isDark, onClose, onSaved }: {
               <input type="number" value={form.daily_message_limit}
                      onChange={e => set('daily_message_limit', e.target.value)} className={inputCls} />
             </div>
-            <div className="col-span-2 flex items-center justify-between rounded-lg px-3 py-2 border" style={{ borderColor: form.is_premium ? '#8B5CF6' : undefined }}>
-              <div>
-                <label className="text-xs font-medium" style={{ color: form.is_premium ? '#7C3AED' : undefined }}>
-                  ⭐ Premium Account
-                </label>
-                <div className="text-[10px]" style={{ color: '#9CA3AF' }}>
-                  Premium: limit 10 msgs/day. Standard: 5 msgs/day
-                </div>
+            <div className="col-span-2 rounded-lg px-3 py-2 border" style={{ borderColor: '#E5E7EB' }}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>⭐ Premium</span>
+                <span className="text-[10px]" style={{ color: '#9CA3AF' }}>Auto-detected after first check</span>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !form.is_premium;
-                  setForm(f => ({ ...f, is_premium: next, daily_message_limit: next ? '10' : '5' }));
-                }}
-                className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                style={{ background: form.is_premium ? '#7C3AED' : '#D1D5DB' }}
-              >
-                <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-                      style={{ transform: form.is_premium ? 'translateX(17px)' : 'translateX(3px)' }} />
-              </button>
             </div>
           </div>
 
@@ -2892,9 +2876,9 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     setSaving(true);
     try {
       const data: Record<string, any> = { ...form, ...overrides };
-      data.daily_message_limit = Number(data.daily_message_limit) || (data.is_premium === 'true' ? 10 : 5);
-      data.is_premium = data.is_premium === 'true';
-      data.skip_warmup = data.skip_warmup === 'true';
+      data.daily_message_limit = Number(data.daily_message_limit) || (account.is_premium ? 10 : 5);
+      delete data.is_premium;  // auto-detected via Telethon, not manually editable
+      delete data.skip_warmup; // replaced by warmup Start/Stop
       for (const k of ['username', 'first_name', 'last_name', 'bio']) {
         if (!data[k]) data[k] = null;
       }
@@ -3055,54 +3039,22 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                        className={panelInputCls}
                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
               </div>
-              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: form.is_premium === 'true' ? '#F5F3FF' : A.bg, border: `1px solid ${form.is_premium === 'true' ? '#C4B5FD' : A.border}` }}>
+              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: account.is_premium ? '#F5F3FF' : A.bg, border: `1px solid ${account.is_premium ? '#C4B5FD' : A.border}` }}>
                 <div>
-                  <label className="text-xs font-medium" style={{ color: form.is_premium === 'true' ? '#7C3AED' : A.text1 }}>
+                  <label className="text-xs font-medium" style={{ color: account.is_premium ? '#7C3AED' : A.text1 }}>
                     ⭐ Premium Account
                   </label>
                   <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {form.is_premium === 'true' ? 'Higher limits: 10 msgs/day, young cap 10' : 'Standard: 5 msgs/day, young cap 5'}
+                    {account.is_premium ? 'Higher limits: 10 msgs/day, young cap 10' : 'Standard: 5 msgs/day, young cap 5'}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = form.is_premium !== 'true';
-                    setForm(f => ({ ...f, is_premium: next ? 'true' : 'false', daily_message_limit: next ? '10' : '5' }));
-                  }}
-                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                  style={{ background: form.is_premium === 'true' ? '#7C3AED' : A.border }}
-                >
-                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-                        style={{ transform: form.is_premium === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
-                </button>
-              </div>
-              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: A.bg, border: `1px solid ${A.border}` }}>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <label className="text-xs font-medium" style={{ color: A.text1 }}>Skip Warm-up</label>
-                    <span title="Gradually increases daily limit: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days capped at 5 msgs/day.">
-                      <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
-                    </span>
-                  </div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {account.warmup_day != null ? `Warm-up day ${account.warmup_day} · limit ${account.effective_daily_limit ?? '?'} msgs/day` : account.is_young_session ? 'Young session' : 'No warm-up active'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (form.skip_warmup !== 'true') {
-                      if (!window.confirm('⚠ Отключение Warm-up снимает все ограничения на отправку.\nНовые аккаунты без прогрева рискуют получить бан.\n\nВы уверены?')) return;
-                    }
-                    set('skip_warmup', form.skip_warmup === 'true' ? 'false' : 'true');
-                  }}
-                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                  style={{ background: form.skip_warmup === 'true' ? '#d97706' : A.border }}
-                >
-                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-                        style={{ transform: form.skip_warmup === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
-                </button>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{
+                  background: account.is_premium ? '#EDE9FE' : A.bg,
+                  color: account.is_premium ? '#7C3AED' : A.text3,
+                  border: `1px solid ${account.is_premium ? '#C4B5FD' : A.border}`
+                }}>
+                  {account.is_premium ? 'PRO' : 'Standard'} · auto
+                </span>
               </div>
               {/* Active Warm-up — Enhanced */}
               {(() => {
@@ -3149,7 +3101,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <label className="text-xs font-medium" style={{ color: A.text1 }}>Account Warmup</label>
-                        <span title="14-day program: joins channels, adds reactions, exchanges messages. Simulates real user activity to reduce ban risk.">
+                        <span className="tip" data-tip="14-day program: joins channels, adds reactions, exchanges messages. Simulates real user activity to reduce ban risk.">
                           <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
                         </span>
                       </div>

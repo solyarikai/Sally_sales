@@ -328,6 +328,36 @@
     color: var(--badge-text);
   }
 
+  /* Tooltip with 200ms delay */
+  .tip {
+    position: relative;
+  }
+  .tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 10px;
+    background: #1F2937;
+    color: #F9FAFB;
+    font-size: 11px;
+    line-height: 1.4;
+    border-radius: 6px;
+    white-space: pre-line;
+    max-width: 260px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 150ms;
+    transition-delay: 0ms;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .tip:hover::after {
+    opacity: 1;
+    transition-delay: 200ms;
+  }
+
   /* Modal */
   .modal-overlay {
     position: fixed;
