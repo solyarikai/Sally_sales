@@ -5,7 +5,7 @@ import {
   Plus, Trash2, Save, Upload, Loader2, Play, Pause,
   ChevronLeft, ChevronRight, RefreshCw, Type, BarChart3, X, Search, UserPlus, Check,
   Table2, AlertTriangle, Image, Video, FileText, Mic, Paperclip,
-  Bold, Italic, Code, Clock, Pencil, Send, Bot, Globe,
+  Bold, Italic, Code, Clock, Pencil, Send, Bot,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
