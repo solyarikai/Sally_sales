@@ -192,6 +192,7 @@ class TgCampaignBase(BaseModel):
     timezone: str = "Europe/Moscow"
     send_from_hour: int = 9
     send_to_hour: int = 18
+    send_days: list[int] = [0, 1, 2, 3, 4, 5, 6]  # 0=Mon..6=Sun
     delay_between_sends_min: int = 11
     delay_between_sends_max: int = 25
     delay_randomness_percent: int = 20
@@ -222,6 +223,7 @@ class TgCampaignUpdate(BaseModel):
     timezone: Optional[str] = None
     send_from_hour: Optional[int] = None
     send_to_hour: Optional[int] = None
+    send_days: Optional[list[int]] = None
     link_preview: Optional[bool] = None
     silent: Optional[bool] = None
     delete_dialog_after: Optional[bool] = None

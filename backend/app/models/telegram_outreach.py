@@ -225,6 +225,7 @@ class TgCampaign(Base, TimestampMixin):
     timezone = Column(String(50), nullable=False, default="Europe/Moscow")
     send_from_hour = Column(Integer, nullable=False, default=9)
     send_to_hour = Column(Integer, nullable=False, default=18)
+    send_days = Column(JSONB, nullable=False, default=[0, 1, 2, 3, 4, 5, 6])  # 0=Mon..6=Sun
 
     # Delays
     delay_between_sends_min = Column(Integer, nullable=False, default=11)

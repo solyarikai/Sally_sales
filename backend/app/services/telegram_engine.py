@@ -615,6 +615,16 @@ class TelegramEngine:
 
         try:
             entity = await client.get_entity(recipient_username)
+            # Simulate typing indicator (human-like)
+            try:
+                await client(functions.messages.SetTypingRequest(
+                    peer=entity, action=types.SendMessageTypingAction()))
+                # Typing duration proportional to message length: ~50ms per char, 2-8s range
+                import random
+                typing_duration = max(2.0, min(8.0, len(text) * 0.05)) + random.uniform(-0.5, 0.5)
+                await asyncio.sleep(typing_duration)
+            except Exception:
+                pass  # typing indicator is best-effort
             msg = await client.send_message(
                 entity, text,
                 link_preview=link_preview,
@@ -659,6 +669,14 @@ class TelegramEngine:
 
         try:
             entity = await client.get_entity(recipient_username)
+            # Simulate typing/upload indicator (human-like)
+            try:
+                action = types.SendMessageRecordAudioAction() if voice_note else types.SendMessageUploadDocumentAction(progress=0)
+                await client(functions.messages.SetTypingRequest(peer=entity, action=action))
+                import random
+                await asyncio.sleep(random.uniform(2.0, 5.0))
+            except Exception:
+                pass  # typing indicator is best-effort
             msg = await client.send_file(
                 entity, file_path,
                 caption=caption or None,

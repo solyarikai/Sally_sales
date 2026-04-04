@@ -149,8 +149,14 @@ def now_in_tz(tz_name: str) -> datetime:
 
 
 def is_within_send_window(campaign: TgCampaign) -> bool:
-    """Check if current hour is within campaign's send window."""
+    """Check if current hour is within campaign's send window and day is enabled."""
     now = now_in_tz(campaign.timezone or "UTC")
+
+    # Day-of-week check: 0=Monday..6=Sunday (Python weekday convention)
+    send_days = getattr(campaign, "send_days", None)
+    if send_days is not None and now.weekday() not in send_days:
+        return False
+
     hour = now.hour
     if campaign.send_from_hour <= campaign.send_to_hour:
         return campaign.send_from_hour <= hour < campaign.send_to_hour
