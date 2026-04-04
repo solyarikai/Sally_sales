@@ -473,6 +473,24 @@ async def _auto_assign_infatica_proxy(account: TgAccount, session: AsyncSession)
     }
 
 
+_COUNTRY_NAME_TO_ISO = {
+    "PORTUGAL": "PT", "BRAZIL": "BR", "SPAIN": "ES", "FRANCE": "FR", "GERMANY": "DE",
+    "ITALY": "IT", "NETHERLANDS": "NL", "BELGIUM": "BE", "AUSTRIA": "AT", "SWITZERLAND": "CH",
+    "UNITED KINGDOM": "GB", "UK": "GB", "UNITED STATES": "US", "USA": "US", "CANADA": "CA",
+    "RUSSIA": "RU", "UKRAINE": "UA", "BELARUS": "BY", "POLAND": "PL", "CZECHIA": "CZ",
+    "TURKEY": "TR", "UAE": "AE", "SAUDI ARABIA": "SA", "INDIA": "IN", "CHINA": "CN",
+    "JAPAN": "JP", "SOUTH KOREA": "KR", "AUSTRALIA": "AU", "NORWAY": "NO", "SWEDEN": "SE",
+    "DENMARK": "DK", "FINLAND": "FI", "IRELAND": "IE", "GREECE": "GR", "ROMANIA": "RO",
+    "HUNGARY": "HU", "BULGARIA": "BG", "CROATIA": "HR", "SERBIA": "RS", "SLOVAKIA": "SK",
+    "ISRAEL": "IL", "KAZAKHSTAN": "KZ", "GEORGIA": "GE", "ARMENIA": "AM", "AZERBAIJAN": "AZ",
+    "UZBEKISTAN": "UZ", "MEXICO": "MX", "ARGENTINA": "AR", "COLOMBIA": "CO", "CHILE": "CL",
+    "THAILAND": "TH", "VIETNAM": "VN", "SINGAPORE": "SG", "MALAYSIA": "MY", "INDONESIA": "ID",
+    "PHILIPPINES": "PH", "EGYPT": "EG", "NIGERIA": "NG", "SOUTH AFRICA": "ZA", "KENYA": "KE",
+    "LUXEMBOURG": "LU", "LITHUANIA": "LT", "LATVIA": "LV", "ESTONIA": "EE",
+    "HONG KONG": "HK", "TAIWAN": "TW", "NEW ZEALAND": "NZ", "GHANA": "GH",
+}
+
+
 def _extract_proxy_info(account) -> dict:
     """Extract proxy country, protocol, is_active from account's assigned proxy."""
     import re
@@ -483,14 +501,19 @@ def _extract_proxy_info(account) -> dict:
 
     protocol = proxy.protocol.value if hasattr(proxy.protocol, 'value') else proxy.protocol
 
-    # Determine country: group.country → Infatica username pattern → None
+    # Determine country: Infatica username pattern → group.country → None
     country = None
-    if group and group.country:
-        country = group.country.upper()
-    elif proxy.username:
+    if proxy.username:
         m = re.search(r'_c_([A-Za-z]{2})(?:_|$)', proxy.username)
         if m:
             country = m.group(1).upper()
+    if not country and group and group.country:
+        raw = group.country.strip().upper()
+        # If it's already a 2-letter ISO code, use it directly
+        if len(raw) == 2 and raw.isalpha():
+            country = raw
+        else:
+            country = _COUNTRY_NAME_TO_ISO.get(raw)
 
     return {
         "proxy_country": country,
