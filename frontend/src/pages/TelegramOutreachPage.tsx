@@ -7487,7 +7487,7 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
                                     }}
                                     onClick={async () => {
                                       const current = (cv?.value || '').split(',').map((s: string) => s.trim()).filter(Boolean);
-                                      const next = selected ? current.filter(v => v !== o) : [...current, o];
+                                      const next = selected ? current.filter((v: string) => v !== o) : [...current, o];
                                       const newVal = next.join(', ') || null;
                                       try {
                                         await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: newVal }]);

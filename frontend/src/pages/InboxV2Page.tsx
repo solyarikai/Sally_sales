@@ -1263,7 +1263,7 @@ export function InboxV2Page() {
                                     }}
                                     onClick={async () => {
                                       const current = (cv?.value || '').split(',').map((s: string) => s.trim()).filter(Boolean);
-                                      const next = selected ? current.filter(v => v !== o) : [...current, o];
+                                      const next = selected ? current.filter((v: string) => v !== o) : [...current, o];
                                       const newVal = next.join(', ') || null;
                                       try {
                                         await telegramOutreachApi.updateContactCustomFields(crmData.contact_id!, [{ field_id: fd.id, value: newVal }]);
