@@ -2333,7 +2333,7 @@ async def import_teleraptor_accounts(data: TgTeleRaptorImportRequest,
             country_code=_detect_country(phone),
             telegram_user_id=raw.tgid,
             session_created_at=_parse_session_date(raw.register_time, raw.tgid, raw.reg_date) or last_connected or func.now(),
-            telegram_created_at=_parse_session_date(None, raw.tgid) if raw.tgid else None,
+            telegram_created_at=_parse_session_date(raw.register_time, raw.tgid, raw.reg_date) or (_parse_session_date(None, raw.tgid) if raw.tgid else None),
         )
         session.add(account)
         added += 1
@@ -4649,7 +4649,13 @@ async def check_account(account_id: int, session: AsyncSession = Depends(get_ses
             account.profile_photo_path = result["avatar_path"]
         if result.get("telegram_user_id"):
             account.telegram_user_id = result["telegram_user_id"]
-        if result.get("telegram_created_at"):
+        if "is_premium" in result:
+            account.is_premium = result["is_premium"]
+            if not account.is_premium:
+                account.daily_message_limit = max(account.daily_message_limit or 5, 5)
+            else:
+                account.daily_message_limit = max(account.daily_message_limit or 10, 10)
+        if result.get("telegram_created_at") and not account.telegram_created_at:
             try:
                 account.telegram_created_at = datetime.fromisoformat(result["telegram_created_at"])
             except Exception:
@@ -4712,7 +4718,10 @@ async def bulk_check_live(data: TgBulkAccountIds, session: AsyncSession = Depend
                             account.telegram_user_id = me.id
                             est = _parse_session_date(None, me.id)
                             if est:
-                                account.session_created_at = est
+                                if not account.session_created_at:
+                                    account.session_created_at = est
+                                if not account.telegram_created_at:
+                                    account.telegram_created_at = est
                     except Exception:
                         pass
             elif check.get("connected") and not check.get("authorized"):
@@ -4760,11 +4769,13 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                     me = await client.get_me()
                     if me:
                         account.telegram_user_id = me.id
-                        from app.services.telegram_engine import _estimate_creation_date
-                        est = _estimate_creation_date(me.id)
-                        if est:
-                            from datetime import datetime as _dt
-                            account.telegram_created_at = _dt.fromisoformat(est)
+                        account.is_premium = getattr(me, "premium", False) or False
+                        if not account.telegram_created_at:
+                            from app.services.telegram_engine import _estimate_creation_date
+                            est = _estimate_creation_date(me.id)
+                            if est:
+                                from datetime import datetime as _dt
+                                account.telegram_created_at = _dt.fromisoformat(est)
                 except Exception:
                     pass
 

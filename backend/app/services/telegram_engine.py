@@ -374,9 +374,11 @@ class TelegramEngine:
                 result["first_name"] = me.first_name
                 result["last_name"] = me.last_name
                 result["telegram_user_id"] = me.id
+                result["is_premium"] = getattr(me, "premium", False) or False
 
                 # Estimate account creation date from user ID
-                # Telegram IDs are roughly sequential — known reference points
+                # Note: Telegram API has no direct registration date field;
+                # user ID interpolation is the only method available via Telethon.
                 result["telegram_created_at"] = _estimate_creation_date(me.id)
 
                 # Download avatar
