@@ -1952,6 +1952,7 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
                     # Try individual session termination first
                     killed = 0
                     individual_errors = 0
+                    fresh_session_error = False
                     for auth in other_sessions:
                         try:
                             await client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
@@ -1959,11 +1960,17 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
                             logger.info(f"[REVOKE] {account.phone}: killed session device={auth.device_model} platform={auth.platform}")
                         except Exception as e:
                             individual_errors += 1
+                            err_str = str(e).lower()
                             logger.warning(f"[REVOKE] {account.phone}: failed to kill session device={auth.device_model}: {e}")
+                            # Early bail-out: "session too new" or "frozen" applies to all sessions
+                            if "too new" in err_str or "frozen" in err_str:
+                                fresh_session_error = True
+                                logger.warning(f"[REVOKE] {account.phone}: session restriction detected, skipping remaining {len(other_sessions) - killed - individual_errors} sessions")
+                                break
                         await _asyncio.sleep(0.5)
 
                     # Fallback: if individual revocations all failed, use nuclear option
-                    if killed == 0 and individual_errors > 0:
+                    if killed == 0 and individual_errors > 0 and not fresh_session_error:
                         logger.warning(f"[REVOKE] {account.phone}: individual revoke failed for all {individual_errors} sessions, trying ResetAuthorizationsRequest")
                         try:
                             await client(functions.auth.ResetAuthorizationsRequest())
