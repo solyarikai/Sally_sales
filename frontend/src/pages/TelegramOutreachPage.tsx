@@ -94,6 +94,44 @@ const A = {
   text1: '#1A1A1A', text2: '#6B6B6B', text3: '#9CA3AF',
 };
 
+// ── Rich text formatting ────────────────────────────────────────────
+
+interface MsgEntity {
+  type: 'bold' | 'italic' | 'code' | 'pre' | 'url' | 'text_url' | 'mention' | 'strikethrough' | 'underline' | 'spoiler';
+  offset: number;
+  length: number;
+  url?: string;
+}
+
+function renderFormattedText(text: string, entities?: MsgEntity[]): React.ReactNode {
+  if (!entities || entities.length === 0) return text;
+  const sorted = [...entities].sort((a, b) => a.offset - b.offset || b.length - a.length);
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const ent = sorted[i];
+    if (ent.offset < cursor) continue;
+    if (ent.offset > cursor) parts.push(text.slice(cursor, ent.offset));
+    const t = text.slice(ent.offset, ent.offset + ent.length);
+    switch (ent.type) {
+      case 'bold': parts.push(<strong key={i}>{t}</strong>); break;
+      case 'italic': parts.push(<em key={i}>{t}</em>); break;
+      case 'code': parts.push(<code key={i} style={{ background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3, fontSize: '12px', fontFamily: 'monospace' }}>{t}</code>); break;
+      case 'pre': parts.push(<pre key={i} style={{ background: 'rgba(0,0,0,0.06)', padding: '6px 8px', borderRadius: 4, fontSize: '12px', fontFamily: 'monospace', overflowX: 'auto', margin: '4px 0' }}><code>{t}</code></pre>); break;
+      case 'url': parts.push(<a key={i} href={t} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', opacity: 0.9 }}>{t}</a>); break;
+      case 'text_url': parts.push(<a key={i} href={ent.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', opacity: 0.9 }}>{t}</a>); break;
+      case 'mention': parts.push(<span key={i} style={{ fontWeight: 500, opacity: 0.9 }}>{t}</span>); break;
+      case 'strikethrough': parts.push(<s key={i}>{t}</s>); break;
+      case 'underline': parts.push(<u key={i}>{t}</u>); break;
+      case 'spoiler': parts.push(<span key={i} style={{ background: 'currentColor', borderRadius: 2, padding: '0 2px', cursor: 'pointer' }} onClick={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>{t}</span>); break;
+      default: parts.push(t);
+    }
+    cursor = ent.offset + ent.length;
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts}</>;
+}
+
 // ── Custom Checkbox ──────────────────────────────────────────────────
 
 function Tick({ checked, indeterminate, onChange, className }: {
@@ -6151,7 +6189,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                                   </div>
                                 );
                               })()}
-                              {(msg.text || msg.rendered_text || msg.message_text) && <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{msg.text || msg.rendered_text || msg.message_text}</p>}
+                              {(msg.text || msg.rendered_text || msg.message_text) && <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{renderFormattedText(msg.text || msg.rendered_text || msg.message_text, msg.entities)}</p>}
                               {/* Footer: reactions + time + read status — all inline */}
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap" style={{ justifyContent: isOutbound ? 'flex-end' : 'flex-start' }}>
                                 {msg.reactions && msg.reactions.length > 0 && msg.reactions.map((r: any, ri: number) => (
@@ -8083,7 +8121,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                                     </span>
                                     {isOut && <span className="tg-meta-check">{msg.is_read ? '\u2713\u2713' : '\u2713'}</span>}
                                   </span>
-                                  {msg.text && <>{msg.text}</>}
+                                  {msg.text && <>{renderFormattedText(msg.text, msg.entities)}</>}
                                 </div>
                               </div>
                             );
