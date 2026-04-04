@@ -7172,7 +7172,13 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
+  const [pipeFieldDefs, setPipeFieldDefs] = useState<any[]>([]);
+  const [pipeFieldVals, setPipeFieldVals] = useState<any[]>([]);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    telegramOutreachApi.listCustomFields(currentProject?.id).then(setPipeFieldDefs).catch(() => {});
+  }, [currentProject?.id]);
 
   const loadPipeline = useCallback(async () => {
     setLoading(true);
@@ -7244,13 +7250,16 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
   const openContact = async (c: any) => {
     setSelectedContact(c);
     setCampaignProgress([]);
+    setPipeFieldVals([]);
     try {
-      const [h, cp] = await Promise.all([
+      const [h, cp, fv] = await Promise.all([
         telegramOutreachApi.getCrmContactHistory(c.id),
         telegramOutreachApi.getCrmContactCampaigns(c.id),
+        telegramOutreachApi.getContactCustomFields(c.id),
       ]);
       setHistory(h.history);
       setCampaignProgress(cp.campaigns || []);
+      setPipeFieldVals(fv || []);
     } catch { setHistory([]); setCampaignProgress([]); }
   };
 
@@ -7434,6 +7443,93 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
                   <div className="text-[10px]" style={{ color: A.text3 }}>Last Contact</div>
                 </div>
               </div>
+              {/* Custom Properties */}
+              {pipeFieldDefs.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Properties</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {pipeFieldDefs.map((fd: any) => {
+                      const cv = pipeFieldVals.find((v: any) => v.field_id === fd.id);
+                      return (
+                        <div key={fd.id}>
+                          <label className="block text-[10px] font-medium mb-0.5" style={{ color: A.text3 }}>{fd.name}</label>
+                          {fd.field_type === 'select' ? (
+                            <select
+                              className="w-full px-2 py-1 rounded border text-xs"
+                              style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                              defaultValue={cv?.value || ''}
+                              key={`${selectedContact.id}-${fd.id}-${cv?.value}`}
+                              onChange={async (e) => {
+                                try {
+                                  await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value || null }]);
+                                  setPipeFieldVals(prev => {
+                                    const idx = prev.findIndex((v: any) => v.field_id === fd.id);
+                                    const val = { field_id: fd.id, value: e.target.value || null };
+                                    return idx >= 0 ? prev.map((v: any, i: number) => i === idx ? { ...v, ...val } : v) : [...prev, val];
+                                  });
+                                } catch { /* */ }
+                              }}
+                            >
+                              <option value="">--</option>
+                              {(fd.options_json || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : fd.field_type === 'multi_select' ? (
+                            <div className="flex flex-wrap gap-1">
+                              {(fd.options_json || []).map((o: string) => {
+                                const selected = (cv?.value || '').split(',').map((s: string) => s.trim()).includes(o);
+                                return (
+                                  <button key={o}
+                                    className="text-[10px] px-1.5 py-0.5 rounded border transition-colors"
+                                    style={{
+                                      borderColor: selected ? A.blue : A.border,
+                                      background: selected ? A.blueBg : 'transparent',
+                                      color: selected ? A.blue : A.text3,
+                                    }}
+                                    onClick={async () => {
+                                      const current = (cv?.value || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+                                      const next = selected ? current.filter(v => v !== o) : [...current, o];
+                                      const newVal = next.join(', ') || null;
+                                      try {
+                                        await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: newVal }]);
+                                        setPipeFieldVals(prev => {
+                                          const idx = prev.findIndex((v: any) => v.field_id === fd.id);
+                                          const val = { field_id: fd.id, value: newVal };
+                                          return idx >= 0 ? prev.map((v: any, i: number) => i === idx ? { ...v, ...val } : v) : [...prev, val];
+                                        });
+                                      } catch { /* */ }
+                                    }}
+                                  >{o}</button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <input
+                              className="w-full px-2 py-1 rounded border text-xs outline-none"
+                              style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                              type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : fd.field_type === 'url' ? 'url' : 'text'}
+                              defaultValue={cv?.value || ''}
+                              key={`${selectedContact.id}-${fd.id}-${cv?.value}`}
+                              placeholder="--"
+                              onBlur={async (e) => {
+                                const newVal = e.target.value.trim() || null;
+                                if (newVal === (cv?.value || null)) return;
+                                try {
+                                  await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: newVal }]);
+                                  setPipeFieldVals(prev => {
+                                    const idx = prev.findIndex((v: any) => v.field_id === fd.id);
+                                    const val = { field_id: fd.id, value: newVal };
+                                    return idx >= 0 ? prev.map((v: any, i: number) => i === idx ? { ...v, ...val } : v) : [...prev, val];
+                                  });
+                                } catch { /* */ }
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {/* Campaign Sequence Progress */}
               {campaignProgress.length > 0 && (
                 <div>

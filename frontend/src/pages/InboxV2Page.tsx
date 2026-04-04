@@ -355,6 +355,8 @@ export function InboxV2Page() {
   const [crmLoading, setCrmLoading] = useState(false);
   const [showCrm, setShowCrm] = useState(true);
   const [noteText, setNoteText] = useState('');
+  const [customFieldDefs, setCustomFieldDefs] = useState<any[]>([]);
+  const [contactFieldVals, setContactFieldVals] = useState<any[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showNewChat, setShowNewChat] = useState(false);
   const [newChatUsername, setNewChatUsername] = useState('');
@@ -382,10 +384,11 @@ export function InboxV2Page() {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /* ── load accounts ── */
+  /* ── load accounts + custom field defs ── */
   useEffect(() => {
     getAccounts().then(setAccounts).catch(() => {});
-  }, []);
+    telegramOutreachApi.listCustomFields(currentProject?.id).then(setCustomFieldDefs).catch(() => {});
+  }, [currentProject?.id]);
 
   /* ── load dialogs ── */
   const loadDialogs = useCallback(async (silent = false) => {
@@ -479,8 +482,15 @@ export function InboxV2Page() {
     loadMessages(d.id);
     // Load CRM
     setCrmLoading(true);
+    setContactFieldVals([]);
     telegramOutreachApi.getDialogCrm(d.id)
-      .then((data: any) => setCrmData(data))
+      .then((data: any) => {
+        setCrmData(data);
+        if (data?.contact_id) {
+          telegramOutreachApi.getContactCustomFields(data.contact_id)
+            .then(setContactFieldVals).catch(() => {});
+        }
+      })
       .catch(() => setCrmData(null))
       .finally(() => setCrmLoading(false));
   }, [loadMessages]);
@@ -1202,6 +1212,97 @@ export function InboxV2Page() {
                         </span>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Properties */}
+              {customFieldDefs.length > 0 && crmData.contact_id && (
+                <div className="px-4 py-3" style={{ borderBottom: `1px solid ${borderColor}` }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="w-3.5 h-3.5" style={{ color: t.text4 }} />
+                    <span className="text-xs font-medium" style={{ color: t.text3 }}>Properties</span>
+                  </div>
+                  <div className="space-y-2">
+                    {customFieldDefs.map((fd: any) => {
+                      const cv = contactFieldVals.find((v: any) => v.field_id === fd.id);
+                      return (
+                        <div key={fd.id}>
+                          <label className="block text-[10px] font-medium mb-0.5" style={{ color: t.text4 }}>{fd.name}</label>
+                          {fd.field_type === 'select' ? (
+                            <select
+                              className="w-full px-2 py-1 rounded border text-xs"
+                              style={{ borderColor: borderColor, background: isDark ? '#1C2733' : '#F5F5F5', color: t.text1 }}
+                              defaultValue={cv?.value || ''}
+                              key={`${crmData.contact_id}-${fd.id}-${cv?.value}`}
+                              onChange={async (e) => {
+                                try {
+                                  await telegramOutreachApi.updateContactCustomFields(crmData.contact_id!, [{ field_id: fd.id, value: e.target.value || null }]);
+                                  setContactFieldVals(prev => {
+                                    const idx = prev.findIndex((v: any) => v.field_id === fd.id);
+                                    const val = { field_id: fd.id, value: e.target.value || null, field_name: fd.name, field_type: fd.field_type };
+                                    return idx >= 0 ? prev.map((v: any, i: number) => i === idx ? { ...v, ...val } : v) : [...prev, val];
+                                  });
+                                } catch { /* */ }
+                              }}
+                            >
+                              <option value="">--</option>
+                              {(fd.options_json || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : fd.field_type === 'multi_select' ? (
+                            <div className="flex flex-wrap gap-1">
+                              {(fd.options_json || []).map((o: string) => {
+                                const selected = (cv?.value || '').split(',').map((s: string) => s.trim()).includes(o);
+                                return (
+                                  <button key={o}
+                                    className="text-[10px] px-1.5 py-0.5 rounded border transition-colors"
+                                    style={{
+                                      borderColor: selected ? '#3390EC' : borderColor,
+                                      background: selected ? (isDark ? 'rgba(51,144,236,0.2)' : '#EBF3FE') : 'transparent',
+                                      color: selected ? '#3390EC' : t.text3,
+                                    }}
+                                    onClick={async () => {
+                                      const current = (cv?.value || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+                                      const next = selected ? current.filter(v => v !== o) : [...current, o];
+                                      const newVal = next.join(', ') || null;
+                                      try {
+                                        await telegramOutreachApi.updateContactCustomFields(crmData.contact_id!, [{ field_id: fd.id, value: newVal }]);
+                                        setContactFieldVals(prev => {
+                                          const idx = prev.findIndex((v: any) => v.field_id === fd.id);
+                                          const val = { field_id: fd.id, value: newVal, field_name: fd.name, field_type: fd.field_type };
+                                          return idx >= 0 ? prev.map((v: any, i: number) => i === idx ? { ...v, ...val } : v) : [...prev, val];
+                                        });
+                                      } catch { /* */ }
+                                    }}
+                                  >{o}</button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <input
+                              className="w-full px-2 py-1 rounded border text-xs outline-none"
+                              style={{ borderColor: borderColor, background: isDark ? '#1C2733' : '#F5F5F5', color: t.text1 }}
+                              type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : fd.field_type === 'url' ? 'url' : 'text'}
+                              defaultValue={cv?.value || ''}
+                              key={`${crmData.contact_id}-${fd.id}-${cv?.value}`}
+                              placeholder="--"
+                              onBlur={async (e) => {
+                                const newVal = e.target.value.trim() || null;
+                                if (newVal === (cv?.value || null)) return;
+                                try {
+                                  await telegramOutreachApi.updateContactCustomFields(crmData.contact_id!, [{ field_id: fd.id, value: newVal }]);
+                                  setContactFieldVals(prev => {
+                                    const idx = prev.findIndex((v: any) => v.field_id === fd.id);
+                                    const val = { field_id: fd.id, value: newVal, field_name: fd.name, field_type: fd.field_type };
+                                    return idx >= 0 ? prev.map((v: any, i: number) => i === idx ? { ...v, ...val } : v) : [...prev, val];
+                                  });
+                                } catch { /* */ }
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
