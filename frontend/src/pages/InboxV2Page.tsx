@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search, Send, Loader2, MessageCircle, User, ChevronRight, ChevronLeft,
   Tag, Hash, StickyNote, FileText, Download, Mic, X, Plus,
+  Pencil, Copy, Trash2, Reply, CornerUpRight,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
@@ -54,6 +55,7 @@ interface InboxMessage {
   is_read: boolean;
   media?: MediaInfo | null;
   reply_to_id?: number | null;
+  reply_to?: { msg_id: number; text: string; sender_name: string } | null;
   entities?: MessageEntity[];
 }
 
@@ -261,6 +263,11 @@ export function InboxV2Page() {
   const [newChatLoading, setNewChatLoading] = useState(false);
   const [newChatError, setNewChatError] = useState('');
 
+  /* ── context menu & edit/reply state ── */
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; msg: InboxMessage } | null>(null);
+  const [editingMsg, setEditingMsg] = useState<{ id: number; originalText: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<InboxMessage | null>(null);
+
   const [msgError, setMsgError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dialogPollRef = useRef(false);
@@ -354,18 +361,85 @@ export function InboxV2Page() {
     prevMsgCount.current = messages.length;
   }, [messages]);
 
-  /* ── send message ── */
+  /* ── send / edit message ── */
   const handleSend = async () => {
     if (!selectedDialog || !messageText.trim()) return;
     setSending(true);
     try {
-      await telegramOutreachApi.sendDialogMessage(selectedDialog.id, messageText.trim());
+      if (editingMsg) {
+        await telegramOutreachApi.editDialogMessage(selectedDialog.id, editingMsg.id, messageText.trim());
+        setEditingMsg(null);
+      } else {
+        await telegramOutreachApi.sendDialogMessage(selectedDialog.id, messageText.trim(), {
+          replyTo: replyTo?.id,
+        });
+        setReplyTo(null);
+      }
       setMessageText('');
       await loadMessages(selectedDialog.id, true);
     } catch { /* error handled by API client toast */ }
     setSending(false);
     editorRef.current?.focus();
   };
+
+  /* ── context menu actions ── */
+  const handleContextMenu = (e: React.MouseEvent, msg: InboxMessage) => {
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY, msg });
+  };
+
+  const closeCtxMenu = () => setCtxMenu(null);
+
+  const handleReplyTo = (msg: InboxMessage) => {
+    setEditingMsg(null);
+    setReplyTo(msg);
+    setCtxMenu(null);
+    editorRef.current?.focus();
+  };
+
+  const handleEditStart = (msg: InboxMessage) => {
+    setReplyTo(null);
+    setEditingMsg({ id: msg.id, originalText: msg.text });
+    setMessageText(msg.text);
+    setCtxMenu(null);
+    editorRef.current?.focus();
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMsg(null);
+    setMessageText('');
+  };
+
+  const handleCopyText = (msg: InboxMessage) => {
+    navigator.clipboard.writeText(msg.text).catch(() => {});
+    setCtxMenu(null);
+  };
+
+  const handleDeleteMsg = async (msg: InboxMessage) => {
+    if (!selectedDialog) return;
+    setCtxMenu(null);
+    try {
+      await telegramOutreachApi.deleteDialogMessage(selectedDialog.id, msg.id, true);
+      await loadMessages(selectedDialog.id, true);
+    } catch { /* error handled by API client toast */ }
+  };
+
+  // Close context menu on click outside or Escape
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = (e: MouseEvent) => setCtxMenu(null);
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
+    document.addEventListener('click', close);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('click', close); document.removeEventListener('keydown', esc); };
+  }, [ctxMenu]);
+
+  // Clear edit/reply when dialog changes
+  useEffect(() => {
+    setEditingMsg(null);
+    setReplyTo(null);
+    setMessageText('');
+  }, [selectedDialog?.id]);
 
   /* ── add note ── */
   const handleAddNote = async () => {
@@ -655,8 +729,25 @@ export function InboxV2Page() {
                         key={msg.id}
                         className={`flex tg-msg-row ${spacing} ${isOut ? 'justify-end' : 'justify-start'}`}
                         style={{ paddingLeft: isOut ? 0 : (isLast ? 0 : 11), paddingRight: isOut ? (isLast ? 0 : 11) : 0 }}
+                        onContextMenu={e => handleContextMenu(e, msg)}
                       >
                         <div className={`tg-bubble ${isOut ? 'tg-bubble-out' : 'tg-bubble-in'} ${tail} ${msg.media && !msg.text ? 'tg-bubble-media-only' : ''}`}>
+                          {/* ── Reply-to preview ── */}
+                          {msg.reply_to && (
+                            <div className="tg-reply-preview" style={{
+                              borderLeft: `2px solid ${isOut ? 'rgba(255,255,255,0.5)' : '#4fae4e'}`,
+                              padding: '4px 8px', marginBottom: 4, borderRadius: 4,
+                              background: isOut ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                              fontSize: 12, lineHeight: '16px',
+                            }}>
+                              <div style={{ fontWeight: 600, color: isOut ? 'rgba(255,255,255,0.8)' : '#4fae4e' }}>
+                                {msg.reply_to.sender_name}
+                              </div>
+                              <div style={{ opacity: 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+                                {msg.reply_to.text || 'Media'}
+                              </div>
+                            </div>
+                          )}
                           {/* ── Media rendering ── */}
                           {msg.media && selectedDialog && (() => {
                             const mediaUrl = telegramOutreachApi.getDialogMediaUrl(selectedDialog.id, msg.id);
@@ -724,6 +815,30 @@ export function InboxV2Page() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* ── Reply / Edit preview bar ── */}
+            {(replyTo || editingMsg) && (
+              <div className="flex items-center gap-2 px-4 py-2 tg-header" style={{ borderTop: `1px solid ${borderColor}`, borderBottom: 'none' }}>
+                <div className="flex-shrink-0" style={{ color: '#4fae4e' }}>
+                  {editingMsg ? <Pencil className="w-4 h-4" /> : <Reply className="w-4 h-4" />}
+                </div>
+                <div style={{ borderLeft: '2px solid #4fae4e', paddingLeft: 8, flex: 1, minWidth: 0 }}>
+                  <div className="text-xs font-semibold" style={{ color: '#4fae4e' }}>
+                    {editingMsg ? 'Editing message' : `Reply to ${replyTo?.sender_name}`}
+                  </div>
+                  <div className="text-xs truncate" style={{ color: t.text3 }}>
+                    {editingMsg ? editingMsg.originalText : replyTo?.text || 'Media'}
+                  </div>
+                </div>
+                <button
+                  onClick={() => { editingMsg ? handleCancelEdit() : setReplyTo(null); }}
+                  className="flex-shrink-0 p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  style={{ color: t.text4 }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             {/* Input area — Telegram-style composer */}
             <div className="tg-composer tg-header" style={{ borderTop: `1px solid ${borderColor}`, borderBottom: 'none' }}>
               <textarea
@@ -735,8 +850,11 @@ export function InboxV2Page() {
                     e.preventDefault();
                     handleSend();
                   }
+                  if (e.key === 'Escape' && (editingMsg || replyTo)) {
+                    editingMsg ? handleCancelEdit() : setReplyTo(null);
+                  }
                 }}
-                placeholder="Message"
+                placeholder={editingMsg ? 'Edit message...' : 'Message'}
                 rows={1}
                 className="tg-composer-input"
               />
@@ -744,9 +862,12 @@ export function InboxV2Page() {
                 onClick={handleSend}
                 disabled={sending || !messageText.trim()}
                 className="tg-send-btn"
+                title={editingMsg ? 'Save edit' : 'Send message'}
               >
                 {sending ? (
                   <Loader2 className="w-[18px] h-[18px] animate-spin" />
+                ) : editingMsg ? (
+                  <Pencil className="w-[18px] h-[18px]" />
                 ) : (
                   <Send className="w-[18px] h-[18px]" />
                 )}
@@ -921,6 +1042,42 @@ export function InboxV2Page() {
             <X className="w-6 h-6" />
           </button>
           <img src={lightboxUrl} alt="" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+
+      {/* ── Message context menu ── */}
+      {ctxMenu && (
+        <div
+          className="fixed z-[100] py-1.5 rounded-xl shadow-xl min-w-[180px]"
+          style={{
+            left: Math.min(ctxMenu.x, window.innerWidth - 200),
+            top: Math.min(ctxMenu.y, window.innerHeight - 260),
+            background: isDark ? '#1E2C3A' : '#fff',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          {[
+            { icon: Reply, label: 'Reply', action: () => handleReplyTo(ctxMenu.msg), show: true },
+            { icon: Pencil, label: 'Edit', action: () => handleEditStart(ctxMenu.msg), show: ctxMenu.msg.direction === 'outbound' && !!ctxMenu.msg.text },
+            { icon: Copy, label: 'Copy Text', action: () => handleCopyText(ctxMenu.msg), show: !!ctxMenu.msg.text },
+            { icon: CornerUpRight, label: 'Forward', action: () => { /* TODO: forward dialog picker */ setCtxMenu(null); }, show: true },
+            { icon: Trash2, label: 'Delete', action: () => handleDeleteMsg(ctxMenu.msg), show: ctxMenu.msg.direction === 'outbound', danger: true },
+          ].filter(item => item.show).map((item, i) => (
+            <button
+              key={i}
+              onClick={item.action}
+              className="flex items-center gap-3 w-full px-4 py-2 text-[13px] transition-colors"
+              style={{
+                color: (item as any).danger ? '#ef4444' : (isDark ? '#E1E3E6' : '#2C2C2C'),
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = isDark ? '#242F3D' : '#F0F2F5')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <item.icon className="w-4 h-4 flex-shrink-0" style={{ opacity: 0.7 }} />
+              {item.label}
+            </button>
+          ))}
         </div>
       )}
 
