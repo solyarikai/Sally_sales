@@ -12,7 +12,7 @@ import {
 import { useDroppable } from '@dnd-kit/core';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { User, Building2, Briefcase, Clock } from 'lucide-react';
+import { Building2, Briefcase, Clock } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import type { KanbanColumn, KanbanContact } from '../api';

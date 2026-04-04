@@ -23,7 +23,7 @@ import {
   Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3, TrendingUp,
   LayoutGrid, List
 } from 'lucide-react';
-import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type EnrichResult, type KanbanColumn, type KanbanContact } from '../api';
+import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type EnrichResult, type KanbanColumn } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { CRMSpotlight } from '../components/CRMSpotlight';
