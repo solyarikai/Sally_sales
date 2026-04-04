@@ -420,13 +420,15 @@ class TelegramEngine:
             result["is_premium"] = getattr(me, "premium", False) or False
             result["telegram_created_at"] = _estimate_creation_date(me.id)
 
-            # Download avatar
+            # Download avatar (always re-download to keep fresh)
             try:
                 avatar_path = SESSIONS_DIR.parent / "tg_photos" / f"{phone}.jpg"
                 avatar_path.parent.mkdir(parents=True, exist_ok=True)
                 downloaded = await client.download_profile_photo(me, file=str(avatar_path))
                 if downloaded:
                     result["avatar_path"] = str(avatar_path)
+                else:
+                    result["avatar_path"] = None
             except Exception:
                 pass  # avatar download is best-effort
 

@@ -3070,15 +3070,24 @@ async def import_account_bundle(
 
 @router.post("/accounts/fetch-missing-avatars")
 async def fetch_missing_avatars(session: AsyncSession = Depends(get_session)):
-    """Download profile photos for all accounts that don't have one yet."""
+    """Download profile photos for accounts missing them on disk."""
     import os
     from pathlib import Path
     fetched = 0
+    cleaned = 0
     errors_list = []
-    result_accs = await session.execute(select(TgAccount).where(TgAccount.session_file.isnot(None)))
+    result_accs = await session.execute(
+        select(TgAccount).where(
+            TgAccount.session_file.isnot(None),
+            TgAccount.status.in_(["active", "frozen"]),
+        )
+    )
     for acc in result_accs.scalars().all():
         photo_path = f"/app/tg_photos/{acc.phone}.jpg"
-        if os.path.exists(photo_path):
+        file_ok = os.path.exists(photo_path) and os.path.getsize(photo_path) > 100
+        if file_ok:
+            if acc.profile_photo_path != photo_path:
+                acc.profile_photo_path = photo_path
             continue
         if not telegram_engine.session_file_exists(acc.phone):
             continue
@@ -3091,7 +3100,11 @@ async def fetch_missing_avatars(session: AsyncSession = Depends(get_session)):
                     Path(photo_path).parent.mkdir(parents=True, exist_ok=True)
                     downloaded = await client.download_profile_photo(me, file=photo_path)
                     if downloaded:
+                        acc.profile_photo_path = photo_path
                         fetched += 1
+                    elif acc.profile_photo_path:
+                        acc.profile_photo_path = None
+                        cleaned += 1
             await telegram_engine.disconnect(acc.id)
         except Exception as e:
             errors_list.append(f"{acc.phone}: {str(e)[:40]}")
@@ -3099,7 +3112,8 @@ async def fetch_missing_avatars(session: AsyncSession = Depends(get_session)):
                 await telegram_engine.disconnect(acc.id)
             except Exception:
                 pass
-    return {"ok": True, "fetched": fetched, "errors": errors_list}
+    await session.commit()
+    return {"ok": True, "fetched": fetched, "cleaned_stale": cleaned, "errors": errors_list}
 
 
 @router.post("/accounts/{account_id}/convert-to-tdata")
@@ -4775,13 +4789,13 @@ async def get_account_avatar(account_id: int, session: AsyncSession = Depends(ge
     # Check for avatar (try multiple extensions)
     for ext in ['.jpg', '.jpeg', '.png', '.jfif', '.webp']:
         photo_path = f"/app/tg_photos/{account.phone}{ext}"
-        if os.path.exists(photo_path):
+        if os.path.exists(photo_path) and os.path.getsize(photo_path) > 100:
             mtime = str(int(os.path.getmtime(photo_path)))
             return FileResponse(photo_path, media_type="image/jpeg",
                                 headers={"Cache-Control": "no-cache", "ETag": mtime})
 
     # Check profile_photo_path
-    if account.profile_photo_path and os.path.exists(account.profile_photo_path):
+    if account.profile_photo_path and os.path.exists(account.profile_photo_path) and os.path.getsize(account.profile_photo_path) > 100:
         return FileResponse(account.profile_photo_path, media_type="image/jpeg",
                             headers={"Cache-Control": "no-cache"})
 
@@ -5034,7 +5048,7 @@ async def check_account(account_id: int, session: AsyncSession = Depends(get_ses
             account.first_name = result["first_name"]
         if result.get("last_name") is not None:
             account.last_name = result["last_name"]
-        if result.get("avatar_path"):
+        if "avatar_path" in result:
             account.profile_photo_path = result["avatar_path"]
         if result.get("telegram_user_id"):
             account.telegram_user_id = result["telegram_user_id"]
