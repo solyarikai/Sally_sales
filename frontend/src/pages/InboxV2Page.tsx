@@ -271,6 +271,7 @@ export function InboxV2Page() {
   const [forwardSearch, setForwardSearch] = useState('');
 
   const [msgError, setMsgError] = useState<string | null>(null);
+  const [peerTyping, setPeerTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dialogPollRef = useRef(false);
   const msgPollRef = useRef(false);
@@ -354,6 +355,19 @@ export function InboxV2Page() {
     const iv = setInterval(() => loadMessages(selectedDialog.id, true), 6000);
     return () => clearInterval(iv);
   }, [selectedDialog?.id, loadMessages]);
+
+  // Poll typing status every 3s
+  useEffect(() => {
+    if (!selectedDialog) { setPeerTyping(false); return; }
+    setPeerTyping(false);
+    const interval = setInterval(async () => {
+      try {
+        const data = await telegramOutreachApi.getDialogTyping(selectedDialog.id);
+        setPeerTyping(data.typing);
+      } catch { setPeerTyping(false); }
+    }, 3_000);
+    return () => { clearInterval(interval); setPeerTyping(false); };
+  }, [selectedDialog?.id]);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -660,8 +674,19 @@ export function InboxV2Page() {
                 <div className="text-sm font-medium truncate" style={{ color: t.text1 }}>
                   {selectedDialog.peer_name}
                 </div>
-                <div className="text-[11px]" style={{ color: t.text4 }}>
-                  {selectedDialog.peer_username ? `@${selectedDialog.peer_username}` : `via ${selectedDialog.account_username || selectedDialog.account_phone}`}
+                <div className="text-[11px]" style={{ color: peerTyping ? '#22C55E' : t.text4 }}>
+                  {peerTyping ? (
+                    <span className="flex items-center gap-1">
+                      <span className="flex gap-0.5">
+                        <span className="w-1 h-1 rounded-full animate-bounce" style={{ background: '#22C55E', animationDelay: '0ms' }} />
+                        <span className="w-1 h-1 rounded-full animate-bounce" style={{ background: '#22C55E', animationDelay: '150ms' }} />
+                        <span className="w-1 h-1 rounded-full animate-bounce" style={{ background: '#22C55E', animationDelay: '300ms' }} />
+                      </span>
+                      typing...
+                    </span>
+                  ) : (
+                    selectedDialog.peer_username ? `@${selectedDialog.peer_username}` : `via ${selectedDialog.account_username || selectedDialog.account_phone}`
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -812,6 +837,18 @@ export function InboxV2Page() {
                   })}
                 </div>
               ))}
+              {peerTyping && (
+                <div className="flex justify-start">
+                  <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs" style={{ background: isDark ? '#1C2733' : '#F5F5F5', border: `1px solid ${borderColor}` }}>
+                    <span className="flex gap-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: t.text4, animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: t.text4, animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: t.text4, animationDelay: '300ms' }} />
+                    </span>
+                    <span style={{ color: t.text4 }}>typing</span>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
