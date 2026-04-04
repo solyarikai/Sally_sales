@@ -7381,7 +7381,7 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Campaigns</label>
                   <div className="text-xs" style={{ color: A.text1 }}>
-                    {selectedContact.campaigns.map((c: any) => c.name).join(', ')}
+                    {selectedContact.campaigns.map((c: any) => c?.name).filter(Boolean).join(', ')}
                   </div>
                 </div>
               )}
@@ -7714,7 +7714,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                     {c.total_replies_received}
                   </td>
                   <td className="px-3 py-2 text-[10px]" style={{ color: A.text3 }}>
-                    {(c.campaigns || []).map((camp: any) => camp.name).join(', ').substring(0, 30) || '--'}
+                    {(c.campaigns || []).map((camp: any) => camp?.name).filter(Boolean).join(', ').substring(0, 30) || '--'}
                   </td>
                   <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>
                     {c.last_contacted_at ? new Date(c.last_contacted_at).toLocaleDateString() : '--'}
@@ -7784,7 +7784,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Campaigns</label>
                   <div className="text-xs pt-2" style={{ color: A.text1 }}>
-                    {(selectedContact.campaigns || []).map((c: any) => c.name).join(', ') || 'None'}
+                    {(selectedContact.campaigns || []).map((c: any) => c?.name).filter(Boolean).join(', ') || 'None'}
                   </div>
                 </div>
               </div>

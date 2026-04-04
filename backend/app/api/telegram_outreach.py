@@ -6025,7 +6025,7 @@ async def list_crm_contacts(
         "items": [{
             "id": c.id, "username": c.username, "first_name": c.first_name, "last_name": c.last_name,
             "company_name": c.company_name, "status": c.status.value, "tags": c.tags or [],
-            "notes": (c.notes or "")[:100], "campaigns": c.campaigns or [],
+            "notes": (c.notes or "")[:100], "campaigns": [camp for camp in (c.campaigns or []) if isinstance(camp, dict) and camp.get("name")],
             "total_messages_sent": c.total_messages_sent, "total_replies_received": c.total_replies_received,
             "first_contacted_at": c.first_contacted_at.isoformat() if c.first_contacted_at else None,
             "last_contacted_at": c.last_contacted_at.isoformat() if c.last_contacted_at else None,
@@ -6160,7 +6160,7 @@ async def crm_pipeline(
                 "total_messages_sent": c.total_messages_sent,
                 "total_replies_received": c.total_replies_received,
                 "last_contacted_at": c.last_contacted_at.isoformat() if c.last_contacted_at else None,
-                "campaigns": c.campaigns or [],
+                "campaigns": [camp for camp in (c.campaigns or []) if isinstance(camp, dict) and camp.get("name")],
             } for c in contacts],
         }
     return result

@@ -804,8 +804,8 @@ class SendingWorker:
                             contact.last_contacted_at = now
                             if contact.status == TgContactStatus.COLD:
                                 contact.status = TgContactStatus.CONTACTED
-                            # Add campaign if not already
-                            camp_list = contact.campaigns or []
+                            # Add campaign if not already (filter out corrupted non-dict entries)
+                            camp_list = [c for c in (contact.campaigns or []) if isinstance(c, dict)]
                             if not any(c.get("id") == campaign.id for c in camp_list):
                                 camp_list.append({"id": campaign.id, "name": campaign.name})
                                 contact.campaigns = camp_list
