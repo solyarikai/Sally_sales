@@ -6,7 +6,7 @@ import {
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2,
-  LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon,
+  LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon, Eye,
   BarChart3, ChevronUp, ChevronRight, FolderOpen,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -2671,6 +2671,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   const [countrySearch, setCountrySearch] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [accountId, setAccountId] = useState<number | null>(null);
   const [deviceModel, setDeviceModel] = useState('');
   const [loading, setLoading] = useState(false);
@@ -2908,11 +2909,20 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </div>
               <div>
                 <label className={labelCls}>2FA Password</label>
-                <input value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleVerify2FA()}
-                  type="password" placeholder="Enter your cloud password"
-                  className={inputCls} autoFocus />
+                <div className="relative">
+                  <input value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleVerify2FA()}
+                    type={showPassword ? 'text' : 'password'} placeholder="Enter your cloud password"
+                    className={inputCls} style={{ paddingRight: '2.5rem' }} autoFocus />
+                  <button type="button" onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    tabIndex={-1}>
+                    {showPassword
+                      ? <EyeOff className="w-4 h-4 opacity-50" style={{ color: isDark ? '#9CA3AF' : '#6B7280' }} />
+                      : <Eye className="w-4 h-4 opacity-50" style={{ color: isDark ? '#9CA3AF' : '#6B7280' }} />}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -3086,6 +3096,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
   const [authStep, setAuthStep] = useState<'none' | 'code_sent' | '2fa_required'>('none');
   const [authCode, setAuthCode] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const sessionFileRef = useRef<HTMLInputElement>(null);
 
@@ -3729,10 +3740,19 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
               {/* 2FA input */}
               {authStep === '2fa_required' && (
                 <div className="flex items-center gap-2">
-                  <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)}
-                         placeholder="Enter 2FA password"
-                         className="flex-1 px-3 py-1.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#4F6BF0]/20"
-                         style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text1 }} />
+                  <div className="relative flex-1">
+                    <input type={showAuthPassword ? 'text' : 'password'} value={authPassword} onChange={e => setAuthPassword(e.target.value)}
+                           placeholder="Enter 2FA password"
+                           className="w-full px-3 py-1.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#4F6BF0]/20"
+                           style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text1, paddingRight: '2rem' }} />
+                    <button type="button" onClick={() => setShowAuthPassword(v => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                      tabIndex={-1}>
+                      {showAuthPassword
+                        ? <EyeOff className="w-3.5 h-3.5 opacity-50" style={{ color: A.text3 }} />
+                        : <Eye className="w-3.5 h-3.5 opacity-50" style={{ color: A.text3 }} />}
+                    </button>
+                  </div>
                   <button onClick={async () => {
                             setAuthLoading(true);
                             try {
