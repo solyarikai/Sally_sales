@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search, Send, Loader2, MessageCircle, User, ChevronRight, ChevronLeft,
-  Tag, Hash, StickyNote, FileText, Download, Mic, X, Plus, Paperclip,
+  Tag, Hash, StickyNote, FileText, Download, X, Plus, Paperclip,
   Pencil, Copy, Trash2, Reply, CornerUpRight,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
