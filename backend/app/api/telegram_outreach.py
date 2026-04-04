@@ -4704,6 +4704,17 @@ async def _save_session_after_auth(account_id: int, account, session: AsyncSessi
                     account.first_name = me.first_name
                 if me.last_name:
                     account.last_name = me.last_name
+            # Download profile photo (best-effort)
+            try:
+                from pathlib import Path
+                photo_path = f"/app/tg_photos/{account.phone}.jpg"
+                Path("/app/tg_photos").mkdir(parents=True, exist_ok=True)
+                downloaded = await client.download_profile_photo(me, file=photo_path)
+                if downloaded:
+                    logger.info(f"Avatar downloaded for account {account_id}")
+            except Exception as e:
+                logger.warning(f"Failed to download avatar for {account_id}: {e}")
+
             account.string_session = StringSession.save(client.session)
             account.session_file = account.phone
             account.status = TgAccountStatus.ACTIVE
