@@ -7,7 +7,7 @@ import {
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
   MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2,
   LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon, Eye,
-  BarChart3, ChevronUp, ChevronRight, FolderOpen,
+  BarChart3, ChevronUp, ChevronRight, FolderOpen, ArrowLeft, StickyNote, Mic,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -7510,6 +7510,16 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [cfFilterFieldId, setCfFilterFieldId] = useState<number | null>(null);
   const [cfFilterValue, setCfFilterValue] = useState('');
   const [allFieldDefs, setAllFieldDefs] = useState<any[]>([]);
+  // Detail panel state (chat + notes)
+  const [dialogInfo, setDialogInfo] = useState<any>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [noteInput, setNoteInput] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load custom field definitions once
   useEffect(() => {
@@ -7541,22 +7551,81 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   useEffect(() => { loadContacts(); }, [loadContacts]);
   useEffect(() => { loadStats(); }, [loadStats]);
 
+  const loadChatMessages = useCallback(async (dId: number) => {
+    try {
+      const msgs = await telegramOutreachApi.getDialogMessages(dId, 50);
+      setChatMessages(Array.isArray(msgs) ? msgs : msgs.messages || []);
+    } catch { /* silent */ }
+  }, []);
+
   const openContact = async (c: any) => {
     setSelectedContact(c);
     setCampaignProgress([]);
     setContactFieldVals([]);
+    setDialogInfo(null);
+    setChatMessages([]);
+    setNotes([]);
+    setChatInput('');
+    setChatLoading(true);
+    // Stop existing poll
+    if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; }
     try {
-      const [h, cp, fds, fvs] = await Promise.all([
+      const [h, cp, fds, fvs, dlg, detail] = await Promise.all([
         telegramOutreachApi.getCrmContactHistory(c.id),
         telegramOutreachApi.getCrmContactCampaigns(c.id),
         telegramOutreachApi.listCustomFields(),
         telegramOutreachApi.getContactCustomFields(c.id),
+        telegramOutreachApi.getCrmContactDialog(c.id),
+        telegramOutreachApi.getCrmContact(c.id),
       ]);
       setHistory(h.history);
       setCampaignProgress(cp.campaigns || []);
       setContactFieldDefs(fds);
       setContactFieldVals(fvs);
+      setNotes(detail.notes || []);
+      if (dlg?.dialog) {
+        setDialogInfo(dlg.dialog);
+        await loadChatMessages(dlg.dialog.id);
+        // Start polling for new messages
+        chatPollRef.current = setInterval(() => loadChatMessages(dlg.dialog.id), 8000);
+      }
     } catch { setHistory([]); setCampaignProgress([]); }
+    finally { setChatLoading(false); }
+  };
+
+  const closeContact = () => {
+    setSelectedContact(null);
+    if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; }
+  };
+
+  // Cleanup poll on unmount
+  useEffect(() => {
+    return () => { if (chatPollRef.current) clearInterval(chatPollRef.current); };
+  }, []);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || !dialogInfo?.id || chatSending) return;
+    setChatSending(true);
+    try {
+      await telegramOutreachApi.sendDialogMessage(dialogInfo.id, chatInput.trim());
+      setChatInput('');
+      await loadChatMessages(dialogInfo.id);
+    } catch { toast('Failed to send message', 'error'); }
+    finally { setChatSending(false); }
+  };
+
+  const addNote = async () => {
+    if (!noteInput.trim() || !selectedContact) return;
+    try {
+      const n = await telegramOutreachApi.addCrmContactNote(selectedContact.id, noteInput.trim());
+      setNotes(prev => [n, ...prev]);
+      setNoteInput('');
+    } catch { toast('Failed to add note', 'error'); }
   };
 
   const updateStatus = async (id: number, status: string) => {
@@ -7741,135 +7810,138 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
         </div>
       )}
 
-      {/* Contact Detail Modal */}
+      {/* Contact Detail Panel — 2-column layout */}
       {selectedContact && (
-        <ModalBackdrop onClose={() => setSelectedContact(null)}>
-          <div className="w-[600px] rounded-xl border shadow-xl max-h-[80vh] overflow-y-auto"
-               style={{ borderColor: A.border, background: A.surface }}>
-            <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: A.border }}>
+        <div className="rounded-xl border shadow-sm mt-4" style={{ borderColor: A.border, background: A.surface }}>
+          {/* Header */}
+          <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: A.border }}>
+            <div className="flex items-center gap-3">
+              <button onClick={closeContact} className="p-1 rounded hover:bg-[#F5F5F0] transition-colors">
+                <ArrowLeft className="w-4 h-4" style={{ color: A.text3 }} />
+              </button>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold"
+                   style={{ background: '#6366F1' }}>
+                {(selectedContact.first_name || selectedContact.username || '?')[0].toUpperCase()}
+              </div>
               <div>
-                <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>@{selectedContact.username}</h2>
+                <h2 className="text-sm font-semibold" style={{ color: A.text1 }}>
+                  {[selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ') || `@${selectedContact.username}`}
+                </h2>
                 <p className="text-xs" style={{ color: A.text3 }}>
-                  {[selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ')}
-                  {selectedContact.company_name ? ` - ${selectedContact.company_name}` : ''}
+                  @{selectedContact.username}
+                  {selectedContact.company_name ? ` · ${selectedContact.company_name}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCrmDeleteConfirm('single')}
-                  className="p-1.5 rounded transition-colors"
-                  style={{ cursor: 'pointer' }}
-                  title="Delete contact"
-                  onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <Trash2 className="w-4 h-4" style={{ color: '#E11D48' }} />
-                </button>
-                <button onClick={() => setSelectedContact(null)} className="p-1 hover:bg-[#F5F5F0] rounded">
-                  <X className="w-5 h-5" style={{ color: A.text3 }} />
-                </button>
-              </div>
             </div>
-            <div className="px-6 py-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCrmDeleteConfirm('single')}
+                className="p-1.5 rounded transition-colors"
+                title="Delete contact"
+                onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <Trash2 className="w-4 h-4" style={{ color: '#E11D48' }} />
+              </button>
+              <button onClick={closeContact} className="p-1 hover:bg-[#F5F5F0] rounded">
+                <X className="w-4 h-4" style={{ color: A.text3 }} />
+              </button>
+            </div>
+          </div>
+
+          {/* 2-column body */}
+          <div className="flex" style={{ height: 'calc(70vh - 60px)', minHeight: 420 }}>
+            {/* ── LEFT: CRM Card (40%) ── */}
+            <div className="w-[40%] border-r overflow-y-auto p-4 space-y-4" style={{ borderColor: A.border }}>
+              {/* Status + Owner */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Status</label>
-                  <select value={selectedContact.status}
-                          onChange={e => { updateStatus(selectedContact.id, e.target.value); setSelectedContact({...selectedContact, status: e.target.value}); }}
-                          className="w-full px-3 py-2 rounded-lg border text-sm"
-                          style={{ borderColor: A.border, background: A.surface, color: A.text1 }}>
-                    {CRM_PIPELINE.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                  </select>
+                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Status</label>
+                  <StyledSelect
+                    value={selectedContact.status}
+                    onChange={v => { updateStatus(selectedContact.id, v); setSelectedContact({...selectedContact, status: v}); }}
+                    options={CRM_PIPELINE.map(s => ({ value: s, label: s.replace('_', ' ') }))}
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Campaigns</label>
-                  <div className="text-xs pt-2" style={{ color: A.text1 }}>
-                    {(selectedContact.campaigns || []).map((c: any) => c?.name).filter(Boolean).join(', ') || 'None'}
+                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Owner</label>
+                  <div className="text-xs pt-1.5" style={{ color: A.text1 }}>
+                    {selectedContact.custom_data?.owner || <span style={{ color: A.text3 }}>—</span>}
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
+
+              {/* Tags */}
+              {(selectedContact.tags?.length > 0) && (
+                <div>
+                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Tags</label>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedContact.tags.map((t: string) => (
+                      <span key={t} className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                            style={{ background: '#EEF2FF', color: '#4338CA' }}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-lg font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>Sent</div>
+                  <div className="text-base font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
+                  <div className="text-[9px]" style={{ color: A.text3 }}>Sent</div>
                 </div>
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-lg font-bold text-green-600">{selectedContact.total_replies_received}</div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>Replies</div>
+                  <div className="text-base font-bold text-green-600">{selectedContact.total_replies_received}</div>
+                  <div className="text-[9px]" style={{ color: A.text3 }}>Replies</div>
                 </div>
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-lg font-bold" style={{ color: A.text1 }}>
+                  <div className="text-xs font-bold" style={{ color: A.text1 }}>
                     {selectedContact.last_reply_at ? new Date(selectedContact.last_reply_at).toLocaleDateString() : '--'}
                   </div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>Last Reply</div>
+                  <div className="text-[9px]" style={{ color: A.text3 }}>Last Reply</div>
                 </div>
               </div>
-              {/* Campaign Sequence Progress */}
+
+              {/* Campaign Progress */}
               {campaignProgress.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Campaign Progress</h3>
+                  <h3 className="text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: A.text3 }}>Campaigns</h3>
                   <div className="space-y-2">
                     {campaignProgress.map((cp: any) => (
-                      <div key={cp.campaign_id} className="rounded-lg border p-3" style={{ borderColor: A.border }}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium" style={{ color: A.text1 }}>{cp.campaign_name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
-                              background: cp.campaign_status === 'active' ? '#ECFDF5' : cp.campaign_status === 'paused' ? '#FEF3C7' : '#F3F4F6',
-                              color: cp.campaign_status === 'active' ? '#059669' : cp.campaign_status === 'paused' ? '#D97706' : '#6B7280',
-                            }}>{cp.campaign_status}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
-                              background: cp.recipient_status === 'replied' ? '#ECFDF5' : cp.recipient_status === 'completed' ? '#F0F9FF' : cp.recipient_status === 'failed' ? '#FFF1F2' : '#F9F9F7',
-                              color: cp.recipient_status === 'replied' ? '#059669' : cp.recipient_status === 'completed' ? '#0284C7' : cp.recipient_status === 'failed' ? '#E11D48' : A.text3,
-                            }}>{cp.recipient_status}</span>
-                          </div>
+                      <div key={cp.campaign_id} className="rounded-lg border p-2.5" style={{ borderColor: A.border }}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-medium truncate" style={{ color: A.text1 }}>{cp.campaign_name}</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded flex-shrink-0" style={{
+                            background: cp.recipient_status === 'replied' ? '#ECFDF5' : cp.recipient_status === 'completed' ? '#F0F9FF' : '#F9F9F7',
+                            color: cp.recipient_status === 'replied' ? '#059669' : cp.recipient_status === 'completed' ? '#0284C7' : A.text3,
+                          }}>{cp.recipient_status}</span>
                         </div>
-                        {/* Step indicators */}
                         <div className="flex items-center gap-1">
                           {cp.steps.map((step: any, si: number) => {
                             const color = step.status === 'sent' ? '#9CA3AF' : step.status === 'read' ? '#3B82F6'
                               : step.status === 'replied' ? '#10B981' : step.status === 'failed' || step.status === 'spamblocked' ? '#EF4444'
                               : step.status === 'scheduled' ? '#F59E0B' : '#E5E7EB';
                             return (
-                              <div key={si} className="flex items-center" title={
-                                `${step.label}${step.sent_at ? `\nSent: ${new Date(step.sent_at).toLocaleString()}` : ''}${step.read_at ? `\nRead: ${new Date(step.read_at).toLocaleString()}` : ''}`
-                              }>
-                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: color }}>
+                              <div key={si} className="flex items-center" title={step.label}>
+                                <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ background: color }}>
                                   {si + 1}
                                 </div>
-                                {si < cp.steps.length - 1 && (
-                                  <div className="w-4 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />
-                                )}
+                                {si < cp.steps.length - 1 && <div className="w-3 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />}
                               </div>
                             );
                           })}
-                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>
-                            {cp.current_step}/{cp.total_steps}
-                          </span>
-                        </div>
-                        {/* Current step text summary */}
-                        <div className="mt-1.5 text-[11px]" style={{ color: A.text3 }}>
-                          {cp.recipient_status === 'replied' ? (
-                            <>Replied after {cp.steps.find((s: any) => s.status === 'replied')?.label || `step ${cp.current_step}`}</>
-                          ) : cp.recipient_status === 'completed' ? (
-                            <>Completed all {cp.total_steps} steps</>
-                          ) : cp.current_step > 0 ? (
-                            <>Sent {cp.steps[cp.current_step - 1]?.label || `step ${cp.current_step}`}{cp.steps[cp.current_step]
-                              ? `, next: ${cp.steps[cp.current_step]?.label} (+${cp.steps[cp.current_step]?.delay_days}d)`
-                              : ''}</>
-                          ) : (
-                            <>Pending — not yet sent</>
-                          )}
+                          <span className="text-[9px] ml-1" style={{ color: A.text3 }}>{cp.current_step}/{cp.total_steps}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
               {/* Custom Properties */}
               {contactFieldDefs.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Custom Properties</h3>
+                  <h3 className="text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: A.text3 }}>Properties</h3>
                   <div className="grid grid-cols-2 gap-2">
                     {contactFieldDefs.map((fd: any) => {
                       const cv = contactFieldVals.find((v: any) => v.field_id === fd.id);
@@ -7882,9 +7954,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                               style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
                               defaultValue={cv?.value || ''}
                               onChange={async (e) => {
-                                try {
-                                  await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value || null }]);
-                                } catch { /* silent */ }
+                                try { await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value || null }]); } catch { /* */ }
                               }}
                             >
                               <option value="">—</option>
@@ -7898,9 +7968,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                               defaultValue={cv?.value || ''}
                               placeholder="—"
                               onBlur={async (e) => {
-                                try {
-                                  await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value.trim() || null }]);
-                                } catch { /* silent */ }
+                                try { await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value.trim() || null }]); } catch { /* */ }
                               }}
                             />
                           )}
@@ -7910,32 +7978,146 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                   </div>
                 </div>
               )}
+
+              {/* Notes */}
               <div>
-                <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>History</h3>
-                {history.length === 0 ? (
-                  <p className="text-xs text-center py-4" style={{ color: A.text3 }}>No messages yet</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                    {history.map((h: any, i: number) => (
-                      <div key={i} className="rounded px-3 py-2 text-xs"
-                           style={{ background: h.type === 'sent' ? '#F9F9F7' : A.tealBg }}>
+                <h3 className="text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: A.text3 }}>Notes</h3>
+                <div className="flex gap-1.5 mb-2">
+                  <input
+                    value={noteInput}
+                    onChange={e => setNoteInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addNote(); }}
+                    placeholder="Add a note..."
+                    className="flex-1 px-2.5 py-1.5 rounded-lg border text-xs outline-none"
+                    style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                  />
+                  <button onClick={addNote} disabled={!noteInput.trim()}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-white transition-colors disabled:opacity-40"
+                    style={{ background: '#4F6BF0' }}>
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+                {notes.length > 0 && (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {notes.map((n: any) => (
+                      <div key={n.id} className="rounded-lg px-2.5 py-2 text-xs" style={{ background: '#FFFBEB' }}>
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="font-medium" style={{ color: h.type === 'sent' ? A.text3 : A.teal }}>
-                            {h.type === 'sent' ? 'Sent' : 'Reply'}
-                          </span>
-                          <span className="text-[10px]" style={{ color: A.text3 }}>
-                            {h.time ? new Date(h.time).toLocaleString() : ''}
+                          <span className="font-medium text-[10px]" style={{ color: '#92400E' }}>{n.author || 'System'}</span>
+                          <span className="text-[9px]" style={{ color: A.text3 }}>
+                            {n.created_at ? new Date(n.created_at).toLocaleDateString() : ''}
                           </span>
                         </div>
-                        <p style={{ color: A.text1 }}>{h.text}</p>
+                        <p style={{ color: A.text1 }}>{n.text}</p>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             </div>
+
+            {/* ── RIGHT: Chat (60%) ── */}
+            <div className="w-[60%] flex flex-col">
+              {chatLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} />
+                </div>
+              ) : !dialogInfo ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                  <MessageCircle className="w-10 h-10" style={{ color: A.text3, opacity: 0.4 }} />
+                  <p className="text-sm" style={{ color: A.text3 }}>No conversation yet</p>
+                  <p className="text-xs" style={{ color: A.text3, opacity: 0.7 }}>Messages will appear here once a campaign reaches this lead</p>
+                </div>
+              ) : (
+                <>
+                  {/* Messages */}
+                  <div className="flex-1 overflow-y-auto px-4 py-3 tg-chat-bg tg-chat-scroll">
+                    {chatMessages.length === 0 && (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-xs" style={{ color: A.text3 }}>No messages loaded</p>
+                      </div>
+                    )}
+                    {(() => {
+                      const groups: { date: string; msgs: any[] }[] = [];
+                      let lastDate = '';
+                      for (const msg of chatMessages) {
+                        const d = msg.sent_at ? new Date(msg.sent_at).toDateString() : 'Unknown';
+                        if (d !== lastDate) { groups.push({ date: msg.sent_at || '', msgs: [] }); lastDate = d; }
+                        groups[groups.length - 1].msgs.push(msg);
+                      }
+                      return groups.map((group, gi) => (
+                        <div key={gi}>
+                          {group.date && (
+                            <div className="tg-date-sep">
+                              <span>{(() => {
+                                const d = new Date(group.date);
+                                const now = new Date();
+                                const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
+                                if (diff === 0 && d.getDate() === now.getDate()) return 'Today';
+                                if (diff <= 1 && d.getDate() === now.getDate() - 1) return 'Yesterday';
+                                return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+                              })()}</span>
+                            </div>
+                          )}
+                          {group.msgs.map((msg: any, mi: number) => {
+                            const isOut = msg.direction === 'outbound';
+                            const next = group.msgs[mi + 1];
+                            const isLast = !next || next.direction !== msg.direction;
+                            const spacing = isLast ? 'tg-bubble-group-last' : 'tg-bubble-group-mid';
+                            const tail = isLast ? (isOut ? 'tg-bubble-tail-out' : 'tg-bubble-tail-in') : '';
+                            return (
+                              <div key={msg.id} className={`flex tg-msg-row ${spacing} ${isOut ? 'justify-end' : 'justify-start'}`}
+                                   style={{ paddingLeft: isOut ? 0 : (isLast ? 0 : 11), paddingRight: isOut ? (isLast ? 0 : 11) : 0 }}>
+                                <div className={`tg-bubble ${isOut ? 'tg-bubble-out' : 'tg-bubble-in'} ${tail}`}>
+                                  {msg.media && dialogInfo && (() => {
+                                    const url = telegramOutreachApi.getDialogMediaUrl(dialogInfo.id, msg.id);
+                                    if (msg.media.type === 'photo') return <div className="tg-media-photo"><img src={url} alt="" loading="lazy" /></div>;
+                                    if (msg.media.type === 'voice') return <div className="tg-media-voice"><Mic className="w-4 h-4 opacity-60" /><audio src={url} controls preload="metadata" /></div>;
+                                    if (msg.media.type === 'document') return (
+                                      <a href={url} download={msg.media.file_name || 'file'} target="_blank" rel="noopener noreferrer" className="tg-media-doc">
+                                        <FileText className="w-6 h-6 opacity-70" />
+                                        <span className="text-xs truncate">{msg.media.file_name || 'File'}</span>
+                                      </a>
+                                    );
+                                    return null;
+                                  })()}
+                                  <span className="tg-meta">
+                                    <span className={isOut ? 'tg-meta-time-out' : 'tg-meta-time'}>
+                                      {msg.sent_at ? new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                    </span>
+                                    {isOut && <span className="tg-meta-check">{msg.is_read ? '\u2713\u2713' : '\u2713'}</span>}
+                                  </span>
+                                  {msg.text && <>{msg.text}</>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ));
+                    })()}
+                    <div ref={chatEndRef} />
+                  </div>
+
+                  {/* Input */}
+                  <div className="border-t px-4 py-2.5 flex items-center gap-2" style={{ borderColor: A.border }}>
+                    <input
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                      placeholder="Write a message..."
+                      className="flex-1 px-3 py-2 rounded-xl border text-sm outline-none"
+                      style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                    />
+                    <button onClick={sendChatMessage} disabled={!chatInput.trim() || chatSending}
+                      className="p-2.5 rounded-full text-white transition-colors disabled:opacity-40"
+                      style={{ background: '#4F6BF0' }}>
+                      {chatSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </ModalBackdrop>
+        </div>
       )}
       {crmDeleteConfirm === 'bulk' && (
         <ConfirmModal message={`Delete ${selectedIds.size} contacts?`}
@@ -7952,7 +8134,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
           onConfirm={() => {
             setCrmDeleteConfirm(null);
             telegramOutreachApi.deleteCrmContact(selectedContact.id)
-              .then(() => { toast('Contact deleted', 'success'); setSelectedContact(null); loadContacts(); loadStats(); })
+              .then(() => { toast('Contact deleted', 'success'); closeContact(); loadContacts(); loadStats(); })
               .catch(() => toast('Delete failed', 'error'));
           }}
           onCancel={() => setCrmDeleteConfirm(null)} />

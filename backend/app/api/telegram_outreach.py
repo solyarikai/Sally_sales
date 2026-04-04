@@ -6166,6 +6166,38 @@ async def crm_pipeline(
     return result
 
 
+@router.get("/crm/contacts/{contact_id}/dialog")
+async def get_contact_dialog(contact_id: int, session: AsyncSession = Depends(get_session)):
+    """Find the inbox dialog for a CRM contact (by username match)."""
+    contact = await session.get(TgContact, contact_id)
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+    if not contact.username:
+        return {"dialog": None}
+    # Find the most recent dialog matching this username
+    q = (
+        select(TgInboxDialog)
+        .where(TgInboxDialog.peer_username == contact.username)
+        .order_by(TgInboxDialog.last_message_at.desc().nullslast())
+        .limit(1)
+    )
+    dialog = (await session.execute(q)).scalar()
+    if not dialog:
+        return {"dialog": None}
+    return {
+        "dialog": {
+            "id": dialog.id,
+            "account_id": dialog.account_id,
+            "peer_id": dialog.peer_id,
+            "peer_name": dialog.peer_name,
+            "peer_username": dialog.peer_username,
+            "last_message_at": dialog.last_message_at.isoformat() if dialog.last_message_at else None,
+            "unread_count": dialog.unread_count,
+            "campaign_id": dialog.campaign_id,
+        },
+    }
+
+
 @router.get("/crm/contacts/{contact_id}/history")
 async def get_contact_history(contact_id: int, session: AsyncSession = Depends(get_session)):
     """Get full message history for a CRM contact."""
