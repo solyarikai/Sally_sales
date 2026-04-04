@@ -5,6 +5,7 @@ import {
   Plus, Trash2, Save, Upload, Loader2, Play, Pause,
   ChevronLeft, ChevronRight, RefreshCw, Type, BarChart3, X, Search, UserPlus, Check,
   Table2, AlertTriangle, Image, Video, FileText, Mic, Paperclip,
+  Bold, Italic, Code, Clock, Pencil,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -879,6 +880,22 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
 
   useEffect(() => { loadSequence(); }, [loadSequence]);
 
+  // Per-step statistics
+  const [stepStats, setStepStats] = useState<{
+    steps: { step_order: number; step_id: number; delay_days: number; sent: number; read: number; replied: number }[];
+    totals: { sent: number; read: number; replied: number; total_recipients: number };
+  } | null>(null);
+  const [expandedStepIdx, setExpandedStepIdx] = useState<number | null>(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await telegramOutreachApi.getCampaignStepStats(campaignId);
+        setStepStats(data);
+      } catch { /* ok */ }
+    })();
+  }, [campaignId]);
+
   const handleSave = async () => {
     if (!sequence) return;
     setSaving(true);
@@ -976,6 +993,26 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
     }, 0);
   };
 
+  // ── Formatting helpers ───────────────────────────────────────────
+  const applyFormat = (stepIdx: number, varIdx: number, prefix: string, suffix: string) => {
+    const el = document.getElementById(`seq-${stepIdx}-${varIdx}`) as HTMLTextAreaElement | null;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const currentText = sequence?.steps[stepIdx]?.variants[varIdx]?.message_text || '';
+    const selected = currentText.substring(start, end);
+    const newText = currentText.substring(0, start) + prefix + (selected || 'text') + suffix + currentText.substring(end);
+    updateVariant(stepIdx, varIdx, { message_text: newText });
+    setTimeout(() => {
+      el.focus();
+      if (selected) {
+        el.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
+      } else {
+        el.setSelectionRange(start + prefix.length, start + prefix.length + 4);
+      }
+    }, 0);
+  };
+
   // ── { Variable insertion popup ────────────────────────────────────
   const [varPopup, setVarPopup] = useState<{
     stepIdx: number; varIdx: number; triggerPos: number; selectedIdx: number; filter: string;
@@ -1055,8 +1092,9 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
   }
 
   return (
-    <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className={cn('text-sm font-semibold', t.text1)}>Message Sequence</h3>
           <p className={cn('text-xs mt-0.5', t.text3)}>
@@ -1065,11 +1103,12 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
         </div>
         <div className="flex items-center gap-2">
           <button onClick={addStep}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
             <Plus className="w-3.5 h-3.5" /> Add Step
           </button>
           <button onClick={handleSave} disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                  className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50',
+                    'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800', t.text1)}>
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             Save
           </button>
@@ -1077,229 +1116,308 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
       </div>
 
       {(!sequence || sequence.steps.length === 0) ? (
-        <div className={cn('text-center py-12 rounded-lg border', 'border-gray-200 dark:border-gray-700')}>
-          <ListOrdered className={cn('w-10 h-10 mx-auto mb-3', t.text3)} />
-          <p className={cn('text-sm', t.text3)}>No steps yet. Add your first message step.</p>
+        <div className={cn('text-center py-16 rounded-xl border-2 border-dashed', 'border-gray-200 dark:border-gray-700')}>
+          <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-3">
+            <ListOrdered className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <p className={cn('text-sm font-medium', t.text1)}>No steps yet</p>
+          <p className={cn('text-xs mt-1', t.text3)}>Add your first message step to start the sequence.</p>
           <button onClick={addStep}
-                  className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                  className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700">
             <Plus className="w-4 h-4 inline mr-1" /> Add Step
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          {sequence.steps.map((step, stepIdx) => (
-            <div key={stepIdx} className={cn('rounded-lg border', 'border-gray-200 dark:border-gray-700')}>
-              {/* Step Header */}
-              <div className={cn('flex items-center justify-between px-4 py-3 border-b', 'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-800/50' : 'bg-gray-50')}>
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400 text-xs font-bold">
-                    {step.step_order}
-                  </span>
-                  <span className={cn('text-sm font-medium', t.text1)}>
-                    {stepIdx === 0 ? 'Initial Message' : `Follow-up ${stepIdx}`}
-                  </span>
-                  {stepIdx > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className={cn('text-xs', t.text3)}>after</span>
-                      <input type="number" min={0} value={step.delay_days}
-                             onChange={e => updateStep(stepIdx, { delay_days: Number(e.target.value) })}
-                             className={cn('w-14 px-2 py-1 rounded border text-xs text-center', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)} />
-                      <span className={cn('text-xs', t.text3)}>days</span>
-                    </div>
-                  )}
-                  <select value={step.message_type || 'text'}
-                          onChange={e => updateStep(stepIdx, { message_type: e.target.value as MessageType })}
-                          className={cn('text-xs px-2 py-1 rounded border', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}>
-                    <option value="text">Text</option>
-                    <option value="image">Image</option>
-                    <option value="video">Video</option>
-                    <option value="document">Document</option>
-                    <option value="voice">Voice</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  {step.variants.length < 5 && (
-                    <button onClick={() => addVariant(stepIdx)}
-                            className={cn('text-xs px-2 py-1 rounded border hover:bg-gray-100 dark:hover:bg-gray-800', 'border-gray-200 dark:border-gray-700', t.text3)}>
-                      + A/B Variant
-                    </button>
-                  )}
-                  <button onClick={() => removeStep(stepIdx)}
-                          className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
-                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                  </button>
-                </div>
-              </div>
+        <div className="relative">
+          {/* Vertical timeline line */}
+          {sequence.steps.length > 1 && (
+            <div className="absolute left-[15px] top-6 bottom-6 w-0.5 bg-emerald-200 dark:bg-emerald-800/50" />
+          )}
 
-              {/* Variants */}
-              <div className="p-4 space-y-3">
-                {step.variants.map((variant, varIdx) => (
-                  <div key={varIdx} className="space-y-2">
-                    {step.variants.length > 1 && (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded',
-                            varIdx === 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                          )}>
-                            Variant {variant.variant_label}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <input type="number" min={1} max={99} value={variant.weight_percent}
-                                   onChange={e => updateVariant(stepIdx, varIdx, { weight_percent: Number(e.target.value) })}
-                                   className={cn('w-12 px-1.5 py-0.5 rounded border text-xs text-center', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)} />
-                            <span className={cn('text-xs', t.text3)}>%</span>
-                          </div>
-                        </div>
+          <div className="space-y-3">
+            {sequence.steps.map((step, stepIdx) => {
+              const isExpanded = expandedStepIdx === stepIdx;
+              const stats = stepStats?.steps?.find(s => s.step_order === step.step_order);
+              const previewText = step.variants[0]?.message_text || '';
+              const stepLabel = stepIdx === 0
+                ? `Send ${step.message_type || 'text'}`
+                : `Wait ${step.delay_days} day${step.delay_days !== 1 ? 's' : ''} \u00b7 Send ${step.message_type || 'text'}`;
+
+              return (
+                <div key={stepIdx} className="relative pl-10">
+                  {/* Green circle marker */}
+                  <div className={cn(
+                    'absolute left-0 top-3.5 w-[30px] h-[30px] rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm transition-all',
+                    isExpanded
+                      ? 'bg-emerald-500 text-white ring-4 ring-emerald-100 dark:ring-emerald-900/40'
+                      : 'bg-emerald-500 text-white'
+                  )}>
+                    {step.step_order}
+                  </div>
+
+                  {/* Step Card */}
+                  <div className={cn(
+                    'rounded-xl border transition-all',
+                    isExpanded ? 'shadow-md border-emerald-200 dark:border-emerald-800/50' : 'shadow-sm border-gray-200 dark:border-gray-700 hover:shadow-md',
+                    'bg-white dark:bg-gray-900'
+                  )}>
+                    {/* Collapsed header — always visible */}
+                    <div
+                      className={cn('flex items-center justify-between px-4 py-3 cursor-pointer select-none rounded-xl transition-colors',
+                        !isExpanded && 'hover:bg-gray-50/50 dark:hover:bg-gray-800/30')}
+                      onClick={() => setExpandedStepIdx(isExpanded ? null : stepIdx)}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <span className={cn('text-sm font-medium', t.text1)}>{stepLabel}</span>
                         {step.variants.length > 1 && (
-                          <button onClick={() => removeVariant(stepIdx, varIdx)}
-                                  className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
-                            <Trash2 className="w-3 h-3 text-red-400" />
-                          </button>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 font-medium shrink-0">
+                            {step.variants.length} variants
+                          </span>
                         )}
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {stats && (stats.sent > 0 || stats.read > 0 || stats.replied > 0) && (
+                          <div className="flex items-center gap-2.5 text-[11px]">
+                            <span className={t.text3}>Sent <span className={cn('font-semibold', t.text2)}>{stats.sent}</span></span>
+                            <span className={t.text3}>Read <span className={cn('font-semibold', t.text2)}>{stats.read}</span></span>
+                            <span className={t.text3}>Replied <span className="font-semibold text-emerald-600 dark:text-emerald-400">{stats.replied}</span></span>
+                          </div>
+                        )}
+                        <Pencil className={cn('w-3.5 h-3.5 transition-colors', isExpanded ? 'text-emerald-500' : t.text3)} />
+                      </div>
+                    </div>
+
+                    {/* Preview when collapsed */}
+                    {!isExpanded && previewText && (
+                      <div className="px-4 pb-3 -mt-1">
+                        <p className={cn('text-xs leading-relaxed line-clamp-2', t.text3)}>
+                          {previewText.length > 150 ? previewText.slice(0, 150) + '\u2026' : previewText}
+                        </p>
                       </div>
                     )}
 
-                    {/* Media upload for non-text steps */}
-                    {(step.message_type || 'text') !== 'text' && (
-                      <div className={cn('flex items-center gap-3 p-3 rounded-lg border border-dashed', 'border-gray-300 dark:border-gray-600', isDark ? 'bg-gray-800/30' : 'bg-gray-50/50')}>
-                        {variant.media_file_path ? (
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            {step.message_type === 'image' && <Image className="w-4 h-4 text-blue-500 shrink-0" />}
-                            {step.message_type === 'video' && <Video className="w-4 h-4 text-purple-500 shrink-0" />}
-                            {step.message_type === 'document' && <FileText className="w-4 h-4 text-orange-500 shrink-0" />}
-                            {step.message_type === 'voice' && <Mic className="w-4 h-4 text-green-500 shrink-0" />}
-                            <span className={cn('text-xs truncate', t.text2)}>{variant.media_file_path.split('/').pop()}</span>
-                            <button onClick={() => updateVariant(stepIdx, varIdx, { media_file_path: null })}
-                                    className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded shrink-0">
-                              <X className="w-3 h-3 text-red-400" />
+                    {/* ── Expanded editor ─────────────────────────── */}
+                    {isExpanded && (
+                      <div className={cn('border-t px-4 py-4 space-y-4', 'border-gray-100 dark:border-gray-800')}>
+                        {/* Step settings row */}
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {stepIdx > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <Clock className={cn('w-3.5 h-3.5', t.text3)} />
+                              <span className={cn('text-xs', t.text3)}>Wait</span>
+                              <input type="number" min={0} value={step.delay_days}
+                                     onChange={e => updateStep(stepIdx, { delay_days: Number(e.target.value) })}
+                                     className={cn('w-14 px-2 py-1 rounded-lg border text-xs text-center', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)} />
+                              <span className={cn('text-xs', t.text3)}>days</span>
+                            </div>
+                          )}
+                          <select value={step.message_type || 'text'}
+                                  onChange={e => updateStep(stepIdx, { message_type: e.target.value as MessageType })}
+                                  className={cn('text-xs px-2.5 py-1.5 rounded-lg border', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}>
+                            <option value="text">Text</option>
+                            <option value="image">Image</option>
+                            <option value="video">Video</option>
+                            <option value="document">Document</option>
+                            <option value="voice">Voice</option>
+                          </select>
+                          <div className="ml-auto flex items-center gap-2">
+                            {step.variants.length < 5 && (
+                              <button onClick={() => addVariant(stepIdx)}
+                                      className={cn('text-xs px-2.5 py-1 rounded-lg border font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors', 'border-gray-200 dark:border-gray-700', t.text2)}>
+                                + A/B Variant
+                              </button>
+                            )}
+                            <button onClick={() => removeStep(stepIdx)}
+                                    className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                              <Trash2 className="w-3.5 h-3.5 text-red-400" />
                             </button>
                           </div>
-                        ) : (
-                          <label className="flex items-center gap-2 cursor-pointer flex-1">
-                            <Paperclip className={cn('w-4 h-4', t.text3)} />
-                            <span className={cn('text-xs', t.text3)}>
-                              Upload {step.message_type === 'voice' ? 'voice message (.ogg)' : step.message_type}
-                            </span>
-                            <input type="file" className="hidden"
-                                   accept={step.message_type === 'image' ? 'image/*' : step.message_type === 'video' ? 'video/*' : step.message_type === 'voice' ? 'audio/ogg,audio/*' : '*/*'}
-                                   onChange={async (e) => {
-                                     const f = e.target.files?.[0];
-                                     if (!f || !campaignId) return;
-                                     try {
-                                       const res = await telegramOutreachApi.uploadMedia(Number(campaignId), f);
-                                       updateVariant(stepIdx, varIdx, { media_file_path: res.file_path });
-                                       toast('File uploaded', 'success');
-                                     } catch { toast('Upload failed', 'error'); }
-                                   }} />
-                          </label>
-                        )}
+                        </div>
+
+                        {/* Variants */}
+                        {step.variants.map((variant, varIdx) => (
+                          <div key={varIdx} className={cn('space-y-2.5', step.variants.length > 1 && 'p-3 rounded-lg border border-gray-100 dark:border-gray-800')}>
+                            {/* Variant header */}
+                            {step.variants.length > 1 && (
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full',
+                                    varIdx === 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                    : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                  )}>
+                                    Variant {variant.variant_label}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <input type="number" min={1} max={99} value={variant.weight_percent}
+                                           onChange={e => updateVariant(stepIdx, varIdx, { weight_percent: Number(e.target.value) })}
+                                           className={cn('w-12 px-1.5 py-0.5 rounded border text-xs text-center', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)} />
+                                    <span className={cn('text-xs', t.text3)}>%</span>
+                                  </div>
+                                </div>
+                                <button onClick={() => removeVariant(stepIdx, varIdx)}
+                                        className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
+                                  <Trash2 className="w-3 h-3 text-red-400" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Media upload for non-text steps */}
+                            {(step.message_type || 'text') !== 'text' && (
+                              <div className={cn('flex items-center gap-3 p-3 rounded-lg border border-dashed', 'border-gray-300 dark:border-gray-600', isDark ? 'bg-gray-800/30' : 'bg-gray-50/50')}>
+                                {variant.media_file_path ? (
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    {step.message_type === 'image' && <Image className="w-4 h-4 text-blue-500 shrink-0" />}
+                                    {step.message_type === 'video' && <Video className="w-4 h-4 text-purple-500 shrink-0" />}
+                                    {step.message_type === 'document' && <FileText className="w-4 h-4 text-orange-500 shrink-0" />}
+                                    {step.message_type === 'voice' && <Mic className="w-4 h-4 text-green-500 shrink-0" />}
+                                    <span className={cn('text-xs truncate', t.text2)}>{variant.media_file_path.split('/').pop()}</span>
+                                    <button onClick={() => updateVariant(stepIdx, varIdx, { media_file_path: null })}
+                                            className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded shrink-0">
+                                      <X className="w-3 h-3 text-red-400" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="flex items-center gap-2 cursor-pointer flex-1">
+                                    <Paperclip className={cn('w-4 h-4', t.text3)} />
+                                    <span className={cn('text-xs', t.text3)}>
+                                      Upload {step.message_type === 'voice' ? 'voice message (.ogg)' : step.message_type}
+                                    </span>
+                                    <input type="file" className="hidden"
+                                           accept={step.message_type === 'image' ? 'image/*' : step.message_type === 'video' ? 'video/*' : step.message_type === 'voice' ? 'audio/ogg,audio/*' : '*/*'}
+                                           onChange={async (e) => {
+                                             const f = e.target.files?.[0];
+                                             if (!f || !campaignId) return;
+                                             try {
+                                               const res = await telegramOutreachApi.uploadMedia(Number(campaignId), f);
+                                               updateVariant(stepIdx, varIdx, { media_file_path: res.file_path });
+                                               toast('File uploaded', 'success');
+                                             } catch { toast('Upload failed', 'error'); }
+                                           }} />
+                                  </label>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Formatting toolbar + Variable buttons */}
+                            {(step.message_type || 'text') !== 'voice' && (
+                              <div className={cn('flex items-center gap-1 flex-wrap', 'border-b pb-2 border-gray-100 dark:border-gray-800')}>
+                                <button onClick={() => applyFormat(stepIdx, varIdx, '**', '**')} title="Bold (Telegram markdown)"
+                                        className={cn('p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors', t.text3, 'hover:text-gray-700 dark:hover:text-gray-200')}>
+                                  <Bold className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => applyFormat(stepIdx, varIdx, '__', '__')} title="Italic (Telegram markdown)"
+                                        className={cn('p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors', t.text3, 'hover:text-gray-700 dark:hover:text-gray-200')}>
+                                  <Italic className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => applyFormat(stepIdx, varIdx, '`', '`')} title="Code (Telegram markdown)"
+                                        className={cn('p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors', t.text3, 'hover:text-gray-700 dark:hover:text-gray-200')}>
+                                  <Code className="w-3.5 h-3.5" />
+                                </button>
+                                <div className={cn('w-px h-4 mx-0.5', 'bg-gray-200 dark:bg-gray-700')} />
+                                {['first_name', 'company_name', 'username', ...customVars].map(v => (
+                                  <button key={v} onClick={() => insertVariable(stepIdx, varIdx, v)}
+                                          className={cn('text-[11px] px-1.5 py-0.5 rounded border font-mono hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors',
+                                            'border-gray-200 dark:border-gray-700',
+                                            customVars.includes(v) ? 'text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800' : t.text3)}>
+                                    {`{{${v}}}`}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Message textarea with { variable popup */}
+                            <div className="relative">
+                              <textarea
+                                id={`seq-${stepIdx}-${varIdx}`}
+                                rows={step.message_type === 'voice' ? 1 : 5}
+                                value={variant.message_text}
+                                onChange={e => handleSeqChange(e, stepIdx, varIdx)}
+                                onKeyDown={e => handleSeqKeyDown(e, stepIdx, varIdx)}
+                                placeholder={step.message_type === 'voice' ? 'Voice messages have no text caption' : (step.message_type || 'text') !== 'text' ? 'Caption (optional)... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables' : 'Type your message... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables'}
+                                className={cn('w-full px-3 py-2 rounded-lg border text-sm font-mono leading-relaxed resize-y', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1, step.message_type === 'voice' && 'hidden')}
+                              />
+                              {varPopup?.stepIdx === stepIdx && varPopup?.varIdx === varIdx && popupItems.length > 0 && (() => {
+                                const sysItems = popupItems.filter(i => i.section === 'system' && i.type === 'var');
+                                const spxItem = popupItems.find(i => i.type === 'spintax');
+                                const csvItems = popupItems.filter(i => i.section === 'csv');
+                                return (
+                                  <div ref={varPopupRef}
+                                       className={cn('absolute z-50 left-0 w-72 bottom-full mb-1 rounded-lg border shadow-lg overflow-hidden max-h-64 overflow-y-auto',
+                                         'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-900' : 'bg-white')}>
+                                    {sysItems.length > 0 && (
+                                      <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold',
+                                        isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
+                                        Variables
+                                      </div>
+                                    )}
+                                    {sysItems.map(item => {
+                                      const gi = popupItems.indexOf(item);
+                                      return (
+                                        <button key={item.name}
+                                                onClick={() => selectPopupItem(item)}
+                                                onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
+                                                className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
+                                                  varPopup.selectedIdx === gi
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                                    : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
+                                          <span className="font-mono text-xs opacity-40">{'{{'}</span>
+                                          <span>{item.label}</span>
+                                          <span className="font-mono text-xs opacity-40">{'}}'}</span>
+                                        </button>
+                                      );
+                                    })}
+                                    {spxItem && (() => {
+                                      const gi = popupItems.indexOf(spxItem);
+                                      return (
+                                        <button onClick={() => selectPopupItem(spxItem)}
+                                                onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
+                                                className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 border-t',
+                                                  'border-gray-100 dark:border-gray-800',
+                                                  varPopup.selectedIdx === gi
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                                    : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
+                                          <Type className="w-3.5 h-3.5 opacity-50" />
+                                          <span>Random text</span>
+                                          <span className={cn('text-xs ml-auto', t.text3)}>Spintax</span>
+                                        </button>
+                                      );
+                                    })()}
+                                    {csvItems.length > 0 && (
+                                      <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold border-t',
+                                        'border-gray-100 dark:border-gray-800',
+                                        isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
+                                        CSV Columns
+                                      </div>
+                                    )}
+                                    {csvItems.map(item => {
+                                      const gi = popupItems.indexOf(item);
+                                      return (
+                                        <button key={item.name}
+                                                onClick={() => selectPopupItem(item)}
+                                                onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
+                                                className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
+                                                  varPopup.selectedIdx === gi
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                                    : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
+                                          <span className="font-mono text-xs text-indigo-500">{'{{'}</span>
+                                          <span>{item.label}</span>
+                                          <span className="font-mono text-xs text-indigo-500">{'}}'}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
-
-                    {/* Variable Insert Buttons */}
-                    {(step.message_type || 'text') !== 'voice' && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={cn('text-xs', t.text3)}>Insert:</span>
-                      {['first_name', 'company_name', 'username', ...customVars].map(v => (
-                        <button key={v} onClick={() => insertVariable(stepIdx, varIdx, v)}
-                                className={cn('text-xs px-1.5 py-0.5 rounded border hover:bg-gray-100 dark:hover:bg-gray-800 font-mono', 'border-gray-200 dark:border-gray-700',
-                                  customVars.includes(v) ? 'text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700' : t.text3)}>
-                          {`{{${v}}}`}
-                        </button>
-                      ))}
-                    </div>
-                    )}
-
-                    {/* Message textarea with { variable popup */}
-                    <div className="relative">
-                      <textarea
-                        id={`seq-${stepIdx}-${varIdx}`}
-                        rows={step.message_type === 'voice' ? 1 : 5}
-                        value={variant.message_text}
-                        onChange={e => handleSeqChange(e, stepIdx, varIdx)}
-                        onKeyDown={e => handleSeqKeyDown(e, stepIdx, varIdx)}
-                        placeholder={step.message_type === 'voice' ? 'Voice messages have no text caption' : (step.message_type || 'text') !== 'text' ? 'Caption (optional)... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables' : 'Type your message... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables'}
-                        className={cn('w-full px-3 py-2 rounded-lg border text-sm font-mono leading-relaxed resize-y', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1, step.message_type === 'voice' && 'hidden')}
-                      />
-                      {varPopup?.stepIdx === stepIdx && varPopup?.varIdx === varIdx && popupItems.length > 0 && (() => {
-                        const sysItems = popupItems.filter(i => i.section === 'system' && i.type === 'var');
-                        const spxItem = popupItems.find(i => i.type === 'spintax');
-                        const csvItems = popupItems.filter(i => i.section === 'csv');
-                        return (
-                          <div ref={varPopupRef}
-                               className={cn('absolute z-50 left-0 w-72 bottom-full mb-1 rounded-lg border shadow-lg overflow-hidden max-h-64 overflow-y-auto',
-                                 'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-900' : 'bg-white')}>
-                            {sysItems.length > 0 && (
-                              <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold',
-                                isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
-                                Variables
-                              </div>
-                            )}
-                            {sysItems.map(item => {
-                              const gi = popupItems.indexOf(item);
-                              return (
-                                <button key={item.name}
-                                        onClick={() => selectPopupItem(item)}
-                                        onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
-                                        className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
-                                          varPopup.selectedIdx === gi
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                                            : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
-                                  <span className="font-mono text-xs opacity-40">{'{{'}</span>
-                                  <span>{item.label}</span>
-                                  <span className="font-mono text-xs opacity-40">{'}}'}</span>
-                                </button>
-                              );
-                            })}
-                            {spxItem && (() => {
-                              const gi = popupItems.indexOf(spxItem);
-                              return (
-                                <button onClick={() => selectPopupItem(spxItem)}
-                                        onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
-                                        className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 border-t',
-                                          'border-gray-100 dark:border-gray-800',
-                                          varPopup.selectedIdx === gi
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                                            : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
-                                  <Type className="w-3.5 h-3.5 opacity-50" />
-                                  <span>Random text</span>
-                                  <span className={cn('text-xs ml-auto', t.text3)}>Spintax</span>
-                                </button>
-                              );
-                            })()}
-                            {csvItems.length > 0 && (
-                              <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold border-t',
-                                'border-gray-100 dark:border-gray-800',
-                                isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
-                                CSV Columns
-                              </div>
-                            )}
-                            {csvItems.map(item => {
-                              const gi = popupItems.indexOf(item);
-                              return (
-                                <button key={item.name}
-                                        onClick={() => selectPopupItem(item)}
-                                        onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
-                                        className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
-                                          varPopup.selectedIdx === gi
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                                            : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
-                                  <span className="font-mono text-xs text-indigo-500">{'{{'}</span>
-                                  <span>{item.label}</span>
-                                  <span className="font-mono text-xs text-indigo-500">{'}}'}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
