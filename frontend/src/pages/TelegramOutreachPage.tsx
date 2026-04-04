@@ -2411,11 +2411,92 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
 // Add by Phone Modal (multi-step auth wizard)
 // ══════════════════════════════════════════════════════════════════════
 
+const PHONE_COUNTRIES = [
+  { code: '1', flag: '\u{1F1FA}\u{1F1F8}', name: 'United States' },
+  { code: '44', flag: '\u{1F1EC}\u{1F1E7}', name: 'United Kingdom' },
+  { code: '49', flag: '\u{1F1E9}\u{1F1EA}', name: 'Germany' },
+  { code: '33', flag: '\u{1F1EB}\u{1F1F7}', name: 'France' },
+  { code: '351', flag: '\u{1F1F5}\u{1F1F9}', name: 'Portugal' },
+  { code: '34', flag: '\u{1F1EA}\u{1F1F8}', name: 'Spain' },
+  { code: '39', flag: '\u{1F1EE}\u{1F1F9}', name: 'Italy' },
+  { code: '31', flag: '\u{1F1F3}\u{1F1F1}', name: 'Netherlands' },
+  { code: '47', flag: '\u{1F1F3}\u{1F1F4}', name: 'Norway' },
+  { code: '46', flag: '\u{1F1F8}\u{1F1EA}', name: 'Sweden' },
+  { code: '45', flag: '\u{1F1E9}\u{1F1F0}', name: 'Denmark' },
+  { code: '358', flag: '\u{1F1EB}\u{1F1EE}', name: 'Finland' },
+  { code: '7', flag: '\u{1F1F7}\u{1F1FA}', name: 'Russia' },
+  { code: '380', flag: '\u{1F1FA}\u{1F1E6}', name: 'Ukraine' },
+  { code: '375', flag: '\u{1F1E7}\u{1F1FE}', name: 'Belarus' },
+  { code: '48', flag: '\u{1F1F5}\u{1F1F1}', name: 'Poland' },
+  { code: '420', flag: '\u{1F1E8}\u{1F1FF}', name: 'Czechia' },
+  { code: '43', flag: '\u{1F1E6}\u{1F1F9}', name: 'Austria' },
+  { code: '41', flag: '\u{1F1E8}\u{1F1ED}', name: 'Switzerland' },
+  { code: '90', flag: '\u{1F1F9}\u{1F1F7}', name: 'Turkey' },
+  { code: '971', flag: '\u{1F1E6}\u{1F1EA}', name: 'UAE' },
+  { code: '966', flag: '\u{1F1F8}\u{1F1E6}', name: 'Saudi Arabia' },
+  { code: '91', flag: '\u{1F1EE}\u{1F1F3}', name: 'India' },
+  { code: '86', flag: '\u{1F1E8}\u{1F1F3}', name: 'China' },
+  { code: '82', flag: '\u{1F1F0}\u{1F1F7}', name: 'South Korea' },
+  { code: '81', flag: '\u{1F1EF}\u{1F1F5}', name: 'Japan' },
+  { code: '65', flag: '\u{1F1F8}\u{1F1EC}', name: 'Singapore' },
+  { code: '60', flag: '\u{1F1F2}\u{1F1FE}', name: 'Malaysia' },
+  { code: '62', flag: '\u{1F1EE}\u{1F1E9}', name: 'Indonesia' },
+  { code: '55', flag: '\u{1F1E7}\u{1F1F7}', name: 'Brazil' },
+  { code: '52', flag: '\u{1F1F2}\u{1F1FD}', name: 'Mexico' },
+  { code: '234', flag: '\u{1F1F3}\u{1F1EC}', name: 'Nigeria' },
+  { code: '27', flag: '\u{1F1FF}\u{1F1E6}', name: 'South Africa' },
+  { code: '61', flag: '\u{1F1E6}\u{1F1FA}', name: 'Australia' },
+  { code: '64', flag: '\u{1F1F3}\u{1F1FF}', name: 'New Zealand' },
+  { code: '1', flag: '\u{1F1E8}\u{1F1E6}', name: 'Canada' },
+  { code: '972', flag: '\u{1F1EE}\u{1F1F1}', name: 'Israel' },
+  { code: '998', flag: '\u{1F1FA}\u{1F1FF}', name: 'Uzbekistan' },
+  { code: '995', flag: '\u{1F1EC}\u{1F1EA}', name: 'Georgia' },
+  { code: '374', flag: '\u{1F1E6}\u{1F1F2}', name: 'Armenia' },
+  { code: '994', flag: '\u{1F1E6}\u{1F1FF}', name: 'Azerbaijan' },
+  { code: '370', flag: '\u{1F1F1}\u{1F1F9}', name: 'Lithuania' },
+  { code: '371', flag: '\u{1F1F1}\u{1F1FB}', name: 'Latvia' },
+  { code: '372', flag: '\u{1F1EA}\u{1F1EA}', name: 'Estonia' },
+  { code: '353', flag: '\u{1F1EE}\u{1F1EA}', name: 'Ireland' },
+  { code: '32', flag: '\u{1F1E7}\u{1F1EA}', name: 'Belgium' },
+  { code: '30', flag: '\u{1F1EC}\u{1F1F7}', name: 'Greece' },
+  { code: '36', flag: '\u{1F1ED}\u{1F1FA}', name: 'Hungary' },
+  { code: '40', flag: '\u{1F1F7}\u{1F1F4}', name: 'Romania' },
+  { code: '359', flag: '\u{1F1E7}\u{1F1EC}', name: 'Bulgaria' },
+  { code: '385', flag: '\u{1F1ED}\u{1F1F7}', name: 'Croatia' },
+  { code: '381', flag: '\u{1F1F7}\u{1F1F8}', name: 'Serbia' },
+  { code: '66', flag: '\u{1F1F9}\u{1F1ED}', name: 'Thailand' },
+  { code: '63', flag: '\u{1F1F5}\u{1F1ED}', name: 'Philippines' },
+  { code: '84', flag: '\u{1F1FB}\u{1F1F3}', name: 'Vietnam' },
+  { code: '880', flag: '\u{1F1E7}\u{1F1E9}', name: 'Bangladesh' },
+  { code: '92', flag: '\u{1F1F5}\u{1F1F0}', name: 'Pakistan' },
+  { code: '20', flag: '\u{1F1EA}\u{1F1EC}', name: 'Egypt' },
+  { code: '212', flag: '\u{1F1F2}\u{1F1E6}', name: 'Morocco' },
+  { code: '254', flag: '\u{1F1F0}\u{1F1EA}', name: 'Kenya' },
+  { code: '57', flag: '\u{1F1E8}\u{1F1F4}', name: 'Colombia' },
+  { code: '54', flag: '\u{1F1E6}\u{1F1F7}', name: 'Argentina' },
+  { code: '56', flag: '\u{1F1E8}\u{1F1F1}', name: 'Chile' },
+  { code: '51', flag: '\u{1F1F5}\u{1F1EA}', name: 'Peru' },
+];
+
+function detectCountryFromDigits(digits: string): { country: typeof PHONE_COUNTRIES[number]; rest: string } | null {
+  // Try longest codes first (3 digits, then 2, then 1)
+  for (const len of [3, 2, 1]) {
+    if (digits.length < len) continue;
+    const prefix = digits.slice(0, len);
+    const match = PHONE_COUNTRIES.find(c => c.code === prefix);
+    if (match) return { country: match, rest: digits.slice(len) };
+  }
+  return null;
+}
+
 function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   t: any; toast: any; isDark: boolean; onClose: () => void; onSaved: () => void;
 }) {
   const [step, setStep] = useState<'phone' | 'code' | '2fa' | 'done'>('phone');
   const [phone, setPhone] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState(PHONE_COUNTRIES[0]);
+  const [showCountryDD, setShowCountryDD] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -2423,13 +2504,53 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const codeRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const countryDDRef = useRef<HTMLDivElement>(null);
+  const countrySearchRef = useRef<HTMLInputElement>(null);
 
-  const inputCls = cn('w-full px-3 py-2.5 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
+  const fullNumber = selectedCountry.code + phone.replace(/[^0-9]/g, '');
+
+  const inputCls = cn('w-full px-3 py-2.5 rounded-lg border text-sm transition-colors', t.cardBg, t.text1,
+    'border-gray-200 dark:border-gray-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none');
   const labelCls = cn('block text-xs font-medium mb-1.5', t.text3);
 
+  // Close country dropdown on outside click
+  useEffect(() => {
+    if (!showCountryDD) return;
+    const handler = (e: MouseEvent) => {
+      if (countryDDRef.current && !countryDDRef.current.contains(e.target as Node)) setShowCountryDD(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCountryDD]);
+
+  // Focus search when dropdown opens
+  useEffect(() => {
+    if (showCountryDD) setTimeout(() => countrySearchRef.current?.focus(), 50);
+  }, [showCountryDD]);
+
+  const handlePhoneInput = (val: string) => {
+    const raw = val.replace(/[^0-9+]/g, '');
+    // If pasted with + prefix, try to auto-detect country
+    if (raw.startsWith('+') || (raw.length > 7 && phone.length === 0)) {
+      const digits = raw.replace(/\D/g, '');
+      const detected = detectCountryFromDigits(digits);
+      if (detected) {
+        setSelectedCountry(detected.country);
+        setPhone(detected.rest);
+        return;
+      }
+    }
+    setPhone(raw.replace(/^\+/, ''));
+  };
+
+  const filteredCountries = countrySearch
+    ? PHONE_COUNTRIES.filter(c => c.name.toLowerCase().includes(countrySearch.toLowerCase()) || c.code.includes(countrySearch))
+    : PHONE_COUNTRIES;
+
   const handleSendCode = async () => {
-    const cleaned = phone.trim().replace(/[^0-9]/g, '');
-    if (!cleaned || cleaned.length < 7) { setError('Enter a valid phone number with country code'); return; }
+    const cleaned = fullNumber.replace(/[^0-9]/g, '');
+    if (!cleaned || cleaned.length < 7) { setError('Enter a valid phone number'); return; }
     setLoading(true); setError('');
     try {
       const res = await telegramOutreachApi.addByPhone(cleaned);
@@ -2491,7 +2612,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
         <div className={cn('flex items-center justify-between px-6 py-4 border-b', t.cardBorder)}>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: step === 'done' ? '#059669' : '#4F46E5' }}>
+              style={{ background: '#059669' }}>
               {step === 'done'
                 ? <Check className="w-4 h-4 text-white" />
                 : <Phone className="w-4 h-4 text-white" />}
@@ -2515,14 +2636,67 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             <div className="space-y-4">
               <div>
                 <label className={labelCls}>Phone Number</label>
-                <input value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSendCode()}
-                  placeholder="351920619583"
-                  className={inputCls} autoFocus />
-                <div className={cn('text-[11px] mt-1.5', t.text3)}>
-                  Include country code without + sign
+                <div className="flex items-stretch gap-0 relative">
+                  {/* Country selector button */}
+                  <div ref={countryDDRef} className="relative">
+                    <button type="button"
+                      onClick={() => { setShowCountryDD(!showCountryDD); setCountrySearch(''); }}
+                      className={cn('flex items-center gap-1.5 px-3 py-2.5 rounded-l-lg border border-r-0 text-sm transition-colors h-full',
+                        isDark ? 'bg-gray-800 border-gray-700 hover:bg-gray-750' : 'bg-gray-50 border-gray-200 hover:bg-gray-100',
+                        showCountryDD && 'border-emerald-500 ring-2 ring-emerald-500/20')}>
+                      <span className="text-base leading-none">{selectedCountry.flag}</span>
+                      <span className={cn('text-sm font-medium', t.text1)}>+{selectedCountry.code}</span>
+                      <ChevronDown className="w-3 h-3 opacity-40" />
+                    </button>
+                    {/* Country dropdown */}
+                    {showCountryDD && (
+                      <div className={cn('absolute top-full left-0 mt-1 w-64 rounded-lg border shadow-xl z-50 overflow-hidden',
+                        t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white')}>
+                        <div className="p-2 border-b" style={{ borderColor: isDark ? '#374151' : '#E5E7EB' }}>
+                          <input ref={countrySearchRef} value={countrySearch}
+                            onChange={e => setCountrySearch(e.target.value)}
+                            placeholder="Search country..."
+                            className={cn('w-full px-2.5 py-1.5 rounded text-sm outline-none', t.cardBg, t.text1,
+                              'border border-gray-200 dark:border-gray-700 focus:border-emerald-500')} />
+                        </div>
+                        <div className="max-h-52 overflow-y-auto">
+                          {filteredCountries.map((c, i) => (
+                            <button key={`${c.code}-${c.name}-${i}`} type="button"
+                              onClick={() => { setSelectedCountry(c); setShowCountryDD(false); setTimeout(() => phoneRef.current?.focus(), 50); }}
+                              className={cn('w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors',
+                                selectedCountry === c
+                                  ? (isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-700')
+                                  : (isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'))}>
+                              <span className="text-base">{c.flag}</span>
+                              <span className={cn('flex-1 text-left', t.text1)}>{c.name}</span>
+                              <span className={cn('text-xs', t.text3)}>+{c.code}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Phone input */}
+                  <input ref={phoneRef} value={phone}
+                    onChange={e => handlePhoneInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSendCode()}
+                    placeholder="Phone number"
+                    className={cn('flex-1 px-3 py-2.5 rounded-r-lg border text-sm transition-colors outline-none',
+                      t.cardBg, t.text1,
+                      'border-gray-200 dark:border-gray-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20')}
+                    autoFocus />
                 </div>
+                {/* Full number hint */}
+                {phone.replace(/[^0-9]/g, '').length > 0 && (
+                  <div className={cn('text-[11px] mt-1.5 font-medium')} style={{ color: '#059669' }}>
+                    +{fullNumber}
+                  </div>
+                )}
+                {phone.replace(/[^0-9]/g, '').length === 0 && (
+                  <div className={cn('text-[11px] mt-1.5', t.text3)}>
+                    Select country and enter phone number
+                  </div>
+                )}
               </div>
               <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
                 style={{ background: isDark ? '#1E293B' : '#F8FAFC' }}>
@@ -2536,7 +2710,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             <div className="space-y-4">
               <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
                 style={{ background: isDark ? '#1E293B' : '#F0FDF4' }}>
-                Code sent to <span className="font-medium" style={{ color: isDark ? '#86EFAC' : '#059669' }}>+{phone.replace(/[^0-9]/g, '')}</span>
+                Code sent to <span className="font-medium" style={{ color: isDark ? '#86EFAC' : '#059669' }}>+{fullNumber}</span>
                 {deviceModel && <span className="opacity-60"> (device: {deviceModel})</span>}
               </div>
               <div>
@@ -2578,7 +2752,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </div>
               <div className={cn('text-sm font-medium', t.text1)}>Account successfully authorized</div>
               <div className={cn('text-xs', t.text3)}>
-                +{phone.replace(/[^0-9]/g, '')} is ready to use
+                +{fullNumber} is ready to use
                 {deviceModel && <> with device fingerprint <span className="font-mono text-[11px]">{deviceModel}</span></>}
               </div>
             </div>
@@ -2598,7 +2772,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
           <div className="flex items-center gap-1.5">
             {[1, 2, 3].map(s => (
               <div key={s} className="w-1.5 h-1.5 rounded-full transition-colors"
-                style={{ background: s <= stepNumber[step] ? '#4F46E5' : isDark ? '#374151' : '#E5E7EB' }} />
+                style={{ background: s <= stepNumber[step] ? '#059669' : isDark ? '#374151' : '#E5E7EB' }} />
             ))}
           </div>
           <div className="flex items-center gap-2">
@@ -2608,21 +2782,21 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             )}
             {step === 'phone' && (
               <button onClick={handleSendCode} disabled={loading || !phone.trim()}
-                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Send Code
               </button>
             )}
             {step === 'code' && (
               <button onClick={handleVerifyCode} disabled={loading || code.length < 4}
-                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Verify
               </button>
             )}
             {step === '2fa' && (
               <button onClick={handleVerify2FA} disabled={loading || !password.trim()}
-                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Verify
               </button>
