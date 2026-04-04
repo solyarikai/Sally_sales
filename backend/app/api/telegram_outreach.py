@@ -816,13 +816,21 @@ async def check_proxy_group(group_id: int, auto_delete: bool = Query(False),
             **check,
         })
 
-    # Reassign accounts that lost their proxy to a free one from the same group
+    # Reassign accounts that lost their proxy to a free one from the same group,
+    # falling back to Infatica auto-assign if no free proxy is available
     reassigned_count = 0
+    infatica_assigned = 0
     for acc in reassign_accounts:
         new_proxy = await _try_reassign_proxy(session, acc)
-        await _sync_proxy_to_dm_account(session, acc.phone, new_proxy)
         if new_proxy:
+            await _sync_proxy_to_dm_account(session, acc.phone, new_proxy)
             reassigned_count += 1
+        else:
+            # No free proxy in group — try Infatica
+            result = await _auto_assign_infatica_proxy(acc, session)
+            if result:
+                infatica_assigned += 1
+                reassigned_count += 1
 
     return {
         "total": len(proxies),
@@ -831,6 +839,7 @@ async def check_proxy_group(group_id: int, auto_delete: bool = Query(False),
         "deleted": len(deleted_ids),
         "deleted_ids": deleted_ids,
         "reassigned": reassigned_count,
+        "infatica_assigned": infatica_assigned,
         "results": results,
     }
 

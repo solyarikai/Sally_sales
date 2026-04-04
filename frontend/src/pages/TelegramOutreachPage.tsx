@@ -1469,6 +1469,7 @@ function ProxiesTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'suc
   const [newGroupCountry, setNewGroupCountry] = useState('');
   const [checking, setChecking] = useState(false);
   const [checkResults, setCheckResults] = useState<Record<number, { alive: boolean; latency_ms: number | null; error: string | null }>>({});
+  const [showCleanConfirm, setShowCleanConfirm] = useState(false);
 
   const loadGroups = useCallback(async () => {
     setLoading(true);
@@ -1643,25 +1644,32 @@ function ProxiesTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'suc
                   {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                   Check All
                 </button>
-                <button onClick={async () => {
-                          if (!confirm('Check all proxies and DELETE non-working ones?')) return;
-                          setChecking(true); setCheckResults({});
-                          try {
-                            const res = await telegramOutreachApi.checkProxyGroup(selectedGroup.id, true);
-                            const map: typeof checkResults = {};
-                            res.results.forEach(r => { map[r.proxy_id] = { alive: r.alive, latency_ms: r.latency_ms, error: r.error }; });
-                            setCheckResults(map);
-                            toast(`${res.alive} alive, ${res.deleted} deleted`, res.deleted > 0 ? 'info' : 'success');
-                            if (res.deleted > 0) { loadProxies(); loadGroups(); }
-                          } catch { toast('Check failed', 'error'); }
-                          finally { setChecking(false); }
-                        }}
+                <button onClick={() => setShowCleanConfirm(true)}
                         disabled={checking || proxies.length === 0}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium hover:opacity-80 disabled:opacity-50"
                         style={{ background: A.roseBg, color: A.rose }}>
                   {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                   Check & Clean
                 </button>
+                {showCleanConfirm && selectedGroup && (
+                  <ConfirmModal
+                    message={`Check all proxies in "${selectedGroup.name}" and DELETE non-working ones? Accounts will be auto-reassigned.`}
+                    onCancel={() => setShowCleanConfirm(false)}
+                    onConfirm={async () => {
+                      setShowCleanConfirm(false);
+                      setChecking(true); setCheckResults({});
+                      try {
+                        const res = await telegramOutreachApi.checkProxyGroup(selectedGroup.id, true);
+                        const map: typeof checkResults = {};
+                        res.results.forEach(r => { map[r.proxy_id] = { alive: r.alive, latency_ms: r.latency_ms, error: r.error }; });
+                        setCheckResults(map);
+                        toast(`${res.alive} alive, ${res.deleted} deleted, ${res.reassigned} reassigned`, res.deleted > 0 ? 'info' : 'success');
+                        if (res.deleted > 0) { loadProxies(); loadGroups(); }
+                      } catch { toast('Check failed', 'error'); }
+                      finally { setChecking(false); }
+                    }}
+                  />
+                )}
               </div>
             </div>
 
