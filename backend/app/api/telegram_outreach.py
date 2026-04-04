@@ -1845,23 +1845,57 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
                     await telegram_engine.connect(aid, **kwargs)
                     client = telegram_engine.get_client(aid)
                     if not client or not await client.is_user_authorized():
+                        logger.warning(f"[REVOKE] {account.phone}: not authorized, skipping")
                         progress["skipped"] += 1
                         progress["completed"] += 1
                         continue
+
                     result = await client(functions.auth.GetAuthorizationsRequest())
-                    other_sessions = [a for a in result.authorizations if not a.current]
+                    all_sessions = result.authorizations
+                    other_sessions = [a for a in all_sessions if not a.current]
+                    logger.info(f"[REVOKE] {account.phone}: found {len(all_sessions)} total sessions, {len(other_sessions)} other")
+
+                    if not other_sessions:
+                        logger.info(f"[REVOKE] {account.phone}: no other sessions to revoke")
+                        await telegram_engine.disconnect(aid)
+                        progress["synced"] += 1
+                        progress["completed"] += 1
+                        if i < len(account_ids) - 1:
+                            delay = random.uniform(_STAGGER_MIN, _STAGGER_MAX)
+                            progress["next_delay"] = round(delay)
+                            await _asyncio.sleep(delay)
+                            progress["next_delay"] = 0
+                        continue
+
+                    # Try individual session termination first
                     killed = 0
+                    individual_errors = 0
                     for auth in other_sessions:
                         try:
                             await client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
                             killed += 1
-                        except Exception:
-                            pass
+                            logger.info(f"[REVOKE] {account.phone}: killed session device={auth.device_model} platform={auth.platform} hash={auth.hash}")
+                        except Exception as e:
+                            individual_errors += 1
+                            logger.warning(f"[REVOKE] {account.phone}: failed to kill session device={auth.device_model} hash={auth.hash}: {e}")
                         await _asyncio.sleep(0.5)
+
+                    # Fallback: if individual revocations all failed, use nuclear option
+                    if killed == 0 and individual_errors > 0:
+                        logger.warning(f"[REVOKE] {account.phone}: individual revoke failed for all {individual_errors} sessions, trying ResetAuthorizationsRequest (terminate all)")
+                        try:
+                            await client(functions.auth.ResetAuthorizationsRequest())
+                            killed = len(other_sessions)
+                            logger.info(f"[REVOKE] {account.phone}: ResetAuthorizationsRequest succeeded — terminated all other sessions")
+                        except Exception as e:
+                            logger.error(f"[REVOKE] {account.phone}: ResetAuthorizationsRequest also failed: {e}")
+
                     await telegram_engine.disconnect(aid)
                     progress["sessions_killed"] = progress.get("sessions_killed", 0) + killed
                     progress["synced"] += 1
+                    logger.info(f"[REVOKE] {account.phone}: done — killed {killed}/{len(other_sessions)} sessions")
                 except Exception as e:
+                    logger.error(f"[REVOKE] {account.phone}: error: {e}")
                     progress["errors"].append(f"{account.phone}: {str(e)[:80]}")
 
                 progress["completed"] += 1
