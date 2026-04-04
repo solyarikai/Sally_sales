@@ -986,7 +986,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                         const tgDate = acc.telegram_created_at;
                         const primaryDate = tgDate || sessionDate!;
                         const lines: string[] = [];
-                        if (sessionDate) lines.push(`Сессия: ${fmt(sessionDate)} (${ageFmt(sessionDate)})`);
+                        if (sessionDate) lines.push(`Подключён: ${fmt(sessionDate)} (${ageFmt(sessionDate)})`);
                         if (tgDate) lines.push(`TG аккаунт: ~${fmt(tgDate)} (${ageFmt(tgDate)})`);
                         return (
                           <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
