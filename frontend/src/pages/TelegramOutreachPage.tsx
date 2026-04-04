@@ -999,7 +999,6 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap tabular-nums">
                       <span style={{ color: atLimit ? A.rose : A.text1, fontWeight: atLimit ? 600 : 400 }}>{acc.messages_sent_today}</span>
                       <span style={{ color: A.text3 }}>/{effLimit}</span>
-                      {acc.is_premium && <span className="tip" style={{ color: '#7C3AED', fontSize: 10, marginLeft: 3, fontWeight: 600 }} data-tip="Premium account — higher daily limits">⭐PRO</span>}
                       {acc.skip_warmup ? <span className="tip" style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} data-tip="Warm-up skipped (manual override)">SKIP</span>
                         : acc.warmup_day != null ? <span className="tip" style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} data-tip={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
                       {!acc.skip_warmup && acc.is_young_session && <span className="tip" style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} data-tip="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
@@ -2861,7 +2860,6 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     bio: account.bio || '',
     status: account.status,
     daily_message_limit: String(account.daily_message_limit),
-    is_premium: account.is_premium ? 'true' : 'false',
     device_model: account.device_model || '',
     system_version: account.system_version || '',
     app_version: account.app_version || '',
@@ -2953,8 +2951,8 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     setSaving(true);
     try {
       const data: Record<string, any> = { ...form, ...overrides };
-      data.is_premium = data.is_premium === true || data.is_premium === 'true';
-      data.daily_message_limit = Number(data.daily_message_limit) || (data.is_premium ? 10 : 5);
+      delete data.is_premium; // auto-detected via Telethon, not user-settable
+      data.daily_message_limit = Number(data.daily_message_limit) || 5;
       delete data.skip_warmup; // replaced by warmup Start/Stop
       for (const k of ['username', 'first_name', 'last_name', 'bio']) {
         if (!data[k]) data[k] = null;
@@ -3131,33 +3129,6 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                        onChange={e => set('daily_message_limit', e.target.value)}
                        className={panelInputCls}
                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
-              </div>
-              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: form.is_premium === 'true' ? '#F5F3FF' : A.bg, border: `1px solid ${form.is_premium === 'true' ? '#C4B5FD' : A.border}` }}>
-                <div>
-                  <label className="text-xs font-medium" style={{ color: form.is_premium === 'true' ? '#7C3AED' : A.text1 }}>
-                    ⭐ Premium Account
-                  </label>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {form.is_premium === 'true'
-                      ? 'Higher limits: 10 msgs/day, young cap 10'
-                      : 'Enable Premium for higher sending limits'}
-                  </div>
-                </div>
-                <button type="button" onClick={() => {
-                  const next = form.is_premium === 'true' ? 'false' : 'true';
-                  setForm(f => ({
-                    ...f,
-                    is_premium: next,
-                    daily_message_limit: next === 'true'
-                      ? String(Math.max(Number(f.daily_message_limit) || 5, 10))
-                      : String(Math.min(Number(f.daily_message_limit) || 10, 5)),
-                  }));
-                }}
-                  className="relative w-10 h-5 rounded-full transition-colors cursor-pointer"
-                  style={{ background: form.is_premium === 'true' ? '#7C3AED' : '#D1D5DB' }}>
-                  <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
-                        style={{ transform: form.is_premium === 'true' ? 'translateX(20px)' : 'translateX(0)' }} />
-                </button>
               </div>
               {/* Active Warm-up — Enhanced */}
               {(() => {

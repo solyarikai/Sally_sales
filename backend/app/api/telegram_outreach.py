@@ -1043,7 +1043,6 @@ async def create_account(data: TgAccountCreate, session: AsyncSession = Depends(
 
     # Auto-generate unique fingerprint if not provided
     fp = _generate_random_fingerprint()
-    is_premium = getattr(data, "is_premium", False)
     account = TgAccount(
         phone=data.phone, username=data.username,
         first_name=data.first_name, last_name=data.last_name, bio=data.bio,
@@ -1057,8 +1056,8 @@ async def create_account(data: TgAccountCreate, session: AsyncSession = Depends(
         session_file=data.session_file_name,
         country_code=_detect_country(data.phone),
         session_created_at=func.now(),
-        is_premium=is_premium,
-        daily_message_limit=10 if is_premium else 5,
+        is_premium=False,
+        daily_message_limit=5,
     )
     session.add(account)
     await session.flush()
