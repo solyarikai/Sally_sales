@@ -1976,32 +1976,8 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('limit'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Daily Limit
               </button>
-              <div className="flex items-center gap-1 px-2 py-1">
-                <span className="text-[10px] font-medium" style={{ color: '#d97706' }}>WARM-UP</span>
-                <span title="Warm-up gradually increases daily sending limit for new accounts: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days are capped at 5 msgs/day. Disabling warm-up removes all limits — use with caution on new sessions.">
-                  <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
-                </span>
-              </div>
-              <button onClick={() => { if (!window.confirm(`⚠ Отключить Warm-up для ${ids.length} аккаунтов?\nНовые аккаунты без прогрева рискуют получить бан.`)) return; setShowActionsPopup(false); run('Warm-up skipped', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <Minus className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Skip Warm-up
-              </button>
-              <button onClick={() => { setShowActionsPopup(false); run('Warm-up restored', () => telegramOutreachApi.bulkSkipWarmup(ids, false)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <RefreshCw className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Restore Warm-up
-              </button>
-              <div className="flex items-center gap-1 px-2 py-1 mt-1">
-                <span className="text-[10px] font-medium" style={{ color: '#059669' }}>ACTIVE WARM-UP</span>
-                <span title="Active warm-up simulates real user activity over 14 days: joins channels, adds reactions, exchanges messages. Significantly reduces ban risk for new accounts.">
-                  <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
-                </span>
-              </div>
-              <button onClick={() => { setShowActionsPopup(false); run('Active warm-up started', () => telegramOutreachApi.bulkWarmup(ids, 'start')); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <Play className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Start Active Warm-up
-              </button>
-              <button onClick={() => { setShowActionsPopup(false); run('Active warm-up stopped', () => telegramOutreachApi.bulkWarmup(ids, 'stop')); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <Square className="w-3.5 h-3.5" style={{ color: '#dc2626' }} /> Stop Active Warm-up
-              </button>
-              <button onClick={() => { setShowActionsPopup(false); setActivePanel('warmup-channels'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <Link2 className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Manage Channels
+              <button onClick={() => { setShowActionsPopup(false); setActivePanel('warmup-settings'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Play className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Warm-up
               </button>
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('2fa'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Shield className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Change 2FA
@@ -2202,7 +2178,57 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           ))}
         </div>
       )}
-      {activePanel === 'warmup-channels' && <WarmupChannelsPanel />}
+      {activePanel === 'warmup-settings' && (
+        <div className="pt-2 pb-1 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold" style={{ color: '#059669' }}>Warm-up Settings</span>
+            <span title="Active warm-up simulates real user activity over 14 days: joins channels, adds reactions, exchanges messages. Gradual limit increases daily sending cap for new accounts.">
+              <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
+            </span>
+          </div>
+          {/* Start / Stop */}
+          <div className="flex items-center gap-2">
+            <button onClick={() => run('Active warm-up started', () => telegramOutreachApi.bulkWarmup(ids, 'start'))}
+                    disabled={loading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-white"
+                    style={{ background: '#059669' }}>
+              <Play className="w-3 h-3" /> Start Warm-up
+            </button>
+            <button onClick={() => run('Active warm-up stopped', () => telegramOutreachApi.bulkWarmup(ids, 'stop'))}
+                    disabled={loading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium"
+                    style={{ background: A.roseBg, color: A.rose }}>
+              <Square className="w-3 h-3" /> Stop Warm-up
+            </button>
+          </div>
+          {/* Gradual limit increase toggle */}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs" style={{ color: A.text1 }}>Gradual daily limit increase</span>
+              <span title="Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days are capped at 5 msgs/day. Disabling removes all limits — use with caution on new sessions.">
+                <Info className="w-3 h-3 cursor-help" style={{ color: A.text3 }} />
+              </span>
+            </div>
+            <div className="flex gap-1.5">
+              <button onClick={() => run('Gradual limit enabled', () => telegramOutreachApi.bulkSkipWarmup(ids, false))}
+                      disabled={loading}
+                      className="px-2.5 py-1 rounded text-[11px] font-medium"
+                      style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #BBF7D0' }}>
+                Enable
+              </button>
+              <button onClick={() => { if (!window.confirm(`⚠ Disable gradual limit for ${ids.length} accounts?\nNew accounts without warm-up risk getting banned.`)) return; run('Gradual limit disabled', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }}
+                      disabled={loading}
+                      className="px-2.5 py-1 rounded text-[11px] font-medium"
+                      style={{ background: A.roseBg, color: A.rose, border: `1px solid ${A.rose}30` }}>
+                Disable
+              </button>
+            </div>
+          </div>
+          {/* Manage Channels */}
+          <div style={{ height: 1, background: A.border }} />
+          <WarmupChannelsPanel />
+        </div>
+      )}
 
       {/* Staggered operation progress banner */}
       {staggeredTask && (
