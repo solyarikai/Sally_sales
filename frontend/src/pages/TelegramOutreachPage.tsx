@@ -943,20 +943,13 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                         const ageFmt = (iso: string) => { const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); return days >= 365 ? `${Math.floor(days / 365)}y ${Math.floor((days % 365) / 30)}m` : days >= 30 ? `${Math.floor(days / 30)}m ${days % 30}d` : `${days}d`; };
                         const sessionDate = acc.session_created_at;
                         const tgDate = acc.telegram_created_at;
-                        const primaryDate = sessionDate || tgDate!;
+                        const primaryDate = tgDate || sessionDate!;
                         const lines: string[] = [];
                         if (sessionDate) lines.push(`Сессия: ${fmt(sessionDate)} (${ageFmt(sessionDate)})`);
                         if (tgDate) lines.push(`TG аккаунт: ~${fmt(tgDate)} (${ageFmt(tgDate)})`);
-                        const sessionDays = sessionDate ? Math.floor((Date.now() - new Date(sessionDate).getTime()) / 86400000) : null;
-                        const showAgeWarn = !acc.skip_warmup && (acc.is_young_session || acc.warmup_day != null);
                         return (
                           <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             {ageFmt(primaryDate)}
-                            {showAgeWarn && (
-                              <span title={`Аккаунт слишком новый${sessionDays != null ? ` (${sessionDays} дн.)` : ''}, включён Warm-up`} style={{ display: 'inline-flex' }}>
-                                <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#d97706' }} />
-                              </span>
-                            )}
                             <span className="age-tooltip">{lines.join('\n')}</span>
                           </span>
                         );
