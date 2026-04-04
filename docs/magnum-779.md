@@ -16,11 +16,12 @@
 
 ### 779.1 — Replies count в списке кампаний
 
-Добавлен endpoint `GET /campaigns/{campaign_id}/replies` с пагинацией и подгрузкой данных из `TgIncomingReply`. Статистика ответов (`replied`) возвращается через `GET /campaigns/{campaign_id}/stats` из схемы `TgCampaignStatsResponse`. Фронтенд в Campaigns tab отображает `total_replies_received` с зелёной подсветкой при >0.
+В `list_campaigns()` добавлен подсчёт `replies_count` inline-запросом к `TgIncomingReply` для каждой кампании. Значение возвращается в `TgCampaignResponse.replies_count`. Дополнительно: `GET /campaigns/{id}/replies` — пагинированный список ответов с joinedload recipient/account; `GET /campaigns/{id}/stats` — breakdown по статусам реципиентов (`TgCampaignStatsResponse`). Фронтенд отображает `replies_count` в колонке Replies таблицы кампаний.
 
 **Файлы:**
-- `backend/app/api/telegram_outreach.py` — endpoint `/campaigns/{id}/replies`, `/campaigns/{id}/stats`
+- `backend/app/api/telegram_outreach.py` — `list_campaigns()` (inline replies_count), `/campaigns/{id}/replies`, `/campaigns/{id}/stats`
 - `backend/app/schemas/telegram_outreach.py` — `TgCampaignStatsResponse.replied`
+- `frontend/src/api/telegramOutreach.ts` — `TgCampaign.replies_count`
 - `frontend/src/pages/TelegramOutreachPage.tsx` — колонка Replies в таблице кампаний
 
 ### 779.2 — Inbox фильтр по кампании
@@ -33,21 +34,22 @@
 
 ### 779.3 — Сохранение аккаунтов кампании
 
-Endpoint `PUT /campaigns/{campaign_id}/accounts` переписан: ORM `delete()` + `add()` заменён на паттерн с `select()` + `session.delete()` + `session.add()` для каждой связи `TgCampaignAccount`. Удаляются все существующие связи, затем создаются новые из переданного `account_ids: list[int]`. Middleware выполняет commit автоматически.
+Endpoint `PUT /campaigns/{campaign_id}/accounts` переписан: ORM `delete()` + `add()` заменён на SQL-level операции (`sa_delete` + `sa_insert`), что устраняет проблемы с ORM identity-map. Удаляются все существующие связи одним DELETE, затем bulk INSERT новых из переданного `account_ids: list[int]`. Middleware выполняет commit автоматически.
 
 ```python
 # backend/app/api/telegram_outreach.py
 @router.put("/campaigns/{campaign_id}/accounts")
 async def set_campaign_accounts(campaign_id: int, account_ids: list[int], ...):
-    # Remove existing
-    existing = await session.execute(
-        select(TgCampaignAccount).where(TgCampaignAccount.campaign_id == campaign_id)
+    # Remove existing (SQL-level delete, no ORM identity-map issues)
+    await session.execute(
+        sa_delete(TgCampaignAccount).where(TgCampaignAccount.campaign_id == campaign_id)
     )
-    for link in existing.scalars().all():
-        await session.delete(link)
-    # Add new
-    for aid in account_ids:
-        session.add(TgCampaignAccount(campaign_id=campaign_id, account_id=aid))
+    # Add new (bulk insert)
+    if account_ids:
+        await session.execute(
+            sa_insert(TgCampaignAccount),
+            [{"campaign_id": campaign_id, "account_id": aid} for aid in account_ids],
+        )
 ```
 
 **Файлы:**
@@ -55,15 +57,16 @@ async def set_campaign_accounts(campaign_id: int, account_ids: list[int], ...):
 
 ### 779.4 — Campaign Tags
 
-Добавлено JSONB-поле `tags` на модель `TgCampaign` (массив строк). Endpoint `PATCH /campaigns/{campaign_id}/tags` принимает `list[str]`, дедуплицирует через `dict.fromkeys()`, сохраняет.
+Добавлено JSONB-поле `tags` на модель `TgCampaign` (массив строк). Endpoint `PATCH /campaigns/{campaign_id}/tags` принимает `list[str]` и полностью заменяет теги кампании. Endpoint `GET /inbox/campaign-tags` возвращает все уникальные теги для UI-фильтров.
 
-Frontend: модалка "Set Tags" с текстовым вводом (comma-separated), отображение тегов как пилюль на карточке кампании. Теги также используются как фильтр `campaign_tag` в Inbox.
+Frontend: модалка "Set Tags" с поиском по существующим тегам, автокомплитом и отображением тегов как пилюль. Теги также используются как фильтр `campaign_tag` в Inbox (JSONB `@>` оператор).
 
 ```python
 # backend/app/api/telegram_outreach.py
 @router.patch("/campaigns/{campaign_id}/tags")
-async def update_campaign_tags(campaign_id, tags: list[str], ...):
-    campaign.tags = list(dict.fromkeys(t.strip() for t in tags if t.strip()))
+async def update_campaign_tags(campaign_id: int, tags: list[str], ...):
+    """Update tags on a campaign (full replace)."""
+    campaign.tags = tags
 ```
 
 **Файлы:**
@@ -101,7 +104,7 @@ async def update_campaign_tags(campaign_id, tags: list[str], ...):
 ## Изменённые файлы
 
 - `backend/app/models/telegram_outreach.py` — JSONB `tags` на `TgCampaign`
-- `backend/app/api/telegram_outreach.py` — endpoints: `PUT /campaigns/{id}/accounts`, `PATCH /campaigns/{id}/tags`, `GET /campaigns/{id}/replies`, `GET /campaigns/{id}/stats`, `GET /inbox/threads`
+- `backend/app/api/telegram_outreach.py` — endpoints: `PUT /campaigns/{id}/accounts`, `PATCH /campaigns/{id}/tags`, `GET /campaigns/{id}/replies`, `GET /campaigns/{id}/stats`, `GET /inbox/threads`, `GET /inbox/campaign-tags`
 - `backend/app/schemas/telegram_outreach.py` — `TgCampaignStatsResponse` с полем `replied`
 - `frontend/src/api/telegramOutreach.ts` — `updateCampaignTags`, API клиент
 - `frontend/src/pages/TelegramOutreachPage.tsx` — Campaigns tab (replies, tags modal, tag pills), Inbox tab
