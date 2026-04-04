@@ -1817,37 +1817,91 @@ async def _staggered_privacy_update(task_id: str, account_ids: list[int], active
 
 
 async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
-    """Background: revoke other sessions with staggered delays between accounts."""
+    """Background: revoke other sessions with staggered delays between accounts.
+
+    Supports both session-file accounts (via telegram_engine) and
+    string_session-only accounts (direct TelegramClient + StringSession).
+    """
     import random
     from app.db import async_session_maker
-    from telethon import functions
+    from app.core.config import settings
+    from telethon import TelegramClient, functions
+    from telethon.sessions import StringSession
 
     progress = _bulk_op_progress[task_id]
     progress["sessions_killed"] = 0
+
+    fallback_api_id = getattr(settings, "TELEGRAM_CHECKER_API_ID", 0) or 0
+    fallback_api_hash = getattr(settings, "TELEGRAM_CHECKER_API_HASH", "") or ""
+
     try:
         async with async_session_maker() as session:
             for i, aid in enumerate(account_ids):
                 account = await session.get(TgAccount, aid)
-                if not account or not account.api_id or not telegram_engine.session_file_exists(account.phone):
+                if not account:
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+
+                # Determine connection method
+                has_session_file = account.api_id and telegram_engine.session_file_exists(account.phone)
+                has_string_session = bool(account.string_session)
+                api_id = account.api_id or fallback_api_id
+                api_hash = account.api_hash or fallback_api_hash
+
+                if not has_session_file and not has_string_session:
+                    logger.warning(f"[REVOKE] {account.phone}: no session file and no string_session, skipping")
+                    progress["skipped"] += 1
+                    progress["completed"] += 1
+                    continue
+
+                if not api_id or not api_hash:
+                    logger.warning(f"[REVOKE] {account.phone}: no api_id/api_hash available, skipping")
                     progress["skipped"] += 1
                     progress["completed"] += 1
                     continue
 
                 progress["current_phone"] = account.phone
+                client = None
+                used_string_session = False
                 try:
+                    # Resolve proxy
                     proxy = None
                     if account.assigned_proxy_id:
                         p = await session.get(TgProxy, account.assigned_proxy_id)
                         if p:
                             proxy = {"host": p.host, "port": p.port, "username": p.username,
                                      "password": p.password, "protocol": p.protocol.value if hasattr(p.protocol, 'value') else p.protocol}
-                    kwargs = _account_connect_kwargs(account, proxy)
-                    await telegram_engine.connect(aid, **kwargs)
-                    client = telegram_engine.get_client(aid)
+
+                    if has_session_file:
+                        kwargs = _account_connect_kwargs(account, proxy)
+                        await telegram_engine.connect(aid, **kwargs)
+                        client = telegram_engine.get_client(aid)
+                    else:
+                        # Connect via StringSession directly
+                        used_string_session = True
+                        proxy_tuple = telegram_engine._proxy_to_tuple(proxy)
+                        client = TelegramClient(
+                            StringSession(account.string_session),
+                            api_id, api_hash,
+                            device_model=account.device_model or "PC 64bit",
+                            system_version=account.system_version or "Windows 10",
+                            app_version=account.app_version or "6.5.1 x64",
+                            lang_code=account.lang_code or "en",
+                            system_lang_code=account.system_lang_code or "en-US",
+                            proxy=proxy_tuple,
+                            timeout=30,
+                            connection_retries=2,
+                        )
+                        await client.connect()
+                        logger.info(f"[REVOKE] {account.phone}: connected via StringSession")
+
                     if not client or not await client.is_user_authorized():
                         logger.warning(f"[REVOKE] {account.phone}: not authorized, skipping")
                         progress["skipped"] += 1
                         progress["completed"] += 1
+                        if used_string_session and client:
+                            await client.disconnect()
                         continue
 
                     result = await client(functions.auth.GetAuthorizationsRequest())
@@ -1857,7 +1911,10 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
 
                     if not other_sessions:
                         logger.info(f"[REVOKE] {account.phone}: no other sessions to revoke")
-                        await telegram_engine.disconnect(aid)
+                        if used_string_session:
+                            await client.disconnect()
+                        else:
+                            await telegram_engine.disconnect(aid)
                         progress["synced"] += 1
                         progress["completed"] += 1
                         if i < len(account_ids) - 1:
@@ -1874,15 +1931,15 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
                         try:
                             await client(functions.account.ResetAuthorizationRequest(hash=auth.hash))
                             killed += 1
-                            logger.info(f"[REVOKE] {account.phone}: killed session device={auth.device_model} platform={auth.platform} hash={auth.hash}")
+                            logger.info(f"[REVOKE] {account.phone}: killed session device={auth.device_model} platform={auth.platform}")
                         except Exception as e:
                             individual_errors += 1
-                            logger.warning(f"[REVOKE] {account.phone}: failed to kill session device={auth.device_model} hash={auth.hash}: {e}")
+                            logger.warning(f"[REVOKE] {account.phone}: failed to kill session device={auth.device_model}: {e}")
                         await _asyncio.sleep(0.5)
 
                     # Fallback: if individual revocations all failed, use nuclear option
                     if killed == 0 and individual_errors > 0:
-                        logger.warning(f"[REVOKE] {account.phone}: individual revoke failed for all {individual_errors} sessions, trying ResetAuthorizationsRequest (terminate all)")
+                        logger.warning(f"[REVOKE] {account.phone}: individual revoke failed for all {individual_errors} sessions, trying ResetAuthorizationsRequest")
                         try:
                             await client(functions.auth.ResetAuthorizationsRequest())
                             killed = len(other_sessions)
@@ -1890,13 +1947,21 @@ async def _staggered_revoke_sessions(task_id: str, account_ids: list[int]):
                         except Exception as e:
                             logger.error(f"[REVOKE] {account.phone}: ResetAuthorizationsRequest also failed: {e}")
 
-                    await telegram_engine.disconnect(aid)
+                    if used_string_session:
+                        await client.disconnect()
+                    else:
+                        await telegram_engine.disconnect(aid)
                     progress["sessions_killed"] = progress.get("sessions_killed", 0) + killed
                     progress["synced"] += 1
                     logger.info(f"[REVOKE] {account.phone}: done — killed {killed}/{len(other_sessions)} sessions")
                 except Exception as e:
                     logger.error(f"[REVOKE] {account.phone}: error: {e}")
                     progress["errors"].append(f"{account.phone}: {str(e)[:80]}")
+                    if used_string_session and client:
+                        try:
+                            await client.disconnect()
+                        except Exception:
+                            pass
 
                 progress["completed"] += 1
 
