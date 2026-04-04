@@ -892,7 +892,9 @@ textarea:focus {
 }
 .tg-meta-check {
   color: #4DCD5E;
-  font-size: 12px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-top: -1px;
 }
 .dark .tg-meta-check {
   color: #72B1DB;
@@ -924,14 +926,19 @@ textarea:focus {
   align-items: center;
   gap: 10px;
   padding: 7px 10px;
+  margin: 0 6px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s ease;
 }
 .tg-dialog-item:hover {
   background: #F4F4F5;
 }
 .dark .tg-dialog-item:hover {
   background: #202B36;
+}
+.tg-dialog-item:active {
+  transform: scale(0.99);
 }
 .tg-dialog-item-active {
   background: #3390EC !important;
@@ -1075,6 +1082,33 @@ textarea:focus {
 .dark .tg-bubble-in a { color: #6AB2F2; }
 .dark .tg-bubble-out a { color: #6AB2F2; }
 
+/* ── Bubble hover — subtle highlight ── */
+.tg-msg-row {
+  position: relative;
+}
+.tg-msg-row:hover .tg-bubble {
+  filter: brightness(0.97);
+}
+.dark .tg-msg-row:hover .tg-bubble {
+  filter: brightness(1.06);
+}
+
+/* ── Context menu — modern glassmorphism ── */
+.tg-ctx-menu {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255,255,255,0.88) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06);
+}
+.dark .tg-ctx-menu {
+  background: rgba(30,44,58,0.9) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.15);
+}
+.tg-ctx-menu button {
+  border-radius: 6px;
+  margin: 0 4px;
+}
+
 /* ── Header area ── */
 .tg-header {
   background: #FFFFFF;
@@ -1152,23 +1186,49 @@ textarea:focus {
   border-radius: 50% !important;
 }
 
-/* Voice */
-.tg-media-voice {
+/* Voice — custom waveform player */
+.tg-voice-player {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 200px;
-  margin-bottom: 2px;
+  gap: 8px;
+  min-width: 220px;
+  padding: 2px 0;
 }
-.tg-media-voice audio {
-  height: 28px;
-  flex: 1;
-  min-width: 0;
-}
-.tg-voice-dur {
-  font-size: 11px;
-  opacity: 0.5;
+.tg-voice-play-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.tg-voice-play-btn:hover {
+  opacity: 0.8;
+}
+.tg-voice-waveform {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1.5px;
+  height: 28px;
+  cursor: pointer;
+}
+.tg-voice-bar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 1px;
+  transition: background 0.12s ease;
+}
+.tg-voice-time {
+  font-size: 11px;
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: right;
 }
 
 /* Sticker */

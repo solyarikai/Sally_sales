@@ -221,6 +221,105 @@ function renderFormattedText(text: string, entities?: MessageEntity[]): React.Re
   return <>{parts}</>;
 }
 
+/* ─────────── SVG check marks (Telegram-style) ─────────── */
+function CheckMark({ read, className }: { read: boolean; className?: string }) {
+  if (read) {
+    // Double check — two overlapping ticks
+    return (
+      <svg className={className} width="16" height="11" viewBox="0 0 16 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M11.5 0.5L5.5 7.5L3 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M14.5 0.5L8.5 7.5L7.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  // Single check
+  return (
+    <svg className={className} width="12" height="11" viewBox="0 0 12 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M10.5 0.5L4.5 7.5L1.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* ─────────── Voice player with waveform bars ─────────── */
+function VoicePlayer({ src, duration, isOut }: { src: string; duration?: number; isOut: boolean }) {
+  const [playing, setPlaying] = React.useState(false);
+  const [progress, setProgress] = React.useState(0);
+  const [currentTime, setCurrentTime] = React.useState(0);
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+  const barsRef = React.useRef<number[]>([]);
+
+  // Generate deterministic waveform bars on mount
+  if (barsRef.current.length === 0) {
+    const seed = (duration || 5) * 1000;
+    for (let i = 0; i < 32; i++) {
+      const val = Math.abs(Math.sin(seed * (i + 1) * 0.3 + i * 0.7)) * 0.7 + 0.3;
+      barsRef.current.push(val);
+    }
+  }
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) { audio.pause(); } else { audio.play(); }
+    setPlaying(!playing);
+  };
+
+  const handleTimeUpdate = () => {
+    const audio = audioRef.current;
+    if (!audio || !audio.duration) return;
+    setProgress(audio.currentTime / audio.duration);
+    setCurrentTime(audio.currentTime);
+  };
+
+  const handleEnded = () => { setPlaying(false); setProgress(0); setCurrentTime(0); };
+
+  const handleBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const audio = audioRef.current;
+    if (!audio || !audio.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audio.currentTime = pct * audio.duration;
+    setProgress(pct);
+  };
+
+  const accentColor = isOut ? '#78c272' : '#3390EC';
+  const barInactive = isOut ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.15)';
+  const displayTime = playing || currentTime > 0
+    ? formatDuration(Math.floor(currentTime))
+    : (duration != null ? formatDuration(duration) : '0:00');
+
+  return (
+    <div className="tg-voice-player">
+      <audio ref={audioRef} src={src} preload="metadata" onTimeUpdate={handleTimeUpdate} onEnded={handleEnded} />
+      <button onClick={toggle} className="tg-voice-play-btn" style={{ color: accentColor }}>
+        {playing ? (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="3.5" height="12" rx="1" /><rect x="9.5" y="2" width="3.5" height="12" rx="1" /></svg>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z" /></svg>
+        )}
+      </button>
+      <div className="tg-voice-waveform" onClick={handleBarClick}>
+        {barsRef.current.map((h, i) => {
+          const filled = i / barsRef.current.length < progress;
+          return (
+            <div
+              key={i}
+              className="tg-voice-bar"
+              style={{
+                height: `${h * 100}%`,
+                background: filled ? accentColor : barInactive,
+              }}
+            />
+          );
+        })}
+      </div>
+      <span className="tg-voice-time" style={{ color: isOut ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)' }}>
+        {displayTime}
+      </span>
+    </div>
+  );
+}
+
 /* ─────────── media helpers ─────────── */
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -867,11 +966,7 @@ export function InboxV2Page() {
                                 );
                               case 'voice':
                                 return (
-                                  <div className="tg-media-voice">
-                                    <Mic className="w-4 h-4 flex-shrink-0 opacity-60" />
-                                    <audio src={mediaUrl} controls preload="metadata" />
-                                    {m.duration != null && <span className="tg-voice-dur">{formatDuration(m.duration)}</span>}
-                                  </div>
+                                  <VoicePlayer src={mediaUrl} duration={m.duration} isOut={isOut} />
                                 );
                               case 'sticker':
                                 return (
@@ -899,9 +994,7 @@ export function InboxV2Page() {
                               {formatMessageTime(msg.sent_at)}
                             </span>
                             {isOut && (
-                              <span className="tg-meta-check">
-                                {msg.is_read ? '\u2713\u2713' : '\u2713'}
-                              </span>
+                              <CheckMark read={msg.is_read} className="tg-meta-check" />
                             )}
                           </span>
                           {msg.text && renderFormattedText(msg.text, msg.entities)}
@@ -1174,12 +1267,11 @@ export function InboxV2Page() {
       {/* ── Message context menu ── */}
       {ctxMenu && (
         <div
-          className="fixed z-[100] py-1.5 rounded-xl shadow-xl min-w-[180px]"
+          className="fixed z-[100] py-1.5 rounded-xl min-w-[180px] tg-ctx-menu"
           style={{
             left: Math.min(ctxMenu.x, window.innerWidth - 200),
             top: Math.min(ctxMenu.y, window.innerHeight - 260),
-            background: isDark ? '#1E2C3A' : '#fff',
-            border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
           }}
           onClick={e => e.stopPropagation()}
         >
