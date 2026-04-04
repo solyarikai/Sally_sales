@@ -363,6 +363,37 @@ export interface TasksListResponse {
   done: number;
 }
 
+// Kanban types
+export interface KanbanContact {
+  id: number;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  company_name?: string;
+  domain?: string;
+  job_title?: string;
+  segment?: string;
+  status: string;
+  project_id?: number;
+  project_name?: string;
+  last_reply_at?: string;
+  updated_at?: string;
+}
+
+export interface KanbanColumn {
+  key: string;
+  label: string;
+  color: string;
+  statuses: string[];
+  count: number;
+  contacts: KanbanContact[];
+}
+
+export interface KanbanResponse {
+  columns: KanbanColumn[];
+  total: number;
+}
+
 export const contactsApi = {
   // List contacts with filters
   async list(filters: ContactFilters = {}): Promise<ContactListResponse> {
@@ -388,6 +419,19 @@ export const contactsApi = {
   // Get filter options
   async getFilterOptions(): Promise<FilterOptions> {
     const response = await api.get('/contacts/filters');
+    return response.data;
+  },
+
+  // Get Kanban data (contacts grouped by pipeline columns)
+  async getKanban(params: { project_id?: number; search?: string; segment?: string; campaign?: string; per_column?: number } = {}): Promise<KanbanResponse> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.append(key, String(value));
+      }
+    });
+    const query = searchParams.toString();
+    const response = await api.get(`/contacts/kanban${query ? `?${query}` : ''}`);
     return response.data;
   },
 

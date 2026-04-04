@@ -20,12 +20,14 @@ import {
   Search, Download, Trash2, RefreshCw,
   Plus, X, FolderOpen, Target, Mail, Loader2, Upload, AlertCircle, Check,
   FileSpreadsheet, ExternalLink, Send,
-  Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3, TrendingUp
+  Sparkles, ChevronRight, ChevronDown, Users, FileText, Columns3, TrendingUp,
+  LayoutGrid, List
 } from 'lucide-react';
-import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type EnrichResult } from '../api';
+import { contactsApi, type Contact, type ContactStats, type FilterOptions, type Project, type AISDRProject, type ImportResult, type EnrichResult, type KanbanColumn, type KanbanContact } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ContactDetailModal } from '../components/ContactDetailModal';
 import { CRMSpotlight } from '../components/CRMSpotlight';
+import { KanbanBoard } from '../components/KanbanBoard';
 import { SectionErrorBoundary } from '../components/ErrorBoundary';
 import { useToast } from '../components/Toast';
 import { ContactsFilterContext, CampaignColumnFilter, StatusColumnFilter, DateColumnFilter, SegmentColumnFilter, SourceColumnFilter, RepliedColumnFilter, GeoColumnFilter, ReplyCategoryColumnFilter } from '../components/filters';
@@ -66,6 +68,13 @@ export function ContactsPage() {
   const [, setGridApi] = useState<GridApi | null>(null);
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // View mode: 'table' (All Leads) or 'pipeline' (Kanban)
+  const [viewMode, setViewMode] = useState<'table' | 'pipeline'>(() =>
+    (searchParams.get('view') as 'table' | 'pipeline') || 'table'
+  );
+  const [kanbanColumns, setKanbanColumns] = useState<KanbanColumn[]>([]);
+  const [isLoadingKanban, setIsLoadingKanban] = useState(false);
 
   // Data
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -986,8 +995,69 @@ export function ContactsPage() {
     }
   };
 
+  // ── Kanban ──
+  const loadKanban = useCallback(async () => {
+    setIsLoadingKanban(true);
+    try {
+      const data = await contactsApi.getKanban({
+        project_id: activeProject?.id,
+        search: debouncedSearch || undefined,
+        segment: segmentFilters.length > 0 ? segmentFilters.join(',') : undefined,
+        campaign: campaignFilters.length > 0 ? campaignFilters.join(',') : undefined,
+      });
+      setKanbanColumns(data.columns);
+    } catch (err) {
+      console.error('Failed to load kanban:', err);
+    } finally {
+      setIsLoadingKanban(false);
+    }
+  }, [activeProject, debouncedSearch, segmentFilters, campaignFilters]);
+
+  // Load kanban when in pipeline view
+  useEffect(() => {
+    if (viewMode === 'pipeline') loadKanban();
+  }, [viewMode, loadKanban]);
+
+  const handleKanbanStatusChange = useCallback(async (contactId: number, newStatus: string, _targetColumnKey: string) => {
+    try {
+      await contactsApi.updateStatus(contactId, newStatus);
+      // Optimistic update: move card between columns
+      setKanbanColumns(prev => {
+        const next = prev.map(col => ({
+          ...col,
+          contacts: col.contacts.filter(c => c.id !== contactId),
+          count: col.contacts.some(c => c.id === contactId) ? col.count - 1 : col.count,
+        }));
+        // Find the moved contact
+        const movedContact = prev.flatMap(c => c.contacts).find(c => c.id === contactId);
+        if (movedContact) {
+          return next.map(col => {
+            if (col.statuses.includes(newStatus)) {
+              return {
+                ...col,
+                contacts: [{ ...movedContact, status: newStatus }, ...col.contacts],
+                count: col.count + 1,
+              };
+            }
+            return col;
+          });
+        }
+        return next;
+      });
+      toast.success('Status updated');
+    } catch (err) {
+      console.error('Failed to update status:', err);
+      toast.error('Failed to update status', getErrorMessage(err));
+      loadKanban(); // Reload on error
+    }
+  }, [loadKanban, toast]);
+
   const handleRefresh = () => {
-    loadContacts();
+    if (viewMode === 'pipeline') {
+      loadKanban();
+    } else {
+      loadContacts();
+    }
     loadStats();
     loadFilterOptions();
   };
@@ -1059,6 +1129,37 @@ export function ContactsPage() {
       {/* Command bar — minimal */}
       <div className="px-5 py-2" style={{ borderBottom: `1px solid ${isDark ? '#2a2a2a' : '#eee'}` }}>
         <div className="flex items-center gap-2.5">
+          {/* Pipeline / All Leads toggle */}
+          <div
+            className="flex items-center rounded-md p-0.5 shrink-0"
+            style={{ background: isDark ? '#2a2a2a' : '#f0f0f0' }}
+          >
+            <button
+              onClick={() => { setViewMode('pipeline'); setSearchParams(p => { p.set('view', 'pipeline'); return p; }, { replace: true }); }}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors"
+              style={{
+                background: viewMode === 'pipeline' ? (isDark ? '#3c3c3c' : '#fff') : 'transparent',
+                color: viewMode === 'pipeline' ? t.text1 : t.text4,
+                boxShadow: viewMode === 'pipeline' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+              }}
+            >
+              <LayoutGrid className="w-3 h-3" />
+              Pipeline
+            </button>
+            <button
+              onClick={() => { setViewMode('table'); setSearchParams(p => { p.set('view', 'table'); return p; }, { replace: true }); }}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors"
+              style={{
+                background: viewMode === 'table' ? (isDark ? '#3c3c3c' : '#fff') : 'transparent',
+                color: viewMode === 'table' ? t.text1 : t.text4,
+                boxShadow: viewMode === 'table' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+              }}
+            >
+              <List className="w-3 h-3" />
+              All Leads
+            </button>
+          </div>
+
           <span className="text-xs shrink-0 tabular-nums" style={{ color: t.text5 }}>
             {formatNumber(total)}
             {weekCount != null && weekCount > 0 && (
@@ -1207,58 +1308,86 @@ export function ContactsPage() {
         </div>
       )}
 
-      {/* AG Grid */}
-      <div className="flex-1 px-3 pt-1 pb-0">
-        <SectionErrorBoundary>
-          <div className={`${isDark ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} h-full w-full`}>
-            <AgGridReact
-              ref={gridRef}
-              theme={AG_GRID_THEME}
-              onRowClicked={(event) => {
-                const target = event.event?.target as HTMLElement | undefined;
-                if (target && (target.tagName === 'SELECT' || target.tagName === 'OPTION' || target.closest?.('select'))) {
-                  return;
-                }
-                if (event.data) {
-                  setSelectedContact(event.data);
-                  setShowContactModal(true);
-                }
+      {/* Main content: Pipeline Kanban or AG Grid */}
+      {viewMode === 'pipeline' ? (
+        <div className="flex-1 overflow-hidden">
+          {isLoadingKanban ? (
+            <div className="flex items-center justify-center h-full" style={{ color: t.text5 }}>
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              <span className="text-sm">Loading pipeline...</span>
+            </div>
+          ) : (
+            <KanbanBoard
+              columns={kanbanColumns}
+              onStatusChange={handleKanbanStatusChange}
+              onCardClick={(contact) => {
+                // Fetch full contact and open modal
+                contactsApi.list({ search: contact.email, page_size: 1 }).then(res => {
+                  if (res.contacts.length > 0) {
+                    setSelectedContact(res.contacts[0]);
+                    setShowContactModal(true);
+                  }
+                });
               }}
-              rowData={contacts}
-              columnDefs={visibleColumnDefs}
-              defaultColDef={defaultColDef}
-              rowSelection={{
-                mode: 'multiRow',
-                enableClickSelection: false,
-                headerCheckbox: true,
-                checkboxes: true,
-              }}
-              onGridReady={onGridReady}
-              onSelectionChanged={onSelectionChanged}
-              onSortChanged={onSortChanged}
-              onBodyScrollEnd={onBodyScrollEnd}
-              animateRows={false}
-              suppressCellFocus={true}
-              enableCellTextSelection={true}
-              getRowId={(params) => String(params.data.id)}
-              overlayLoadingTemplate='<span style="color:#888;font-size:12px">Loading...</span>'
-              overlayNoRowsTemplate='<span style="color:#888;font-size:12px">No contacts</span>'
             />
+          )}
+        </div>
+      ) : (
+        <>
+          {/* AG Grid */}
+          <div className="flex-1 px-3 pt-1 pb-0">
+            <SectionErrorBoundary>
+              <div className={`${isDark ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} h-full w-full`}>
+                <AgGridReact
+                  ref={gridRef}
+                  theme={AG_GRID_THEME}
+                  onRowClicked={(event) => {
+                    const target = event.event?.target as HTMLElement | undefined;
+                    if (target && (target.tagName === 'SELECT' || target.tagName === 'OPTION' || target.closest?.('select'))) {
+                      return;
+                    }
+                    if (event.data) {
+                      setSelectedContact(event.data);
+                      setShowContactModal(true);
+                    }
+                  }}
+                  rowData={contacts}
+                  columnDefs={visibleColumnDefs}
+                  defaultColDef={defaultColDef}
+                  rowSelection={{
+                    mode: 'multiRow',
+                    enableClickSelection: false,
+                    headerCheckbox: true,
+                    checkboxes: true,
+                  }}
+                  onGridReady={onGridReady}
+                  onSelectionChanged={onSelectionChanged}
+                  onSortChanged={onSortChanged}
+                  onBodyScrollEnd={onBodyScrollEnd}
+                  animateRows={false}
+                  suppressCellFocus={true}
+                  enableCellTextSelection={true}
+                  getRowId={(params) => String(params.data.id)}
+                  overlayLoadingTemplate='<span style="color:#888;font-size:12px">Loading...</span>'
+                  overlayNoRowsTemplate='<span style="color:#888;font-size:12px">No contacts</span>'
+                />
+              </div>
+            </SectionErrorBoundary>
           </div>
-        </SectionErrorBoundary>
-      </div>
 
-      {/* Infinite scroll status */}
-      {isLoadingMore && (
-        <div className="flex items-center justify-center py-1.5" style={{ color: t.text5 }}>
-          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-          <span className="text-[11px]">Loading more...</span>
-        </div>
-      )}
-      {!hasMore && contacts.length > 0 && (
-        <div className="text-center py-1" style={{ color: t.text6 }}>
-          <span className="text-[10px]">{formatNumber(contacts.length)} of {formatNumber(total)}</span>
-        </div>
+          {/* Infinite scroll status */}
+          {isLoadingMore && (
+            <div className="flex items-center justify-center py-1.5" style={{ color: t.text5 }}>
+              <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+              <span className="text-[11px]">Loading more...</span>
+            </div>
+          )}
+          {!hasMore && contacts.length > 0 && (
+            <div className="text-center py-1" style={{ color: t.text6 }}>
+              <span className="text-[10px]">{formatNumber(contacts.length)} of {formatNumber(total)}</span>
+            </div>
+          )}
+        </>
       )}
 
       {/* Add Contact Modal */}
