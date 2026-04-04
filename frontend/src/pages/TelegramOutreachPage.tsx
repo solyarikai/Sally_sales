@@ -1833,6 +1833,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activePanel, setActivePanel] = useState<string | null>(null);
+  const [showWarmupModal, setShowWarmupModal] = useState(false);
   // Panel values
   const [limitValue, setLimitValue] = useState('10');
   const [bioValue, setBioValue] = useState('');
@@ -2004,7 +2005,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('limit'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Daily Limit
               </button>
-              <button onClick={() => { setShowActionsPopup(false); setActivePanel('warmup-settings'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+              <button onClick={() => { setShowActionsPopup(false); setShowWarmupModal(true); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Play className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Warm-up
               </button>
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('2fa'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
@@ -2206,56 +2207,10 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           ))}
         </div>
       )}
-      {activePanel === 'warmup-settings' && (
-        <div className="pt-2 pb-1 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold" style={{ color: '#059669' }}>Warm-up Settings</span>
-            <span title="Active warm-up simulates real user activity over 14 days: joins channels, adds reactions, exchanges messages. Gradual limit increases daily sending cap for new accounts.">
-              <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
-            </span>
-          </div>
-          {/* Start / Stop */}
-          <div className="flex items-center gap-2">
-            <button onClick={() => run('Active warm-up started', () => telegramOutreachApi.bulkWarmup(ids, 'start'))}
-                    disabled={loading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-white"
-                    style={{ background: '#059669' }}>
-              <Play className="w-3 h-3" /> Start Warm-up
-            </button>
-            <button onClick={() => run('Active warm-up stopped', () => telegramOutreachApi.bulkWarmup(ids, 'stop'))}
-                    disabled={loading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium"
-                    style={{ background: A.roseBg, color: A.rose }}>
-              <Square className="w-3 h-3" /> Stop Warm-up
-            </button>
-          </div>
-          {/* Gradual limit increase toggle */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs" style={{ color: A.text1 }}>Gradual daily limit increase</span>
-              <span title="Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days are capped at 5 msgs/day. Disabling removes all limits — use with caution on new sessions.">
-                <Info className="w-3 h-3 cursor-help" style={{ color: A.text3 }} />
-              </span>
-            </div>
-            <div className="flex gap-1.5">
-              <button onClick={() => run('Gradual limit enabled', () => telegramOutreachApi.bulkSkipWarmup(ids, false))}
-                      disabled={loading}
-                      className="px-2.5 py-1 rounded text-[11px] font-medium"
-                      style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #BBF7D0' }}>
-                Enable
-              </button>
-              <button onClick={() => { if (!window.confirm(`⚠ Disable gradual limit for ${ids.length} accounts?\nNew accounts without warm-up risk getting banned.`)) return; run('Gradual limit disabled', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }}
-                      disabled={loading}
-                      className="px-2.5 py-1 rounded text-[11px] font-medium"
-                      style={{ background: A.roseBg, color: A.rose, border: `1px solid ${A.rose}30` }}>
-                Disable
-              </button>
-            </div>
-          </div>
-          {/* Manage Channels */}
-          <div style={{ height: 1, background: A.border }} />
-          <WarmupChannelsPanel />
-        </div>
+      {/* Warmup modal — portaled to body */}
+      {showWarmupModal && createPortal(
+        <WarmupModal ids={ids} loading={loading} setLoading={setLoading} toast={toast} onClose={() => setShowWarmupModal(false)} />,
+        document.body
       )}
 
       {/* Staggered operation progress banner */}
@@ -2392,6 +2347,187 @@ function WarmupChannelsPanel() {
   );
 }
 
+
+function WarmupToggle({ isOn, onToggle, disabled }: { isOn: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onToggle} disabled={disabled}
+      className="relative inline-flex h-[22px] w-[40px] items-center rounded-full transition-colors shrink-0 disabled:opacity-40"
+      style={{ background: isOn ? '#059669' : '#D1D5DB', cursor: disabled ? 'not-allowed' : 'pointer' }}>
+      <span className="inline-block h-[16px] w-[16px] rounded-full bg-white shadow-sm transition-transform"
+        style={{ transform: isOn ? 'translateX(20px)' : 'translateX(3px)' }} />
+    </button>
+  );
+}
+
+function WarmupTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative inline-flex" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <Info className="w-3 h-3 cursor-help" style={{ color: A.text3 }} />
+      {show && (
+        <div className="absolute left-1/2 bottom-full mb-1.5 -translate-x-1/2 z-50 w-[240px] px-3 py-2 rounded-lg text-[11px] leading-relaxed shadow-lg"
+          style={{ background: '#1F2937', color: '#F9FAFB' }}>
+          {text}
+          <div className="absolute left-1/2 top-full -translate-x-1/2 w-0 h-0"
+            style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1F2937' }} />
+        </div>
+      )}
+    </span>
+  );
+}
+
+function WarmupModal({ ids, loading: parentLoading, setLoading, toast, onClose }: {
+  ids: number[]; loading: boolean; setLoading: (v: boolean) => void;
+  toast: (msg: string, type: 'success' | 'error' | 'info') => void; onClose: () => void;
+}) {
+  const [warmupOn, setWarmupOn] = useState(false);
+  const [gradualOn, setGradualOn] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [showChannels, setShowChannels] = useState(false);
+  const [confirmDisable, setConfirmDisable] = useState(false);
+
+  const handleWarmupToggle = async () => {
+    const newState = !warmupOn;
+    setBusy(true);
+    try {
+      await telegramOutreachApi.bulkWarmup(ids, newState ? 'start' : 'stop');
+      setWarmupOn(newState);
+      toast(`Active warm-up ${newState ? 'started' : 'stopped'} — ${ids.length} accounts`, 'success');
+    } catch { toast('Failed to toggle warm-up', 'error'); }
+    setBusy(false);
+  };
+
+  const handleGradualToggle = async () => {
+    if (gradualOn) {
+      setConfirmDisable(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      await telegramOutreachApi.bulkSkipWarmup(ids, false);
+      setGradualOn(true);
+      toast(`Gradual limit enabled — ${ids.length} accounts`, 'success');
+    } catch { toast('Failed to enable gradual limit', 'error'); }
+    setBusy(false);
+  };
+
+  const doDisableGradual = async () => {
+    setConfirmDisable(false);
+    setBusy(true);
+    try {
+      await telegramOutreachApi.bulkSkipWarmup(ids, true);
+      setGradualOn(false);
+      toast(`Gradual limit disabled — ${ids.length} accounts`, 'success');
+    } catch { toast('Failed to disable gradual limit', 'error'); }
+    setBusy(false);
+  };
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <div className="w-[400px] rounded-xl border shadow-xl" style={{ borderColor: A.border, background: A.surface }}>
+        {/* Header */}
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${A.border}` }}>
+          <div className="flex items-center gap-2">
+            <Play className="w-4 h-4" style={{ color: '#059669' }} />
+            <span className="text-sm font-semibold" style={{ color: A.text1 }}>Warm-up Settings</span>
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ background: '#ECFDF5', color: '#059669' }}>{ids.length} accounts</span>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-md transition-colors hover:bg-black/5" style={{ cursor: 'pointer' }}>
+            <X className="w-4 h-4" style={{ color: A.text3 }} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+          {/* Active Warm-up toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-medium" style={{ color: A.text1 }}>Active Warm-up</span>
+              <WarmupTooltip text="Simulates real user activity over 14 days: joins channels, adds reactions, exchanges messages. Helps avoid bans on new accounts." />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px]" style={{ color: warmupOn ? '#059669' : A.text3 }}>{warmupOn ? 'Running' : 'Off'}</span>
+              <WarmupToggle isOn={warmupOn} onToggle={handleWarmupToggle} disabled={busy} />
+            </div>
+          </div>
+
+          <div style={{ height: 1, background: A.border }} />
+
+          {/* Gradual daily limit toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-medium" style={{ color: A.text1 }}>Gradual daily limit</span>
+              <WarmupTooltip text="Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days are capped at 5 msgs/day. Disabling removes all limits — use with caution on new sessions." />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px]" style={{ color: gradualOn ? '#059669' : A.text3 }}>{gradualOn ? 'Enabled' : 'Disabled'}</span>
+              <WarmupToggle isOn={gradualOn} onToggle={handleGradualToggle} disabled={busy} />
+            </div>
+          </div>
+
+          <div style={{ height: 1, background: A.border }} />
+
+          {/* Warmup Channels — expandable */}
+          <div>
+            <button onClick={() => setShowChannels(!showChannels)}
+              className="flex items-center gap-2 w-full text-left py-1 transition-colors"
+              style={{ color: A.text2, cursor: 'pointer', background: 'none', border: 'none' }}>
+              {showChannels ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              <span className="text-[13px] font-medium">Manage Channels</span>
+              <WarmupTooltip text="Channels used during warm-up for joining, reactions, and browsing activity." />
+            </button>
+            {showChannels && <WarmupChannelsPanel />}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 flex justify-end" style={{ borderTop: `1px solid ${A.border}` }}>
+          <button onClick={onClose}
+            className="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text1, cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = A.surface; }}>
+            Done
+          </button>
+        </div>
+      </div>
+
+      {/* Confirm disable gradual limit */}
+      {confirmDisable && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setConfirmDisable(false)} />
+          <div className="relative z-10 w-[340px] rounded-xl border shadow-xl" style={{ borderColor: A.border, background: A.surface }}>
+            <div className="px-5 py-4">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-4 h-4" style={{ color: '#D97706' }} />
+                <h3 className="text-sm font-semibold" style={{ color: A.text1 }}>Disable gradual limit?</h3>
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: A.text2 }}>
+                This removes sending limits for {ids.length} accounts. New accounts without warm-up risk getting banned by Telegram.
+              </p>
+            </div>
+            <div className="px-5 py-3 flex justify-end gap-2" style={{ borderTop: `1px solid ${A.border}` }}>
+              <button onClick={() => setConfirmDisable(false)}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium"
+                style={{ border: `1px solid ${A.border}`, color: A.text1, background: A.surface, cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = A.surface; }}>
+                Cancel
+              </button>
+              <button onClick={doDisableGradual}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium text-white"
+                style={{ background: '#D97706', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#B45309'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#D97706'; }}>
+                Disable
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </ModalBackdrop>
+  );
+}
 
 function ModalBackdrop({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
