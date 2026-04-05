@@ -2744,13 +2744,17 @@ def main():
     if not needs_filters:
         pass
     elif args.mode == "natural":
-        if not args.filters:
-            print("ERROR: --filters JSON required for --mode natural")
+        natural_filters = filter_file_data.get("company_filters", {})
+        if args.filters:
+            natural_filters.update(args.filters)
+        if not natural_filters:
+            print("ERROR: --filters JSON or --filter-file required for --mode natural")
             sys.exit(1)
-        if not args.segment:
+        segment = args.segment or filter_file_data.get("segment")
+        if not segment:
             print("ERROR: --segment required for --mode natural")
             sys.exit(1)
-        mode_config = {"segment": args.segment, "filters": args.filters}
+        mode_config = {"segment": segment, "filters": natural_filters}
     elif args.mode == "structured":
         if not args.segment:
             print(
