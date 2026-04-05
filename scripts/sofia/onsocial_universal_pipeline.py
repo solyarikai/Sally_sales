@@ -2756,13 +2756,10 @@ def main():
         if not args.filters:
             print("ERROR: --filters JSON required for --mode natural")
             sys.exit(1)
-        segment = "INFLUENCER_PLATFORMS"
-        if any(
-            kw in json.dumps(args.filters).lower()
-            for kw in ["agency", "agencies", "im_first", "mcn"]
-        ):
-            segment = "IM_FIRST_AGENCIES"
-        mode_config = {"segment": segment, "filters": args.filters}
+        if not args.segment:
+            print("ERROR: --segment required for --mode natural")
+            sys.exit(1)
+        mode_config = {"segment": args.segment, "filters": args.filters}
     elif args.mode == "structured":
         if not args.segment:
             print(
