@@ -1584,9 +1584,13 @@ def step9_people_search(
     all_contacts = []
     total_batches_done = 0
     for seg, domains in by_segment.items():
-        filters = SEGMENT_PEOPLE_FILTERS.get(seg, SEGMENT_PEOPLE_FILTERS["OTHER"])
-        titles = filters["titles"]
-        seniorities = filters["seniorities"]
+        pf = (
+            config.people_filters
+            if hasattr(config, "people_filters")
+            else DEFAULT_PEOPLE_FILTERS
+        )
+        titles = pf.get("titles", DEFAULT_PEOPLE_FILTERS["titles"])
+        seniorities = pf.get("seniorities", DEFAULT_PEOPLE_FILTERS["seniorities"])
         batches = [
             domains[i : i + APOLLO_PEOPLE_BATCH_SIZE]
             for i in range(0, len(domains), APOLLO_PEOPLE_BATCH_SIZE)
