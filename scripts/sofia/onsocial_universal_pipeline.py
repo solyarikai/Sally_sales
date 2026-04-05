@@ -126,13 +126,17 @@ Universal Lead Generation Pipeline
                 "minimum_member_count": 5, "maximum_member_count": 5000,
                 "max_results": 5000}'
 
-  # Apollo Internal API — FREE, точные keyword_tags
-  python3 universal_pipeline.py --project-id 42 --mode apollo \\
+  # Apollo Internal API — FREE, точные keyword_tags (inline filters)
+  python3 universal_pipeline.py --project-id 42 --mode apollo --segment my_segment \\
     --filters '{"keyword_tags": ["influencer marketing platform", "creator analytics"],
                 "locations": ["United Kingdom", "India", "France"],
                 "sizes": ["5,50", "51,200", "201,500", "501,1000", "1001,5000"],
                 "excluded_keywords": ["recruitment", "staffing"],
                 "max_pages": 25}'
+
+  # Apollo with filter-file — all filters from JSON file
+  python3 universal_pipeline.py --project-id 42 --mode apollo \\
+    --filter-file filters/imagency_v4.json
 
   # Lookalike — reverse-engineering фильтров по примерам
   python3 universal_pipeline.py --project-id 42 --mode lookalike --examples "impact.com,modash.io"
