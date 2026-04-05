@@ -73,7 +73,8 @@ async function apiSearchPeople(page, params) {
   return page.evaluate(async (searchParams) => {
     try {
       const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-      const csrfToken = csrfMeta ? csrfMeta.content : '';
+      const csrfCookie = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('X-CSRF-TOKEN='));
+      const csrfToken = csrfMeta ? csrfMeta.content : (csrfCookie ? csrfCookie.split('=').slice(1).join('=') : '');
 
       const res = await fetch('https://app.apollo.io/api/v1/mixed_people/search', {
         method: 'POST',
