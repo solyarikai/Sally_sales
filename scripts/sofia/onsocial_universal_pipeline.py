@@ -1430,6 +1430,7 @@ def _map_csv_row(
         "segment": segment,
         "linkedin_url": _get("linkedin_url"),
         "country": country,
+        "company_country": target.get("country", ""),
         "employees": _get("employees") or target.get("employees", ""),
         "social_proof": social_proof,
     }
