@@ -1832,7 +1832,7 @@ def export_getsales(
         gs["linkedin_url"] = li_url
         gs["company_name"] = normalize_company(c.get("company_name", ""))
         gs["company_domain"] = c.get("domain", "")
-        gs["cf_location"] = c.get("country", "")
+        gs["cf_location"] = c.get("company_country", "") or c.get("country", "")
         gs["list_name"] = f"{seg} Without Email {today}"
         gs["tags"] = seg
         gs_rows.append(gs)
