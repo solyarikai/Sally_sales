@@ -36,7 +36,7 @@ TOKEN_PATH = os.environ.get(
     os.path.join(os.path.dirname(__file__), "token.json"),
 )
 
-mcp = FastMCP("google_sheets_mcp")
+mcp = FastMCP("google_sheets_drive_mcp")
 
 
 # ---------------------------------------------------------------------------
