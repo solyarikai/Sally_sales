@@ -1452,9 +1452,14 @@ def _build_apollo_people_url(
 
 
 def _run_apollo_scraper(
-    url: str, max_pages: int, output_path: str, profile: str = None
+    domains: list[str],
+    titles: list[str],
+    seniorities: list[str],
+    max_pages: int,
+    output_path: str,
+    profile: str = None,
 ) -> list[dict]:
-    # Try multiple paths to find apollo_scraper.js
+    # Try multiple paths to find apollo_people_api_search.js
     paths_to_try = [
         Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT,
         Path(".") / APOLLO_SCRAPER_SCRIPT,
@@ -1475,8 +1480,12 @@ def _run_apollo_scraper(
     args = [
         "node",
         str(script),
-        "--url",
-        url,
+        "--domains",
+        ",".join(domains),
+        "--titles",
+        ",".join(titles),
+        "--seniorities",
+        ",".join(seniorities),
         "--max-pages",
         str(max_pages),
         "--output",
