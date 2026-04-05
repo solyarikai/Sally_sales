@@ -5,7 +5,21 @@ DiscoveredCompany: persists across search jobs, tracks companies through the out
 ExtractedContact: contacts found from website scraping or Apollo enrichment.
 PipelineEvent: audit trail for all pipeline actions.
 """
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, ForeignKey, Boolean, Float, Numeric, Enum as SQLEnum, Index
+
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Text,
+    JSON,
+    ForeignKey,
+    Boolean,
+    Float,
+    Numeric,
+    Enum as SQLEnum,
+    Index,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -53,11 +67,22 @@ class DiscoveredCompany(Base):
     Persistent company record — survives across search jobs.
     Tracks a company through the full outreach pipeline.
     """
+
     __tablename__ = "discovered_companies"
 
     id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Domain and identity
     domain = Column(String(255), nullable=False, index=True)
@@ -65,8 +90,12 @@ class DiscoveredCompany(Base):
     url = Column(Text, nullable=True)
 
     # Origin tracking
-    search_result_id = Column(Integer, ForeignKey("search_results.id", ondelete="SET NULL"), nullable=True)
-    search_job_id = Column(Integer, ForeignKey("search_jobs.id", ondelete="SET NULL"), nullable=True)
+    search_result_id = Column(
+        Integer, ForeignKey("search_results.id", ondelete="SET NULL"), nullable=True
+    )
+    search_job_id = Column(
+        Integer, ForeignKey("search_jobs.id", ondelete="SET NULL"), nullable=True
+    )
 
     # GPT analysis results (copied from SearchResult for independence)
     is_target = Column(Boolean, default=False)
@@ -78,7 +107,12 @@ class DiscoveredCompany(Base):
     matched_segment = Column(String(100), nullable=True, index=True)
 
     # Pipeline status
-    status = Column(SQLEnum(DiscoveredCompanyStatus), default=DiscoveredCompanyStatus.NEW, nullable=False, index=True)
+    status = Column(
+        SQLEnum(DiscoveredCompanyStatus, native_enum=False),
+        default=DiscoveredCompanyStatus.NEW,
+        nullable=False,
+        index=True,
+    )
 
     # Cached scrape data (for re-processing without re-scraping)
     scraped_html = Column(Text, nullable=True)
@@ -93,7 +127,9 @@ class DiscoveredCompany(Base):
     # Apollo enrichment
     apollo_people_count = Column(Integer, default=0)
     apollo_enriched_at = Column(DateTime(timezone=True), nullable=True)
-    apollo_credits_used = Column(Integer, default=0)  # Actual credits spent on this domain
+    apollo_credits_used = Column(
+        Integer, default=0
+    )  # Actual credits spent on this domain
 
     # Apollo organization enrichment (FREE call — /organizations/enrich)
     # Stores: industry, keywords, country, city, estimated_num_employees,
@@ -102,16 +138,22 @@ class DiscoveredCompany(Base):
 
     # Multi-source tracking (gathering system)
     source_count = Column(Integer, server_default="1")
-    first_found_by = Column(Integer, ForeignKey("gathering_runs.id", ondelete="SET NULL"), nullable=True)
+    first_found_by = Column(
+        Integer, ForeignKey("gathering_runs.id", ondelete="SET NULL"), nullable=True
+    )
 
     # CRM blacklist cache
     blacklist_checked_at = Column(DateTime(timezone=True), nullable=True)
     in_active_campaign = Column(Boolean, server_default="false")
     campaign_ids_active = Column(JSONB, nullable=True)
-    crm_contact_id = Column(Integer, ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True)
+    crm_contact_id = Column(
+        Integer, ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Latest analysis reference
-    latest_analysis_run_id = Column(Integer, ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True)
+    latest_analysis_run_id = Column(
+        Integer, ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True
+    )
     latest_analysis_verdict = Column(Boolean, nullable=True)
     latest_analysis_segment = Column(String(100), nullable=True)
 
@@ -119,18 +161,35 @@ class DiscoveredCompany(Base):
     linkedin_company_url = Column(String(500), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     # Relationships
     company = relationship("Company")
     project = relationship("Project")
     search_result = relationship("SearchResult", foreign_keys=[search_result_id])
     search_job = relationship("SearchJob")
-    extracted_contacts = relationship("ExtractedContact", back_populates="discovered_company", cascade="all, delete-orphan")
-    events = relationship("PipelineEvent", back_populates="discovered_company", cascade="all, delete-orphan", order_by="desc(PipelineEvent.created_at)")
+    extracted_contacts = relationship(
+        "ExtractedContact",
+        back_populates="discovered_company",
+        cascade="all, delete-orphan",
+    )
+    events = relationship(
+        "PipelineEvent",
+        back_populates="discovered_company",
+        cascade="all, delete-orphan",
+        order_by="desc(PipelineEvent.created_at)",
+    )
 
     __table_args__ = (
-        Index("ix_discovered_company_project_domain", "company_id", "project_id", "domain", unique=True),
+        Index(
+            "ix_discovered_company_project_domain",
+            "company_id",
+            "project_id",
+            "domain",
+            unique=True,
+        ),
         Index("ix_discovered_company_status", "company_id", "status"),
         Index("ix_discovered_company_target", "company_id", "project_id", "is_target"),
     )
@@ -141,10 +200,16 @@ class ExtractedContact(Base):
     Contact found from website scraping or Apollo enrichment.
     Can be promoted to CRM Contact record.
     """
+
     __tablename__ = "extracted_contacts"
 
     id = Column(Integer, primary_key=True, index=True)
-    discovered_company_id = Column(Integer, ForeignKey("discovered_companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    discovered_company_id = Column(
+        Integer,
+        ForeignKey("discovered_companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Contact info
     email = Column(String(255), nullable=True, index=True)
@@ -155,7 +220,9 @@ class ExtractedContact(Base):
     linkedin_url = Column(String(500), nullable=True)
 
     # Source tracking
-    source = Column(SQLEnum(ContactSource), nullable=False, default=ContactSource.WEBSITE_SCRAPE)
+    source = Column(
+        SQLEnum(ContactSource), nullable=False, default=ContactSource.WEBSITE_SCRAPE
+    )
     raw_data = Column(JSON, nullable=True)
 
     # Apollo search context — which filters/titles were used to find this contact
@@ -167,12 +234,16 @@ class ExtractedContact(Base):
     verification_method = Column(String(100), nullable=True)
 
     # CRM promotion
-    contact_id = Column(Integer, ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True)
+    contact_id = Column(
+        Integer, ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True
+    )
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    discovered_company = relationship("DiscoveredCompany", back_populates="extracted_contacts")
+    discovered_company = relationship(
+        "DiscoveredCompany", back_populates="extracted_contacts"
+    )
     contact = relationship("Contact")
 
     __table_args__ = (
@@ -184,11 +255,22 @@ class PipelineEvent(Base):
     """
     Audit trail — tracks every action in the pipeline.
     """
+
     __tablename__ = "pipeline_events"
 
     id = Column(Integer, primary_key=True, index=True)
-    discovered_company_id = Column(Integer, ForeignKey("discovered_companies.id", ondelete="CASCADE"), nullable=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    discovered_company_id = Column(
+        Integer,
+        ForeignKey("discovered_companies.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    company_id = Column(
+        Integer,
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     event_type = Column(SQLEnum(PipelineEventType), nullable=False, index=True)
     detail = Column(JSON, nullable=True)
@@ -210,25 +292,40 @@ class EnrichmentAttempt(Base):
     Log of every enrichment attempt per company — scrape, Apollo call, subpage, etc.
     Tracks success/failure, cost, and contacts found.
     """
+
     __tablename__ = "enrichment_attempts"
 
     id = Column(Integer, primary_key=True, index=True)
-    discovered_company_id = Column(Integer, ForeignKey("discovered_companies.id", ondelete="CASCADE"), nullable=False)
+    discovered_company_id = Column(
+        Integer,
+        ForeignKey("discovered_companies.id", ondelete="CASCADE"),
+        nullable=False,
+    )
 
-    source_type = Column(String(50), nullable=False)  # WEBSITE_SCRAPE, SUBPAGE_SCRAPE, APOLLO_PEOPLE, APOLLO_ORG, etc.
-    method = Column(String(100), nullable=True)  # "homepage_gpt", "subpage_/contacts", "apollo_titles_CEO"
-    attempted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    source_type = Column(
+        String(50), nullable=False
+    )  # WEBSITE_SCRAPE, SUBPAGE_SCRAPE, APOLLO_PEOPLE, APOLLO_ORG, etc.
+    method = Column(
+        String(100), nullable=True
+    )  # "homepage_gpt", "subpage_/contacts", "apollo_titles_CEO"
+    attempted_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     credits_used = Column(Integer, server_default="0")
     cost_usd = Column(Numeric(10, 4), server_default="0")
     contacts_found = Column(Integer, server_default="0")
     emails_found = Column(Integer, server_default="0")
-    status = Column(String(20), nullable=False, server_default="SUCCESS")  # SUCCESS, ZERO_RESULTS, ERROR, SKIPPED
+    status = Column(
+        String(20), nullable=False, server_default="SUCCESS"
+    )  # SUCCESS, ZERO_RESULTS, ERROR, SKIPPED
     error_message = Column(Text, nullable=True)
     config = Column(JSONB, nullable=True)  # {titles, max_people, subpage_path, ...}
     result_summary = Column(JSONB, nullable=True)  # {contact_ids, emails, source_url}
 
     # Relationships
-    discovered_company = relationship("DiscoveredCompany", backref="enrichment_attempts")
+    discovered_company = relationship(
+        "DiscoveredCompany", backref="enrichment_attempts"
+    )
 
     __table_args__ = (
         Index("ix_enrichment_attempts_dc_id", "discovered_company_id"),
@@ -242,10 +339,13 @@ class EnrichmentEffectiveness(Base):
     Aggregated stats per (project, segment, source_type) — the self-evolving brain.
     Recomputed periodically from enrichment_attempts.
     """
+
     __tablename__ = "enrichment_effectiveness"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_id = Column(
+        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
     segment = Column(String(255), nullable=True)
     source_type = Column(String(50), nullable=False)
 
@@ -255,15 +355,25 @@ class EnrichmentEffectiveness(Base):
     total_credits_used = Column(Integer, server_default="0")
     success_rate = Column(Numeric(5, 4), server_default="0")
     cost_per_contact = Column(Numeric(10, 4), server_default="0")
-    priority_rank = Column(Integer, server_default="99")  # auto-computed, lower = better ROI
+    priority_rank = Column(
+        Integer, server_default="99"
+    )  # auto-computed, lower = better ROI
 
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     # Relationships
     project = relationship("Project")
 
     __table_args__ = (
-        Index("uq_enrichment_effectiveness_project_seg_source", "project_id", "segment", "source_type", unique=True),
+        Index(
+            "uq_enrichment_effectiveness_project_seg_source",
+            "project_id",
+            "segment",
+            "source_type",
+            unique=True,
+        ),
     )
 
 
@@ -272,12 +382,15 @@ class EmailVerification(Base):
     Email verification history + 90-day cache.
     Before calling Findymail API, check if a recent valid result exists.
     """
+
     __tablename__ = "email_verifications"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), nullable=False)
     service = Column(String(50), nullable=False)  # 'findymail', 'millionverifier'
-    result = Column(String(30), nullable=True)  # 'valid', 'invalid', 'catch_all', 'unknown', 'error'
+    result = Column(
+        String(30), nullable=True
+    )  # 'valid', 'invalid', 'catch_all', 'unknown', 'error'
     is_valid = Column(Boolean, nullable=True)
     provider = Column(String(100), nullable=True)  # email provider from API
     raw_response = Column(JSONB, nullable=True)
@@ -287,10 +400,18 @@ class EmailVerification(Base):
     expires_at = Column(DateTime(timezone=True), nullable=True)  # verified_at + 90 days
 
     # Links
-    contact_id = Column(Integer, ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True)
-    extracted_contact_id = Column(Integer, ForeignKey("extracted_contacts.id", ondelete="SET NULL"), nullable=True)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    contact_id = Column(
+        Integer, ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True
+    )
+    extracted_contact_id = Column(
+        Integer, ForeignKey("extracted_contacts.id", ondelete="SET NULL"), nullable=True
+    )
+    company_id = Column(
+        Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True
+    )
+    project_id = Column(
+        Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
 
     __table_args__ = (
         Index("ix_email_verifications_email_verified", "email", "verified_at"),
@@ -303,22 +424,37 @@ class CampaignPushRule(Base):
     Rules for automatically pushing contacts to SmartLead campaigns.
     Each rule defines classification criteria and campaign configuration.
     """
+
     __tablename__ = "campaign_push_rules"
 
     id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
 
     # Classification criteria
     language = Column(String(10), nullable=False, default="any")  # "ru", "en", "any"
-    has_first_name = Column(Boolean, nullable=True)  # True=requires name, False=generic emails, None=any
+    has_first_name = Column(
+        Boolean, nullable=True
+    )  # True=requires name, False=generic emails, None=any
     name_pattern = Column(String(500), nullable=True)  # Optional regex
 
     # SmartLead campaign config
-    campaign_name_template = Column(String(500), nullable=False)  # e.g. "Deliryo {date} Из РФ"
+    campaign_name_template = Column(
+        String(500), nullable=False
+    )  # e.g. "Deliryo {date} Из РФ"
     sequence_language = Column(String(10), nullable=False, default="ru")  # "ru" or "en"
     sequence_template = Column(JSON, nullable=True)  # SmartLead sequences array
     use_first_name_var = Column(Boolean, default=True)  # Whether to use {{first_name}}
@@ -338,7 +474,9 @@ class CampaignPushRule(Base):
     current_campaign_lead_count = Column(Integer, default=0)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     # Relationships
     company = relationship("Company")
