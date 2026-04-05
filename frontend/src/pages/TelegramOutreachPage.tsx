@@ -700,7 +700,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
         case 'phone': return acc.phone;
         case 'username': return acc.username || '';
         case 'status': return acc.status;
-        case 'age': return acc.telegram_created_at || acc.session_created_at || '';
+        case 'age': return acc.created_at || '';
         case 'sent': return acc.messages_sent_today;
         default: return '';
       }
@@ -1017,18 +1017,16 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap" style={{ color: A.text3 }}>
-                      {(acc.session_created_at || acc.telegram_created_at) ? (() => {
+                      {acc.created_at ? (() => {
                         const fmt = (iso: string) => { const d = new Date(iso); return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }); };
                         const ageFmt = (iso: string) => { const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); return days >= 365 ? `${Math.floor(days / 365)}y ${Math.floor((days % 365) / 30)}m` : days >= 30 ? `${Math.floor(days / 30)}m ${days % 30}d` : `${days}d`; };
-                        const sessionDate = acc.session_created_at;
                         const tgDate = acc.telegram_created_at;
-                        const primaryDate = tgDate || sessionDate!;
                         const lines: string[] = [];
-                        if (sessionDate) lines.push(`Подключён: ${fmt(sessionDate)} (${ageFmt(sessionDate)})`);
+                        lines.push(`В системе: ${fmt(acc.created_at)} (${ageFmt(acc.created_at)})`);
                         if (tgDate) lines.push(`TG аккаунт: ~${fmt(tgDate)} (${ageFmt(tgDate)})`);
                         return (
                           <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                            {ageFmt(primaryDate)}
+                            {ageFmt(acc.created_at)}
                             <span className="age-tooltip">{lines.join('\n')}</span>
                           </span>
                         );
