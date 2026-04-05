@@ -44,20 +44,24 @@ Python: `python3` (на Hetzner), `python3.11` (локально).
 Собери полную команду и покажи пользователю. Примеры:
 
 ```bash
+# Apollo с filter-file (рекомендуемый способ)
+python3 universal_pipeline.py --project-id 42 --mode apollo \
+  --filter-file filters/imagency_v4.json
+
+# Apollo с inline filters
+python3 universal_pipeline.py --project-id 42 --mode apollo --segment IM_FIRST_AGENCIES \
+  --filters '{"keyword_tags": ["influencer marketing platform"],
+              "locations": ["United Kingdom", "France"],
+              "sizes": ["10,50", "51,200", "201,500"],
+              "max_pages": 25}'
+
 # Clay Keywords
-python3 universal_pipeline.py --project-id 42 --mode keywords \
+python3 universal_pipeline.py --project-id 42 --mode keywords --segment MY_SEGMENT \
   --filters '{"description_keywords": ["influencer marketing platform"],
               "description_keywords_exclude": ["recruitment"],
               "industries": ["Computer Software"],
               "minimum_member_count": 5, "maximum_member_count": 5000,
               "max_results": 5000}'
-
-# Apollo (бесплатно)
-python3 universal_pipeline.py --project-id 42 --mode apollo \
-  --filters '{"keyword_tags": ["influencer marketing platform"],
-              "locations": ["United Kingdom", "France"],
-              "sizes": ["5,50", "51,200", "201,500"],
-              "max_pages": 25}'
 
 # Lookalike
 python3 universal_pipeline.py --project-id 42 --mode lookalike \
