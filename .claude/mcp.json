@@ -1,5 +1,31 @@
 {
   "mcpServers": {
+    "apollo": {
+      "type": "stdio",
+      "command": "/opt/homebrew/bin/python3.11",
+      "args": ["/Users/user/Library/Mobile Documents/com~apple~CloudDocs/sales_engineer/mcp/apollo-mcp/server.py"],
+      "env": {
+        "APOLLO_API_KEY": "V4yEBnZDhB1kwdA0u6GDtQ"
+      }
+    },
+    "crona": {
+      "type": "stdio",
+      "command": "/opt/homebrew/bin/python3.11",
+      "args": ["/Users/user/Library/Mobile Documents/com~apple~CloudDocs/sales_engineer/crona-mcp/server.py"],
+      "env": {
+        "CRONA_EMAIL": "sofia.kamyshenko@gmail.com",
+        "CRONA_PASSWORD": "gyrzu9sUvnybmynkom"
+      }
+    },
+    "google-sheets": {
+      "type": "stdio",
+      "command": "/opt/homebrew/bin/python3.11",
+      "args": ["/Users/user/sales_engineer/.claude/google-sheets/server.py"],
+      "env": {
+        "GOOGLE_CREDENTIALS_PATH": "/Users/user/sales_engineer/.claude/google-sheets/credentials.json",
+        "GOOGLE_TOKEN_PATH": "/Users/user/sales_engineer/.claude/google-sheets/token.json"
+      }
+    },
     "smartlead": {
       "type": "stdio",
       "command": "/Users/user/sales_engineer/sofia/mcp/smartlead-mcp/.venv/bin/python3",
