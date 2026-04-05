@@ -1349,62 +1349,11 @@ APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
 APOLLO_PEOPLE_BATCH_SIZE = 30
 APOLLO_PEOPLE_MAX_PAGES = 5
 
-SEGMENT_PEOPLE_FILTERS = {
-    "INFLUENCER_PLATFORMS": {
-        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
-        "titles": [
-            "CTO",
-            "VP Engineering",
-            "VP of Engineering",
-            "Head of Engineering",
-            "Head of Product",
-            "Chief Product Officer",
-            "VP Product",
-            "Director of Engineering",
-            "Director of Product",
-            "Co-Founder",
-            "Founder",
-            "CEO",
-            "COO",
-        ],
-    },
-    "IM_FIRST_AGENCIES": {
-        "seniorities": ["founder", "c_suite", "director", "owner"],
-        "titles": [
-            "CEO",
-            "Founder",
-            "Co-Founder",
-            "Managing Director",
-            "Managing Partner",
-            "Head of Influencer Marketing",
-            "Director of Influencer",
-            "Head of Partnerships",
-            "VP Strategy",
-            "Head of Strategy",
-            "General Manager",
-            "Partner",
-            "Owner",
-        ],
-    },
-    "AFFILIATE_PERFORMANCE": {
-        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
-        "titles": [
-            "CTO",
-            "VP Engineering",
-            "VP of Engineering",
-            "VP Product",
-            "Head of Product",
-            "Head of Partnerships",
-            "VP Partnerships",
-            "Director of Partnerships",
-            "Co-Founder",
-            "Founder",
-            "CEO",
-            "COO",
-        ],
-    },
+DEFAULT_PEOPLE_FILTERS = {
+    "titles": ["CEO", "Founder", "Co-Founder", "CTO", "COO", "Head of Product"],
+    "seniorities": ["founder", "c_suite", "vp", "director", "owner", "head", "partner"],
+    "excluded_titles": [],
 }
-SEGMENT_PEOPLE_FILTERS["OTHER"] = SEGMENT_PEOPLE_FILTERS["INFLUENCER_PLATFORMS"]
 
 APOLLO_CSV_COLUMNS = {
     "first_name": ["First Name", "first_name"],
