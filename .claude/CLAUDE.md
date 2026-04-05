@@ -82,7 +82,17 @@ Contacts without email from Findymail → auto-export to GetSales-ready CSV in `
 
 | Directory | What |
 |-----------|------|
-| `magnum-opus/` | Backend (FastAPI + SQLAlchemy), gathering pipeline, API |
+| `magnum-opus/` | Backend (FastAPI + SQLAlchemy), gathering pipeline, API — **GIT SUBMODULE** |
 | `sofia/` | Sales ops: scripts, sequences, research, projects |
 | `sofia/projects/OnSocial/` | OnSocial-specific sequences, docs, segments |
 | `sofia/smartlead-hub/` | SmartLead campaigns, sequences, lead data |
+| `tam-guide/` | Training/onboarding materials (HTML lessons) |
+| `scripts/` | Shared utility scripts |
+
+## Git Structure
+
+- **Parent repo** (`sales_engineer/`): GitHub
+- **Submodule** (`magnum-opus/`): GitLab (`git@gitlab.com:sally-saas/magnum-opus.git`)
+- Always push submodule FIRST, then parent
+- Always check `git submodule status` before git operations
+- API keys are per-project (OnSocial, TAM, etc.) — never change globally
