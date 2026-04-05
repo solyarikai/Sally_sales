@@ -610,6 +610,920 @@ async def sheets_list_my_spreadsheets(params: ListUserSpreadsheetsInput) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Extended Sheets input models
+# ---------------------------------------------------------------------------
+
+
+class AddTabInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
+    title: str = Field(..., description="Name for the new tab")
+
+
+class DeleteTabInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
+    sheet_id: int = Field(
+        ..., description="Numeric sheet/tab ID (from sheets_list_sheets)"
+    )
+
+
+class RenameTabInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
+    sheet_id: int = Field(..., description="Numeric sheet/tab ID")
+    new_title: str = Field(..., description="New name for the tab")
+
+
+class DuplicateTabInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
+    sheet_id: int = Field(..., description="Numeric sheet/tab ID to duplicate")
+    new_title: Optional[str] = Field(
+        default=None,
+        description="Name for the copy. If omitted, uses 'Copy of <original>'",
+    )
+
+
+class GetMetadataInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
+
+
+class UpdateMetadataInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
+    new_title: Optional[str] = Field(
+        default=None, description="New title for the spreadsheet"
+    )
+    locale: Optional[str] = Field(default=None, description="Locale, e.g. 'en_US'")
+
+
+class SortRangeInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
+    sheet_id: int = Field(..., description="Numeric sheet/tab ID")
+    start_row: int = Field(..., description="Start row index (0-based, inclusive)")
+    end_row: int = Field(..., description="End row index (0-based, exclusive)")
+    start_col: int = Field(..., description="Start column index (0-based, inclusive)")
+    end_col: int = Field(..., description="End column index (0-based, exclusive)")
+    sort_column: int = Field(..., description="Column index to sort by (0-based)")
+    ascending: bool = Field(
+        default=True, description="Sort ascending (True) or descending (False)"
+    )
+
+
+class AutoResizeInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
+    sheet_id: int = Field(..., description="Numeric sheet/tab ID")
+    start_col: int = Field(default=0, description="Start column index (0-based)")
+    end_col: int = Field(
+        default=26, description="End column index (0-based, exclusive)"
+    )
+
+
+class BatchFormatInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
+    sheet_id: int = Field(..., description="Numeric sheet/tab ID")
+    start_row: int = Field(..., description="Start row index (0-based)")
+    end_row: int = Field(..., description="End row index (0-based, exclusive)")
+    start_col: int = Field(..., description="Start column index (0-based)")
+    end_col: int = Field(..., description="End column index (0-based, exclusive)")
+    bold: Optional[bool] = Field(default=None, description="Set bold")
+    bg_color_hex: Optional[str] = Field(
+        default=None, description="Background color as hex, e.g. '#FFD700'"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Drive input models
+# ---------------------------------------------------------------------------
+
+
+class DriveCreateFolderInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    name: str = Field(..., description="Folder name")
+    parent_id: Optional[str] = Field(
+        default=None, description="Parent folder ID. If omitted, creates in root."
+    )
+
+
+class DriveMoveFileInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    file_id: str = Field(..., description="ID of the file/spreadsheet to move")
+    folder_id: str = Field(..., description="Target folder ID")
+
+
+class DriveListFolderInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    folder_id: str = Field(..., description="Folder ID to list contents of")
+    max_results: int = Field(
+        default=50, description="Max items to return", ge=1, le=200
+    )
+
+
+class DriveSearchFilesInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    query: str = Field(..., description="Search string for file name")
+    file_type: Optional[str] = Field(
+        default=None,
+        description="MIME type filter, e.g. 'application/vnd.google-apps.spreadsheet'",
+    )
+    max_results: int = Field(default=20, description="Max results", ge=1, le=100)
+
+
+class DriveDeleteFileInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    file_id: str = Field(..., description="ID of the file to delete (moves to trash)")
+
+
+class DriveGetFileInfoInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    file_id: str = Field(..., description="ID of the file")
+
+
+class DriveShareFileInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    file_id: str = Field(..., description="ID of the file to share")
+    email: str = Field(..., description="Email address to share with")
+    role: str = Field(
+        default="reader",
+        description="Permission role: 'reader', 'writer', or 'commenter'",
+    )
+
+
+class DriveCopyFileInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    file_id: str = Field(..., description="ID of the file to copy")
+    new_name: Optional[str] = Field(
+        default=None,
+        description="Name for the copy. If omitted, uses 'Copy of <original>'",
+    )
+    parent_id: Optional[str] = Field(
+        default=None, description="Target folder ID for the copy"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Extended Sheets tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="sheets_add_tab",
+    annotations={
+        "title": "Add Tab to Spreadsheet",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+)
+async def sheets_add_tab(params: AddTabInput) -> str:
+    """Add a new tab/sheet to an existing spreadsheet.
+
+    Args:
+        params.spreadsheet_id: The Sheet ID.
+        params.title: Name for the new tab.
+    """
+    try:
+        service = _get_service()
+        body = {"requests": [{"addSheet": {"properties": {"title": params.title}}}]}
+        result = (
+            service.spreadsheets()
+            .batchUpdate(spreadsheetId=params.spreadsheet_id, body=body)
+            .execute()
+        )
+        props = result["replies"][0]["addSheet"]["properties"]
+        return json.dumps(
+            {"sheetId": props["sheetId"], "title": props["title"]}, indent=2
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="sheets_delete_tab",
+    annotations={
+        "title": "Delete Tab from Spreadsheet",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+)
+async def sheets_delete_tab(params: DeleteTabInput) -> str:
+    """Delete a tab/sheet from a spreadsheet by its numeric ID.
+
+    Args:
+        params.spreadsheet_id: The Sheet ID.
+        params.sheet_id: Numeric tab ID (get from sheets_list_sheets).
+    """
+    try:
+        service = _get_service()
+        body = {"requests": [{"deleteSheet": {"sheetId": params.sheet_id}}]}
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=params.spreadsheet_id, body=body
+        ).execute()
+        return json.dumps(
+            {"deleted_sheet_id": params.sheet_id, "status": "ok"}, indent=2
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="sheets_rename_tab",
+    annotations={
+        "title": "Rename Tab in Spreadsheet",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def sheets_rename_tab(params: RenameTabInput) -> str:
+    """Rename a tab/sheet in a spreadsheet.
+
+    Args:
+        params.spreadsheet_id: The Sheet ID.
+        params.sheet_id: Numeric tab ID.
+        params.new_title: New name for the tab.
+    """
+    try:
+        service = _get_service()
+        body = {
+            "requests": [
+                {
+                    "updateSheetProperties": {
+                        "properties": {
+                            "sheetId": params.sheet_id,
+                            "title": params.new_title,
+                        },
+                        "fields": "title",
+                    }
+                }
+            ]
+        }
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=params.spreadsheet_id, body=body
+        ).execute()
+        return json.dumps(
+            {
+                "sheet_id": params.sheet_id,
+                "new_title": params.new_title,
+                "status": "ok",
+            },
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="sheets_duplicate_tab",
+    annotations={
+        "title": "Duplicate Tab in Spreadsheet",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+)
+async def sheets_duplicate_tab(params: DuplicateTabInput) -> str:
+    """Duplicate a tab/sheet within the same spreadsheet.
+
+    Args:
+        params.spreadsheet_id: The Sheet ID.
+        params.sheet_id: Numeric tab ID to duplicate.
+        params.new_title: Name for the copy (optional).
+    """
+    try:
+        service = _get_service()
+        req = {"duplicateSheet": {"sourceSheetId": params.sheet_id}}
+        if params.new_title:
+            req["duplicateSheet"]["newSheetName"] = params.new_title
+        body = {"requests": [req]}
+        result = (
+            service.spreadsheets()
+            .batchUpdate(spreadsheetId=params.spreadsheet_id, body=body)
+            .execute()
+        )
+        props = result["replies"][0]["duplicateSheet"]["properties"]
+        return json.dumps(
+            {"new_sheet_id": props["sheetId"], "title": props["title"]}, indent=2
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="sheets_get_metadata",
+    annotations={
+        "title": "Get Spreadsheet Metadata",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def sheets_get_metadata(params: GetMetadataInput) -> str:
+    """Get full metadata of a spreadsheet (title, locale, timezone, sheets).
+
+    Args:
+        params.spreadsheet_id: The Sheet ID.
+    """
+    try:
+        service = _get_service()
+        meta = (
+            service.spreadsheets()
+            .get(
+                spreadsheetId=params.spreadsheet_id,
+                fields="properties,sheets.properties",
+            )
+            .execute()
+        )
+        props = meta.get("properties", {})
+        sheets = [
+            {"name": s["properties"]["title"], "sheetId": s["properties"]["sheetId"]}
+            for s in meta.get("sheets", [])
+        ]
+        return json.dumps(
+            {
+                "title": props.get("title"),
+                "locale": props.get("locale"),
+                "timeZone": props.get("timeZone"),
+                "defaultFormat": props.get("defaultFormat", {}),
+                "sheets": sheets,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="sheets_update_metadata",
+    annotations={
+        "title": "Update Spreadsheet Metadata",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def sheets_update_metadata(params: UpdateMetadataInput) -> str:
+    """Update spreadsheet title or locale.
+
+    Args:
+        params.spreadsheet_id: The Sheet ID.
+        params.new_title: New title (optional).
+        params.locale: New locale (optional).
+    """
+    try:
+        service = _get_service()
+        props = {}
+        fields = []
+        if params.new_title:
+            props["title"] = params.new_title
+            fields.append("title")
+        if params.locale:
+            props["locale"] = params.locale
+            fields.append("locale")
+        if not fields:
+            return "Error: Provide at least new_title or locale."
+        body = {
+            "requests": [
+                {
+                    "updateSpreadsheetProperties": {
+                        "properties": props,
+                        "fields": ",".join(fields),
+                    }
+                }
+            ]
+        }
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=params.spreadsheet_id, body=body
+        ).execute()
+        return json.dumps({"updated": fields, "status": "ok"}, indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="sheets_sort_range",
+    annotations={
+        "title": "Sort Range in Google Sheet",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def sheets_sort_range(params: SortRangeInput) -> str:
+    """Sort a range by a specific column.
+
+    Args:
+        params.spreadsheet_id: The Sheet ID.
+        params.sheet_id: Numeric tab ID.
+        params.start_row/end_row: Row range (0-based).
+        params.start_col/end_col: Column range (0-based).
+        params.sort_column: Column index to sort by.
+        params.ascending: Sort direction.
+    """
+    try:
+        service = _get_service()
+        body = {
+            "requests": [
+                {
+                    "sortRange": {
+                        "range": {
+                            "sheetId": params.sheet_id,
+                            "startRowIndex": params.start_row,
+                            "endRowIndex": params.end_row,
+                            "startColumnIndex": params.start_col,
+                            "endColumnIndex": params.end_col,
+                        },
+                        "sortSpecs": [
+                            {
+                                "dimensionIndex": params.sort_column,
+                                "sortOrder": "ASCENDING"
+                                if params.ascending
+                                else "DESCENDING",
+                            }
+                        ],
+                    }
+                }
+            ]
+        }
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=params.spreadsheet_id, body=body
+        ).execute()
+        return json.dumps(
+            {
+                "status": "ok",
+                "sorted_by_column": params.sort_column,
+                "ascending": params.ascending,
+            },
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="sheets_auto_resize",
+    annotations={
+        "title": "Auto-Resize Columns",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def sheets_auto_resize(params: AutoResizeInput) -> str:
+    """Auto-resize columns to fit content.
+
+    Args:
+        params.spreadsheet_id: The Sheet ID.
+        params.sheet_id: Numeric tab ID.
+        params.start_col/end_col: Column range (0-based).
+    """
+    try:
+        service = _get_service()
+        body = {
+            "requests": [
+                {
+                    "autoResizeDimensions": {
+                        "dimensions": {
+                            "sheetId": params.sheet_id,
+                            "dimension": "COLUMNS",
+                            "startIndex": params.start_col,
+                            "endIndex": params.end_col,
+                        }
+                    }
+                }
+            ]
+        }
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=params.spreadsheet_id, body=body
+        ).execute()
+        return json.dumps(
+            {"status": "ok", "resized_columns": f"{params.start_col}-{params.end_col}"},
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="sheets_format_range",
+    annotations={
+        "title": "Format Range in Google Sheet",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def sheets_format_range(params: BatchFormatInput) -> str:
+    """Apply formatting (bold, background color) to a cell range.
+
+    Args:
+        params.spreadsheet_id: The Sheet ID.
+        params.sheet_id: Numeric tab ID.
+        params.start_row/end_row/start_col/end_col: Range (0-based).
+        params.bold: Set bold (optional).
+        params.bg_color_hex: Background color as hex (optional).
+    """
+    try:
+        service = _get_service()
+        cell_format = {}
+        fields_parts = []
+        if params.bold is not None:
+            cell_format["textFormat"] = {"bold": params.bold}
+            fields_parts.append("userEnteredFormat.textFormat.bold")
+        if params.bg_color_hex:
+            h = params.bg_color_hex.lstrip("#")
+            r, g, b = (
+                int(h[0:2], 16) / 255,
+                int(h[2:4], 16) / 255,
+                int(h[4:6], 16) / 255,
+            )
+            cell_format["backgroundColor"] = {"red": r, "green": g, "blue": b}
+            fields_parts.append("userEnteredFormat.backgroundColor")
+        if not fields_parts:
+            return "Error: Provide at least bold or bg_color_hex."
+        body = {
+            "requests": [
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": params.sheet_id,
+                            "startRowIndex": params.start_row,
+                            "endRowIndex": params.end_row,
+                            "startColumnIndex": params.start_col,
+                            "endColumnIndex": params.end_col,
+                        },
+                        "cell": {"userEnteredFormat": cell_format},
+                        "fields": ",".join(fields_parts),
+                    }
+                }
+            ]
+        }
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=params.spreadsheet_id, body=body
+        ).execute()
+        return json.dumps({"status": "ok", "formatted_fields": fields_parts}, indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+# ---------------------------------------------------------------------------
+# Drive tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="drive_create_folder",
+    annotations={
+        "title": "Create Google Drive Folder",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+)
+async def drive_create_folder(params: DriveCreateFolderInput) -> str:
+    """Create a new folder in Google Drive.
+
+    Args:
+        params.name: Folder name.
+        params.parent_id: Parent folder ID (optional, defaults to root).
+    """
+    try:
+        drive = _get_drive_service()
+        metadata = {
+            "name": params.name,
+            "mimeType": "application/vnd.google-apps.folder",
+        }
+        if params.parent_id:
+            metadata["parents"] = [params.parent_id]
+        folder = (
+            drive.files()
+            .create(body=metadata, fields="id, name, webViewLink")
+            .execute()
+        )
+        return json.dumps(
+            {
+                "folder_id": folder["id"],
+                "name": folder["name"],
+                "url": folder.get("webViewLink", ""),
+            },
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="drive_move_file",
+    annotations={
+        "title": "Move File to Folder",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def drive_move_file(params: DriveMoveFileInput) -> str:
+    """Move a file/spreadsheet to a specific Drive folder.
+
+    Args:
+        params.file_id: ID of the file to move.
+        params.folder_id: Target folder ID.
+    """
+    try:
+        drive = _get_drive_service()
+        file_info = drive.files().get(fileId=params.file_id, fields="parents").execute()
+        previous_parents = ",".join(file_info.get("parents", []))
+        result = (
+            drive.files()
+            .update(
+                fileId=params.file_id,
+                addParents=params.folder_id,
+                removeParents=previous_parents,
+                fields="id, name, parents",
+            )
+            .execute()
+        )
+        return json.dumps(
+            {
+                "file_id": result["id"],
+                "name": result.get("name"),
+                "new_parents": result.get("parents", []),
+            },
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="drive_list_folder",
+    annotations={
+        "title": "List Folder Contents",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def drive_list_folder(params: DriveListFolderInput) -> str:
+    """List files and subfolders in a Google Drive folder.
+
+    Args:
+        params.folder_id: Folder ID.
+        params.max_results: Max items to return.
+    """
+    try:
+        drive = _get_drive_service()
+        q = f"'{params.folder_id}' in parents and trashed = false"
+        result = (
+            drive.files()
+            .list(
+                q=q,
+                pageSize=params.max_results,
+                fields="files(id, name, mimeType, modifiedTime)",
+                orderBy="modifiedTime desc",
+            )
+            .execute()
+        )
+        files = [
+            {
+                "id": f["id"],
+                "name": f["name"],
+                "type": f["mimeType"],
+                "modified": f.get("modifiedTime", ""),
+            }
+            for f in result.get("files", [])
+        ]
+        return json.dumps(
+            {"folder_id": params.folder_id, "count": len(files), "files": files},
+            ensure_ascii=False,
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="drive_search_files",
+    annotations={
+        "title": "Search Google Drive Files",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def drive_search_files(params: DriveSearchFilesInput) -> str:
+    """Search for files by name in Google Drive.
+
+    Args:
+        params.query: Name fragment to search.
+        params.file_type: MIME type filter (optional).
+        params.max_results: Max results.
+    """
+    try:
+        drive = _get_drive_service()
+        q = f"name contains '{params.query}' and trashed = false"
+        if params.file_type:
+            q += f" and mimeType='{params.file_type}'"
+        result = (
+            drive.files()
+            .list(
+                q=q,
+                pageSize=params.max_results,
+                fields="files(id, name, mimeType, modifiedTime, webViewLink)",
+                orderBy="modifiedTime desc",
+            )
+            .execute()
+        )
+        files = [
+            {
+                "id": f["id"],
+                "name": f["name"],
+                "type": f["mimeType"],
+                "modified": f.get("modifiedTime", ""),
+                "url": f.get("webViewLink", ""),
+            }
+            for f in result.get("files", [])
+        ]
+        return json.dumps(
+            {"query": params.query, "count": len(files), "files": files},
+            ensure_ascii=False,
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="drive_delete_file",
+    annotations={
+        "title": "Delete/Trash File in Drive",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def drive_delete_file(params: DriveDeleteFileInput) -> str:
+    """Move a file to trash in Google Drive (recoverable).
+
+    Args:
+        params.file_id: ID of the file to trash.
+    """
+    try:
+        drive = _get_drive_service()
+        drive.files().update(fileId=params.file_id, body={"trashed": True}).execute()
+        return json.dumps({"file_id": params.file_id, "status": "trashed"}, indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="drive_get_file_info",
+    annotations={
+        "title": "Get File Info from Drive",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def drive_get_file_info(params: DriveGetFileInfoInput) -> str:
+    """Get metadata about a file in Google Drive.
+
+    Args:
+        params.file_id: ID of the file.
+    """
+    try:
+        drive = _get_drive_service()
+        f = (
+            drive.files()
+            .get(
+                fileId=params.file_id,
+                fields="id, name, mimeType, modifiedTime, createdTime, size, parents, webViewLink, owners",
+            )
+            .execute()
+        )
+        return json.dumps(
+            {
+                "id": f["id"],
+                "name": f["name"],
+                "type": f["mimeType"],
+                "created": f.get("createdTime", ""),
+                "modified": f.get("modifiedTime", ""),
+                "size": f.get("size"),
+                "parents": f.get("parents", []),
+                "url": f.get("webViewLink", ""),
+                "owners": [o.get("emailAddress", "") for o in f.get("owners", [])],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="drive_share_file",
+    annotations={
+        "title": "Share File in Drive",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+async def drive_share_file(params: DriveShareFileInput) -> str:
+    """Share a file with a specific email address.
+
+    Args:
+        params.file_id: ID of the file to share.
+        params.email: Email to share with.
+        params.role: Permission role (reader/writer/commenter).
+    """
+    try:
+        drive = _get_drive_service()
+        permission = {"type": "user", "role": params.role, "emailAddress": params.email}
+        result = (
+            drive.permissions()
+            .create(
+                fileId=params.file_id, body=permission, fields="id, role, emailAddress"
+            )
+            .execute()
+        )
+        return json.dumps(
+            {
+                "permission_id": result["id"],
+                "role": result.get("role"),
+                "email": result.get("emailAddress"),
+            },
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="drive_copy_file",
+    annotations={
+        "title": "Copy File in Drive",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+)
+async def drive_copy_file(params: DriveCopyFileInput) -> str:
+    """Copy a file in Google Drive.
+
+    Args:
+        params.file_id: ID of the file to copy.
+        params.new_name: Name for the copy (optional).
+        params.parent_id: Target folder ID (optional).
+    """
+    try:
+        drive = _get_drive_service()
+        body = {}
+        if params.new_name:
+            body["name"] = params.new_name
+        if params.parent_id:
+            body["parents"] = [params.parent_id]
+        result = (
+            drive.files()
+            .copy(fileId=params.file_id, body=body, fields="id, name, webViewLink")
+            .execute()
+        )
+        return json.dumps(
+            {
+                "id": result["id"],
+                "name": result["name"],
+                "url": result.get("webViewLink", ""),
+            },
+            indent=2,
+        )
+    except Exception as e:
+        return _handle_error(e)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
