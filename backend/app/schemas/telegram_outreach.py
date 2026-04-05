@@ -116,6 +116,15 @@ class TgAccountUpdate(BaseModel):
     skip_warmup: Optional[bool] = None
 
 
+class TgSetProxyMode(BaseModel):
+    mode: str  # "auto" | "custom" | "none"
+    host: Optional[str] = None
+    port: Optional[int] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    protocol: Optional[str] = "socks5"
+
+
 class TgAccountResponse(BaseModel):
     id: int
     project_id: Optional[int] = None

@@ -86,7 +86,7 @@ from app.schemas.telegram_outreach import (
     TgSequenceSchema, TgSequenceStepSchema, TgStepVariantSchema,
     TgSequencePreviewRequest, TgSequencePreviewResponse,
     TgOutreachMessageResponse, TgOutreachMessageListResponse,
-    TgBulkAssignProxy, TgBulkTag, TgBulkAccountIds,
+    TgBulkAssignProxy, TgBulkTag, TgBulkAccountIds, TgSetProxyMode,
     TgTeleRaptorImportRequest, TgTeleRaptorImportResponse,
     TgBlacklistUploadText, TgBlacklistResponse, TgBlacklistListResponse,
     TgWarmupStatusResponse, TgWarmupLogResponse,
@@ -787,6 +787,99 @@ async def test_account_proxy(account_id: int, session: AsyncSession = Depends(ge
         proxy.is_active = False
         proxy.last_checked_at = func.now()
         return {"alive": False, "latency_ms": None, "exit_ip": None, "error": str(e)[:200]}
+
+
+@router.post("/accounts/{account_id}/set-proxy-mode")
+async def set_account_proxy_mode(account_id: int, data: TgSetProxyMode, session: AsyncSession = Depends(get_session)):
+    """Switch proxy mode for an account: auto (Infatica), custom, or none."""
+    account = await session.get(TgAccount, account_id)
+    if not account:
+        raise HTTPException(404, "Account not found")
+
+    mode = data.mode  # "auto" | "custom" | "none"
+
+    # Clear existing proxy assignment first
+    if account.assigned_proxy_id:
+        account.assigned_proxy_id = None
+        account.proxy_group_id = None
+
+    if mode == "none":
+        await _sync_proxy_to_dm_account(session, account.phone, None)
+
+    elif mode == "auto":
+        if not infatica_proxy_service.is_configured:
+            raise HTTPException(400, "Infatica proxy service is not configured")
+        cfg = infatica_proxy_service.get_proxy_for_account(account.phone, account.id)
+        group_id = await _get_or_create_infatica_group(session)
+        proxy = TgProxy(
+            proxy_group_id=group_id,
+            host=cfg["host"], port=cfg["port"],
+            username=cfg["username"], password=cfg["password"],
+            protocol=TgProxyProtocol.SOCKS5, is_active=True,
+        )
+        session.add(proxy)
+        await session.flush()
+        account.proxy_group_id = group_id
+        account.assigned_proxy_id = proxy.id
+        await _sync_proxy_to_dm_account(session, account.phone, proxy)
+
+    elif mode == "custom":
+        if not data.host or not data.port:
+            raise HTTPException(400, "host and port are required for custom proxy")
+        protocol_val = TgProxyProtocol(data.protocol or "socks5")
+        proxy = TgProxy(
+            proxy_group_id=None,
+            host=data.host, port=data.port,
+            username=data.username, password=data.password,
+            protocol=protocol_val, is_active=True,
+        )
+        session.add(proxy)
+        await session.flush()
+        account.assigned_proxy_id = proxy.id
+        await _sync_proxy_to_dm_account(session, account.phone, proxy)
+
+    await session.flush()
+
+    # Reload with relationships
+    result = await session.execute(
+        select(TgAccount).where(TgAccount.id == account_id)
+        .options(selectinload(TgAccount.tags), selectinload(TgAccount.proxy_group),
+                 selectinload(TgAccount.assigned_proxy))
+    )
+    account = result.scalar_one()
+    camp_count_q = await session.execute(
+        select(func.count(TgCampaignAccount.id)).where(TgCampaignAccount.account_id == account.id)
+    )
+    wu = _warmup_info(account)
+    return TgAccountResponse(
+        id=account.id, phone=account.phone, username=account.username,
+        first_name=account.first_name, last_name=account.last_name, bio=account.bio,
+        device_model=account.device_model, system_version=account.system_version,
+        app_version=account.app_version, lang_code=account.lang_code,
+        system_lang_code=account.system_lang_code,
+        status=account.status.value, spamblock_type=account.spamblock_type.value,
+        daily_message_limit=account.daily_message_limit,
+        is_premium=account.is_premium,
+        effective_daily_limit=wu["effective_daily_limit"],
+        warmup_day=wu["warmup_day"],
+        skip_warmup=account.skip_warmup,
+        warmup_active=wu.get("warmup_active", False),
+        warmup_started_at=wu.get("warmup_started_at"),
+        warmup_actions_done=wu.get("warmup_actions_done", 0),
+        warmup_progress=wu.get("warmup_progress"),
+        messages_sent_today=account.messages_sent_today,
+        total_messages_sent=account.total_messages_sent,
+        proxy_group_id=account.proxy_group_id,
+        proxy_group_name=account.proxy_group.name if account.proxy_group else None,
+        assigned_proxy_id=account.assigned_proxy_id,
+        assigned_proxy_host=f"{account.assigned_proxy.host}:{account.assigned_proxy.port}" if account.assigned_proxy else None,
+        **_extract_proxy_info(account),
+        tags=[TgAccountTagResponse.model_validate(t) for t in account.tags],
+        campaigns_count=camp_count_q.scalar() or 0,
+        last_connected_at=account.last_connected_at,
+        last_checked_at=account.last_checked_at,
+        created_at=account.created_at, updated_at=account.updated_at,
+    )
 
 
 @router.post("/proxy-groups/{group_id}/check")

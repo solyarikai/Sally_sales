@@ -3230,6 +3230,64 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     }
   };
 
+  // Proxy mode switching
+  const currentProxyMode = (): 'auto' | 'custom' | 'none' => {
+    if (!account.assigned_proxy_id) return 'none';
+    if (account.proxy_group_name?.toLowerCase().includes('infatica')) return 'auto';
+    return 'custom';
+  };
+  const [proxyMode, setProxyMode] = useState<'auto' | 'custom' | 'none'>(currentProxyMode());
+  const [proxyModeSaving, setProxyModeSaving] = useState(false);
+  const [customProxy, setCustomProxy] = useState({ host: '', port: '', username: '', password: '', protocol: 'socks5' });
+  const [showCustomFields, setShowCustomFields] = useState(false);
+
+  const handleProxyModeChange = async (mode: 'auto' | 'custom' | 'none') => {
+    if (mode === 'custom') {
+      setProxyMode('custom');
+      setShowCustomFields(true);
+      return;
+    }
+    setProxyModeSaving(true);
+    setProxyTestResult(null);
+    try {
+      await telegramOutreachApi.setAccountProxyMode(account.id, { mode });
+      setProxyMode(mode);
+      setShowCustomFields(false);
+      toast(mode === 'auto' ? 'Auto proxy assigned' : 'Proxy removed', 'success');
+      onSaved();
+    } catch (e: any) {
+      toast(e?.response?.data?.detail || 'Failed to set proxy mode', 'error');
+    } finally {
+      setProxyModeSaving(false);
+    }
+  };
+
+  const handleCustomProxySave = async () => {
+    if (!customProxy.host || !customProxy.port) {
+      toast('Host and port are required', 'error');
+      return;
+    }
+    setProxyModeSaving(true);
+    setProxyTestResult(null);
+    try {
+      await telegramOutreachApi.setAccountProxyMode(account.id, {
+        mode: 'custom',
+        host: customProxy.host,
+        port: Number(customProxy.port),
+        username: customProxy.username || undefined,
+        password: customProxy.password || undefined,
+        protocol: customProxy.protocol,
+      });
+      setShowCustomFields(false);
+      toast('Custom proxy assigned', 'success');
+      onSaved();
+    } catch (e: any) {
+      toast(e?.response?.data?.detail || 'Failed to set custom proxy', 'error');
+    } finally {
+      setProxyModeSaving(false);
+    }
+  };
+
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const handleDelete = async () => {
     setConfirmDeleteAccount(true);
@@ -3554,24 +3612,102 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Proxy</h3>
             <div className="rounded-lg p-3 space-y-2.5"
                  style={{ background: A.bg, border: `1px solid ${A.border}` }}>
-              {/* Proxy Country */}
+              {/* Mode selector */}
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Country</span>
-                {account.proxy_country ? (
-                  <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: A.text1 }}>
-                    <CountryFlag code={account.proxy_country} />
-                    {COUNTRY_NAMES[account.proxy_country] || account.proxy_country}
-                  </span>
-                ) : (
-                  <span className="text-xs" style={{ color: A.text3 }}>
-                    {account.assigned_proxy_host ? 'Unknown' : 'None'}
-                  </span>
-                )}
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Mode</span>
+                <div className="flex rounded-lg overflow-hidden" style={{ border: `1px solid ${A.border}` }}>
+                  {(['auto', 'custom', 'none'] as const).map(m => (
+                    <button key={m} disabled={proxyModeSaving}
+                      onClick={() => handleProxyModeChange(m)}
+                      className="px-2.5 py-1 text-xs font-medium transition-colors"
+                      style={{
+                        background: proxyMode === m ? '#4F6BF0' : 'transparent',
+                        color: proxyMode === m ? '#fff' : A.text2,
+                        opacity: proxyModeSaving ? 0.5 : 1,
+                        borderRight: m !== 'none' ? `1px solid ${A.border}` : undefined,
+                      }}>
+                      {m === 'auto' ? 'Auto' : m === 'custom' ? 'Custom' : 'None'}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {/* Proxy Status */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Status</span>
-                {account.assigned_proxy_id ? (
+              {proxyModeSaving && (
+                <div className="flex items-center justify-center gap-1.5 py-2 text-xs" style={{ color: A.text3 }}>
+                  <Loader2 className="w-3 h-3 animate-spin" /> Switching proxy...
+                </div>
+              )}
+              {/* Custom proxy fields */}
+              {showCustomFields && proxyMode === 'custom' && !proxyModeSaving && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Host</label>
+                      <input value={customProxy.host} onChange={e => setCustomProxy(p => ({ ...p, host: e.target.value }))}
+                        placeholder="pool.infatica.io" className="w-full px-2 py-1.5 rounded-md text-xs"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }} />
+                    </div>
+                    <div className="w-20">
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Port</label>
+                      <input value={customProxy.port} onChange={e => setCustomProxy(p => ({ ...p, port: e.target.value }))}
+                        placeholder="1080" className="w-full px-2 py-1.5 rounded-md text-xs"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Username</label>
+                      <input value={customProxy.username} onChange={e => setCustomProxy(p => ({ ...p, username: e.target.value }))}
+                        className="w-full px-2 py-1.5 rounded-md text-xs"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Password</label>
+                      <input value={customProxy.password} onChange={e => setCustomProxy(p => ({ ...p, password: e.target.value }))}
+                        type="password" className="w-full px-2 py-1.5 rounded-md text-xs"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Protocol</label>
+                    <select value={customProxy.protocol} onChange={e => setCustomProxy(p => ({ ...p, protocol: e.target.value }))}
+                      className="w-full px-2 py-1.5 rounded-md text-xs"
+                      style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }}>
+                      <option value="socks5">SOCKS5</option>
+                      <option value="http">HTTP</option>
+                      <option value="mtproto">MTProto</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={handleCustomProxySave}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                      style={{ background: '#4F6BF0' }}>
+                      <Check className="w-3 h-3" /> Save
+                    </button>
+                    <button onClick={() => { setShowCustomFields(false); setProxyMode(currentProxyMode()); }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                      style={{ border: `1px solid ${A.border}`, color: A.text2 }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* Proxy info (when assigned) */}
+              {account.assigned_proxy_id && !showCustomFields && !proxyModeSaving && (<>
+                {/* Country */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium" style={{ color: A.text3 }}>Country</span>
+                  {account.proxy_country ? (
+                    <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: A.text1 }}>
+                      <CountryFlag code={account.proxy_country} />
+                      {COUNTRY_NAMES[account.proxy_country] || account.proxy_country}
+                    </span>
+                  ) : (
+                    <span className="text-xs" style={{ color: A.text3 }}>Unknown</span>
+                  )}
+                </div>
+                {/* Status */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium" style={{ color: A.text3 }}>Status</span>
                   <span className="flex items-center gap-1.5 text-xs font-medium">
                     <span className="w-1.5 h-1.5 rounded-full"
                           style={{ background: account.proxy_is_active !== false ? '#22c55e' : '#ef4444' }} />
@@ -3579,43 +3715,27 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                       {account.proxy_is_active !== false ? 'Connected' : 'Error'}
                     </span>
                   </span>
-                ) : (
-                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
-                )}
-              </div>
-              {/* Provider */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Provider</span>
-                {account.assigned_proxy_host ? (
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-                        style={{ background: A.blueBg, color: A.blue }}>
-                    {account.proxy_group_name?.toLowerCase().includes('infatica') ? 'Auto (Infatica)' : 'Custom'}
-                  </span>
-                ) : (
-                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
-                )}
-              </div>
-              {/* Protocol */}
-              {account.proxy_protocol && (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium" style={{ color: A.text3 }}>Protocol</span>
-                  <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full"
-                        style={{ background: '#F3F4F6', color: A.text2 }}>
-                    {account.proxy_protocol.toUpperCase()}
-                  </span>
                 </div>
-              )}
-              {/* Host */}
-              {account.assigned_proxy_host && (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium" style={{ color: A.text3 }}>Host</span>
-                  <span className="text-xs font-mono" style={{ color: A.text2 }}>
-                    {account.assigned_proxy_host}
-                  </span>
-                </div>
-              )}
-              {/* Test Proxy Button */}
-              {account.assigned_proxy_id && (
+                {/* Protocol */}
+                {account.proxy_protocol && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium" style={{ color: A.text3 }}>Protocol</span>
+                    <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full"
+                          style={{ background: '#F3F4F6', color: A.text2 }}>
+                      {account.proxy_protocol.toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                {/* Host */}
+                {account.assigned_proxy_host && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium" style={{ color: A.text3 }}>Host</span>
+                    <span className="text-xs font-mono" style={{ color: A.text2 }}>
+                      {account.assigned_proxy_host}
+                    </span>
+                  </div>
+                )}
+                {/* Test Proxy Button */}
                 <div className="pt-1">
                   <button onClick={handleTestProxy} disabled={proxyTesting}
                     className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
@@ -3647,12 +3767,11 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                     </div>
                   )}
                 </div>
-              )}
-              {/* No proxy assigned */}
-              {!account.assigned_proxy_id && account.proxy_group_name && (
-                <div className="text-xs px-2 py-1.5 rounded-lg text-center"
-                     style={{ background: '#FFF3E0', color: '#E65100' }}>
-                  No free proxy in group
+              </>)}
+              {/* No proxy */}
+              {!account.assigned_proxy_id && proxyMode === 'none' && !proxyModeSaving && (
+                <div className="text-xs py-2 text-center" style={{ color: A.text3 }}>
+                  No proxy assigned
                 </div>
               )}
             </div>

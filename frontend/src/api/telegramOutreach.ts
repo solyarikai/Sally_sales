@@ -606,6 +606,9 @@ export const telegramOutreachApi = {
   testAccountProxy: async (accountId: number) =>
     (await api.post<{ alive: boolean; latency_ms: number | null; exit_ip: string | null; error: string | null }>(`${BASE}/accounts/${accountId}/test-proxy`)).data,
 
+  setAccountProxyMode: async (accountId: number, data: { mode: string; host?: string; port?: number; username?: string; password?: string; protocol?: string }) =>
+    (await api.post<TgAccount>(`${BASE}/accounts/${accountId}/set-proxy-mode`, data)).data,
+
   // CRM
   listCrmContacts: async (params: { page?: number; page_size?: number; status?: string; search?: string; project_id?: number } = {}) =>
     (await api.get(`${BASE}/crm/contacts`, { params })).data,
