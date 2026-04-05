@@ -192,7 +192,10 @@ python3 universal_pipeline.py --project-id <ID> --mode <MODE> --dry-run \
 ### 12 шагов пайплайна
 
 ```
-Шаг 0:  GATHER          [скрипт]     — поиск компаний (Clay/Apollo/Lookalike)
+Шаг 0:  GATHER                       — поиск компаний:
+        - Clay (structured/natural/keywords) → backend API (/pipeline/gathering/start)
+        - Apollo (--mode apollo) → JS-скрипт из scripts/sofia/ (subprocess)
+        - Lookalike → backend API + DB lookup
 Шаг 1:  DEDUP           [backend]    — убрать дубли из предыдущих ранов
 Шаг 2:  BLACKLIST       [backend]    — проверка по чёрному списку ★ CP1
 Шаг 3:  PREFILTER       [backend]    — отсев мусора
