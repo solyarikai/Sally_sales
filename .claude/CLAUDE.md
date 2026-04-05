@@ -5,9 +5,9 @@ This CLAUDE.md applies to ALL projects under sales_engineer/ (magnum-opus, sofia
 ## Google Sheets & Drive — MCP Server (25 tools)
 
 **Google Sheets + Drive MCP server is connected** via `.claude/mcp.json` → `google-sheets`.
-- Server: `.claude/google-sheets/server.py`
+- Server: `.claude/mcp/google-sheets/server.py`
 - Scopes: `spreadsheets` + `drive` (full, NOT `drive.readonly`)
-- Auth: OAuth2 credentials from `.claude/google-sheets/token.json`
+- Auth: OAuth2 credentials from `.claude/mcp/google-sheets/token.json`
 
 ### Available MCP Tools
 
