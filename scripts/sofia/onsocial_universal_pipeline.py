@@ -2768,7 +2768,7 @@ def main():
             print("ERROR: --filters JSON required for --mode keywords")
             print('  Must contain "description_keywords" list.')
             print(
-                '  Example: --filters \'{"description_keywords": ["influencer marketing platform", "creator analytics"], '
+                '  Example: --filters \'{"description_keywords": ["keyword1", "keyword2"], '
                 '"industries": ["Computer Software"], "max_results": 5000}\''
             )
             sys.exit(1)
