@@ -3543,10 +3543,10 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                               toast(newSkip ? 'Gradual limit disabled' : 'Gradual limit enabled', 'success');
                             } catch { toast('Failed to toggle gradual limit', 'error'); }
                           }}
-                          className="relative w-8 h-[18px] rounded-full transition-colors duration-200"
-                          style={{ background: form.skip_warmup === 'false' ? '#059669' : '#D1D5DB', cursor: 'pointer', border: 'none' }}>
-                          <span className="absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform duration-200"
-                                style={{ transform: form.skip_warmup === 'false' ? 'translateX(14px)' : 'translateX(0)' }} />
+                          className="relative inline-flex h-[22px] w-[40px] items-center rounded-full transition-colors shrink-0"
+                          style={{ background: form.skip_warmup === 'false' ? '#059669' : '#D1D5DB', cursor: 'pointer' }}>
+                          <span className="inline-block h-[16px] w-[16px] rounded-full bg-white shadow-sm transition-transform"
+                                style={{ transform: form.skip_warmup === 'false' ? 'translateX(20px)' : 'translateX(3px)' }} />
                         </button>
                       </div>
                     </div>
