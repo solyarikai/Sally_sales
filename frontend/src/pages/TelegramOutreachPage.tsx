@@ -1888,6 +1888,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   // Staggered operation progress
   const [staggeredTask, setStaggeredTask] = useState<{ taskId: string; operation: string; total: number; completed: number; synced: number; errors: string[]; status: string; currentPhone: string | null; nextDelay: number } | null>(null);
   const staggeredPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const staggeredPollFailRef = useRef(0);
 
   const ids = Array.from(selectedIds);
 
@@ -1928,9 +1929,11 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
         setActivePanel(null);
         // Start polling
         if (staggeredPollRef.current) clearInterval(staggeredPollRef.current);
+        staggeredPollFailRef.current = 0;
         staggeredPollRef.current = setInterval(async () => {
           try {
             const p = await telegramOutreachApi.bulkOpProgress(taskId);
+            staggeredPollFailRef.current = 0;
             setStaggeredTask(prev => prev ? { ...prev, completed: p.completed, synced: p.synced, errors: p.errors || [], status: p.status, currentPhone: p.current_phone, nextDelay: p.next_delay || 0 } : null);
             if (p.status === 'completed') {
               if (staggeredPollRef.current) clearInterval(staggeredPollRef.current);
@@ -1939,7 +1942,15 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               setTimeout(() => setStaggeredTask(null), 5000);
               onDone();
             }
-          } catch { /* ignore poll errors */ }
+          } catch {
+            staggeredPollFailRef.current += 1;
+            if (staggeredPollFailRef.current >= 5) {
+              if (staggeredPollRef.current) clearInterval(staggeredPollRef.current);
+              staggeredPollRef.current = null;
+              setStaggeredTask(prev => prev ? { ...prev, status: 'error' } : null);
+              toast(`${label} — lost connection to background task`, 'error');
+            }
+          }
         }, 3000);
         toast(`${label} — DB updated. TG sync running in background...`, 'info');
       } else {
@@ -2254,13 +2265,14 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
 
       {/* Staggered operation progress banner */}
       {staggeredTask && (
-        <div className="mt-2 rounded-lg px-4 py-2.5" style={{ background: staggeredTask.status === 'completed' ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${staggeredTask.status === 'completed' ? '#BBF7D0' : '#FDE68A'}` }}>
+        <div className="mt-2 rounded-lg px-4 py-2.5" style={{ background: staggeredTask.status === 'completed' ? '#F0FDF4' : staggeredTask.status === 'error' ? '#FEF2F2' : '#FFFBEB', border: `1px solid ${staggeredTask.status === 'completed' ? '#BBF7D0' : staggeredTask.status === 'error' ? '#FECACA' : '#FDE68A'}` }}>
           <div className="flex items-center gap-3">
             {staggeredTask.status === 'running' && <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#D97706' }} />}
+            {staggeredTask.status === 'error' && <AlertTriangle className="w-4 h-4" style={{ color: '#DC2626' }} />}
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold" style={{ color: staggeredTask.status === 'completed' ? '#16A34A' : '#D97706' }}>
-                  {staggeredTask.status === 'completed' ? 'Completed' : 'Syncing to Telegram...'}: {staggeredTask.operation}
+                <span className="text-[12px] font-semibold" style={{ color: staggeredTask.status === 'completed' ? '#16A34A' : staggeredTask.status === 'error' ? '#DC2626' : '#D97706' }}>
+                  {staggeredTask.status === 'completed' ? 'Completed' : staggeredTask.status === 'error' ? 'Failed' : 'Syncing to Telegram...'}: {staggeredTask.operation}
                 </span>
                 <span className="text-[11px]" style={{ color: A.text3 }}>
                   {staggeredTask.completed}/{staggeredTask.total} accounts
@@ -2274,11 +2286,22 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                   {staggeredTask.nextDelay > 0 && ` · waiting ${staggeredTask.nextDelay}s before next...`}
                 </div>
               )}
+              {staggeredTask.status === 'error' && (
+                <div className="text-[11px] mt-0.5" style={{ color: A.text3 }}>
+                  Lost connection to background task. DB changes were applied.
+                </div>
+              )}
             </div>
             {/* Progress bar */}
             <div className="w-24 h-1.5 rounded-full" style={{ background: A.border }}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${staggeredTask.total > 0 ? (staggeredTask.completed / staggeredTask.total) * 100 : 0}%`, background: staggeredTask.status === 'completed' ? '#16A34A' : '#D97706' }} />
+              <div className="h-full rounded-full transition-all" style={{ width: `${staggeredTask.total > 0 ? (staggeredTask.completed / staggeredTask.total) * 100 : 0}%`, background: staggeredTask.status === 'completed' ? '#16A34A' : staggeredTask.status === 'error' ? '#DC2626' : '#D97706' }} />
             </div>
+            {/* Dismiss button */}
+            {staggeredTask.status !== 'running' && (
+              <button onClick={() => setStaggeredTask(null)} className="p-0.5 rounded hover:bg-black/5" title="Dismiss">
+                <X className="w-3.5 h-3.5" style={{ color: A.text3 }} />
+              </button>
+            )}
           </div>
         </div>
       )}
