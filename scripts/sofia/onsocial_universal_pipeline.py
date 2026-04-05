@@ -2299,7 +2299,9 @@ def upload_leads(campaign_id: int, contacts: list[dict]) -> int:
 def _show_social_proof_stats(contacts: list[dict], segment: str):
     """Show social_proof distribution for validation before upload."""
     sp_counts = Counter(c.get("social_proof", "NO_PROOF") for c in contacts)
-    country_counts = Counter(c.get("country", "UNKNOWN") for c in contacts)
+    country_counts = Counter(
+        c.get("company_country", "") or c.get("country", "UNKNOWN") for c in contacts
+    )
     print(f"\n  Social proof distribution ({segment}):")
     for sp, cnt in sp_counts.most_common():
         print(f"    {cnt:3d}  {sp}")
