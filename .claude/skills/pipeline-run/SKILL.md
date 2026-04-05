@@ -10,45 +10,107 @@ description: >-
 
 # /pipeline-run — Universal Lead Generation Pipeline
 
-## Скрипт
+## Поведение скилла
 
-`/Users/user/sales_engineer/magnum-opus/scripts/sofia/onsocial_universal_pipeline.py`
+### Если пользователь НЕ предоставил данных (просто `/pipeline-run` или "запусти пайплайн")
 
-Выполняется на **Hetzner** (`ssh hetzner`). Backend должен работать на localhost:8000.
-Env: `set -a && source .env && set +a` перед запуском.
-Python: `python3` (на Hetzner), `python3.11` (локально).
+Покажи обзор и помоги выбрать вариант:
+
+```
+Пайплайн поддерживает 4 способа поиска компаний:
+
+1. Apollo (--mode apollo) — БЕСПЛАТНО
+   Поиск по keyword_tags через внутренний API Apollo (Puppeteer).
+   Нужно: keyword_tags + locations + sizes
+   Когда: у тебя есть точные ключевые слова для поиска компаний
+
+2. Clay Keywords (--mode keywords) — ~$0.01/компания
+   Прямой поиск по description_keywords через Clay.
+   Нужно: description_keywords + industries
+   Когда: ищешь по описаниям компаний, а не по тегам Apollo
+
+3. Clay ICP (--mode structured / --mode natural) — ~$0.01/компания
+   AI (Gemini) конвертирует текстовое описание ICP в Clay фильтры.
+   Для structured: сегмент должен быть в БД (kb_segments)
+   Для natural: передай ICP текстом через --filters
+   Когда: первый поиск, когда фильтры ещё не определены
+
+4. Lookalike (--mode lookalike) — ~$0.01/компания
+   Reverse-engineering фильтров по примерам доменов.
+   Нужно: 3-10 доменов компаний-примеров
+   Когда: знаешь хорошие компании, хочешь найти похожие
+
+Дополнительные режимы:
+- Expand (--mode expand) — клон предыдущего рана с изменёнными параметрами
+- Resume (--from-step) — продолжить с любого шага
+- Re-analyze (--re-analyze) — пересчитать классификацию с новым промптом
+
+Для всех режимов (кроме lookalike/expand) нужен --segment.
+Рекомендуется использовать --filter-file (JSON с company + people фильтрами).
+
+Какой вариант подходит? Что ты хочешь найти?
+```
+
+Затем задавай уточняющие вопросы в зависимости от выбора:
+- Какой проект? (узнай project-id из БД если не знаешь)
+- Какой сегмент?
+- Есть ли готовый filter-file или нужно создать?
+- Есть ли файл с фильтрами (типа apollo-filters-v4.md), из которого сгенерировать JSON?
+
+### Если пользователь предоставил данные
+
+Переходи сразу к **Фаза 1**.
 
 ---
 
-## Шаг 0 — Определи параметры
+## Фаза 1 — Определи параметры
 
-Спроси или определи из контекста:
+Определи из контекста или спроси:
 
 | Параметр | Обязательный | Описание |
 |----------|-------------|----------|
 | `--project-id` | да | ID проекта из БД |
 | `--mode` | да | `structured`, `natural`, `keywords`, `apollo`, `lookalike`, `expand` |
-| `--segment` | да (кроме expand/lookalike) | Slug сегмента (любой — не захардкожен) |
+| `--segment` | да (кроме expand/lookalike) | Slug сегмента (любой) |
 | `--filter-file` | рекомендуется | JSON файл с company_filters + people_filters + segment |
-| `--filters` | для keywords/apollo (если нет filter-file) | JSON с фильтрами (inline, можно комбинировать с filter-file) |
+| `--filters` | если нет filter-file | JSON с фильтрами (inline, мерджится поверх filter-file) |
 | `--examples` | для lookalike | Домены через запятую |
 | `--base-run` | для expand | ID рана для клонирования |
 | `--from-step` | нет | Продолжить с шага: `start`, `people`, `findymail`, `sequences`, `smartlead` |
 | `--run-id` | нет | Продолжить существующий ран |
 | `--apollo-csv` | нет | Импорт контактов из Apollo CSV |
 
+### Источники фильтров по mode
+
+| Mode | Откуда фильтры | `--filter-file` | `--filters` inline |
+|------|----------------|-----------------|-------------------|
+| apollo | filter-file и/или inline | ✅ company_filters мерджится | ✅ поверх файла |
+| keywords | filter-file и/или inline | ✅ company_filters мерджится | ✅ поверх файла |
+| natural | filter-file и/или inline | ✅ company_filters мерджится | ✅ поверх файла |
+| structured | БД (kb_segments) | не нужен | не нужен |
+| lookalike | из примеров доменов | не нужен | не нужен |
+| expand | из base run | не нужен | `--override` для изменений |
+
+### People filters (для step 9 — People Search)
+
+People filters (titles, seniorities для Apollo People Search) берутся из:
+1. `--filter-file` → `people_filters` (приоритет)
+2. Дефолт: CEO, Founder, Co-Founder, CTO, COO, Head of Product
+
+Если пользователь предоставляет файл с фильтрами (типа apollo-filters-v4.md), создай из него JSON filter-file, включающий и company_filters, и people_filters.
+
 ---
 
-## Шаг 1 — Покажи команду запуска
+## Фаза 2 — Покажи команду и жди подтверждения
 
-Собери полную команду и покажи пользователю. Примеры:
+Собери полную команду. Шаблоны:
 
 ```bash
-# Filter-file (рекомендуемый способ) — все фильтры из JSON
+# Filter-file (рекомендуемый)
 python3 universal_pipeline.py --project-id <ID> --mode apollo \
   --filter-file path/to/filters.json
 
-# Apollo с inline filters
+# Apollo inline
 python3 universal_pipeline.py --project-id <ID> --mode apollo --segment <SEGMENT> \
   --filters '{"keyword_tags": [...], "locations": [...], "sizes": [...], "max_pages": 25}'
 
@@ -56,20 +118,91 @@ python3 universal_pipeline.py --project-id <ID> --mode apollo --segment <SEGMENT
 python3 universal_pipeline.py --project-id <ID> --mode keywords --segment <SEGMENT> \
   --filters '{"description_keywords": [...], "industries": [...], "max_results": 5000}'
 
+# Structured (из БД)
+python3 universal_pipeline.py --project-id <ID> --mode structured --segment <SEGMENT>
+
 # Lookalike
 python3 universal_pipeline.py --project-id <ID> --mode lookalike \
   --examples "domain1.com,domain2.io"
 
-# Resume с шага people
-python3 universal_pipeline.py --project-id <ID> --from-step people
+# Resume
+python3 universal_pipeline.py --project-id <ID> --from-step <STEP>
 
-# Re-analyze с новым промптом
-python3 universal_pipeline.py --project-id <ID> --re-analyze --run-id <RUN_ID> --prompt-file new_prompt.txt
+# Re-analyze
+python3 universal_pipeline.py --project-id <ID> --re-analyze --run-id <RUN_ID> \
+  --prompt-file new_prompt.txt
+
+# Dry run (любой mode)
+python3 universal_pipeline.py --project-id <ID> --mode <MODE> --dry-run \
+  --filter-file path/to/filters.json
 ```
 
-**Жди подтверждения перед запуском.**
+**Покажи собранную команду. Жди подтверждения перед запуском.**
 
-### Формат filter-file (JSON)
+Рекомендуй `--dry-run` для первого запуска с новыми фильтрами.
+
+---
+
+## Фаза 3 — Запуск и мониторинг
+
+### Инфраструктура
+
+- Скрипт: `/Users/user/sales_engineer/magnum-opus/scripts/sofia/onsocial_universal_pipeline.py`
+- Выполняется на **Hetzner** (`ssh hetzner`), путь `~/magnum-opus-project/repo`
+- Backend должен работать на localhost:8000
+- Env: `set -a && source .env && set +a` перед запуском
+- Python: `python3` (на Hetzner), `python3.11` (локально)
+
+### Перед запуском проверь
+
+1. Backend работает: `ssh hetzner "curl -s localhost:8000/health"`
+2. Скрипт актуальный: `ssh hetzner "cd ~/magnum-opus-project/repo && git pull"`
+
+### Чекпоинты (★ CP)
+
+Скрипт останавливается в 3 местах и ждёт одобрения:
+
+| Чекпоинт | После шага | Что проверять |
+|----------|-----------|---------------|
+| ★ CP1 | Шаг 2 (Blacklist) | Правильный проект? Правильный scope? |
+| ★ CP2 | Шаг 5 (Classify) | Список компаний корректный? Accuracy > 90%? |
+| ★ CP3 | Шаг 9 (People Search) | Одобряешь расходы на FindyMail enrichment? |
+
+### 12 шагов пайплайна
+
+```
+Шаг 0:  GATHER          [скрипт]     — поиск компаний (Clay/Apollo/Lookalike)
+Шаг 1:  DEDUP           [backend]    — убрать дубли из предыдущих ранов
+Шаг 2:  BLACKLIST       [backend]    — проверка по чёрному списку ★ CP1
+Шаг 3:  PREFILTER       [backend]    — отсев мусора
+Шаг 4:  SCRAPE          [backend]    — скрейпинг сайтов
+Шаг 5:  CLASSIFY        [backend]    — AI классификация (GPT-4o-mini) ★ CP2
+Шаг 6:  VERIFY          [ручной]     — проверка accuracy
+Шаг 7:  ADJUST PROMPT   [ручной]     — правка промпта если accuracy < 90%
+Шаг 8:  EXPORT TARGETS  [скрипт]     — выгрузка таргетов
+Шаг 9:  PEOPLE SEARCH   [скрипт]     — поиск людей через Apollo (Puppeteer, бесплатно) ★ CP3
+Шаг 10: FINDYMAIL       [скрипт]     — email enrichment ($0.01/email)
+Шаг 11: SEQUENCES       [скрипт]     — загрузка email-секвенций
+Шаг 12: SMARTLEAD       [скрипт]     — создание кампании, загрузка лидов
+```
+
+---
+
+## Фаза 4 — Отчёт
+
+```
+Pipeline завершён.
+Run ID: [id]
+Компаний найдено: X → после dedup: Y → после classify: Z
+Контактов: N → с email: M
+Кампания SmartLead: [название] (ID: [id])
+Google Sheets: [ссылка]
+GetSales CSV: [путь] (контакты без email)
+```
+
+---
+
+## Filter-file формат (JSON)
 
 ```json
 {
@@ -89,55 +222,14 @@ python3 universal_pipeline.py --project-id <ID> --re-analyze --run-id <RUN_ID> -
 }
 ```
 
-- `segment` — используется вместо `--segment` (CLI аргумент имеет приоритет)
-- `company_filters` — передаётся в step0 gather (Apollo/Clay)
-- `people_filters` — передаётся в step9 people search (titles, seniorities для Apollo UI)
+- `segment` — используется если не передан `--segment` (CLI имеет приоритет)
+- `company_filters` — для step 0 (gather). Ключи зависят от mode:
+  - Apollo: `keyword_tags`, `locations`, `sizes`, `excluded_keywords`, `max_pages`
+  - Keywords: `description_keywords`, `description_keywords_exclude`, `industries`, `max_results`
+  - Natural: `icp_text` или любые Clay-фильтры
+- `people_filters` — для step 9 (people search): `titles`, `seniorities`, `excluded_titles`
 - `--filters` (inline) мерджится поверх `company_filters` из файла
 - Файлы хранятся в `sofia/projects/<PROJECT>/filters/`
-
----
-
-## Шаг 2 — Запуск и мониторинг
-
-Скрипт имеет 3 чекпоинта (★ CP) где ждёт одобрения:
-
-| Чекпоинт | После шага | Что проверять |
-|----------|-----------|---------------|
-| ★ CP1 | Шаг 2 (Blacklist) | Правильный проект? Правильный scope? |
-| ★ CP2 | Шаг 5 (Classify) | Список компаний корректный? Accuracy > 90%? |
-| ★ CP3 | Шаг 9 (People Search) | Одобряешь расходы на FindyMail enrichment? |
-
-### 12 шагов пайплайна:
-
-```
-Шаг 0:  GATHER          [скрипт]     — поиск компаний (Clay/Apollo/Lookalike)
-Шаг 1:  DEDUP           [backend]    — убрать дубли из предыдущих ранов
-Шаг 2:  BLACKLIST       [backend]    — проверка по чёрному списку ★ CP1
-Шаг 3:  PREFILTER       [backend]    — отсев мусора
-Шаг 4:  SCRAPE          [backend]    — скрейпинг сайтов
-Шаг 5:  CLASSIFY        [backend]    — AI классификация (GPT-4o-mini) ★ CP2
-Шаг 6:  VERIFY          [ручной]     — проверка accuracy
-Шаг 7:  ADJUST PROMPT   [ручной]     — правка промпта если accuracy < 90%
-Шаг 8:  EXPORT TARGETS  [скрипт]     — выгрузка таргетов
-Шаг 9:  PEOPLE SEARCH   [скрипт]     — поиск людей через Apollo ★ CP3
-Шаг 10: FINDYMAIL       [скрипт]     — email enrichment ($0.01/email)
-Шаг 11: SEQUENCES       [скрипт]     — загрузка email-секвенций
-Шаг 12: SMARTLEAD       [скрипт]     — создание кампании, загрузка лидов
-```
-
----
-
-## Шаг 3 — Отчёт
-
-```
-Pipeline завершён.
-Run ID: [id]
-Компаний найдено: X → после dedup: Y → после classify: Z
-Контактов: N → с email: M
-Кампания SmartLead: [название] (ID: [id])
-Google Sheets: [ссылка]
-GetSales CSV: [путь] (контакты без email)
-```
 
 ---
 
@@ -149,5 +241,4 @@ GetSales CSV: [путь] (контакты без email)
 - Контакты без email → GetSales-ready CSV в `sofia/get_sales_hub/{dd_mm}/`
 - Если скрипт упал — дебажь, не переключайся на другой подход
 - `--dry-run` для проверки параметров без API вызовов
-- Новые скрипты сохранять в `magnum-opus/scripts/sofia/`
 - Backend на Hetzner: `ssh hetzner`, путь `~/magnum-opus-project/repo`
