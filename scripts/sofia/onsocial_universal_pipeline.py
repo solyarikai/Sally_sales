@@ -1566,7 +1566,10 @@ def _map_apollo_person(
 
 
 def step9_people_search(
-    config: ProjectConfig, targets: list[dict], force: bool = False
+    config: ProjectConfig,
+    targets: list[dict],
+    force: bool = False,
+    apollo_profile: str = None,
 ) -> list[dict]:
     """Search Apollo People UI for contacts at target companies (automated)."""
     contacts_file = config.state_dir / "contacts.json"
