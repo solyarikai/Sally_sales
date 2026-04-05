@@ -26,7 +26,7 @@ Python: `python3` (на Hetzner), `python3.11` (локально).
 
 | Параметр | Обязательный | Описание |
 |----------|-------------|----------|
-| `--project-id` | да | ID проекта из БД (OnSocial = 42) |
+| `--project-id` | да | ID проекта из БД |
 | `--mode` | да | `structured`, `natural`, `keywords`, `apollo`, `lookalike`, `expand` |
 | `--segment` | да (кроме expand/lookalike) | Slug сегмента (любой — не захардкожен) |
 | `--filter-file` | рекомендуется | JSON файл с company_filters + people_filters + segment |
