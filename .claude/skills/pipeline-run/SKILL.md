@@ -236,7 +236,7 @@ GetSales CSV: [путь] (контакты без email)
 - `--filters` (inline) мерджится поверх `company_filters` из файла
 - Файлы хранятся в `magnum-opus/scripts/sofia/filters/`
 - Именование: `<project>_<segment>_<version>.json` (например `onsocial_imagency_v4.json`)
-- На Hetzner доступны после `git pull` — не нужен SCP
+- Перед запуском — SCP на Hetzner: `scp filters/<file>.json hetzner:~/magnum-opus-project/repo/scripts/sofia/filters/`
 
 ---
 
