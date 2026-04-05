@@ -5019,10 +5019,22 @@ async def check_account(account_id: int, session: AsyncSession = Depends(get_ses
         else:
             sb = result.get("spamblock", "unknown")
             if result.get("frozen"):
-                # Frozen account — restricted but not fully banned
                 account.status = TgAccountStatus.FROZEN
                 account.spamblock_type = TgSpamblockType.TEMPORARY
                 account.spamblocked_at = datetime.utcnow()
+                # Save freeze dates from SpamBot
+                if result.get("freeze_since"):
+                    try:
+                        account.freeze_since = datetime.fromisoformat(result["freeze_since"])
+                    except Exception:
+                        pass
+                if result.get("freeze_until"):
+                    try:
+                        account.freeze_until = datetime.fromisoformat(result["freeze_until"])
+                    except Exception:
+                        pass
+                if result.get("freeze_appeal_url"):
+                    account.freeze_appeal_url = result["freeze_appeal_url"]
             elif sb in ("temporary", "permanent"):
                 account.status = TgAccountStatus.SPAMBLOCKED
                 sb_map = {"temporary": TgSpamblockType.TEMPORARY, "permanent": TgSpamblockType.PERMANENT}
@@ -5039,6 +5051,9 @@ async def check_account(account_id: int, session: AsyncSession = Depends(get_ses
                 account.spamblock_end = None
                 account.ban_reason = None
                 account.banned_at = None
+                account.freeze_since = None
+                account.freeze_until = None
+                account.freeze_appeal_url = None
             # sb == "unknown" — leave current status unchanged, don't mark ACTIVE
         account.last_checked_at = func.now()
         account.last_connected_at = func.now()
@@ -5147,9 +5162,21 @@ async def bulk_check_live(data: TgBulkAccountIds, session: AsyncSession = Depend
 
 @router.post("/accounts/bulk-check-alive")
 async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depends(get_session)):
-    """Alive check: connect + auth + self-message test + SpamBot check.
-    Detects frozen/spamblocked/banned accounts. Also fetches telegram_user_id and estimates account age."""
+    """Alive check rewritten per TeleRaptor pattern.
+
+    Flow per account:
+    1. Connect (proxy → fallback direct)
+    2. get_me() → only definitive errors mark DEAD
+    3. SpamBot /start → parse spamblock + freeze
+    4. contacts.Search probe → catch hidden freeze
+    5. Save all fields to DB
+
+    Transient errors → skip (don't change status), never "Failed" on bulk.
+    """
     results = []
+    from telethon import errors as _terr
+    from datetime import datetime as _dt
+
     for aid in data.account_ids:
         try:
             account, proxy = await _get_account_with_proxy(aid, session)
@@ -5157,225 +5184,281 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                 results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "no_session"})
                 continue
 
+            # ── 1. Connect (proxy → direct fallback) ──────────────
             kwargs = _account_connect_kwargs(account, proxy)
-            # Try with proxy first; if connection fails, retry direct (no proxy)
+            connected = False
             try:
                 await telegram_engine.connect(aid, **kwargs)
+                connected = True
             except Exception as conn_err:
-                logger.warning(f"[ALIVE] {account.phone} proxy connect failed: {conn_err}, retrying direct")
-                await telegram_engine.disconnect(aid)
-                kwargs_direct = _account_connect_kwargs(account, None)
-                await telegram_engine.connect(aid, **kwargs_direct)
-            client = telegram_engine.get_client(aid)
-            from telethon import errors as _terr
+                if proxy:
+                    logger.warning(f"[ALIVE] {account.phone} proxy connect failed: {conn_err}, retrying direct")
+                    try:
+                        await telegram_engine.disconnect(aid)
+                    except Exception:
+                        pass
+                    try:
+                        kwargs_direct = _account_connect_kwargs(account, None)
+                        await telegram_engine.connect(aid, **kwargs_direct)
+                        connected = True
+                    except Exception as conn_err2:
+                        logger.warning(f"[ALIVE] {account.phone} direct connect also failed: {conn_err2}")
 
-            # ── Auth check via get_me() with retry for transient errors ──
+            if not connected:
+                # Connection failure is transient — do NOT mark DEAD
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": "connection_failed"})
+                continue
+
+            client = telegram_engine.get_client(aid)
+
+            # ── 2. Auth check via get_me() with retry ─────────────
             me = None
             authorized = False
+            dead_definitive = False
             _skip = False
-            for _attempt in range(2):
+            for _attempt in range(3):
                 try:
                     me = await client.get_me()
                     authorized = me is not None
                     break
                 except (_terr.AuthKeyUnregisteredError, _terr.UserDeactivatedError, _terr.UserDeactivatedBanError):
-                    authorized = False
-                    break  # definitive — no retry
-                except _terr.FloodWaitError as fw:
-                    logger.warning(f"[ALIVE] {account.phone} FloodWait {fw.seconds}s — skipping")
-                    results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": f"FloodWait {fw.seconds}s"})
-                    await telegram_engine.disconnect(aid)
-                    _skip = True
+                    dead_definitive = True
                     break
+                except _terr.FloodWaitError as fw:
+                    if fw.seconds <= 10:
+                        logger.info(f"[ALIVE] {account.phone} FloodWait {fw.seconds}s — waiting")
+                        await _asyncio.sleep(fw.seconds + 1)
+                    else:
+                        logger.warning(f"[ALIVE] {account.phone} FloodWait {fw.seconds}s — skipping")
+                        results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": f"FloodWait {fw.seconds}s"})
+                        await telegram_engine.disconnect(aid)
+                        _skip = True
+                        break
                 except Exception as auth_err:
                     err_str = str(auth_err).lower()
                     if "deactivated" in err_str or "banned" in err_str or "unregistered" in err_str:
-                        authorized = False
-                        break  # definitive
-                    if _attempt == 0:
-                        logger.warning(f"[ALIVE] {account.phone} get_me() error, retrying in 2s: {auth_err}")
+                        dead_definitive = True
+                        break
+                    if _attempt < 2:
+                        logger.warning(f"[ALIVE] {account.phone} get_me() attempt {_attempt+1} error: {auth_err}")
                         await _asyncio.sleep(2)
                     else:
-                        logger.warning(f"[ALIVE] {account.phone} get_me() failed after 2 attempts: {auth_err}")
+                        # 3 attempts failed with transient errors — do NOT mark DEAD
+                        logger.warning(f"[ALIVE] {account.phone} get_me() failed after 3 attempts: {auth_err}")
                         results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "error", "error": str(auth_err)[:80]})
                         await telegram_engine.disconnect(aid)
                         _skip = True
             if _skip:
                 continue
 
-            if authorized:
-                account.last_connected_at = func.now()
-                # me already fetched from auth check above
-                account.telegram_user_id = me.id
-                account.is_premium = getattr(me, "premium", False) or False
-                if not account.telegram_created_at:
-                    from app.services.telegram_engine import _estimate_creation_date
-                    est = _estimate_creation_date(me.id)
-                    if est:
-                        from datetime import datetime as _dt
-                        account.telegram_created_at = _dt.fromisoformat(est)
-
-                # ── Self-message test: detect frozen / banned ────────
-                frozen = False
-                banned = False
-                ban_reason = None
+            if dead_definitive:
+                account.status = TgAccountStatus.DEAD
+                account.last_checked_at = func.now()
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "not_authorized"})
                 try:
-                    msg = await client.send_message("me", ".")
-                    try:
-                        await msg.delete()
-                    except Exception:
-                        pass
-                except _terr.UserDeactivatedBanError:
-                    banned = True
-                    ban_reason = "user_deactivated"
-                except (_terr.AuthKeyUnregisteredError, _terr.UserDeactivatedError):
-                    banned = True
-                    ban_reason = "send_failed"
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+                await telegram_engine.disconnect(aid)
+                continue
+
+            if not authorized:
+                # get_me() returned None — session likely invalid
+                account.status = TgAccountStatus.DEAD
+                account.last_checked_at = func.now()
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "not_authorized"})
+                try:
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+                await telegram_engine.disconnect(aid)
+                continue
+
+            # ── Authorized — save basic info ──────────────────────
+            account.last_connected_at = func.now()
+            account.last_checked_at = func.now()
+            account.telegram_user_id = me.id
+            account.is_premium = getattr(me, "premium", False) or False
+            if me.username:
+                account.username = me.username
+            if me.first_name:
+                account.first_name = me.first_name
+            if me.last_name is not None:
+                account.last_name = me.last_name
+            if not account.telegram_created_at:
+                from app.services.telegram_engine import _estimate_creation_date
+                est = _estimate_creation_date(me.id)
+                if est:
+                    account.telegram_created_at = _dt.fromisoformat(est)
+
+            # ── 3. SpamBot check (primary classification) ─────────
+            spamblock = "unknown"
+            frozen = False
+            banned = False
+            ban_reason = None
+            freeze_since = None
+            freeze_until = None
+            freeze_appeal_url = None
+            spamblock_end = None
+
+            try:
+                spambot = await client.get_entity("@SpamBot")
+                await client.send_message(spambot, "/start")
+                await _asyncio.sleep(3)
+                messages = await client.get_messages(spambot, limit=3)
+                full_text = "\n".join((m.text or "") for m in messages if m.text) if messages else ""
+                text_lower = full_text.lower()
+
+                # ── Freeze detection (separate from spamblock) ──
+                freeze_kw = [
+                    "frozen", "freeze", "froze",
+                    "заморожен", "заморозк", "замороз",
+                ]
+                if any(kw in text_lower for kw in freeze_kw):
+                    frozen = True
+                    date_pattern = (
+                        r'(?:\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
+                        r'|(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
+                        r'|(?:\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})'
+                        r'|(?:\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?)'
+                    )
+                    all_dates = _re.findall(date_pattern, full_text, _re.IGNORECASE)
+                    if len(all_dates) >= 2:
+                        try:
+                            from dateutil import parser as dateparser
+                            freeze_since = dateparser.parse(all_dates[0])
+                            freeze_until = dateparser.parse(all_dates[1])
+                        except Exception:
+                            pass
+                    elif len(all_dates) == 1:
+                        try:
+                            from dateutil import parser as dateparser
+                            freeze_until = dateparser.parse(all_dates[0])
+                        except Exception:
+                            pass
+                    url_match = _re.search(r'(https?://t\.me/\S+)', full_text)
+                    freeze_appeal_url = url_match.group(1) if url_match else "https://t.me/SpamBot"
+                    logger.info(f"[ALIVE] {account.phone} FROZEN — until={freeze_until}")
+
+                # ── Spamblock detection ──
+                no_limit_kw = [
+                    "no limits", "free as a bird", "not limited",
+                    "не ограничен", "всё хорошо", "нет ограничений",
+                ]
+                temp_kw = [
+                    "temporary", "will be removed", "will be lifted",
+                    "временно", "будет снято", "будет автоматически",
+                ]
+                perm_kw = [
+                    "permanent", "forever",
+                    "навсегда", "навечно",
+                ]
+                restricted_kw = [
+                    "limited", "restricted",
+                    "ограничен", "заблокирован",
+                ]
+
+                if any(kw in text_lower for kw in no_limit_kw):
+                    spamblock = "none"
+                elif any(kw in text_lower for kw in temp_kw):
+                    spamblock = "temporary"
+                    date_match = _re.search(
+                        r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
+                        r'|(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
+                        r'|(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})',
+                        full_text, _re.IGNORECASE
+                    )
+                    if date_match:
+                        try:
+                            from dateutil import parser as dateparser
+                            spamblock_end = dateparser.parse(date_match.group(0))
+                        except Exception:
+                            pass
+                    logger.info(f"[ALIVE] {account.phone} SPAMBLOCKED (temp) — end={spamblock_end}")
+                elif any(kw in text_lower for kw in perm_kw):
+                    spamblock = "permanent"
+                    logger.info(f"[ALIVE] {account.phone} SPAMBLOCKED (permanent)")
+                elif any(kw in text_lower for kw in restricted_kw) and not frozen:
+                    spamblock = "temporary"
+                    frozen = True
+                    logger.info(f"[ALIVE] {account.phone} restricted/frozen — SpamBot: {full_text[:200]}")
+                elif not frozen:
+                    spamblock = "unknown"
+                    logger.warning(f"[ALIVE] {account.phone} unrecognized SpamBot response: {full_text[:200]}")
+
+                # Do NOT delete SpamBot dialog (TeleRaptor keeps it)
+
+            except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
+                frozen = True
+                spamblock = "temporary"
+                logger.info(f"[ALIVE] {account.phone} frozen — cannot message SpamBot")
+            except Exception as e:
+                logger.warning(f"[ALIVE] {account.phone} SpamBot check failed: {e}")
+                # SpamBot failure is not definitive — leave spamblock as unknown
+
+            # ── 4. Frozen probe: contacts.Search (catches hidden freeze) ──
+            if not frozen and not banned and spamblock in ("none", "unknown"):
+                try:
+                    from telethon.tl import functions as _tl_func
+                    await client(_tl_func.contacts.SearchRequest(q="test", limit=1))
                 except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
                     frozen = True
-                except _terr.FloodWaitError:
-                    pass  # not a ban
+                    logger.info(f"[ALIVE] {account.phone} frozen — contacts.Search restricted")
                 except Exception as e:
-                    err_str = str(e).lower()
-                    if "deactivated" in err_str or "banned" in err_str:
-                        banned = True
-                        ban_reason = "send_failed"
-                    elif "restricted" in err_str or "forbidden" in err_str:
+                    err_name = type(e).__name__
+                    if "Frozen" in err_name or "Restrict" in err_name:
                         frozen = True
+                        logger.info(f"[ALIVE] {account.phone} frozen — contacts.Search: {err_name}")
 
-                if banned:
-                    account.status = TgAccountStatus.BANNED
-                    results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": ban_reason or "banned"})
-                elif frozen:
-                    account.status = TgAccountStatus.FROZEN
-                    account.spamblock_type = TgSpamblockType.TEMPORARY
-                    results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "frozen"})
-                else:
-                    # ── SpamBot check: detect spamblock/frozen that self-msg missed ──
-                    spamblock_detected = False
-                    spamblock_reason = None
-                    try:
-                        spambot = await client.get_entity("@SpamBot")
-                        await client.send_message(spambot, "/start")
-                        await _asyncio.sleep(2)
-                        messages = await client.get_messages(spambot, limit=1)
-                        if messages:
-                            text = messages[0].text or ""
-                            text_lower = text.lower()
-                            no_limit_kw = [
-                                "no limits", "free as a bird", "not limited",
-                                "не ограничен", "всё хорошо", "нет ограничений",
-                            ]
-                            temp_kw = [
-                                "temporary", "will be removed", "will be lifted",
-                                "временно", "будет снято", "будет автоматически",
-                            ]
-                            perm_kw = [
-                                "permanent", "forever",
-                                "навсегда", "навечно",
-                            ]
-                            restricted_kw = [
-                                "limited", "restricted", "frozen",
-                                "ограничен", "заморожен", "заблокирован",
-                            ]
-                            if any(kw in text_lower for kw in no_limit_kw):
-                                account.spamblock_type = TgSpamblockType.NONE
-                            elif any(kw in text_lower for kw in temp_kw):
-                                spamblock_detected = True
-                                account.status = TgAccountStatus.SPAMBLOCKED
-                                account.spamblock_type = TgSpamblockType.TEMPORARY
-                                spamblock_reason = "spamblocked"
-                                date_match = _re.search(
-                                    r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
-                                    r'|(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
-                                    r'|(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})',
-                                    text, _re.IGNORECASE
-                                )
-                                if date_match:
-                                    try:
-                                        from dateutil import parser as dateparser
-                                        account.spamblock_end = dateparser.parse(date_match.group(0))
-                                    except Exception:
-                                        pass
-                                logger.warning(f"[ALIVE] {account.phone} spamblocked (temporary) — SpamBot: {text[:200]}")
-                            elif any(kw in text_lower for kw in perm_kw):
-                                spamblock_detected = True
-                                account.status = TgAccountStatus.BANNED
-                                account.spamblock_type = TgSpamblockType.PERMANENT
-                                spamblock_reason = "banned"
-                                logger.warning(f"[ALIVE] {account.phone} permanent spamblock — SpamBot: {text[:200]}")
-                            elif any(kw in text_lower for kw in restricted_kw):
-                                spamblock_detected = True
-                                account.status = TgAccountStatus.FROZEN
-                                account.spamblock_type = TgSpamblockType.TEMPORARY
-                                spamblock_reason = "frozen"
-                                logger.warning(f"[ALIVE] {account.phone} frozen/restricted — SpamBot: {text[:200]}")
-                        # Clean up SpamBot dialog
-                        try:
-                            import random
-                            await _asyncio.sleep(random.uniform(1, 3))
-                            await client.delete_dialog(spambot)
-                        except Exception:
-                            pass
-                    except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
-                        spamblock_detected = True
-                        spamblock_reason = "frozen"
-                        account.status = TgAccountStatus.FROZEN
-                        account.spamblock_type = TgSpamblockType.TEMPORARY
-                        logger.warning(f"[ALIVE] {account.phone} frozen — cannot message SpamBot")
-                    except Exception as e:
-                        logger.warning(f"[ALIVE] {account.phone} SpamBot check failed: {e}")
-
-                    if spamblock_detected:
-                        results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": spamblock_reason})
-                    else:
-                        # ── Secondary frozen check ──────────────────────────
-                        # SpamBot only detects spam limits, NOT account-level
-                        # freezes. Frozen accounts can message bots and get
-                        # "no limits" from SpamBot while still being unable to
-                        # message regular users. Verify via write operations.
-                        secondary_frozen = False
-                        try:
-                            from telethon.tl.functions.account import UpdateStatusRequest
-                            await client(UpdateStatusRequest(offline=False))
-                        except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
-                            secondary_frozen = True
-                            logger.warning(f"[ALIVE] {account.phone} frozen — UpdateStatus restricted")
-                        except _terr.FloodWaitError:
-                            pass  # rate limit, not frozen
-                        except Exception:
-                            pass
-
-                        if not secondary_frozen:
-                            try:
-                                from telethon.tl.functions.users import GetFullUserRequest
-                                from telethon.tl.types import InputUserSelf
-                                from telethon.tl.functions.account import UpdateProfileRequest
-                                full = await client(GetFullUserRequest(id=InputUserSelf()))
-                                current_about = getattr(full.full_user, 'about', '') or ''
-                                await client(UpdateProfileRequest(about=current_about))
-                            except (_terr.UserRestrictedError, _terr.ChatWriteForbiddenError):
-                                secondary_frozen = True
-                                logger.warning(f"[ALIVE] {account.phone} frozen — UpdateProfile restricted")
-                            except _terr.FloodWaitError:
-                                pass
-                            except Exception:
-                                pass
-
-                        if secondary_frozen:
-                            account.status = TgAccountStatus.FROZEN
-                            account.spamblock_type = TgSpamblockType.TEMPORARY
-                            results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "frozen"})
-                        else:
-                            account.status = TgAccountStatus.ACTIVE
-                            account.spamblock_type = TgSpamblockType.NONE
-                            results.append({"account_id": aid, "phone": account.phone, "alive": True})
+            # ── 5. Save status to DB ──────────────────────────────
+            if banned:
+                account.status = TgAccountStatus.BANNED
+                account.ban_reason = ban_reason
+                account.banned_at = _dt.utcnow()
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "banned"})
+            elif frozen:
+                account.status = TgAccountStatus.FROZEN
+                account.spamblock_type = TgSpamblockType.TEMPORARY
+                account.freeze_since = freeze_since
+                account.freeze_until = freeze_until
+                account.freeze_appeal_url = freeze_appeal_url
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "frozen",
+                                "freeze_until": freeze_until.isoformat() if freeze_until else None})
+            elif spamblock == "temporary":
+                account.status = TgAccountStatus.SPAMBLOCKED
+                account.spamblock_type = TgSpamblockType.TEMPORARY
+                account.spamblocked_at = _dt.utcnow()
+                account.spamblock_end = spamblock_end
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "spamblocked",
+                                "spamblock_end": spamblock_end.isoformat() if spamblock_end else None})
+            elif spamblock == "permanent":
+                account.status = TgAccountStatus.SPAMBLOCKED
+                account.spamblock_type = TgSpamblockType.PERMANENT
+                account.spamblocked_at = _dt.utcnow()
+                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "spamblocked_permanent"})
+            elif spamblock == "none":
+                account.status = TgAccountStatus.ACTIVE
+                account.spamblock_type = TgSpamblockType.NONE
+                account.spamblock_end = None
+                account.ban_reason = None
+                account.banned_at = None
+                account.freeze_since = None
+                account.freeze_until = None
+                account.freeze_appeal_url = None
+                results.append({"account_id": aid, "phone": account.phone, "alive": True})
             else:
-                account.status = TgAccountStatus.DEAD
-                results.append({"account_id": aid, "phone": account.phone, "alive": False, "reason": "not_authorized"})
+                # spamblock == "unknown" — leave current status, don't mark ACTIVE or DEAD
+                results.append({"account_id": aid, "phone": account.phone, "alive": True, "reason": "spambot_unknown"})
 
-            await session.commit()
+            try:
+                await session.commit()
+            except Exception as commit_err:
+                logger.error(f"[ALIVE] {account.phone} commit failed: {commit_err}")
+                await session.rollback()
             await telegram_engine.disconnect(aid)
+
+        except HTTPException as e:
+            results.append({"account_id": aid, "error": e.detail, "alive": False, "reason": "error"})
         except Exception as e:
             logger.error(f"[ALIVE] account {aid} error: {e}")
             results.append({"account_id": aid, "alive": False, "reason": "error", "error": str(e)[:80]})
@@ -5386,7 +5469,7 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
 
     alive_count = sum(1 for r in results if r.get("alive"))
     frozen_count = sum(1 for r in results if r.get("reason") == "frozen")
-    spamblocked_count = sum(1 for r in results if r.get("reason") == "spamblocked")
+    spamblocked_count = sum(1 for r in results if r.get("reason") in ("spamblocked", "spamblocked_permanent"))
     banned_count = sum(1 for r in results if r.get("reason") in ("banned", "user_deactivated", "send_failed"))
     dead_count = sum(1 for r in results if r.get("reason") == "not_authorized")
     error_count = sum(1 for r in results if r.get("reason") == "error")

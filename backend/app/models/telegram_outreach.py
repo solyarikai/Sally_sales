@@ -188,6 +188,9 @@ class TgAccount(Base, TimestampMixin):
     spamblock_end = Column(DateTime, nullable=True)
     ban_reason = Column(String(255), nullable=True)  # e.g. "abuse_notifications", "send_failed"
     banned_at = Column(DateTime, nullable=True)
+    freeze_since = Column(DateTime, nullable=True)
+    freeze_until = Column(DateTime, nullable=True)
+    freeze_appeal_url = Column(String(500), nullable=True)
 
     # Relationships
     proxy_group = relationship("TgProxyGroup", back_populates="accounts")

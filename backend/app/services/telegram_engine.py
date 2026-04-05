@@ -372,6 +372,9 @@ class TelegramEngine:
             "spamblock": "unknown",
             "spamblock_end": None,
             "frozen": False,
+            "freeze_since": None,
+            "freeze_until": None,
+            "freeze_appeal_url": None,
             "banned": False,
             "ban_reason": None,
             "username": None,
@@ -475,76 +478,101 @@ class TelegramEngine:
                         result["ban_reason"] = "send_failed"
                         logger.warning(f"Account {phone} likely banned — self-message error: {e}")
 
-            # ── Check SpamBot ─────────────────────────────────────────
+            # ── Check SpamBot (primary status detection) ─────────────
             if not result["banned"]:
                 try:
                     spambot = await client.get_entity("@SpamBot")
                     await client.send_message(spambot, "/start")
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(3)
 
-                    messages = await client.get_messages(spambot, limit=1)
-                    if messages:
-                        text = messages[0].text or ""
-                        text_lower = text.lower()
+                    messages = await client.get_messages(spambot, limit=3)
+                    # Combine last messages from SpamBot (freeze info may be in a separate message)
+                    full_text = "\n".join((m.text or "") for m in messages if m.text) if messages else ""
+                    text_lower = full_text.lower()
+                    result["spambot_text"] = full_text[:500]
 
-                        # ── Positive (no restrictions) — EN + RU ──
-                        no_limit_kw = [
-                            "no limits", "free as a bird", "not limited",        # EN
-                            "не ограничен", "всё хорошо", "нет ограничений",     # RU
-                        ]
-                        # ── Temporary restriction — EN + RU ──
-                        temp_kw = [
-                            "temporary", "will be removed", "will be lifted",    # EN
-                            "временно", "будет снято", "будет автоматически",     # RU
-                        ]
-                        # ── Permanent restriction — EN + RU ──
-                        perm_kw = [
-                            "permanent", "forever",                              # EN
-                            "навсегда", "навечно",                               # RU
-                        ]
-                        # ── Frozen / restricted (catch-all) — EN + RU ──
-                        restricted_kw = [
-                            "limited", "restricted", "frozen",                   # EN
-                            "ограничен", "заморожен", "заблокирован",            # RU
-                        ]
-
-                        if any(kw in text_lower for kw in no_limit_kw):
-                            result["spamblock"] = "none"
-                        elif any(kw in text_lower for kw in temp_kw):
-                            result["spamblock"] = "temporary"
-                            # Try to parse end date
-                            import re
-                            date_match = re.search(
-                                r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
-                                r'|(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
-                                r'|(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})',
-                                text, re.IGNORECASE
-                            )
-                            if date_match:
-                                try:
-                                    from dateutil import parser as dateparser
-                                    result["spamblock_end"] = dateparser.parse(date_match.group(0)).isoformat()
-                                except Exception:
-                                    pass
-                        elif any(kw in text_lower for kw in perm_kw):
-                            result["spamblock"] = "permanent"
-                        elif any(kw in text_lower for kw in restricted_kw):
-                            # SpamBot says account IS limited but doesn't say temp/perm
-                            result["spamblock"] = "temporary"
-                            result["frozen"] = True
-                            logger.warning(f"Account {phone} appears frozen — SpamBot: {text[:200]}")
+                    # ── Freeze detection (separate from spamblock) ──
+                    freeze_kw = [
+                        "frozen", "freeze", "froze",
+                        "заморожен", "заморозк", "замороз",
+                    ]
+                    if any(kw in text_lower for kw in freeze_kw):
+                        result["frozen"] = True
+                        # Parse freeze dates (EN: "since April 2, 2026 until May 2, 2026" / RU: "с 2 апреля 2026 до 2 мая 2026")
+                        import re
+                        from dateutil import parser as dateparser
+                        # Try to find "since/с" date and "until/до" date
+                        date_pattern = (
+                            r'(?:\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
+                            r'|(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
+                            r'|(?:\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})'
+                            r'|(?:\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?)'
+                        )
+                        all_dates = re.findall(date_pattern, full_text, re.IGNORECASE)
+                        if len(all_dates) >= 2:
+                            try:
+                                result["freeze_since"] = dateparser.parse(all_dates[0]).isoformat()
+                                result["freeze_until"] = dateparser.parse(all_dates[1]).isoformat()
+                            except Exception:
+                                pass
+                        elif len(all_dates) == 1:
+                            try:
+                                result["freeze_until"] = dateparser.parse(all_dates[0]).isoformat()
+                            except Exception:
+                                pass
+                        # Extract appeal URL
+                        url_match = re.search(r'(https?://t\.me/\S+)', full_text)
+                        if url_match:
+                            result["freeze_appeal_url"] = url_match.group(1)
                         else:
-                            # Unrecognized response — do NOT assume clean
-                            result["spamblock"] = "unknown"
-                            logger.warning(f"Unrecognized SpamBot response for {phone}: {text[:200]}")
+                            result["freeze_appeal_url"] = "https://t.me/SpamBot"
 
-                    # Clean up dialog (delay to avoid automation fingerprint)
-                    try:
-                        import random
-                        await asyncio.sleep(random.uniform(2, 5))
-                        await client.delete_dialog(spambot)
-                    except Exception:
-                        pass
+                    # ── Spamblock detection ──
+                    no_limit_kw = [
+                        "no limits", "free as a bird", "not limited",
+                        "не ограничен", "всё хорошо", "нет ограничений",
+                    ]
+                    temp_kw = [
+                        "temporary", "will be removed", "will be lifted",
+                        "временно", "будет снято", "будет автоматически",
+                    ]
+                    perm_kw = [
+                        "permanent", "forever",
+                        "навсегда", "навечно",
+                    ]
+                    restricted_kw = [
+                        "limited", "restricted",
+                        "ограничен", "заблокирован",
+                    ]
+
+                    if any(kw in text_lower for kw in no_limit_kw):
+                        result["spamblock"] = "none"
+                    elif any(kw in text_lower for kw in temp_kw):
+                        result["spamblock"] = "temporary"
+                        import re
+                        date_match = re.search(
+                            r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
+                            r'|(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
+                            r'|(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})',
+                            full_text, re.IGNORECASE
+                        )
+                        if date_match:
+                            try:
+                                from dateutil import parser as dateparser
+                                result["spamblock_end"] = dateparser.parse(date_match.group(0)).isoformat()
+                            except Exception:
+                                pass
+                    elif any(kw in text_lower for kw in perm_kw):
+                        result["spamblock"] = "permanent"
+                    elif any(kw in text_lower for kw in restricted_kw) and not result["frozen"]:
+                        result["spamblock"] = "temporary"
+                        result["frozen"] = True
+                        logger.warning(f"Account {phone} appears frozen — SpamBot: {full_text[:200]}")
+                    elif not result["frozen"]:
+                        result["spamblock"] = "unknown"
+                        logger.warning(f"Unrecognized SpamBot response for {phone}: {full_text[:200]}")
+
+                    # Do NOT delete SpamBot dialog (TeleRaptor keeps it)
                 except (errors.UserRestrictedError, errors.ChatWriteForbiddenError):
                     result["spamblock"] = "temporary"
                     result["frozen"] = True
@@ -554,17 +582,19 @@ class TelegramEngine:
                     result["spamblock"] = "unknown"
 
             # ── Frozen detection: contacts.Search probe ──────────────
-            # Frozen accounts pass SpamBot check (say "no limits") but
-            # cannot resolve usernames or search — making them useless
-            # for outreach.  A quick SearchRequest catches this.
-            if not result["frozen"] and not result["banned"]:
+            # Frozen accounts sometimes pass SpamBot ("no limits") but
+            # cannot search — useless for outreach.
+            if not result["frozen"] and not result["banned"] and result["spamblock"] == "none":
                 try:
                     await client(functions.contacts.SearchRequest(q="test", limit=1))
+                except (errors.UserRestrictedError, errors.ChatWriteForbiddenError):
+                    result["frozen"] = True
+                    logger.warning(f"Account {phone} frozen — contacts.Search restricted")
                 except Exception as e:
-                    if "Frozen" in type(e).__name__:
+                    err_name = type(e).__name__
+                    if "Frozen" in err_name or "Restrict" in err_name:
                         result["frozen"] = True
-                        result["spamblock"] = "temporary"
-                        logger.warning(f"Account {phone} frozen — contacts.Search returned FrozenMethodInvalidError")
+                        logger.warning(f"Account {phone} frozen — contacts.Search: {err_name}")
 
         except errors.AuthKeyUnregisteredError:
             result["connected"] = True
