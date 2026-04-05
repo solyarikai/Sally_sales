@@ -22,7 +22,10 @@ from googleapiclient.errors import HttpError
 # Constants
 # ---------------------------------------------------------------------------
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.readonly"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
 
 CREDENTIALS_PATH = os.environ.get(
     "GOOGLE_CREDENTIALS_PATH",
@@ -39,6 +42,7 @@ mcp = FastMCP("google_sheets_mcp")
 # ---------------------------------------------------------------------------
 # Auth helper
 # ---------------------------------------------------------------------------
+
 
 def _get_service():
     """Return an authenticated Google Sheets service object."""
@@ -81,34 +85,60 @@ def _handle_error(e: Exception) -> str:
 # Input models
 # ---------------------------------------------------------------------------
 
+
 class ReadRangeInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-    spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL (e.g., '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms')")
-    range: str = Field(..., description="A1 notation range, e.g. 'Sheet1!A1:E50' or just 'A1:C10' for the first sheet")
-    as_json: bool = Field(default=False, description="Return data as JSON array of objects using first row as headers")
+    spreadsheet_id: str = Field(
+        ...,
+        description="Google Sheets ID from the URL (e.g., '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms')",
+    )
+    range: str = Field(
+        ...,
+        description="A1 notation range, e.g. 'Sheet1!A1:E50' or just 'A1:C10' for the first sheet",
+    )
+    as_json: bool = Field(
+        default=False,
+        description="Return data as JSON array of objects using first row as headers",
+    )
 
 
 class WriteRangeInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
-    range: str = Field(..., description="A1 notation range where writing starts, e.g. 'Sheet1!A1'")
-    values: List[List[Any]] = Field(..., description="2D array of values to write, e.g. [['Name','Email'],['Alice','alice@x.com']]")
-    value_input_option: str = Field(default="USER_ENTERED", description="'USER_ENTERED' (interprets formulas) or 'RAW' (literal strings)")
+    range: str = Field(
+        ..., description="A1 notation range where writing starts, e.g. 'Sheet1!A1'"
+    )
+    values: List[List[Any]] = Field(
+        ...,
+        description="2D array of values to write, e.g. [['Name','Email'],['Alice','alice@x.com']]",
+    )
+    value_input_option: str = Field(
+        default="USER_ENTERED",
+        description="'USER_ENTERED' (interprets formulas) or 'RAW' (literal strings)",
+    )
 
 
 class AppendRowsInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
-    range: str = Field(..., description="Range to append after, e.g. 'Sheet1!A:Z' — rows are appended after the last filled row")
+    range: str = Field(
+        ...,
+        description="Range to append after, e.g. 'Sheet1!A:Z' — rows are appended after the last filled row",
+    )
     values: List[List[Any]] = Field(..., description="2D array of rows to append")
 
 
 class SearchSheetInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
-    sheet_name: str = Field(..., description="Name of the sheet/tab to search in, e.g. 'Sheet1'")
+    sheet_name: str = Field(
+        ..., description="Name of the sheet/tab to search in, e.g. 'Sheet1'"
+    )
     query: str = Field(..., description="String to search for (case-insensitive)")
-    search_column: Optional[str] = Field(default=None, description="Column letter to limit search, e.g. 'B'. If omitted, searches all columns.")
+    search_column: Optional[str] = Field(
+        default=None,
+        description="Column letter to limit search, e.g. 'B'. If omitted, searches all columns.",
+    )
 
 
 class ListSheetsInput(BaseModel):
@@ -118,29 +148,47 @@ class ListSheetsInput(BaseModel):
 
 class CreateSpreadsheetInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-    title: str = Field(..., description="Title of the new spreadsheet", min_length=1, max_length=200)
-    sheet_names: Optional[List[str]] = Field(default=None, description="Optional list of sheet/tab names to create, e.g. ['Leads','Done']")
+    title: str = Field(
+        ..., description="Title of the new spreadsheet", min_length=1, max_length=200
+    )
+    sheet_names: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of sheet/tab names to create, e.g. ['Leads','Done']",
+    )
 
 
 class ClearRangeInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     spreadsheet_id: str = Field(..., description="Google Sheets ID from the URL")
-    range: str = Field(..., description="A1 notation range to clear, e.g. 'Sheet1!A2:Z1000'")
+    range: str = Field(
+        ..., description="A1 notation range to clear, e.g. 'Sheet1!A2:Z1000'"
+    )
 
 
 class ListUserSpreadsheetsInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-    max_results: int = Field(default=20, description="Maximum number of spreadsheets to return", ge=1, le=100)
-    query: Optional[str] = Field(default=None, description="Optional filter by name fragment")
+    max_results: int = Field(
+        default=20, description="Maximum number of spreadsheets to return", ge=1, le=100
+    )
+    query: Optional[str] = Field(
+        default=None, description="Optional filter by name fragment"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
 
+
 @mcp.tool(
     name="sheets_read_range",
-    annotations={"title": "Read Range from Google Sheet", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True}
+    annotations={
+        "title": "Read Range from Google Sheet",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
 )
 async def sheets_read_range(params: ReadRangeInput) -> str:
     """Read a range of cells from a Google Sheet.
@@ -159,10 +207,15 @@ async def sheets_read_range(params: ReadRangeInput) -> str:
     """
     try:
         service = _get_service()
-        result = service.spreadsheets().values().get(
-            spreadsheetId=params.spreadsheet_id,
-            range=params.range,
-        ).execute()
+        result = (
+            service.spreadsheets()
+            .values()
+            .get(
+                spreadsheetId=params.spreadsheet_id,
+                range=params.range,
+            )
+            .execute()
+        )
 
         rows = result.get("values", [])
         if not rows:
@@ -176,9 +229,17 @@ async def sheets_read_range(params: ReadRangeInput) -> str:
                 for i, header in enumerate(headers):
                     record[header] = row[i] if i < len(row) else ""
                 records.append(record)
-            return json.dumps({"range": params.range, "row_count": len(records), "values": records}, ensure_ascii=False, indent=2)
+            return json.dumps(
+                {"range": params.range, "row_count": len(records), "values": records},
+                ensure_ascii=False,
+                indent=2,
+            )
 
-        return json.dumps({"range": params.range, "row_count": len(rows), "values": rows}, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {"range": params.range, "row_count": len(rows), "values": rows},
+            ensure_ascii=False,
+            indent=2,
+        )
 
     except Exception as e:
         return _handle_error(e)
@@ -186,7 +247,13 @@ async def sheets_read_range(params: ReadRangeInput) -> str:
 
 @mcp.tool(
     name="sheets_write_range",
-    annotations={"title": "Write Range to Google Sheet", "readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": True}
+    annotations={
+        "title": "Write Range to Google Sheet",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
 )
 async def sheets_write_range(params: WriteRangeInput) -> str:
     """Write values to a range in a Google Sheet (overwrites existing data).
@@ -206,25 +273,39 @@ async def sheets_write_range(params: WriteRangeInput) -> str:
     try:
         service = _get_service()
         body = {"values": params.values}
-        result = service.spreadsheets().values().update(
-            spreadsheetId=params.spreadsheet_id,
-            range=params.range,
-            valueInputOption=params.value_input_option,
-            body=body,
-        ).execute()
-        return json.dumps({
-            "updated_range": result.get("updatedRange"),
-            "updated_rows": result.get("updatedRows"),
-            "updated_columns": result.get("updatedColumns"),
-            "updated_cells": result.get("updatedCells"),
-        }, indent=2)
+        result = (
+            service.spreadsheets()
+            .values()
+            .update(
+                spreadsheetId=params.spreadsheet_id,
+                range=params.range,
+                valueInputOption=params.value_input_option,
+                body=body,
+            )
+            .execute()
+        )
+        return json.dumps(
+            {
+                "updated_range": result.get("updatedRange"),
+                "updated_rows": result.get("updatedRows"),
+                "updated_columns": result.get("updatedColumns"),
+                "updated_cells": result.get("updatedCells"),
+            },
+            indent=2,
+        )
     except Exception as e:
         return _handle_error(e)
 
 
 @mcp.tool(
     name="sheets_append_rows",
-    annotations={"title": "Append Rows to Google Sheet", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True}
+    annotations={
+        "title": "Append Rows to Google Sheet",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
 )
 async def sheets_append_rows(params: AppendRowsInput) -> str:
     """Append rows after the last filled row in a Google Sheet.
@@ -243,26 +324,40 @@ async def sheets_append_rows(params: AppendRowsInput) -> str:
     try:
         service = _get_service()
         body = {"values": params.values}
-        result = service.spreadsheets().values().append(
-            spreadsheetId=params.spreadsheet_id,
-            range=params.range,
-            valueInputOption="USER_ENTERED",
-            insertDataOption="INSERT_ROWS",
-            body=body,
-        ).execute()
+        result = (
+            service.spreadsheets()
+            .values()
+            .append(
+                spreadsheetId=params.spreadsheet_id,
+                range=params.range,
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body=body,
+            )
+            .execute()
+        )
         updates = result.get("updates", {})
-        return json.dumps({
-            "appended_range": updates.get("updatedRange"),
-            "appended_rows": updates.get("updatedRows"),
-            "appended_cells": updates.get("updatedCells"),
-        }, indent=2)
+        return json.dumps(
+            {
+                "appended_range": updates.get("updatedRange"),
+                "appended_rows": updates.get("updatedRows"),
+                "appended_cells": updates.get("updatedCells"),
+            },
+            indent=2,
+        )
     except Exception as e:
         return _handle_error(e)
 
 
 @mcp.tool(
     name="sheets_search",
-    annotations={"title": "Search in Google Sheet", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True}
+    annotations={
+        "title": "Search in Google Sheet",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
 )
 async def sheets_search(params: SearchSheetInput) -> str:
     """Search for a string across rows in a Google Sheet tab.
@@ -282,10 +377,15 @@ async def sheets_search(params: SearchSheetInput) -> str:
     try:
         service = _get_service()
         range_notation = f"{params.sheet_name}!A:ZZ"
-        result = service.spreadsheets().values().get(
-            spreadsheetId=params.spreadsheet_id,
-            range=range_notation,
-        ).execute()
+        result = (
+            service.spreadsheets()
+            .values()
+            .get(
+                spreadsheetId=params.spreadsheet_id,
+                range=range_notation,
+            )
+            .execute()
+        )
 
         rows = result.get("values", [])
         if not rows:
@@ -311,12 +411,16 @@ async def sheets_search(params: SearchSheetInput) -> str:
         if not matches:
             return f"No rows found matching '{params.query}' in sheet '{params.sheet_name}'."
 
-        return json.dumps({
-            "query": params.query,
-            "sheet": params.sheet_name,
-            "match_count": len(matches),
-            "matches": matches,
-        }, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {
+                "query": params.query,
+                "sheet": params.sheet_name,
+                "match_count": len(matches),
+                "matches": matches,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
     except Exception as e:
         return _handle_error(e)
@@ -324,7 +428,13 @@ async def sheets_search(params: SearchSheetInput) -> str:
 
 @mcp.tool(
     name="sheets_list_sheets",
-    annotations={"title": "List Sheets/Tabs in Spreadsheet", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True}
+    annotations={
+        "title": "List Sheets/Tabs in Spreadsheet",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
 )
 async def sheets_list_sheets(params: ListSheetsInput) -> str:
     """List all tabs/sheets inside a Google Spreadsheet.
@@ -339,22 +449,28 @@ async def sheets_list_sheets(params: ListSheetsInput) -> str:
     """
     try:
         service = _get_service()
-        meta = service.spreadsheets().get(
-            spreadsheetId=params.spreadsheet_id,
-            fields="properties.title,sheets.properties",
-        ).execute()
+        meta = (
+            service.spreadsheets()
+            .get(
+                spreadsheetId=params.spreadsheet_id,
+                fields="properties.title,sheets.properties",
+            )
+            .execute()
+        )
 
         title = meta.get("properties", {}).get("title", "Unknown")
         sheets = []
         for s in meta.get("sheets", []):
             props = s.get("properties", {})
             grid = props.get("gridProperties", {})
-            sheets.append({
-                "name": props.get("title"),
-                "sheetId": props.get("sheetId"),
-                "rowCount": grid.get("rowCount"),
-                "columnCount": grid.get("columnCount"),
-            })
+            sheets.append(
+                {
+                    "name": props.get("title"),
+                    "sheetId": props.get("sheetId"),
+                    "rowCount": grid.get("rowCount"),
+                    "columnCount": grid.get("columnCount"),
+                }
+            )
 
         return json.dumps({"spreadsheet_title": title, "sheets": sheets}, indent=2)
     except Exception as e:
@@ -363,7 +479,13 @@ async def sheets_list_sheets(params: ListSheetsInput) -> str:
 
 @mcp.tool(
     name="sheets_create_spreadsheet",
-    annotations={"title": "Create New Google Spreadsheet", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True}
+    annotations={
+        "title": "Create New Google Spreadsheet",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
 )
 async def sheets_create_spreadsheet(params: CreateSpreadsheetInput) -> str:
     """Create a new Google Spreadsheet with optional custom tab names.
@@ -384,19 +506,28 @@ async def sheets_create_spreadsheet(params: CreateSpreadsheetInput) -> str:
             ]
         result = service.spreadsheets().create(body=body).execute()
         spreadsheet_id = result["spreadsheetId"]
-        return json.dumps({
-            "spreadsheet_id": spreadsheet_id,
-            "url": f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}",
-            "title": params.title,
-            "sheets": [s["properties"]["title"] for s in result.get("sheets", [])],
-        }, indent=2)
+        return json.dumps(
+            {
+                "spreadsheet_id": spreadsheet_id,
+                "url": f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}",
+                "title": params.title,
+                "sheets": [s["properties"]["title"] for s in result.get("sheets", [])],
+            },
+            indent=2,
+        )
     except Exception as e:
         return _handle_error(e)
 
 
 @mcp.tool(
     name="sheets_clear_range",
-    annotations={"title": "Clear Range in Google Sheet", "readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": True}
+    annotations={
+        "title": "Clear Range in Google Sheet",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
 )
 async def sheets_clear_range(params: ClearRangeInput) -> str:
     """Clear all values in a specified range (does NOT delete rows/formatting).
@@ -410,10 +541,15 @@ async def sheets_clear_range(params: ClearRangeInput) -> str:
     """
     try:
         service = _get_service()
-        result = service.spreadsheets().values().clear(
-            spreadsheetId=params.spreadsheet_id,
-            range=params.range,
-        ).execute()
+        result = (
+            service.spreadsheets()
+            .values()
+            .clear(
+                spreadsheetId=params.spreadsheet_id,
+                range=params.range,
+            )
+            .execute()
+        )
         return json.dumps({"cleared_range": result.get("clearedRange")}, indent=2)
     except Exception as e:
         return _handle_error(e)
@@ -421,7 +557,13 @@ async def sheets_clear_range(params: ClearRangeInput) -> str:
 
 @mcp.tool(
     name="sheets_list_my_spreadsheets",
-    annotations={"title": "List My Google Spreadsheets", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True}
+    annotations={
+        "title": "List My Google Spreadsheets",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
 )
 async def sheets_list_my_spreadsheets(params: ListUserSpreadsheetsInput) -> str:
     """List Google Spreadsheets accessible to the authenticated account.
@@ -440,12 +582,16 @@ async def sheets_list_my_spreadsheets(params: ListUserSpreadsheetsInput) -> str:
         q = "mimeType='application/vnd.google-apps.spreadsheet'"
         if params.query:
             q += f" and name contains '{params.query}'"
-        result = drive.files().list(
-            q=q,
-            pageSize=params.max_results,
-            fields="files(id, name, modifiedTime)",
-            orderBy="modifiedTime desc",
-        ).execute()
+        result = (
+            drive.files()
+            .list(
+                q=q,
+                pageSize=params.max_results,
+                fields="files(id, name, modifiedTime)",
+                orderBy="modifiedTime desc",
+            )
+            .execute()
+        )
         files = result.get("files", [])
         spreadsheets = [
             {
@@ -456,7 +602,9 @@ async def sheets_list_my_spreadsheets(params: ListUserSpreadsheetsInput) -> str:
             }
             for f in files
         ]
-        return json.dumps({"count": len(spreadsheets), "spreadsheets": spreadsheets}, indent=2)
+        return json.dumps(
+            {"count": len(spreadsheets), "spreadsheets": spreadsheets}, indent=2
+        )
     except Exception as e:
         return _handle_error(e)
 
