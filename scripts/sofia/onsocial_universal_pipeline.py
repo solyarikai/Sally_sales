@@ -2768,23 +2768,27 @@ def main():
             "filters": seg.get("default_filters", {}),
         }
     elif args.mode == "keywords":
-        if not args.filters:
-            print("ERROR: --filters JSON required for --mode keywords")
+        kw_filters = filter_file_data.get("company_filters", {})
+        if args.filters:
+            kw_filters.update(args.filters)
+        if not kw_filters:
+            print("ERROR: --filters JSON or --filter-file required for --mode keywords")
             print('  Must contain "description_keywords" list.')
             print(
                 '  Example: --filters \'{"description_keywords": ["keyword1", "keyword2"], '
                 '"industries": ["Computer Software"], "max_results": 5000}\''
             )
             sys.exit(1)
-        if "description_keywords" not in args.filters:
+        if "description_keywords" not in kw_filters:
             print(
-                "ERROR: --filters must contain 'description_keywords' list for --mode keywords"
+                "ERROR: filters must contain 'description_keywords' list for --mode keywords"
             )
             sys.exit(1)
-        if not args.segment:
+        segment = args.segment or filter_file_data.get("segment")
+        if not segment:
             print("ERROR: --segment required for --mode keywords")
             sys.exit(1)
-        mode_config = {"segment": args.segment, "filters": args.filters}
+        mode_config = {"segment": segment, "filters": kw_filters}
     elif args.mode == "apollo":
         if not args.filters and not filter_file_data.get("company_filters"):
             print("ERROR: --filters JSON or --filter-file required for --mode apollo")
