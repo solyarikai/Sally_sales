@@ -2558,9 +2558,7 @@ def mode3_lookalike(config: ProjectConfig, examples: list[str]) -> dict:
     # Extract patterns
     segments = Counter(c["segment"] for c in companies if c["segment"])
     countries = Counter(c["country"] for c in companies if c["country"])
-    dominant_segment = (
-        segments.most_common(1)[0][0] if segments else "INFLUENCER_PLATFORMS"
-    )
+    dominant_segment = segments.most_common(1)[0][0] if segments else "UNKNOWN"
     top_countries = [c for c, _ in countries.most_common(5)] if countries else []
 
     emp_values = [int(c["employees"]) for c in companies if c["employees"].isdigit()]
