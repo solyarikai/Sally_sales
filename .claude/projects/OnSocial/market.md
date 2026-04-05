@@ -26,7 +26,7 @@ status: active
 - **Company size:** 10-500 employees
 - **Pain:** Клиенты гуглят vendor price, 67% брендов идут in-house, нужна дифференциация
 - **Trigger:** Теряют клиентов, ищут способ повысить retention
-- **Seed companies:** Whalar, Billion Dollar Boy, Linkster, Ykone
+- **Seed companies:** Whalar, Billion Dollar Boy, Linkster, Ykone, Intermate, LADbible, InfluencerUK
 
 ### AFFPERF (Affiliate & Performance)
 - **Roles:** VP Product, Head of Data, CTO
