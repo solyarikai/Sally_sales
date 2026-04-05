@@ -256,6 +256,24 @@ GetSales CSV: [путь] (контакты без email)
 
 ---
 
+## Apollo mode — ограничения и гео-группы
+
+- **Apollo company search требует минимум 1 location.** "ALL GEO" (пустой locations) не работает — скрейпер падает с ошибкой `At least one --locations is required`.
+- **Решение:** разбить на гео-группы по таймзонам, запускать пайплайн отдельно для каждой группы.
+- Готовые filter-файлы с гео-группами лежат в `magnum-opus/scripts/sofia/filters/` с суффиксом `_<region>.json` (например `onsocial_imagency_v4_us.json`).
+- При создании новых filter-файлов для ALL GEO — автоматически предлагай разбивку на группы:
+
+| Group | Countries |
+|-------|-----------|
+| US | United States |
+| EU West | United Kingdom, France, Germany, Netherlands, Spain, Italy, Belgium, Switzerland, Sweden, Denmark, Norway, Portugal, Ireland |
+| EU East | Poland, Czech Republic, Romania, Turkey, Ukraine, Israel, Greece, Hungary |
+| APAC | Australia, India, Singapore, Japan, South Korea, Philippines, Indonesia, Thailand, New Zealand |
+| MENA | United Arab Emirates, Saudi Arabia, Egypt, Qatar, Kuwait, Bahrain, Oman, Jordan, Lebanon, Morocco |
+| LATAM | Brazil, Mexico, Argentina, Colombia, Chile, Peru |
+
+- **company_country:** На контактах (step 9+) есть поле `company_country` — страна компании из step 0 (gather), а не локация человека из Apollo People. Используется для гео-группировки в SmartLead и GetSales.
+
 ## Правила
 
 - **НИКОГДА не активировать кампании** в SmartLead — только вручную в UI
