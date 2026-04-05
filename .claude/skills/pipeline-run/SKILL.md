@@ -156,7 +156,12 @@ python3 universal_pipeline.py --project-id <ID> --mode <MODE> --dry-run \
 ### Перед запуском проверь
 
 1. Backend работает: `ssh hetzner "curl -s localhost:8000/health"`
-2. Скрипт актуальный: `ssh hetzner "cd ~/magnum-opus-project/repo && git pull"`
+2. SCP скрипт и filter-file на Hetzner:
+   ```bash
+   scp magnum-opus/scripts/sofia/onsocial_universal_pipeline.py hetzner:~/magnum-opus-project/repo/scripts/sofia/
+   scp magnum-opus/scripts/sofia/filters/<filter>.json hetzner:~/magnum-opus-project/repo/scripts/sofia/filters/
+   ```
+   SCP быстрее и точнее чем git pull — копируешь только нужные файлы.
 
 ### Чекпоинты (★ CP)
 
