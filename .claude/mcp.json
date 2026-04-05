@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "smartlead": {
+      "type": "stdio",
+      "command": "/Users/user/sales_engineer/sofia/mcp/smartlead-mcp/.venv/bin/python3",
+      "args": ["/Users/user/sales_engineer/sofia/mcp/smartlead-mcp/server.py"],
+      "env": {
+        "SMARTLEAD_API_KEY": "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
+      }
+    }
+  }
+}
