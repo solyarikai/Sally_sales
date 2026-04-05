@@ -1554,6 +1554,7 @@ def _map_apollo_person(
         "segment": segment,
         "linkedin_url": person.get("linkedin_url", person.get("linkedin", "")),
         "country": country,
+        "company_country": target.get("country", ""),
         "employees": person.get("employees", "") or target.get("employees", ""),
         "social_proof": social_proof,
     }
