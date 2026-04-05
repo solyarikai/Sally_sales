@@ -2,16 +2,16 @@
   "mcpServers": {
     "apollo": {
       "type": "stdio",
-      "command": "/opt/homebrew/bin/python3.11",
-      "args": ["/Users/user/Library/Mobile Documents/com~apple~CloudDocs/sales_engineer/mcp/apollo-mcp/server.py"],
+      "command": "/Users/user/sales_engineer/sofia/mcp/apollo-mcp/.venv/bin/python3",
+      "args": ["/Users/user/sales_engineer/sofia/mcp/apollo-mcp/server.py"],
       "env": {
         "APOLLO_API_KEY": "V4yEBnZDhB1kwdA0u6GDtQ"
       }
     },
     "crona": {
       "type": "stdio",
-      "command": "/opt/homebrew/bin/python3.11",
-      "args": ["/Users/user/Library/Mobile Documents/com~apple~CloudDocs/sales_engineer/crona-mcp/server.py"],
+      "command": "/Users/user/sales_engineer/sofia/mcp/crona-mcp/.venv/bin/python3",
+      "args": ["/Users/user/sales_engineer/sofia/mcp/crona-mcp/server.py"],
       "env": {
         "CRONA_EMAIL": "sofia.kamyshenko@gmail.com",
         "CRONA_PASSWORD": "gyrzu9sUvnybmynkom"
