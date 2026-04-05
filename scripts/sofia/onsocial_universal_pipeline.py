@@ -115,42 +115,35 @@ Universal Lead Generation Pipeline
   USAGE
 ═══════════════════════════════════════════════════════════
 
+  # Filter-file (рекомендуемый способ) — все фильтры из JSON
+  python3 universal_pipeline.py --project-id <ID> --mode apollo \\
+    --filter-file path/to/filters.json
+
   # Clay ICP — AI маппит ICP → Clay фильтры
-  python3 universal_pipeline.py --project-id 42 --mode structured --segment influencer_platforms
+  python3 universal_pipeline.py --project-id <ID> --mode structured --segment <SEGMENT>
 
   # Clay Keywords — явные keywords, без AI
-  python3 universal_pipeline.py --project-id 42 --mode keywords \\
-    --filters '{"description_keywords": ["influencer marketing platform", "creator analytics"],
-                "description_keywords_exclude": ["recruitment", "staffing"],
-                "industries": ["Computer Software", "Internet"],
-                "minimum_member_count": 5, "maximum_member_count": 5000,
-                "max_results": 5000}'
+  python3 universal_pipeline.py --project-id <ID> --mode keywords --segment <SEGMENT> \\
+    --filters '{"description_keywords": [...], "industries": [...], "max_results": 5000}'
 
-  # Apollo Internal API — FREE, точные keyword_tags (inline filters)
-  python3 universal_pipeline.py --project-id 42 --mode apollo --segment my_segment \\
-    --filters '{"keyword_tags": ["influencer marketing platform", "creator analytics"],
-                "locations": ["United Kingdom", "India", "France"],
-                "sizes": ["5,50", "51,200", "201,500", "501,1000", "1001,5000"],
-                "excluded_keywords": ["recruitment", "staffing"],
-                "max_pages": 25}'
-
-  # Apollo with filter-file — all filters from JSON file
-  python3 universal_pipeline.py --project-id 42 --mode apollo \\
-    --filter-file filters/imagency_v4.json
+  # Apollo — inline filters
+  python3 universal_pipeline.py --project-id <ID> --mode apollo --segment <SEGMENT> \\
+    --filters '{"keyword_tags": [...], "locations": [...], "sizes": [...], "max_pages": 25}'
 
   # Lookalike — reverse-engineering фильтров по примерам
-  python3 universal_pipeline.py --project-id 42 --mode lookalike --examples "impact.com,modash.io"
+  python3 universal_pipeline.py --project-id <ID> --mode lookalike --examples "domain1.com,domain2.io"
 
   # Expand — клон предыдущего рана с новыми параметрами
-  python3 universal_pipeline.py --project-id 42 --mode expand --base-run 198 \\
-    --override '{"country_names": ["Singapore", "Thailand"]}'
+  python3 universal_pipeline.py --project-id <ID> --mode expand --base-run <RUN_ID> \\
+    --override '{"country_names": [...]}'
 
   # Resume — продолжить с любого шага
-  python3 universal_pipeline.py --project-id 42 --from-step people
-  python3 universal_pipeline.py --project-id 42 --from-step people --apollo-csv export.csv
+  python3 universal_pipeline.py --project-id <ID> --from-step people
+  python3 universal_pipeline.py --project-id <ID> --from-step people --apollo-csv export.csv
 
   # Dry run — напечатать параметры без API вызовов
-  python3 universal_pipeline.py --project-id 42 --mode structured --segment agencies_mena --dry-run
+  python3 universal_pipeline.py --project-id <ID> --mode apollo --segment <SEGMENT> --dry-run \\
+    --filter-file path/to/filters.json
 
 Env vars: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
 Backend must be running on localhost:8000 (Hetzner)
