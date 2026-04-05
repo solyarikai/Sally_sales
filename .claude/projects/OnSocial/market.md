@@ -19,7 +19,7 @@ status: active
 - **Company size:** 5-5,000 employees
 - **Pain:** Строят data pipeline сами, 2+ инженера тратят время на maintenance, coverage отстает (weekly updates vs 24-48h)
 - **Trigger:** Расширяют покрытие платформ или добавляют creator analytics как фичу
-- **Seed companies:** Kolsquare, Skeepers, Phyllo, KlugKlug, Qoruz
+- **Seed companies:** Kolsquare, Skeepers, Phyllo, KlugKlug, Qoruz, Favikon, TRIBEGroup
 
 ### IMAGENCY (IM-First Agencies)
 - **Roles:** CEO, Founder, Managing Director, Head of IM, Head of Partnerships
