@@ -62,6 +62,17 @@ Companies that work with OnSocial — used in email sequences as social proof to
 | MENA | ArabyAds, Sociata | |
 | LATAM | Viral Nation, Captiv8 | |
 
+## Pipeline Geo Groups (for Apollo search)
+
+| Group | Countries | Filter file |
+|-------|-----------|-------------|
+| US | United States | `onsocial_imagency_v4_us.json` |
+| EU West | UK, FR, DE, NL, ES, IT, BE, CH, SE, DK, NO, PT, IE | `onsocial_imagency_v4_eu_west.json` |
+| EU East | PL, CZ, RO, TR, UA, IL, GR, HU | `onsocial_imagency_v4_eu_east.json` |
+| APAC | AU, IN, SG, JP, KR, PH, ID, TH, NZ | `onsocial_imagency_v4_apac.json` |
+| MENA | UAE, SA, EG, QA, KW, BH, OM, JO, LB, MA | `onsocial_imagency_v4_mena.json` |
+| LATAM | BR, MX, AR, CO, CL, PE | `onsocial_imagency_v4_latam.json` |
+
 ## Geographic Insights
 
 - **India:** White-label positioning resonates strongly. 100% warm rate. Agencies want data "under their brand"
