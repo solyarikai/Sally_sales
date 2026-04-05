@@ -827,14 +827,24 @@ async def set_account_proxy_mode(account_id: int, data: TgSetProxyMode, session:
         if not data.host or not data.port:
             raise HTTPException(400, "host and port are required for custom proxy")
         protocol_val = TgProxyProtocol(data.protocol or "socks5")
+        # Get or create a "Custom" proxy group
+        cg_result = await session.execute(
+            select(TgProxyGroup).where(TgProxyGroup.name == "Custom")
+        )
+        custom_group = cg_result.scalar_one_or_none()
+        if not custom_group:
+            custom_group = TgProxyGroup(name="Custom", description="Manually added custom proxies")
+            session.add(custom_group)
+            await session.flush()
         proxy = TgProxy(
-            proxy_group_id=None,
+            proxy_group_id=custom_group.id,
             host=data.host, port=data.port,
             username=data.username, password=data.password,
             protocol=protocol_val, is_active=True,
         )
         session.add(proxy)
         await session.flush()
+        account.proxy_group_id = custom_group.id
         account.assigned_proxy_id = proxy.id
         await _sync_proxy_to_dm_account(session, account.phone, proxy)
 
