@@ -44,34 +44,27 @@ Python: `python3` (на Hetzner), `python3.11` (локально).
 Собери полную команду и покажи пользователю. Примеры:
 
 ```bash
-# Apollo с filter-file (рекомендуемый способ)
-python3 universal_pipeline.py --project-id 42 --mode apollo \
-  --filter-file filters/imagency_v4.json
+# Filter-file (рекомендуемый способ) — все фильтры из JSON
+python3 universal_pipeline.py --project-id <ID> --mode apollo \
+  --filter-file path/to/filters.json
 
 # Apollo с inline filters
-python3 universal_pipeline.py --project-id 42 --mode apollo --segment IM_FIRST_AGENCIES \
-  --filters '{"keyword_tags": ["influencer marketing platform"],
-              "locations": ["United Kingdom", "France"],
-              "sizes": ["10,50", "51,200", "201,500"],
-              "max_pages": 25}'
+python3 universal_pipeline.py --project-id <ID> --mode apollo --segment <SEGMENT> \
+  --filters '{"keyword_tags": [...], "locations": [...], "sizes": [...], "max_pages": 25}'
 
 # Clay Keywords
-python3 universal_pipeline.py --project-id 42 --mode keywords --segment MY_SEGMENT \
-  --filters '{"description_keywords": ["influencer marketing platform"],
-              "description_keywords_exclude": ["recruitment"],
-              "industries": ["Computer Software"],
-              "minimum_member_count": 5, "maximum_member_count": 5000,
-              "max_results": 5000}'
+python3 universal_pipeline.py --project-id <ID> --mode keywords --segment <SEGMENT> \
+  --filters '{"description_keywords": [...], "industries": [...], "max_results": 5000}'
 
 # Lookalike
-python3 universal_pipeline.py --project-id 42 --mode lookalike \
-  --examples "impact.com,modash.io"
+python3 universal_pipeline.py --project-id <ID> --mode lookalike \
+  --examples "domain1.com,domain2.io"
 
 # Resume с шага people
-python3 universal_pipeline.py --project-id 42 --from-step people
+python3 universal_pipeline.py --project-id <ID> --from-step people
 
 # Re-analyze с новым промптом
-python3 universal_pipeline.py --project-id 42 --re-analyze --run-id 198 --prompt-file new_prompt.txt
+python3 universal_pipeline.py --project-id <ID> --re-analyze --run-id <RUN_ID> --prompt-file new_prompt.txt
 ```
 
 **Жди подтверждения перед запуском.**
