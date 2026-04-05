@@ -7272,46 +7272,43 @@ from app.models.telegram_dm import TelegramDMAccount
 
 @router.get("/inbox/accounts")
 async def list_inbox_accounts(session: AsyncSession = Depends(get_session)):
-    """List telegram_dm_accounts available for inbox (active sessions only)."""
-    result = await session.execute(
-        select(TelegramDMAccount).where(
-            TelegramDMAccount.string_session.isnot(None),
-            TelegramDMAccount.auth_status == "active",
-        ).order_by(TelegramDMAccount.id)
+    """List all active TgAccounts for inbox, enriched with DM session info."""
+    # Start from tg_accounts — every active outreach account should appear
+    tg_result = await session.execute(
+        select(TgAccount)
+        .where(TgAccount.status.notin_([
+            TgAccountStatus.DEAD, TgAccountStatus.BANNED, TgAccountStatus.FROZEN,
+        ]))
+        .options(selectinload(TgAccount.campaign_links), selectinload(TgAccount.tags))
+        .order_by(TgAccount.id)
     )
-    dm_accounts = result.scalars().all()
+    tg_accounts = tg_result.scalars().all()
 
-    # Batch-load matching TgAccounts to get campaign/tag info & filter deleted
-    phones = [a.phone for a in dm_accounts if a.phone]
-    tg_map: dict = {}
+    # Batch-load matching DM accounts for session/connection info
+    phones = [a.phone for a in tg_accounts if a.phone]
+    dm_map: dict = {}
     if phones:
-        tg_result = await session.execute(
-            select(TgAccount)
-            .where(TgAccount.phone.in_(phones))
-            .options(selectinload(TgAccount.campaign_links), selectinload(TgAccount.tags))
+        dm_result = await session.execute(
+            select(TelegramDMAccount).where(TelegramDMAccount.phone.in_(phones))
         )
-        for tg in tg_result.scalars().all():
-            tg_map[tg.phone] = tg
+        for dm in dm_result.scalars().all():
+            dm_map[dm.phone] = dm
 
     response = []
-    for a in dm_accounts:
-        tg = tg_map.get(a.phone)
-        # Skip accounts whose TgAccount was deleted or is dead/banned
-        if not tg:
-            continue
-        if tg.status in (TgAccountStatus.DEAD, TgAccountStatus.BANNED, TgAccountStatus.FROZEN):
-            continue
-        campaign_ids = [cl.campaign_id for cl in tg.campaign_links] if tg else []
-        tag_names = [t.name for t in tg.tags] if tg else []
+    for tg in tg_accounts:
+        dm = dm_map.get(tg.phone)
+        has_session = dm is not None and dm.string_session is not None and dm.auth_status == "active"
+        campaign_ids = [cl.campaign_id for cl in tg.campaign_links]
+        tag_names = [t.name for t in tg.tags]
         response.append({
-            "id": a.id,
-            "phone": a.phone,
-            "username": a.username,
-            "first_name": a.first_name,
-            "last_name": a.last_name,
-            "is_connected": a.is_connected,
-            "auth_status": a.auth_status,
-            "tg_status": tg.status.value if tg else None,
+            "id": dm.id if dm else tg.id,
+            "phone": tg.phone,
+            "username": dm.username if dm else tg.username,
+            "first_name": dm.first_name if dm else tg.first_name,
+            "last_name": dm.last_name if dm else tg.last_name,
+            "is_connected": dm.is_connected if dm else False,
+            "auth_status": dm.auth_status if dm else "disconnected",
+            "tg_status": tg.status.value,
             "campaign_ids": campaign_ids,
             "tag_names": tag_names,
         })
