@@ -3064,7 +3064,9 @@ def main():
                 print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
             contacts = all_contacts
         else:
-            contacts = step9_people_search(config, targets, force=args.force)
+            contacts = step9_people_search(
+                config, targets, force=args.force, apollo_profile=args.apollo_profile
+            )
 
         # CP3: approve FindyMail cost before proceeding
         with_li = sum(
