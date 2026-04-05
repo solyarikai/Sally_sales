@@ -901,7 +901,7 @@ def step0_gather(
 # БЕСПЛАТНО — не тратит API credits.
 # ══════════════════════════════════════════════════════════════════════════════
 
-APOLLO_COMPANIES_SCRIPT = "scripts/apollo_companies_search.js"
+APOLLO_COMPANIES_SCRIPT = "scripts/sofia/onsocial_apollo_companies_search.js"
 
 
 def step0_apollo_companies(
