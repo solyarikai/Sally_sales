@@ -118,6 +118,8 @@ Contacts without email from Findymail → auto-export to GetSales-ready CSV in `
 | `sofia/smartlead-hub/` | SmartLead campaigns, sequences, lead data |
 | `tam-guide/` | Training/onboarding materials (HTML lessons) |
 | `scripts/` | Shared utility scripts |
+| `.claude/mcp/` | All MCP servers (apollo, crona, google-sheets, smartlead, findymail, getsales, transkriptor) |
+| `.claude/skills/` | Shared Claude Code skills |
 
 ## Git Structure
 
