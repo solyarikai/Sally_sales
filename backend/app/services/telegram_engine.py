@@ -529,8 +529,8 @@ class TelegramEngine:
 
                     # ── Spamblock detection ──
                     no_limit_kw = [
-                        "no limits", "free as a bird", "not limited",
-                        "не ограничен", "всё хорошо", "нет ограничений",
+                        "no limits", "free as a bird", "not limited", "free from",
+                        "не ограничен", "всё хорошо", "нет ограничений", "свободен",
                     ]
                     temp_kw = [
                         "temporary", "will be removed", "will be lifted",

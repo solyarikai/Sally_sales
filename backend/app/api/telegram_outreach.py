@@ -5221,8 +5221,9 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
                     me = await client.get_me()
                     authorized = me is not None
                     break
-                except (_terr.AuthKeyUnregisteredError, _terr.UserDeactivatedError, _terr.UserDeactivatedBanError):
+                except (_terr.AuthKeyUnregisteredError, _terr.UserDeactivatedError, _terr.UserDeactivatedBanError) as dead_err:
                     dead_definitive = True
+                    logger.info(f"[ALIVE] {account.phone} DEAD (definitive): {type(dead_err).__name__}")
                     break
                 except _terr.FloodWaitError as fw:
                     if fw.seconds <= 10:
@@ -5342,8 +5343,8 @@ async def bulk_check_alive(data: TgBulkAccountIds, session: AsyncSession = Depen
 
                 # ── Spamblock detection ──
                 no_limit_kw = [
-                    "no limits", "free as a bird", "not limited",
-                    "не ограничен", "всё хорошо", "нет ограничений",
+                    "no limits", "free as a bird", "not limited", "free from",
+                    "не ограничен", "всё хорошо", "нет ограничений", "свободен",
                 ]
                 temp_kw = [
                     "temporary", "will be removed", "will be lifted",
