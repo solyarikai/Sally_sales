@@ -1486,7 +1486,7 @@ def _run_apollo_scraper(url: str, max_pages: int, output_path: str) -> list[dict
             capture_output=True,
             text=True,
             timeout=300,
-            cwd=str(script.parent.parent),
+            cwd=str(Path(os.environ.get("HETZNER_REPO", ".")).resolve()),
             env={
                 **os.environ,
                 "CHROME_PATH": os.environ.get("CHROME_PATH", "/usr/bin/google-chrome"),
