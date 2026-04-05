@@ -47,14 +47,20 @@ status: active
 
 ## Regional Social Proof
 
-| Region | Reference Companies |
-|--------|-------------------|
-| UK | Whalar, Billion Dollar Boy |
-| Germany | Zalando, Linkster |
-| France | Kolsquare, Ykone |
-| India | Phyllo, KlugKlug, Qoruz |
-| MENA | ArabyAds, Sociata |
-| LATAM | Viral Nation, Captiv8 |
+Companies that work with OnSocial — used in email sequences as social proof to build credibility with smaller competitors in same region. Include in email body or closing line.
+
+**"Lead with"** = mention first/prominently in sequences for that region.
+
+| Region | Lead With | Other References |
+|--------|-----------|-----------------|
+| UK | Whalar, InfluencerUK, LADbible, Billion Dollar Boy | |
+| Germany | Zalando, Linkster, Intermate, Gocomo | |
+| France | Kolsquare, Skeepers, Ykone, Favikon | |
+| India | Phyllo, KlugKlug, Qoruz, Tonic Worldwide | |
+| Australia | TRIBEGroup | |
+| Spain | SAMY (SAMYGroup — big holding, covers both platforms & agencies) | |
+| MENA | ArabyAds, Sociata | |
+| LATAM | Viral Nation, Captiv8 | |
 
 ## Geographic Insights
 
