@@ -76,6 +76,32 @@ python3 universal_pipeline.py --project-id 42 --re-analyze --run-id 198 --prompt
 
 **Жди подтверждения перед запуском.**
 
+### Формат filter-file (JSON)
+
+```json
+{
+  "segment": "IM_FIRST_AGENCIES",
+  "company_filters": {
+    "keyword_tags": ["influencer marketing agency", "creator agency"],
+    "locations": ["United States", "United Kingdom"],
+    "sizes": ["10,50", "51,200", "201,500"],
+    "excluded_keywords": ["SEO agency", "PR agency"],
+    "max_pages": 25
+  },
+  "people_filters": {
+    "titles": ["CEO", "Founder", "Managing Director"],
+    "seniorities": ["founder", "c_suite", "vp", "director", "owner", "head", "partner"],
+    "excluded_titles": ["Intern", "Junior", "Campaign Manager"]
+  }
+}
+```
+
+- `segment` — используется вместо `--segment` (CLI аргумент имеет приоритет)
+- `company_filters` — передаётся в step0 gather (Apollo/Clay)
+- `people_filters` — передаётся в step9 people search (titles, seniorities для Apollo UI)
+- `--filters` (inline) мерджится поверх `company_filters` из файла
+- Файлы хранятся в `sofia/projects/OnSocial/filters/`
+
 ---
 
 ## Шаг 2 — Запуск и мониторинг
