@@ -2684,6 +2684,10 @@ def main():
         help="Puppeteer profile path for Apollo login (--mode apollo)",
     )
     p.add_argument("--max-findymail", type=int, default=1500)
+    p.add_argument(
+        "--filter-file",
+        help="JSON file with company_filters + people_filters + segment",
+    )
     p.add_argument("--prompt-file", help="Custom analysis prompt file")
     p.add_argument("--re-analyze", action="store_true")
     p.add_argument("--force", action="store_true")
