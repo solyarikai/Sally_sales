@@ -2786,8 +2786,9 @@ def main():
             print("ERROR: --filters JSON or --filter-file required for --mode apollo")
             print('  Must contain "keyword_tags" and "locations" lists.')
             print(
-                '  Example: --filters \'{"keyword_tags": ["influencer marketing platform"], '
-                '"locations": ["United Kingdom", "India"], "max_pages": 25}\''
+                '  Example: --filters \'{"keyword_tags": ["keyword1"], '
+                '"locations": ["United States"], "max_pages": 25}\''
+                "\n  Or use: --filter-file path/to/filters.json"
             )
             sys.exit(1)
         # Merge: --filter-file company_filters as base, --filters as override
