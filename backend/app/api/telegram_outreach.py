@@ -7380,9 +7380,10 @@ async def list_inbox_dialogs(
         # Check if lead_status is a valid CRM enum value before querying
         valid_crm_statuses = {s.value for s in TgContactStatus}
         if lead_status in valid_crm_statuses:
-            contact_sub = select(TgContact.username).where(TgContact.status == lead_status).subquery()
+            # Case-insensitive match: CRM stores lowercase, inbox keeps original TG casing
+            contact_sub = select(func.lower(TgContact.username)).where(TgContact.status == lead_status).subquery()
             status_filter = or_(
-                TgInboxDialog.peer_username.in_(select(contact_sub)),
+                func.lower(TgInboxDialog.peer_username).in_(select(contact_sub)),
                 TgInboxDialog.inbox_tag == lead_status,
             )
         else:
