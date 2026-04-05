@@ -1625,10 +1625,14 @@ def step9_people_search(
                 end=" ",
                 flush=True,
             )
-            url = _build_apollo_people_url(batch_domains, titles, seniorities)
             output_path = f"/tmp/apollo_people_batch_{seg}_{batch_idx}.json"
             people = _run_apollo_scraper(
-                url, APOLLO_PEOPLE_MAX_PAGES, output_path, profile=apollo_profile
+                batch_domains,
+                titles,
+                seniorities,
+                APOLLO_PEOPLE_MAX_PAGES,
+                output_path,
+                profile=apollo_profile,
             )
             print(f"{len(people)} people")
             for person in people:
