@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Google Sheets MCP Server.
+Google Sheets & Drive MCP Server.
 
-Provides tools to read, write, search, and manage Google Sheets
+Provides 25 tools to read, write, search, and manage Google Sheets and Drive
 using existing OAuth2 credentials (credentials.json + token.json).
 """
 
