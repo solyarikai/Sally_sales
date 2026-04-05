@@ -2799,19 +2799,21 @@ def main():
                 '"locations": ["United Kingdom", "India"], "max_pages": 25}\''
             )
             sys.exit(1)
-        if "keyword_tags" not in args.filters:
-            print("ERROR: --filters must contain 'keyword_tags' list for --mode apollo")
+        # Merge: --filter-file company_filters as base, --filters as override
+        apollo_filters = filter_file_data.get("company_filters", {})
+        if args.filters:
+            apollo_filters.update(args.filters)
+        if "keyword_tags" not in apollo_filters:
+            print("ERROR: filters must contain 'keyword_tags' list for --mode apollo")
             sys.exit(1)
-        if "locations" not in args.filters:
-            print("ERROR: --filters must contain 'locations' list for --mode apollo")
+        if "locations" not in apollo_filters:
+            print("ERROR: filters must contain 'locations' list for --mode apollo")
             sys.exit(1)
-        segment = args.segment or "INFLUENCER_PLATFORMS"
-        if any(
-            kw in json.dumps(args.filters).lower()
-            for kw in ["agency", "agencies", "im_first"]
-        ):
-            segment = "IM_FIRST_AGENCIES"
-        mode_config = {"segment": segment, "filters": args.filters}
+        if not args.segment and not filter_file_data.get("segment"):
+            print("ERROR: --segment required for --mode apollo")
+            sys.exit(1)
+        segment = args.segment or filter_file_data.get("segment")
+        mode_config = {"segment": segment, "filters": apollo_filters}
     elif args.mode == "lookalike":
         if not args.examples:
             print("ERROR: --examples required for --mode lookalike")
