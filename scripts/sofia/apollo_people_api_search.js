@@ -214,9 +214,16 @@ async function main() {
   try {
     await login(page);
 
-    // Navigate to people page to establish session context
-    await page.goto('https://app.apollo.io/#/people', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await sleep(3000);
+    // Navigate to people page to establish session context + CSRF token
+    await page.goto('https://app.apollo.io/#/people', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await sleep(8000);
+
+    // Verify CSRF token exists
+    const csrfOk = await page.evaluate(() => {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      return meta ? meta.content.substring(0, 10) + '...' : 'NOT FOUND';
+    });
+    console.log(`[${ts()}] CSRF: ${csrfOk}`);
 
     const people = await searchPeople(page, domains, titles, seniorities, maxPages);
 
