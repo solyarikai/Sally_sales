@@ -245,7 +245,7 @@ GetSales CSV: [путь] (контакты без email)
 
 - `segment` — используется если не передан `--segment` (CLI имеет приоритет)
 - `company_filters` — для step 0 (gather). Ключи зависят от mode:
-  - Apollo: `keyword_tags`, `locations`, `sizes`, `excluded_keywords`, `max_pages`
+  - Apollo: `keyword_tags`, `locations` **(обязательно, минимум 1 страна)**, `sizes`, `excluded_keywords`, `max_pages`
   - Keywords: `description_keywords`, `description_keywords_exclude`, `industries`, `max_results`
   - Natural: `icp_text` или любые Clay-фильтры
 - `people_filters` — для step 9 (people search): `titles`, `seniorities`, `excluded_titles`
