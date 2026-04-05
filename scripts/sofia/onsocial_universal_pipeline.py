@@ -2257,7 +2257,7 @@ def upload_leads(campaign_id: int, contacts: list[dict]) -> int:
                 "custom_fields": {
                     "social_proof": c.get("social_proof", ""),
                     "title": c.get("title", ""),
-                    "country": c.get("country", ""),
+                    "country": c.get("company_country", "") or c.get("country", ""),
                     "segment": c.get("segment", ""),
                 },
             }
