@@ -1350,7 +1350,7 @@ def step8_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
 # ★ CP3: "Одобряете расходы на email enrichment?"
 # ══════════════════════════════════════════════════════════════════════════════
 
-APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
+APOLLO_SCRAPER_SCRIPT = "scripts/sofia/onsocial_apollo_scraper.js"
 APOLLO_PEOPLE_BATCH_SIZE = 30
 APOLLO_PEOPLE_MAX_PAGES = 5
 
