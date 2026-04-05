@@ -26,10 +26,11 @@ Python: `python3` (на Hetzner), `python3.11` (локально).
 
 | Параметр | Обязательный | Описание |
 |----------|-------------|----------|
-| `--project-id` | да | ID проекта из БД (OnSocial = ?) |
+| `--project-id` | да | ID проекта из БД (OnSocial = 42) |
 | `--mode` | да | `structured`, `natural`, `keywords`, `apollo`, `lookalike`, `expand` |
-| `--segment` | для structured | Slug сегмента: `influencer_platforms`, `im_first_agencies`, `affiliate_performance` |
-| `--filters` | для keywords/apollo | JSON с фильтрами |
+| `--segment` | да (кроме expand/lookalike) | Slug сегмента (любой — не захардкожен) |
+| `--filter-file` | рекомендуется | JSON файл с company_filters + people_filters + segment |
+| `--filters` | для keywords/apollo (если нет filter-file) | JSON с фильтрами (inline, можно комбинировать с filter-file) |
 | `--examples` | для lookalike | Домены через запятую |
 | `--base-run` | для expand | ID рана для клонирования |
 | `--from-step` | нет | Продолжить с шага: `start`, `people`, `findymail`, `sequences`, `smartlead` |
