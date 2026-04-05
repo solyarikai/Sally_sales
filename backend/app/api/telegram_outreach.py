@@ -622,8 +622,27 @@ async def delete_proxy(proxy_id: int, session: AsyncSession = Depends(get_sessio
     proxy = await session.get(TgProxy, proxy_id)
     if not proxy:
         raise HTTPException(404, "Proxy not found")
+
+    # Reassign accounts that had this proxy before deleting it
+    affected = await session.execute(
+        select(TgAccount).where(TgAccount.assigned_proxy_id == proxy_id)
+    )
+    reassigned = 0
+    for acc in affected.scalars().all():
+        acc.assigned_proxy_id = None
+        new_proxy = await _try_reassign_proxy(session, acc)
+        if new_proxy:
+            await _sync_proxy_to_dm_account(session, acc.phone, new_proxy)
+            reassigned += 1
+        else:
+            result = await _auto_assign_infatica_proxy(acc, session)
+            if result:
+                reassigned += 1
+            else:
+                await _sync_proxy_to_dm_account(session, acc.phone, None)
+
     await session.delete(proxy)
-    return {"ok": True}
+    return {"ok": True, "reassigned": reassigned}
 
 
 async def _check_single_proxy(proxy) -> dict:
@@ -773,7 +792,9 @@ async def test_account_proxy(account_id: int, session: AsyncSession = Depends(ge
 @router.post("/proxy-groups/{group_id}/check")
 async def check_proxy_group(group_id: int, auto_delete: bool = Query(False),
                              session: AsyncSession = Depends(get_session)):
-    """Check all proxies in a group. If auto_delete=true, remove dead proxies."""
+    """Check all proxies in a group concurrently. If auto_delete=true, remove dead proxies."""
+    import asyncio
+
     group = await session.get(TgProxyGroup, group_id)
     if not group:
         raise HTTPException(404, "Proxy group not found")
@@ -783,14 +804,22 @@ async def check_proxy_group(group_id: int, auto_delete: bool = Query(False),
     )
     proxies = list(result.scalars().all())
 
+    # Check all proxies concurrently (max 15 at a time)
+    sem = asyncio.Semaphore(15)
+
+    async def _check_limited(proxy):
+        async with sem:
+            return await _check_single_proxy(proxy)
+
+    checks = await asyncio.gather(*[_check_limited(p) for p in proxies])
+
     results = []
     alive_count = 0
     dead_count = 0
     deleted_ids = []
     reassign_accounts = []
 
-    for proxy in proxies:
-        check = await _check_single_proxy(proxy)
+    for proxy, check in zip(proxies, checks):
         proxy.is_active = check["alive"]
         proxy.last_checked_at = func.now()
 
