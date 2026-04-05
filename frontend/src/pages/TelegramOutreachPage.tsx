@@ -14,6 +14,7 @@ import { cn } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useToast } from '../components/Toast';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { telegramOutreachApi } from '../api/telegramOutreach';
 import { useAppStore } from '../store/appStore';
 import { contactsApi } from '../api/contacts';
@@ -1887,6 +1888,8 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   // Staggered operation progress
   const [staggeredTask, setStaggeredTask] = useState<{ taskId: string; operation: string; total: number; completed: number; synced: number; errors: string[]; status: string; currentPhone: string | null; nextDelay: number } | null>(null);
+  // Custom confirm dialog for staggered operations
+  const [pendingStaggered, setPendingStaggered] = useState<{ label: string; message: string; fn: () => Promise<any> } | null>(null);
   const staggeredPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const staggeredPollFailRef = useRef(0);
 
@@ -1912,14 +1915,8 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
 
   const _STAGGER_AVG = 75; // avg delay seconds for time estimation
 
-  /** Run a profile-changing operation that returns task_id for staggered TG sync */
-  const runStaggered = async (label: string, fn: () => Promise<any>) => {
-    const estMinutes = Math.ceil(ids.length * (_STAGGER_AVG) / 60);
-    if (!window.confirm(
-      `⚠ Profile change: "${label}" for ${ids.length} accounts.\n\n` +
-      `To avoid bans, Telegram sync will run with 30-120s delays between accounts.\n` +
-      `Estimated time: ~${estMinutes} min.\n\nDB changes apply immediately. Continue?`
-    )) return;
+  /** Execute a confirmed staggered operation */
+  const executeStaggered = async (label: string, fn: () => Promise<any>) => {
     setLoading(true);
     try {
       const res = await fn();
@@ -1960,6 +1957,16 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
       }
     } catch { toast(`Failed: ${label}`, 'error'); }
     finally { setLoading(false); }
+  };
+
+  /** Show confirm dialog before running a staggered operation */
+  const runStaggered = (label: string, fn: () => Promise<any>) => {
+    const estMinutes = Math.ceil(ids.length * (_STAGGER_AVG) / 60);
+    setPendingStaggered({
+      label,
+      message: `Profile change: "${label}" for ${ids.length} accounts.\n\nTo avoid bans, Telegram sync will run with 30-120s delays between accounts.\nEstimated time: ~${estMinutes} min.\n\nDB changes apply immediately. Continue?`,
+      fn,
+    });
   };
 
   const btnCls = 'flex items-center gap-1.5 px-2.5 py-[5px] rounded-md border text-[12px] font-medium transition-colors disabled:opacity-40';
@@ -2305,6 +2312,23 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           </div>
         </div>
       )}
+
+      {/* Custom confirm dialog for staggered operations */}
+      <ConfirmDialog
+        isOpen={!!pendingStaggered}
+        title="Profile Change"
+        message={pendingStaggered?.message || ''}
+        confirmText="Continue"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={() => {
+          if (pendingStaggered) {
+            executeStaggered(pendingStaggered.label, pendingStaggered.fn);
+          }
+          setPendingStaggered(null);
+        }}
+        onCancel={() => setPendingStaggered(null)}
+      />
     </div>
   );
 }
@@ -4372,6 +4396,7 @@ function CustomFieldsTab({ toast }: { toast: (msg: string, type?: 'success' | 'e
   const [formType, setFormType] = useState('text');
   const [formOptions, setFormOptions] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleteFieldId, setDeleteFieldId] = useState<number | null>(null);
 
   const loadFields = useCallback(async () => {
     try {
@@ -4428,12 +4453,17 @@ function CustomFieldsTab({ toast }: { toast: (msg: string, type?: 'success' | 'e
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this custom field and all its values?')) return;
+    setDeleteFieldId(id);
+  };
+
+  const confirmDeleteField = async () => {
+    if (deleteFieldId === null) return;
     try {
-      await telegramOutreachApi.deleteCustomField(id);
+      await telegramOutreachApi.deleteCustomField(deleteFieldId);
       toast('Field deleted', 'success');
       loadFields();
     } catch { toast('Failed to delete', 'error'); }
+    setDeleteFieldId(null);
   };
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: A.text2 }} /></div>;
@@ -4576,6 +4606,18 @@ function CustomFieldsTab({ toast }: { toast: (msg: string, type?: 'success' | 'e
           </div>
         </div>
       )}
+
+      {/* Custom confirm dialog for field deletion */}
+      <ConfirmDialog
+        isOpen={deleteFieldId !== null}
+        title="Delete Field"
+        message="Delete this custom field and all its values?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDeleteField}
+        onCancel={() => setDeleteFieldId(null)}
+      />
     </div>
   );
 }
