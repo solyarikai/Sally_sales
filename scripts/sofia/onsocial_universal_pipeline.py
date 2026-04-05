@@ -2702,6 +2702,23 @@ def main():
     config = ProjectConfig(args.project_id)
     config.load()
 
+    # Load filter-file (company_filters + people_filters + segment)
+    filter_file_data = {}
+    if args.filter_file:
+        filter_file_data = json.loads(
+            Path(args.filter_file).read_text(encoding="utf-8")
+        )
+        print(f"  Filter file loaded: {args.filter_file}")
+        if "people_filters" in filter_file_data:
+            print(
+                f"    People filters: {len(filter_file_data['people_filters'].get('titles', []))} titles, "
+                f"{len(filter_file_data['people_filters'].get('seniorities', []))} seniorities"
+            )
+    # Store people_filters on config for step9
+    config.people_filters = filter_file_data.get(
+        "people_filters", DEFAULT_PEOPLE_FILTERS
+    )
+
     # Custom prompt override
     prompt_text = None
     if args.prompt_file:
