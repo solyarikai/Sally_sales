@@ -229,7 +229,9 @@ GetSales CSV: [путь] (контакты без email)
   - Natural: `icp_text` или любые Clay-фильтры
 - `people_filters` — для step 9 (people search): `titles`, `seniorities`, `excluded_titles`
 - `--filters` (inline) мерджится поверх `company_filters` из файла
-- Файлы хранятся в `sofia/projects/<PROJECT>/filters/`
+- Файлы хранятся в `magnum-opus/scripts/sofia/filters/`
+- Именование: `<project>_<segment>_<version>.json` (например `onsocial_imagency_v4.json`)
+- На Hetzner доступны после `git pull` — не нужен SCP
 
 ---
 
