@@ -112,6 +112,14 @@ Universal Lead Generation Pipeline
   Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
 
 ═══════════════════════════════════════════════════════════
+  FILTER FILES
+═══════════════════════════════════════════════════════════
+
+  Хранятся в scripts/sofia/filters/ (рядом с этим скриптом).
+  Именование: <project>_<segment>_<version>.json
+  Формат: {"segment": "...", "company_filters": {...}, "people_filters": {...}}
+
+═══════════════════════════════════════════════════════════
   USAGE
 ═══════════════════════════════════════════════════════════
 
