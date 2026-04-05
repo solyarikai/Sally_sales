@@ -33,6 +33,30 @@
       "env": {
         "SMARTLEAD_API_KEY": "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
       }
+    },
+    "findymail": {
+      "type": "stdio",
+      "command": "/Users/user/sales_engineer/.claude/mcp/findymail-mcp/.venv/bin/python3",
+      "args": ["/Users/user/sales_engineer/.claude/mcp/findymail-mcp/server.py"],
+      "env": {
+        "FINDYMAIL_API_KEY": "dSxRrqArQIsG2E5zba36HLTy0pBk1bGZra5ZDtykea70c139"
+      }
+    },
+    "getsales": {
+      "type": "stdio",
+      "command": "/Users/user/sales_engineer/.claude/mcp/getsales-mcp/.venv/bin/python3",
+      "args": ["/Users/user/sales_engineer/.claude/mcp/getsales-mcp/server.py"],
+      "env": {
+        "GETSALES_API_TOKEN": ""
+      }
+    },
+    "transkriptor": {
+      "type": "stdio",
+      "command": "/Users/user/sales_engineer/.claude/mcp/transkriptor-mcp/.venv/bin/python3",
+      "args": ["/Users/user/sales_engineer/.claude/mcp/transkriptor-mcp/server.py"],
+      "env": {
+        "TRANSKRIPTOR_API_KEY": ""
+      }
     }
   }
 }
