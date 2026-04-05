@@ -2619,11 +2619,7 @@ def mode4_expand(base_run_id: int, overrides: dict) -> dict:
         sys.exit(1)
 
     new_filters = {**base_filters, **overrides}
-    segment = "INFLUENCER_PLATFORMS"
-    if "agencies" in notes.lower() or "IM_FIRST" in str(
-        base_filters.get("icp_text", "")
-    ):
-        segment = "IM_FIRST_AGENCIES"
+    segment = overrides.get("segment", base_filters.get("segment", "UNKNOWN"))
 
     print(f"  Base: {notes}")
     print(f"  Overrides: {json.dumps(overrides, indent=2)}")
