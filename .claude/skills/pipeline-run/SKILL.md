@@ -167,12 +167,17 @@ python3 universal_pipeline.py --project-id <ID> --mode <MODE> --dry-run \
 ### Перед запуском проверь
 
 1. Backend работает: `ssh hetzner "curl -s localhost:8000/health"`
-2. SCP скрипт и filter-file на Hetzner:
+2. SCP filter-file на Hetzner (новые файлы — прямой SCP):
    ```bash
-   scp magnum-opus/scripts/sofia/onsocial_universal_pipeline.py hetzner:~/magnum-opus-project/repo/scripts/sofia/
+   ssh hetzner "mkdir -p ~/magnum-opus-project/repo/scripts/sofia/filters"
    scp magnum-opus/scripts/sofia/filters/<filter>.json hetzner:~/magnum-opus-project/repo/scripts/sofia/filters/
    ```
-   SCP быстрее и точнее чем git pull — копируешь только нужные файлы.
+3. SCP скрипт на Hetzner (файлы root — через docker workaround):
+   ```bash
+   scp magnum-opus/scripts/sofia/onsocial_universal_pipeline.py hetzner:/tmp/onsocial_universal_pipeline.py
+   ssh hetzner "docker run --rm -v /home/leadokol/magnum-opus-project/repo/scripts/sofia:/target -v /tmp:/src alpine cp /src/onsocial_universal_pipeline.py /target/onsocial_universal_pipeline.py"
+   ```
+   Файлы на Hetzner принадлежат root — обычный SCP/cp не работает. Docker mount обходит это.
 
 ### Чекпоинты (★ CP)
 
