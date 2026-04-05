@@ -377,8 +377,18 @@ class SendingWorker:
             await session.commit()
 
     async def _recheck_spamblocked_accounts(self):
-        """Recheck temporarily spamblocked and frozen accounts — try to connect and check @SpamBot."""
+        """Recheck temporarily spamblocked and frozen accounts.
+
+        FROZEN accounts: do NOT hit @SpamBot (freeze ≠ spamblock).
+        Just check if freeze_until has passed, reactivate if so. Recheck once per 24h.
+
+        TEMP_SPAMBLOCKED accounts: check via @SpamBot no more than once per 4h.
+        """
         logger.info("Rechecking spamblocked/frozen accounts...")
+        now = datetime.utcnow()
+        FROZEN_RECHECK_HOURS = 24
+        SPAMBLOCK_RECHECK_HOURS = 4
+
         async with async_session_maker() as session:
             result = await session.execute(
                 select(TgAccount).where(
@@ -394,16 +404,58 @@ class SendingWorker:
             accounts = result.scalars().all()
 
             if not accounts:
-                logger.info("No temporarily spamblocked accounts to recheck")
+                logger.info("No temporarily spamblocked/frozen accounts to recheck")
                 return
 
             reactivated = 0
+            checked = 0
+            skipped = 0
+
             for account in accounts:
+                # ── FROZEN accounts: date-based only, no SpamBot ─────────
+                if account.status == TgAccountStatus.FROZEN:
+                    # Throttle: only recheck every 24h
+                    if account.last_spambot_check_at:
+                        hours_since = (now - account.last_spambot_check_at).total_seconds() / 3600
+                        if hours_since < FROZEN_RECHECK_HOURS:
+                            skipped += 1
+                            continue
+
+                    account.last_spambot_check_at = now
+
+                    # If freeze_until has not passed yet, skip
+                    if account.freeze_until and account.freeze_until > now:
+                        logger.debug(
+                            f"Account {account.phone} still frozen until {account.freeze_until}"
+                        )
+                        continue
+
+                    # Freeze period expired — reactivate without hitting SpamBot
+                    account.status = TgAccountStatus.ACTIVE
+                    account.freeze_since = None
+                    account.freeze_until = None
+                    account.last_checked_at = now
+                    reactivated += 1
+                    logger.info(
+                        f"Account {account.phone} freeze expired — reactivated (no SpamBot check)"
+                    )
+                    continue
+
+                # ── TEMP_SPAMBLOCKED accounts: SpamBot check, throttled to 4h ──
+                if account.last_spambot_check_at:
+                    hours_since = (now - account.last_spambot_check_at).total_seconds() / 3600
+                    if hours_since < SPAMBLOCK_RECHECK_HOURS:
+                        skipped += 1
+                        continue
+
                 if not account.api_id or not account.api_hash:
                     continue
                 if not telegram_engine.session_file_exists(account.phone):
                     continue
+
                 try:
+                    account.last_spambot_check_at = now
+                    checked += 1
                     check = await telegram_engine.check_account(
                         account.id,
                         phone=account.phone,
@@ -419,21 +471,23 @@ class SendingWorker:
                     if check.get("banned"):
                         account.status = TgAccountStatus.BANNED
                         account.ban_reason = check.get("ban_reason")
-                        account.banned_at = datetime.utcnow()
+                        account.banned_at = now
                         logger.warning(f"Account {account.phone} permanent ban detected during recheck")
                     elif check.get("spamblock", "unknown") == "none" and check.get("authorized"):
                         account.status = TgAccountStatus.ACTIVE
                         account.spamblock_type = TgSpamblockType.NONE
-                        account.last_checked_at = datetime.utcnow()
+                        account.last_checked_at = now
                         reactivated += 1
                         logger.info(f"Account {account.phone} spamblock lifted — reactivated!")
                     await telegram_engine.disconnect(account.id)
                 except Exception as e:
                     logger.debug(f"Recheck failed for {account.phone}: {e}")
 
-            if reactivated:
-                await session.commit()
-            logger.info(f"Spamblock recheck done: {reactivated}/{len(accounts)} reactivated")
+            await session.commit()
+            logger.info(
+                f"Spamblock recheck done: {reactivated} reactivated, "
+                f"{checked} SpamBot-checked, {skipped} throttled (of {len(accounts)} total)"
+            )
 
     # ── Campaign processing ───────────────────────────────────────────
 

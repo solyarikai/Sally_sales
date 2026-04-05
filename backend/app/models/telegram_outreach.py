@@ -191,6 +191,7 @@ class TgAccount(Base, TimestampMixin):
     freeze_since = Column(DateTime, nullable=True)
     freeze_until = Column(DateTime, nullable=True)
     freeze_appeal_url = Column(String(500), nullable=True)
+    last_spambot_check_at = Column(DateTime, nullable=True)
 
     # Relationships
     proxy_group = relationship("TgProxyGroup", back_populates="accounts")
