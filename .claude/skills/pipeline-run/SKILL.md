@@ -164,6 +164,17 @@ python3 universal_pipeline.py --project-id <ID> --mode <MODE> --dry-run \
 - Env: `set -a && source .env && set +a` перед запуском
 - Python: `python3` (на Hetzner), `python3.11` (локально)
 
+### Архитектура Step 0 (Gather)
+
+| Mode | Как работает | Скрипты |
+|------|-------------|---------|
+| Clay (structured/natural/keywords) | Через **backend API** (`/pipeline/gathering/start`) → Clay Emulator внутри Docker-контейнера `leadgen-backend`. Clay session хранится внутри контейнера (`/scripts/clay/clay_session.json`). | Не вызывает JS-скрипты напрямую |
+| Apollo (`--mode apollo`) | Пайплайн вызывает **JS-скрипт через subprocess** из `scripts/sofia/`. Puppeteer логинится в Apollo UI, использует internal API. | `scripts/sofia/onsocial_apollo_companies_search.js` |
+| Lookalike | Через **backend API** + DB lookup примеров. | Не вызывает JS-скрипты напрямую |
+
+**Рабочие JS-скрипты** (Apollo) живут в `scripts/sofia/` на Hetzner — не трогать оригиналы в `scripts/`.
+**Clay JS-скрипты** (`onsocial_clay_*.js`) в `scripts/sofia/` — standalone бэкапы, не используются пайплайном (Clay идёт через backend).
+
 ### Перед запуском проверь
 
 1. Backend работает: `ssh hetzner "curl -s localhost:8000/health"`
