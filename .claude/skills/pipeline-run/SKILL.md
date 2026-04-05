@@ -73,18 +73,18 @@ python3 universal_pipeline.py --project-id <ID> --re-analyze --run-id <RUN_ID> -
 
 ```json
 {
-  "segment": "IM_FIRST_AGENCIES",
+  "segment": "<SEGMENT_SLUG>",
   "company_filters": {
-    "keyword_tags": ["influencer marketing agency", "creator agency"],
-    "locations": ["United States", "United Kingdom"],
-    "sizes": ["10,50", "51,200", "201,500"],
-    "excluded_keywords": ["SEO agency", "PR agency"],
+    "keyword_tags": ["keyword1", "keyword2"],
+    "locations": ["Country1", "Country2"],
+    "sizes": ["10,50", "51,200"],
+    "excluded_keywords": ["exclude1", "exclude2"],
     "max_pages": 25
   },
   "people_filters": {
-    "titles": ["CEO", "Founder", "Managing Director"],
+    "titles": ["Title1", "Title2"],
     "seniorities": ["founder", "c_suite", "vp", "director", "owner", "head", "partner"],
-    "excluded_titles": ["Intern", "Junior", "Campaign Manager"]
+    "excluded_titles": ["ExcludedTitle1", "ExcludedTitle2"]
   }
 }
 ```
@@ -93,7 +93,7 @@ python3 universal_pipeline.py --project-id <ID> --re-analyze --run-id <RUN_ID> -
 - `company_filters` — передаётся в step0 gather (Apollo/Clay)
 - `people_filters` — передаётся в step9 people search (titles, seniorities для Apollo UI)
 - `--filters` (inline) мерджится поверх `company_filters` из файла
-- Файлы хранятся в `sofia/projects/OnSocial/filters/`
+- Файлы хранятся в `sofia/projects/<PROJECT>/filters/`
 
 ---
 
