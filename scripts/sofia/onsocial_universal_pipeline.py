@@ -1482,6 +1482,8 @@ def _run_apollo_scraper(
         "--output",
         output_path,
     ]
+    if profile:
+        args.extend(["--profile", profile])
     try:
         result = subprocess.run(
             args,
