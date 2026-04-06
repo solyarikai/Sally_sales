@@ -38,7 +38,7 @@
 >
 > When MCI sends a client a creator performance report - does it come from your own platform, or are you exporting from someone else's tool?
 >
-> Account teams at teams like KlugKlug, Qoruz and TRIBEGroup switched to white-label analytics. Client sees MCI's brand, not a third party. Retention went up - clients build workflows around your tool and switching cost increases.
+> Account teams at Phyllo, KlugKlug, Qoruz and TRIBEGroup switched to white-label analytics. Client sees MCI's brand, not a third party. Retention went up - clients build workflows around your tool and switching cost increases.
 >
 > Quick 15-min call to see if it fits?
 
