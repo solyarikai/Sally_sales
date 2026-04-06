@@ -71,7 +71,7 @@
     "linear-getsally": {
       "type": "stdio",
       "command": "node",
-      "args": ["/Users/user/.nvm/versions/node/v20.19.6/lib/node_modules/linear-mcp/build/index.js"],
+      "args": ["/Users/user/sales_engineer/.claude/mcp/linear-getsally/node_modules/linear-mcp/build/index.js"],
       "env": {
         "LINEAR_API_KEY": "lin_api_PGUGpz14xDFwfLyAPwcUb7VtzkW15OlRRPiVaLjB"
       }
