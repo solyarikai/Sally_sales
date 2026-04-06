@@ -2,14 +2,44 @@
 
 This CLAUDE.md applies to ALL projects under sales_engineer/ (magnum-opus, sofia, scripts, etc.).
 
-## Google Sheets — READ & WRITE
+## Google Sheets & Drive — MCP Server (25 tools)
 
-**Google Sheets MCP server is NOT currently connected.** Use `python3.11` with OAuth2 credentials from `.claude/google-sheets/token.json` directly.
-- Scopes: `spreadsheets` + `drive` (NOT `drive.readonly` — token will fail to refresh)
-- Auth pattern: `Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)` → refresh if expired → `build('sheets', 'v4', credentials=creds)`
-- Create: `spreadsheets().create(body={'properties': {'title': name}})`
-- Write: `spreadsheets().values().update(spreadsheetId=id, range='A1', valueInputOption='RAW', body={'values': data})`
-- Read: `spreadsheets().values().get(spreadsheetId=id, range='A1:Z5000')`
+**Google Sheets + Drive MCP server is connected** via `.claude/mcp.json` → `google-sheets`.
+- Server: `.claude/mcp/google-sheets/server.py`
+- Scopes: `spreadsheets` + `drive` (full, NOT `drive.readonly`)
+- Auth: OAuth2 credentials from `.claude/mcp/google-sheets/token.json`
+
+### Available MCP Tools
+
+**Sheets — Data (8 tools):**
+- `sheets_read_range` — read cells (supports as_json mode)
+- `sheets_write_range` — write/overwrite cells
+- `sheets_append_rows` — append rows after last filled row
+- `sheets_search` — search text across sheet/tab
+- `sheets_clear_range` — clear values in range
+- `sheets_list_sheets` — list tabs in a spreadsheet
+- `sheets_list_my_spreadsheets` — find spreadsheets by name
+- `sheets_create_spreadsheet` — create new spreadsheet
+
+**Sheets — Structure (8 tools):**
+- `sheets_add_tab` / `sheets_delete_tab` / `sheets_rename_tab` / `sheets_duplicate_tab` — manage tabs
+- `sheets_get_metadata` / `sheets_update_metadata` — title, locale, timezone
+- `sheets_sort_range` — sort by column
+- `sheets_auto_resize` — auto-fit column widths
+- `sheets_format_range` — bold, background color
+
+**Drive (9 tools):**
+- `drive_create_folder` — create folder
+- `drive_move_file` — move file to folder (for Dual Save Rule)
+- `drive_list_folder` — list folder contents
+- `drive_search_files` — search files by name
+- `drive_get_file_info` — file metadata
+- `drive_delete_file` — trash file (recoverable)
+- `drive_share_file` — share with email
+- `drive_copy_file` — copy file
+
+**Always use MCP tools instead of writing Python scripts for Google Sheets/Drive operations.**
+Fallback to Python only for unsupported operations (conditional formatting, charts, etc.).
 
 **NEVER use service account / Docker for Google Sheets.**
 
@@ -82,7 +112,19 @@ Contacts without email from Findymail → auto-export to GetSales-ready CSV in `
 
 | Directory | What |
 |-----------|------|
-| `magnum-opus/` | Backend (FastAPI + SQLAlchemy), gathering pipeline, API |
+| `magnum-opus/` | Backend (FastAPI + SQLAlchemy), gathering pipeline, API — **GIT SUBMODULE** |
 | `sofia/` | Sales ops: scripts, sequences, research, projects |
 | `sofia/projects/OnSocial/` | OnSocial-specific sequences, docs, segments |
 | `sofia/smartlead-hub/` | SmartLead campaigns, sequences, lead data |
+| `tam-guide/` | Training/onboarding materials (HTML lessons) |
+| `scripts/` | Shared utility scripts |
+| `.claude/mcp/` | All MCP servers (apollo, crona, google-sheets, smartlead, findymail, getsales, transkriptor) |
+| `.claude/skills/` | Shared Claude Code skills |
+
+## Git Structure
+
+- **Parent repo** (`sales_engineer/`): GitHub
+- **Submodule** (`magnum-opus/`): GitLab (`git@gitlab.com:sally-saas/magnum-opus.git`)
+- Always push submodule FIRST, then parent
+- Always check `git submodule status` before git operations
+- API keys are per-project (OnSocial, TAM, etc.) — never change globally

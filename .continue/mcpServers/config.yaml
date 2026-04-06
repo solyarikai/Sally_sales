@@ -1,0 +1,16 @@
+mcpServers:
+  google-sheets:
+    command: python3
+    args:
+      - .claude/google-sheets/server.py
+  apollo:
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-apollo"
+  filesystem:
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - .
