@@ -24,19 +24,19 @@ description: >-
    Нужно: keyword_tags + locations + sizes
    Когда: у тебя есть точные ключевые слова для поиска компаний
 
-2. Clay Keywords (--mode keywords) — ~$0.01/компания
-   Прямой поиск по description_keywords через Clay.
+2. Clay Keywords (--mode keywords) — БЕСПЛАТНО
+   Прямой поиск по description_keywords через Clay (Puppeteer, без email = без кредитов).
    Нужно: description_keywords + industries
    Когда: ищешь по описаниям компаний, а не по тегам Apollo
 
-3. Clay ICP (--mode structured / --mode natural) — ~$0.01/компания
-   AI (Gemini) конвертирует текстовое описание ICP в Clay фильтры.
+3. Clay ICP (--mode structured / --mode natural) — БЕСПЛАТНО
+   AI (Gemini) конвертирует текстовое описание ICP в Clay фильтры, затем Puppeteer.
    Для structured: сегмент должен быть в БД (kb_segments)
    Для natural: передай ICP текстом через --filters
    Когда: первый поиск, когда фильтры ещё не определены
 
-4. Lookalike (--mode lookalike) — ~$0.01/компания
-   Reverse-engineering фильтров по примерам доменов.
+4. Lookalike (--mode lookalike) — БЕСПЛАТНО
+   Reverse-engineering фильтров по примерам доменов (через Clay Puppeteer).
    Нужно: 3-10 доменов компаний-примеров
    Когда: знаешь хорошие компании, хочешь найти похожие
 
