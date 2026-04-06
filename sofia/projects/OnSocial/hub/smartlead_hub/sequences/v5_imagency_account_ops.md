@@ -95,6 +95,266 @@ Bhaskar
 
 ---
 
+## Rendered Emails by Geo-Cluster
+
+### UK+IE
+
+**Email 1** — Subject: `client reporting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> UK agencies plan to scale creator programs 50%+ this year
+>
+> One question: when {{company_name}} sends a client a creator performance report - does it come from your own platform, or are you exporting from someone else's tool?
+>
+> Account teams at Whalar, InfluencerUK, LADbible and Billion Dollar Boy switched to white-label analytics. Client sees {{company_name}}'s brand, not a third party. Retention went up - clients build workflows around your tool and switching cost increases.
+>
+> Quick 15-min call to see if it fits?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, short follow-up.
+>
+> The #1 reason agencies lose clients to in-house teams: the client realizes they can buy the same tools directly. White-label removes that risk.
+>
+> We cover 450M+ profiles across IG, TikTok and YouTube - fraud scoring, audience demographics, city-level data. All under your brand.
+>
+> For account teams balancing influencer freedom with brand safety - this changes the conversation from "what tools do you use" to "show me your platform."
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, last one from me.
+>
+> If client analytics aren't a current priority - no worries. But if there's someone else at {{company_name}} who handles tool decisions or client reporting infrastructure, happy to connect with them.
+>
+> Wishing {{company_name}} continued growth either way.
+>
+> Bhaskar
+
+---
+
+### DACH+Nordics+NL+BE
+
+**Email 1** — Subject: `client reporting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> 51% of Nordic marketers say data reliability is their top challenge
+>
+> One question: when {{company_name}} sends a client a creator performance report - does it come from your own platform, or are you exporting from someone else's tool?
+>
+> Account teams at Zalando, Linkster, Intermate and Gocomo switched to white-label analytics. Client sees {{company_name}}'s brand, not a third party. Retention went up - clients build workflows around your tool and switching cost increases.
+>
+> Quick 15-min call to see if it fits?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, short follow-up.
+>
+> The #1 reason agencies lose clients to in-house teams: the client realizes they can buy the same tools directly. White-label removes that risk.
+>
+> We cover 450M+ profiles across IG, TikTok and YouTube - fraud scoring, audience demographics, city-level data. All under your brand.
+>
+> For account teams finding verified creators with reliable audience data - this changes the conversation from "what tools do you use" to "show me your platform."
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, last one from me.
+>
+> If client analytics aren't a current priority - no worries. But if there's someone else at {{company_name}} who handles tool decisions or client reporting infrastructure, happy to connect with them.
+>
+> Wishing {{company_name}} continued growth either way.
+>
+> Bhaskar
+
+---
+
+### Southern EU
+
+**Email 1** — Subject: `client reporting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> IM budgets across Southern Europe are growing - but so is cost inflation
+>
+> One question: when {{company_name}} sends a client a creator performance report - does it come from your own platform, or are you exporting from someone else's tool?
+>
+> Account teams at Kolsquare, Ykone, SAMYGroup and Favikon switched to white-label analytics. Client sees {{company_name}}'s brand, not a third party. Retention went up - clients build workflows around your tool and switching cost increases.
+>
+> Quick 15-min call to see if it fits?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, short follow-up.
+>
+> The #1 reason agencies lose clients to in-house teams: the client realizes they can buy the same tools directly. White-label removes that risk.
+>
+> We cover 450M+ profiles across IG, TikTok and YouTube - fraud scoring, audience demographics, city-level data. All under your brand.
+>
+> For account teams facing rising influencer costs with no clear ROI proof - this changes the conversation from "what tools do you use" to "show me your platform."
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, last one from me.
+>
+> If client analytics aren't a current priority - no worries. But if there's someone else at {{company_name}} who handles tool decisions or client reporting infrastructure, happy to connect with them.
+>
+> Wishing {{company_name}} continued growth either way.
+>
+> Bhaskar
+
+---
+
+### CEE+Turkey
+
+**Email 1** — Subject: `client reporting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> Buying popularity is easy - proving engagement is real is the hard part
+>
+> One question: when {{company_name}} sends a client a creator performance report - does it come from your own platform, or are you exporting from someone else's tool?
+>
+> Account teams at Traackr, Audiense and Upfluence switched to white-label analytics. Client sees {{company_name}}'s brand, not a third party. Retention went up - clients build workflows around your tool and switching cost increases.
+>
+> Quick 15-min call to see if it fits?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, short follow-up.
+>
+> The #1 reason agencies lose clients to in-house teams: the client realizes they can buy the same tools directly. White-label removes that risk.
+>
+> We cover 450M+ profiles across IG, TikTok and YouTube - fraud scoring, audience demographics, city-level data. All under your brand.
+>
+> For account teams verifying real engagement when fake followers are everywhere - this changes the conversation from "what tools do you use" to "show me your platform."
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, last one from me.
+>
+> If client analytics aren't a current priority - no worries. But if there's someone else at {{company_name}} who handles tool decisions or client reporting infrastructure, happy to connect with them.
+>
+> Wishing {{company_name}} continued growth either way.
+>
+> Bhaskar
+
+---
+
+### India+APAC
+
+**Email 1** — Subject: `client reporting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> IM agencies run on 15-25% margins - white-label data keeps clients seeing you as the source
+>
+> One question: when {{company_name}} sends a client a creator performance report - does it come from your own platform, or are you exporting from someone else's tool?
+>
+> Account teams at Phyllo, KlugKlug, Qoruz and TRIBEGroup switched to white-label analytics. Client sees {{company_name}}'s brand, not a third party. Retention went up - clients build workflows around your tool and switching cost increases.
+>
+> Quick 15-min call to see if it fits?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, short follow-up.
+>
+> The #1 reason agencies lose clients to in-house teams: the client realizes they can buy the same tools directly. White-label removes that risk.
+>
+> We cover 450M+ profiles across IG, TikTok and YouTube - fraud scoring, audience demographics, city-level data. All under your brand.
+>
+> For account teams protecting margins when clients ask to see the data source - this changes the conversation from "what tools do you use" to "show me your platform."
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, last one from me.
+>
+> If client analytics aren't a current priority - no worries. But if there's someone else at {{company_name}} who handles tool decisions or client reporting infrastructure, happy to connect with them.
+>
+> Wishing {{company_name}} continued growth either way.
+>
+> Bhaskar
+
+---
+
+### MENA+LATAM+Africa
+
+**Email 1** — Subject: `client reporting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> Running creator campaigns across markets means fragmented data - unless you have one API
+>
+> One question: when {{company_name}} sends a client a creator performance report - does it come from your own platform, or are you exporting from someone else's tool?
+>
+> Account teams at ArabyAds and Sociata switched to white-label analytics. Client sees {{company_name}}'s brand, not a third party. Retention went up - clients build workflows around your tool and switching cost increases.
+>
+> Quick 15-min call to see if it fits?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, short follow-up.
+>
+> The #1 reason agencies lose clients to in-house teams: the client realizes they can buy the same tools directly. White-label removes that risk.
+>
+> We cover 450M+ profiles across IG, TikTok and YouTube - fraud scoring, audience demographics, city-level data. All under your brand.
+>
+> For account teams getting reliable creator data across multiple markets from one source - this changes the conversation from "what tools do you use" to "show me your platform."
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: client reporting - {{company_name}}`
+
+> Hi {{first_name}}, last one from me.
+>
+> If client analytics aren't a current priority - no worries. But if there's someone else at {{company_name}} who handles tool decisions or client reporting infrastructure, happy to connect with them.
+>
+> Wishing {{company_name}} continued growth either way.
+>
+> Bhaskar
+
+---
+
 ## Notes
 
 - No em dashes. Use regular dashes.
