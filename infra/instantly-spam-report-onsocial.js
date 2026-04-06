@@ -49,19 +49,11 @@ async function sendSlack(webhook, testId, stats) {
     for (const s of bad.sort((a, b) => a.deliverability - b.deliverability)) {
       text += '  ' + s.email + ' - ' + s.deliverability + '%\n';
     }
+    text += '\n';
   }
 
-  const warn = good.filter(s => s.deliverability < 100);
-  if (warn.length > 0) {
-    text += '\n:eyes: *Ящики < 100% (но выше 80%):*\n';
-    for (const s of warn.sort((a, b) => a.deliverability - b.deliverability)) {
-      text += '  ' + s.email + ' - ' + s.deliverability + '%\n';
-    }
-  }
-
-  const perfect = good.filter(s => s.deliverability === 100);
-  if (perfect.length > 0) {
-    text += '\n:white_check_mark: Здоровые ящики: ' + perfect.length + ' из ' + total + '\n';
+  if (good.length > 0) {
+    text += ':white_check_mark: Здоровые ящики: ' + good.length + ' из ' + total + '\n';
   }
 
   if (total === 0) {
