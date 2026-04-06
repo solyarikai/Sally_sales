@@ -52,14 +52,16 @@ status: active
 - Capacity: 750 emails/day (target 1,500 by April 2026)
 - Tiered allocation: T1 67%, T2 27%, T3 6%
 
-## IMAGENCY Europe (In Progress — April 2026)
+## IMAGENCY v5 (In Progress — April 2026, branch: feat/imagency-v5-sequences)
 
-- 1,441 leads dataset, 90.7% active (1,307)
-- 3 clusters: Founders/C-Suite (292), Creative Leadership (139), Account/Ops (876)
-- 134 Art Directors/Copywriters excluded (non-decision makers)
-- Geographic distribution: UK 10.2%, Germany 9.4%, France 5.8%, rest MENA/APAC/LATAM
-- 6 regional custom field clusters with geo-specific social proof
-- Enrichment: 370/458 companies matched via Apollo (81%)
+- **1,521 leads** (merged: 1,441 original + 80 new from Mindshare/VaynerMedia/NewGen batch)
+- 3 DM clusters: Founders/C-Suite (348), Creative Leadership (141), Account/Ops (898)
+- 134 excluded (Art Directors/Copywriters — non-decision makers) → GetSales
+- 6 geo clusters with corrected social proof: UK+IE, DACH+Nordics, Southern EU, CEE+Turkey, India+APAC, MENA+LATAM
+- Geo: 52% from person location fallback (accepted), 48% from company HQ
+- SmartLead CSVs ready: `/tmp/smartlead_ready/` on Hetzner — NOT uploaded yet (custom fields under review)
+- Sender: Bhaskar from OnSocial (was Daniil — fixed in v5)
+- New in v5 sequences: "One question:" bridge, corrected custom2 (no "teams like" prefix), region-specific clients
 
 ## Aggregate Numbers (as of late March 2026)
 
