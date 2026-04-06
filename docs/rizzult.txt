@@ -1,5 +1,0 @@
-see https://docs.google.com/spreadsheets/d/1Zg-ER4ZlhlHuLFWya_ROi5VuMJ6ld_ERh3ONcB2sJ3s/edit?gid=1599376288#gid=1599376288
-
-only ready from this google sheet, don't write anything, see replies in this google sheet and also see n8n_references_rizzult dir for examples of wokring n8n auatomations providing such results as replies in the sheets above
-
-compare the data you gathered wuth this data and this data gathering process, make sure you catch all replies as n8n does, but be better use not only webshooks but polling each 30minutes for each campaing as well. why not?

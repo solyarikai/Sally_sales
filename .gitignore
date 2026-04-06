@@ -40,6 +40,28 @@ scripts/*.json
 bugs/
 screenshots/
 
+# magnum-opus duplicates (code lives in magnum-opus/ submodule only)
+backend/
+checks/
+docs/
+easystaff-global/
+extensions/
+frontend/
+gathering-dach/
+gathering-data/
+infra/
+mcp/
+moltbot-monitor/
+reports/
+scripts/
+skills/
+state/
+tasks/
+test-results/
+tests/
+tg/
+screenshot_*.png
+
 # Local folders
 projects/
 poetry/
