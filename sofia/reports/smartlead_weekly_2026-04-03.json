@@ -1,0 +1,549 @@
+{
+  "period": "2026-03-27T09:01:51.795669+00:00 to 2026-04-03T09:01:51.795669+00:00",
+  "generated": "2026-04-03T09:01:51.795669+00:00",
+  "totals": {
+    "sent": 4224,
+    "opened": 0,
+    "clicked": 0,
+    "replied": 35,
+    "bounced": 21,
+    "unsubscribed": 0
+  },
+  "campaigns": [
+    {
+      "name": "c-OnSocial_IM-FIRST AGENCIES US_CANADA_LATAM #C",
+      "id": 3071851,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 1175,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 7,
+        "bounced": 9,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "jeremy.meadows@hudsonrouge.com",
+          "name": "Jeremy Meadows",
+          "subject": "Jeremy, 450M influencer profiles ready for your API",
+          "reply_time": "2026-04-02 14:20:04+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "08e61b3f-2bc2-4c95-a3a0-795f37302ed4"
+        },
+        {
+          "email": "ricardo@colectivomas.com",
+          "name": "Ricardo Giacoman Marcos",
+          "subject": "Ricardo, 450M influencer profiles ready for your API",
+          "reply_time": "2026-03-27 20:34:10+00:00",
+          "category": "Positive Reply",
+          "lead_id": null,
+          "stats_id": "39b1134b-3b2a-4a7b-ab0d-6fb8cbb392bb"
+        },
+        {
+          "email": "ivan@raffiti.com",
+          "name": "Ivan ",
+          "subject": "Ivan, 450M influencer profiles ready for your API",
+          "reply_time": "2026-03-29 21:20:23+00:00",
+          "category": "Negative Reply",
+          "lead_id": null,
+          "stats_id": "94eb129e-5545-4b92-aec3-ec915cbbd317"
+        },
+        {
+          "email": "sylvia@milmagz.com",
+          "name": "Sylvia Hysen",
+          "subject": "Sylvia, 450M influencer profiles ready for your API",
+          "reply_time": "2026-04-02 16:21:01+00:00",
+          "category": "Interested",
+          "lead_id": null,
+          "stats_id": "a2a33bb9-dd7d-4676-b336-1485457e2530"
+        },
+        {
+          "email": "rmcclurg@dagger.agency",
+          "name": "Rachel McClurg",
+          "subject": "Rachel, 450M influencer profiles ready for your API",
+          "reply_time": "2026-03-27 12:16:02+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "c63092aa-1c69-431c-bfa7-8bf374345519"
+        },
+        {
+          "email": "sam.ellis@uegworldwide.com",
+          "name": "Sam Ellis",
+          "subject": "Sam, 450M influencer profiles ready for your API",
+          "reply_time": "2026-04-02 14:20:30+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "f08c540e-3a42-4f56-9b24-95f0f216cc2e"
+        },
+        {
+          "email": "sara.jett@hudsonrouge.com",
+          "name": "Sara Jett",
+          "subject": "Sara, 450M influencer profiles ready for your API",
+          "reply_time": "2026-04-02 14:36:17+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "f198a9e5-2b9d-46e0-8976-4fa4d03b97bf"
+        }
+      ]
+    },
+    {
+      "name": "c-OnSocial_IM-FIRST AGENCIES EUROPE #C",
+      "id": 3064335,
+      "status": "PAUSED",
+      "metrics": {
+        "sent": 964,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 9,
+        "bounced": 1,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "jose@pelonio.com",
+          "name": "Jose Muriel",
+          "subject": "Jose - are your creators actually reaching the audience they claim?",
+          "reply_time": "2026-03-31 06:16:03+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "2447e7b4-821d-4346-b37c-dfb95e8b3886"
+        },
+        {
+          "email": "melisa@fifty-fifty.nl",
+          "name": "Melisa Figueiredo",
+          "subject": "Melisa, 450M influencer profiles are ready for your API",
+          "reply_time": "2026-03-27 09:05:30+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "952dded7-0214-4aba-a3c4-4c5f35082b43"
+        },
+        {
+          "email": "linus@acuprojects.com",
+          "name": "Linus Aberg",
+          "subject": "RE: Linus - are your creators actually reaching the audience they claim?",
+          "reply_time": "2026-03-30 07:43:05+00:00",
+          "category": "Do Not Contact",
+          "lead_id": null,
+          "stats_id": "033a612e-19c4-45e4-9aff-6f10128c280f"
+        },
+        {
+          "email": "k.chalupczak@cutthemustard.pl",
+          "name": "Krzysztof Chalupczak",
+          "subject": "RE: Krzysztof, 450M influencer profiles are ready for your API",
+          "reply_time": "2026-03-30 06:10:47+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "4aba48fa-6d65-4465-91d8-495eb91d86f6"
+        },
+        {
+          "email": "olie@hype-lab.co.uk",
+          "name": "Olie Keogh",
+          "subject": "RE: Olie, 450M influencer profiles are ready for your API",
+          "reply_time": "2026-03-30 08:49:55+00:00",
+          "category": "Do Not Contact",
+          "lead_id": null,
+          "stats_id": "aa6f606a-b305-4051-a970-a31e02f8b9b0"
+        },
+        {
+          "email": "emeline@agencexplr.com",
+          "name": "Emeline Loas",
+          "subject": "RE: Emeline, 450M influencer profiles are ready for your API",
+          "reply_time": "2026-03-30 07:01:45+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "b142c8ab-3b41-49ab-8087-747369ed5023"
+        },
+        {
+          "email": "juan.valcarcel@dekuple.es",
+          "name": "Juan Valcarcel",
+          "subject": "RE: Juan, 450M influencer profiles are ready for your API",
+          "reply_time": "2026-03-30 06:31:07+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "fc60def8-2387-45bb-9b6c-79f3ad4bb71c"
+        },
+        {
+          "email": "ibrahim@spaceagencyksa.com",
+          "name": "Ibrahim Almogren",
+          "subject": "RE: Ibrahim, 450M influencer profiles are ready for your API",
+          "reply_time": "2026-03-30 08:23:32+00:00",
+          "category": "Interested",
+          "lead_id": null,
+          "stats_id": "15ca652a-928b-4564-933b-6386123fa746"
+        },
+        {
+          "email": "amy@nologox.com",
+          "name": "Amy Chow",
+          "subject": "RE: Amy, 450M influencer profiles are ready for your API",
+          "reply_time": "2026-03-27 11:55:48+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "8b10901f-3d6c-47e3-a118-6fdeac81f0ee"
+        }
+      ]
+    },
+    {
+      "name": "c-OnSocial_INFLUENCER PLATFORMS ALL GEO #C",
+      "id": 3096747,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 400,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 4,
+        "bounced": 0,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "georgie@digitalnativescontent.com",
+          "name": "Georgie Strauss",
+          "subject": "Creator data API for Digital Natives",
+          "reply_time": "2026-04-03 07:01:46+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "232c4a1f-3b30-44b7-950b-467fce6d0ef2"
+        },
+        {
+          "email": "sara@mediabodies.com",
+          "name": "Sara Guerola Carbo",
+          "subject": "Creator data API for Media Bodies",
+          "reply_time": "2026-04-03 08:15:50+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "72df19e5-e103-4831-8958-448e890d40e8"
+        },
+        {
+          "email": "kora@jabberhaus.com",
+          "name": "Kora D'Attellis",
+          "subject": "creator data - Jabberhaus",
+          "reply_time": "2026-04-03 07:06:04+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "c4643e02-c0b6-43f5-bc67-52e53327f14d"
+        },
+        {
+          "email": "jenny@cogentworld.com",
+          "name": "Jenny Merrill",
+          "subject": "Creator data API for Cogent World",
+          "reply_time": "2026-04-02 15:20:33+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "d12938ea-0f8c-44a9-8f9f-fa5e80eff195"
+        }
+      ]
+    },
+    {
+      "name": "c-OnSocial_IM-FIRST AGENCIES INDIA #C",
+      "id": 3063527,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 347,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 2,
+        "bounced": 2,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "nilouferdundh@ventesavenues.in",
+          "name": "Niloufer Dundh",
+          "subject": "Creator data for Ventes Avenues",
+          "reply_time": "2026-04-02 06:14:08+00:00",
+          "category": "Meeting Booked",
+          "lead_id": null,
+          "stats_id": "100cd688-6487-491c-b098-582f8432eed7"
+        },
+        {
+          "email": "akhilesh@digimag.co.in",
+          "name": "Akhilesh Kumar",
+          "subject": "Creator data for DigiMag",
+          "reply_time": "2026-04-02 13:15:54+00:00",
+          "category": "Interested",
+          "lead_id": null,
+          "stats_id": "cca41c9b-f00d-49f9-85de-5b3e766eca86"
+        }
+      ]
+    },
+    {
+      "name": "c-OnSocial_INDIA #C",
+      "id": 3059650,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 254,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 3,
+        "bounced": 3,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "amit@creatorsmela.com",
+          "name": "Amit Kumar",
+          "subject": "RE: CreatorsMelas local creators data",
+          "reply_time": "2026-03-30 07:03:04+00:00",
+          "category": "Interested",
+          "lead_id": null,
+          "stats_id": "25c289c0-37db-4e26-9e26-d48fef5effbb"
+        },
+        {
+          "email": "veeraj@thepopcornmedia.com",
+          "name": "Veeraj Vashishtha",
+          "subject": "RE: The Popcorn Medias local creators data",
+          "reply_time": "2026-03-31 06:06:32+00:00",
+          "category": "Meeting Request",
+          "lead_id": null,
+          "stats_id": "a5eb1074-54f6-46ef-b6f7-9fabf3718226"
+        },
+        {
+          "email": "rachit@thepopcornmedia.com",
+          "name": "Rachit Dewan",
+          "subject": "RE: The Popcorn Medias local creators data",
+          "reply_time": "2026-03-31 05:12:22+00:00",
+          "category": "Meeting Request",
+          "lead_id": null,
+          "stats_id": "559e4cd0-c7ad-47f1-b7a7-4d73362ed113"
+        }
+      ]
+    },
+    {
+      "name": "c-OnSocial_IM-FIRST AGENCIES #C",
+      "id": 3050462,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 244,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 3,
+        "bounced": 1,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "will@pangolinpr.com",
+          "name": "Will Cookson",
+          "subject": "Will, 450M influencer profiles ready for your API",
+          "reply_time": "2026-03-27 13:12:30+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "2447fada-73fe-444a-9d73-92414cfc3616"
+        },
+        {
+          "email": "mwebber@billiondollarboy.com",
+          "name": "Meredith Webber",
+          "subject": "Meredith, 450M influencer profiles ready for your API",
+          "reply_time": "2026-03-27 13:16:13+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "bfd51674-73ff-40ef-bb85-19f76d2430e0"
+        },
+        {
+          "email": "kayla@pixly.tv",
+          "name": "Kayla Fortin",
+          "subject": "RE: Kayla, 450M influencer profiles ready for your API",
+          "reply_time": "2026-03-27 14:15:53+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "b7282e8d-07ce-4a78-bc80-c462f7f35d63"
+        }
+      ]
+    },
+    {
+      "name": "c-OnSocial_IM-FIRST AGENCIES ALL GEO #C",
+      "id": 3096746,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 158,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 4,
+        "bounced": 2,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "james@scrollstop.com",
+          "name": "James Higgins",
+          "subject": "creator analytics - SCROll STOP",
+          "reply_time": "2026-04-03 07:30:56+00:00",
+          "category": "Not Interested",
+          "lead_id": null,
+          "stats_id": "0a1eaab8-4daf-45e1-bc86-faa0ba3ca0c7"
+        },
+        {
+          "email": "lola.nanclares@tatam.digital",
+          "name": "Lola Nanclares",
+          "subject": "Lola, 450M influencer profiles ready for your API",
+          "reply_time": "2026-04-02 16:23:40+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "5506d5df-8c3d-4153-b583-8d6fc585524a"
+        },
+        {
+          "email": "rory@thesocialcat.com",
+          "name": "Rory Ingles",
+          "subject": "creator analytics - Social Cat",
+          "reply_time": "2026-04-03 07:15:05+00:00",
+          "category": "Do Not Contact",
+          "lead_id": null,
+          "stats_id": "bab5a6a1-e850-46ea-a194-6ebaaa03bd06"
+        },
+        {
+          "email": "anna@playerfound.live",
+          "name": "Anna Viktoria",
+          "subject": "Anna, 450M influencer profiles ready for your API",
+          "reply_time": "2026-04-03 07:03:59+00:00",
+          "category": "Not Interested",
+          "lead_id": null,
+          "stats_id": "da335331-8331-46e9-9437-9aea96c1e532"
+        }
+      ]
+    },
+    {
+      "name": "c-OnSocial_AFFILIATE & PERFORMANCE #C",
+      "id": 3050439,
+      "status": "PAUSED",
+      "metrics": {
+        "sent": 152,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 0,
+        "bounced": 1,
+        "unsubscribed": 0
+      },
+      "replied_leads": []
+    },
+    {
+      "name": "c-OnSocial_INFLUENCER PLATFORMS #C",
+      "id": 3050419,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 147,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 0,
+        "bounced": 0,
+        "unsubscribed": 0
+      },
+      "replied_leads": []
+    },
+    {
+      "name": "c-OnSocial_INFLUENCER PLATFORMS MENA+APAC #C",
+      "id": 3065429,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 97,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 1,
+        "bounced": 0,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "luciano@thetimeless.club",
+          "name": "Luciano Burattin",
+          "subject": "Re: creator data - Timeless Club",
+          "reply_time": "2026-03-30 08:08:08+00:00",
+          "category": "Meeting Booked",
+          "lead_id": null,
+          "stats_id": "9d2a27d9-a7d0-4e69-aa24-2ca9f45f49bd"
+        }
+      ]
+    },
+    {
+      "name": "c-OnSocial_LATAM #C",
+      "id": 3059277,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 91,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 0,
+        "bounced": 0,
+        "unsubscribed": 0
+      },
+      "replied_leads": []
+    },
+    {
+      "name": "c-OnSocial_INFLUENCER PLATFORMS INDIA #C",
+      "id": 3064966,
+      "status": "ACTIVE",
+      "metrics": {
+        "sent": 84,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 0,
+        "bounced": 1,
+        "unsubscribed": 0
+      },
+      "replied_leads": []
+    },
+    {
+      "name": "c-OnSocial_IM agencies & SaaS_US&EU",
+      "id": 2947684,
+      "status": "PAUSED",
+      "metrics": {
+        "sent": 50,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 1,
+        "bounced": 0,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "catherine.shuttleworth@getsavvy.com",
+          "name": "Catherine Shuttleworth",
+          "subject": "RE: Catherine  ,\u00a0450M influencer profiles are ready for your API",
+          "reply_time": "2026-03-27 10:15:52+00:00",
+          "category": "Out Of Office",
+          "lead_id": null,
+          "stats_id": "fef7307d-ff1b-4f6e-a3df-58e0f1ef1b43"
+        }
+      ]
+    },
+    {
+      "name": "c-OnSocial_IM_PLATFORMS",
+      "id": 2990385,
+      "status": "PAUSED",
+      "metrics": {
+        "sent": 36,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 0,
+        "bounced": 1,
+        "unsubscribed": 0
+      },
+      "replied_leads": []
+    },
+    {
+      "name": "c-OnSocial_INFLUENCER PLATFORMS AMERICAS #C",
+      "id": 3065159,
+      "status": "PAUSED",
+      "metrics": {
+        "sent": 25,
+        "opened": 0,
+        "clicked": 0,
+        "replied": 1,
+        "bounced": 0,
+        "unsubscribed": 0
+      },
+      "replied_leads": [
+        {
+          "email": "victoria@new-wave.ai",
+          "name": "Victoria Luo",
+          "subject": "RE: Quick question about NewWave's data layer",
+          "reply_time": "2026-03-31 20:28:06+00:00",
+          "category": "Not Interested",
+          "lead_id": null,
+          "stats_id": "4bd5a8c0-4537-474f-80cd-f8c546d72e53"
+        }
+      ]
+    }
+  ]
+}
