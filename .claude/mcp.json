@@ -70,8 +70,8 @@
     },
     "linear": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "linear-mcp@latest"],
+      "command": "node",
+      "args": ["/Users/user/.nvm/versions/node/v20.19.6/lib/node_modules/linear-mcp/build/index.js"],
       "env": {
         "LINEAR_API_KEY": "lin_api_PGUGpz14xDFwfLyAPwcUb7VtzkW15OlRRPiVaLjB"
       }
