@@ -1,11 +1,26 @@
 ---
-last_updated: 2026-04-07
+last_updated: 2026-04-06
 status: active
 ---
 
 # OnSocial — Key Decisions Log
 
 ## Segmentation
+
+**SOCCOM — новый сегмент (April 6, 2026):** Social Commerce Platforms — крупные корпоративные компании вне IMAGENCY/INFPLAT/AFFPERF.
+- Первый батч: Kantar (220 raw → 62 после фильтрации)
+- Фильтр: срезаем engineering/HR/IT ops/product owner; оставляем Brand Strategy, Growth & Strategy, Creative, Client Service, C-suite
+- Питч-угол: Kantar измеряет маркетинг для брендов → OnSocial как data layer для influencer measurement в их исследованиях
+- Лист: `OS | Leads | SOCCOM — 2026-04-06` (ID: 1wYC-na4M8cjF2FSaAV3hJ64PY03-YjIawT9Hr0GWz84)
+- DM clusters: FOUNDERS_CSUITE (33), ACCOUNT_OPS (21), CREATIVE_LEADERSHIP (8)
+- **Why:** 62 квалифицированных контакта достаточно для кампании; 70% среза — стандартная гигиена для enterprise
+
+**"OTHER" batch redistribution (April 6, 2026):** 276 контактов из `OS | Import | OTHER from OnSocial` распределены:
+- Patreon (19→7) → INFPLAT_NEW: creator monetization platform
+- PFR Group (2→2) → IMAGENCY_NEW: Hungarian talent management
+- inDrive (31→20) + Dovetail (2→1) → IMAGENCY_NEW account_ops: нет своего сегмента
+- Kantar (220→62) → SOCCOM (новый сегмент)
+- Cognizant (1→0): Senior Associate срезан как non-buyer
 
 **v3 rework (March 2026):** Пересмотрели сегменты после месяца данных.
 - Agencies разделили: убрали PR firms (0.20% reply), micro-agencies, marketing holds
