@@ -52,7 +52,7 @@ Hi {{first_name}},
 
 {{custom4}}
 
-When {{company_name}} sends a client a creator performance report - does it come from your own platform, or are you exporting from someone else's tool?
+One question: when {{company_name}} sends a client a creator performance report - does it come from your own platform, or are you exporting from someone else's tool?
 
 Account teams at {{custom2}} switched to white-label analytics. Client sees {{company_name}}'s brand, not a third party. Retention went up - clients build workflows around your tool and switching cost increases.
 
