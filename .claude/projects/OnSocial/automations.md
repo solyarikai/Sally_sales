@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-04-03
+last_updated: 2026-04-06
 status: active
 ---
 
@@ -43,6 +43,8 @@ Company Search (Apollo/Clay) → Contact Enrichment (Apollo People/Findymail)
 - `onsocial_clay_to_smartlead_platforms_agencies_2026-03-26.py` — Clay enrichment → SmartLead
 - `upload_to_smartlead.py` — direct upload to SmartLead
 - `enrich_imagency_company_hq.py` — Apollo HQ enrichment for IMAGENCY
+- `build_smartlead_csvs.py` — maps enriched CSV → 3 SmartLead CSVs (founders/creative/account_ops) with geo custom fields. GEO_FIELDS updated April 2026 with corrected social proof values (no "teams like" prefix)
+- `segment_new_leads_2026-04-06.py` — classifies new lead batch from Google Sheets into IMAGENCY/INFPLAT/OTHER segments
 
 ### GetSales (LinkedIn)
 - `getsales_export_leads.py` — export leads for GetSales

@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-04-03
+last_updated: 2026-04-06
 status: active
 ---
 
@@ -27,6 +27,15 @@ status: active
 - **Pain:** Клиенты гуглят vendor price, 67% брендов идут in-house, нужна дифференциация
 - **Trigger:** Теряют клиентов, ищут способ повысить retention
 - **Seed companies:** Whalar, Billion Dollar Boy, Linkster, Ykone, Intermate, LADbible, InfluencerUK
+
+### SOCCOM (Social Commerce Platforms)
+- **Roles:** VP/SVP Growth & Strategy, Head of Brand Strategy, SVP Creative Strategy, Managing Partner, Client Service Directors
+- **Company size:** 1,000+ employees (enterprise)
+- **Example:** Kantar (global brand measurement, 20k employees)
+- **Pain:** Клиенты спрашивают про influencer effectiveness — Kantar измеряет медиа, но нет слоя creator data
+- **Trigger:** Клиент запрашивает influencer ROI в рамках brand tracking / media effectiveness study
+- **Pitch angle:** OnSocial как data provider/партнёр для enrichment их исследований
+- **Status:** Новый сегмент, не тестировался. 62 контакта готовы.
 
 ### AFFPERF (Affiliate & Performance)
 - **Roles:** VP Product, Head of Data, CTO

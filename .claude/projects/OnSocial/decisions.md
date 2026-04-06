@@ -1,11 +1,26 @@
 ---
-last_updated: 2026-04-03
+last_updated: 2026-04-06
 status: active
 ---
 
 # OnSocial — Key Decisions Log
 
 ## Segmentation
+
+**SOCCOM — новый сегмент (April 6, 2026):** Social Commerce Platforms — крупные корпоративные компании вне IMAGENCY/INFPLAT/AFFPERF.
+- Первый батч: Kantar (220 raw → 62 после фильтрации)
+- Фильтр: срезаем engineering/HR/IT ops/product owner; оставляем Brand Strategy, Growth & Strategy, Creative, Client Service, C-suite
+- Питч-угол: Kantar измеряет маркетинг для брендов → OnSocial как data layer для influencer measurement в их исследованиях
+- Лист: `OS | Leads | SOCCOM — 2026-04-06` (ID: 1wYC-na4M8cjF2FSaAV3hJ64PY03-YjIawT9Hr0GWz84)
+- DM clusters: FOUNDERS_CSUITE (33), ACCOUNT_OPS (21), CREATIVE_LEADERSHIP (8)
+- **Why:** 62 квалифицированных контакта достаточно для кампании; 70% среза — стандартная гигиена для enterprise
+
+**"OTHER" batch redistribution (April 6, 2026):** 276 контактов из `OS | Import | OTHER from OnSocial` распределены:
+- Patreon (19→7) → INFPLAT_NEW: creator monetization platform
+- PFR Group (2→2) → IMAGENCY_NEW: Hungarian talent management
+- inDrive (31→20) + Dovetail (2→1) → IMAGENCY_NEW account_ops: нет своего сегмента
+- Kantar (220→62) → SOCCOM (новый сегмент)
+- Cognizant (1→0): Senior Associate срезан как non-buyer
 
 **v3 rework (March 2026):** Пересмотрели сегменты после месяца данных.
 - Agencies разделили: убрали PR firms (0.20% reply), micro-agencies, marketing holds
@@ -72,3 +87,25 @@ status: active
 - PR firms, old platforms, marketing agencies, IMAGENCY Europe, AFFPERF
 - 19,645 leads freed for reallocation
 - **Why:** All had 300+ sends with 0 positive replies
+
+## IMAGENCY v5 Decisions (April 2026)
+
+**Geo: accept 52% person-location fallback.**
+- 749/1441 leads had hq_country from person location (Step 3 fallback), not real company HQ
+- Decision: proceed without re-enrichment for speed
+- **Why:** build_smartlead_csvs.py already uses hq_country field correctly; re-enriching would delay launch
+
+**Company HQ geo > person location for messaging.**
+- Hooks (custom1-4) reference agency's market context (costs, clients, trends), not individual's
+- **Why:** Sequence says "agencies in UK facing X" — must match company location, not person's city
+
+**CTO/VP Engineering included for INFPLAT segment.**
+- Previously excluded as non-buyers; added back for INFPLAT (platforms/tools)
+- **Why:** At tech platforms (Meltwater, Spotter, LTK), engineering leadership decides on API integrations
+- Pipeline script (`onsocial_clay_imagency_v4_allgeo_2026-03-31.py`) updated with these titles
+
+**New lead batch (552) from "OS | Import | Mix from OnSocial") split into 3 segments:**
+- 80 → IMAGENCY (merged into imagency_final_enriched.csv)
+- 90 → INFPLAT (separate sheet, with tech roles)
+- 275 → OTHER (Kantar, inDrive, Patreon — separate sheet, no dedup)
+- **Why:** Original sheet was misnamed "IMAGENCY" but contained mixed company types
