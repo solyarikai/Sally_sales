@@ -100,6 +100,6 @@ Bhaskar
 - No em dashes. Use regular dashes.
 - SmartLead: line breaks via <br>, not \n
 - Do NOT activate campaign via API - manual only
-- Sender: Daniil (not Bhaskar - update before launch)
+- Sender: Bhaskar from OnSocial
 - Reply handling: see operator_playbook.md
 - Pricing objection reply: "Pricing is pay-per-request, no monthly minimums. To give you an accurate number: how many creator profiles do you analyze per month, and which platforms? {calendar_link} if easier to talk through."
