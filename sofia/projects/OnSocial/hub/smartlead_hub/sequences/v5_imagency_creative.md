@@ -38,7 +38,7 @@
 >
 > How does your team at Twins Digital vet creators before pitching them to clients? Manual research, or do you have a data layer behind it?
 >
-> Creative teams at teams like Zalando, Linkster and Intermate use our API to check audience demographics, fraud scores, and engagement - before the brief goes out. Means fewer surprises after launch.
+> Creative teams at Zalando, Linkster, Intermate and Gocomo use our API to check audience demographics, fraud scores, and engagement - before the brief goes out. Means fewer surprises after launch.
 >
 > Quick 15-min call to see if relevant for Twins Digital?
 
