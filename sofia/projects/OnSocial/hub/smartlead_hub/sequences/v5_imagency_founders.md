@@ -38,7 +38,7 @@
 >
 > When your clients ask for creator analytics - do they see Acme Agency's brand or a third-party logo?
 >
-> Agencies like teams like Whalar and Billion Dollar Boy white-label our creator data as their own. 450M+ profiles, fraud scoring, audience demographics - under your brand.
+> Agencies like Whalar, InfluencerUK, LADbible and Billion Dollar Boy white-label our creator data as their own. 450M+ profiles, fraud scoring, audience demographics - under your brand.
 >
 > Quick 15-min call to see if it fits Acme Agency?
 
