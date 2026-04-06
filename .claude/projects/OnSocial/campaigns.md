@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-04-07
+last_updated: 2026-04-06
 status: active
 ---
 
@@ -51,6 +51,14 @@ status: active
 - SmartLead: managed via `Infra (Accounts)` sheet (`1MepWTwCGJX-fGQPkygQouF-hfL8WYV4DRAdmqI3DbDg`)
 - Capacity: 750 emails/day (target 1,500 by April 2026)
 - Tiered allocation: T1 67%, T2 27%, T3 6%
+
+## SOCCOM — Kantar (In Progress — April 6, 2026)
+
+- **62 leads** (Kantar, filtered from 220 raw: engineering/HR/IT срезаны)
+- DM clusters: FOUNDERS_CSUITE (33), ACCOUNT_OPS (21), CREATIVE_LEADERSHIP (8)
+- Sheet: `OS | Leads | SOCCOM — 2026-04-06` (ID: 1wYC-na4M8cjF2FSaAV3hJ64PY03-YjIawT9Hr0GWz84)
+- Status: лиды готовы, **последовательность не написана**, кампания не создана
+- Next: написать SOCCOM sequence + создать SmartLead кампанию
 
 ## IMAGENCY v5 (In Progress — April 2026, branch: feat/imagency-v5-sequences)
 
