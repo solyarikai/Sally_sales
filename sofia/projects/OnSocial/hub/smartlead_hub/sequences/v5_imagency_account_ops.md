@@ -77,7 +77,7 @@ For account teams {{custom1}} - this changes the conversation from "what tools d
 
 Quick 15-min call?
 
-Daniil
+Bhaskar
 
 ---
 
@@ -91,7 +91,7 @@ If client analytics aren't a current priority - no worries. But if there's someo
 
 Wishing {{company_name}} continued growth either way.
 
-Daniil
+Bhaskar
 
 ---
 
