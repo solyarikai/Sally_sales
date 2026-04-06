@@ -41,26 +41,30 @@ bugs/
 screenshots/
 
 # magnum-opus duplicates (code lives in magnum-opus/ submodule only)
-backend/
-checks/
-docs/
-easystaff-global/
-extensions/
-frontend/
-gathering-dach/
-gathering-data/
-infra/
-mcp/
-moltbot-monitor/
-reports/
-scripts/
-skills/
-state/
-tasks/
-test-results/
-tests/
-tg/
-screenshot_*.png
+/backend/
+/checks/
+/docs/
+/easystaff-global/
+/extensions/
+/frontend/
+/gathering-dach/
+/gathering-data/
+/infra/
+/mcp/
+/moltbot-monitor/
+/reports/
+/skills/
+/state/
+/tasks/
+/test-results/
+/tests/
+/tg/
+/screenshot_*.png
+/.dev-setup-complete.md
+/.dockerignore
+/.env.example
+/.last_docker_build
+/google-credentials.json
 
 # Local folders
 projects/
