@@ -59,7 +59,7 @@ Account teams at {{custom2}} switched to white-label analytics. Client sees {{co
 Quick 15-min call to see if it fits?
 
 Best,
-Daniil from OnSocial
+Bhaskar from OnSocial
 
 ---
 
