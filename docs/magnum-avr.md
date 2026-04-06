@@ -46,26 +46,36 @@ async def _sync_daily_counters(self):
 
 Также реализован авто-сброс счётчиков в полночь UTC.
 
-### 2. Proxy dropdown — inline expandable panels
+### 2. Proxy dropdown — два исправления
 
-Вместо выпадающего списка (dropdown), который выходил за экран при нижнем расположении панели, реализованы **inline expandable panels** внутри `BulkActionsBar`. Proxy group выбирается через native `<select>`, который раскрывается в рамках панели:
+Проблема решена двумя дополняющими подходами:
+
+**A) `StyledSelect` — авто-определение направления раскрытия** (`TelegramOutreachPage.tsx`):
+
+Компонент `StyledSelect` измеряет позицию кнопки при открытии и автоматически раскрывается вверх, если dropdown не помещается в viewport:
 
 ```tsx
-{activePanel === 'proxy' && (
-  <div className="flex items-center gap-2 pt-1">
-    <select value={proxyGroupId} onChange={...}
-            className="px-3 py-1.5 rounded-lg border ...">
-      <option value="">Select group...</option>
-      {proxyGroups.map(g => <option key={g.id} value={g.id}>
-        {g.name} ({g.proxies_count})
-      </option>)}
-    </select>
-    <button onClick={...}>Apply</button>
+const rect = ref.current.getBoundingClientRect();
+setOpenUp(rect.bottom + 248 > window.innerHeight);
+// ...
+...(openUp
+  ? { bottom: '100%', marginBottom: 4 }
+  : { top: '100%', marginTop: 4 })
+```
+
+Используется для фильтров и CRM-статусов по всей странице.
+
+**B) `BulkActionsBar` — inline panels + hardcoded upward dropdown**:
+
+Bulk-операции (proxy, limit, bio, 2FA, language, names, privacy) раскрываются как inline-панели через `activePanel` state. Proxy dropdown внутри панели жёстко открывается вверх (`bottom: '100%'`), так как панель всегда находится внизу экрана:
+
+```tsx
+{proxyDropdownOpen && (
+  <div style={{ position: 'absolute', bottom: '100%', marginBottom: 4, ... }}>
+    {/* proxy group options */}
   </div>
 )}
 ```
-
-Каждая bulk-операция (proxy, limit, bio, 2FA, language, names, privacy) раскрывается как отдельная inline-панель (`activePanel` state), что исключает проблему с переполнением.
 
 ### 3. Bulk upload аватарок
 
@@ -75,19 +85,21 @@ async def _sync_daily_counters(self):
 
 Фото сохраняется на диск в `/app/tg_photos/{phone}.jpg` и путь записывается в `account.profile_photo_path`.
 
-**Дополнительные исправления** (коммит `1576913e`):
-- Обработка `FrozenMethodInvalidError` — замороженные аккаунты автоматически помечаются статусом `FROZEN` вместо необработанного исключения
-- Отключение устаревшего кэшированного клиента перед переподключением — устраняет сбои при повторных загрузках
-- Коммит изменений статуса в БД после обработки всех аккаунтов
-- Фронтенд показывает реальные результаты синхронизации (сколько загружено в TG, сколько ошибок) вместо общего "Photos set"
+**Staggered TG upload** (`_staggered_photo_upload`):
+- Фоновая загрузка в Telegram с рандомной задержкой между аккаунтами (anti-ban)
+- Удаление старых фото из Telegram перед загрузкой нового (`GetUserPhotosRequest` → `DeletePhotosRequest`)
+- Отключение устаревшего кэшированного клиента перед переподключением (`disconnect` → `connect`)
+- Proxy fallback: при сбое proxy-подключения автоматически переключается на прямое соединение
+- Ошибки ловятся generic `except Exception` и записываются в progress tracker
+- Фронтенд отображает реальные результаты синхронизации (synced, skipped, errors) через polling `task_id`
 
 ## Изменённые файлы
 
 - `backend/app/services/sending_worker.py` — метод `_sync_daily_counters()` для пересчёта счётчиков из реальных данных; инкремент `messages_sent_today` строго при `status == "sent"`; авто-сброс в полночь UTC
-- `backend/app/api/telegram_outreach.py` — эндпоинт `bulk-set-photo` с распределением фото по аккаунтам (1:N и N:random); обработка frozen аккаунтов; отключение stale-соединений
+- `backend/app/api/telegram_outreach.py` — эндпоинт `bulk-set-photo` с распределением фото (1:N и N:random); `_staggered_photo_upload` с proxy fallback, удалением старых фото, stale-disconnect
 - `backend/app/models/telegram_outreach.py` — поле `messages_sent_today` у `TgAccount` и `TgCampaign`; enum `TgMessageStatus` с разделением SENT/FAILED/SPAMBLOCKED
 - `backend/app/schemas/telegram_outreach.py` — схемы для bulk-операций
-- `frontend/src/pages/TelegramOutreachPage.tsx` — `BulkActionsBar` с inline expandable panels вместо overflow-dropdown; информативные toast-уведомления с деталями синхронизации
+- `frontend/src/pages/TelegramOutreachPage.tsx` — компонент `StyledSelect` с авто-upward detection (viewport threshold 248px); `BulkActionsBar` с inline panels и hardcoded-upward proxy dropdown; toast с progress tracking
 - `frontend/src/api/telegramOutreach.ts` — API-клиент для `bulkSetPhoto`, `bulkAssignProxy`
 
 ## Использование

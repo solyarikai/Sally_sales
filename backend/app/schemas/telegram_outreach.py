@@ -1,6 +1,6 @@
 """Pydantic schemas for Telegram Outreach module."""
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 
 
@@ -86,11 +86,10 @@ class TgAccountBase(BaseModel):
     api_hash: Optional[str] = None
     device_model: Optional[str] = "PC 64bit"
     system_version: Optional[str] = "Windows 10"
-    app_version: Optional[str] = "6.5.1 x64"
+    app_version: Optional[str] = "6.7.1 x64"
     lang_code: Optional[str] = "en"
     system_lang_code: Optional[str] = "en-US"
     two_fa_password: Optional[str] = None
-    is_premium: bool = False
 
 
 class TgAccountCreate(TgAccountBase):
@@ -111,11 +110,19 @@ class TgAccountUpdate(BaseModel):
     system_lang_code: Optional[str] = None
     two_fa_password: Optional[str] = None
     daily_message_limit: Optional[int] = None
-    is_premium: Optional[bool] = None
     status: Optional[str] = None
     proxy_group_id: Optional[int] = None
     assigned_proxy_id: Optional[int] = None
     skip_warmup: Optional[bool] = None
+
+
+class TgSetProxyMode(BaseModel):
+    mode: str  # "auto" | "custom" | "none"
+    host: Optional[str] = None
+    port: Optional[int] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    protocol: Optional[str] = "socks5"
 
 
 class TgAccountResponse(BaseModel):
@@ -150,6 +157,10 @@ class TgAccountResponse(BaseModel):
     proxy_group_name: Optional[str] = None
     assigned_proxy_id: Optional[int] = None
     assigned_proxy_host: Optional[str] = None
+    proxy_country: Optional[str] = None
+    proxy_protocol: Optional[str] = None
+    proxy_is_active: Optional[bool] = None
+    proxy_last_checked_at: Optional[datetime] = None
     tags: list[TgAccountTagResponse] = []
     campaigns_count: int = 0
     country_code: Optional[str] = None
@@ -171,12 +182,24 @@ class TgAccountListResponse(BaseModel):
 
 # ── Campaign ───────────────────────────────────────────────────────────
 
+class SegmentFilter(BaseModel):
+    field: str  # "status", "tags", "owner", "custom:<field_id>"
+    operator: str  # "in", "not_in", "contains_any", "contains_all", "eq", "neq"
+    value: Any  # list[str] for in/contains, str for eq/neq
+
+
+class SegmentFilters(BaseModel):
+    logic: str = "AND"  # "AND" or "OR"
+    filters: list[SegmentFilter] = []
+
+
 class TgCampaignBase(BaseModel):
     name: str
     daily_message_limit: Optional[int] = None
     timezone: str = "Europe/Moscow"
     send_from_hour: int = 9
     send_to_hour: int = 18
+    send_days: list[int] = [0, 1, 2, 3, 4, 5, 6]  # 0=Mon..6=Sun
     delay_between_sends_min: int = 11
     delay_between_sends_max: int = 25
     delay_randomness_percent: int = 20
@@ -189,6 +212,8 @@ class TgCampaignBase(BaseModel):
 
 class TgCampaignCreate(TgCampaignBase):
     project_id: Optional[int] = None
+    campaign_type: str = "one_time"  # "one_time" or "dynamic"
+    segment_filters: Optional[SegmentFilters] = None
     tags: Optional[list[str]] = None
     crm_tag_on_reply: Optional[list[str]] = None
     crm_status_on_reply: Optional[str] = None
@@ -199,10 +224,13 @@ class TgCampaignCreate(TgCampaignBase):
 class TgCampaignUpdate(BaseModel):
     project_id: Optional[int] = None
     name: Optional[str] = None
+    campaign_type: Optional[str] = None
+    segment_filters: Optional[dict] = None
     daily_message_limit: Optional[int] = None
     timezone: Optional[str] = None
     send_from_hour: Optional[int] = None
     send_to_hour: Optional[int] = None
+    send_days: Optional[list[int]] = None
     link_preview: Optional[bool] = None
     silent: Optional[bool] = None
     delete_dialog_after: Optional[bool] = None
@@ -217,6 +245,9 @@ class TgCampaignResponse(TgCampaignBase):
     id: int
     project_id: Optional[int] = None
     status: str = "draft"
+    campaign_type: str = "one_time"
+    segment_filters: Optional[dict] = None
+    segment_last_synced_at: Optional[datetime] = None
     tags: list[str] = []
     crm_tag_on_reply: list[str] = []
     crm_status_on_reply: Optional[str] = None
@@ -561,3 +592,79 @@ class TgCampaignTimelineResponse(BaseModel):
     total: int = 0
     page: int = 1
     page_size: int = 50
+
+
+# ── CRM Custom Fields ────────────────────────────────────────────────
+
+class TgCrmCustomFieldCreate(BaseModel):
+    name: str
+    field_type: str  # text, number, select, multi_select, date, url
+    options_json: list = []
+    project_id: Optional[int] = None
+    sort_order: int = 0
+
+
+class TgCrmCustomFieldUpdate(BaseModel):
+    name: Optional[str] = None
+    field_type: Optional[str] = None
+    options_json: Optional[list] = None
+    sort_order: Optional[int] = None
+
+
+class TgCrmCustomFieldResponse(BaseModel):
+    id: int
+    project_id: Optional[int] = None
+    name: str
+    field_type: str
+    options_json: list = []
+    sort_order: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+
+class TgCrmLeadFieldValueUpdate(BaseModel):
+    field_id: int
+    value: Optional[str] = None
+
+
+class TgCrmLeadFieldValueResponse(BaseModel):
+    id: int
+    lead_id: int
+    field_id: int
+    value: Optional[str] = None
+    field_name: Optional[str] = None
+    field_type: Optional[str] = None
+    options_json: list = []
+    model_config = {"from_attributes": True}
+
+
+# ── Notification Bot ──────────────────────────────────────────────────
+
+class TgNotifSubResponse(BaseModel):
+    id: int
+    chat_id: str
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    notify_mode: str = "all"
+    daily_digest: bool = False
+    digest_hour: int = 9
+    campaign_ids: Optional[list[int]] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+
+class TgNotifSubUpdate(BaseModel):
+    notify_mode: Optional[str] = None
+    daily_digest: Optional[bool] = None
+    digest_hour: Optional[int] = None
+    campaign_ids: Optional[list[int]] = None
+    is_active: Optional[bool] = None
+
+
+class TgNotifBotInfoResponse(BaseModel):
+    bot_username: Optional[str] = None
+    deep_link: Optional[str] = None
+    subscribers_count: int = 0

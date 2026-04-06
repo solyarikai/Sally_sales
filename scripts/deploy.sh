@@ -25,10 +25,9 @@ else
     echo ">> Pipeline not running."
 fi
 
-# 2. Pull latest code
-echo ">> Pulling latest code..."
+# 2. Code is pushed directly via 'git push server main' — no pull needed
+echo ">> Code already up to date (pushed via git remote)"
 cd "$REPO_DIR"
-git pull origin datamodel
 
 # 3. Rebuild and restart containers
 echo ">> Rebuilding containers..."

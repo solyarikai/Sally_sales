@@ -3,14 +3,17 @@ DACH→LATAM Gathering Pipeline
 ==============================
 
 Phase 1 (FREE, 0 Apollo credits):
-  Search Apollo People for employees LOCATED IN LATAM
-  working at companies HEADQUARTERED IN DACH/Nordic (<500 employees).
-  → Collect unique company domains with confirmed LATAM presence.
+  Puppeteer scraper searches Apollo Companies UI for DACH/Nordic companies
+  (10–500 employees) with keywords indicating LATAM/international team presence:
+  "LATAM", "Latin America", "nearshore", "remote team", etc.
+  → Collect unique company domains.
   → CHECKPOINT 1: show found companies, wait for approval.
 
 Phase 2 (FREE, 0 Apollo credits):
-  Search Apollo People for CEO/CFO at the approved company domains.
-  → Collect up to 5000 CEO/CFO contacts.
+  Search Apollo People for CFO→CEO→COO at the approved company domains.
+  → Priority: Tier1 (CFO/VP Finance) → Tier2 (CEO/Founder) → Tier3 (COO/Ops)
+  → Max 2 contacts per company; prefer breadth over depth.
+  → Collect up to 5000 contacts.
   → CHECKPOINT 2: show contact count, export to Google Sheets.
 
 Apollo endpoint: /mixed_people/api_search — FREE, no email reveal.
@@ -19,8 +22,7 @@ Emails found later via FindyMail (at operator request, separate step).
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from app.apollo import ApolloClient
 from app import db
@@ -29,22 +31,12 @@ logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-LATAM_COUNTRIES = [
-    "Mexico", "Colombia", "Brazil", "Argentina", "Peru",
-    "Chile", "Ecuador", "Uruguay", "Costa Rica", "Panama",
-]
+PHASE2_BATCH_SIZE = 50     # domains per Apollo request in phase 2
+PHASE2_MAX_PAGES = 10      # per batch; 10 pages × 100 = 1000 execs per 50 domains
+MAX_CONTACTS_PER_COMPANY = 2  # hard ceiling; prefer breadth over depth
+TARGET_CONTACTS = 5_000
 
-DACH_NORDIC_COUNTRIES = [
-    "Germany", "Austria", "Switzerland",
-    "Sweden", "Netherlands", "Norway", "Finland",
-]
-
-# Iceland excluded from Apollo location filter — too small, would add noise
-# User can re-add if needed
-
-EMPLOYEE_RANGES = ["1,10", "11,20", "21,50", "51,100", "101,200", "201,500"]
-
-# Phase 2 title priorities — searched together, then selected per company
+# Phase 2 title priorities — searched together, selected per company
 # Tier 1 (highest): CFO-track — controls money, feels freelancer payment pain directly
 TITLES_TIER1 = [
     "CFO", "Chief Financial Officer", "VP Finance", "Head of Finance",
@@ -63,12 +55,6 @@ TITLES_TIER3 = [
 
 # All titles searched in one Apollo call per batch
 ALL_EXEC_TITLES = TITLES_TIER1 + TITLES_TIER2 + TITLES_TIER3
-
-PHASE1_MAX_PAGES = 100     # 100 pages × 100 people = 10,000 LATAM employees max
-PHASE2_BATCH_SIZE = 50     # domains per Apollo request in phase 2
-PHASE2_MAX_PAGES = 10      # per batch; 10 pages × 100 = 1000 execs per 50 domains
-MAX_CONTACTS_PER_COMPANY = 2  # hard ceiling, but prefer breadth over depth
-TARGET_CONTACTS = 5_000
 
 
 def _title_tier(title: str) -> int:
@@ -99,84 +85,45 @@ def _extract_domain(person: dict) -> str:
     )
 
 
-def _extract_company_meta(person: dict) -> dict:
-    org = person.get("organization") or {}
-    return {
-        "name": org.get("name", ""),
-        "hq_country": org.get("country", ""),
-        "employees": org.get("num_employees") or 0,
-        "industry": org.get("industry", ""),
-    }
-
-
 # ── Phase 1 ───────────────────────────────────────────────────────────────────
 
 async def run_phase1(
     run_id: int,
-    apollo: ApolloClient,
     progress_cb: Optional[Callable] = None,
 ) -> int:
     """
-    Find LATAM employees at DACH companies.
+    Scrape Apollo Companies UI for DACH companies with LATAM/international keywords.
     Returns count of unique company domains found.
     """
-    logger.info(f"[run={run_id}] Phase 1 started: LATAM employees at DACH companies")
+    from app.scraper import scrape_dach_companies, SEARCH_LOCATIONS, LATAM_KEYWORDS
+
+    logger.info(
+        f"[run={run_id}] Phase 1 started: Puppeteer scrape of DACH companies | "
+        f"locations={SEARCH_LOCATIONS} | keywords={LATAM_KEYWORDS}"
+    )
     db.set_run_state(run_id, "phase1_running")
 
-    total_people = 0
-    unique_domains = 0
+    companies = await scrape_dach_companies(on_progress=progress_cb)
 
-    for latam_country in LATAM_COUNTRIES:
-        logger.info(f"  Searching: employees in {latam_country}")
-
-        async def on_page(page: int, found: int, total: int, country=latam_country):
-            if progress_cb:
-                await progress_cb({
-                    "phase": "phase1",
-                    "current_country": country,
-                    "page": page,
-                    "people_this_country": found,
-                    "total_people": total_people + found,
-                    "unique_domains": unique_domains,
-                })
-
-        people = await apollo.people_search_all(
-            max_pages=PHASE1_MAX_PAGES,
-            on_page=on_page,
-            person_locations=[latam_country],
-            organization_locations=DACH_NORDIC_COUNTRIES,
-            organization_num_employees_ranges=EMPLOYEE_RANGES,
+    for company in companies:
+        domain = company["domain"]
+        if not domain or "." not in domain:
+            continue
+        db.upsert_company(
+            run_id=run_id,
+            domain=domain,
+            name=company.get("name", ""),
+            hq_country=company.get("hq_country", ""),
+            employees=company.get("employees") or 0,
+            industry=company.get("industry", ""),
+            latam_countries=json.dumps([company.get("hq_country", "")]),
+            latam_count=1,
         )
 
-        total_people += len(people)
-
-        for person in people:
-            domain = _extract_domain(person)
-            if not domain or "." not in domain:
-                continue
-            meta = _extract_company_meta(person)
-            db.upsert_company(
-                run_id=run_id,
-                domain=domain,
-                name=meta["name"],
-                hq_country=meta["hq_country"],
-                employees=meta["employees"],
-                industry=meta["industry"],
-                latam_countries=json.dumps([latam_country]),
-                latam_count=1,
-            )
-
-        companies = db.get_companies(run_id)
-        unique_domains = len(companies)
-        logger.info(
-            f"  After {latam_country}: {len(people)} people found, "
-            f"{unique_domains} unique domains total"
-        )
-
+    unique_domains = len(db.get_companies(run_id))
     db.set_run_state(run_id, "phase1_done")
     logger.info(
-        f"[run={run_id}] Phase 1 complete: "
-        f"{total_people} LATAM employees → {unique_domains} unique DACH companies"
+        f"[run={run_id}] Phase 1 complete: {unique_domains} unique DACH companies"
     )
     return unique_domains
 

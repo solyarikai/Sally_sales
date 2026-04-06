@@ -7,7 +7,13 @@ from openai import AsyncOpenAI
 from app.core.config import settings
 
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+_client = None
+
+def _get_client():
+    global _client
+    if _client is None:
+        _client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return _client
 
 
 ENTITY_PROMPTS = {
@@ -161,7 +167,7 @@ async def parse_free_text(
         system_prompt += f"\n\nCompany context:\n{additional_context}"
     
     try:
-        response = await client.chat.completions.create(
+        response = await _get_client().chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -212,7 +218,7 @@ Return JSON only, no markdown."""
         system_prompt += f"\n\nCompany context:\n{additional_context}"
     
     try:
-        response = await client.chat.completions.create(
+        response = await _get_client().chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -241,7 +247,7 @@ async def convert_document_to_markdown(content: str, filename: str) -> dict:
     Convert document content to clean markdown format for AI context.
     """
     try:
-        response = await client.chat.completions.create(
+        response = await _get_client().chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {

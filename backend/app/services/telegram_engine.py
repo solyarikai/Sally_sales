@@ -15,6 +15,8 @@ from typing import Optional
 from telethon import TelegramClient, errors, functions, types
 from telethon.sessions import SQLiteSession, StringSession
 
+from app.services.device_fingerprints import get_default_app_version
+
 logger = logging.getLogger(__name__)
 
 
@@ -155,16 +157,18 @@ class TelegramEngine:
 
     @staticmethod
     def _proxy_to_tuple(proxy: Optional[dict]):
-        """Convert proxy dict to Telethon-compatible tuple. Returns None if no proxy."""
+        """Convert proxy dict to Telethon-compatible tuple. Returns None if no proxy.
+
+        Always uses SOCKS5 for Telethon connections: HTTP CONNECT tunneling
+        fails with 407 on many residential proxies (Infatica etc.) because
+        PySocks' HTTP auth isn't accepted, while SOCKS5 works on the same
+        host:port with the same credentials.
+        """
         if not proxy:
             return None
         import socks
-        proto_map = {"http": socks.HTTP, "socks5": socks.SOCKS5}
-        protocol = proxy.get("protocol", "http")
-        if protocol not in proto_map:
-            logger.warning(f"Unsupported proxy protocol '{protocol}', falling back to HTTP")
         return (
-            proto_map.get(protocol, socks.HTTP),
+            socks.SOCKS5,
             proxy["host"],
             proxy["port"],
             True,  # rdns
@@ -186,11 +190,13 @@ class TelegramEngine:
         api_hash: str,
         device_model: str = "PC 64bit",
         system_version: str = "Windows 10",
-        app_version: str = "6.5.1 x64",
+        app_version: str = None,
         lang_code: str = "en",
         system_lang_code: str = "en-US",
         proxy: Optional[dict] = None,
     ) -> TelegramClient:
+        if app_version is None:
+            app_version = get_default_app_version()
         session = str(self.session_path(phone))
         proxy_tuple = self._proxy_to_tuple(proxy)
 
@@ -219,12 +225,14 @@ class TelegramEngine:
         api_hash: str,
         device_model: str = "PC 64bit",
         system_version: str = "Windows 10",
-        app_version: str = "6.5.1 x64",
+        app_version: str = None,
         lang_code: str = "en",
         system_lang_code: str = "en-US",
         proxy: Optional[dict] = None,
     ) -> TelegramClient:
         """Connect (or reuse) a Telethon client for the given account."""
+        if app_version is None:
+            app_version = get_default_app_version()
         new_proxy_key = self._proxy_key(proxy)
 
         async with self._lock:
@@ -244,6 +252,21 @@ class TelegramEngine:
                     pass
                 self._clients.pop(account_id, None)
                 self._client_proxy.pop(account_id, None)
+
+        # Infatica fallback: auto-generate proxy if none assigned
+        if not proxy:
+            try:
+                from app.services.infatica_proxy_service import infatica_proxy_service
+                if infatica_proxy_service.is_configured:
+                    proxy = infatica_proxy_service.get_proxy_for_account(phone, account_id)
+                    new_proxy_key = self._proxy_key(proxy)
+                    country = infatica_proxy_service.get_country_for_phone(phone)
+                    logger.info(
+                        f"[PROXY] Account {phone} (id={account_id}): "
+                        f"Infatica auto-proxy, geo={country}"
+                    )
+            except Exception as e:
+                logger.warning(f"[PROXY] Infatica fallback failed for {phone}: {e}")
 
         if proxy:
             logger.info(f"[PROXY] Account {phone} (id={account_id}): connecting via {new_proxy_key}")
@@ -349,6 +372,9 @@ class TelegramEngine:
             "spamblock": "unknown",
             "spamblock_end": None,
             "frozen": False,
+            "freeze_since": None,
+            "freeze_until": None,
+            "freeze_appeal_url": None,
             "banned": False,
             "ban_reason": None,
             "username": None,
@@ -361,33 +387,55 @@ class TelegramEngine:
             client = await self.connect(account_id, phone, api_id, api_hash, **kwargs)
             result["connected"] = True
 
-            if not await client.is_user_authorized():
+            # Auth check via get_me() — is_user_authorized() catches ALL RPCError
+            # (including FloodWait, ServerError) and returns False, falsely marking
+            # live accounts dead.
+            me = None
+            try:
+                me = await client.get_me()
+            except (errors.AuthKeyUnregisteredError, errors.UserDeactivatedError, errors.UserDeactivatedBanError):
+                result["authorized"] = False
+                result["banned"] = True
+                result["ban_reason"] = "deactivated"
+                return result
+            except errors.FloodWaitError as fw:
+                logger.warning(f"Account {phone} FloodWait {fw.seconds}s during auth — skipping")
+                result["error"] = f"FloodWait {fw.seconds}s"
+                return result
+            except Exception as e:
+                err_str = str(e).lower()
+                if "deactivated" in err_str or "banned" in err_str or "unregistered" in err_str:
+                    result["authorized"] = False
+                    result["banned"] = True
+                    result["ban_reason"] = "deactivated"
+                    return result
+                logger.warning(f"Account {phone} get_me error (transient): {e}")
+                result["error"] = str(e)
+                return result
+
+            if me is None:
                 result["authorized"] = False
                 return result
 
             result["authorized"] = True
+            result["username"] = me.username
+            result["first_name"] = me.first_name
+            result["last_name"] = me.last_name
+            result["telegram_user_id"] = me.id
+            result["is_premium"] = getattr(me, "premium", False) or False
+            result["telegram_created_at"] = _estimate_creation_date(me.id)
 
-            # Get self info
-            me = await client.get_me()
-            if me:
-                result["username"] = me.username
-                result["first_name"] = me.first_name
-                result["last_name"] = me.last_name
-                result["telegram_user_id"] = me.id
-
-                # Estimate account creation date from user ID
-                # Telegram IDs are roughly sequential — known reference points
-                result["telegram_created_at"] = _estimate_creation_date(me.id)
-
-                # Download avatar
-                try:
-                    avatar_path = SESSIONS_DIR.parent / "tg_photos" / f"{phone}.jpg"
-                    avatar_path.parent.mkdir(parents=True, exist_ok=True)
-                    downloaded = await client.download_profile_photo(me, file=str(avatar_path))
-                    if downloaded:
-                        result["avatar_path"] = str(avatar_path)
-                except Exception:
-                    pass  # avatar download is best-effort
+            # Download avatar (always re-download to keep fresh)
+            try:
+                avatar_path = SESSIONS_DIR.parent / "tg_photos" / f"{phone}.jpg"
+                avatar_path.parent.mkdir(parents=True, exist_ok=True)
+                downloaded = await client.download_profile_photo(me, file=str(avatar_path))
+                if downloaded:
+                    result["avatar_path"] = str(avatar_path)
+                else:
+                    result["avatar_path"] = None
+            except Exception:
+                pass  # avatar download is best-effort
 
             # ── Check for Abuse Notifications (permanent ban) ─────────
             try:
@@ -430,76 +478,101 @@ class TelegramEngine:
                         result["ban_reason"] = "send_failed"
                         logger.warning(f"Account {phone} likely banned — self-message error: {e}")
 
-            # ── Check SpamBot ─────────────────────────────────────────
+            # ── Check SpamBot (primary status detection) ─────────────
             if not result["banned"]:
                 try:
                     spambot = await client.get_entity("@SpamBot")
                     await client.send_message(spambot, "/start")
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(3)
 
-                    messages = await client.get_messages(spambot, limit=1)
-                    if messages:
-                        text = messages[0].text or ""
-                        text_lower = text.lower()
+                    messages = await client.get_messages(spambot, limit=3)
+                    # Combine last messages from SpamBot (freeze info may be in a separate message)
+                    full_text = "\n".join((m.text or "") for m in messages if m.text) if messages else ""
+                    text_lower = full_text.lower()
+                    result["spambot_text"] = full_text[:500]
 
-                        # ── Positive (no restrictions) — EN + RU ──
-                        no_limit_kw = [
-                            "no limits", "free as a bird", "not limited",        # EN
-                            "не ограничен", "всё хорошо", "нет ограничений",     # RU
-                        ]
-                        # ── Temporary restriction — EN + RU ──
-                        temp_kw = [
-                            "temporary", "will be removed", "will be lifted",    # EN
-                            "временно", "будет снято", "будет автоматически",     # RU
-                        ]
-                        # ── Permanent restriction — EN + RU ──
-                        perm_kw = [
-                            "permanent", "forever",                              # EN
-                            "навсегда", "навечно",                               # RU
-                        ]
-                        # ── Frozen / restricted (catch-all) — EN + RU ──
-                        restricted_kw = [
-                            "limited", "restricted", "frozen",                   # EN
-                            "ограничен", "заморожен", "заблокирован",            # RU
-                        ]
-
-                        if any(kw in text_lower for kw in no_limit_kw):
-                            result["spamblock"] = "none"
-                        elif any(kw in text_lower for kw in temp_kw):
-                            result["spamblock"] = "temporary"
-                            # Try to parse end date
-                            import re
-                            date_match = re.search(
-                                r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
-                                r'|(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
-                                r'|(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})',
-                                text, re.IGNORECASE
-                            )
-                            if date_match:
-                                try:
-                                    from dateutil import parser as dateparser
-                                    result["spamblock_end"] = dateparser.parse(date_match.group(0)).isoformat()
-                                except Exception:
-                                    pass
-                        elif any(kw in text_lower for kw in perm_kw):
-                            result["spamblock"] = "permanent"
-                        elif any(kw in text_lower for kw in restricted_kw):
-                            # SpamBot says account IS limited but doesn't say temp/perm
-                            result["spamblock"] = "temporary"
-                            result["frozen"] = True
-                            logger.warning(f"Account {phone} appears frozen — SpamBot: {text[:200]}")
+                    # ── Freeze detection (separate from spamblock) ──
+                    freeze_kw = [
+                        "frozen", "freeze", "froze",
+                        "заморожен", "заморозк", "замороз",
+                    ]
+                    if any(kw in text_lower for kw in freeze_kw):
+                        result["frozen"] = True
+                        # Parse freeze dates (EN: "since April 2, 2026 until May 2, 2026" / RU: "с 2 апреля 2026 до 2 мая 2026")
+                        import re
+                        from dateutil import parser as dateparser
+                        # Try to find "since/с" date and "until/до" date
+                        date_pattern = (
+                            r'(?:\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
+                            r'|(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
+                            r'|(?:\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})'
+                            r'|(?:\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?)'
+                        )
+                        all_dates = re.findall(date_pattern, full_text, re.IGNORECASE)
+                        if len(all_dates) >= 2:
+                            try:
+                                result["freeze_since"] = dateparser.parse(all_dates[0]).isoformat()
+                                result["freeze_until"] = dateparser.parse(all_dates[1]).isoformat()
+                            except Exception:
+                                pass
+                        elif len(all_dates) == 1:
+                            try:
+                                result["freeze_until"] = dateparser.parse(all_dates[0]).isoformat()
+                            except Exception:
+                                pass
+                        # Extract appeal URL
+                        url_match = re.search(r'(https?://t\.me/\S+)', full_text)
+                        if url_match:
+                            result["freeze_appeal_url"] = url_match.group(1)
                         else:
-                            # Unrecognized response — do NOT assume clean
-                            result["spamblock"] = "unknown"
-                            logger.warning(f"Unrecognized SpamBot response for {phone}: {text[:200]}")
+                            result["freeze_appeal_url"] = "https://t.me/SpamBot"
 
-                    # Clean up dialog (delay to avoid automation fingerprint)
-                    try:
-                        import random
-                        await asyncio.sleep(random.uniform(2, 5))
-                        await client.delete_dialog(spambot)
-                    except Exception:
-                        pass
+                    # ── Spamblock detection ──
+                    no_limit_kw = [
+                        "no limits", "free as a bird", "not limited", "free from",
+                        "не ограничен", "всё хорошо", "нет ограничений", "свободен",
+                    ]
+                    temp_kw = [
+                        "temporary", "will be removed", "will be lifted",
+                        "временно", "будет снято", "будет автоматически",
+                    ]
+                    perm_kw = [
+                        "permanent", "forever",
+                        "навсегда", "навечно",
+                    ]
+                    restricted_kw = [
+                        "limited", "restricted",
+                        "ограничен", "заблокирован",
+                    ]
+
+                    if any(kw in text_lower for kw in no_limit_kw):
+                        result["spamblock"] = "none"
+                    elif any(kw in text_lower for kw in temp_kw):
+                        result["spamblock"] = "temporary"
+                        import re
+                        date_match = re.search(
+                            r'(\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})'
+                            r'|(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4})'
+                            r'|(\d{1,2}\s+(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4})',
+                            full_text, re.IGNORECASE
+                        )
+                        if date_match:
+                            try:
+                                from dateutil import parser as dateparser
+                                result["spamblock_end"] = dateparser.parse(date_match.group(0)).isoformat()
+                            except Exception:
+                                pass
+                    elif any(kw in text_lower for kw in perm_kw):
+                        result["spamblock"] = "permanent"
+                    elif any(kw in text_lower for kw in restricted_kw) and not result["frozen"]:
+                        result["spamblock"] = "temporary"
+                        result["frozen"] = True
+                        logger.warning(f"Account {phone} appears frozen — SpamBot: {full_text[:200]}")
+                    elif not result["frozen"]:
+                        result["spamblock"] = "unknown"
+                        logger.warning(f"Unrecognized SpamBot response for {phone}: {full_text[:200]}")
+
+                    # Do NOT delete SpamBot dialog (TeleRaptor keeps it)
                 except (errors.UserRestrictedError, errors.ChatWriteForbiddenError):
                     result["spamblock"] = "temporary"
                     result["frozen"] = True
@@ -507,6 +580,21 @@ class TelegramEngine:
                 except Exception as e:
                     logger.warning(f"SpamBot check failed for {phone}: {e}")
                     result["spamblock"] = "unknown"
+
+            # ── Frozen detection: contacts.Search probe ──────────────
+            # Frozen accounts sometimes pass SpamBot ("no limits") but
+            # cannot search — useless for outreach.
+            if not result["frozen"] and not result["banned"] and result["spamblock"] == "none":
+                try:
+                    await client(functions.contacts.SearchRequest(q="test", limit=1))
+                except (errors.UserRestrictedError, errors.ChatWriteForbiddenError):
+                    result["frozen"] = True
+                    logger.warning(f"Account {phone} frozen — contacts.Search restricted")
+                except Exception as e:
+                    err_name = type(e).__name__
+                    if "Frozen" in err_name or "Restrict" in err_name:
+                        result["frozen"] = True
+                        logger.warning(f"Account {phone} frozen — contacts.Search: {err_name}")
 
         except errors.AuthKeyUnregisteredError:
             result["connected"] = True
@@ -592,6 +680,16 @@ class TelegramEngine:
 
         try:
             entity = await client.get_entity(recipient_username)
+            # Simulate typing indicator (human-like)
+            try:
+                await client(functions.messages.SetTypingRequest(
+                    peer=entity, action=types.SendMessageTypingAction()))
+                # Typing duration proportional to message length: ~50ms per char, 2-8s range
+                import random
+                typing_duration = max(2.0, min(8.0, len(text) * 0.05)) + random.uniform(-0.5, 0.5)
+                await asyncio.sleep(typing_duration)
+            except Exception:
+                pass  # typing indicator is best-effort
             msg = await client.send_message(
                 entity, text,
                 link_preview=link_preview,
@@ -636,6 +734,14 @@ class TelegramEngine:
 
         try:
             entity = await client.get_entity(recipient_username)
+            # Simulate typing/upload indicator (human-like)
+            try:
+                action = types.SendMessageRecordAudioAction() if voice_note else types.SendMessageUploadDocumentAction(progress=0)
+                await client(functions.messages.SetTypingRequest(peer=entity, action=action))
+                import random
+                await asyncio.sleep(random.uniform(2.0, 5.0))
+            except Exception:
+                pass  # typing indicator is best-effort
             msg = await client.send_file(
                 entity, file_path,
                 caption=caption or None,

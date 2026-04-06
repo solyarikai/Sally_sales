@@ -730,6 +730,150 @@ async def get_contact_stats(
     )
 
 
+# Pipeline Kanban columns — maps each column to underlying contact statuses
+PIPELINE_COLUMNS = [
+    {"key": "new",         "label": "New",         "color": "#9ca3af", "statuses": ["new"]},
+    {"key": "contacted",   "label": "Contacted",   "color": "#6b7280", "statuses": ["sent"]},
+    {"key": "interested",  "label": "Interested",  "color": "#3b82f6", "statuses": ["replied", "calendly_sent"]},
+    {"key": "meeting",     "label": "Meeting",     "color": "#f97316", "statuses": ["meeting_booked", "meeting_held", "meeting_rescheduled"]},
+    {"key": "closed_won",  "label": "Closed Won",  "color": "#10b981", "statuses": ["qualified"]},
+    {"key": "closed_lost", "label": "Closed Lost", "color": "#4b5563", "statuses": ["not_qualified"]},
+]
+
+# Reverse mapping: status -> pipeline column key
+_STATUS_TO_COLUMN = {}
+for _col in PIPELINE_COLUMNS:
+    for _s in _col["statuses"]:
+        _STATUS_TO_COLUMN[_s] = _col["key"]
+
+# Default status when dragging into a column
+COLUMN_DEFAULT_STATUS = {
+    "new": "new",
+    "contacted": "sent",
+    "interested": "replied",
+    "meeting": "meeting_booked",
+    "closed_won": "qualified",
+    "closed_lost": "not_qualified",
+}
+
+
+class KanbanContact(BaseModel):
+    id: int
+    email: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    company_name: Optional[str] = None
+    domain: Optional[str] = None
+    job_title: Optional[str] = None
+    segment: Optional[str] = None
+    status: str
+    project_id: Optional[int] = None
+    project_name: Optional[str] = None
+    last_reply_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class KanbanColumn(BaseModel):
+    key: str
+    label: str
+    color: str
+    statuses: List[str]
+    count: int
+    contacts: List[KanbanContact]
+
+
+class KanbanResponse(BaseModel):
+    columns: List[KanbanColumn]
+    total: int
+
+
+@router.get("/kanban", response_model=KanbanResponse)
+async def get_kanban(
+    project_id: int | None = Query(None),
+    search: str | None = Query(None),
+    segment: str | None = Query(None),
+    campaign: str | None = Query(None),
+    per_column: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+    company_id: int | None = Depends(get_optional_company_id),
+):
+    """Get contacts grouped by pipeline columns for Kanban board."""
+    base_filters = [Contact.deleted_at.is_(None)]
+    if company_id:
+        base_filters.append(Contact.company_id == company_id)
+    if project_id:
+        base_filters.append(Contact.project_id == project_id)
+    if search:
+        term = f"%{search}%"
+        base_filters.append(
+            or_(
+                Contact.email.ilike(term),
+                Contact.first_name.ilike(term),
+                Contact.last_name.ilike(term),
+                Contact.company_name.ilike(term),
+            )
+        )
+    if segment:
+        segs = [s.strip() for s in segment.split(",") if s.strip()]
+        if segs:
+            base_filters.append(Contact.segment.in_(segs))
+
+    base_where = and_(*base_filters)
+
+    # Get counts per status in one query
+    count_result = await session.execute(
+        select(Contact.status, func.count())
+        .where(base_where)
+        .group_by(Contact.status)
+    )
+    status_counts: Dict[str, int] = {row[0]: row[1] for row in count_result.all() if row[0]}
+
+    # Pre-load project names
+    project_names: Dict[int, str] = {}
+    if project_id is None:
+        pq = await session.execute(select(Project.id, Project.name))
+        project_names = {r[0]: r[1] for r in pq.all()}
+
+    # Build columns
+    columns: List[KanbanColumn] = []
+    grand_total = 0
+
+    for col_def in PIPELINE_COLUMNS:
+        col_count = sum(status_counts.get(s, 0) for s in col_def["statuses"])
+        grand_total += col_count
+
+        # Fetch top N contacts for this column
+        col_query = (
+            select(Contact)
+            .where(and_(base_where, Contact.status.in_(col_def["statuses"])))
+            .order_by(desc(Contact.updated_at))
+            .limit(per_column)
+        )
+        result = await session.execute(col_query)
+        contacts_in_col = result.scalars().all()
+
+        kanban_contacts = []
+        for c in contacts_in_col:
+            kc = KanbanContact.model_validate(c)
+            if c.project_id and c.project_id in project_names:
+                kc.project_name = project_names[c.project_id]
+            kanban_contacts.append(kc)
+
+        columns.append(KanbanColumn(
+            key=col_def["key"],
+            label=col_def["label"],
+            color=col_def["color"],
+            statuses=col_def["statuses"],
+            count=col_count,
+            contacts=kanban_contacts,
+        ))
+
+    return KanbanResponse(columns=columns, total=grand_total)
+
+
 @router.get("/filters")
 async def get_filter_options(
     session: AsyncSession = Depends(get_session),

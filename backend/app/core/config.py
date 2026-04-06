@@ -112,6 +112,12 @@ class Settings(BaseSettings):
     APIFY_PROXY_PORT: int = 8000
     APIFY_PROXY_PASSWORD: Optional[str] = None
 
+    # Infatica residential proxy (for Telegram accounts)
+    INFATICA_PROXY_HOST: str = "pool.infatica.io"
+    INFATICA_PROXY_PORT: int = 10609
+    INFATICA_PROXY_USERNAME: Optional[str] = None
+    INFATICA_PROXY_PASSWORD: Optional[str] = None
+
     # GetSales Integration
     GETSALES_API_KEY: Optional[str] = None
 
@@ -179,6 +185,7 @@ _OPTIONAL_KEYS = {
     "FIREFLIES_API_KEY":     "Fireflies (call transcripts)",
     "CLAY_API_KEY":          "Clay",
     "TELEGRAM_BOT_TOKEN":    "Telegram Bot",
+    "INFATICA_PROXY_USERNAME": "Infatica Proxy (residential)",
 }
 
 

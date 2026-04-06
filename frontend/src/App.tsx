@@ -27,6 +27,7 @@ import { LookalikePage } from './pages/LookalikePage';
 import { IGamingPage } from './pages/IGamingPage';
 import { TelegramOutreachPage } from './pages/TelegramOutreachPage';
 import { CampaignDetailPage } from './pages/CampaignDetailPage';
+import { InboxV2Page } from './pages/InboxV2Page';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider, useToast, setToastFunction } from './components/Toast';
 import { useEffect } from 'react';
@@ -191,6 +192,13 @@ function App() {
         <Route path="/igaming" element={
           <Layout>
             <IGamingPage />
+          </Layout>
+        } />
+
+        {/* Inbox V2 — Telegram Web-style inbox */}
+        <Route path="/inbox-v2" element={
+          <Layout>
+            <InboxV2Page />
           </Layout>
         } />
 

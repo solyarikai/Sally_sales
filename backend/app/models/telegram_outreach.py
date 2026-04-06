@@ -41,6 +41,11 @@ class TgProxyProtocol(str, enum.Enum):
     MTPROTO = "mtproto"
 
 
+class TgCampaignType(str, enum.Enum):
+    ONE_TIME = "one_time"
+    DYNAMIC = "dynamic"
+
+
 class TgCampaignStatus(str, enum.Enum):
     DRAFT = "draft"
     ACTIVE = "active"
@@ -135,7 +140,7 @@ class TgAccount(Base, TimestampMixin):
     api_hash = Column(String(100), nullable=True)
     device_model = Column(String(100), nullable=True, default="PC 64bit")
     system_version = Column(String(50), nullable=True, default="Windows 10")
-    app_version = Column(String(50), nullable=True, default="6.5.1 x64")
+    app_version = Column(String(50), nullable=True, default="6.7.1 x64")
     lang_code = Column(String(10), nullable=True, default="en")
     system_lang_code = Column(String(10), nullable=True, default="en-US")
 
@@ -183,6 +188,10 @@ class TgAccount(Base, TimestampMixin):
     spamblock_end = Column(DateTime, nullable=True)
     ban_reason = Column(String(255), nullable=True)  # e.g. "abuse_notifications", "send_failed"
     banned_at = Column(DateTime, nullable=True)
+    freeze_since = Column(DateTime, nullable=True)
+    freeze_until = Column(DateTime, nullable=True)
+    freeze_appeal_url = Column(String(500), nullable=True)
+    last_spambot_check_at = Column(DateTime, nullable=True)
 
     # Relationships
     proxy_group = relationship("TgProxyGroup", back_populates="accounts")
@@ -209,11 +218,18 @@ class TgCampaign(Base, TimestampMixin):
         nullable=False, default=TgCampaignStatus.DRAFT, index=True,
     )
 
+    # Campaign type: one_time (fixed CSV list) or dynamic (CRM segment-based)
+    campaign_type = Column(String(20), nullable=False, default="one_time")
+    # Filter criteria for dynamic campaigns (JSON: {logic, filters[]})
+    segment_filters = Column(JSONB, nullable=True, default=None)
+    segment_last_synced_at = Column(DateTime, nullable=True)
+
     # Sending settings
     daily_message_limit = Column(Integer, nullable=True)
     timezone = Column(String(50), nullable=False, default="Europe/Moscow")
     send_from_hour = Column(Integer, nullable=False, default=9)
     send_to_hour = Column(Integer, nullable=False, default=18)
+    send_days = Column(JSONB, nullable=False, default=[0, 1, 2, 3, 4, 5, 6])  # 0=Mon..6=Sun
 
     # Delays
     delay_between_sends_min = Column(Integer, nullable=False, default=11)
@@ -419,6 +435,12 @@ class TgAutoReplyConfig(Base):
     max_replies_per_conversation = Column(Integer, nullable=False, default=5)
     dialog_timeout_hours = Column(Integer, nullable=False, default=24)
     simulate_human = Column(Boolean, nullable=False, default=True)
+    model_provider = Column(String(20), nullable=False, default="gemini")  # gemini, openai, anthropic
+    knowledge_base = Column(Text, nullable=True)  # plain text KB for AI context
+    working_hours_enabled = Column(Boolean, nullable=False, default=False)
+    working_hours_start = Column(String(5), nullable=False, default="09:00")  # HH:MM
+    working_hours_end = Column(String(5), nullable=False, default="18:00")
+    working_hours_timezone = Column(String(50), nullable=False, default="UTC")
 
     campaign = relationship("TgCampaign")
 
@@ -509,6 +531,52 @@ class TgContact(Base, TimestampMixin):
     source_campaign_id = Column(Integer, ForeignKey("tg_campaigns.id", ondelete="SET NULL"), nullable=True)
 
 
+class TgCrmCustomFieldType(str, enum.Enum):
+    TEXT = "text"
+    NUMBER = "number"
+    SELECT = "select"
+    MULTI_SELECT = "multi_select"
+    DATE = "date"
+    URL = "url"
+
+
+class TgCrmCustomField(Base, TimestampMixin):
+    """Custom property definition for CRM contacts."""
+    __tablename__ = "tg_crm_custom_fields"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, nullable=True, index=True)
+    name = Column(String(100), nullable=False)
+    field_type = Column(
+        SQLEnum(TgCrmCustomFieldType, values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
+    )
+    options_json = Column(JSONB, nullable=False, default=list)  # for select/multi_select
+    sort_order = Column(Integer, nullable=False, default=0)
+
+    values = relationship("TgCrmLeadFieldValue", back_populates="field", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "name", name="uq_crm_custom_field_project_name"),
+    )
+
+
+class TgCrmLeadFieldValue(Base, TimestampMixin):
+    """Value of a custom field for a specific CRM contact."""
+    __tablename__ = "tg_crm_lead_field_values"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("tg_contacts.id", ondelete="CASCADE"), nullable=False, index=True)
+    field_id = Column(Integer, ForeignKey("tg_crm_custom_fields.id", ondelete="CASCADE"), nullable=False, index=True)
+    value = Column(Text, nullable=True)
+
+    field = relationship("TgCrmCustomField", back_populates="values")
+
+    __table_args__ = (
+        UniqueConstraint("lead_id", "field_id", name="uq_crm_lead_field_value"),
+    )
+
+
 class TgBlacklist(Base, TimestampMixin):
     """Blacklisted Telegram usernames — recipients matching these are filtered out on upload."""
     __tablename__ = "tg_blacklist"
@@ -556,4 +624,47 @@ class TgWarmupLog(Base):
 
     __table_args__ = (
         Index("ix_tg_warmup_log_account_at", "account_id", "performed_at"),
+    )
+
+
+# ── Notification Bot ──────────────────────────────────────────────────
+
+class TgNotifyMode(str, enum.Enum):
+    ALL = "all"               # every reply
+    INTERESTED = "interested"  # only inbox_tag=interested
+    NEW_ONLY = "new_only"     # only first reply from a recipient
+
+
+class TgOutreachNotifSub(Base):
+    """Manager subscription for TG outreach reply notifications via Telegram bot."""
+    __tablename__ = "tg_outreach_notif_subs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(String(100), nullable=False, unique=True, index=True)
+    username = Column(String(100), nullable=True)
+    first_name = Column(String(200), nullable=True)
+    notify_mode = Column(String(20), nullable=False, default=TgNotifyMode.ALL.value)
+    daily_digest = Column(Boolean, nullable=False, default=False)
+    digest_hour = Column(Integer, nullable=False, default=9)  # UTC hour
+    campaign_ids = Column(JSONB, nullable=True)  # null = all campaigns
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+
+class TgOutreachNotifLog(Base):
+    """Tracks sent notification messages for quick-reply routing."""
+    __tablename__ = "tg_outreach_notif_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_message_id = Column(BigInteger, nullable=False, index=True)
+    chat_id = Column(String(100), nullable=False, index=True)
+    recipient_id = Column(Integer, ForeignKey("tg_recipients.id", ondelete="CASCADE"), nullable=False)
+    account_id = Column(Integer, ForeignKey("tg_accounts.id", ondelete="CASCADE"), nullable=False)
+    campaign_id = Column(Integer, ForeignKey("tg_campaigns.id", ondelete="CASCADE"), nullable=False)
+    recipient_username = Column(String(200), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_notif_log_chat_msg", "chat_id", "bot_message_id"),
     )

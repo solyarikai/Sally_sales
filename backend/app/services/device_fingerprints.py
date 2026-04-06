@@ -131,6 +131,7 @@ DEVICE_MODELS = [
 SYSTEM_VERSIONS = ["Windows 10", "Windows 11"]
 
 # --- Telegram Desktop app versions (recent) ---
+# Base pool — updated dynamically by update_app_versions_pool() when GitHub is checked.
 APP_VERSIONS = [
     "6.5.1 x64",
     "6.5.2 x64",
@@ -140,6 +141,35 @@ APP_VERSIONS = [
     "6.7.0 x64",
     "6.7.1 x64",
 ]
+
+# Keep only the last N versions in the pool (older ones look suspicious).
+_MAX_VERSIONS_IN_POOL = 5
+
+
+def update_app_versions_pool(latest_raw: str) -> None:
+    """Add the latest version to APP_VERSIONS and trim old ones.
+
+    Call this whenever a new version is fetched from GitHub.
+    `latest_raw` should be like "6.7.1" (without "x64" suffix).
+    """
+    global APP_VERSIONS
+    full = f"{latest_raw} x64"
+    if full not in APP_VERSIONS:
+        APP_VERSIONS.append(full)
+    # Keep only the most recent versions (sort by semver)
+    try:
+        sorted_versions = sorted(
+            APP_VERSIONS,
+            key=lambda v: tuple(int(x) for x in v.replace(" x64", "").split(".")),
+        )
+        APP_VERSIONS = sorted_versions[-_MAX_VERSIONS_IN_POOL:]
+    except (ValueError, IndexError):
+        pass
+
+
+def get_default_app_version() -> str:
+    """Return the latest app version string from the pool (for fallbacks)."""
+    return APP_VERSIONS[-1] if APP_VERSIONS else "6.7.1 x64"
 
 # --- Language codes ---
 # Weighted: en most common for international outreach, then ru, de, etc.

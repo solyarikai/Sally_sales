@@ -328,6 +328,36 @@
     color: var(--badge-text);
   }
 
+  /* Tooltip with 200ms delay */
+  .tip {
+    position: relative;
+  }
+  .tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 10px;
+    background: #1F2937;
+    color: #F9FAFB;
+    font-size: 11px;
+    line-height: 1.4;
+    border-radius: 6px;
+    white-space: pre-line;
+    max-width: 260px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 150ms;
+    transition-delay: 0ms;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .tip:hover::after {
+    opacity: 1;
+    transition-delay: 200ms;
+  }
+
   /* Modal */
   .modal-overlay {
     position: fixed;
@@ -725,4 +755,600 @@ textarea:focus {
   height: 6px;
   border-radius: 3px;
   background: #E5E7EB;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Telegram Web Z — Inbox V2 styles
+   Extracted from github.com/nicegram/nicegram-web-z and adapted
+   Source files: src/components/middle/message/Message.scss,
+                 src/components/left/ChatList.scss,
+                 src/styles/_variables.scss
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Chat wallpaper pattern (from Telegram Web Z ChatBackground) ── */
+.tg-chat-bg {
+  position: relative;
+  background-color: #E6EBEE;
+}
+.tg-chat-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.3;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cdefs%3E%3Cpattern id='p' width='60' height='60' patternUnits='userSpaceOnUse'%3E%3Ccircle cx='10' cy='10' r='1.5' fill='%23AAB8C2' opacity='0.4'/%3E%3Ccircle cx='40' cy='5' r='1' fill='%23AAB8C2' opacity='0.3'/%3E%3Ccircle cx='25' cy='30' r='1.2' fill='%23AAB8C2' opacity='0.35'/%3E%3Ccircle cx='50' cy='25' r='1' fill='%23AAB8C2' opacity='0.25'/%3E%3Ccircle cx='5' cy='50' r='1.3' fill='%23AAB8C2' opacity='0.3'/%3E%3Ccircle cx='35' cy='50' r='1' fill='%23AAB8C2' opacity='0.35'/%3E%3Ccircle cx='55' cy='45' r='1.2' fill='%23AAB8C2' opacity='0.25'/%3E%3Cpath d='M15 18 Q17 14 20 17' stroke='%23AAB8C2' fill='none' stroke-width='0.6' opacity='0.25'/%3E%3Cpath d='M42 35 Q45 32 47 36' stroke='%23AAB8C2' fill='none' stroke-width='0.6' opacity='0.2'/%3E%3Cpath d='M8 38 L12 34' stroke='%23AAB8C2' stroke-width='0.5' opacity='0.2'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='120' height='120' fill='url(%23p)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+.tg-chat-bg > * { position: relative; z-index: 1; }
+
+.dark .tg-chat-bg {
+  background-color: #0E1621;
+}
+.dark .tg-chat-bg::before {
+  opacity: 0.15;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cdefs%3E%3Cpattern id='p' width='60' height='60' patternUnits='userSpaceOnUse'%3E%3Ccircle cx='10' cy='10' r='1.5' fill='%23546778' opacity='0.4'/%3E%3Ccircle cx='40' cy='5' r='1' fill='%23546778' opacity='0.3'/%3E%3Ccircle cx='25' cy='30' r='1.2' fill='%23546778' opacity='0.35'/%3E%3Ccircle cx='50' cy='25' r='1' fill='%23546778' opacity='0.25'/%3E%3Ccircle cx='5' cy='50' r='1.3' fill='%23546778' opacity='0.3'/%3E%3Ccircle cx='35' cy='50' r='1' fill='%23546778' opacity='0.35'/%3E%3Ccircle cx='55' cy='45' r='1.2' fill='%23546778' opacity='0.25'/%3E%3Cpath d='M15 18 Q17 14 20 17' stroke='%23546778' fill='none' stroke-width='0.6' opacity='0.25'/%3E%3Cpath d='M42 35 Q45 32 47 36' stroke='%23546778' fill='none' stroke-width='0.6' opacity='0.2'/%3E%3Cpath d='M8 38 L12 34' stroke='%23546778' stroke-width='0.5' opacity='0.2'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='120' height='120' fill='url(%23p)'/%3E%3C/svg%3E");
+}
+
+/* ── Message bubbles (from Message.scss) ── */
+.tg-bubble {
+  max-width: 480px;
+  padding: 6px 10px 5px;
+  line-height: 1.3125;
+  font-size: 13.5px;
+  word-break: break-word;
+  white-space: pre-wrap;
+  position: relative;
+}
+.tg-bubble-in {
+  background: #FFFFFF;
+  color: #000000;
+  border-radius: 12px 12px 12px 4px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.tg-bubble-out {
+  background: #EFFDDE;
+  color: #000000;
+  border-radius: 12px 12px 4px 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.dark .tg-bubble-in {
+  background: #182533;
+  color: #E1E3E6;
+  box-shadow: none;
+}
+.dark .tg-bubble-out {
+  background: #2B5278;
+  color: #E1E3E6;
+  box-shadow: none;
+}
+
+/* Bubble tail — last message in a group */
+.tg-bubble-tail-in {
+  border-radius: 12px 12px 12px 0px;
+}
+.tg-bubble-tail-in::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -8px;
+  width: 11px;
+  height: 20px;
+  background: radial-gradient(ellipse at top right, transparent 70%, #FFFFFF 70%);
+}
+.dark .tg-bubble-tail-in::before {
+  background: radial-gradient(ellipse at top right, transparent 70%, #182533 70%);
+}
+
+.tg-bubble-tail-out {
+  border-radius: 12px 12px 0px 12px;
+}
+.tg-bubble-tail-out::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: -8px;
+  width: 11px;
+  height: 20px;
+  background: radial-gradient(ellipse at top left, transparent 70%, #EFFDDE 70%);
+}
+.dark .tg-bubble-tail-out::after {
+  background: radial-gradient(ellipse at top left, transparent 70%, #2B5278 70%);
+}
+
+/* Middle bubble in a group — tighter spacing */
+.tg-bubble-group-mid {
+  margin-bottom: 1px;
+}
+.tg-bubble-group-last {
+  margin-bottom: 8px;
+}
+.tg-bubble-group-single {
+  margin-bottom: 8px;
+}
+
+/* ── Inline timestamp + read marks (from Message.scss .message-date) ── */
+.tg-meta {
+  float: right;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 4px 0 -4px 12px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+.tg-meta-time {
+  color: #8E9BA7;
+}
+.dark .tg-meta-time {
+  color: #6D7F8F;
+}
+.tg-meta-time-out {
+  color: #6CC264;
+}
+.dark .tg-meta-time-out {
+  color: #72B1DB;
+}
+.tg-meta-check {
+  color: #4DCD5E;
+  display: inline-block;
+  vertical-align: middle;
+  margin-top: -1px;
+}
+.dark .tg-meta-check {
+  color: #72B1DB;
+}
+
+/* ── Date separator (from Message.scss .date-header) ── */
+.tg-date-sep {
+  display: flex;
+  justify-content: center;
+  margin: 10px 0;
+  user-select: none;
+}
+.tg-date-sep span {
+  background: rgba(0,0,0,0.08);
+  color: rgba(0,0,0,0.45);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 16px;
+}
+.dark .tg-date-sep span {
+  background: rgba(0,0,0,0.35);
+  color: rgba(255,255,255,0.6);
+}
+
+/* ── Dialog list items (from ChatList.scss) ── */
+.tg-dialog-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  margin: 0 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.tg-dialog-item:hover {
+  background: #F4F4F5;
+}
+.dark .tg-dialog-item:hover {
+  background: #202B36;
+}
+.tg-dialog-item:active {
+  transform: scale(0.99);
+}
+.tg-dialog-item-active {
+  background: #3390EC !important;
+}
+.tg-dialog-item-active * {
+  color: #fff !important;
+}
+.tg-dialog-item-active .tg-unread-badge {
+  background: #fff !important;
+  color: #3390EC !important;
+}
+
+/* ── Unread badge (from ChatList.scss) ── */
+.tg-unread-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 20px;
+  background: #3390EC;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── Input area (from MiddleColumn.scss .composer) ── */
+.tg-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+}
+.tg-composer-input {
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.3125;
+  padding: 8px 14px;
+  border-radius: 18px;
+  max-height: 120px;
+  min-height: 40px;
+  background: #F0F2F5;
+  color: #000;
+  transition: background 0.15s;
+}
+.dark .tg-composer-input {
+  background: #242F3D;
+  color: #E1E3E6;
+}
+.tg-composer-input::placeholder {
+  color: #9CA3AF;
+}
+.dark .tg-composer-input::placeholder {
+  color: #6D7F8F;
+}
+.tg-send-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #3390EC;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.1s;
+}
+.tg-send-btn:hover {
+  background: #2b80d4;
+}
+.tg-send-btn:active {
+  transform: scale(0.95);
+}
+.tg-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.tg-attach-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: transparent;
+  color: #7B8FA3;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.tg-attach-btn:hover {
+  color: #3390EC;
+  background: rgba(51, 144, 236, 0.08);
+}
+.tg-attach-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Chat area thin scrollbar (from _mixins.scss) ── */
+.tg-chat-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.tg-chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tg-chat-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.12);
+  border-radius: 5px;
+}
+.tg-chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.2);
+}
+.dark .tg-chat-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+}
+.dark .tg-chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+/* ── Message appear animation ── */
+@keyframes tgMsgIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.tg-msg-row {
+  animation: tgMsgIn 0.2s ease-out;
+}
+
+/* ── Link color inside bubbles ── */
+.tg-bubble-in a { color: #3390EC; }
+.tg-bubble-out a { color: #3390EC; }
+.dark .tg-bubble-in a { color: #6AB2F2; }
+.dark .tg-bubble-out a { color: #6AB2F2; }
+
+/* ── Bubble hover — subtle highlight ── */
+.tg-msg-row {
+  position: relative;
+}
+.tg-msg-row:hover .tg-bubble {
+  filter: brightness(0.97);
+}
+.dark .tg-msg-row:hover .tg-bubble {
+  filter: brightness(1.06);
+}
+
+/* ── Context menu — modern glassmorphism ── */
+.tg-ctx-menu {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255,255,255,0.88) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06);
+}
+.dark .tg-ctx-menu {
+  background: rgba(30,44,58,0.9) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.15);
+}
+.tg-ctx-menu button {
+  border-radius: 6px;
+  margin: 0 4px;
+}
+
+/* ── Header area ── */
+.tg-header {
+  background: #FFFFFF;
+  border-bottom: 1px solid #E6E6E6;
+}
+.dark .tg-header {
+  background: #17212B;
+  border-bottom-color: #101921;
+}
+
+/* ── CRM panel scrollbar ── */
+.tg-crm-panel::-webkit-scrollbar { width: 4px; }
+.tg-crm-panel::-webkit-scrollbar-track { background: transparent; }
+.tg-crm-panel::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
+.dark .tg-crm-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); }
+
+/* ── Media in bubbles ── */
+.tg-bubble-media-only {
+  padding: 3px !important;
+  overflow: hidden;
+}
+.tg-bubble-media-only .tg-meta {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 10px;
+  padding: 2px 6px;
+  z-index: 2;
+}
+.tg-bubble-media-only .tg-meta-time,
+.tg-bubble-media-only .tg-meta-time-out,
+.tg-bubble-media-only .tg-meta-check {
+  color: #fff !important;
+}
+
+/* Photo */
+.tg-media-photo {
+  cursor: pointer;
+  margin: -3px -3px 2px;
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+.tg-media-photo img {
+  max-width: 320px;
+  max-height: 320px;
+  width: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+
+/* Video */
+.tg-media-video {
+  margin: -3px -3px 2px;
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+.tg-media-video video {
+  max-width: 320px;
+  max-height: 320px;
+  width: 100%;
+  display: block;
+  border-radius: 10px;
+}
+.tg-video-note video {
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.tg-video-note {
+  border-radius: 50% !important;
+}
+
+/* GIF — auto-play */
+.tg-media-gif {
+  position: relative;
+  cursor: pointer;
+  margin: -3px -3px 2px;
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+.tg-media-gif video {
+  max-width: 320px;
+  max-height: 320px;
+  width: 100%;
+  display: block;
+  border-radius: 10px;
+}
+.tg-gif-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* Voice — custom waveform player */
+.tg-voice-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  padding: 2px 0;
+}
+.tg-voice-play-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.tg-voice-play-btn:hover {
+  opacity: 0.8;
+}
+.tg-voice-waveform {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1.5px;
+  height: 28px;
+  cursor: pointer;
+}
+.tg-voice-bar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 1px;
+  transition: background 0.12s ease;
+}
+.tg-voice-time {
+  font-size: 11px;
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Sticker */
+.tg-media-sticker {
+  margin: -3px -3px 2px;
+  line-height: 0;
+}
+.tg-media-sticker img {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+}
+.tg-bubble:has(.tg-media-sticker) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.tg-bubble:has(.tg-media-sticker)::before,
+.tg-bubble:has(.tg-media-sticker)::after {
+  display: none !important;
+}
+
+/* Document */
+.tg-media-doc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  text-decoration: none !important;
+  color: inherit !important;
+  transition: background 0.15s;
+}
+.tg-media-doc:hover {
+  background: rgba(0,0,0,0.05);
+}
+.dark .tg-media-doc:hover {
+  background: rgba(255,255,255,0.05);
+}
+.tg-doc-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tg-doc-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tg-doc-size {
+  font-size: 11px;
+  opacity: 0.5;
+}
+
+/* Lightbox */
+.tg-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.tg-lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+  cursor: default;
+}
+.tg-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: white;
+  background: rgba(0,0,0,0.4);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10000;
+}
+.tg-lightbox-close:hover {
+  background: rgba(0,0,0,0.6);
 }

@@ -12,6 +12,7 @@ from typing import Optional
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.device_fingerprints import get_default_app_version
 
 from app.db import async_session_maker
 from app.models.telegram_outreach import (
@@ -85,8 +86,32 @@ class AutoResponder:
                     logger.error(f"AutoResponder campaign {config.campaign_id}: {e}")
             await session.commit()
 
+    def _is_within_working_hours(self, config: TgAutoReplyConfig) -> bool:
+        """Check if current time is within configured working hours."""
+        if not config.working_hours_enabled:
+            return True
+        try:
+            import pytz
+            tz = pytz.timezone(config.working_hours_timezone or "UTC")
+            now = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(tz)
+            start_h, start_m = map(int, (config.working_hours_start or "09:00").split(":"))
+            end_h, end_m = map(int, (config.working_hours_end or "18:00").split(":"))
+            start_min = start_h * 60 + start_m
+            end_min = end_h * 60 + end_m
+            now_min = now.hour * 60 + now.minute
+            if start_min <= end_min:
+                return start_min <= now_min < end_min
+            else:  # overnight range e.g. 22:00-06:00
+                return now_min >= start_min or now_min < end_min
+        except Exception as e:
+            logger.warning(f"Working hours check failed: {e}, allowing reply")
+            return True
+
     async def _process_campaign_replies(self, config: TgAutoReplyConfig, session: AsyncSession):
         """Check for new incoming replies that need auto-response."""
+        # Check working hours
+        if not self._is_within_working_hours(config):
+            return
         # Get recent unreplied incoming messages
         recent_replies = await session.execute(
             select(TgIncomingReply)
@@ -153,7 +178,11 @@ class AutoResponder:
             })
 
             # Generate AI response
-            ai_response = await self._generate_response(config.system_prompt, messages)
+            ai_response = await self._generate_response(
+                config.system_prompt, messages,
+                model_provider=config.model_provider or "gemini",
+                knowledge_base=config.knowledge_base,
+            )
             if not ai_response:
                 continue
 
@@ -186,7 +215,7 @@ class AutoResponder:
                 await telegram_engine.connect(
                     account.id, phone=account.phone, api_id=account.api_id, api_hash=account.api_hash,
                     device_model=account.device_model or "PC 64bit", system_version=account.system_version or "Windows 10",
-                    app_version=account.app_version or "6.5.1 x64", lang_code=account.lang_code or "en",
+                    app_version=account.app_version or get_default_app_version(), lang_code=account.lang_code or "en",
                     system_lang_code=account.system_lang_code or "en-US", proxy=proxy_dict,
                 )
 
@@ -219,39 +248,83 @@ class AutoResponder:
             except Exception as e:
                 logger.error(f"AutoReply send failed: {e}")
 
-    async def _generate_response(self, system_prompt: str, messages: list[dict]) -> Optional[str]:
-        """Generate a response using Google Gemini."""
-        try:
-            import google.generativeai as genai
-            from app.core.config import settings
+    async def _generate_response(
+        self, system_prompt: str, messages: list[dict], *,
+        model_provider: str = "gemini", knowledge_base: str | None = None,
+    ) -> Optional[str]:
+        """Generate a response using the configured AI model."""
+        from app.core.config import settings
 
-            api_key = getattr(settings, 'GEMINI_API_KEY', None) or getattr(settings, 'GOOGLE_GEMINI_API_KEY', None)
-            if not api_key:
-                logger.warning("No Gemini API key configured for auto-responder")
-                return None
+        # Build conversation history
+        history_text = ""
+        for msg in messages[-10:]:
+            role = "User" if msg["role"] == "user" else "You"
+            history_text += f"{role}: {msg['text']}\n"
 
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+        kb_section = ""
+        if knowledge_base and knowledge_base.strip():
+            kb_section = f"\n\nKnowledge Base (use this information to answer questions):\n{knowledge_base.strip()}\n"
 
-            # Build conversation history
-            history_text = ""
-            for msg in messages[-10:]:  # last 10 messages
-                role = "User" if msg["role"] == "user" else "You"
-                history_text += f"{role}: {msg['text']}\n"
-
-            prompt = f"""{system_prompt}
+        full_prompt = f"""{system_prompt}{kb_section}
 
 Conversation history:
 {history_text}
 
 Reply as "You" to the last user message. Keep it short (1-3 sentences). Reply in the same language as the user."""
 
-            response = model.generate_content(prompt)
-            return response.text.strip() if response.text else None
-
+        try:
+            if model_provider == "openai":
+                return await self._generate_openai(settings, system_prompt, kb_section, history_text)
+            elif model_provider == "anthropic":
+                return await self._generate_anthropic(settings, system_prompt, kb_section, history_text)
+            else:
+                return await self._generate_gemini(settings, full_prompt)
         except Exception as e:
-            logger.error(f"Gemini generation failed: {e}")
+            logger.error(f"AI generation failed ({model_provider}): {e}")
             return None
+
+    async def _generate_gemini(self, settings, prompt: str) -> Optional[str]:
+        import google.generativeai as genai
+        api_key = getattr(settings, 'GEMINI_API_KEY', None) or getattr(settings, 'GOOGLE_GEMINI_API_KEY', None)
+        if not api_key:
+            logger.warning("No Gemini API key configured")
+            return None
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = model.generate_content(prompt)
+        return response.text.strip() if response.text else None
+
+    async def _generate_openai(self, settings, system_prompt: str, kb_section: str, history: str) -> Optional[str]:
+        import openai
+        if not settings.OPENAI_API_KEY:
+            logger.warning("No OpenAI API key configured")
+            return None
+        client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": f"{system_prompt}{kb_section}\n\nReply in 1-3 sentences. Reply in the same language as the user."},
+                {"role": "user", "content": f"Conversation history:\n{history}\n\nReply as 'You' to the last user message."},
+            ],
+            max_tokens=300,
+        )
+        return resp.choices[0].message.content.strip() if resp.choices else None
+
+    async def _generate_anthropic(self, settings, system_prompt: str, kb_section: str, history: str) -> Optional[str]:
+        import anthropic
+        if not settings.ANTHROPIC_API_KEY:
+            logger.warning("No Anthropic API key configured")
+            return None
+        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        resp = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            system=f"{system_prompt}{kb_section}\n\nReply in 1-3 sentences. Reply in the same language as the user.",
+            messages=[
+                {"role": "user", "content": f"Conversation history:\n{history}\n\nReply as 'You' to the last user message."},
+            ],
+        )
+        return resp.content[0].text.strip() if resp.content else None
 
 
 # Singleton

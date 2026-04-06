@@ -1,19 +1,20 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Users, Send, Shield, Plus, Search, Trash2,
   Globe, Loader2, Play, Pause, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   X, Upload, Edit3, ChevronDown, BookOpen, Check, Minus, Download, RefreshCw,
-  MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2, Square,
-  LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon,
-  BarChart3, ChevronUp, FolderOpen,
+  MessageCircle, Info, FileText, MoreVertical, AlertTriangle, Tag, EyeOff, ShieldAlert, Link2,
+  LayoutGrid, Bot, Phone, Settings, PanelLeft, Paperclip, Image, File as FileIcon, Eye,
+  BarChart3, ChevronUp, ChevronRight, FolderOpen, ArrowLeft, Mic,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
 import { useTheme } from '../hooks/useTheme';
 import { themeColors } from '../lib/themeColors';
 import { useToast } from '../components/Toast';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { telegramOutreachApi } from '../api/telegramOutreach';
 import { useAppStore } from '../store/appStore';
 import { contactsApi } from '../api/contacts';
@@ -21,7 +22,7 @@ import type {
   TgAccount, TgAccountTag, TgProxyGroup, TgProxy, TgCampaign,
 } from '../api/telegramOutreach';
 
-type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'pipeline' | 'blacklist' | 'inbox' | 'info';
+type Tab = 'accounts' | 'campaigns' | 'proxies' | 'parser' | 'crm' | 'pipeline' | 'custom_fields' | 'blacklist' | 'inbox' | 'info';
 
 const TAB_ROUTES: Record<Tab, string> = {
   inbox: '/outreach/inbox',
@@ -29,6 +30,7 @@ const TAB_ROUTES: Record<Tab, string> = {
   accounts: '/outreach/accounts',
   crm: '/outreach/crm/leads',
   pipeline: '/outreach/crm/pipeline',
+  custom_fields: '/outreach/crm/custom-fields',
   parser: '/outreach/tools/parser',
   proxies: '/outreach/tools/proxies',
   blacklist: '/outreach/tools/blacklist',
@@ -37,6 +39,7 @@ const TAB_ROUTES: Record<Tab, string> = {
 
 function pathToTab(pathname: string): Tab {
   if (pathname.startsWith('/outreach/crm/leads')) return 'crm';
+  if (pathname.startsWith('/outreach/crm/custom-fields')) return 'custom_fields';
   if (pathname.startsWith('/outreach/crm/pipeline')) return 'pipeline';
   if (pathname.startsWith('/outreach/tools/parser')) return 'parser';
   if (pathname.startsWith('/outreach/tools/proxies')) return 'proxies';
@@ -49,6 +52,22 @@ function pathToTab(pathname: string): Tab {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
+
+const COUNTRY_NAMES: Record<string, string> = {
+  US: 'United States', GB: 'United Kingdom', DE: 'Germany', FR: 'France', PT: 'Portugal',
+  ES: 'Spain', IT: 'Italy', NL: 'Netherlands', NO: 'Norway', SE: 'Sweden', DK: 'Denmark',
+  FI: 'Finland', RU: 'Russia', UA: 'Ukraine', BY: 'Belarus', PL: 'Poland', CZ: 'Czechia',
+  AT: 'Austria', CH: 'Switzerland', TR: 'Turkey', AE: 'UAE', SA: 'Saudi Arabia',
+  IN: 'India', CN: 'China', KR: 'South Korea', JP: 'Japan', BR: 'Brazil', CA: 'Canada',
+  AU: 'Australia', IL: 'Israel', KZ: 'Kazakhstan', GE: 'Georgia', AM: 'Armenia',
+  AZ: 'Azerbaijan', UZ: 'Uzbekistan', TH: 'Thailand', VN: 'Vietnam', SG: 'Singapore',
+  MY: 'Malaysia', ID: 'Indonesia', PH: 'Philippines', MX: 'Mexico', AR: 'Argentina',
+  CO: 'Colombia', CL: 'Chile', EG: 'Egypt', NG: 'Nigeria', ZA: 'South Africa',
+  KE: 'Kenya', GH: 'Ghana', IE: 'Ireland', BE: 'Belgium', LU: 'Luxembourg',
+  GR: 'Greece', RO: 'Romania', BG: 'Bulgaria', HU: 'Hungary', SK: 'Slovakia',
+  HR: 'Croatia', RS: 'Serbia', LT: 'Lithuania', LV: 'Latvia', EE: 'Estonia',
+  HK: 'Hong Kong', TW: 'Taiwan', NZ: 'New Zealand',
+};
 
 /** Country flag as small image (emoji flags don't render on Windows). Uses flagcdn.com SVGs. */
 function CountryFlag({ code }: { code: string }) {
@@ -76,6 +95,44 @@ const A = {
   text1: '#1A1A1A', text2: '#6B6B6B', text3: '#9CA3AF',
 };
 
+// ── Rich text formatting ────────────────────────────────────────────
+
+interface MsgEntity {
+  type: 'bold' | 'italic' | 'code' | 'pre' | 'url' | 'text_url' | 'mention' | 'strikethrough' | 'underline' | 'spoiler';
+  offset: number;
+  length: number;
+  url?: string;
+}
+
+function renderFormattedText(text: string, entities?: MsgEntity[]): React.ReactNode {
+  if (!entities || entities.length === 0) return text;
+  const sorted = [...entities].sort((a, b) => a.offset - b.offset || b.length - a.length);
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const ent = sorted[i];
+    if (ent.offset < cursor) continue;
+    if (ent.offset > cursor) parts.push(text.slice(cursor, ent.offset));
+    const t = text.slice(ent.offset, ent.offset + ent.length);
+    switch (ent.type) {
+      case 'bold': parts.push(<strong key={i}>{t}</strong>); break;
+      case 'italic': parts.push(<em key={i}>{t}</em>); break;
+      case 'code': parts.push(<code key={i} style={{ background: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: 3, fontSize: '12px', fontFamily: 'monospace' }}>{t}</code>); break;
+      case 'pre': parts.push(<pre key={i} style={{ background: 'rgba(0,0,0,0.06)', padding: '6px 8px', borderRadius: 4, fontSize: '12px', fontFamily: 'monospace', overflowX: 'auto', margin: '4px 0' }}><code>{t}</code></pre>); break;
+      case 'url': parts.push(<a key={i} href={t} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', opacity: 0.9 }}>{t}</a>); break;
+      case 'text_url': parts.push(<a key={i} href={ent.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', opacity: 0.9 }}>{t}</a>); break;
+      case 'mention': parts.push(<span key={i} style={{ fontWeight: 500, opacity: 0.9 }}>{t}</span>); break;
+      case 'strikethrough': parts.push(<s key={i}>{t}</s>); break;
+      case 'underline': parts.push(<u key={i}>{t}</u>); break;
+      case 'spoiler': parts.push(<span key={i} style={{ background: 'currentColor', borderRadius: 2, padding: '0 2px', cursor: 'pointer' }} onClick={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>{t}</span>); break;
+      default: parts.push(t);
+    }
+    cursor = ent.offset + ent.length;
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts}</>;
+}
+
 // ── Custom Checkbox ──────────────────────────────────────────────────
 
 function Tick({ checked, indeterminate, onChange, className }: {
@@ -100,7 +157,7 @@ function Tick({ checked, indeterminate, onChange, className }: {
 // ── Sortable Header ──────────────────────────────────────────────────
 
 // ── Custom styled select (replaces native <select>) ─────────────────
-function StyledSelect({ value, onChange, options, placeholder, className: cls, renderOption, renderSelected }: {
+function StyledSelect({ value, onChange, options, placeholder, className: cls, renderOption, renderSelected, searchable }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
@@ -108,17 +165,26 @@ function StyledSelect({ value, onChange, options, placeholder, className: cls, r
   className?: string;
   renderOption?: (opt: { value: string; label: string }, isSelected: boolean) => React.ReactNode;
   renderSelected?: (opt: { value: string; label: string }) => React.ReactNode;
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [openUp, setOpenUp] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setSearchQ(''); return; }
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, [open]);
+  useEffect(() => {
+    if (open && searchable) setTimeout(() => searchRef.current?.focus(), 0);
+  }, [open, searchable]);
   const selected = options.find(o => o.value === value);
+  const filteredOpts = searchable && searchQ
+    ? options.filter(o => o.label.toLowerCase().includes(searchQ.toLowerCase()))
+    : options;
   const handleOpen = () => {
     if (!open && ref.current) {
       const rect = ref.current.getBoundingClientRect();
@@ -135,25 +201,47 @@ function StyledSelect({ value, onChange, options, placeholder, className: cls, r
         <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: A.text3 }} />
       </button>
       {open && (
-        <div style={{ position: 'absolute', ...(openUp ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), left: 0, right: 0, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: '4px 0', maxHeight: 240, overflowY: 'auto' }}>
-          {placeholder && (
-            <button onClick={() => { onChange(''); setOpen(false); }}
-              className="w-full text-left px-3 py-1.5 text-xs"
-              style={{ color: A.text3, background: value === '' ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
-              onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = '#F5F5F0'; }}
-              onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = ''; }}>
-              {placeholder}
-            </button>
+        <div style={{ position: 'absolute', ...(openUp ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }), left: 0, right: 0, borderRadius: 10, border: `1px solid ${A.border}`, background: A.surface, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, maxHeight: 280, display: 'flex', flexDirection: 'column' }}>
+          {searchable && (
+            <div style={{ padding: '6px 6px 2px', flexShrink: 0 }}>
+              <div style={{ position: 'relative' }}>
+                <Search className="w-3 h-3" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: A.text3 }} />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  value={searchQ}
+                  onChange={e => setSearchQ(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full h-7 pl-7 pr-2 rounded-md text-xs outline-none"
+                  style={{ border: `1px solid ${A.border}`, background: '#F9FAFB', color: A.text1 }}
+                  onClick={e => e.stopPropagation()}
+                />
+              </div>
+            </div>
           )}
-          {options.map(o => (
-            <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
-              className={`w-full text-left px-3 ${renderOption ? 'py-2' : 'py-1.5'} text-xs`}
-              style={{ color: value === o.value ? A.blue : A.text1, background: value === o.value ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
-              onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = '#F5F5F0'; }}
-              onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = ''; }}>
-              {renderOption ? renderOption(o, value === o.value) : o.label}
-            </button>
-          ))}
+          <div style={{ padding: '4px 0', overflowY: 'auto', flex: 1 }}>
+            {placeholder && !searchQ && (
+              <button onClick={() => { onChange(''); setOpen(false); }}
+                className="w-full text-left px-3 py-1.5 text-xs"
+                style={{ color: A.text3, background: value === '' ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { if (value !== '') e.currentTarget.style.background = '#F5F5F0'; }}
+                onMouseLeave={e => { if (value !== '') e.currentTarget.style.background = ''; }}>
+                {placeholder}
+              </button>
+            )}
+            {filteredOpts.map(o => (
+              <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`w-full text-left px-3 ${renderOption ? 'py-2' : 'py-1.5'} text-xs`}
+                style={{ color: value === o.value ? A.blue : A.text1, background: value === o.value ? A.blueBg : 'transparent', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = '#F5F5F0'; }}
+                onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = ''; }}>
+                {renderOption ? renderOption(o, value === o.value) : o.label}
+              </button>
+            ))}
+            {searchable && searchQ && filteredOpts.length === 0 && (
+              <div className="px-3 py-2 text-xs" style={{ color: A.text3 }}>No results</div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -275,6 +363,7 @@ export function TelegramOutreachPage() {
       items: [
         { key: 'crm', label: 'All Leads', icon: Users },
         { key: 'pipeline', label: 'Pipeline', icon: LayoutGrid },
+        { key: 'custom_fields', label: 'Custom Properties', icon: Settings },
       ],
     },
     {
@@ -514,7 +603,8 @@ export function TelegramOutreachPage() {
           {tab === 'pipeline' && <PipelineTab toast={toast} />}
           {tab === 'blacklist' && <BlacklistTab toast={toast} />}
           {tab === 'inbox' && <InboxTab toast={toast} />}
-          {tab === 'info' && <InfoTab t={t} />}
+          {tab === 'custom_fields' && <CustomFieldsTab toast={toast} />}
+          {tab === 'info' && <InfoTab t={t} toast={toast} />}
         </div>
       </div>
     </div>
@@ -543,7 +633,6 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
   const addMenuRef = useRef<HTMLDivElement>(null);
 
   // Modal states
-  const [showAddModal, setShowAddModal] = useState(false);
   const [showAddByPhoneModal, setShowAddByPhoneModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TgAccount | null>(null);
@@ -612,7 +701,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
         case 'phone': return acc.phone;
         case 'username': return acc.username || '';
         case 'status': return acc.status;
-        case 'age': return acc.telegram_created_at || acc.session_created_at || '';
+        case 'age': return acc.created_at || '';
         case 'sent': return acc.messages_sent_today;
         default: return '';
       }
@@ -675,11 +764,6 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                 className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors font-medium"
                 style={{ color: A.text1 }}>
                 <Phone className="w-3.5 h-3.5 inline mr-2 opacity-50" />Add by Phone
-              </button>
-              <button onClick={() => { setShowAddMenu(false); setShowAddModal(true); }}
-                className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
-                style={{ color: A.text2 }}>
-                <Plus className="w-3.5 h-3.5 inline mr-2 opacity-50" />Manual Entry
               </button>
               <button onClick={() => { setShowAddMenu(false); setShowImportModal(true); }}
                 className="w-full text-left px-3 py-2 text-[13px] hover:bg-[#F5F5F0] transition-colors"
@@ -764,7 +848,7 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
               <div className="p-4 space-y-4">
                 {/* Range toggle + metrics row */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center justify-center gap-6 flex-1">
                     <div className="text-center">
                       <div className="text-2xl font-bold" style={{ color: A.blue, fontVariantNumeric: 'tabular-nums' }}>{sent}</div>
                       <div className="text-[10px] font-medium uppercase tracking-wider" style={{ color: A.text3 }}>Unique Sent</div>
@@ -934,25 +1018,16 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap" style={{ color: A.text3 }}>
-                      {(acc.session_created_at || acc.telegram_created_at) ? (() => {
+                      {acc.created_at ? (() => {
                         const fmt = (iso: string) => { const d = new Date(iso); return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }); };
                         const ageFmt = (iso: string) => { const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); return days >= 365 ? `${Math.floor(days / 365)}y ${Math.floor((days % 365) / 30)}m` : days >= 30 ? `${Math.floor(days / 30)}m ${days % 30}d` : `${days}d`; };
-                        const sessionDate = acc.session_created_at;
                         const tgDate = acc.telegram_created_at;
-                        const primaryDate = sessionDate || tgDate!;
                         const lines: string[] = [];
-                        if (sessionDate) lines.push(`Сессия: ${fmt(sessionDate)} (${ageFmt(sessionDate)})`);
+                        lines.push(`В системе: ${fmt(acc.created_at)} (${ageFmt(acc.created_at)})`);
                         if (tgDate) lines.push(`TG аккаунт: ~${fmt(tgDate)} (${ageFmt(tgDate)})`);
-                        const sessionDays = sessionDate ? Math.floor((Date.now() - new Date(sessionDate).getTime()) / 86400000) : null;
-                        const showAgeWarn = !acc.skip_warmup && (acc.is_young_session || acc.warmup_day != null);
                         return (
                           <span className="age-tooltip-wrap" style={{ cursor: 'default', position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                            {ageFmt(primaryDate)}
-                            {showAgeWarn && (
-                              <span title={`Аккаунт слишком новый${sessionDays != null ? ` (${sessionDays} дн.)` : ''}, включён Warm-up`} style={{ display: 'inline-flex' }}>
-                                <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#d97706' }} />
-                              </span>
-                            )}
+                            {ageFmt(acc.created_at)}
                             <span className="age-tooltip">{lines.join('\n')}</span>
                           </span>
                         );
@@ -961,14 +1036,13 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
                     <td className="px-2 py-2.5 text-[12px] whitespace-nowrap tabular-nums">
                       <span style={{ color: atLimit ? A.rose : A.text1, fontWeight: atLimit ? 600 : 400 }}>{acc.messages_sent_today}</span>
                       <span style={{ color: A.text3 }}>/{effLimit}</span>
-                      {acc.is_premium && <span style={{ color: '#7C3AED', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Premium account — higher daily limits">⭐PRO</span>}
-                      {acc.skip_warmup ? <span style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} title="Warm-up skipped (manual override)">SKIP</span>
-                        : acc.warmup_day != null ? <span style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} title={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
-                      {!acc.skip_warmup && acc.is_young_session && <span style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
+                      {acc.skip_warmup ? <span className="tip" style={{ color: '#059669', fontSize: 10, marginLeft: 3 }} data-tip="Warm-up skipped (manual override)">SKIP</span>
+                        : acc.warmup_day != null ? <span className="tip" style={{ color: '#d97706', fontSize: 10, marginLeft: 3 }} data-tip={`Warm-up: day ${acc.warmup_day}, limit ${effLimit} msgs/day`}>WU·D{acc.warmup_day}</span> : null}
+                      {!acc.skip_warmup && acc.is_young_session && <span className="tip" style={{ color: '#dc2626', fontSize: 10, marginLeft: 3, fontWeight: 600 }} data-tip="Young session (<7 days) — reduced limits & slower sending">YOUNG</span>}
                       {acc.warmup_active && acc.warmup_progress && (
                         acc.warmup_progress.phase === 'maintenance'
-                          ? <span style={{ color: '#0891b2', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title={`Maintenance mode (day ${acc.warmup_progress.day}): 1-2 reactions/day to keep account healthy`}>✓MT</span>
-                          : <span style={{ color: '#059669', fontSize: 10, marginLeft: 3, fontWeight: 600 }} title={`Active warm-up: day ${acc.warmup_progress.day}/${acc.warmup_progress.total_days}, ${acc.warmup_actions_done || 0} actions done`}>🔥D{acc.warmup_progress.day}</span>
+                          ? <span className="tip" style={{ color: '#0891b2', fontSize: 10, marginLeft: 3, fontWeight: 600 }} data-tip={`Maintenance mode (day ${acc.warmup_progress.day}): 1-2 reactions/day to keep account healthy`}>✓MT</span>
+                          : <span className="tip" style={{ color: '#059669', fontSize: 10, marginLeft: 3, fontWeight: 600 }} data-tip={`Active warm-up: day ${acc.warmup_progress.day}/${acc.warmup_progress.total_days}, ${acc.warmup_actions_done || 0} actions done`}>🔥D{acc.warmup_progress.day}</span>
                       )}
                     </td>
                     <td className="px-1 py-2.5" onClick={e => e.stopPropagation()}>
@@ -1006,11 +1080,6 @@ function AccountsTab({ t, toast }: { t: any; toast: (msg: string, type?: 'succes
         <AddByPhoneModal t={t} toast={toast} isDark={isDark}
                          onClose={() => setShowAddByPhoneModal(false)}
                          onSaved={() => { setShowAddByPhoneModal(false); loadAccounts(); }} />
-      )}
-      {showAddModal && (
-        <AddAccountModal t={t} toast={toast} isDark={isDark}
-                         onClose={() => setShowAddModal(false)}
-                         onSaved={() => { setShowAddModal(false); loadAccounts(); }} />
       )}
       {editingAccount && (
         <EditAccountModal t={t} toast={toast} isDark={isDark}
@@ -1206,7 +1275,13 @@ function CampaignsTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 's
                   onMouseLeave={e => { e.currentTarget.style.background = ''; }}
                 >
                   <td style={{ padding: '12px 16px', fontWeight: 500, color: A.text1, maxWidth: 260 }}>
-                    <span className="truncate block">{c.name}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate">{c.name}</span>
+                      {c.campaign_type === 'dynamic' && (
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                          style={{ background: '#F3E8FF', color: '#7C3AED' }}>Dynamic</span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '12px 12px' }}>{statusBadge(c.status)}</td>
                   <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
@@ -1431,6 +1506,7 @@ function ProxiesTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'suc
   const [newGroupCountry, setNewGroupCountry] = useState('');
   const [checking, setChecking] = useState(false);
   const [checkResults, setCheckResults] = useState<Record<number, { alive: boolean; latency_ms: number | null; error: string | null }>>({});
+  const [showCleanConfirm, setShowCleanConfirm] = useState(false);
 
   const loadGroups = useCallback(async () => {
     setLoading(true);
@@ -1605,25 +1681,32 @@ function ProxiesTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'suc
                   {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                   Check All
                 </button>
-                <button onClick={async () => {
-                          if (!confirm('Check all proxies and DELETE non-working ones?')) return;
-                          setChecking(true); setCheckResults({});
-                          try {
-                            const res = await telegramOutreachApi.checkProxyGroup(selectedGroup.id, true);
-                            const map: typeof checkResults = {};
-                            res.results.forEach(r => { map[r.proxy_id] = { alive: r.alive, latency_ms: r.latency_ms, error: r.error }; });
-                            setCheckResults(map);
-                            toast(`${res.alive} alive, ${res.deleted} deleted`, res.deleted > 0 ? 'info' : 'success');
-                            if (res.deleted > 0) { loadProxies(); loadGroups(); }
-                          } catch { toast('Check failed', 'error'); }
-                          finally { setChecking(false); }
-                        }}
+                <button onClick={() => setShowCleanConfirm(true)}
                         disabled={checking || proxies.length === 0}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium hover:opacity-80 disabled:opacity-50"
                         style={{ background: A.roseBg, color: A.rose }}>
                   {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                   Check & Clean
                 </button>
+                {showCleanConfirm && selectedGroup && (
+                  <ConfirmModal
+                    message={`Check all proxies in "${selectedGroup.name}" and DELETE non-working ones? Accounts will be auto-reassigned.`}
+                    onCancel={() => setShowCleanConfirm(false)}
+                    onConfirm={async () => {
+                      setShowCleanConfirm(false);
+                      setChecking(true); setCheckResults({});
+                      try {
+                        const res = await telegramOutreachApi.checkProxyGroup(selectedGroup.id, true);
+                        const map: typeof checkResults = {};
+                        res.results.forEach(r => { map[r.proxy_id] = { alive: r.alive, latency_ms: r.latency_ms, error: r.error }; });
+                        setCheckResults(map);
+                        toast(`${res.alive} alive, ${res.deleted} deleted, ${res.reassigned} reassigned`, res.deleted > 0 ? 'info' : 'success');
+                        if (res.deleted > 0) { loadProxies(); loadGroups(); }
+                      } catch { toast('Check failed', 'error'); }
+                      finally { setChecking(false); }
+                    }}
+                  />
+                )}
               </div>
             </div>
 
@@ -1773,12 +1856,7 @@ function AppVersionPanel({ ids, loading, run, inputCls, inputStyle }: {
         <button onClick={() => run(`App version → ${targetVersion}`, () => telegramOutreachApi.bulkUpdateAppVersion(ids, customVersion || undefined))}
                 disabled={loading || !targetVersion}
                 className="px-3 py-1 text-white rounded-md text-[12px] font-medium" style={{ background: A.blue }}>
-          Apply to {ids.length}
-        </button>
-        <button onClick={() => run(`App version → ${targetVersion} (all)`, () => telegramOutreachApi.updateAllAppVersion(customVersion || undefined))}
-                disabled={loading || !targetVersion}
-                className="px-3 py-1 rounded-md text-[12px] font-medium" style={{ background: A.teal, color: '#fff' }}>
-          Apply to ALL
+          Apply
         </button>
       </div>
     </div>
@@ -1795,6 +1873,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [activePanel, setActivePanel] = useState<string | null>(null);
+  const [showWarmupModal, setShowWarmupModal] = useState(false);
   // Panel values
   const [limitValue, setLimitValue] = useState('10');
   const [bioValue, setBioValue] = useState('');
@@ -1809,7 +1888,10 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   // Staggered operation progress
   const [staggeredTask, setStaggeredTask] = useState<{ taskId: string; operation: string; total: number; completed: number; synced: number; errors: string[]; status: string; currentPhone: string | null; nextDelay: number } | null>(null);
+  // Custom confirm dialog for staggered operations
+  const [pendingStaggered, setPendingStaggered] = useState<{ label: string; message: string; fn: () => Promise<any> } | null>(null);
   const staggeredPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const staggeredPollFailRef = useRef(0);
 
   const ids = Array.from(selectedIds);
 
@@ -1833,14 +1915,8 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
 
   const _STAGGER_AVG = 75; // avg delay seconds for time estimation
 
-  /** Run a profile-changing operation that returns task_id for staggered TG sync */
-  const runStaggered = async (label: string, fn: () => Promise<any>) => {
-    const estMinutes = Math.ceil(ids.length * (_STAGGER_AVG) / 60);
-    if (!window.confirm(
-      `⚠ Profile change: "${label}" for ${ids.length} accounts.\n\n` +
-      `To avoid bans, Telegram sync will run with 30-120s delays between accounts.\n` +
-      `Estimated time: ~${estMinutes} min.\n\nDB changes apply immediately. Continue?`
-    )) return;
+  /** Execute a confirmed staggered operation */
+  const executeStaggered = async (label: string, fn: () => Promise<any>) => {
     setLoading(true);
     try {
       const res = await fn();
@@ -1850,9 +1926,11 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
         setActivePanel(null);
         // Start polling
         if (staggeredPollRef.current) clearInterval(staggeredPollRef.current);
+        staggeredPollFailRef.current = 0;
         staggeredPollRef.current = setInterval(async () => {
           try {
             const p = await telegramOutreachApi.bulkOpProgress(taskId);
+            staggeredPollFailRef.current = 0;
             setStaggeredTask(prev => prev ? { ...prev, completed: p.completed, synced: p.synced, errors: p.errors || [], status: p.status, currentPhone: p.current_phone, nextDelay: p.next_delay || 0 } : null);
             if (p.status === 'completed') {
               if (staggeredPollRef.current) clearInterval(staggeredPollRef.current);
@@ -1861,7 +1939,15 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               setTimeout(() => setStaggeredTask(null), 5000);
               onDone();
             }
-          } catch { /* ignore poll errors */ }
+          } catch {
+            staggeredPollFailRef.current += 1;
+            if (staggeredPollFailRef.current >= 5) {
+              if (staggeredPollRef.current) clearInterval(staggeredPollRef.current);
+              staggeredPollRef.current = null;
+              setStaggeredTask(prev => prev ? { ...prev, status: 'error' } : null);
+              toast(`${label} — lost connection to background task`, 'error');
+            }
+          }
         }, 3000);
         toast(`${label} — DB updated. TG sync running in background...`, 'info');
       } else {
@@ -1871,6 +1957,16 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
       }
     } catch { toast(`Failed: ${label}`, 'error'); }
     finally { setLoading(false); }
+  };
+
+  /** Show confirm dialog before running a staggered operation */
+  const runStaggered = (label: string, fn: () => Promise<any>) => {
+    const estMinutes = Math.ceil(ids.length * (_STAGGER_AVG) / 60);
+    setPendingStaggered({
+      label,
+      message: `Profile change: "${label}" for ${ids.length} accounts.\n\nTo avoid bans, Telegram sync will run with 30-120s delays between accounts.\nEstimated time: ~${estMinutes} min.\n\nDB changes apply immediately. Continue?`,
+      fn,
+    });
   };
 
   const btnCls = 'flex items-center gap-1.5 px-2.5 py-[5px] rounded-md border text-[12px] font-medium transition-colors disabled:opacity-40';
@@ -1898,6 +1994,7 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
             if (res.frozen) parts.push(`⚠ ${res.frozen} frozen`);
             if (res.banned) parts.push(`✕ ${res.banned} banned`);
             if (res.dead) parts.push(`☠ ${res.dead} dead`);
+            if (res.errors) parts.push(`⚡ ${res.errors} errors`);
             toast(parts.join(' · '), res.alive === res.total ? 'success' : 'warning');
             onDone();
           } catch { toast('Alive check failed', 'error'); }
@@ -1965,32 +2062,8 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('limit'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Minus className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Daily Limit
               </button>
-              <div className="flex items-center gap-1 px-2 py-1">
-                <span className="text-[10px] font-medium" style={{ color: '#d97706' }}>WARM-UP</span>
-                <span title="Warm-up gradually increases daily sending limit for new accounts: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days are capped at 5 msgs/day. Disabling warm-up removes all limits — use with caution on new sessions.">
-                  <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
-                </span>
-              </div>
-              <button onClick={() => { if (!window.confirm(`⚠ Отключить Warm-up для ${ids.length} аккаунтов?\nНовые аккаунты без прогрева рискуют получить бан.`)) return; setShowActionsPopup(false); run('Warm-up skipped', () => telegramOutreachApi.bulkSkipWarmup(ids, true)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <Minus className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Skip Warm-up
-              </button>
-              <button onClick={() => { setShowActionsPopup(false); run('Warm-up restored', () => telegramOutreachApi.bulkSkipWarmup(ids, false)); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <RefreshCw className="w-3.5 h-3.5" style={{ color: '#d97706' }} /> Restore Warm-up
-              </button>
-              <div className="flex items-center gap-1 px-2 py-1 mt-1">
-                <span className="text-[10px] font-medium" style={{ color: '#059669' }}>ACTIVE WARM-UP</span>
-                <span title="Active warm-up simulates real user activity over 14 days: joins channels, adds reactions, exchanges messages. Significantly reduces ban risk for new accounts.">
-                  <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
-                </span>
-              </div>
-              <button onClick={() => { setShowActionsPopup(false); run('Active warm-up started', () => telegramOutreachApi.bulkWarmup(ids, 'start')); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <Play className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Start Active Warm-up
-              </button>
-              <button onClick={() => { setShowActionsPopup(false); run('Active warm-up stopped', () => telegramOutreachApi.bulkWarmup(ids, 'stop')); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <Square className="w-3.5 h-3.5" style={{ color: '#dc2626' }} /> Stop Active Warm-up
-              </button>
-              <button onClick={() => { setShowActionsPopup(false); setActivePanel('warmup-channels'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <Link2 className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Manage Channels
+              <button onClick={() => { setShowActionsPopup(false); setShowWarmupModal(true); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <Play className="w-3.5 h-3.5" style={{ color: '#059669' }} /> Warm-up
               </button>
               <button onClick={() => { setShowActionsPopup(false); setActivePanel('2fa'); }} className={menuItemCls} style={{ color: A.text1 }} onMouseEnter={e => e.currentTarget.style.background = '#F5F5F0'} onMouseLeave={e => e.currentTarget.style.background = ''}>
                 <Shield className="w-3.5 h-3.5" style={{ color: A.text3 }} /> Change 2FA
@@ -2191,17 +2264,22 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
           ))}
         </div>
       )}
-      {activePanel === 'warmup-channels' && <WarmupChannelsPanel />}
+      {/* Warmup modal — portaled to body */}
+      {showWarmupModal && createPortal(
+        <WarmupModal ids={ids} toast={toast} onClose={() => setShowWarmupModal(false)} />,
+        document.body
+      )}
 
       {/* Staggered operation progress banner */}
       {staggeredTask && (
-        <div className="mt-2 rounded-lg px-4 py-2.5" style={{ background: staggeredTask.status === 'completed' ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${staggeredTask.status === 'completed' ? '#BBF7D0' : '#FDE68A'}` }}>
+        <div className="mt-2 rounded-lg px-4 py-2.5" style={{ background: staggeredTask.status === 'completed' ? '#F0FDF4' : staggeredTask.status === 'error' ? '#FEF2F2' : '#FFFBEB', border: `1px solid ${staggeredTask.status === 'completed' ? '#BBF7D0' : staggeredTask.status === 'error' ? '#FECACA' : '#FDE68A'}` }}>
           <div className="flex items-center gap-3">
             {staggeredTask.status === 'running' && <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#D97706' }} />}
+            {staggeredTask.status === 'error' && <AlertTriangle className="w-4 h-4" style={{ color: '#DC2626' }} />}
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold" style={{ color: staggeredTask.status === 'completed' ? '#16A34A' : '#D97706' }}>
-                  {staggeredTask.status === 'completed' ? 'Completed' : 'Syncing to Telegram...'}: {staggeredTask.operation}
+                <span className="text-[12px] font-semibold" style={{ color: staggeredTask.status === 'completed' ? '#16A34A' : staggeredTask.status === 'error' ? '#DC2626' : '#D97706' }}>
+                  {staggeredTask.status === 'completed' ? 'Completed' : staggeredTask.status === 'error' ? 'Failed' : 'Syncing to Telegram...'}: {staggeredTask.operation}
                 </span>
                 <span className="text-[11px]" style={{ color: A.text3 }}>
                   {staggeredTask.completed}/{staggeredTask.total} accounts
@@ -2215,14 +2293,42 @@ function BulkActionsBar({ selectedIds, t, toast, onDone }: {
                   {staggeredTask.nextDelay > 0 && ` · waiting ${staggeredTask.nextDelay}s before next...`}
                 </div>
               )}
+              {staggeredTask.status === 'error' && (
+                <div className="text-[11px] mt-0.5" style={{ color: A.text3 }}>
+                  Lost connection to background task. DB changes were applied.
+                </div>
+              )}
             </div>
             {/* Progress bar */}
             <div className="w-24 h-1.5 rounded-full" style={{ background: A.border }}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${staggeredTask.total > 0 ? (staggeredTask.completed / staggeredTask.total) * 100 : 0}%`, background: staggeredTask.status === 'completed' ? '#16A34A' : '#D97706' }} />
+              <div className="h-full rounded-full transition-all" style={{ width: `${staggeredTask.total > 0 ? (staggeredTask.completed / staggeredTask.total) * 100 : 0}%`, background: staggeredTask.status === 'completed' ? '#16A34A' : staggeredTask.status === 'error' ? '#DC2626' : '#D97706' }} />
             </div>
+            {/* Dismiss button */}
+            {staggeredTask.status !== 'running' && (
+              <button onClick={() => setStaggeredTask(null)} className="p-0.5 rounded hover:bg-black/5" title="Dismiss">
+                <X className="w-3.5 h-3.5" style={{ color: A.text3 }} />
+              </button>
+            )}
           </div>
         </div>
       )}
+
+      {/* Custom confirm dialog for staggered operations */}
+      <ConfirmDialog
+        isOpen={!!pendingStaggered}
+        title="Profile Change"
+        message={pendingStaggered?.message || ''}
+        confirmText="Continue"
+        cancelText="Cancel"
+        variant="warning"
+        onConfirm={() => {
+          if (pendingStaggered) {
+            executeStaggered(pendingStaggered.label, pendingStaggered.fn);
+          }
+          setPendingStaggered(null);
+        }}
+        onCancel={() => setPendingStaggered(null)}
+      />
     </div>
   );
 }
@@ -2328,6 +2434,187 @@ function WarmupChannelsPanel() {
 }
 
 
+function WarmupToggle({ isOn, onToggle, disabled }: { isOn: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onToggle} disabled={disabled}
+      className="relative inline-flex h-[22px] w-[40px] items-center rounded-full transition-colors shrink-0 disabled:opacity-40"
+      style={{ background: isOn ? '#059669' : '#D1D5DB', cursor: disabled ? 'not-allowed' : 'pointer' }}>
+      <span className="inline-block h-[16px] w-[16px] rounded-full bg-white shadow-sm transition-transform"
+        style={{ transform: isOn ? 'translateX(20px)' : 'translateX(3px)' }} />
+    </button>
+  );
+}
+
+function WarmupTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative inline-flex" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <Info className="w-3 h-3 cursor-help" style={{ color: A.text3 }} />
+      {show && (
+        <div className="absolute left-1/2 bottom-full mb-1.5 -translate-x-1/2 z-50 w-[240px] px-3 py-2 rounded-lg text-[11px] leading-relaxed shadow-lg"
+          style={{ background: '#1F2937', color: '#F9FAFB' }}>
+          {text}
+          <div className="absolute left-1/2 top-full -translate-x-1/2 w-0 h-0"
+            style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1F2937' }} />
+        </div>
+      )}
+    </span>
+  );
+}
+
+function WarmupModal({ ids, toast, onClose }: {
+  ids: number[];
+  toast: (msg: string, type: 'success' | 'error' | 'info') => void; onClose: () => void;
+}) {
+  const [warmupOn, setWarmupOn] = useState(false);
+  const [gradualOn, setGradualOn] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [showChannels, setShowChannels] = useState(false);
+  const [confirmDisable, setConfirmDisable] = useState(false);
+
+  const handleWarmupToggle = async () => {
+    const newState = !warmupOn;
+    setBusy(true);
+    try {
+      await telegramOutreachApi.bulkWarmup(ids, newState ? 'start' : 'stop');
+      setWarmupOn(newState);
+      toast(`Active warm-up ${newState ? 'started' : 'stopped'} — ${ids.length} accounts`, 'success');
+    } catch { toast('Failed to toggle warm-up', 'error'); }
+    setBusy(false);
+  };
+
+  const handleGradualToggle = async () => {
+    if (gradualOn) {
+      setConfirmDisable(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      await telegramOutreachApi.bulkSkipWarmup(ids, false);
+      setGradualOn(true);
+      toast(`Gradual limit enabled — ${ids.length} accounts`, 'success');
+    } catch { toast('Failed to enable gradual limit', 'error'); }
+    setBusy(false);
+  };
+
+  const doDisableGradual = async () => {
+    setConfirmDisable(false);
+    setBusy(true);
+    try {
+      await telegramOutreachApi.bulkSkipWarmup(ids, true);
+      setGradualOn(false);
+      toast(`Gradual limit disabled — ${ids.length} accounts`, 'success');
+    } catch { toast('Failed to disable gradual limit', 'error'); }
+    setBusy(false);
+  };
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <div className="w-[400px] rounded-xl border shadow-xl" style={{ borderColor: A.border, background: A.surface }}>
+        {/* Header */}
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${A.border}` }}>
+          <div className="flex items-center gap-2">
+            <Play className="w-4 h-4" style={{ color: '#059669' }} />
+            <span className="text-sm font-semibold" style={{ color: A.text1 }}>Warm-up Settings</span>
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ background: '#ECFDF5', color: '#059669' }}>{ids.length} accounts</span>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-md transition-colors hover:bg-black/5" style={{ cursor: 'pointer' }}>
+            <X className="w-4 h-4" style={{ color: A.text3 }} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+          {/* Active Warm-up toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-medium" style={{ color: A.text1 }}>Active Warm-up</span>
+              <WarmupTooltip text="Simulates real user activity over 14 days: joins channels, adds reactions, exchanges messages. Helps avoid bans on new accounts." />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px]" style={{ color: warmupOn ? '#059669' : A.text3 }}>{warmupOn ? 'Running' : 'Off'}</span>
+              <WarmupToggle isOn={warmupOn} onToggle={handleWarmupToggle} disabled={busy} />
+            </div>
+          </div>
+
+          <div style={{ height: 1, background: A.border }} />
+
+          {/* Gradual daily limit toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-medium" style={{ color: A.text1 }}>Gradual daily limit</span>
+              <WarmupTooltip text="Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days are capped at 5 msgs/day. Disabling removes all limits — use with caution on new sessions." />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px]" style={{ color: gradualOn ? '#059669' : A.text3 }}>{gradualOn ? 'Enabled' : 'Disabled'}</span>
+              <WarmupToggle isOn={gradualOn} onToggle={handleGradualToggle} disabled={busy} />
+            </div>
+          </div>
+
+          <div style={{ height: 1, background: A.border }} />
+
+          {/* Warmup Channels — expandable */}
+          <div>
+            <button onClick={() => setShowChannels(!showChannels)}
+              className="flex items-center gap-2 w-full text-left py-1 transition-colors"
+              style={{ color: A.text2, cursor: 'pointer', background: 'none', border: 'none' }}>
+              {showChannels ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              <span className="text-[13px] font-medium">Manage Channels</span>
+              <WarmupTooltip text="Channels used during warm-up for joining, reactions, and browsing activity." />
+            </button>
+            {showChannels && <WarmupChannelsPanel />}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 flex justify-end" style={{ borderTop: `1px solid ${A.border}` }}>
+          <button onClick={onClose}
+            className="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text1, cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = A.surface; }}>
+            Done
+          </button>
+        </div>
+      </div>
+
+      {/* Confirm disable gradual limit */}
+      {confirmDisable && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setConfirmDisable(false)} />
+          <div className="relative z-10 w-[340px] rounded-xl border shadow-xl" style={{ borderColor: A.border, background: A.surface }}>
+            <div className="px-5 py-4">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-4 h-4" style={{ color: '#D97706' }} />
+                <h3 className="text-sm font-semibold" style={{ color: A.text1 }}>Disable gradual limit?</h3>
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: A.text2 }}>
+                This removes sending limits for {ids.length} accounts. New accounts without warm-up risk getting banned by Telegram.
+              </p>
+            </div>
+            <div className="px-5 py-3 flex justify-end gap-2" style={{ borderTop: `1px solid ${A.border}` }}>
+              <button onClick={() => setConfirmDisable(false)}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium"
+                style={{ border: `1px solid ${A.border}`, color: A.text1, background: A.surface, cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = A.surface; }}>
+                Cancel
+              </button>
+              <button onClick={doDisableGradual}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium text-white"
+                style={{ background: '#D97706', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#B45309'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#D97706'; }}>
+                Disable
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </ModalBackdrop>
+  );
+}
+
 function ModalBackdrop({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -2374,25 +2661,147 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
 // Add by Phone Modal (multi-step auth wizard)
 // ══════════════════════════════════════════════════════════════════════
 
+const PHONE_COUNTRIES = [
+  { code: '1', iso: 'US', name: 'United States' },
+  { code: '44', iso: 'GB', name: 'United Kingdom' },
+  { code: '49', iso: 'DE', name: 'Germany' },
+  { code: '33', iso: 'FR', name: 'France' },
+  { code: '351', iso: 'PT', name: 'Portugal' },
+  { code: '34', iso: 'ES', name: 'Spain' },
+  { code: '39', iso: 'IT', name: 'Italy' },
+  { code: '31', iso: 'NL', name: 'Netherlands' },
+  { code: '47', iso: 'NO', name: 'Norway' },
+  { code: '46', iso: 'SE', name: 'Sweden' },
+  { code: '45', iso: 'DK', name: 'Denmark' },
+  { code: '358', iso: 'FI', name: 'Finland' },
+  { code: '7', iso: 'RU', name: 'Russia' },
+  { code: '380', iso: 'UA', name: 'Ukraine' },
+  { code: '375', iso: 'BY', name: 'Belarus' },
+  { code: '48', iso: 'PL', name: 'Poland' },
+  { code: '420', iso: 'CZ', name: 'Czechia' },
+  { code: '43', iso: 'AT', name: 'Austria' },
+  { code: '41', iso: 'CH', name: 'Switzerland' },
+  { code: '90', iso: 'TR', name: 'Turkey' },
+  { code: '971', iso: 'AE', name: 'UAE' },
+  { code: '966', iso: 'SA', name: 'Saudi Arabia' },
+  { code: '91', iso: 'IN', name: 'India' },
+  { code: '86', iso: 'CN', name: 'China' },
+  { code: '82', iso: 'KR', name: 'South Korea' },
+  { code: '81', iso: 'JP', name: 'Japan' },
+  { code: '65', iso: 'SG', name: 'Singapore' },
+  { code: '60', iso: 'MY', name: 'Malaysia' },
+  { code: '62', iso: 'ID', name: 'Indonesia' },
+  { code: '55', iso: 'BR', name: 'Brazil' },
+  { code: '52', iso: 'MX', name: 'Mexico' },
+  { code: '234', iso: 'NG', name: 'Nigeria' },
+  { code: '27', iso: 'ZA', name: 'South Africa' },
+  { code: '61', iso: 'AU', name: 'Australia' },
+  { code: '64', iso: 'NZ', name: 'New Zealand' },
+  { code: '1', iso: 'CA', name: 'Canada' },
+  { code: '972', iso: 'IL', name: 'Israel' },
+  { code: '998', iso: 'UZ', name: 'Uzbekistan' },
+  { code: '995', iso: 'GE', name: 'Georgia' },
+  { code: '374', iso: 'AM', name: 'Armenia' },
+  { code: '994', iso: 'AZ', name: 'Azerbaijan' },
+  { code: '370', iso: 'LT', name: 'Lithuania' },
+  { code: '371', iso: 'LV', name: 'Latvia' },
+  { code: '372', iso: 'EE', name: 'Estonia' },
+  { code: '353', iso: 'IE', name: 'Ireland' },
+  { code: '32', iso: 'BE', name: 'Belgium' },
+  { code: '30', iso: 'GR', name: 'Greece' },
+  { code: '36', iso: 'HU', name: 'Hungary' },
+  { code: '40', iso: 'RO', name: 'Romania' },
+  { code: '359', iso: 'BG', name: 'Bulgaria' },
+  { code: '385', iso: 'HR', name: 'Croatia' },
+  { code: '381', iso: 'RS', name: 'Serbia' },
+  { code: '66', iso: 'TH', name: 'Thailand' },
+  { code: '63', iso: 'PH', name: 'Philippines' },
+  { code: '84', iso: 'VN', name: 'Vietnam' },
+  { code: '880', iso: 'BD', name: 'Bangladesh' },
+  { code: '92', iso: 'PK', name: 'Pakistan' },
+  { code: '20', iso: 'EG', name: 'Egypt' },
+  { code: '212', iso: 'MA', name: 'Morocco' },
+  { code: '254', iso: 'KE', name: 'Kenya' },
+  { code: '57', iso: 'CO', name: 'Colombia' },
+  { code: '54', iso: 'AR', name: 'Argentina' },
+  { code: '56', iso: 'CL', name: 'Chile' },
+  { code: '51', iso: 'PE', name: 'Peru' },
+];
+
+function detectCountryFromDigits(digits: string): { country: typeof PHONE_COUNTRIES[number]; rest: string } | null {
+  // Try longest codes first (3 digits, then 2, then 1)
+  for (const len of [3, 2, 1]) {
+    if (digits.length < len) continue;
+    const prefix = digits.slice(0, len);
+    const match = PHONE_COUNTRIES.find(c => c.code === prefix);
+    if (match) return { country: match, rest: digits.slice(len) };
+  }
+  return null;
+}
+
 function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
   t: any; toast: any; isDark: boolean; onClose: () => void; onSaved: () => void;
 }) {
   const [step, setStep] = useState<'phone' | 'code' | '2fa' | 'done'>('phone');
   const [phone, setPhone] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState(PHONE_COUNTRIES[0]);
+  const [showCountryDD, setShowCountryDD] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [accountId, setAccountId] = useState<number | null>(null);
   const [deviceModel, setDeviceModel] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const codeRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const countryDDRef = useRef<HTMLDivElement>(null);
+  const countrySearchRef = useRef<HTMLInputElement>(null);
 
-  const inputCls = cn('w-full px-3 py-2.5 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
+  const fullNumber = selectedCountry.code + phone.replace(/[^0-9]/g, '');
+
+  const inputCls = cn('w-full px-3 py-2.5 rounded-lg border text-sm transition-colors', t.cardBg, t.text1,
+    'border-emerald-300 dark:border-emerald-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none');
   const labelCls = cn('block text-xs font-medium mb-1.5', t.text3);
 
+  // Close country dropdown on outside click
+  useEffect(() => {
+    if (!showCountryDD) return;
+    const handler = (e: MouseEvent) => {
+      if (countryDDRef.current && !countryDDRef.current.contains(e.target as Node)) setShowCountryDD(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showCountryDD]);
+
+  // Focus search when dropdown opens
+  useEffect(() => {
+    if (showCountryDD) setTimeout(() => countrySearchRef.current?.focus(), 50);
+  }, [showCountryDD]);
+
+  const handlePhoneInput = (val: string) => {
+    const raw = val.replace(/[^0-9+]/g, '');
+    // If pasted with + prefix, try to auto-detect country
+    if (raw.startsWith('+') || (raw.length > 7 && phone.length === 0)) {
+      const digits = raw.replace(/\D/g, '');
+      const detected = detectCountryFromDigits(digits);
+      if (detected) {
+        setSelectedCountry(detected.country);
+        setPhone(detected.rest);
+        return;
+      }
+    }
+    setPhone(raw.replace(/^\+/, ''));
+  };
+
+  const filteredCountries = countrySearch
+    ? PHONE_COUNTRIES.filter(c => c.name.toLowerCase().includes(countrySearch.toLowerCase()) || c.code.includes(countrySearch))
+    : PHONE_COUNTRIES;
+
   const handleSendCode = async () => {
-    const cleaned = phone.trim().replace(/[^0-9]/g, '');
-    if (!cleaned || cleaned.length < 7) { setError('Enter a valid phone number with country code'); return; }
+    const cleaned = fullNumber.replace(/[^0-9]/g, '');
+    if (!cleaned || cleaned.length < 7) { setError('Enter a valid phone number'); return; }
     setLoading(true); setError('');
     try {
       const res = await telegramOutreachApi.addByPhone(cleaned);
@@ -2454,7 +2863,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
         <div className={cn('flex items-center justify-between px-6 py-4 border-b', t.cardBorder)}>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: step === 'done' ? '#059669' : '#4F46E5' }}>
+              style={{ background: '#059669' }}>
               {step === 'done'
                 ? <Check className="w-4 h-4 text-white" />
                 : <Phone className="w-4 h-4 text-white" />}
@@ -2478,14 +2887,67 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             <div className="space-y-4">
               <div>
                 <label className={labelCls}>Phone Number</label>
-                <input value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSendCode()}
-                  placeholder="351920619583"
-                  className={inputCls} autoFocus />
-                <div className={cn('text-[11px] mt-1.5', t.text3)}>
-                  Include country code without + sign
+                <div className="flex items-stretch gap-0 relative">
+                  {/* Country selector button */}
+                  <div ref={countryDDRef} className="relative">
+                    <button type="button"
+                      onClick={() => { setShowCountryDD(!showCountryDD); setCountrySearch(''); }}
+                      className={cn('flex items-center gap-1.5 px-3 py-2.5 rounded-l-lg border border-r-0 text-sm transition-colors h-full',
+                        isDark ? 'bg-gray-800 border-emerald-700 hover:bg-gray-750' : 'bg-gray-50 border-emerald-300 hover:bg-gray-100',
+                        showCountryDD && 'border-emerald-500 ring-2 ring-emerald-500/20')}>
+                      <CountryFlag code={selectedCountry.iso} />
+                      <span className={cn('text-sm font-medium', t.text1)}>+{selectedCountry.code}</span>
+                      <ChevronDown className="w-3 h-3 opacity-40" />
+                    </button>
+                    {/* Country dropdown */}
+                    {showCountryDD && (
+                      <div className={cn('absolute top-full left-0 mt-1 w-64 rounded-lg border shadow-xl z-50 overflow-hidden',
+                        t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white')}>
+                        <div className="p-2 border-b" style={{ borderColor: isDark ? '#374151' : '#E5E7EB' }}>
+                          <input ref={countrySearchRef} value={countrySearch}
+                            onChange={e => setCountrySearch(e.target.value)}
+                            placeholder="Search country..."
+                            className={cn('w-full px-2.5 py-1.5 rounded text-sm outline-none', t.cardBg, t.text1,
+                              'border border-emerald-300 dark:border-emerald-700 focus:border-emerald-500')} />
+                        </div>
+                        <div className="max-h-52 overflow-y-auto">
+                          {filteredCountries.map((c, i) => (
+                            <button key={`${c.code}-${c.name}-${i}`} type="button"
+                              onClick={() => { setSelectedCountry(c); setShowCountryDD(false); setTimeout(() => phoneRef.current?.focus(), 50); }}
+                              className={cn('w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors',
+                                selectedCountry === c
+                                  ? (isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-700')
+                                  : (isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'))}>
+                              <CountryFlag code={c.iso} />
+                              <span className={cn('flex-1 text-left', t.text1)}>{c.name}</span>
+                              <span className={cn('text-xs', t.text3)}>+{c.code}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Phone input */}
+                  <input ref={phoneRef} value={phone}
+                    onChange={e => handlePhoneInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSendCode()}
+                    placeholder="Phone number"
+                    className={cn('flex-1 px-3 py-2.5 rounded-r-lg border text-sm transition-colors outline-none',
+                      t.cardBg, t.text1,
+                      'border-emerald-300 dark:border-emerald-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20')}
+                    autoFocus />
                 </div>
+                {/* Full number hint */}
+                {phone.replace(/[^0-9]/g, '').length > 0 && (
+                  <div className={cn('text-[11px] mt-1.5 font-medium')} style={{ color: '#059669' }}>
+                    +{fullNumber}
+                  </div>
+                )}
+                {phone.replace(/[^0-9]/g, '').length === 0 && (
+                  <div className={cn('text-[11px] mt-1.5', t.text3)}>
+                    Select country and enter phone number
+                  </div>
+                )}
               </div>
               <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
                 style={{ background: isDark ? '#1E293B' : '#F8FAFC' }}>
@@ -2499,7 +2961,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             <div className="space-y-4">
               <div className={cn('rounded-lg px-3 py-2.5 text-[12px]', t.text3)}
                 style={{ background: isDark ? '#1E293B' : '#F0FDF4' }}>
-                Code sent to <span className="font-medium" style={{ color: isDark ? '#86EFAC' : '#059669' }}>+{phone.replace(/[^0-9]/g, '')}</span>
+                Code sent to <span className="font-medium" style={{ color: isDark ? '#86EFAC' : '#059669' }}>+{fullNumber}</span>
                 {deviceModel && <span className="opacity-60"> (device: {deviceModel})</span>}
               </div>
               <div>
@@ -2525,11 +2987,20 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </div>
               <div>
                 <label className={labelCls}>2FA Password</label>
-                <input value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleVerify2FA()}
-                  type="password" placeholder="Enter your cloud password"
-                  className={inputCls} autoFocus />
+                <div className="relative">
+                  <input value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleVerify2FA()}
+                    type={showPassword ? 'text' : 'password'} placeholder="Enter your cloud password"
+                    className={inputCls} style={{ paddingRight: '2.5rem' }} autoFocus />
+                  <button type="button" onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    tabIndex={-1}>
+                    {showPassword
+                      ? <EyeOff className="w-4 h-4 opacity-50" style={{ color: isDark ? '#9CA3AF' : '#6B7280' }} />
+                      : <Eye className="w-4 h-4 opacity-50" style={{ color: isDark ? '#9CA3AF' : '#6B7280' }} />}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -2541,7 +3012,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </div>
               <div className={cn('text-sm font-medium', t.text1)}>Account successfully authorized</div>
               <div className={cn('text-xs', t.text3)}>
-                +{phone.replace(/[^0-9]/g, '')} is ready to use
+                +{fullNumber} is ready to use
                 {deviceModel && <> with device fingerprint <span className="font-mono text-[11px]">{deviceModel}</span></>}
               </div>
             </div>
@@ -2561,7 +3032,7 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
           <div className="flex items-center gap-1.5">
             {[1, 2, 3].map(s => (
               <div key={s} className="w-1.5 h-1.5 rounded-full transition-colors"
-                style={{ background: s <= stepNumber[step] ? '#4F46E5' : isDark ? '#374151' : '#E5E7EB' }} />
+                style={{ background: s <= stepNumber[step] ? '#059669' : isDark ? '#374151' : '#E5E7EB' }} />
             ))}
           </div>
           <div className="flex items-center gap-2">
@@ -2571,21 +3042,21 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
             )}
             {step === 'phone' && (
               <button onClick={handleSendCode} disabled={loading || !phone.trim()}
-                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Send Code
               </button>
             )}
             {step === 'code' && (
               <button onClick={handleVerifyCode} disabled={loading || code.length < 4}
-                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Verify
               </button>
             )}
             {step === '2fa' && (
               <button onClick={handleVerify2FA} disabled={loading || !password.trim()}
-                className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Verify
               </button>
@@ -2598,174 +3069,6 @@ function AddByPhoneModal({ t, toast, isDark, onClose, onSaved }: {
               </button>
             )}
           </div>
-        </div>
-      </div>
-    </ModalBackdrop>
-  );
-}
-
-
-// ══════════════════════════════════════════════════════════════════════
-// Add Account Modal
-// ══════════════════════════════════════════════════════════════════════
-
-function AddAccountModal({ t, toast, isDark, onClose, onSaved }: {
-  t: any; toast: any; isDark: boolean; onClose: () => void; onSaved: () => void;
-}) {
-  const [form, setForm] = useState({
-    phone: '', username: '', first_name: '', last_name: '', bio: '',
-    api_id: '', api_hash: '', device_model: 'Samsung SM-G998B', system_version: 'SDK 33',
-    app_version: '10.6.2', lang_code: 'en', system_lang_code: 'en-US',
-    two_fa_password: '', daily_message_limit: '5', is_premium: false,
-  });
-  const [saving, setSaving] = useState(false);
-
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
-  const inputCls = cn('w-full px-3 py-2 rounded-lg border text-sm', t.cardBorder, t.cardBg, t.text1);
-  const labelCls = cn('block text-xs font-medium mb-1', t.text3);
-
-  const handleSave = async () => {
-    if (!form.phone.trim()) { toast('Phone is required', 'error'); return; }
-    setSaving(true);
-    try {
-      const data: Record<string, any> = { ...form };
-      data.api_id = data.api_id ? Number(data.api_id) : null;
-      data.daily_message_limit = Number(data.daily_message_limit) || (data.is_premium ? 10 : 5);
-      // Remove empty optional fields
-      for (const k of ['username', 'first_name', 'last_name', 'bio', 'api_hash', 'two_fa_password']) {
-        if (!data[k]) data[k] = null;
-      }
-      await telegramOutreachApi.createAccount(data);
-      toast('Account created', 'success');
-      onSaved();
-    } catch (e: any) {
-      toast(e?.response?.data?.detail || 'Failed to create account', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <ModalBackdrop onClose={onClose}>
-      <div className={cn('w-[560px] rounded-xl border shadow-xl', t.cardBorder, isDark ? 'bg-gray-900' : 'bg-white')}>
-        {/* Header */}
-        <div className={cn('flex items-center justify-between px-6 py-4 border-b', t.cardBorder)}>
-          <h2 className={cn('text-lg font-semibold', t.text1)}>Add Account</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
-            <X className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-4 space-y-4">
-          {/* Identity */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className={labelCls}>Phone *</label>
-              <input value={form.phone} onChange={e => set('phone', e.target.value)}
-                     placeholder="351920619583" className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>First Name</label>
-              <input value={form.first_name} onChange={e => set('first_name', e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Last Name</label>
-              <input value={form.last_name} onChange={e => set('last_name', e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Username</label>
-              <input value={form.username} onChange={e => set('username', e.target.value)}
-                     placeholder="without @" className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Daily Message Limit</label>
-              <input type="number" value={form.daily_message_limit}
-                     onChange={e => set('daily_message_limit', e.target.value)} className={inputCls} />
-            </div>
-            <div className="col-span-2 flex items-center justify-between rounded-lg px-3 py-2 border" style={{ borderColor: form.is_premium ? '#8B5CF6' : undefined }}>
-              <div>
-                <label className="text-xs font-medium" style={{ color: form.is_premium ? '#7C3AED' : undefined }}>
-                  ⭐ Premium Account
-                </label>
-                <div className="text-[10px]" style={{ color: '#9CA3AF' }}>
-                  Premium: limit 10 msgs/day. Standard: 5 msgs/day
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !form.is_premium;
-                  setForm(f => ({ ...f, is_premium: next, daily_message_limit: next ? '10' : '5' }));
-                }}
-                className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                style={{ background: form.is_premium ? '#7C3AED' : '#D1D5DB' }}
-              >
-                <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-                      style={{ transform: form.is_premium ? 'translateX(17px)' : 'translateX(3px)' }} />
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className={labelCls}>Bio</label>
-            <textarea value={form.bio} onChange={e => set('bio', e.target.value)}
-                      rows={2} className={inputCls} />
-          </div>
-
-          {/* Technical */}
-          <details className="group">
-            <summary className={cn('text-xs font-semibold cursor-pointer select-none flex items-center gap-1', t.text3)}>
-              <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
-              Technical Settings
-            </summary>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div>
-                <label className={labelCls}>API ID</label>
-                <input value={form.api_id} onChange={e => set('api_id', e.target.value)}
-                       placeholder="2040" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>API Hash</label>
-                <input value={form.api_hash} onChange={e => set('api_hash', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>2FA Password</label>
-                <input value={form.two_fa_password} onChange={e => set('two_fa_password', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Device Model</label>
-                <input value={form.device_model} onChange={e => set('device_model', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>System Version</label>
-                <input value={form.system_version} onChange={e => set('system_version', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>App Version</label>
-                <input value={form.app_version} onChange={e => set('app_version', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Lang Code</label>
-                <input value={form.lang_code} onChange={e => set('lang_code', e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>System Lang Code</label>
-                <input value={form.system_lang_code} onChange={e => set('system_lang_code', e.target.value)} className={inputCls} />
-              </div>
-            </div>
-          </details>
-        </div>
-
-        {/* Footer */}
-        <div className={cn('flex items-center justify-end gap-3 px-6 py-4 border-t', t.cardBorder)}>
-          <button onClick={onClose}
-                  className={cn('px-4 py-2 rounded-lg border text-sm', t.cardBorder, t.text1)}>Cancel</button>
-          <button onClick={handleSave} disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Create Account
-          </button>
         </div>
       </div>
     </ModalBackdrop>
@@ -2789,7 +3092,6 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     bio: account.bio || '',
     status: account.status,
     daily_message_limit: String(account.daily_message_limit),
-    is_premium: account.is_premium ? 'true' : 'false',
     device_model: account.device_model || '',
     system_version: account.system_version || '',
     app_version: account.app_version || '',
@@ -2872,6 +3174,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
   const [authStep, setAuthStep] = useState<'none' | 'code_sent' | '2fa_required'>('none');
   const [authCode, setAuthCode] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const sessionFileRef = useRef<HTMLInputElement>(null);
 
@@ -2881,9 +3184,9 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
     setSaving(true);
     try {
       const data: Record<string, any> = { ...form, ...overrides };
-      data.daily_message_limit = Number(data.daily_message_limit) || (data.is_premium === 'true' ? 10 : 5);
-      data.is_premium = data.is_premium === 'true';
-      data.skip_warmup = data.skip_warmup === 'true';
+      delete data.is_premium; // auto-detected via Telethon, not user-settable
+      data.daily_message_limit = Number(data.daily_message_limit) || 5;
+      delete data.skip_warmup; // replaced by warmup Start/Stop
       for (const k of ['username', 'first_name', 'last_name', 'bio']) {
         if (!data[k]) data[k] = null;
       }
@@ -2909,6 +3212,80 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
       return;
     }
     await doSave();
+  };
+
+  // Proxy test state
+  const [proxyTesting, setProxyTesting] = useState(false);
+  const [proxyTestResult, setProxyTestResult] = useState<{ alive: boolean; latency_ms: number | null; exit_ip: string | null; error: string | null } | null>(null);
+  const handleTestProxy = async () => {
+    setProxyTesting(true);
+    setProxyTestResult(null);
+    try {
+      const res = await telegramOutreachApi.testAccountProxy(account.id);
+      setProxyTestResult(res);
+    } catch {
+      setProxyTestResult({ alive: false, latency_ms: null, exit_ip: null, error: 'Request failed' });
+    } finally {
+      setProxyTesting(false);
+    }
+  };
+
+  // Proxy mode switching
+  const currentProxyMode = (): 'auto' | 'custom' | 'none' => {
+    if (!account.assigned_proxy_id) return 'none';
+    if (account.proxy_group_name?.toLowerCase().includes('infatica')) return 'auto';
+    return 'custom';
+  };
+  const [proxyMode, setProxyMode] = useState<'auto' | 'custom' | 'none'>(currentProxyMode());
+  const [proxyModeSaving, setProxyModeSaving] = useState(false);
+  const [customProxy, setCustomProxy] = useState({ host: '', port: '', username: '', password: '', protocol: 'socks5' });
+  const [showCustomFields, setShowCustomFields] = useState(false);
+
+  const handleProxyModeChange = async (mode: 'auto' | 'custom' | 'none') => {
+    if (mode === 'custom') {
+      setProxyMode('custom');
+      setShowCustomFields(true);
+      return;
+    }
+    setProxyModeSaving(true);
+    setProxyTestResult(null);
+    try {
+      await telegramOutreachApi.setAccountProxyMode(account.id, { mode });
+      setProxyMode(mode);
+      setShowCustomFields(false);
+      toast(mode === 'auto' ? 'Auto proxy assigned' : 'Proxy removed', 'success');
+      onSaved();
+    } catch (e: any) {
+      toast(e?.response?.data?.detail || 'Failed to set proxy mode', 'error');
+    } finally {
+      setProxyModeSaving(false);
+    }
+  };
+
+  const handleCustomProxySave = async () => {
+    if (!customProxy.host || !customProxy.port) {
+      toast('Host and port are required', 'error');
+      return;
+    }
+    setProxyModeSaving(true);
+    setProxyTestResult(null);
+    try {
+      await telegramOutreachApi.setAccountProxyMode(account.id, {
+        mode: 'custom',
+        host: customProxy.host,
+        port: Number(customProxy.port),
+        username: customProxy.username || undefined,
+        password: customProxy.password || undefined,
+        protocol: customProxy.protocol,
+      });
+      setShowCustomFields(false);
+      toast('Custom proxy assigned', 'success');
+      onSaved();
+    } catch (e: any) {
+      toast(e?.response?.data?.detail || 'Failed to set custom proxy', 'error');
+    } finally {
+      setProxyModeSaving(false);
+    }
   };
 
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
@@ -2999,16 +3376,30 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
               </div>
               <div>
                 <label className={panelLabelCls} style={{ color: A.text3 }}>Status</label>
-                <select value={form.status} onChange={e => set('status', e.target.value)}
-                        className={panelInputCls}
-                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }}>
-                  <option value="active">Active</option>
-                  <option value="paused">Paused</option>
-                  <option value="spamblocked">Spamblocked</option>
-                  <option value="banned">Banned</option>
-                  <option value="dead">Dead</option>
-                  <option value="frozen">Frozen</option>
-                </select>
+                <StyledSelect
+                  value={form.status}
+                  onChange={v => set('status', v)}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'paused', label: 'Paused' },
+                    { value: 'spamblocked', label: 'Spamblocked' },
+                    { value: 'banned', label: 'Banned' },
+                    { value: 'dead', label: 'Dead' },
+                    { value: 'frozen', label: 'Frozen' },
+                  ]}
+                  renderOption={(opt) => (
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: (ACCOUNT_STATUS_STYLES[opt.value] || { color: '#6B7280' }).color }} />
+                      {opt.label}
+                    </span>
+                  )}
+                  renderSelected={opt => (
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: (ACCOUNT_STATUS_STYLES[opt.value] || { color: '#6B7280' }).color }} />
+                      {opt.label}
+                    </span>
+                  )}
+                />
               </div>
             </div>
             <div className="mt-3">
@@ -3029,55 +3420,6 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                        onChange={e => set('daily_message_limit', e.target.value)}
                        className={panelInputCls}
                        style={{ background: A.surface, borderColor: A.border, color: A.text1 }} />
-              </div>
-              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: form.is_premium === 'true' ? '#F5F3FF' : A.bg, border: `1px solid ${form.is_premium === 'true' ? '#C4B5FD' : A.border}` }}>
-                <div>
-                  <label className="text-xs font-medium" style={{ color: form.is_premium === 'true' ? '#7C3AED' : A.text1 }}>
-                    ⭐ Premium Account
-                  </label>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {form.is_premium === 'true' ? 'Higher limits: 10 msgs/day, young cap 10' : 'Standard: 5 msgs/day, young cap 5'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = form.is_premium !== 'true';
-                    setForm(f => ({ ...f, is_premium: next ? 'true' : 'false', daily_message_limit: next ? '10' : '5' }));
-                  }}
-                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                  style={{ background: form.is_premium === 'true' ? '#7C3AED' : A.border }}
-                >
-                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-                        style={{ transform: form.is_premium === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
-                </button>
-              </div>
-              <div className="flex items-center justify-between col-span-2 rounded-lg px-3 py-2" style={{ background: A.bg, border: `1px solid ${A.border}` }}>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <label className="text-xs font-medium" style={{ color: A.text1 }}>Skip Warm-up</label>
-                    <span title="Gradually increases daily limit: Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6, etc. Accounts under 7 days capped at 5 msgs/day.">
-                      <Info className="w-3 h-3 cursor-help" style={{ color: '#d97706' }} />
-                    </span>
-                  </div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>
-                    {account.warmup_day != null ? `Warm-up day ${account.warmup_day} · limit ${account.effective_daily_limit ?? '?'} msgs/day` : account.is_young_session ? 'Young session' : 'No warm-up active'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (form.skip_warmup !== 'true') {
-                      if (!window.confirm('⚠ Отключение Warm-up снимает все ограничения на отправку.\nНовые аккаунты без прогрева рискуют получить бан.\n\nВы уверены?')) return;
-                    }
-                    set('skip_warmup', form.skip_warmup === 'true' ? 'false' : 'true');
-                  }}
-                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                  style={{ background: form.skip_warmup === 'true' ? '#d97706' : A.border }}
-                >
-                  <span className="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform"
-                        style={{ transform: form.skip_warmup === 'true' ? 'translateX(17px)' : 'translateX(3px)' }} />
-                </button>
               </div>
               {/* Active Warm-up — Enhanced */}
               {(() => {
@@ -3124,7 +3466,7 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <label className="text-xs font-medium" style={{ color: A.text1 }}>Account Warmup</label>
-                        <span title="14-day program: joins channels, adds reactions, exchanges messages. Simulates real user activity to reduce ban risk.">
+                        <span className="tip" data-tip="14-day program: joins channels, adds reactions, exchanges messages. Simulates real user activity to reduce ban risk.">
                           <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
                         </span>
                       </div>
@@ -3147,7 +3489,6 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                                 toast('Active warm-up started', 'success');
                               }
                               refreshWarmupStatus();
-                              onSaved();
                             } catch { toast('Failed to toggle warm-up', 'error'); }
                           }}
                           className="px-2.5 py-1 rounded-md text-[11px] font-medium text-white"
@@ -3180,6 +3521,35 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
                         </div>
                       </div>
                     )}
+
+                    {/* Gradual daily limit toggle */}
+                    <div className="flex items-center justify-between pt-1" style={{ borderTop: `1px solid ${isActive ? '#BBF7D0' : A.border}` }}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-medium" style={{ color: A.text1 }}>Gradual daily limit</span>
+                        <span className="tip" data-tip="Day 1 = 2 msgs, Day 2 = 4, Day 3 = 6… Ramps up sending limit automatically. Disabling removes all limits — risky on new sessions.">
+                          <Info className="w-3 h-3 cursor-help" style={{ color: '#059669' }} />
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px]" style={{ color: form.skip_warmup === 'false' ? '#059669' : A.text3 }}>
+                          {form.skip_warmup === 'false' ? 'On' : 'Off'}
+                        </span>
+                        <button type="button"
+                          onClick={async () => {
+                            const newSkip = form.skip_warmup === 'false';
+                            try {
+                              await telegramOutreachApi.bulkSkipWarmup([account.id], newSkip);
+                              set('skip_warmup', newSkip ? 'true' : 'false');
+                              toast(newSkip ? 'Gradual limit disabled' : 'Gradual limit enabled', 'success');
+                            } catch { toast('Failed to toggle gradual limit', 'error'); }
+                          }}
+                          className="relative inline-flex h-[22px] w-[40px] items-center rounded-full transition-colors shrink-0"
+                          style={{ background: form.skip_warmup === 'false' ? '#059669' : '#D1D5DB', cursor: 'pointer' }}>
+                          <span className="inline-block h-[16px] w-[16px] rounded-full bg-white shadow-sm transition-transform"
+                                style={{ transform: form.skip_warmup === 'false' ? 'translateX(20px)' : 'translateX(3px)' }} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
@@ -3240,35 +3610,170 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
           {/* ---- Section: Proxy ---- */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: A.text3 }}>Proxy</h3>
-            <div className="rounded-lg p-3 space-y-2"
+            <div className="rounded-lg p-3 space-y-2.5"
                  style={{ background: A.bg, border: `1px solid ${A.border}` }}>
+              {/* Mode selector */}
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Group</span>
-                {account.proxy_group_name ? (
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-                        style={{ background: A.blueBg, color: A.blue }}>
-                    {account.proxy_group_name}
-                  </span>
-                ) : (
-                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
-                )}
+                <span className="text-xs font-medium" style={{ color: A.text3 }}>Mode</span>
+                <div className="flex rounded-lg overflow-hidden" style={{ border: `1px solid ${A.border}` }}>
+                  {(['auto', 'custom', 'none'] as const).map(m => (
+                    <button key={m} disabled={proxyModeSaving}
+                      onClick={() => handleProxyModeChange(m)}
+                      className="px-2.5 py-1 text-xs font-medium transition-colors"
+                      style={{
+                        background: proxyMode === m ? '#4F6BF0' : 'transparent',
+                        color: proxyMode === m ? '#fff' : A.text2,
+                        opacity: proxyModeSaving ? 0.5 : 1,
+                        borderRight: m !== 'none' ? `1px solid ${A.border}` : undefined,
+                      }}>
+                      {m === 'auto' ? 'Auto' : m === 'custom' ? 'Custom' : 'None'}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: A.text3 }}>Assigned Proxy</span>
-                {account.assigned_proxy_host ? (
-                  <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full"
-                        style={{ background: '#E8F5E9', color: '#2E7D32' }}>
-                    {account.assigned_proxy_host}
+              {proxyModeSaving && (
+                <div className="flex items-center justify-center gap-1.5 py-2 text-xs" style={{ color: A.text3 }}>
+                  <Loader2 className="w-3 h-3 animate-spin" /> Switching proxy...
+                </div>
+              )}
+              {/* Custom proxy fields */}
+              {showCustomFields && proxyMode === 'custom' && !proxyModeSaving && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Host</label>
+                      <input value={customProxy.host} onChange={e => setCustomProxy(p => ({ ...p, host: e.target.value }))}
+                        placeholder="pool.infatica.io" className="w-full px-2 py-1.5 rounded-md text-xs"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }} />
+                    </div>
+                    <div className="w-20">
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Port</label>
+                      <input value={customProxy.port} onChange={e => setCustomProxy(p => ({ ...p, port: e.target.value }))}
+                        placeholder="1080" className="w-full px-2 py-1.5 rounded-md text-xs"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Username</label>
+                      <input value={customProxy.username} onChange={e => setCustomProxy(p => ({ ...p, username: e.target.value }))}
+                        className="w-full px-2 py-1.5 rounded-md text-xs"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Password</label>
+                      <input value={customProxy.password} onChange={e => setCustomProxy(p => ({ ...p, password: e.target.value }))}
+                        type="password" className="w-full px-2 py-1.5 rounded-md text-xs"
+                        style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium mb-0.5 block" style={{ color: A.text3 }}>Protocol</label>
+                    <select value={customProxy.protocol} onChange={e => setCustomProxy(p => ({ ...p, protocol: e.target.value }))}
+                      className="w-full px-2 py-1.5 rounded-md text-xs"
+                      style={{ border: `1px solid ${A.border}`, color: A.text1, background: '#fff' }}>
+                      <option value="socks5">SOCKS5</option>
+                      <option value="http">HTTP</option>
+                      <option value="mtproto">MTProto</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={handleCustomProxySave}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+                      style={{ background: '#4F6BF0' }}>
+                      <Check className="w-3 h-3" /> Save
+                    </button>
+                    <button onClick={() => { setShowCustomFields(false); setProxyMode(currentProxyMode()); }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                      style={{ border: `1px solid ${A.border}`, color: A.text2 }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* Proxy info (when assigned) */}
+              {account.assigned_proxy_id && !showCustomFields && !proxyModeSaving && (<>
+                {/* Country */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium" style={{ color: A.text3 }}>Country</span>
+                  {account.proxy_country ? (
+                    <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: A.text1 }}>
+                      <CountryFlag code={account.proxy_country} />
+                      {COUNTRY_NAMES[account.proxy_country] || account.proxy_country}
+                    </span>
+                  ) : (
+                    <span className="text-xs" style={{ color: A.text3 }}>Unknown</span>
+                  )}
+                </div>
+                {/* Status */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium" style={{ color: A.text3 }}>Status</span>
+                  <span className="flex items-center gap-1.5 text-xs font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full"
+                          style={{ background: account.proxy_is_active !== false ? '#22c55e' : '#ef4444' }} />
+                    <span style={{ color: account.proxy_is_active !== false ? '#16a34a' : '#dc2626' }}>
+                      {account.proxy_is_active !== false ? 'Connected' : 'Error'}
+                    </span>
                   </span>
-                ) : account.proxy_group_name ? (
-                  <span className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ background: '#FFF3E0', color: '#E65100' }}>
-                    No free proxy
-                  </span>
-                ) : (
-                  <span className="text-xs" style={{ color: A.text3 }}>None</span>
+                </div>
+                {/* Protocol */}
+                {account.proxy_protocol && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium" style={{ color: A.text3 }}>Protocol</span>
+                    <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-full"
+                          style={{ background: '#F3F4F6', color: A.text2 }}>
+                      {account.proxy_protocol.toUpperCase()}
+                    </span>
+                  </div>
                 )}
-              </div>
+                {/* Host */}
+                {account.assigned_proxy_host && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium" style={{ color: A.text3 }}>Host</span>
+                    <span className="text-xs font-mono" style={{ color: A.text2 }}>
+                      {account.assigned_proxy_host}
+                    </span>
+                  </div>
+                )}
+                {/* Test Proxy Button */}
+                <div className="pt-1">
+                  <button onClick={handleTestProxy} disabled={proxyTesting}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                    style={{ border: `1px solid ${A.border}`, color: A.text1, opacity: proxyTesting ? 0.6 : 1 }}>
+                    {proxyTesting ? (
+                      <><Loader2 className="w-3 h-3 animate-spin" /> Testing...</>
+                    ) : (
+                      <><RefreshCw className="w-3 h-3" /> Test Proxy</>
+                    )}
+                  </button>
+                  {proxyTestResult && (
+                    <div className="mt-2 rounded-lg p-2.5 text-xs space-y-1"
+                         style={{ background: proxyTestResult.alive ? '#F0FDF4' : '#FEF2F2',
+                                  border: `1px solid ${proxyTestResult.alive ? '#BBF7D0' : '#FECACA'}` }}>
+                      <div className="flex items-center gap-1.5 font-medium"
+                           style={{ color: proxyTestResult.alive ? '#16a34a' : '#dc2626' }}>
+                        {proxyTestResult.alive ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                        {proxyTestResult.alive ? 'Proxy is working' : 'Proxy failed'}
+                      </div>
+                      {proxyTestResult.exit_ip && (
+                        <div style={{ color: A.text2 }}>Exit IP: <b className="font-mono">{proxyTestResult.exit_ip}</b></div>
+                      )}
+                      {proxyTestResult.latency_ms != null && (
+                        <div style={{ color: A.text2 }}>Latency: {proxyTestResult.latency_ms}ms</div>
+                      )}
+                      {proxyTestResult.error && (
+                        <div style={{ color: '#dc2626' }}>{proxyTestResult.error}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>)}
+              {/* No proxy */}
+              {!account.assigned_proxy_id && proxyMode === 'none' && !proxyModeSaving && (
+                <div className="text-xs py-2 text-center" style={{ color: A.text3 }}>
+                  No proxy assigned
+                </div>
+              )}
             </div>
           </section>
 
@@ -3432,10 +3937,19 @@ function EditAccountModal({ t: _t, toast, isDark: _isDark, account, onClose, onS
               {/* 2FA input */}
               {authStep === '2fa_required' && (
                 <div className="flex items-center gap-2">
-                  <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)}
-                         placeholder="Enter 2FA password"
-                         className="flex-1 px-3 py-1.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#4F6BF0]/20"
-                         style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text1 }} />
+                  <div className="relative flex-1">
+                    <input type={showAuthPassword ? 'text' : 'password'} value={authPassword} onChange={e => setAuthPassword(e.target.value)}
+                           placeholder="Enter 2FA password"
+                           className="w-full px-3 py-1.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#4F6BF0]/20"
+                           style={{ background: A.surface, border: `1px solid ${A.border}`, color: A.text1, paddingRight: '2rem' }} />
+                    <button type="button" onClick={() => setShowAuthPassword(v => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                      tabIndex={-1}>
+                      {showAuthPassword
+                        ? <EyeOff className="w-3.5 h-3.5 opacity-50" style={{ color: A.text3 }} />
+                        : <Eye className="w-3.5 h-3.5 opacity-50" style={{ color: A.text3 }} />}
+                    </button>
+                  </div>
                   <button onClick={async () => {
                             setAuthLoading(true);
                             try {
@@ -3734,8 +4248,10 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
             ].map(f => (
               <button key={f.key}
                       onClick={() => { setFormat(f.key); setSelectedFiles([]); setParsedAccounts([]); setResult(null); }}
-                      className={cn('px-3 py-1.5 rounded-lg text-xs font-medium',
-                        format === f.key ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : t.text3)}>
+                      className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                        format === f.key
+                          ? (isDark ? 'bg-emerald-900/20 text-emerald-400' : 'bg-emerald-50 text-emerald-700')
+                          : cn(t.text3, isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'))}>
                 {f.label}
               </button>
             ))}
@@ -3744,14 +4260,15 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
           {format !== 'paste' ? (
             <div>
               <div onClick={() => fileInputRef.current?.click()}
-                   onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('border-indigo-400'); }}
-                   onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('border-indigo-400'); }}
+                   onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('border-emerald-400'); }}
+                   onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('border-emerald-400'); }}
                    onDrop={e => {
                      e.preventDefault(); e.stopPropagation();
-                     e.currentTarget.classList.remove('border-indigo-400');
+                     e.currentTarget.classList.remove('border-emerald-400');
                      if (e.dataTransfer.files.length > 0) handleFilesSelected(e.dataTransfer.files);
                    }}
-                   className={cn('border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:border-indigo-400 transition-colors', t.cardBorder)}>
+                   className={cn('border border-dashed rounded-xl p-6 text-center cursor-pointer hover:border-emerald-400 transition-colors',
+                     isDark ? 'border-gray-700' : 'border-gray-300')}>
                 <Upload className={cn('w-8 h-8 mx-auto mb-2', t.text3)} />
                 <p className={cn('text-sm font-medium', t.text1)}>
                   {selectedFiles.length > 0
@@ -3783,7 +4300,7 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
                         placeholder='[{"phone":"351920619583","app_id":2040,...}]'
                         className={cn('w-full px-3 py-2 rounded-lg border text-xs font-mono', t.cardBorder, t.cardBg, t.text1)} />
               <button onClick={handleParse}
-                      className="mt-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700">
+                      className="mt-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700">
                 Parse
               </button>
             </div>
@@ -3837,15 +4354,16 @@ function ImportTeleRaptorModal({ t, toast, isDark, onClose, onImported }: {
         <div className={cn('flex items-center justify-end gap-3 px-6 py-4 border-t', t.cardBorder)}>
           {result ? (
             <button onClick={onImported}
-                    className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                    className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700">
               Done
             </button>
           ) : (
             <>
               <button onClick={onClose}
-                      className={cn('px-4 py-2 rounded-lg border text-sm', t.cardBorder, t.text1)}>Cancel</button>
+                      className={cn('px-4 py-2 rounded-lg text-sm transition-colors',
+                        isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}>Cancel</button>
               <button onClick={handleImport} disabled={importing || !canImport}
-                      className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                      className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
                 {importing && <Loader2 className="w-4 h-4 animate-spin" />}
                 Import
               </button>
@@ -3976,10 +4494,402 @@ function ParserTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'succ
 // ══════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════
+// Custom Fields Tab (Custom Properties)
+// ══════════════════════════════════════════════════════════════════════
+
+const FIELD_TYPES = [
+  { value: 'text', label: 'Text' },
+  { value: 'number', label: 'Number' },
+  { value: 'select', label: 'Select' },
+  { value: 'multi_select', label: 'Multi-Select' },
+  { value: 'date', label: 'Date' },
+  { value: 'url', label: 'URL' },
+];
+
+function CustomFieldsTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const [fields, setFields] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingField, setEditingField] = useState<any>(null);
+  const [formName, setFormName] = useState('');
+  const [formType, setFormType] = useState('text');
+  const [formOptions, setFormOptions] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deleteFieldId, setDeleteFieldId] = useState<number | null>(null);
+
+  const loadFields = useCallback(async () => {
+    try {
+      const data = await telegramOutreachApi.listCustomFields();
+      setFields(data);
+    } catch { toast('Failed to load custom fields', 'error'); }
+    setLoading(false);
+  }, [toast]);
+
+  useEffect(() => { loadFields(); }, [loadFields]);
+
+  const openCreate = () => {
+    setEditingField(null);
+    setFormName('');
+    setFormType('text');
+    setFormOptions('');
+    setShowCreate(true);
+  };
+
+  const openEdit = (f: any) => {
+    setEditingField(f);
+    setFormName(f.name);
+    setFormType(f.field_type);
+    setFormOptions((f.options_json || []).join('\n'));
+    setShowCreate(true);
+  };
+
+  const handleSave = async () => {
+    if (!formName.trim()) { toast('Name is required', 'error'); return; }
+    setSaving(true);
+    try {
+      const options = (formType === 'select' || formType === 'multi_select')
+        ? formOptions.split('\n').map(s => s.trim()).filter(Boolean)
+        : [];
+      if (editingField) {
+        await telegramOutreachApi.updateCustomField(editingField.id, {
+          name: formName.trim(),
+          field_type: formType,
+          options_json: options,
+        });
+        toast('Field updated', 'success');
+      } else {
+        await telegramOutreachApi.createCustomField({
+          name: formName.trim(),
+          field_type: formType,
+          options_json: options,
+        });
+        toast('Field created', 'success');
+      }
+      setShowCreate(false);
+      loadFields();
+    } catch { toast('Failed to save field', 'error'); }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id: number) => {
+    setDeleteFieldId(id);
+  };
+
+  const confirmDeleteField = async () => {
+    if (deleteFieldId === null) return;
+    try {
+      await telegramOutreachApi.deleteCustomField(deleteFieldId);
+      toast('Field deleted', 'success');
+      loadFields();
+    } catch { toast('Failed to delete', 'error'); }
+    setDeleteFieldId(null);
+  };
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: A.text2 }} /></div>;
+
+  return (
+    <div className="space-y-4 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>Custom Properties</h2>
+          <p className="text-sm mt-0.5" style={{ color: A.text2 }}>Define custom fields for your CRM contacts</p>
+        </div>
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
+          style={{ background: A.blue }}
+        >
+          <Plus className="w-4 h-4" /> Add Field
+        </button>
+      </div>
+
+      {fields.length === 0 ? (
+        <div className="text-center py-16 rounded-xl" style={{ background: A.surface, border: `1px solid ${A.border}` }}>
+          <Settings className="w-10 h-10 mx-auto mb-3" style={{ color: A.text2 }} />
+          <p className="text-sm font-medium" style={{ color: A.text1 }}>No custom fields yet</p>
+          <p className="text-xs mt-1" style={{ color: A.text2 }}>Create fields to track custom data on your leads</p>
+          <button onClick={openCreate} className="mt-4 px-4 py-1.5 rounded-lg text-sm font-medium text-white" style={{ background: A.blue }}>
+            Create First Field
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${A.border}` }}>
+          <table className="w-full text-sm" style={{ background: A.surface }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${A.border}` }}>
+                <th className="text-left px-4 py-2.5 font-medium" style={{ color: A.text2 }}>Name</th>
+                <th className="text-left px-4 py-2.5 font-medium" style={{ color: A.text2 }}>Type</th>
+                <th className="text-left px-4 py-2.5 font-medium" style={{ color: A.text2 }}>Options</th>
+                <th className="w-20 px-4 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {fields.map((f: any) => (
+                <tr key={f.id} style={{ borderBottom: `1px solid ${A.border}` }} className="hover:opacity-80">
+                  <td className="px-4 py-2.5 font-medium" style={{ color: A.text1 }}>{f.name}</td>
+                  <td className="px-4 py-2.5">
+                    <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: A.blueBg, color: A.blue }}>
+                      {FIELD_TYPES.find(t => t.value === f.field_type)?.label || f.field_type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs" style={{ color: A.text2 }}>
+                    {(f.options_json || []).length > 0 ? (f.options_json as string[]).join(', ') : '—'}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEdit(f)} className="p-1 rounded hover:opacity-70" style={{ color: A.text2 }}>
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(f.id)} className="p-1 rounded hover:opacity-70" style={{ color: '#ef4444' }}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create / Edit Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div className="rounded-xl p-6 w-[420px] space-y-4" style={{ background: A.surface, border: `1px solid ${A.border}` }}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold" style={{ color: A.text1 }}>
+                {editingField ? 'Edit Field' : 'New Custom Field'}
+              </h3>
+              <button onClick={() => setShowCreate(false)} className="p-1 rounded hover:opacity-70" style={{ color: A.text2 }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: A.text2 }}>Field Name</label>
+              <input
+                value={formName}
+                onChange={e => setFormName(e.target.value)}
+                placeholder="e.g. Industry, Revenue, Website"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: A.bg, border: `1px solid ${A.border}`, color: A.text1 }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: A.text2 }}>Field Type</label>
+              <select
+                value={formType}
+                onChange={e => setFormType(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: A.bg, border: `1px solid ${A.border}`, color: A.text1 }}
+              >
+                {FIELD_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {(formType === 'select' || formType === 'multi_select') && (
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: A.text2 }}>Options (one per line)</label>
+                <textarea
+                  value={formOptions}
+                  onChange={e => setFormOptions(e.target.value)}
+                  rows={4}
+                  placeholder={"Option 1\nOption 2\nOption 3"}
+                  className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                  style={{ background: A.bg, border: `1px solid ${A.border}`, color: A.text1 }}
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowCreate(false)}
+                className="px-4 py-1.5 rounded-lg text-sm"
+                style={{ color: A.text2, border: `1px solid ${A.border}` }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-1.5 rounded-lg text-sm font-medium text-white flex items-center gap-1.5"
+                style={{ background: A.blue, opacity: saving ? 0.7 : 1 }}
+              >
+                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {editingField ? 'Save Changes' : 'Create Field'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom confirm dialog for field deletion */}
+      <ConfirmDialog
+        isOpen={deleteFieldId !== null}
+        title="Delete Field"
+        message="Delete this custom field and all its values?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={confirmDeleteField}
+        onCancel={() => setDeleteFieldId(null)}
+      />
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
 // Info Tab
 // ══════════════════════════════════════════════════════════════════════
 
-function InfoTab({ t: _t }: { t: any }) { void _t;
+function NotificationBotSection({ toast }: { toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const [botInfo, setBotInfo] = useState<{ bot_username: string | null; deep_link: string | null; subscribers_count: number } | null>(null);
+  const [subs, setSubs] = useState<Array<{
+    id: number; chat_id: string; username: string | null; first_name: string | null;
+    notify_mode: string; daily_digest: boolean; digest_hour: number;
+    campaign_ids: number[] | null; is_active: boolean; created_at: string | null;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const [info, list] = await Promise.all([
+        telegramOutreachApi.getNotifBotInfo(),
+        telegramOutreachApi.listNotifSubscribers(),
+      ]);
+      setBotInfo(info);
+      setSubs(list);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleToggle = async (sub: typeof subs[0]) => {
+    try {
+      await telegramOutreachApi.updateNotifSubscriber(sub.id, { is_active: !sub.is_active });
+      setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, is_active: !s.is_active } : s));
+      toast(sub.is_active ? 'Paused' : 'Activated', 'success');
+    } catch { toast('Failed', 'error'); }
+  };
+
+  const handleModeChange = async (sub: typeof subs[0], mode: string) => {
+    try {
+      await telegramOutreachApi.updateNotifSubscriber(sub.id, { notify_mode: mode });
+      setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, notify_mode: mode } : s));
+    } catch { toast('Failed', 'error'); }
+  };
+
+  const handleDigestToggle = async (sub: typeof subs[0]) => {
+    try {
+      await telegramOutreachApi.updateNotifSubscriber(sub.id, { daily_digest: !sub.daily_digest });
+      setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, daily_digest: !s.daily_digest } : s));
+    } catch { toast('Failed', 'error'); }
+  };
+
+  const handleDelete = async (sub: typeof subs[0]) => {
+    try {
+      await telegramOutreachApi.deleteNotifSubscriber(sub.id);
+      setSubs(prev => prev.filter(s => s.id !== sub.id));
+      toast('Removed', 'success');
+    } catch { toast('Failed', 'error'); }
+  };
+
+  const handleTest = async () => {
+    try {
+      const res = await telegramOutreachApi.sendTestNotification();
+      toast(`Test sent to ${res.sent}/${res.total} subscribers`, 'success');
+    } catch { toast('Failed to send test', 'error'); }
+  };
+
+  const sectionStyle: React.CSSProperties = { borderRadius: 12, border: `1px solid ${A.border}`, padding: 20, background: A.surface };
+  const modeLabels: Record<string, string> = { all: 'All replies', interested: 'Interested only', new_only: 'First reply only' };
+
+  if (loading) return <div className="text-center py-8 text-[13px]" style={{ color: A.text3 }}>Loading...</div>;
+
+  return (
+    <div className="space-y-3" style={sectionStyle}>
+      <div className="flex items-center justify-between">
+        <h2 className="text-[15px] font-semibold" style={{ color: A.text1 }}>Notification Bot</h2>
+        <div className="flex gap-2">
+          {botInfo?.deep_link && (
+            <a href={botInfo.deep_link} target="_blank" rel="noreferrer"
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-white"
+              style={{ background: A.blue }}>
+              Connect via Telegram
+            </a>
+          )}
+          <button onClick={handleTest}
+            className="px-3 py-1.5 rounded-lg text-[12px] font-medium border"
+            style={{ borderColor: A.border, color: A.text2 }}>
+            Send Test
+          </button>
+        </div>
+      </div>
+
+      <p className="text-[13px]" style={{ color: A.text2 }}>
+        Get notified in Telegram when prospects reply to outreach campaigns. Reply directly to respond.
+      </p>
+
+      {botInfo?.bot_username && (
+        <p className="text-[12px]" style={{ color: A.text3 }}>
+          Bot: <b>@{botInfo.bot_username}</b> &middot; {botInfo.subscribers_count} subscriber{botInfo.subscribers_count !== 1 ? 's' : ''}
+        </p>
+      )}
+
+      {subs.length === 0 ? (
+        <p className="text-[13px] py-4 text-center" style={{ color: A.text3 }}>
+          No subscribers yet. Click "Connect via Telegram" to start receiving notifications.
+        </p>
+      ) : (
+        <div className="space-y-2 mt-2">
+          {subs.map(sub => (
+            <div key={sub.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border"
+              style={{ borderColor: A.border, opacity: sub.is_active ? 1 : 0.5 }}>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium" style={{ color: A.text1 }}>
+                  {sub.first_name || 'Unknown'} {sub.username ? `(@${sub.username})` : ''}
+                </div>
+                <div className="text-[11px] mt-0.5" style={{ color: A.text3 }}>
+                  {modeLabels[sub.notify_mode] || sub.notify_mode}
+                  {sub.daily_digest && ' · Digest ON'}
+                  {!sub.is_active && ' · Paused'}
+                </div>
+              </div>
+              <select value={sub.notify_mode} onChange={e => handleModeChange(sub, e.target.value)}
+                className="text-[11px] px-2 py-1 rounded border bg-transparent"
+                style={{ borderColor: A.border, color: A.text2 }}>
+                <option value="all">All replies</option>
+                <option value="interested">Interested only</option>
+                <option value="new_only">First reply only</option>
+              </select>
+              <button onClick={() => handleDigestToggle(sub)}
+                className="text-[11px] px-2 py-1 rounded border"
+                style={{ borderColor: A.border, color: sub.daily_digest ? A.teal : A.text3, background: sub.daily_digest ? A.tealBg : 'transparent' }}>
+                Digest
+              </button>
+              <button onClick={() => handleToggle(sub)}
+                className="text-[11px] px-2 py-1 rounded border"
+                style={{ borderColor: A.border, color: sub.is_active ? A.text2 : A.teal }}>
+                {sub.is_active ? 'Pause' : 'Activate'}
+              </button>
+              <button onClick={() => handleDelete(sub)}
+                className="text-[11px] px-1.5 py-1 rounded hover:bg-red-50">
+                <Trash2 size={13} style={{ color: A.rose }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InfoTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success' | 'error' | 'info') => void }) { void _t;
   const sectionStyle: React.CSSProperties = { borderRadius: 12, border: `1px solid ${A.border}`, padding: 20, background: A.surface };
   const sectionCls = 'space-y-3';
   const h2Cls = 'text-[15px] font-semibold';
@@ -3990,6 +4900,9 @@ function InfoTab({ t: _t }: { t: any }) { void _t;
 
   return (
     <div className="max-w-4xl mx-auto space-y-5" style={{ color: A.text2 }}>
+      {/* ── Notification Bot ── */}
+      <NotificationBotSection toast={toast} />
+
       {/* ── Accounts ── */}
       <div className={sectionCls} style={sectionStyle}>
         <h2 className={h2Cls} style={{ color: A.text1 }}>Accounts</h2>
@@ -4311,7 +5224,10 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   const [showCrmInfo, setShowCrmInfo] = useState(false);
   const [crmData, setCrmData] = useState<any>(null);
   const [crmLoading, setCrmLoading] = useState(false);
+  const [crmCustomFields, setCrmCustomFields] = useState<any[]>([]);
+  const [crmFieldDefs, setCrmFieldDefs] = useState<any[]>([]);
   const [peerStatus, setPeerStatus] = useState<any>(null);
+  const [peerTyping, setPeerTyping] = useState(false);
   const [filterLeadStatus, setFilterLeadStatus] = useState<string>('');
   const [campaignTags, setCampaignTags] = useState<string[]>([]);
   const [accountTags, setAccountTags] = useState<{ id: number; name: string }[]>([]);
@@ -4634,9 +5550,12 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
       } catch (e: any) {
         if (!cancelled) {
           setMessages([]);
+          const status = e?.response?.status;
           const detail = e?.response?.data?.detail || 'Failed to load messages';
-          if (detail.includes('connect')) {
-            toast('Account session expired — cannot load messages. Re-authorize the account.', 'error');
+          if (status === 401) {
+            toast('Session expired — re-authorize the account.', 'error');
+          } else if (status === 503) {
+            toast('Connection error — please try again.', 'error');
           } else {
             toast(detail, 'error');
           }
@@ -4648,16 +5567,39 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
     return () => { cancelled = true; };
   }, [selectedDialog]);
 
+  // Poll typing status every 3s
+  useEffect(() => {
+    if (!selectedDialog) { setPeerTyping(false); return; }
+    setPeerTyping(false);
+    const interval = setInterval(async () => {
+      try {
+        const data = await telegramOutreachApi.getDialogTyping(selectedDialog.id);
+        setPeerTyping(data.typing);
+      } catch { setPeerTyping(false); }
+    }, 3_000);
+    return () => { clearInterval(interval); setPeerTyping(false); };
+  }, [selectedDialog]);
+
   // Load CRM data when Info panel is opened
   useEffect(() => {
-    if (!showCrmInfo || !selectedDialog) { setCrmData(null); return; }
+    if (!showCrmInfo || !selectedDialog) { setCrmData(null); setCrmCustomFields([]); return; }
     let cancelled = false;
     setCrmLoading(true);
     (async () => {
       try {
-        const data = await telegramOutreachApi.getDialogCrm(selectedDialog.id);
-        if (!cancelled) setCrmData(data.contact);
-      } catch { if (!cancelled) setCrmData(null); }
+        const [data, fieldDefs] = await Promise.all([
+          telegramOutreachApi.getDialogCrm(selectedDialog.id),
+          telegramOutreachApi.listCustomFields(),
+        ]);
+        if (!cancelled) {
+          setCrmData(data.contact);
+          setCrmFieldDefs(fieldDefs);
+          if (data.contact?.contact_id) {
+            const vals = await telegramOutreachApi.getContactCustomFields(data.contact.contact_id);
+            if (!cancelled) setCrmCustomFields(vals);
+          }
+        }
+      } catch { if (!cancelled) { setCrmData(null); setCrmCustomFields([]); } }
       finally { if (!cancelled) setCrmLoading(false); }
     })();
     return () => { cancelled = true; };
@@ -4905,7 +5847,13 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
   // selectCls removed — using StyledSelect component
 
   return (
-    <div className="flex rounded-xl overflow-hidden" style={{ background: A.surface, border: `1px solid ${A.border}`, height: 'calc(100vh - 220px)', minHeight: 500 }}>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-end">
+        <Link to="/inbox-v2" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors" style={{ background: A.blueBg, color: A.blue }}>
+          Try new Inbox (beta) <ChevronRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+    <div className="flex rounded-xl overflow-hidden" style={{ background: A.surface, border: `1px solid ${A.border}`, height: 'calc(100vh - 250px)', minHeight: 500 }}>
       {/* ── Left panel: Dialog list ── */}
       <div className="flex flex-col" style={{ width: 320, flexShrink: 0, overflow: 'hidden', borderRight: `1px solid ${A.border}` }}>
         {/* Search */}
@@ -4930,7 +5878,8 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
             value={filterAccount}
             onChange={setFilterAccount}
             placeholder="Account"
-            options={filteredAccounts.map((a: any) => ({ value: String(a.id), label: [a.first_name, a.last_name].filter(Boolean).join(' ') || a.phone || `#${a.id}` }))}
+            searchable
+            options={filteredAccounts.map((a: any) => ({ value: String(a.id), label: [a.first_name, a.last_name, a.username ? `@${a.username}` : '', a.phone].filter(Boolean).join(' ') }))}
             renderSelected={(opt) => {
               const a = accountMap[opt.value];
               if (!a) return opt.label;
@@ -4967,6 +5916,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
               value={filterCampaign}
               onChange={(v) => { setFilterCampaign(v); setFilterAccount(''); }}
               placeholder="Campaign"
+              searchable
               className="flex-1 min-w-0"
               options={campaigns.map((c: any) => ({ value: String(c.id), label: c.name }))}
             />
@@ -4975,6 +5925,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 value={filterAccountTag}
                 onChange={(v) => { setFilterAccountTag(v); setFilterAccount(''); }}
                 placeholder="Account Tag"
+                searchable
                 className="flex-1 min-w-0"
                 options={accountTags.map(t => ({ value: t.name, label: t.name }))}
               />
@@ -5002,6 +5953,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                 value={filterTag}
                 onChange={setFilterTag}
                 placeholder="Campaign Tag"
+                searchable
                 className="flex-1 min-w-0"
                 options={campaignTags.map(t => ({ value: t, label: t }))}
               />
@@ -5161,7 +6113,16 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   <p className="text-sm font-semibold truncate" style={{ color: A.text1 }}>
                     {selectedDialog.peer_name || selectedDialog.name || `Dialog ${selectedDialog.id}`}
                   </p>
-                  {peerStatus && (
+                  {peerTyping ? (
+                    <span className="text-[10px] flex items-center gap-1 flex-shrink-0" style={{ color: '#22C55E' }}>
+                      <span className="flex gap-0.5">
+                        <span className="w-1 h-1 rounded-full animate-bounce" style={{ background: '#22C55E', animationDelay: '0ms' }} />
+                        <span className="w-1 h-1 rounded-full animate-bounce" style={{ background: '#22C55E', animationDelay: '150ms' }} />
+                        <span className="w-1 h-1 rounded-full animate-bounce" style={{ background: '#22C55E', animationDelay: '300ms' }} />
+                      </span>
+                      typing
+                    </span>
+                  ) : peerStatus && (
                     <span className="text-[10px] flex items-center gap-1 flex-shrink-0" style={{
                       color: peerStatus.status === 'online' ? '#22C55E'
                         : peerStatus.possibly_blocked ? '#EF4444'
@@ -5405,7 +6366,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                                   </div>
                                 );
                               })()}
-                              {(msg.text || msg.rendered_text || msg.message_text) && <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{msg.text || msg.rendered_text || msg.message_text}</p>}
+                              {(msg.text || msg.rendered_text || msg.message_text) && <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{renderFormattedText(msg.text || msg.rendered_text || msg.message_text, msg.entities)}</p>}
                               {/* Footer: reactions + time + read status — all inline */}
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap" style={{ justifyContent: isOutbound ? 'flex-end' : 'flex-start' }}>
                                 {msg.reactions && msg.reactions.length > 0 && msg.reactions.map((r: any, ri: number) => (
@@ -5425,6 +6386,18 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                           </span>
                         );
                       })}
+                      {peerTyping && (
+                        <div className="flex justify-start">
+                          <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs" style={{ background: A.surface, border: `1px solid ${A.border}` }}>
+                            <span className="flex gap-0.5">
+                              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: A.text3, animationDelay: '0ms' }} />
+                              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: A.text3, animationDelay: '150ms' }} />
+                              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: A.text3, animationDelay: '300ms' }} />
+                            </span>
+                            <span style={{ color: A.text3 }}>typing</span>
+                          </div>
+                        </div>
+                      )}
                       <div ref={messagesEndRef} />
                     </div>
 
@@ -5789,17 +6762,21 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                   </div>
 
                   {/* Row 4: Account signature */}
-                  {selectedDialog && (selectedDialog.account_username || selectedDialog.account_phone) && (
-                    <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: A.text3 }}>
+                  {selectedDialog && (selectedDialog.account_username || selectedDialog.account_phone) && (() => {
+                    const dead = ['dead', 'frozen', 'banned'].includes(selectedDialog.account_status || '');
+                    return (
+                    <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: dead ? '#EF4444' : A.text3 }}>
                       <span>via</span>
-                      <span className="font-medium" style={{ color: A.text2 }}>
+                      <span className="font-medium" style={{ color: dead ? '#EF4444' : A.text2 }}>
                         {selectedDialog.account_username ? `@${selectedDialog.account_username}` : selectedDialog.account_phone}
                       </span>
                       {selectedDialog.account_name && (
-                        <span style={{ color: A.text3 }}>({selectedDialog.account_name})</span>
+                        <span style={{ color: dead ? '#EF4444' : A.text3 }}>({selectedDialog.account_name})</span>
                       )}
+                      {dead && <span className="font-medium">— {selectedDialog.account_status}</span>}
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -6019,16 +6996,33 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
                           </div>
                         )}
 
-                        {/* Custom Data */}
-                        {crmData.custom_data && Object.keys(crmData.custom_data).filter(k => !k.startsWith('_')).length > 0 && (
+                        {/* Custom Properties */}
+                        {crmFieldDefs.length > 0 && (
                           <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Custom Fields</p>
-                            <div className="flex flex-col gap-0.5">
-                              {Object.entries(crmData.custom_data).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
-                                <p key={k} className="text-[11px]" style={{ color: A.text2 }}>
-                                  <span style={{ color: A.text3 }}>{k}:</span> {String(v)}
-                                </p>
-                              ))}
+                            <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: A.text3 }}>Custom Properties</p>
+                            <div className="flex flex-col gap-1">
+                              {crmFieldDefs.map((fd: any) => {
+                                const cv = crmCustomFields.find((v: any) => v.field_id === fd.id);
+                                return (
+                                  <div key={fd.id} className="flex items-center gap-1.5">
+                                    <span className="text-[10px] shrink-0 w-20 truncate" style={{ color: A.text3 }}>{fd.name}</span>
+                                    <input
+                                      className="flex-1 text-[11px] px-1.5 py-0.5 rounded outline-none min-w-0"
+                                      style={{ background: A.bg, border: `1px solid ${A.border}`, color: A.text1 }}
+                                      type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : 'text'}
+                                      defaultValue={cv?.value || ''}
+                                      placeholder="—"
+                                      onBlur={async (e) => {
+                                        if (!crmData?.contact_id) return;
+                                        const val = e.target.value.trim();
+                                        try {
+                                          await telegramOutreachApi.updateContactCustomFields(crmData.contact_id, [{ field_id: fd.id, value: val || null }]);
+                                        } catch { /* silent */ }
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -6085,6 +7079,7 @@ function InboxTab({ toast }: { toast: (msg: string, type?: 'success' | 'error' |
         </ModalBackdrop>,
         document.body,
       )}
+    </div>
     </div>
   );
 }
@@ -6359,7 +7354,13 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
+  const [pipeFieldDefs, setPipeFieldDefs] = useState<any[]>([]);
+  const [pipeFieldVals, setPipeFieldVals] = useState<any[]>([]);
   const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    telegramOutreachApi.listCustomFields(currentProject?.id).then(setPipeFieldDefs).catch(() => {});
+  }, [currentProject?.id]);
 
   const loadPipeline = useCallback(async () => {
     setLoading(true);
@@ -6431,13 +7432,16 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
   const openContact = async (c: any) => {
     setSelectedContact(c);
     setCampaignProgress([]);
+    setPipeFieldVals([]);
     try {
-      const [h, cp] = await Promise.all([
+      const [h, cp, fv] = await Promise.all([
         telegramOutreachApi.getCrmContactHistory(c.id),
         telegramOutreachApi.getCrmContactCampaigns(c.id),
+        telegramOutreachApi.getContactCustomFields(c.id),
       ]);
       setHistory(h.history);
       setCampaignProgress(cp.campaigns || []);
+      setPipeFieldVals(fv || []);
     } catch { setHistory([]); setCampaignProgress([]); }
   };
 
@@ -6601,7 +7605,7 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
                 <div>
                   <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Campaigns</label>
                   <div className="text-xs" style={{ color: A.text1 }}>
-                    {selectedContact.campaigns.map((c: any) => c.name).join(', ')}
+                    {selectedContact.campaigns.map((c: any) => c?.name).filter(Boolean).join(', ')}
                   </div>
                 </div>
               )}
@@ -6621,6 +7625,93 @@ function PipelineTab({ toast }: { toast: (msg: string, type?: 'success' | 'error
                   <div className="text-[10px]" style={{ color: A.text3 }}>Last Contact</div>
                 </div>
               </div>
+              {/* Custom Properties */}
+              {pipeFieldDefs.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Properties</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {pipeFieldDefs.map((fd: any) => {
+                      const cv = pipeFieldVals.find((v: any) => v.field_id === fd.id);
+                      return (
+                        <div key={fd.id}>
+                          <label className="block text-[10px] font-medium mb-0.5" style={{ color: A.text3 }}>{fd.name}</label>
+                          {fd.field_type === 'select' ? (
+                            <select
+                              className="w-full px-2 py-1 rounded border text-xs"
+                              style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                              defaultValue={cv?.value || ''}
+                              key={`${selectedContact.id}-${fd.id}-${cv?.value}`}
+                              onChange={async (e) => {
+                                try {
+                                  await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value || null }]);
+                                  setPipeFieldVals(prev => {
+                                    const idx = prev.findIndex((v: any) => v.field_id === fd.id);
+                                    const val = { field_id: fd.id, value: e.target.value || null };
+                                    return idx >= 0 ? prev.map((v: any, i: number) => i === idx ? { ...v, ...val } : v) : [...prev, val];
+                                  });
+                                } catch { /* */ }
+                              }}
+                            >
+                              <option value="">--</option>
+                              {(fd.options_json || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : fd.field_type === 'multi_select' ? (
+                            <div className="flex flex-wrap gap-1">
+                              {(fd.options_json || []).map((o: string) => {
+                                const selected = (cv?.value || '').split(',').map((s: string) => s.trim()).includes(o);
+                                return (
+                                  <button key={o}
+                                    className="text-[10px] px-1.5 py-0.5 rounded border transition-colors"
+                                    style={{
+                                      borderColor: selected ? A.blue : A.border,
+                                      background: selected ? A.blueBg : 'transparent',
+                                      color: selected ? A.blue : A.text3,
+                                    }}
+                                    onClick={async () => {
+                                      const current = (cv?.value || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+                                      const next = selected ? current.filter((v: string) => v !== o) : [...current, o];
+                                      const newVal = next.join(', ') || null;
+                                      try {
+                                        await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: newVal }]);
+                                        setPipeFieldVals(prev => {
+                                          const idx = prev.findIndex((v: any) => v.field_id === fd.id);
+                                          const val = { field_id: fd.id, value: newVal };
+                                          return idx >= 0 ? prev.map((v: any, i: number) => i === idx ? { ...v, ...val } : v) : [...prev, val];
+                                        });
+                                      } catch { /* */ }
+                                    }}
+                                  >{o}</button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <input
+                              className="w-full px-2 py-1 rounded border text-xs outline-none"
+                              style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                              type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : fd.field_type === 'url' ? 'url' : 'text'}
+                              defaultValue={cv?.value || ''}
+                              key={`${selectedContact.id}-${fd.id}-${cv?.value}`}
+                              placeholder="--"
+                              onBlur={async (e) => {
+                                const newVal = e.target.value.trim() || null;
+                                if (newVal === (cv?.value || null)) return;
+                                try {
+                                  await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: newVal }]);
+                                  setPipeFieldVals(prev => {
+                                    const idx = prev.findIndex((v: any) => v.field_id === fd.id);
+                                    const val = { field_id: fd.id, value: newVal };
+                                    return idx >= 0 ? prev.map((v: any, i: number) => i === idx ? { ...v, ...val } : v) : [...prev, val];
+                                  });
+                                } catch { /* */ }
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {/* Campaign Sequence Progress */}
               {campaignProgress.length > 0 && (
                 <div>
@@ -6721,10 +7812,29 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [selectedContact, setSelectedContact] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
   const [campaignProgress, setCampaignProgress] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [crmDeleteConfirm, setCrmDeleteConfirm] = useState<string | null>(null);
+  const [contactFieldDefs, setContactFieldDefs] = useState<any[]>([]);
+  const [contactFieldVals, setContactFieldVals] = useState<any[]>([]);
+  const [cfFilterFieldId, setCfFilterFieldId] = useState<number | null>(null);
+  const [cfFilterValue, setCfFilterValue] = useState('');
+  const [allFieldDefs, setAllFieldDefs] = useState<any[]>([]);
+  // Detail panel state (chat + notes)
+  const [dialogInfo, setDialogInfo] = useState<any>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [noteInput, setNoteInput] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Load custom field definitions once
+  useEffect(() => {
+    telegramOutreachApi.listCustomFields().then(setAllFieldDefs).catch(() => {});
+  }, []);
 
   const loadContacts = useCallback(async () => {
     setLoading(true);
@@ -6733,12 +7843,16 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       if (currentProject?.id) params.project_id = currentProject.id;
+      if (cfFilterFieldId && cfFilterValue) {
+        params.cf_field_id = cfFilterFieldId;
+        params.cf_value = cfFilterValue;
+      }
       const data = await telegramOutreachApi.listCrmContacts(params);
       setContacts(data.items);
       setTotal(data.total);
     } catch { toast('Failed to load contacts', 'error'); }
     finally { setLoading(false); }
-  }, [page, search, statusFilter, currentProject?.id, toast]);
+  }, [page, search, statusFilter, currentProject?.id, cfFilterFieldId, cfFilterValue, toast]);
 
   const loadStats = useCallback(async () => {
     try { setStats(await telegramOutreachApi.getCrmStats()); } catch { /* ok */ }
@@ -6747,17 +7861,79 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
   useEffect(() => { loadContacts(); }, [loadContacts]);
   useEffect(() => { loadStats(); }, [loadStats]);
 
+  const loadChatMessages = useCallback(async (dId: number) => {
+    try {
+      const msgs = await telegramOutreachApi.getDialogMessages(dId, 50);
+      setChatMessages(Array.isArray(msgs) ? msgs : msgs.messages || []);
+    } catch { /* silent */ }
+  }, []);
+
   const openContact = async (c: any) => {
     setSelectedContact(c);
     setCampaignProgress([]);
+    setContactFieldVals([]);
+    setDialogInfo(null);
+    setChatMessages([]);
+    setNotes([]);
+    setChatInput('');
+    setChatLoading(true);
+    // Stop existing poll
+    if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; }
     try {
-      const [h, cp] = await Promise.all([
-        telegramOutreachApi.getCrmContactHistory(c.id),
+      const [cp, fds, fvs, dlg, detail] = await Promise.all([
         telegramOutreachApi.getCrmContactCampaigns(c.id),
+        telegramOutreachApi.listCustomFields(),
+        telegramOutreachApi.getContactCustomFields(c.id),
+        telegramOutreachApi.getCrmContactDialog(c.id),
+        telegramOutreachApi.getCrmContact(c.id),
       ]);
-      setHistory(h.history);
       setCampaignProgress(cp.campaigns || []);
-    } catch { setHistory([]); setCampaignProgress([]); }
+      setContactFieldDefs(fds);
+      setContactFieldVals(fvs);
+      setNotes(detail.notes || []);
+      if (dlg?.dialog) {
+        setDialogInfo(dlg.dialog);
+        await loadChatMessages(dlg.dialog.id);
+        // Start polling for new messages
+        chatPollRef.current = setInterval(() => loadChatMessages(dlg.dialog.id), 8000);
+      }
+    } catch { setCampaignProgress([]); }
+    finally { setChatLoading(false); }
+  };
+
+  const closeContact = () => {
+    setSelectedContact(null);
+    if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null; }
+  };
+
+  // Cleanup poll on unmount
+  useEffect(() => {
+    return () => { if (chatPollRef.current) clearInterval(chatPollRef.current); };
+  }, []);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || !dialogInfo?.id || chatSending) return;
+    setChatSending(true);
+    try {
+      await telegramOutreachApi.sendDialogMessage(dialogInfo.id, chatInput.trim());
+      setChatInput('');
+      await loadChatMessages(dialogInfo.id);
+    } catch { toast('Failed to send message', 'error'); }
+    finally { setChatSending(false); }
+  };
+
+  const addNote = async () => {
+    if (!noteInput.trim() || !selectedContact) return;
+    try {
+      const n = await telegramOutreachApi.addCrmContactNote(selectedContact.id, noteInput.trim());
+      setNotes(prev => [n, ...prev]);
+      setNoteInput('');
+    } catch { toast('Failed to add note', 'error'); }
   };
 
   const updateStatus = async (id: number, status: string) => {
@@ -6793,6 +7969,47 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                  className="pl-8 pr-3 py-1.5 rounded-lg border text-xs w-full"
                  style={{ borderColor: A.border, background: A.surface, color: A.text1 }} />
         </div>
+        {allFieldDefs.length > 0 && (
+          <div className="flex items-center gap-1">
+            <select
+              value={cfFilterFieldId ?? ''}
+              onChange={e => { setCfFilterFieldId(e.target.value ? Number(e.target.value) : null); setCfFilterValue(''); setPage(1); }}
+              className="px-2 py-1.5 rounded-lg border text-xs"
+              style={{ borderColor: A.border, background: A.surface, color: A.text1 }}
+            >
+              <option value="">Filter by field...</option>
+              {allFieldDefs.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            {cfFilterFieldId && (() => {
+              const fd = allFieldDefs.find((f: any) => f.id === cfFilterFieldId);
+              return fd?.field_type === 'select' || fd?.field_type === 'multi_select' ? (
+                <select
+                  value={cfFilterValue}
+                  onChange={e => { setCfFilterValue(e.target.value); setPage(1); }}
+                  className="px-2 py-1.5 rounded-lg border text-xs"
+                  style={{ borderColor: A.border, background: A.surface, color: A.text1 }}
+                >
+                  <option value="">Any</option>
+                  {(fd.options_json || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input
+                  value={cfFilterValue}
+                  onChange={e => { setCfFilterValue(e.target.value); setPage(1); }}
+                  placeholder="Value..."
+                  className="px-2 py-1.5 rounded-lg border text-xs w-28"
+                  style={{ borderColor: A.border, background: A.surface, color: A.text1 }}
+                />
+              );
+            })()}
+            {cfFilterFieldId && (
+              <button onClick={() => { setCfFilterFieldId(null); setCfFilterValue(''); setPage(1); }}
+                className="p-1 rounded hover:opacity-70" style={{ color: A.text3 }}>
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
         <span className="text-xs" style={{ color: A.text3 }}>{total} contacts</span>
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-1.5 ml-auto">
@@ -6874,7 +8091,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
                     {c.total_replies_received}
                   </td>
                   <td className="px-3 py-2 text-[10px]" style={{ color: A.text3 }}>
-                    {(c.campaigns || []).map((camp: any) => camp.name).join(', ').substring(0, 30) || '--'}
+                    {(c.campaigns || []).map((camp: any) => camp?.name).filter(Boolean).join(', ').substring(0, 30) || '--'}
                   </td>
                   <td className="px-3 py-2 text-xs" style={{ color: A.text3 }}>
                     {c.last_contacted_at ? new Date(c.last_contacted_at).toLocaleDateString() : '--'}
@@ -6901,157 +8118,314 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
         </div>
       )}
 
-      {/* Contact Detail Modal */}
+      {/* Contact Detail Panel — 2-column layout */}
       {selectedContact && (
-        <ModalBackdrop onClose={() => setSelectedContact(null)}>
-          <div className="w-[600px] rounded-xl border shadow-xl max-h-[80vh] overflow-y-auto"
-               style={{ borderColor: A.border, background: A.surface }}>
-            <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: A.border }}>
+        <div className="rounded-xl border shadow-sm mt-4" style={{ borderColor: A.border, background: A.surface }}>
+          {/* Header */}
+          <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: A.border }}>
+            <div className="flex items-center gap-3">
+              <button onClick={closeContact} className="p-1 rounded hover:bg-[#F5F5F0] transition-colors">
+                <ArrowLeft className="w-4 h-4" style={{ color: A.text3 }} />
+              </button>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold"
+                   style={{ background: '#6366F1' }}>
+                {(selectedContact.first_name || selectedContact.username || '?')[0].toUpperCase()}
+              </div>
               <div>
-                <h2 className="text-lg font-semibold" style={{ color: A.text1 }}>@{selectedContact.username}</h2>
+                <h2 className="text-sm font-semibold" style={{ color: A.text1 }}>
+                  {[selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ') || `@${selectedContact.username}`}
+                </h2>
                 <p className="text-xs" style={{ color: A.text3 }}>
-                  {[selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ')}
-                  {selectedContact.company_name ? ` - ${selectedContact.company_name}` : ''}
+                  @{selectedContact.username}
+                  {selectedContact.company_name ? ` · ${selectedContact.company_name}` : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCrmDeleteConfirm('single')}
-                  className="p-1.5 rounded transition-colors"
-                  style={{ cursor: 'pointer' }}
-                  title="Delete contact"
-                  onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <Trash2 className="w-4 h-4" style={{ color: '#E11D48' }} />
-                </button>
-                <button onClick={() => setSelectedContact(null)} className="p-1 hover:bg-[#F5F5F0] rounded">
-                  <X className="w-5 h-5" style={{ color: A.text3 }} />
-                </button>
-              </div>
             </div>
-            <div className="px-6 py-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCrmDeleteConfirm('single')}
+                className="p-1.5 rounded transition-colors"
+                title="Delete contact"
+                onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <Trash2 className="w-4 h-4" style={{ color: '#E11D48' }} />
+              </button>
+              <button onClick={closeContact} className="p-1 hover:bg-[#F5F5F0] rounded">
+                <X className="w-4 h-4" style={{ color: A.text3 }} />
+              </button>
+            </div>
+          </div>
+
+          {/* 2-column body */}
+          <div className="flex" style={{ height: 'calc(70vh - 60px)', minHeight: 420 }}>
+            {/* ── LEFT: CRM Card (40%) ── */}
+            <div className="w-[40%] border-r overflow-y-auto p-4 space-y-4" style={{ borderColor: A.border }}>
+              {/* Status + Owner */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Status</label>
-                  <select value={selectedContact.status}
-                          onChange={e => { updateStatus(selectedContact.id, e.target.value); setSelectedContact({...selectedContact, status: e.target.value}); }}
-                          className="w-full px-3 py-2 rounded-lg border text-sm"
-                          style={{ borderColor: A.border, background: A.surface, color: A.text1 }}>
-                    {CRM_PIPELINE.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                  </select>
+                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Status</label>
+                  <StyledSelect
+                    value={selectedContact.status}
+                    onChange={v => { updateStatus(selectedContact.id, v); setSelectedContact({...selectedContact, status: v}); }}
+                    options={CRM_PIPELINE.map(s => ({ value: s, label: s.replace('_', ' ') }))}
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: A.text3 }}>Campaigns</label>
-                  <div className="text-xs pt-2" style={{ color: A.text1 }}>
-                    {(selectedContact.campaigns || []).map((c: any) => c.name).join(', ') || 'None'}
+                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Owner</label>
+                  <div className="text-xs pt-1.5" style={{ color: A.text1 }}>
+                    {selectedContact.custom_data?.owner || <span style={{ color: A.text3 }}>—</span>}
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
+
+              {/* Tags */}
+              {(selectedContact.tags?.length > 0) && (
+                <div>
+                  <label className="block text-[10px] font-medium mb-1 uppercase tracking-wide" style={{ color: A.text3 }}>Tags</label>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedContact.tags.map((t: string) => (
+                      <span key={t} className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                            style={{ background: '#EEF2FF', color: '#4338CA' }}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-lg font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>Sent</div>
+                  <div className="text-base font-bold" style={{ color: A.text1 }}>{selectedContact.total_messages_sent}</div>
+                  <div className="text-[9px]" style={{ color: A.text3 }}>Sent</div>
                 </div>
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-lg font-bold text-green-600">{selectedContact.total_replies_received}</div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>Replies</div>
+                  <div className="text-base font-bold text-green-600">{selectedContact.total_replies_received}</div>
+                  <div className="text-[9px]" style={{ color: A.text3 }}>Replies</div>
                 </div>
                 <div className="rounded-lg border p-2" style={{ borderColor: A.border }}>
-                  <div className="text-lg font-bold" style={{ color: A.text1 }}>
+                  <div className="text-xs font-bold" style={{ color: A.text1 }}>
                     {selectedContact.last_reply_at ? new Date(selectedContact.last_reply_at).toLocaleDateString() : '--'}
                   </div>
-                  <div className="text-[10px]" style={{ color: A.text3 }}>Last Reply</div>
+                  <div className="text-[9px]" style={{ color: A.text3 }}>Last Reply</div>
                 </div>
               </div>
-              {/* Campaign Sequence Progress */}
+
+              {/* Campaign Progress */}
               {campaignProgress.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>Campaign Progress</h3>
+                  <h3 className="text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: A.text3 }}>Campaigns</h3>
                   <div className="space-y-2">
                     {campaignProgress.map((cp: any) => (
-                      <div key={cp.campaign_id} className="rounded-lg border p-3" style={{ borderColor: A.border }}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium" style={{ color: A.text1 }}>{cp.campaign_name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
-                              background: cp.campaign_status === 'active' ? '#ECFDF5' : cp.campaign_status === 'paused' ? '#FEF3C7' : '#F3F4F6',
-                              color: cp.campaign_status === 'active' ? '#059669' : cp.campaign_status === 'paused' ? '#D97706' : '#6B7280',
-                            }}>{cp.campaign_status}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
-                              background: cp.recipient_status === 'replied' ? '#ECFDF5' : cp.recipient_status === 'completed' ? '#F0F9FF' : cp.recipient_status === 'failed' ? '#FFF1F2' : '#F9F9F7',
-                              color: cp.recipient_status === 'replied' ? '#059669' : cp.recipient_status === 'completed' ? '#0284C7' : cp.recipient_status === 'failed' ? '#E11D48' : A.text3,
-                            }}>{cp.recipient_status}</span>
-                          </div>
+                      <div key={cp.campaign_id} className="rounded-lg border p-2.5" style={{ borderColor: A.border }}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-medium truncate" style={{ color: A.text1 }}>{cp.campaign_name}</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded flex-shrink-0" style={{
+                            background: cp.recipient_status === 'replied' ? '#ECFDF5' : cp.recipient_status === 'completed' ? '#F0F9FF' : '#F9F9F7',
+                            color: cp.recipient_status === 'replied' ? '#059669' : cp.recipient_status === 'completed' ? '#0284C7' : A.text3,
+                          }}>{cp.recipient_status}</span>
                         </div>
-                        {/* Step indicators */}
                         <div className="flex items-center gap-1">
                           {cp.steps.map((step: any, si: number) => {
                             const color = step.status === 'sent' ? '#9CA3AF' : step.status === 'read' ? '#3B82F6'
                               : step.status === 'replied' ? '#10B981' : step.status === 'failed' || step.status === 'spamblocked' ? '#EF4444'
                               : step.status === 'scheduled' ? '#F59E0B' : '#E5E7EB';
                             return (
-                              <div key={si} className="flex items-center" title={
-                                `${step.label}${step.sent_at ? `\nSent: ${new Date(step.sent_at).toLocaleString()}` : ''}${step.read_at ? `\nRead: ${new Date(step.read_at).toLocaleString()}` : ''}`
-                              }>
-                                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: color }}>
+                              <div key={si} className="flex items-center" title={step.label}>
+                                <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ background: color }}>
                                   {si + 1}
                                 </div>
-                                {si < cp.steps.length - 1 && (
-                                  <div className="w-4 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />
-                                )}
+                                {si < cp.steps.length - 1 && <div className="w-3 h-0.5" style={{ background: step.status !== 'pending' ? color : '#E5E7EB' }} />}
                               </div>
                             );
                           })}
-                          <span className="text-[10px] ml-1" style={{ color: A.text3 }}>
-                            {cp.current_step}/{cp.total_steps}
-                          </span>
-                        </div>
-                        {/* Current step text summary */}
-                        <div className="mt-1.5 text-[11px]" style={{ color: A.text3 }}>
-                          {cp.recipient_status === 'replied' ? (
-                            <>Replied after {cp.steps.find((s: any) => s.status === 'replied')?.label || `step ${cp.current_step}`}</>
-                          ) : cp.recipient_status === 'completed' ? (
-                            <>Completed all {cp.total_steps} steps</>
-                          ) : cp.current_step > 0 ? (
-                            <>Sent {cp.steps[cp.current_step - 1]?.label || `step ${cp.current_step}`}{cp.steps[cp.current_step]
-                              ? `, next: ${cp.steps[cp.current_step]?.label} (+${cp.steps[cp.current_step]?.delay_days}d)`
-                              : ''}</>
-                          ) : (
-                            <>Pending — not yet sent</>
-                          )}
+                          <span className="text-[9px] ml-1" style={{ color: A.text3 }}>{cp.current_step}/{cp.total_steps}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* Custom Properties */}
+              {contactFieldDefs.length > 0 && (
+                <div>
+                  <h3 className="text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: A.text3 }}>Properties</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {contactFieldDefs.map((fd: any) => {
+                      const cv = contactFieldVals.find((v: any) => v.field_id === fd.id);
+                      return (
+                        <div key={fd.id}>
+                          <label className="block text-[10px] font-medium mb-0.5" style={{ color: A.text3 }}>{fd.name}</label>
+                          {fd.field_type === 'select' ? (
+                            <select
+                              className="w-full px-2 py-1 rounded border text-xs"
+                              style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                              defaultValue={cv?.value || ''}
+                              onChange={async (e) => {
+                                try { await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value || null }]); } catch { /* */ }
+                              }}
+                            >
+                              <option value="">—</option>
+                              {(fd.options_json || []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            <input
+                              className="w-full px-2 py-1 rounded border text-xs outline-none"
+                              style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                              type={fd.field_type === 'number' ? 'number' : fd.field_type === 'date' ? 'date' : 'text'}
+                              defaultValue={cv?.value || ''}
+                              placeholder="—"
+                              onBlur={async (e) => {
+                                try { await telegramOutreachApi.updateContactCustomFields(selectedContact.id, [{ field_id: fd.id, value: e.target.value.trim() || null }]); } catch { /* */ }
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
               <div>
-                <h3 className="text-xs font-semibold mb-2" style={{ color: A.text1 }}>History</h3>
-                {history.length === 0 ? (
-                  <p className="text-xs text-center py-4" style={{ color: A.text3 }}>No messages yet</p>
-                ) : (
-                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                    {history.map((h: any, i: number) => (
-                      <div key={i} className="rounded px-3 py-2 text-xs"
-                           style={{ background: h.type === 'sent' ? '#F9F9F7' : A.tealBg }}>
+                <h3 className="text-[10px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: A.text3 }}>Notes</h3>
+                <div className="flex gap-1.5 mb-2">
+                  <input
+                    value={noteInput}
+                    onChange={e => setNoteInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addNote(); }}
+                    placeholder="Add a note..."
+                    className="flex-1 px-2.5 py-1.5 rounded-lg border text-xs outline-none"
+                    style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                  />
+                  <button onClick={addNote} disabled={!noteInput.trim()}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-white transition-colors disabled:opacity-40"
+                    style={{ background: '#4F6BF0' }}>
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+                {notes.length > 0 && (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {notes.map((n: any) => (
+                      <div key={n.id} className="rounded-lg px-2.5 py-2 text-xs" style={{ background: '#FFFBEB' }}>
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="font-medium" style={{ color: h.type === 'sent' ? A.text3 : A.teal }}>
-                            {h.type === 'sent' ? 'Sent' : 'Reply'}
-                          </span>
-                          <span className="text-[10px]" style={{ color: A.text3 }}>
-                            {h.time ? new Date(h.time).toLocaleString() : ''}
+                          <span className="font-medium text-[10px]" style={{ color: '#92400E' }}>{n.author || 'System'}</span>
+                          <span className="text-[9px]" style={{ color: A.text3 }}>
+                            {n.created_at ? new Date(n.created_at).toLocaleDateString() : ''}
                           </span>
                         </div>
-                        <p style={{ color: A.text1 }}>{h.text}</p>
+                        <p style={{ color: A.text1 }}>{n.text}</p>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             </div>
+
+            {/* ── RIGHT: Chat (60%) ── */}
+            <div className="w-[60%] flex flex-col">
+              {chatLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: A.text3 }} />
+                </div>
+              ) : !dialogInfo ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                  <MessageCircle className="w-10 h-10" style={{ color: A.text3, opacity: 0.4 }} />
+                  <p className="text-sm" style={{ color: A.text3 }}>No conversation yet</p>
+                  <p className="text-xs" style={{ color: A.text3, opacity: 0.7 }}>Messages will appear here once a campaign reaches this lead</p>
+                </div>
+              ) : (
+                <>
+                  {/* Messages */}
+                  <div className="flex-1 overflow-y-auto px-4 py-3 tg-chat-bg tg-chat-scroll">
+                    {chatMessages.length === 0 && (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-xs" style={{ color: A.text3 }}>No messages loaded</p>
+                      </div>
+                    )}
+                    {(() => {
+                      const groups: { date: string; msgs: any[] }[] = [];
+                      let lastDate = '';
+                      for (const msg of chatMessages) {
+                        const d = msg.sent_at ? new Date(msg.sent_at).toDateString() : 'Unknown';
+                        if (d !== lastDate) { groups.push({ date: msg.sent_at || '', msgs: [] }); lastDate = d; }
+                        groups[groups.length - 1].msgs.push(msg);
+                      }
+                      return groups.map((group, gi) => (
+                        <div key={gi}>
+                          {group.date && (
+                            <div className="tg-date-sep">
+                              <span>{(() => {
+                                const d = new Date(group.date);
+                                const now = new Date();
+                                const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
+                                if (diff === 0 && d.getDate() === now.getDate()) return 'Today';
+                                if (diff <= 1 && d.getDate() === now.getDate() - 1) return 'Yesterday';
+                                return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+                              })()}</span>
+                            </div>
+                          )}
+                          {group.msgs.map((msg: any, mi: number) => {
+                            const isOut = msg.direction === 'outbound';
+                            const next = group.msgs[mi + 1];
+                            const isLast = !next || next.direction !== msg.direction;
+                            const spacing = isLast ? 'tg-bubble-group-last' : 'tg-bubble-group-mid';
+                            const tail = isLast ? (isOut ? 'tg-bubble-tail-out' : 'tg-bubble-tail-in') : '';
+                            return (
+                              <div key={msg.id} className={`flex tg-msg-row ${spacing} ${isOut ? 'justify-end' : 'justify-start'}`}
+                                   style={{ paddingLeft: isOut ? 0 : (isLast ? 0 : 11), paddingRight: isOut ? (isLast ? 0 : 11) : 0 }}>
+                                <div className={`tg-bubble ${isOut ? 'tg-bubble-out' : 'tg-bubble-in'} ${tail}`}>
+                                  {msg.media && dialogInfo && (() => {
+                                    const url = telegramOutreachApi.getDialogMediaUrl(dialogInfo.id, msg.id);
+                                    if (msg.media.type === 'photo') return <div className="tg-media-photo"><img src={url} alt="" loading="lazy" /></div>;
+                                    if (msg.media.type === 'voice') return <div className="tg-media-voice"><Mic className="w-4 h-4 opacity-60" /><audio src={url} controls preload="metadata" /></div>;
+                                    if (msg.media.type === 'document') return (
+                                      <a href={url} download={msg.media.file_name || 'file'} target="_blank" rel="noopener noreferrer" className="tg-media-doc">
+                                        <FileText className="w-6 h-6 opacity-70" />
+                                        <span className="text-xs truncate">{msg.media.file_name || 'File'}</span>
+                                      </a>
+                                    );
+                                    return null;
+                                  })()}
+                                  <span className="tg-meta">
+                                    <span className={isOut ? 'tg-meta-time-out' : 'tg-meta-time'}>
+                                      {msg.sent_at ? new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                    </span>
+                                    {isOut && <span className="tg-meta-check">{msg.is_read ? '\u2713\u2713' : '\u2713'}</span>}
+                                  </span>
+                                  {msg.text && <>{renderFormattedText(msg.text, msg.entities)}</>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ));
+                    })()}
+                    <div ref={chatEndRef} />
+                  </div>
+
+                  {/* Input */}
+                  <div className="border-t px-4 py-2.5 flex items-center gap-2" style={{ borderColor: A.border }}>
+                    <input
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                      placeholder="Write a message..."
+                      className="flex-1 px-3 py-2 rounded-xl border text-sm outline-none"
+                      style={{ borderColor: A.border, background: A.bg, color: A.text1 }}
+                    />
+                    <button onClick={sendChatMessage} disabled={!chatInput.trim() || chatSending}
+                      className="p-2.5 rounded-full text-white transition-colors disabled:opacity-40"
+                      style={{ background: '#4F6BF0' }}>
+                      {chatSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </ModalBackdrop>
+        </div>
       )}
       {crmDeleteConfirm === 'bulk' && (
         <ConfirmModal message={`Delete ${selectedIds.size} contacts?`}
@@ -7068,7 +8442,7 @@ function CrmTab({ t: _t, toast }: { t: any; toast: (msg: string, type?: 'success
           onConfirm={() => {
             setCrmDeleteConfirm(null);
             telegramOutreachApi.deleteCrmContact(selectedContact.id)
-              .then(() => { toast('Contact deleted', 'success'); setSelectedContact(null); loadContacts(); loadStats(); })
+              .then(() => { toast('Contact deleted', 'success'); closeContact(); loadContacts(); loadStats(); })
               .catch(() => toast('Delete failed', 'error'));
           }}
           onCancel={() => setCrmDeleteConfirm(null)} />

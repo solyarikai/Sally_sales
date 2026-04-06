@@ -47,21 +47,10 @@ class InboxSyncService:
             if row:
                 tg_account_id = row[0]
         if not tg_account_id:
-            if not account.phone:
-                logger.warning(f"Inbox sync: account {account_id} has no phone — cannot sync")
-                return 0
-            # Auto-create TgAccount so TgInboxDialog FK is satisfied
-            new_tg = TgAccount(
-                phone=account.phone,
-                username=account.username,
-                first_name=account.first_name,
-                last_name=getattr(account, "last_name", None),
-                string_session=account.string_session,
-            )
-            session.add(new_tg)
-            await session.flush()
-            tg_account_id = new_tg.id
-            logger.info(f"Inbox sync: auto-created TgAccount {tg_account_id} for phone {account.phone}")
+            # No matching TgAccount — account was deleted or never created via normal flow.
+            # Skip sync to avoid re-creating deleted accounts.
+            logger.debug(f"Inbox sync: account {account_id} ({account.phone}) has no matching TgAccount, skipping")
+            return 0
 
         # Resolve proxy: prefer dm_account.proxy_config, fallback to TgAccount.assigned_proxy
         proxy_cfg = account.proxy_config
@@ -214,8 +203,11 @@ class InboxSyncService:
         from app.db.database import async_session_maker
 
         async with async_session_maker() as session:
+            # Only sync DM accounts that have a matching TgAccount (skip deleted)
             result = await session.execute(
-                select(TelegramDMAccount.id).where(
+                select(TelegramDMAccount.id)
+                .join(TgAccount, TgAccount.phone == TelegramDMAccount.phone)
+                .where(
                     TelegramDMAccount.string_session.isnot(None),
                     TelegramDMAccount.auth_status != "error",
                 )

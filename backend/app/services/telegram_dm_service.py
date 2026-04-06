@@ -15,7 +15,8 @@ from typing import Optional
 
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
-from telethon.tl.types import User, InputPeerUser
+from app.services.device_fingerprints import get_default_app_version, APP_VERSIONS
+from telethon.tl.types import User, InputPeerUser, UpdateUserTyping, SendMessageTypingAction
 from telethon.errors import (
     FloodWaitError,
     AuthKeyUnregisteredError,
@@ -36,6 +37,8 @@ class TelegramDMService:
         self.api_hash = getattr(settings, "TELEGRAM_CHECKER_API_HASH", "")
         self._clients: dict[int, TelegramClient] = {}  # account_id -> client
         self._lock = asyncio.Lock()
+        # Typing status: {account_id: {peer_id: timestamp}} — expires after 6s
+        self._typing_status: dict[int, dict[int, float]] = {}
 
     # ── Account Import ──────────────────────────────────────────────
 
@@ -88,7 +91,7 @@ class TelegramDMService:
                     import random as _rnd
                     _fp_models = ["PC 64bit", "ThinkPadT480", "XPS15-9510", "Latitude5520", "VivoBookS15"]
                     _fp_os = ["Windows 10", "Windows 11"]
-                    _fp_app = ["5.5.3 x64", "6.5.1 x64"]
+                    _fp_app = APP_VERSIONS
                     client = TelegramClient(
                         StringSession(acc_data["string_session"]),
                         self.api_id, self.api_hash,
@@ -213,7 +216,7 @@ class TelegramDMService:
                     self.api_hash,
                     device_model=device_model or "PC 64bit",
                     system_version=system_version or "Windows 10",
-                    app_version=app_version or "6.5.1 x64",
+                    app_version=app_version or get_default_app_version(),
                     lang_code=lang_code or "en",
                     system_lang_code=system_lang_code or "en-US",
                     proxy=self._parse_proxy(proxy_config),
@@ -222,7 +225,11 @@ class TelegramDMService:
 
                 if not await client.is_user_authorized():
                     logger.warning(f"Account {account_id}: session not authorized")
-                    return False
+                    try:
+                        await client.disconnect()
+                    except Exception:
+                        pass
+                    raise AuthKeyUnregisteredError()
 
                 self._clients[account_id] = client
                 me = await client.get_me()
@@ -305,7 +312,11 @@ class TelegramDMService:
                     account_data.append((acc.id, acc.string_session, proxy, fp))
 
             connected = 0
+            failed_proxies = set()  # Skip accounts on dead proxies (don't spam 2000+ retries)
             for acc_id, ss, proxy, fp in account_data:
+                proxy_key = proxy.get('host', '') if proxy else "direct"  # Group by host (all ports share same auth)
+                if proxy_key in failed_proxies:
+                    continue
                 try:
                     ok = await self.connect_account(acc_id, ss, proxy, **fp)
                     if ok:
@@ -320,8 +331,15 @@ class TelegramDMService:
                             await session.commit()
                     else:
                         logger.warning(f"Account {acc_id}: connect returned False")
+                        if proxy:
+                            failed_proxies.add(proxy_key)
+                            skipped = sum(1 for _, _, p, _ in account_data if p and p.get('host', '') == proxy_key)
+                            logger.warning(f"Proxy {proxy_key} failed — skipping {skipped} accounts on this host")
                 except Exception as e:
                     logger.warning(f"Failed to reconnect account {acc_id}: {e}")
+                    if proxy and ("407" in str(e) or "Proxy" in str(e) or "connect" in str(e).lower()):
+                        failed_proxies.add(proxy_key)
+                        logger.warning(f"Proxy {proxy_key} dead ({e.__class__.__name__}) — skipping remaining accounts")
                     async with async_session_maker() as session:
                         from sqlalchemy import update
                         await session.execute(
@@ -429,13 +447,14 @@ class TelegramDMService:
         logger.info(f"Account {account_id}: get_dialogs total_seen={total_seen}, dm_count={len(dialogs)}")
         return dialogs
 
-    async def get_messages(self, account_id: int, peer_id: int, limit: int = 50) -> list[dict]:
+    async def get_messages(self, account_id: int, peer_id: int, limit: int = 50, peer_username: str = None, offset_id: int = 0) -> list[dict]:
         """Fetch conversation thread with a specific peer."""
         client = self._get_client(account_id)
         me = await client.get_me()
         messages = []
 
         # Resolve peer entity — StringSession has no entity cache, so try InputPeerUser first
+        entity = None
         try:
             entity = await client.get_input_entity(peer_id)
         except Exception:
@@ -444,10 +463,18 @@ class TelegramDMService:
                 await client.get_dialogs(limit=100)
                 entity = await client.get_input_entity(peer_id)
             except Exception:
-                entity = InputPeerUser(peer_id, 0)  # Last resort: use raw ID with access_hash=0
+                pass
+        if entity is None and peer_username:
+            # Resolve via @username — much more reliable than raw ID with access_hash=0
+            try:
+                entity = await client.get_input_entity(peer_username.lstrip("@"))
+            except Exception:
+                pass
+        if entity is None:
+            entity = InputPeerUser(peer_id, 0)  # Last resort: use raw ID with access_hash=0
 
         try:
-            async for msg in client.iter_messages(entity, limit=limit):
+            async for msg in client.iter_messages(entity, limit=limit, offset_id=offset_id):
                 if not msg.text and not msg.media:
                     continue
                 # Extract media info
@@ -457,6 +484,7 @@ class TelegramDMService:
                         MessageMediaDocument, MessageMediaPhoto,
                         DocumentAttributeFilename, DocumentAttributeAudio,
                         DocumentAttributeVideo, DocumentAttributeSticker,
+                        DocumentAttributeAnimated,
                     )
                     if isinstance(msg.media, MessageMediaPhoto):
                         media_info = {"type": "photo"}
@@ -467,6 +495,7 @@ class TelegramDMService:
                         is_video_note = False
                         is_sticker = False
                         is_video = False
+                        is_gif = False
                         for attr in (doc.attributes or []):
                             if isinstance(attr, DocumentAttributeFilename):
                                 fname = attr.file_name
@@ -477,7 +506,11 @@ class TelegramDMService:
                                 is_video_note = attr.round_message or False
                             elif isinstance(attr, DocumentAttributeSticker):
                                 is_sticker = True
-                        if is_voice:
+                            elif isinstance(attr, DocumentAttributeAnimated):
+                                is_gif = True
+                        if is_gif:
+                            media_info = {"type": "gif", "file_name": fname, "size": doc.size}
+                        elif is_voice:
                             media_info = {"type": "voice", "duration": next((a.duration for a in doc.attributes if isinstance(a, DocumentAttributeAudio)), 0)}
                         elif is_sticker:
                             media_info = {"type": "sticker"}
@@ -532,6 +565,36 @@ class TelegramDMService:
                     if fwd_name:
                         fwd_info = {"from_name": fwd_name}
 
+                # Extract message entities (bold, italic, code, links, etc.)
+                entities_list = []
+                if msg.entities:
+                    from telethon.tl.types import (
+                        MessageEntityBold, MessageEntityItalic, MessageEntityCode,
+                        MessageEntityPre, MessageEntityUrl, MessageEntityTextUrl,
+                        MessageEntityMention, MessageEntityStrike, MessageEntityUnderline,
+                        MessageEntitySpoiler,
+                    )
+                    entity_type_map = {
+                        MessageEntityBold: "bold",
+                        MessageEntityItalic: "italic",
+                        MessageEntityCode: "code",
+                        MessageEntityPre: "pre",
+                        MessageEntityUrl: "url",
+                        MessageEntityTextUrl: "text_url",
+                        MessageEntityMention: "mention",
+                        MessageEntityStrike: "strikethrough",
+                        MessageEntityUnderline: "underline",
+                        MessageEntitySpoiler: "spoiler",
+                    }
+                    for ent in msg.entities:
+                        etype = entity_type_map.get(type(ent))
+                        if etype:
+                            e = {"type": etype, "offset": ent.offset, "length": ent.length}
+                            if etype == "text_url" and hasattr(ent, "url"):
+                                e["url"] = ent.url
+                            if etype == "pre" and hasattr(ent, "language") and ent.language:
+                                e["language"] = ent.language
+                            entities_list.append(e)
                 messages.append({
                     "id": msg.id,
                     "direction": "outbound" if msg.sender_id == me.id else "inbound",
@@ -543,12 +606,13 @@ class TelegramDMService:
                     "is_read": not msg.out or (msg.out and hasattr(msg, 'views')),
                     "fwd_from": fwd_info,
                     "media": media_info,
+                    "entities": entities_list,
                 })
         except FloodWaitError as e:
             logger.warning(f"Account {account_id} FloodWait on messages: {e.seconds}s")
             if e.seconds < 60:
                 await asyncio.sleep(e.seconds + 1)
-                return await self.get_messages(account_id, peer_id, limit)
+                return await self.get_messages(account_id, peer_id, limit, peer_username=peer_username)
             raise
 
         # Get read status: fetch only the specific dialog, not all
@@ -607,7 +671,7 @@ class TelegramDMService:
 
         return data, content_type
 
-    async def send_message(self, account_id: int, peer_id: int, text: str, parse_mode: str = None, reply_to: int = None) -> dict:
+    async def send_message(self, account_id: int, peer_id: int, text: str, parse_mode: str = None, reply_to: int = None, peer_username: str = None) -> dict:
         """Send a Telegram DM with optional formatting and reply."""
         client = self._get_client(account_id)
 
@@ -617,8 +681,14 @@ class TelegramDMService:
                 entity = await client.get_entity(peer_id)
             except Exception:
                 # Fallback: load dialogs to populate cache, then retry
-                await client.get_dialogs(limit=50)
-                entity = await client.get_entity(peer_id)
+                try:
+                    await client.get_dialogs(limit=50)
+                    entity = await client.get_entity(peer_id)
+                except Exception:
+                    if peer_username:
+                        entity = await client.get_entity(peer_username.lstrip("@"))
+                    else:
+                        raise
 
             pm = None
             if parse_mode == 'md':
@@ -846,6 +916,28 @@ class TelegramDMService:
 
             except Exception as e:
                 logger.error(f"[TELEGRAM] Event handler error for account {account_id}: {e}")
+
+        # Typing indicator: capture UpdateUserTyping for private chats
+        @client.on(events.Raw(types=[UpdateUserTyping]))
+        async def _on_typing(update):
+            try:
+                import time
+                if account_id not in self._typing_status:
+                    self._typing_status[account_id] = {}
+                self._typing_status[account_id][update.user_id] = time.time()
+            except Exception:
+                pass  # non-critical
+
+    def get_typing_status(self, account_id: int, peer_id: int) -> bool:
+        """Check if peer is currently typing (within last 6 seconds)."""
+        import time
+        ts = self._typing_status.get(account_id, {}).get(peer_id)
+        if ts and (time.time() - ts) < 6:
+            return True
+        # Clean up expired entry
+        if ts:
+            self._typing_status.get(account_id, {}).pop(peer_id, None)
+        return False
 
     async def start_listening(self):
         """Start persistent Telethon connections for all connected clients.

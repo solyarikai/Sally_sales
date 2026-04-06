@@ -141,6 +141,25 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Telegram Outreach worker start failed: {e}")
 
+    # Start TG Outreach notification digest scheduler
+    _digest_task = None
+    try:
+        from app.services.tg_outreach_notif_service import tg_outreach_notif_service
+
+        async def _digest_loop():
+            """Check every hour if any subscriber's digest_hour matches."""
+            while True:
+                try:
+                    await tg_outreach_notif_service.send_daily_digest()
+                except Exception as e:
+                    logger.warning(f"Digest send failed: {e}")
+                await asyncio.sleep(3600)  # 1h
+
+        _digest_task = asyncio.create_task(_digest_loop())
+        logger.info("TG Outreach notification digest scheduler started")
+    except Exception as e:
+        logger.warning(f"TG Outreach notification digest start failed: {e}")
+
     # Fetch latest TG Desktop version (for anti-ban fingerprint freshness)
     tdesktop_task = None
     try:
@@ -161,7 +180,9 @@ async def lifespan(app: FastAPI):
 
     if tdesktop_task:
         tdesktop_task.cancel()
-    
+    if _digest_task:
+        _digest_task.cancel()
+
     # Shutdown
     logger.info("Shutting down...")
 

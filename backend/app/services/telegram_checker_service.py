@@ -64,7 +64,27 @@ class TelegramCheckerService:
             return True
 
         try:
-            self.client = TelegramClient(SESSION_PATH, self.api_id, self.api_hash)
+            # Resolve proxy via Infatica (geo-targeted by checker phone)
+            proxy_tuple = None
+            try:
+                from app.services.infatica_proxy_service import infatica_proxy_service
+                if infatica_proxy_service.is_configured and self.phone:
+                    proxy_cfg = infatica_proxy_service.get_proxy_for_account(self.phone)
+                    import socks
+                    proxy_tuple = (
+                        socks.SOCKS5,  # always SOCKS5: HTTP CONNECT fails 407 on residential proxies
+                        proxy_cfg["host"],
+                        proxy_cfg["port"],
+                        True,
+                        proxy_cfg.get("username"),
+                        proxy_cfg.get("password"),
+                    )
+                    country = infatica_proxy_service.get_country_for_phone(self.phone)
+                    logger.info(f"[PROXY] Telegram Checker: Infatica proxy, geo={country}")
+            except Exception as e:
+                logger.warning(f"[PROXY] Infatica proxy failed for checker: {e}")
+
+            self.client = TelegramClient(SESSION_PATH, self.api_id, self.api_hash, proxy=proxy_tuple)
             await self.client.connect()
 
             if not await self.client.is_user_authorized():

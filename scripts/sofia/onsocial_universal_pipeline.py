@@ -7,7 +7,7 @@ Universal Lead Generation Pipeline
 Ничего не захардкожено под конкретный проект.
 
 ═══════════════════════════════════════════════════════════
-  ШАГ 0: ПОИСК КОМПАНИЙ (3 источника на выбор)
+  ШАГ 0: ПОИСК КОМПАНИЙ (4 источника на выбор)
 ═══════════════════════════════════════════════════════════
 
   Источник A — Clay ICP (--mode structured / --mode natural)
@@ -34,27 +34,72 @@ Universal Lead Generation Pipeline
     Стоимость: БЕСПЛАТНО (0 credits).
 
   Все четыре источника на выходе дают список доменов компаний,
-  который дальше идёт в единый pipeline (шаги 1-10).
+  который дальше идёт в единый pipeline (шаги 1-12).
 
 ═══════════════════════════════════════════════════════════
-  ШАГИ 1-10: ЕДИНЫЙ PIPELINE (одинаковый для всех источников)
+  ШАГИ 1-12: ЕДИНЫЙ PIPELINE (одинаковый для всех источников)
 ═══════════════════════════════════════════════════════════
 
-  Шаг 1:    DEDUP — убираем компании, уже найденные в предыдущих запусках.
-  Шаг 2:    BLACKLIST — проверяем компании по чёрному списку проекта.
+  Где живёт каждый шаг:
+    [backend]  = выполняется на бэкенде (magnum-opus FastAPI), скрипт
+                 только триггерит API и ждёт результата.
+    [скрипт]   = выполняется здесь, в universal_pipeline.py.
+    [ручной]   = выполняется оператором в чате с Claude Code.
+
+  Шаг 1:    DEDUP [backend]
+            Убираем компании, уже найденные в предыдущих запусках.
+            Бэкенд делает автоматически при создании run.
+
+  Шаг 2:    BLACKLIST [backend]
+            Проверяем компании по чёрному списку проекта.
             ★ CP1: "Правильный проект? Правильный scope?"
-  Шаг 3-4:  ФИЛЬТРАЦИЯ И СКРЕЙПИНГ — убираем мусор (офлайн-бизнесы,
-            мёртвые сайты). Скачиваем содержимое сайтов для анализа.
-  Шаг 5:    CLASSIFY (GPT-4o-mini) — AI классифицирует каждую компанию:
-            is_target? confidence? сегмент? reasoning? ~$0.01-0.05 за батч из 500.
+
+  Шаг 3:    PREFILTER [backend]
+            Убираем мусор — офлайн-бизнесы, нерелевантные компании.
+            Бэкенд фильтрует по базовым признакам (отрасль, размер, гео).
+
+  Шаг 4:    SCRAPE [backend]
+            Скачиваем содержимое сайтов для анализа.
+            Бэкенд скрейпит homepage каждой компании.
+
+  Шаг 5:    CLASSIFY [backend, GPT-4o-mini]
+            AI классифицирует каждую компанию:
+            is_target? confidence? сегмент? reasoning?
+            Стоимость: ~$0.01-0.05 за батч из 500.
             ★ CP2: "Список компаний корректный?"
-  Шаг 6:    VERIFY — оператор с Claude проверяют таргеты GPT.
-  Шаг 7:    ADJUST PROMPT → повторить 5-6 если accuracy <90%.
-  Шаг 8:    ПОИСК ЛЮДЕЙ — Apollo People Search (auto или --apollo-csv).
+
+  Шаг 6:    VERIFY [ручной]
+            Оператор с Claude проверяют таргеты GPT.
+            Смотрим выборку, оцениваем accuracy классификации.
+
+  Шаг 7:    ADJUST PROMPT [ручной]
+            Если accuracy <90% → правим промпт → повторяем шаги 5-6.
+            Команда: --re-analyze --run-id {run_id} --prompt-file new_prompt.txt
+
+  Шаг 8:    EXPORT TARGETS [скрипт]
+            Выгружаем одобренные таргеты из бэкенда в targets.json.
+            Approve CP2 gate → экспорт компаний для поиска людей.
+
+  Шаг 9:    PEOPLE SEARCH [скрипт → Apollo]
+            Поиск людей (контактов ЛПР) в компаниях-таргетах.
+            Apollo People Search (auto) или импорт CSV (--apollo-csv).
             ★ CP3: "Одобряете расходы на email enrichment?"
-  Шаг 9:    ПОИСК EMAIL — FindyMail ($0.01/найденный email).
-  Шаг 10:   ЗАГРУЗКА В SMARTLEAD — в существующие кампании.
-            Активация — НИКОГДА автоматически.
+
+  Шаг 10:   FINDYMAIL [скрипт → FindyMail API]
+            Поиск email-адресов по LinkedIn URL.
+            Стоимость: $0.01/найденный email.
+            Контакты без email → GetSales-ready CSV.
+
+  Шаг 11:   SEQUENCES [скрипт → GPT-4o / markdown]
+            Загрузка email-секвенций для кампании.
+            Приоритет: markdown файл (написан человеком) > GOD_SEQUENCE (GPT).
+            GOD_SEQUENCE генерирует 5-шаговую секвенцию по ICP и продукту.
+            Оператор обязательно проверяет тексты перед загрузкой.
+
+  Шаг 12:   UPLOAD TO SMARTLEAD [скрипт → SmartLead API]
+            Создание кампании, привязка email-аккаунтов, загрузка лидов,
+            загрузка секвенций, настройка расписания.
+            Активация — НИКОГДА автоматически. Только вручную в UI.
 
 ═══════════════════════════════════════════════════════════
   GOOGLE SHEETS & DRIVE
@@ -67,41 +112,46 @@ Universal Lead Generation Pipeline
   Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
 
 ═══════════════════════════════════════════════════════════
+  FILTER FILES
+═══════════════════════════════════════════════════════════
+
+  Хранятся в scripts/sofia/filters/ (рядом с этим скриптом).
+  Именование: <project>_<segment>_<version>.json
+  Формат: {"segment": "...", "company_filters": {...}, "people_filters": {...}}
+
+═══════════════════════════════════════════════════════════
   USAGE
 ═══════════════════════════════════════════════════════════
 
+  # Filter-file (рекомендуемый способ) — все фильтры из JSON
+  python3 universal_pipeline.py --project-id <ID> --mode apollo \\
+    --filter-file path/to/filters.json
+
   # Clay ICP — AI маппит ICP → Clay фильтры
-  python3 universal_pipeline.py --project-id 42 --mode structured --segment influencer_platforms
+  python3 universal_pipeline.py --project-id <ID> --mode structured --segment <SEGMENT>
 
   # Clay Keywords — явные keywords, без AI
-  python3 universal_pipeline.py --project-id 42 --mode keywords \\
-    --filters '{"description_keywords": ["influencer marketing platform", "creator analytics"],
-                "description_keywords_exclude": ["recruitment", "staffing"],
-                "industries": ["Computer Software", "Internet"],
-                "minimum_member_count": 5, "maximum_member_count": 5000,
-                "max_results": 5000}'
+  python3 universal_pipeline.py --project-id <ID> --mode keywords --segment <SEGMENT> \\
+    --filters '{"description_keywords": [...], "industries": [...], "max_results": 5000}'
 
-  # Apollo Internal API — FREE, точные keyword_tags
-  python3 universal_pipeline.py --project-id 42 --mode apollo \\
-    --filters '{"keyword_tags": ["influencer marketing platform", "creator analytics"],
-                "locations": ["United Kingdom", "India", "France"],
-                "sizes": ["5,50", "51,200", "201,500", "501,1000", "1001,5000"],
-                "excluded_keywords": ["recruitment", "staffing"],
-                "max_pages": 25}'
+  # Apollo — inline filters
+  python3 universal_pipeline.py --project-id <ID> --mode apollo --segment <SEGMENT> \\
+    --filters '{"keyword_tags": [...], "locations": [...], "sizes": [...], "max_pages": 25}'
 
   # Lookalike — reverse-engineering фильтров по примерам
-  python3 universal_pipeline.py --project-id 42 --mode lookalike --examples "impact.com,modash.io"
+  python3 universal_pipeline.py --project-id <ID> --mode lookalike --examples "domain1.com,domain2.io"
 
   # Expand — клон предыдущего рана с новыми параметрами
-  python3 universal_pipeline.py --project-id 42 --mode expand --base-run 198 \\
-    --override '{"country_names": ["Singapore", "Thailand"]}'
+  python3 universal_pipeline.py --project-id <ID> --mode expand --base-run <RUN_ID> \\
+    --override '{"country_names": [...]}'
 
   # Resume — продолжить с любого шага
-  python3 universal_pipeline.py --project-id 42 --from-step people
-  python3 universal_pipeline.py --project-id 42 --from-step people --apollo-csv export.csv
+  python3 universal_pipeline.py --project-id <ID> --from-step people
+  python3 universal_pipeline.py --project-id <ID> --from-step people --apollo-csv export.csv
 
   # Dry run — напечатать параметры без API вызовов
-  python3 universal_pipeline.py --project-id 42 --mode structured --segment agencies_mena --dry-run
+  python3 universal_pipeline.py --project-id <ID> --mode apollo --segment <SEGMENT> --dry-run \\
+    --filter-file path/to/filters.json
 
 Env vars: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
 Backend must be running on localhost:8000 (Hetzner)
@@ -157,26 +207,29 @@ SMARTLEAD_BASE = "https://server.smartlead.ai/api/v1"
 # скрипт подхватит изменения при следующем запуске.
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class ProjectConfig:
     """All project-specific configuration, loaded from DB via API."""
 
     def __init__(self, project_id: int):
         self.project_id = project_id
         self.project_name = ""
-        self.segments = {}          # slug → segment data from kb_segments
-        self.prompt_id = None       # latest active prompt from gathering_prompts
-        self.prompt_text = ""       # fallback prompt text
-        self.email_accounts = []    # SmartLead account IDs
-        self.schedule = {}          # SmartLead schedule config
-        self.state_dir = None       # state directory for this project
-        self.csv_dir = None         # output CSV directory
+        self.segments = {}  # slug → segment data from kb_segments
+        self.prompt_id = None  # latest active prompt from gathering_prompts
+        self.prompt_text = ""  # fallback prompt text
+        self.email_accounts = []  # SmartLead account IDs
+        self.schedule = {}  # SmartLead schedule config
+        self.state_dir = None  # state directory for this project
+        self.csv_dir = None  # output CSV directory
 
     def load(self):
         """Load all config from backend API."""
         print(f"\n  Loading config for project {self.project_id}...")
 
         # 1. Project name
-        project = api("get", f"/contacts/projects/{self.project_id}", raise_on_error=False)
+        project = api(
+            "get", f"/contacts/projects/{self.project_id}", raise_on_error=False
+        )
         self.project_name = project.get("name", f"Project_{self.project_id}")
         print(f"  Project: {self.project_name}")
 
@@ -198,16 +251,22 @@ class ProjectConfig:
         self.prompt_id, self.prompt_text = get_latest_prompt(self.project_id)
 
         # 4. SmartLead config from project_knowledge
-        pk_accounts = api("get", f"/projects/{self.project_id}/knowledge/smartlead/email_accounts",
-                          raise_on_error=False)
+        pk_accounts = api(
+            "get",
+            f"/projects/{self.project_id}/knowledge/smartlead/email_accounts",
+            raise_on_error=False,
+        )
         if pk_accounts and not pk_accounts.get("_error"):
             val = pk_accounts.get("value", "{}")
             parsed = json.loads(val) if isinstance(val, str) else val
             self.email_accounts = parsed.get("account_ids", [])
         print(f"  Email accounts: {len(self.email_accounts)}")
 
-        pk_config = api("get", f"/projects/{self.project_id}/knowledge/smartlead/config",
-                        raise_on_error=False)
+        pk_config = api(
+            "get",
+            f"/projects/{self.project_id}/knowledge/smartlead/config",
+            raise_on_error=False,
+        )
         if pk_config and not pk_config.get("_error"):
             val = pk_config.get("value", "{}")
             parsed = json.loads(val) if isinstance(val, str) else val
@@ -244,7 +303,9 @@ class ProjectConfig:
     def get_seniorities(self, segment_slug: str) -> list:
         """Get seniorities for Apollo search."""
         seg = self.segments.get(segment_slug, {})
-        return seg.get("seniorities", ["owner", "founder", "c_suite", "vp", "head", "director"])
+        return seg.get(
+            "seniorities", ["owner", "founder", "c_suite", "vp", "head", "director"]
+        )
 
     def get_campaign_name(self, segment_slug: str, contacts: list) -> str:
         """Generate SmartLead campaign name from template."""
@@ -267,8 +328,11 @@ class ProjectConfig:
         active = []
         for aid in self.email_accounts:
             try:
-                r = httpx.get(f"{SMARTLEAD_BASE}/email-accounts/{aid}",
-                              params={"api_key": SMARTLEAD_API_KEY}, timeout=10)
+                r = httpx.get(
+                    f"{SMARTLEAD_BASE}/email-accounts/{aid}",
+                    params={"api_key": SMARTLEAD_API_KEY},
+                    timeout=10,
+                )
                 if r.status_code == 200:
                     details = r.json()
                     is_active = details.get("is_active", True)
@@ -283,11 +347,21 @@ class ProjectConfig:
         if len(active) != len(self.email_accounts):
             print(f"  Active: {len(active)}/{len(self.email_accounts)}")
             # Update in DB
-            api("put", f"/projects/{self.project_id}/knowledge/smartlead/email_accounts",
-                json={"title": "SmartLead Email Accounts",
-                      "value": json.dumps({"account_ids": active,
-                                           "updated": datetime.now().strftime('%Y-%m-%d')}),
-                      "source": "auto"}, raise_on_error=False)
+            api(
+                "put",
+                f"/projects/{self.project_id}/knowledge/smartlead/email_accounts",
+                json={
+                    "title": "SmartLead Email Accounts",
+                    "value": json.dumps(
+                        {
+                            "account_ids": active,
+                            "updated": datetime.now().strftime("%Y-%m-%d"),
+                        }
+                    ),
+                    "source": "auto",
+                },
+                raise_on_error=False,
+            )
 
         self.email_accounts = active
         return active
@@ -299,13 +373,16 @@ class ProjectConfig:
 # общение с backend API, сохранение состояния pipeline между запусками.
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def load_json(path: Path):
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
     return None
 
+
 def save_json(path: Path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
 
 def save_csv(path: Path, rows: list[dict], sheet_name: str = None):
     """Save CSV locally and optionally to Google Sheets.
@@ -314,7 +391,12 @@ def save_csv(path: Path, rows: list[dict], sheet_name: str = None):
     if not rows:
         return
     if sheet_name:
-        safe_name = sheet_name.replace(" | ", "_").replace(" — ", "_").replace(" ", "_").replace("/", "-")
+        safe_name = (
+            sheet_name.replace(" | ", "_")
+            .replace(" — ", "_")
+            .replace(" ", "_")
+            .replace("/", "-")
+        )
         path = path.parent / f"{safe_name}.csv"
 
     fieldnames = list(rows[0].keys())
@@ -330,12 +412,12 @@ def save_csv(path: Path, rows: list[dict], sheet_name: str = None):
 
 # Google Drive folder IDs for sheet placement (sofia@getsally.io)
 GDRIVE_FOLDERS = {
-    "Leads":     "1_1ck-0sn1jXm2px4MCz4o_ZST6J6JfOe",
-    "Import":    "1O-rkQK6btZjXzO-p31ZMsrjcLWeacZRV",
-    "Targets":   "124SCStl6SHuMPquxyfj0Av5O8U4kNrTj",
-    "Ops":       "1K7bVbvVU3LIK5V_cGLwhFKINBdURZLD0",
+    "Leads": "1_1ck-0sn1jXm2px4MCz4o_ZST6J6JfOe",
+    "Import": "1O-rkQK6btZjXzO-p31ZMsrjcLWeacZRV",
+    "Targets": "124SCStl6SHuMPquxyfj0Av5O8U4kNrTj",
+    "Ops": "1K7bVbvVU3LIK5V_cGLwhFKINBdURZLD0",
     "Analytics": "1xRAdlbn2BK3QYBuYtUjgVjhsb2wH5MiV",
-    "Archive":   "1uLKLR6NFzJHb_XraE5sfKrSe-HbNja9t",
+    "Archive": "1uLKLR6NFzJHb_XraE5sfKrSe-HbNja9t",
 }
 
 _GSHEETS_TOKEN_PATHS = [
@@ -349,6 +431,7 @@ def _get_gsheets_creds():
     """Load Google OAuth credentials, refresh if expired."""
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
+
     token_path = None
     for p in _GSHEETS_TOKEN_PATHS:
         if p.exists():
@@ -356,7 +439,10 @@ def _get_gsheets_creds():
             break
     if not token_path:
         raise FileNotFoundError("Google Sheets token.json not found")
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
     creds = Credentials.from_authorized_user_file(str(token_path), scopes)
     if creds.expired:
         creds.refresh(Request())
@@ -377,18 +463,20 @@ def _resolve_drive_folder(sheet_name: str) -> str | None:
 def _upload_to_sheets(headers: list[str], rows: list[dict], sheet_name: str):
     """Create Google Sheet via OAuth (sofia@getsally.io), place in correct Drive folder."""
     from googleapiclient.discovery import build
+
     data = [headers] + [[str(row.get(h, "")) for h in headers] for row in rows]
     try:
         creds = _get_gsheets_creds()
         sheets_svc = build("sheets", "v4", credentials=creds)
         drive_svc = build("drive", "v3", credentials=creds)
-        sheet = sheets_svc.spreadsheets().create(
-            body={"properties": {"title": sheet_name}}
-        ).execute()
+        sheet = (
+            sheets_svc.spreadsheets()
+            .create(body={"properties": {"title": sheet_name}})
+            .execute()
+        )
         sid = sheet["spreadsheetId"]
         sheets_svc.spreadsheets().values().update(
-            spreadsheetId=sid, range="A1",
-            valueInputOption="RAW", body={"values": data}
+            spreadsheetId=sid, range="A1", valueInputOption="RAW", body={"values": data}
         ).execute()
         folder_id = _resolve_drive_folder(sheet_name)
         if folder_id:
@@ -397,7 +485,9 @@ def _upload_to_sheets(headers: list[str], rows: list[dict], sheet_name: str):
             drive_svc.files().update(
                 fileId=sid, addParents=folder_id, removeParents=old_parents
             ).execute()
-        print(f"  -> Sheet: {sheet_name} — https://docs.google.com/spreadsheets/d/{sid}")
+        print(
+            f"  -> Sheet: {sheet_name} — https://docs.google.com/spreadsheets/d/{sid}"
+        )
     except Exception as e:
         print(f"  ⚠ Sheet upload failed: {e}")
 
@@ -406,9 +496,20 @@ def normalize_company(name: str) -> str:
     """Clean company name for display."""
     if not name:
         return ""
-    for suffix in [" Inc.", " Inc", " LLC", " Ltd.", " Ltd", " GmbH", " AG", " S.A.", " B.V.", " Pty"]:
+    for suffix in [
+        " Inc.",
+        " Inc",
+        " LLC",
+        " Ltd.",
+        " Ltd",
+        " GmbH",
+        " AG",
+        " S.A.",
+        " B.V.",
+        " Pty",
+    ]:
         if name.endswith(suffix):
-            name = name[:-len(suffix)]
+            name = name[: -len(suffix)]
     return name.strip()
 
 
@@ -432,8 +533,15 @@ def api(method: str, path: str, raise_on_error: bool = True, **kwargs) -> dict:
     return r.json()
 
 
-def api_long(method: str, path: str, expected_phase: str, run_id: int,
-             timeout: int = 3600, poll_interval: int = 30, **kwargs) -> dict:
+def api_long(
+    method: str,
+    path: str,
+    expected_phase: str,
+    run_id: int,
+    timeout: int = 3600,
+    poll_interval: int = 30,
+    **kwargs,
+) -> dict:
     """Устойчивый вызов долгих API операций (scrape, analyze).
 
     Проблема: scrape 500 сайтов занимает 5-15 минут, analyze 500 компаний — 10-20 мин.
@@ -451,20 +559,32 @@ def api_long(method: str, path: str, expected_phase: str, run_id: int,
     """
     url = f"{BACKEND_BASE}/api{path}"
     try:
-        r = getattr(httpx, method)(url, headers=BACKEND_HEADERS, timeout=timeout, **kwargs)
+        r = getattr(httpx, method)(
+            url, headers=BACKEND_HEADERS, timeout=timeout, **kwargs
+        )
         if r.status_code >= 400:
             return {"_error": r.status_code, "_detail": r.text[:500]}
         return r.json()
-    except (httpx.ReadTimeout, httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadError) as e:
-        print(f"  Connection lost ({type(e).__name__}). Backend may still be working...")
+    except (
+        httpx.ReadTimeout,
+        httpx.RemoteProtocolError,
+        httpx.ConnectError,
+        httpx.ReadError,
+    ) as e:
+        print(
+            f"  Connection lost ({type(e).__name__}). Backend may still be working..."
+        )
         print(f"  Polling until phase reaches '{expected_phase}'...")
 
         start = time.time()
         while time.time() - start < timeout:
             time.sleep(poll_interval)
             try:
-                r2 = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
-                               headers=BACKEND_HEADERS, timeout=30)
+                r2 = httpx.get(
+                    f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                    headers=BACKEND_HEADERS,
+                    timeout=30,
+                )
                 if r2.status_code == 200:
                     phase = r2.json().get("current_phase", "")
                     elapsed = int(time.time() - start)
@@ -473,7 +593,9 @@ def api_long(method: str, path: str, expected_phase: str, run_id: int,
                         print(f"  Backend finished — phase is now '{phase}'")
                         return r2.json()
             except Exception:
-                print(f"  [{int(time.time()-start)}s] Backend unreachable, waiting...")
+                print(
+                    f"  [{int(time.time() - start)}s] Backend unreachable, waiting..."
+                )
 
         print(f"  Timeout after {timeout}s. Check manually.")
         return {"_timeout": True}
@@ -482,21 +604,36 @@ def api_long(method: str, path: str, expected_phase: str, run_id: int,
 def get_latest_prompt(project_id: int) -> tuple[int | None, str | None]:
     """Get the latest active prompt (id + text) for this project.
     Returns (prompt_id, prompt_text). API requires prompt_text, not prompt_id."""
-    result = api("get", f"/pipeline/gathering/prompts?project_id={project_id}", raise_on_error=False)
+    result = api(
+        "get",
+        f"/pipeline/gathering/prompts?project_id={project_id}",
+        raise_on_error=False,
+    )
     prompts = result if isinstance(result, list) else result.get("items", [])
     active = [p for p in prompts if p.get("is_active", True)]
     if active:
         latest = max(active, key=lambda p: p["id"])
-        print(f"  Prompt: #{latest['id']} '{latest.get('name', '?')}' "
-              f"(usage={latest.get('usage_count', 0)}, avg_target_rate={latest.get('avg_target_rate', '?')})")
+        print(
+            f"  Prompt: #{latest['id']} '{latest.get('name', '?')}' "
+            f"(usage={latest.get('usage_count', 0)}, avg_target_rate={latest.get('avg_target_rate', '?')})"
+        )
         return latest["id"], latest.get("prompt_text", "")
     return None, None
 
 
-def save_state(state_dir: Path, run_id: int, phase: str, gate_id: int = None, config_key: str = ""):
-    save_json(state_dir / "run_state.json",
-              {"run_id": run_id, "phase": phase, "gate_id": gate_id,
-               "config_key": config_key, "updated_at": ts()})
+def save_state(
+    state_dir: Path, run_id: int, phase: str, gate_id: int = None, config_key: str = ""
+):
+    save_json(
+        state_dir / "run_state.json",
+        {
+            "run_id": run_id,
+            "phase": phase,
+            "gate_id": gate_id,
+            "config_key": config_key,
+            "updated_at": ts(),
+        },
+    )
 
 
 def load_state(state_dir: Path) -> dict:
@@ -525,27 +662,36 @@ def _checkpoint(message: str) -> bool:
 BATCH_SIZE = 500  # Max domains per gathering run (for scrape stability)
 
 
-def create_batched_runs(config: ProjectConfig, domains: list[str],
-                        mode: str, notes_prefix: str = "") -> list[int]:
+def create_batched_runs(
+    config: ProjectConfig, domains: list[str], mode: str, notes_prefix: str = ""
+) -> list[int]:
     """Create multiple gathering runs if domains > BATCH_SIZE.
     Returns list of run IDs."""
     if len(domains) <= BATCH_SIZE:
         batches = [domains]
     else:
-        batches = [domains[i:i+BATCH_SIZE] for i in range(0, len(domains), BATCH_SIZE)]
-        print(f"\n  Splitting {len(domains)} domains into {len(batches)} batches of ~{BATCH_SIZE}")
+        batches = [
+            domains[i : i + BATCH_SIZE] for i in range(0, len(domains), BATCH_SIZE)
+        ]
+        print(
+            f"\n  Splitting {len(domains)} domains into {len(batches)} batches of ~{BATCH_SIZE}"
+        )
 
     run_ids = []
     for i, batch in enumerate(batches):
-        batch_label = f" (batch {i+1}/{len(batches)})" if len(batches) > 1 else ""
-        result = api("post", "/pipeline/gathering/start", json={
-            "project_id": config.project_id,
-            "source_type": "manual.companies.manual",
-            "filters": {"domains": batch},
-            "triggered_by": "operator",
-            "input_mode": mode,
-            "notes": f"{notes_prefix}{batch_label} — {len(batch)} domains",
-        })
+        batch_label = f" (batch {i + 1}/{len(batches)})" if len(batches) > 1 else ""
+        result = api(
+            "post",
+            "/pipeline/gathering/start",
+            json={
+                "project_id": config.project_id,
+                "source_type": "manual.companies.manual",
+                "filters": {"domains": batch},
+                "triggered_by": "operator",
+                "input_mode": mode,
+                "notes": f"{notes_prefix}{batch_label} — {len(batch)} domains",
+            },
+        )
         run_id = result["id"]
         run_ids.append(run_id)
         print(f"  Run #{run_id}: {len(batch)} domains{batch_label}")
@@ -553,8 +699,12 @@ def create_batched_runs(config: ProjectConfig, domains: list[str],
     return run_ids
 
 
-def process_run_pipeline(config: ProjectConfig, run_id: int,
-                         prompt_text: str = None, skip_gather_wait: bool = False):
+def process_run_pipeline(
+    config: ProjectConfig,
+    run_id: int,
+    prompt_text: str = None,
+    skip_gather_wait: bool = False,
+):
     """Прогоняет один ран через полный pipeline автоматически:
     1. Ждём завершения сбора компаний (gather)
     2. Проверяем по blacklist — убираем тех, кому уже писали
@@ -565,17 +715,20 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
 
     Используется вместе с create_batched_runs() — каждый батч по 500 компаний
     проходит этот pipeline отдельно, не перегружая backend."""
-    print(f"\n{'─'*40}")
+    print(f"\n{'─' * 40}")
     print(f"  Processing Run #{run_id}")
-    print(f"{'─'*40}")
+    print(f"{'─' * 40}")
 
     # Ждём пока backend соберёт компании (manual source — быстро, dedup)
     if not skip_gather_wait:
         for i in range(60):
             time.sleep(10)
             try:
-                r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
-                              headers=BACKEND_HEADERS, timeout=30)
+                r = httpx.get(
+                    f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                    headers=BACKEND_HEADERS,
+                    timeout=30,
+                )
                 phase = r.json().get("current_phase", "")
                 if phase != "gather":
                     break
@@ -614,9 +767,14 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
     if phase == "scraped":
         text = prompt_text or config.prompt_text
         if text:
-            result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
-                              expected_phase="analyzed", run_id=run_id, timeout=3600,
-                              params={"prompt_text": text, "model": "gpt-4o-mini"})
+            result = api_long(
+                "post",
+                f"/pipeline/gathering/runs/{run_id}/analyze",
+                expected_phase="analyzed",
+                run_id=run_id,
+                timeout=3600,
+                params={"prompt_text": text, "model": "gpt-4o-mini"},
+            )
             targets = result.get("targets_found", "?")
             total = result.get("total_analyzed", "?")
             print(f"  Analyze: {targets}/{total} targets")
@@ -628,13 +786,20 @@ def process_run_pipeline(config: ProjectConfig, run_id: int,
 def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
     """Find and approve pending gate for this run."""
     try:
-        gates = api("get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}",
-                    raise_on_error=False)
+        gates = api(
+            "get",
+            f"/pipeline/gathering/approval-gates?project_id={config.project_id}",
+            raise_on_error=False,
+        )
         items = gates if isinstance(gates, list) else gates.get("items", [])
         for g in items:
             if g.get("gathering_run_id") == run_id and g.get("status") == "pending":
-                api("post", f"/pipeline/gathering/approval-gates/{g['id']}/approve",
-                    json={}, raise_on_error=False)
+                api(
+                    "post",
+                    f"/pipeline/gathering/approval-gates/{g['id']}/approve",
+                    json={},
+                    raise_on_error=False,
+                )
                 print(f"  Gate #{g['id']} approved")
                 return True
     except Exception:
@@ -658,14 +823,20 @@ def approve_pending_gate(config: ProjectConfig, run_id: int) -> bool:
 #   Puppeteer + internal API (q_organization_keyword_tags). БЕСПЛАТНО.
 #   Скрипт: scripts/sofia/onsocial_apollo_companies_search.js
 #
-# Clay (A, B, C) → step0_start() → backend API → run_id
+# Clay (A, B, C) → step0_gather() → backend API → run_id
 # Apollo (D) → step0_apollo_companies() → JS scraper → domains → create_batched_runs()
 #
-# Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-10).
+# Все четыре на выходе дают run_id(s) → дальше единый pipeline (шаги 1-12).
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step0_start(config: ProjectConfig, filters: dict, mode: str,
-                input_text: str = None, notes: str = "") -> int:
+
+def step0_gather(
+    config: ProjectConfig,
+    filters: dict,
+    mode: str,
+    input_text: str = None,
+    notes: str = "",
+) -> int:
     """Start Clay gathering via backend API (sources A and B). Returns run_id.
 
     Filters can contain either:
@@ -675,10 +846,16 @@ def step0_start(config: ProjectConfig, filters: dict, mode: str,
     """
     has_keywords = bool(filters.get("description_keywords"))
     has_icp = bool(filters.get("icp_text"))
-    search_mode = "description_keywords (direct)" if has_keywords else "icp_text (AI-mapped)" if has_icp else "unknown"
+    search_mode = (
+        "description_keywords (direct)"
+        if has_keywords
+        else "icp_text (AI-mapped)"
+        if has_icp
+        else "unknown"
+    )
 
-    print(f"\n{'='*60}")
-    print(f"STEP 0: Start Gathering")
+    print(f"\n{'=' * 60}")
+    print("STEP 0: GATHERING — Start")
     print(f"  Project: {config.project_name} (ID {config.project_id})")
     print(f"  Mode: {mode}")
     print(f"  Clay search: {search_mode}")
@@ -692,17 +869,21 @@ def step0_start(config: ProjectConfig, filters: dict, mode: str,
         print(f"  ICP: {filters['icp_text'][:100]}...")
     print(f"  Countries: {', '.join(filters.get('country_names', ['ALL GEO']))}")
     print(f"  Max results: {filters.get('max_results', 5000)}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
-    result = api("post", "/pipeline/gathering/start", json={
-        "project_id": config.project_id,
-        "source_type": "clay.companies.emulator",
-        "filters": filters,
-        "triggered_by": "operator",
-        "input_mode": mode,
-        "input_text": input_text,
-        "notes": notes,
-    })
+    result = api(
+        "post",
+        "/pipeline/gathering/start",
+        json={
+            "project_id": config.project_id,
+            "source_type": "clay.companies.emulator",
+            "filters": filters,
+            "triggered_by": "operator",
+            "input_mode": mode,
+            "input_text": input_text,
+            "notes": notes,
+        },
+    )
 
     run_id = result["id"]
     print(f"\n  Run created: #{run_id}")
@@ -720,11 +901,12 @@ def step0_start(config: ProjectConfig, filters: dict, mode: str,
 # БЕСПЛАТНО — не тратит API credits.
 # ══════════════════════════════════════════════════════════════════════════════
 
-APOLLO_COMPANIES_SCRIPT = "scripts/apollo_companies_search.js"
+APOLLO_COMPANIES_SCRIPT = "scripts/sofia/onsocial_apollo_companies_search.js"
 
 
-def step0_apollo_companies(config: ProjectConfig, filters: dict,
-                           apollo_profile: str = None) -> list[str]:
+def step0_apollo_companies(
+    config: ProjectConfig, filters: dict, apollo_profile: str = None
+) -> list[str]:
     """Search companies via Apollo internal API. Returns list of domains.
 
     Filters dict:
@@ -740,16 +922,18 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
     excluded_keywords = filters.get("excluded_keywords", [])
     max_pages = filters.get("max_pages", 25)
 
-    print(f"\n{'='*60}")
-    print(f"STEP 0: Apollo Companies Search (Internal API)")
+    print(f"\n{'=' * 60}")
+    print("STEP 0: GATHERING — Apollo Companies (Internal API)")
     print(f"  Project: {config.project_name} (ID {config.project_id})")
     print(f"  Keyword tags: {len(keyword_tags)}")
-    print(f"  Locations: {len(locations)} ({', '.join(locations[:5])}{'...' if len(locations) > 5 else ''})")
+    print(
+        f"  Locations: {len(locations)} ({', '.join(locations[:5])}{'...' if len(locations) > 5 else ''})"
+    )
     print(f"  Sizes: {', '.join(sizes)}")
     print(f"  Max pages/keyword: {max_pages}")
     if excluded_keywords:
         print(f"  Excluded keywords: {len(excluded_keywords)}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Find the script
     repo_dir = SOFIA_DIR.parent
@@ -766,11 +950,16 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
 
     # Build command
     cmd = [
-        "node", str(scraper_path),
-        "--keywords", ",".join(keyword_tags),
-        "--locations", ",".join(locations),
-        "--max-pages", str(max_pages),
-        "--output", str(output_file),
+        "node",
+        str(scraper_path),
+        "--keywords",
+        ",".join(keyword_tags),
+        "--locations",
+        ",".join(locations),
+        "--max-pages",
+        str(max_pages),
+        "--output",
+        str(output_file),
     ]
     for size in sizes:
         cmd.extend(["--sizes", size])
@@ -783,7 +972,7 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
         existing = json.loads(output_file.read_text())
         print(f"  Resuming: {len(existing)} companies from previous run")
 
-    print(f"  Running apollo_companies_search.js...")
+    print("  Running apollo_companies_search.js...")
     print(f"  This may take 10-60 minutes for {len(keyword_tags)} keywords...")
 
     try:
@@ -799,11 +988,11 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
             print(f"  Scraper error (rc={result.returncode}): {err}")
             # Try to load partial results
             if output_file.exists():
-                print(f"  Loading partial results...")
+                print("  Loading partial results...")
             else:
                 sys.exit(1)
     except subprocess.TimeoutExpired:
-        print(f"  Scraper timeout (2h). Loading partial results...")
+        print("  Scraper timeout (2h). Loading partial results...")
 
     if not output_file.exists():
         print(f"  ERROR: No output file: {output_file}")
@@ -817,11 +1006,13 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
         before = len(companies)
         filtered = []
         for c in companies:
-            desc = " ".join([
-                str(c.get("industry", "")),
-                " ".join(c.get("keywords", [])),
-                " ".join(c.get("industries", [])),
-            ]).lower()
+            desc = " ".join(
+                [
+                    str(c.get("industry", "")),
+                    " ".join(c.get("keywords", [])),
+                    " ".join(c.get("industries", [])),
+                ]
+            ).lower()
             excluded = False
             for kw in excluded_keywords:
                 if kw.lower() in desc:
@@ -847,13 +1038,22 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
 
     # Save import CSV + sheet
     today = tag()
-    import_rows = [{"domain": c.get("domain", ""), "name": c.get("name", ""),
-                     "country": c.get("country", ""), "employees": c.get("estimated_num_employees", ""),
-                     "industry": c.get("industry", "") or ", ".join(c.get("industries", [])),
-                     "keywords": ", ".join(c.get("keywords", []))}
-                    for c in companies if c.get("domain")]
+    import_rows = [
+        {
+            "domain": c.get("domain", ""),
+            "name": c.get("name", ""),
+            "country": c.get("country", ""),
+            "employees": c.get("estimated_num_employees", ""),
+            "industry": c.get("industry", "") or ", ".join(c.get("industries", [])),
+            "keywords": ", ".join(c.get("keywords", [])),
+        }
+        for c in companies
+        if c.get("domain")
+    ]
     if import_rows:
-        seg_code = config.segments.get(list(config.segments.keys())[0] if config.segments else "", {}).get("code", "")
+        seg_code = config.segments.get(
+            list(config.segments.keys())[0] if config.segments else "", {}
+        ).get("code", "")
         sheet_name = f"{config.project_name[:2].upper()} | Import | {seg_code} Apollo Companies — {today}"
         save_csv(config.csv_dir / "import.csv", import_rows, sheet_name=sheet_name)
 
@@ -861,24 +1061,28 @@ def step0_apollo_companies(config: ProjectConfig, filters: dict,
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГИ 1-8: ОБРАБОТКА КОМПАНИЙ
-# Последовательная обработка найденных компаний:
-#   Шаг 2 (Blacklist): проверяем, не писали ли мы уже этим компаниям.
-#     → CP1: оператор подтверждает проект и список.
-#   Шаг 3 (Pre-filter): убираем офлайн-бизнесы, мусорные домены (.gov, .edu).
-#   Шаг 4 (Scrape): скачиваем главную страницу сайта каждой компании.
-#   Шаг 5 (Analyze): GPT читает сайт и классифицирует компанию —
+# ШАГИ 1-7: ОБРАБОТКА КОМПАНИЙ [backend + ручные]
+# Все эти шаги выполняются на бэкенде (magnum-opus). Скрипт только
+# триггерит API и ждёт результата. Шаги 6-7 — ручные (в чате с Claude).
+#
+#   Шаг 1 (Dedup):      бэкенд убирает дубли автоматически при создании run.
+#   Шаг 2 (Blacklist):   проверяем, не писали ли мы уже этим компаниям.
+#     → CP1: оператор подтверждает проект и scope.
+#   Шаг 3 (Prefilter):   убираем офлайн-бизнесы, мусорные домены (.gov, .edu).
+#   Шаг 4 (Scrape):      скачиваем главную страницу сайта каждой компании.
+#   Шаг 5 (Classify):    GPT читает сайт и классифицирует компанию —
 #     наш сегмент (platform/agency) или нет (OTHER).
-#     → CP2: оператор проверяет список таргетов. Убирает ложные срабатывания.
-#   Шаг 6 (Verify): подготовка к FindyMail — оценка стоимости.
-#     → CP3: оператор одобряет расходы.
+#     → CP2: оператор проверяет список таргетов.
+#   Шаг 6 (Verify):      оператор с Claude проверяют таргеты GPT в чате.
+#   Шаг 7 (Adjust):      если accuracy <90% → правим промпт → повторяем 5-6.
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def step2_blacklist(config: ProjectConfig, run_id: int) -> dict:
     """Run blacklist check → creates CP1 gate."""
-    print(f"\n{'='*60}")
-    print(f"STEP 2: Blacklist Check (run #{run_id})")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print(f"STEP 2: BLACKLIST (run #{run_id})")
+    print(f"{'=' * 60}")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
     gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
     pending = [g for g in gates if g["status"] == "pending"]
@@ -888,21 +1092,26 @@ def step2_blacklist(config: ProjectConfig, run_id: int) -> dict:
         scope = gate.get("scope", {})
         save_state(config.state_dir, run_id, "awaiting_scope_ok", gate_id=gate_id)
         print(f"\n  ★ CHECKPOINT 1 — gate #{gate_id}")
-        print(f"  Passed: {scope.get('passed', '?')}, Rejected: {scope.get('rejected', '?')}")
+        print(
+            f"  Passed: {scope.get('passed', '?')}, Rejected: {scope.get('rejected', '?')}"
+        )
         return {"gate_id": gate_id, "scope": scope}
     return {}
 
 
 def approve_gate(gate_id: int, note: str = "Approved") -> dict:
     """Approve a checkpoint gate."""
-    result = api("post", f"/pipeline/gathering/approval-gates/{gate_id}/approve",
-                 json={"decision_note": note})
+    result = api(
+        "post",
+        f"/pipeline/gathering/approval-gates/{gate_id}/approve",
+        json={"decision_note": note},
+    )
     print(f"  Gate #{gate_id} approved → {result.get('new_phase', '?')}")
     return result
 
 
 def step3_prefilter(run_id: int) -> dict:
-    print(f"\n  Step 3: Pre-filter (run #{run_id})")
+    print(f"\n  STEP 3: PREFILTER (run #{run_id})")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/pre-filter")
     print(f"  Passed: {result.get('passed', '?')}")
     return result
@@ -910,19 +1119,26 @@ def step3_prefilter(run_id: int) -> dict:
 
 def step4_scrape(run_id: int) -> dict:
     """Scrape websites. Resilient to backend restarts — polls until phase advances."""
-    print(f"\n  Step 4: Scrape websites (run #{run_id})")
-    print(f"  This may take 10-60 min depending on company count...")
-    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/scrape",
-                      expected_phase="scraped", run_id=run_id, timeout=3600)
+    print(f"\n  STEP 4: SCRAPE (run #{run_id})")
+    print("  This may take 10-60 min depending on company count...")
+    result = api_long(
+        "post",
+        f"/pipeline/gathering/runs/{run_id}/scrape",
+        expected_phase="scraped",
+        run_id=run_id,
+        timeout=3600,
+    )
     if not result.get("_timeout"):
-        print(f"  Scraped: {result.get('scraped', '?')}, Skipped: {result.get('skipped', '?')}")
+        print(
+            f"  Scraped: {result.get('scraped', '?')}, Skipped: {result.get('skipped', '?')}"
+        )
     return result
 
 
-def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -> dict:
+def step5_classify(config: ProjectConfig, run_id: int, prompt_text: str = None) -> dict:
     """Run GPT classification. Uses prompt_text from gathering_prompts.
     Note: backend API requires prompt_text, not prompt_id."""
-    print(f"\n  Step 5: Analyze (run #{run_id})")
+    print(f"\n  STEP 5: CLASSIFY (run #{run_id})")
     # Resolve prompt text: argument > config > error
     text = prompt_text or config.prompt_text
     if not text:
@@ -931,11 +1147,21 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
     params = {"model": "gpt-4o-mini", "prompt_text": text}
     print(f"  Prompt: #{config.prompt_id or '?'} ({len(text)} chars)")
 
-    result = api_long("post", f"/pipeline/gathering/runs/{run_id}/analyze",
-                      expected_phase="analyzed", run_id=run_id, timeout=3600, params=params)
+    result = api_long(
+        "post",
+        f"/pipeline/gathering/runs/{run_id}/analyze",
+        expected_phase="analyzed",
+        run_id=run_id,
+        timeout=3600,
+        params=params,
+    )
     targets = result.get("targets_found", 0)
     total = result.get("total_analyzed", 0)
-    print(f"  Targets: {targets}/{total} ({targets/total*100:.0f}%)" if total else "  No companies analyzed")
+    print(
+        f"  Targets: {targets}/{total} ({targets / total * 100:.0f}%)"
+        if total
+        else "  No companies analyzed"
+    )
 
     gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
     pending = [g for g in gates if g["status"] == "pending"]
@@ -946,37 +1172,53 @@ def step5_analyze(config: ProjectConfig, run_id: int, prompt_text: str = None) -
         target_list = gate.get("scope", {}).get("targets", [])
         if isinstance(target_list, list):
             for t in target_list:
-                print(f"    {t.get('domain','?')} — {t.get('name','?')} "
-                      f"({t.get('segment','?')} {t.get('confidence','?')})")
-        return {"gate_id": gate["id"], "targets_found": targets, "total_analyzed": total}
+                print(
+                    f"    {t.get('domain', '?')} — {t.get('name', '?')} "
+                    f"({t.get('segment', '?')} {t.get('confidence', '?')})"
+                )
+        return {
+            "gate_id": gate["id"],
+            "targets_found": targets,
+            "total_analyzed": total,
+        }
     return {"targets_found": targets, "total_analyzed": total}
 
 
-def step5_reanalyze(config: ProjectConfig, run_id: int,
-                     prompt_text: str = None, model: str = "gpt-4o-mini") -> dict:
+def step5_reclassify(
+    config: ProjectConfig,
+    run_id: int,
+    prompt_text: str = None,
+    model: str = "gpt-4o-mini",
+) -> dict:
     """Re-run analysis with different prompt (no re-scrape needed)."""
-    print(f"\n{'='*60}")
-    print(f"STEP 5 (RE-ANALYZE): run #{run_id}")
+    print(f"\n{'=' * 60}")
+    print(f"STEP 5 (RE-CLASSIFY): run #{run_id}")
     text = prompt_text or config.prompt_text
     if not text:
         print("  ERROR: No prompt text available.")
         sys.exit(1)
     print(f"  Prompt: {text[:100]}...")
-    print(f"{'='*60}")
-    result = api("post", f"/pipeline/gathering/runs/{run_id}/re-analyze",
-                 params={"model": model, "prompt_text": text})
+    print(f"{'=' * 60}")
+    result = api(
+        "post",
+        f"/pipeline/gathering/runs/{run_id}/re-analyze",
+        params={"model": model, "prompt_text": text},
+    )
     target_rate = result.get("target_rate", 0)
     targets_count = result.get("targets_count", 0)
-    print(f"\n  New target rate: {target_rate*100:.1f}%")
+    print(f"\n  New target rate: {target_rate * 100:.1f}%")
     print(f"  Targets: {targets_count}")
     gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
     pending = [g for g in gates if g["status"] == "pending"]
     if pending:
         gate_id = pending[0]["id"]
         save_state(config.state_dir, run_id, "awaiting_targets_ok", gate_id=gate_id)
-        return {"gate_id": gate_id, "target_rate": target_rate, "targets_count": targets_count}
+        return {
+            "gate_id": gate_id,
+            "target_rate": target_rate,
+            "targets_count": targets_count,
+        }
     return {"target_rate": target_rate, "targets_count": targets_count}
-
 
     # NOTE: blacklist_approved_targets removed.
     # CRM sync (contacts table) already blocks companies in active campaigns.
@@ -984,9 +1226,9 @@ def step5_reanalyze(config: ProjectConfig, run_id: int,
     # at already-targeted companies. See TAM_GATHERING_ARCHITECTURE.md.
 
 
-def step6_prepare_verify(run_id: int) -> dict:
+def step6_verify(run_id: int) -> dict:
     """Prepare FindyMail verification → creates CP3 with cost estimate."""
-    print(f"\n  Step 6: Prepare Verification (run #{run_id})")
+    print(f"\n  STEP 6: VERIFY (run #{run_id})")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/prepare-verification")
     gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
     pending = [g for g in gates if g["status"] == "pending"]
@@ -1001,18 +1243,19 @@ def step6_prepare_verify(run_id: int) -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 9: ЭКСПОРТ КОМПАНИЙ-ТАРГЕТОВ
+# ШАГ 8: ЭКСПОРТ КОМПАНИЙ-ТАРГЕТОВ [скрипт]
 # Выгружаем из базы все компании, прошедшие классификацию (is_target=true).
 # Разбиваем по сегментам, сохраняем CSV локально и в Google Sheets.
 # Эти компании — основа для поиска людей (контактов) на следующем шаге.
 # ══════════════════════════════════════════════════════════════════════════════
 
-def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dict]:
+
+def step8_export_targets(config: ProjectConfig, force: bool = False) -> list[dict]:
     """Export approved target companies from backend DB."""
     targets_file = config.state_dir / "targets.json"
-    print(f"\n{'='*60}")
-    print(f"STEP 9: Export Targets (project_id={config.project_id})")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print(f"STEP 8: EXPORT TARGETS (project_id={config.project_id})")
+    print(f"{'=' * 60}")
 
     if targets_file.exists() and not force:
         targets = load_json(targets_file)
@@ -1021,12 +1264,31 @@ def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
 
     # Export via psql
     import subprocess
-    sql = (f"SELECT domain, name, matched_segment, confidence "
-           f"FROM discovered_companies WHERE project_id={config.project_id} AND is_target=true")
+
+    sql = (
+        f"SELECT domain, name, matched_segment, confidence "
+        f"FROM discovered_companies WHERE project_id={config.project_id} AND is_target=true"
+    )
     r = subprocess.run(
-        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
-         "-d", "leadgen", "-t", "-A", "-F", "|", "-c", sql],
-        capture_output=True, text=True, timeout=30,
+        [
+            "docker",
+            "exec",
+            "leadgen-postgres",
+            "psql",
+            "-U",
+            "leadgen",
+            "-d",
+            "leadgen",
+            "-t",
+            "-A",
+            "-F",
+            "|",
+            "-c",
+            sql,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
 
     targets = []
@@ -1035,15 +1297,17 @@ def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
             continue
         parts = line.split("|")
         if len(parts) >= 3:
-            targets.append({
-                "domain": parts[0].strip(),
-                "company_name": parts[1].strip(),
-                "segment": parts[2].strip(),
-                "confidence": parts[3].strip() if len(parts) > 3 else "",
-            })
+            targets.append(
+                {
+                    "domain": parts[0].strip(),
+                    "company_name": parts[1].strip(),
+                    "segment": parts[2].strip(),
+                    "confidence": parts[3].strip() if len(parts) > 3 else "",
+                }
+            )
 
     if not targets:
-        print("  No targets found. Complete backend pipeline first (Steps 0-8).")
+        print("  No targets found. Complete backend pipeline first (Steps 0-7).")
         sys.exit(1)
 
     save_json(targets_file, targets)
@@ -1065,55 +1329,36 @@ def step9_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
                 break
         code = config.project_name[:2].upper()
         sheet_name = f"{code} | Targets | {seg_code} — {today}"
-        save_csv(config.csv_dir / f"targets_{seg_code}_{today}.csv", seg_targets, sheet_name=sheet_name)
+        save_csv(
+            config.csv_dir / f"targets_{seg_code}_{today}.csv",
+            seg_targets,
+            sheet_name=sheet_name,
+        )
         print(f"    {seg_name}: {len(seg_targets)}")
 
     return targets
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 10: ПОИСК ЛЮДЕЙ (ЛПР) В APOLLO PEOPLE UI
+# ШАГ 9: ПОИСК ЛЮДЕЙ (ЛПР) [скрипт → Apollo]
 # Автоматический поиск через Puppeteer (apollo_scraper.js):
 # - Берёт домены таргет-компаний, группирует по сегменту
-# - Подбирает titles/seniorities из apollo-filters-v3
+# - Подбирает titles/seniorities из конфига сегмента
 # - Батчит по 30 доменов, запускает apollo_scraper.js
 # - Парсит JSON → маппит в формат контактов
 # Fallback: --apollo-csv для ручного CSV импорта.
+# ★ CP3: "Одобряете расходы на email enrichment?"
 # ══════════════════════════════════════════════════════════════════════════════
 
-APOLLO_SCRAPER_SCRIPT = "scripts/apollo_scraper.js"
+APOLLO_SCRAPER_SCRIPT = "scripts/sofia/apollo_people_api_search.js"
 APOLLO_PEOPLE_BATCH_SIZE = 30
 APOLLO_PEOPLE_MAX_PAGES = 5
 
-SEGMENT_PEOPLE_FILTERS = {
-    "INFLUENCER_PLATFORMS": {
-        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
-        "titles": [
-            "CTO", "VP Engineering", "VP of Engineering", "Head of Engineering",
-            "Head of Product", "Chief Product Officer", "VP Product",
-            "Director of Engineering", "Director of Product",
-            "Co-Founder", "Founder", "CEO", "COO",
-        ],
-    },
-    "IM_FIRST_AGENCIES": {
-        "seniorities": ["founder", "c_suite", "director", "owner"],
-        "titles": [
-            "CEO", "Founder", "Co-Founder", "Managing Director", "Managing Partner",
-            "Head of Influencer Marketing", "Director of Influencer",
-            "Head of Partnerships", "VP Strategy", "Head of Strategy",
-            "General Manager", "Partner", "Owner",
-        ],
-    },
-    "AFFILIATE_PERFORMANCE": {
-        "seniorities": ["founder", "c_suite", "vp", "director", "owner"],
-        "titles": [
-            "CTO", "VP Engineering", "VP of Engineering", "VP Product",
-            "Head of Product", "Head of Partnerships", "VP Partnerships",
-            "Director of Partnerships", "Co-Founder", "Founder", "CEO", "COO",
-        ],
-    },
+DEFAULT_PEOPLE_FILTERS = {
+    "titles": ["CEO", "Founder", "Co-Founder", "CTO", "COO", "Head of Product"],
+    "seniorities": ["founder", "c_suite", "vp", "director", "owner", "head", "partner"],
+    "excluded_titles": [],
 }
-SEGMENT_PEOPLE_FILTERS["OTHER"] = SEGMENT_PEOPLE_FILTERS["INFLUENCER_PLATFORMS"]
 
 APOLLO_CSV_COLUMNS = {
     "first_name": ["First Name", "first_name"],
@@ -1122,7 +1367,13 @@ APOLLO_CSV_COLUMNS = {
     "title": ["Title", "title", "Job Title"],
     "company_name": ["Company", "company", "Company Name", "Organization Name"],
     "domain": ["Website", "website", "Company Domain", "domain", "Domain"],
-    "linkedin_url": ["Person Linkedin Url", "LinkedIn URL", "linkedin_url", "LinkedIn", "Person LinkedIn URL"],
+    "linkedin_url": [
+        "Person Linkedin Url",
+        "LinkedIn URL",
+        "linkedin_url",
+        "LinkedIn",
+        "Person LinkedIn URL",
+    ],
     "country": ["Country", "country", "Person Country"],
     "employees": ["# Employees", "employees", "Number of Employees", "Company Size"],
 }
@@ -1132,20 +1383,25 @@ def _normalize_domain(raw: str) -> str:
     d = raw.strip().lower()
     for prefix in ["https://", "http://", "www."]:
         if d.startswith(prefix):
-            d = d[len(prefix):]
+            d = d[len(prefix) :]
     d = d.rstrip("/").split("/")[0]
     return d
 
 
-def _map_csv_row(row: dict, targets_by_domain: dict, config: ProjectConfig = None) -> dict:
+def _map_csv_row(
+    row: dict, targets_by_domain: dict, config: ProjectConfig = None
+) -> dict:
     """Map an Apollo CSV row to our contact format."""
+
     def _get(field: str) -> str:
         for col in APOLLO_CSV_COLUMNS.get(field, [field]):
             if col in row and row[col]:
                 return row[col].strip()
         return ""
 
-    domain = _normalize_domain(_get("domain") or (_get("email").split("@")[-1] if "@" in _get("email") else ""))
+    domain = _normalize_domain(
+        _get("domain") or (_get("email").split("@")[-1] if "@" in _get("email") else "")
+    )
     target = targets_by_domain.get(domain, {})
     segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
 
@@ -1158,25 +1414,33 @@ def _map_csv_row(row: dict, targets_by_domain: dict, config: ProjectConfig = Non
                 break
 
     country = _get("country") or target.get("country", "")
-    social_proof = config.get_social_proof(country, seg_slug) if config and seg_slug else ""
+    social_proof = (
+        config.get_social_proof(country, seg_slug) if config and seg_slug else ""
+    )
 
     return {
         "first_name": _get("first_name"),
         "last_name": _get("last_name"),
         "email": _get("email"),
         "title": _get("title"),
-        "company_name": normalize_company(_get("company_name") or target.get("company_name", domain)),
+        "company_name": normalize_company(
+            _get("company_name") or target.get("company_name", domain)
+        ),
         "domain": domain,
         "segment": segment,
         "linkedin_url": _get("linkedin_url"),
         "country": country,
+        "company_country": target.get("country", ""),
         "employees": _get("employees") or target.get("employees", ""),
         "social_proof": social_proof,
     }
 
 
-def _build_apollo_people_url(domains: list[str], titles: list[str], seniorities: list[str]) -> str:
+def _build_apollo_people_url(
+    domains: list[str], titles: list[str], seniorities: list[str]
+) -> str:
     from urllib.parse import quote
+
     url = "https://app.apollo.io/#/people?finderViewId=5b8050d050a0710001ca27c1"
     for d in domains:
         url += f"&organizationDomains[]={quote(d)}"
@@ -1187,18 +1451,60 @@ def _build_apollo_people_url(domains: list[str], titles: list[str], seniorities:
     return url
 
 
-def _run_apollo_scraper(url: str, max_pages: int, output_path: str) -> list[dict]:
-    script = Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT
-    if not script.exists():
-        script = Path(".") / APOLLO_SCRAPER_SCRIPT
-    if not script.exists():
-        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found")
+def _run_apollo_scraper(
+    domains: list[str],
+    titles: list[str],
+    seniorities: list[str],
+    max_pages: int,
+    output_path: str,
+    profile: str = None,
+) -> list[dict]:
+    # Try multiple paths to find apollo_people_api_search.js
+    paths_to_try = [
+        Path(os.environ.get("HETZNER_REPO", ".")) / APOLLO_SCRAPER_SCRIPT,
+        Path(".") / APOLLO_SCRAPER_SCRIPT,
+        Path("/home/leadokol/magnum-opus-project/repo")
+        / APOLLO_SCRAPER_SCRIPT,  # Hetzner default
+        Path.home()
+        / "magnum-opus-project/repo"
+        / APOLLO_SCRAPER_SCRIPT,  # Home-based fallback
+    ]
+    script = None
+    for path in paths_to_try:
+        if path.exists():
+            script = path
+            break
+    if script is None:
+        print(f"    ERROR: {APOLLO_SCRAPER_SCRIPT} not found in any location")
         return []
-    args = ["node", str(script), "--url", url, "--max-pages", str(max_pages), "--output", output_path]
+    args = [
+        "node",
+        str(script),
+        "--domains",
+        ",".join(domains),
+        "--titles",
+        ",".join(titles),
+        "--seniorities",
+        ",".join(seniorities),
+        "--max-pages",
+        str(max_pages),
+        "--output",
+        output_path,
+    ]
+    if profile:
+        args.extend(["--profile", profile])
     try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=300,
-                              cwd=str(script.parent.parent),
-                              env={**os.environ, "CHROME_PATH": os.environ.get("CHROME_PATH", "/usr/bin/google-chrome")})
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=str(Path(os.environ.get("HETZNER_REPO", ".")).resolve()),
+            env={
+                **os.environ,
+                "CHROME_PATH": os.environ.get("CHROME_PATH", "/usr/bin/google-chrome"),
+            },
+        )
         if result.returncode != 0:
             err = result.stderr[-300:] if result.stderr else result.stdout[-300:]
             print(f"    Scraper error (rc={result.returncode}): {err}")
@@ -1207,19 +1513,25 @@ def _run_apollo_scraper(url: str, max_pages: int, output_path: str) -> list[dict
             with open(output_path) as f:
                 return json.load(f)
     except subprocess.TimeoutExpired:
-        print(f"    Scraper timeout (300s)")
+        print("    Scraper timeout (300s)")
     except Exception as e:
         print(f"    Scraper error: {e}")
     return []
 
 
-def _map_apollo_person(person: dict, targets_by_domain: dict, config: ProjectConfig = None,
-                       batch_domain: str = None) -> dict:
+def _map_apollo_person(
+    person: dict,
+    targets_by_domain: dict,
+    config: ProjectConfig = None,
+    batch_domain: str = None,
+) -> dict:
     name = person.get("name", "")
     parts = name.split(None, 1) if name else ["", ""]
     first_name = parts[0] if parts else ""
     last_name = parts[1] if len(parts) > 1 else ""
-    domain = batch_domain or _normalize_domain(person.get("domain", "") or person.get("company_url", ""))
+    domain = batch_domain or _normalize_domain(
+        person.get("domain", "") or person.get("company_url", "")
+    )
     if not domain:
         company = person.get("company", "")
         for d, t in targets_by_domain.items():
@@ -1234,33 +1546,52 @@ def _map_apollo_person(person: dict, targets_by_domain: dict, config: ProjectCon
             if seg_data["name"] == segment:
                 seg_slug = slug
                 break
-    country = person.get("location", "").split(",")[-1].strip() if person.get("location") else ""
+    country = (
+        person.get("location", "").split(",")[-1].strip()
+        if person.get("location")
+        else ""
+    )
     if not country:
         country = target.get("country", "")
-    social_proof = config.get_social_proof(country, seg_slug) if config and seg_slug else ""
+    social_proof = (
+        config.get_social_proof(country, seg_slug) if config and seg_slug else ""
+    )
     return {
-        "first_name": first_name, "last_name": last_name,
-        "email": person.get("email", ""), "title": person.get("title", ""),
-        "company_name": normalize_company(person.get("company", "") or target.get("company_name", domain)),
-        "domain": domain, "segment": segment,
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": person.get("email", ""),
+        "title": person.get("title", ""),
+        "company_name": normalize_company(
+            person.get("company", "") or target.get("company_name", domain)
+        ),
+        "domain": domain,
+        "segment": segment,
         "linkedin_url": person.get("linkedin_url", person.get("linkedin", "")),
-        "country": country, "employees": person.get("employees", "") or target.get("employees", ""),
+        "country": country,
+        "company_country": target.get("country", ""),
+        "employees": person.get("employees", "") or target.get("employees", ""),
         "social_proof": social_proof,
     }
 
 
-def step10_apollo_people_search(config: ProjectConfig, targets: list[dict],
-                                 force: bool = False) -> list[dict]:
+def step9_people_search(
+    config: ProjectConfig,
+    targets: list[dict],
+    force: bool = False,
+    apollo_profile: str = None,
+) -> list[dict]:
     """Search Apollo People UI for contacts at target companies (automated)."""
     contacts_file = config.state_dir / "contacts.json"
-    print(f"\n{'='*60}")
-    print(f"STEP 10: Apollo People UI Search (automated)")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("STEP 9: PEOPLE SEARCH — Apollo UI (automated)")
+    print(f"{'=' * 60}")
     if contacts_file.exists() and not force:
         contacts = load_json(contacts_file)
         print(f"  Loaded from cache: {len(contacts)} contacts")
         return contacts
-    targets_by_domain = {t.get("domain", "").strip().lower(): t for t in targets if t.get("domain")}
+    targets_by_domain = {
+        t.get("domain", "").strip().lower(): t for t in targets if t.get("domain")
+    }
     by_segment: dict[str, list[str]] = {}
     for t in targets:
         d = t.get("domain", "").strip().lower()
@@ -1268,26 +1599,47 @@ def step10_apollo_people_search(config: ProjectConfig, targets: list[dict],
             continue
         seg = t.get("segment", t.get("analysis_segment", "UNKNOWN"))
         by_segment.setdefault(seg, []).append(d)
-    print(f"  Targets: {len(targets_by_domain)} domains across {len(by_segment)} segments")
+    print(
+        f"  Targets: {len(targets_by_domain)} domains across {len(by_segment)} segments"
+    )
     for seg, domains in by_segment.items():
         print(f"    {seg}: {len(domains)} domains")
     all_contacts = []
     total_batches_done = 0
     for seg, domains in by_segment.items():
-        filters = SEGMENT_PEOPLE_FILTERS.get(seg, SEGMENT_PEOPLE_FILTERS["OTHER"])
-        titles = filters["titles"]
-        seniorities = filters["seniorities"]
-        batches = [domains[i:i + APOLLO_PEOPLE_BATCH_SIZE] for i in range(0, len(domains), APOLLO_PEOPLE_BATCH_SIZE)]
+        pf = (
+            config.people_filters
+            if hasattr(config, "people_filters")
+            else DEFAULT_PEOPLE_FILTERS
+        )
+        titles = pf.get("titles", DEFAULT_PEOPLE_FILTERS["titles"])
+        seniorities = pf.get("seniorities", DEFAULT_PEOPLE_FILTERS["seniorities"])
+        batches = [
+            domains[i : i + APOLLO_PEOPLE_BATCH_SIZE]
+            for i in range(0, len(domains), APOLLO_PEOPLE_BATCH_SIZE)
+        ]
         print(f"\n  [{seg}] {len(domains)} domains -> {len(batches)} batches")
         for batch_idx, batch_domains in enumerate(batches):
-            print(f"    Batch {batch_idx + 1}/{len(batches)}: {len(batch_domains)} domains...", end=" ", flush=True)
-            url = _build_apollo_people_url(batch_domains, titles, seniorities)
+            print(
+                f"    Batch {batch_idx + 1}/{len(batches)}: {len(batch_domains)} domains...",
+                end=" ",
+                flush=True,
+            )
             output_path = f"/tmp/apollo_people_batch_{seg}_{batch_idx}.json"
-            people = _run_apollo_scraper(url, APOLLO_PEOPLE_MAX_PAGES, output_path)
+            people = _run_apollo_scraper(
+                batch_domains,
+                titles,
+                seniorities,
+                APOLLO_PEOPLE_MAX_PAGES,
+                output_path,
+                profile=apollo_profile,
+            )
             print(f"{len(people)} people")
             for person in people:
                 batch_domain = batch_domains[0] if len(batch_domains) == 1 else None
-                contact = _map_apollo_person(person, targets_by_domain, config, batch_domain)
+                contact = _map_apollo_person(
+                    person, targets_by_domain, config, batch_domain
+                )
                 if contact["first_name"] and contact["domain"]:
                     all_contacts.append(contact)
             try:
@@ -1314,19 +1666,27 @@ def step10_apollo_people_search(config: ProjectConfig, targets: list[dict],
     print(f"  Segments: {dict(segments)}")
     today = tag()
     code = config.project_name[:2].upper()
-    save_csv(config.csv_dir / f"import_apollo_{today}.csv", all_contacts,
-             sheet_name=f"{code} | Import | Apollo People — {today}")
+    save_csv(
+        config.csv_dir / f"import_apollo_{today}.csv",
+        all_contacts,
+        sheet_name=f"{code} | Import | Apollo People — {today}",
+    )
     return all_contacts
 
 
-def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list[dict],
-                              force: bool = False, segment_override: str = None) -> list[dict]:
+def step9_import_apollo_csv(
+    config: ProjectConfig,
+    csv_path: str,
+    targets: list[dict],
+    force: bool = False,
+    segment_override: str = None,
+) -> list[dict]:
     """Import contacts from a manual Apollo People Search CSV export."""
     contacts_file = config.state_dir / "contacts.json"
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     seg_label = f" ({segment_override})" if segment_override else ""
-    print(f"STEP 10: Import Apollo People CSV{seg_label}")
-    print(f"{'='*60}")
+    print(f"STEP 9: PEOPLE SEARCH — Import Apollo CSV{seg_label}")
+    print(f"{'=' * 60}")
 
     if contacts_file.exists() and not force:
         contacts = load_json(contacts_file)
@@ -1338,7 +1698,9 @@ def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list
         print(f"  ERROR: CSV not found: {csv_path}")
         sys.exit(1)
 
-    targets_by_domain = {t.get("domain", "").strip().lower(): t for t in targets if t.get("domain")}
+    targets_by_domain = {
+        t.get("domain", "").strip().lower(): t for t in targets if t.get("domain")
+    }
 
     with csv_file.open("r", encoding="utf-8-sig") as f:
         raw_rows = list(csv.DictReader(f))
@@ -1358,7 +1720,9 @@ def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list
                     seg_slug = slug
                     break
             contact["segment"] = segment_override
-            contact["social_proof"] = config.get_social_proof(contact["country"], seg_slug)
+            contact["social_proof"] = config.get_social_proof(
+                contact["country"], seg_slug
+            )
         if not contact["first_name"]:
             skipped_no_name += 1
             continue
@@ -1385,15 +1749,20 @@ def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list
 
     print(f"\n  Imported: {len(all_contacts)} contacts")
     print(f"  With email: {with_email}, with LinkedIn: {with_li}")
-    if skipped_no_name: print(f"  Skipped (no name): {skipped_no_name}")
-    if skipped_no_domain: print(f"  Skipped (no domain): {skipped_no_domain}")
+    if skipped_no_name:
+        print(f"  Skipped (no name): {skipped_no_name}")
+    if skipped_no_domain:
+        print(f"  Skipped (no domain): {skipped_no_domain}")
     print(f"  Segments: {dict(segments)}")
 
     # Save import CSV + Google Sheet
     today = tag()
     code = config.project_name[:2].upper()
-    save_csv(config.csv_dir / f"import_apollo_{today}.csv", all_contacts,
-             sheet_name=f"{code} | Import | Apollo People — {today}")
+    save_csv(
+        config.csv_dir / f"import_apollo_{today}.csv",
+        all_contacts,
+        sheet_name=f"{code} | Import | Apollo People — {today}",
+    )
 
     return all_contacts
 
@@ -1402,20 +1771,55 @@ def step10_import_apollo_csv(config: ProjectConfig, csv_path: str, targets: list
 # ── GetSales Export — contacts without email → LinkedIn outreach CSV ─────────
 
 GETSALES_HEADERS = [
-    "system_uuid", "pipeline_stage", "full_name", "first_name", "last_name",
-    "position", "headline", "about", "linkedin_id", "sales_navigator_id",
-    "linkedin_nickname", "linkedin_url", "facebook_nickname", "twitter_nickname",
-    "work_email", "personal_email", "work_phone", "personal_phone",
-    "connections_number", "followers_number", "primary_language",
-    "has_open_profile", "has_verified_profile", "has_premium",
-    "location_country", "location_state", "location_city",
-    "active_flows", "list_name", "tags",
-    "company_name", "company_industry", "company_linkedin_id", "company_domain",
-    "company_linkedin_url", "company_employees_range", "company_headquarter",
-    "cf_location", "cf_competitor_client",
-    "cf_message1", "cf_message2", "cf_message3",
-    "cf_personalization", "cf_compersonalization", "cf_personalization1",
-    "cf_message4", "cf_linkedin_personalization", "cf_subject", "created_at",
+    "system_uuid",
+    "pipeline_stage",
+    "full_name",
+    "first_name",
+    "last_name",
+    "position",
+    "headline",
+    "about",
+    "linkedin_id",
+    "sales_navigator_id",
+    "linkedin_nickname",
+    "linkedin_url",
+    "facebook_nickname",
+    "twitter_nickname",
+    "work_email",
+    "personal_email",
+    "work_phone",
+    "personal_phone",
+    "connections_number",
+    "followers_number",
+    "primary_language",
+    "has_open_profile",
+    "has_verified_profile",
+    "has_premium",
+    "location_country",
+    "location_state",
+    "location_city",
+    "active_flows",
+    "list_name",
+    "tags",
+    "company_name",
+    "company_industry",
+    "company_linkedin_id",
+    "company_domain",
+    "company_linkedin_url",
+    "company_employees_range",
+    "company_headquarter",
+    "cf_location",
+    "cf_competitor_client",
+    "cf_message1",
+    "cf_message2",
+    "cf_message3",
+    "cf_personalization",
+    "cf_compersonalization",
+    "cf_personalization1",
+    "cf_message4",
+    "cf_linkedin_personalization",
+    "cf_subject",
+    "created_at",
 ]
 
 
@@ -1424,13 +1828,17 @@ def _extract_linkedin_nickname(url: str) -> str:
     return m.group(1) if m else ""
 
 
-def export_getsales(config: ProjectConfig, without_email: list[dict], today: str) -> Path:
+def export_getsales(
+    config: ProjectConfig, without_email: list[dict], today: str
+) -> Path:
     """Convert without-email contacts to GetSales-ready CSV."""
     date_folder = datetime.now().strftime("%d_%m")
     gs_dir = SOFIA_DIR / "get_sales_hub" / date_folder
     gs_dir.mkdir(parents=True, exist_ok=True)
     seg = without_email[0].get("segment", "UNKNOWN") if without_email else "UNKNOWN"
-    out_path = gs_dir / f"GetSales — {seg}_without_email — {date_folder.replace('_', '.')}.csv"
+    out_path = (
+        gs_dir / f"GetSales — {seg}_without_email — {date_folder.replace('_', '.')}.csv"
+    )
     gs_rows = []
     for c in without_email:
         li_url = c.get("linkedin_url", "").strip()
@@ -1442,10 +1850,11 @@ def export_getsales(config: ProjectConfig, without_email: list[dict], today: str
         gs["last_name"] = c.get("last_name", "")
         gs["position"] = c.get("title", "")
         gs["linkedin_nickname"] = _extract_linkedin_nickname(li_url)
+        gs["linkedin_id"] = _extract_linkedin_nickname(li_url)
         gs["linkedin_url"] = li_url
         gs["company_name"] = normalize_company(c.get("company_name", ""))
         gs["company_domain"] = c.get("domain", "")
-        gs["cf_location"] = c.get("country", "")
+        gs["cf_location"] = c.get("company_country", "") or c.get("country", "")
         gs["list_name"] = f"{seg} Without Email {today}"
         gs["tags"] = seg
         gs_rows.append(gs)
@@ -1457,7 +1866,8 @@ def export_getsales(config: ProjectConfig, without_email: list[dict], today: str
     return out_path
 
 
-# ШАГ 11: ПОИСК EMAIL ЧЕРЕЗ FINDYMAIL
+# ══════════════════════════════════════════════════════════════════════════════
+# ШАГ 10: ПОИСК EMAIL ЧЕРЕЗ FINDYMAIL [скрипт → FindyMail API]
 # Для каждого человека с LinkedIn URL — FindyMail ищет рабочий email.
 # Оплата: $0.01 за каждый НАЙДЕННЫЙ email. Ненайденные — бесплатно.
 # Типичный hit rate: 60-80% (из 500 LinkedIn → ~350-400 email).
@@ -1465,7 +1875,9 @@ def export_getsales(config: ProjectConfig, without_email: list[dict], today: str
 #   1) "Verified Emails" — люди с email, готовы к отправке в SmartLead
 #   2) "No Email (LinkedIn only)" — люди без email, можно работать через LinkedIn
 # Оба сохраняются локально и в Google Sheets.
+# Контакты без email → GetSales-ready CSV (sofia/get_sales_hub/{dd_mm}/).
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
     url = linkedin_url.strip()
@@ -1474,14 +1886,21 @@ async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
     try:
         r = await client.post(
             f"{FINDYMAIL_BASE}/api/search/linkedin",
-            headers={"Authorization": f"Bearer {FINDYMAIL_API_KEY}", "Content-Type": "application/json"},
-            json={"linkedin_url": url}, timeout=60.0,
+            headers={
+                "Authorization": f"Bearer {FINDYMAIL_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={"linkedin_url": url},
+            timeout=60.0,
         )
         if r.status_code == 200:
             data = r.json()
             contact = data.get("contact", {})
-            return {"email": data.get("email") or contact.get("email") or "",
-                    "verified": data.get("verified", False) or contact.get("verified", False)}
+            return {
+                "email": data.get("email") or contact.get("email") or "",
+                "verified": data.get("verified", False)
+                or contact.get("verified", False),
+            }
         elif r.status_code == 402:
             raise RuntimeError("OUT_OF_CREDITS")
         return {"email": "", "verified": False}
@@ -1491,15 +1910,19 @@ async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
         return {"email": "", "verified": False}
 
 
-async def step11_findymail(config: ProjectConfig, contacts: list[dict],
-                            max_contacts: int = 1500, force: bool = False) -> list[dict]:
+async def step10_findymail(
+    config: ProjectConfig,
+    contacts: list[dict],
+    max_contacts: int = 1500,
+    force: bool = False,
+) -> list[dict]:
     """FindyMail enrichment. Charges only for found emails."""
     enriched_file = config.state_dir / "enriched.json"
     progress_file = config.state_dir / "findymail_progress.json"
 
-    print(f"\n{'='*60}")
-    print(f"STEP 11: FindyMail Enrichment")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("STEP 10: FINDYMAIL — Email Enrichment")
+    print(f"{'=' * 60}")
 
     if enriched_file.exists() and not force:
         return load_json(enriched_file)
@@ -1536,8 +1959,10 @@ async def step11_findymail(config: ProjectConfig, contacts: list[dict],
             return
         if li in done:
             row["email"] = done[li].get("email", "")
-            if done[li].get("email"): found += 1
-            else: not_found += 1
+            if done[li].get("email"):
+                found += 1
+            else:
+                not_found += 1
             return
         async with sem:
             async with httpx.AsyncClient() as client:
@@ -1550,7 +1975,9 @@ async def step11_findymail(config: ProjectConfig, contacts: list[dict],
             done[li] = res
             if res.get("email"):
                 found += 1
-                print(f"  ✓ {row.get('first_name','')} {row.get('last_name','')} → {res['email']}")
+                print(
+                    f"  ✓ {row.get('first_name', '')} {row.get('last_name', '')} → {res['email']}"
+                )
             else:
                 not_found += 1
 
@@ -1558,81 +1985,106 @@ async def step11_findymail(config: ProjectConfig, contacts: list[dict],
         if out_of_credits:
             print("\n  OUT OF CREDITS")
             break
-        await asyncio.gather(*[process_one(r) for r in to_enrich[i:i+20]])
+        await asyncio.gather(*[process_one(r) for r in to_enrich[i : i + 20]])
         save_json(progress_file, done)
 
     all_enriched = already_have + to_enrich
     save_json(enriched_file, all_enriched)
 
     with_email = [c for c in all_enriched if c.get("email", "").strip()]
-    without_email = [c for c in all_enriched if not c.get("email") and c.get("linkedin_url")]
+    without_email = [
+        c for c in all_enriched if not c.get("email") and c.get("linkedin_url")
+    ]
 
     # Save split files + Google Sheets
     today = tag()
     code = config.project_name[:2].upper()
-    save_csv(config.csv_dir / f"leads_verified_{today}.csv", with_email,
-             sheet_name=f"{code} | Leads | Verified Emails — {today}")
-    save_csv(config.csv_dir / f"leads_no_email_{today}.csv", without_email,
-             sheet_name=f"{code} | Leads | No Email (LinkedIn only) — {today}")
+    save_csv(
+        config.csv_dir / f"leads_verified_{today}.csv",
+        with_email,
+        sheet_name=f"{code} | Leads | Verified Emails — {today}",
+    )
+    save_csv(
+        config.csv_dir / f"leads_no_email_{today}.csv",
+        without_email,
+        sheet_name=f"{code} | Leads | No Email (LinkedIn only) — {today}",
+    )
 
     cost = len(with_email) * 0.01
-    print(f"\n  Done in {time.time()-t0:.0f}s. With email: {len(with_email)}, without: {len(without_email)}")
-    print(f"  FindyMail cost: ${cost:.2f} ({len(with_email)} credits, charged per found email only)")
+    print(
+        f"\n  Done in {time.time() - t0:.0f}s. With email: {len(with_email)}, without: {len(without_email)}"
+    )
+    print(
+        f"  FindyMail cost: ${cost:.2f} ({len(with_email)} credits, charged per found email only)"
+    )
     return all_enriched
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GOD_SEQUENCE — АВТОГЕНЕРАЦИЯ ТЕКСТОВ ПИСЕМ
-# Если для сегмента нет готовых текстов (markdown файл), система сама
-# генерирует 5-шаговую email-секвенцию через GPT-4o, используя:
-#   - ICP проекта (кто наш клиент, что болит)
-#   - Описание продукта (что продаём)
-#   - Стиль коммуникации (как пишем)
-#   - Данные сегмента (должности ЛПР, примеры компаний)
-# Оператор обязательно проверяет сгенерированные тексты перед загрузкой.
-# Приоритет: написанные человеком тексты (markdown) > автогенерация (GPT-4o).
+# ШАГ 11: SEQUENCES [скрипт → GPT-4o / markdown]
+# Загрузка email-секвенций для кампании. Два источника:
+#
+#   Приоритет 1 — Markdown файл (написан человеком)
+#     Путь: sofia/projects/{project}/sequences/{segment}.md
+#     Парсит заголовки (## Step N), subject/body, A/B варианты.
+#
+#   Приоритет 2 — GOD_SEQUENCE (автогенерация через GPT-4o)
+#     Генерирует 5-шаговую email-секвенцию, используя:
+#       - ICP проекта (кто наш клиент, что болит)
+#       - Описание продукта (что продаём)
+#       - Стиль коммуникации (как пишем)
+#       - Данные сегмента (должности ЛПР, примеры компаний)
+#
+# Оператор обязательно проверяет тексты перед загрузкой в SmartLead.
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def god_sequence(config: ProjectConfig, segment_slug: str) -> list[dict] | None:
     """Generate email sequence from project knowledge using GPT-4o.
     Returns list of steps [{subject, body, label}] or None on failure.
     Operator reviews before upload to SmartLead.
     """
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"GOD_SEQUENCE: Generating emails for {segment_slug}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     seg = config.get_segment(segment_slug)
 
     # Gather context from project_knowledge
-    pk_icp = api("get", f"/projects/{config.project_id}/knowledge/icp", raise_on_error=False)
-    pk_outreach = api("get", f"/projects/{config.project_id}/knowledge/outreach", raise_on_error=False)
-    pk_notes = api("get", f"/projects/{config.project_id}/knowledge/notes", raise_on_error=False)
+    pk_icp = api(
+        "get", f"/projects/{config.project_id}/knowledge/icp", raise_on_error=False
+    )
+    pk_outreach = api(
+        "get", f"/projects/{config.project_id}/knowledge/outreach", raise_on_error=False
+    )
+    pk_notes = api(
+        "get", f"/projects/{config.project_id}/knowledge/notes", raise_on_error=False
+    )
 
     icp_context = ""
     if isinstance(pk_icp, list):
         for item in pk_icp:
-            icp_context += f"\n{item.get('title','')}: {item.get('value','')}\n"
+            icp_context += f"\n{item.get('title', '')}: {item.get('value', '')}\n"
     elif isinstance(pk_icp, dict) and not pk_icp.get("_error"):
         icp_context = str(pk_icp.get("value", ""))
 
     outreach_context = ""
     if isinstance(pk_outreach, list):
         for item in pk_outreach:
-            outreach_context += f"\n{item.get('title','')}: {item.get('value','')}\n"
+            outreach_context += f"\n{item.get('title', '')}: {item.get('value', '')}\n"
 
     product_context = ""
     if isinstance(pk_notes, list):
         for item in pk_notes:
-            product_context += f"\n{item.get('title','')}: {item.get('value','')}\n"
+            product_context += f"\n{item.get('title', '')}: {item.get('value', '')}\n"
 
     # Build GPT-4o prompt
     prompt = f"""Generate a 5-step cold email sequence for B2B outreach.
 
 PROJECT: {config.project_name}
-SEGMENT: {seg.get('display_name', segment_slug)}
-SEGMENT DESCRIPTION: {seg.get('description', '')}
-TARGET TITLES: {', '.join(seg.get('titles', []))}
+SEGMENT: {seg.get("display_name", segment_slug)}
+SEGMENT DESCRIPTION: {seg.get("description", "")}
+TARGET TITLES: {", ".join(seg.get("titles", []))}
 SOCIAL PROOF VARIABLE: {{{{social_proof}}}} (will be replaced per recipient's region)
 COMPANY NAME VARIABLE: {{{{company_name}}}}
 FIRST NAME VARIABLE: {{{{first_name}}}}
@@ -1675,19 +2127,23 @@ Return ONLY the JSON array, no explanation."""
     # Call GPT-4o via backend
     try:
         import subprocess
+
         script = (
             'import sys, json, os; sys.path.insert(0, "/app"); os.chdir("/app"); '
-            'from openai import OpenAI; '
+            "from openai import OpenAI; "
             'client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY")); '
             'prompt = json.loads(sys.stdin.read())["prompt"]; '
             'r = client.chat.completions.create(model="gpt-4o", messages=[{"role":"user","content":prompt}], '
-            'temperature=0.7, max_tokens=4000); '
-            'print(r.choices[0].message.content)'
+            "temperature=0.7, max_tokens=4000); "
+            "print(r.choices[0].message.content)"
         )
         payload = json.dumps({"prompt": prompt})
         result = subprocess.run(
             ["docker", "exec", "-i", "leadgen-backend", "python3", "-c", script],
-            input=payload, capture_output=True, text=True, timeout=120,
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
 
         if result.returncode != 0:
@@ -1714,7 +2170,9 @@ Return ONLY the JSON array, no explanation."""
         return None
 
 
-def load_sequences_from_file(config: ProjectConfig, segment_slug: str) -> list[dict] | None:
+def load_sequences_from_file(
+    config: ProjectConfig, segment_slug: str
+) -> list[dict] | None:
     """Load sequences from markdown file (higher priority than GOD_SEQUENCE)."""
     seg = config.get_segment(segment_slug)
     seq_file_path = seg.get("sequence_file", "")
@@ -1728,12 +2186,12 @@ def load_sequences_from_file(config: ProjectConfig, segment_slug: str) -> list[d
             text = full_path.read_text(encoding="utf-8")
             steps = []
             pattern = re.compile(
-                r'## Email (\d+[AB]?) .+?\n\n\*\*Subject:\*\* (.+?)\n\n(.*?)(?=\n---|\n## |\Z)',
-                re.DOTALL
+                r"## Email (\d+[AB]?) .+?\n\n\*\*Subject:\*\* (.+?)\n\n(.*?)(?=\n---|\n## |\Z)",
+                re.DOTALL,
             )
             for m in pattern.finditer(text):
                 label, subject, body = m.group(1), m.group(2), m.group(3).strip()
-                body = re.sub(r'\n`\d+ words`', '', body).strip()
+                body = re.sub(r"\n`\d+ words`", "", body).strip()
                 # SmartLead formatting: \n→<br>, em dash→regular dash
                 body = body.replace("\n\n", "<br><br>").replace("\n", "<br>")
                 body = body.replace("\u2014", "-").replace("\u2013", "-")
@@ -1753,7 +2211,7 @@ def get_sequences(config: ProjectConfig, segment_slug: str) -> list[dict] | None
         return steps
 
     # Priority 2: GOD_SEQUENCE (auto-generated)
-    print(f"  No sequence file found — generating via GOD_SEQUENCE...")
+    print("  No sequence file found — generating via GOD_SEQUENCE...")
     steps = god_sequence(config, segment_slug)
     if steps and _checkpoint("Review generated sequence above. Approve?"):
         # Save generated sequence as markdown for future use
@@ -1761,7 +2219,9 @@ def get_sequences(config: ProjectConfig, segment_slug: str) -> list[dict] | None
         out_path = config.csv_dir / f"generated_sequence_{segment_slug}_{today}.md"
         with out_path.open("w") as f:
             for s in steps:
-                f.write(f"## Email {s['label']}\n\n**Subject:** {s['subject']}\n\n{s['body']}\n\n---\n\n")
+                f.write(
+                    f"## Email {s['label']}\n\n**Subject:** {s['subject']}\n\n{s['body']}\n\n---\n\n"
+                )
         print(f"  Saved to {out_path.name}")
         return steps
 
@@ -1769,28 +2229,37 @@ def get_sequences(config: ProjectConfig, segment_slug: str) -> list[dict] | None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ШАГ 12: ЗАГРУЗКА В SMARTLEAD (с подтверждением каждого подшага)
-# Финальный шаг — подготовка и запуск email-кампании. Подшаги:
-#   12a: Проверка social_proof — показывает распределение по регионам.
-#        "187 лидов: 50 UK, 40 India, 30 MENA..." — оператор проверяет.
-#   12b: Создание кампании — `c-ProjectName_Segment ALL GEO #C`
-#   12c: Привязка email-аккаунтов — проверяет какие аккаунты активны.
-#   12d: Загрузка лидов — email, имя, компания, social_proof (переменная).
-#   12e: Загрузка секвенсов — 5 писем, шаги 1-2 с A/B вариантами.
-#        ⚠ SmartLead API не поддерживает A/B — B варианты добавлять вручную.
-#   12f: Установка расписания — дни, время, интервал между письмами.
-#   Активация — ТОЛЬКО вручную в SmartLead UI. Скрипт НИКОГДА не активирует.
-#        Оператор проверяет всё в UI и нажимает кнопку сам.
+# ШАГ 12: ЗАГРУЗКА В SMARTLEAD [скрипт → SmartLead API]
+# Финальный шаг — подготовка и запуск email-кампании.
+#
+# Что делает (для каждого сегмента отдельно):
+#   1. Проверка social_proof — показывает распределение по регионам.
+#      "187 лидов: 50 UK, 40 India, 30 MENA..." — оператор проверяет.
+#   2. Создание кампании — `c-ProjectName_Segment ALL GEO #C`
+#   3. Привязка email-аккаунтов — проверяет какие аккаунты активны.
+#   4. Загрузка лидов — email, имя, компания, social_proof (переменная).
+#   5. Загрузка секвенций (из шага 11) — subject + body для каждого письма.
+#      ⚠ SmartLead API не поддерживает A/B — B варианты добавлять вручную.
+#   6. Установка расписания — дни, время, интервал между письмами.
+#
+# Активация — ТОЛЬКО вручную в SmartLead UI. Скрипт НИКОГДА не активирует.
+# Оператор проверяет всё в UI и нажимает кнопку сам.
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def sl_params():
     return {"api_key": SMARTLEAD_API_KEY}
 
 
 def create_campaign(name: str) -> int:
-    r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/create", params=sl_params(), json={
-        "name": name,
-    }, timeout=30)
+    r = httpx.post(
+        f"{SMARTLEAD_BASE}/campaigns/create",
+        params=sl_params(),
+        json={
+            "name": name,
+        },
+        timeout=30,
+    )
     r.raise_for_status()
     cid = r.json()["id"]
     print(f"  Created campaign: {cid} — {name}")
@@ -1800,24 +2269,30 @@ def create_campaign(name: str) -> int:
 def upload_leads(campaign_id: int, contacts: list[dict]) -> int:
     leads = []
     for c in contacts:
-        leads.append({
-            "email": c["email"].strip(),
-            "first_name": c.get("first_name", ""),
-            "last_name": c.get("last_name", ""),
-            "company_name": normalize_company(c.get("company_name", "")),
-            "linkedin_profile": c.get("linkedin_url", ""),
-            "custom_fields": {
-                "social_proof": c.get("social_proof", ""),
-                "title": c.get("title", ""),
-                "country": c.get("country", ""),
-                "segment": c.get("segment", ""),
-            },
-        })
+        leads.append(
+            {
+                "email": c["email"].strip(),
+                "first_name": c.get("first_name", ""),
+                "last_name": c.get("last_name", ""),
+                "company_name": normalize_company(c.get("company_name", "")),
+                "linkedin_profile": c.get("linkedin_url", ""),
+                "custom_fields": {
+                    "social_proof": c.get("social_proof", ""),
+                    "title": c.get("title", ""),
+                    "country": c.get("company_country", "") or c.get("country", ""),
+                    "segment": c.get("segment", ""),
+                },
+            }
+        )
     total = 0
     for i in range(0, len(leads), 100):
-        batch = leads[i:i+100]
-        r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{campaign_id}/leads", params=sl_params(),
-                       json={"lead_list": batch}, timeout=60)
+        batch = leads[i : i + 100]
+        r = httpx.post(
+            f"{SMARTLEAD_BASE}/campaigns/{campaign_id}/leads",
+            params=sl_params(),
+            json={"lead_list": batch},
+            timeout=60,
+        )
         if r.status_code == 200:
             data = r.json()
             uploaded = data.get("upload_count", len(batch))
@@ -1828,8 +2303,12 @@ def upload_leads(campaign_id: int, contacts: list[dict]) -> int:
                 print(f"    Batch: +{uploaded}, blocked={blocked}, dupes={dupes}")
         elif r.status_code == 429:
             time.sleep(70)
-            r2 = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{campaign_id}/leads", params=sl_params(),
-                            json={"lead_list": batch}, timeout=60)
+            r2 = httpx.post(
+                f"{SMARTLEAD_BASE}/campaigns/{campaign_id}/leads",
+                params=sl_params(),
+                json={"lead_list": batch},
+                timeout=60,
+            )
             if r2.status_code == 200:
                 total += r2.json().get("upload_count", len(batch))
         else:
@@ -1842,20 +2321,22 @@ def upload_leads(campaign_id: int, contacts: list[dict]) -> int:
 def _show_social_proof_stats(contacts: list[dict], segment: str):
     """Show social_proof distribution for validation before upload."""
     sp_counts = Counter(c.get("social_proof", "NO_PROOF") for c in contacts)
-    country_counts = Counter(c.get("country", "UNKNOWN") for c in contacts)
+    country_counts = Counter(
+        c.get("company_country", "") or c.get("country", "UNKNOWN") for c in contacts
+    )
     print(f"\n  Social proof distribution ({segment}):")
     for sp, cnt in sp_counts.most_common():
         print(f"    {cnt:3d}  {sp}")
-    print(f"  Top countries:")
+    print("  Top countries:")
     for co, cnt in country_counts.most_common(8):
         print(f"    {cnt:3d}  {co}")
 
 
-def step12_upload(config: ProjectConfig, contacts: list[dict]):
+def step12_smartlead(config: ProjectConfig, contacts: list[dict]):
     """SmartLead upload with checkpoints at every step."""
-    print(f"\n{'='*60}")
-    print(f"STEP 12: SmartLead Upload")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("STEP 12: SMARTLEAD — Upload")
+    print(f"{'=' * 60}")
 
     if not SMARTLEAD_API_KEY:
         print("  ERROR: SMARTLEAD_API_KEY not set")
@@ -1889,9 +2370,9 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
                 break
 
         campaign_name = config.get_campaign_name(seg_slug or seg_name, seg_contacts)
-        print(f"\n{'─'*50}")
+        print(f"\n{'─' * 50}")
         print(f"  Campaign: {campaign_name} ({len(seg_contacts)} leads)")
-        print(f"{'─'*50}")
+        print(f"{'─' * 50}")
 
         # ── Social proof validation ──
         _show_social_proof_stats(seg_contacts, seg_name)
@@ -1899,7 +2380,7 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
             print("  Skipping this segment.")
             continue
 
-        # ── 12a: Create campaign ──
+        # ── Create campaign ──
         cid = upload_log.get(seg_name, {}).get("campaign_id")
         if cid:
             print(f"  Campaign already exists: {cid}")
@@ -1907,23 +2388,31 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
             if not _checkpoint(f"Create campaign '{campaign_name}'?"):
                 continue
             cid = create_campaign(campaign_name)
-            upload_log[seg_name] = {"campaign_id": cid, "campaign_name": campaign_name, "at": ts()}
+            upload_log[seg_name] = {
+                "campaign_id": cid,
+                "campaign_name": campaign_name,
+                "at": ts(),
+            }
             save_json(config.state_dir / "upload_log.json", upload_log)
 
-        # ── 12b: Validate & attach email accounts ──
+        # ── Attach email accounts ──
         if not _checkpoint(f"Attach email accounts to '{campaign_name}'?"):
             print("  Skipping email accounts.")
         else:
             active_accounts = config.validate_email_accounts()
             if active_accounts:
-                r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/email-accounts", params=sl_params(),
-                               json={"email_account_ids": active_accounts}, timeout=30)
+                r = httpx.post(
+                    f"{SMARTLEAD_BASE}/campaigns/{cid}/email-accounts",
+                    params=sl_params(),
+                    json={"email_account_ids": active_accounts},
+                    timeout=30,
+                )
                 if r.status_code == 200:
                     print(f"  Attached {len(active_accounts)} email accounts")
                 else:
                     print(f"  ⚠ Email accounts error: {r.status_code} {r.text[:200]}")
 
-        # ── 12c: Upload leads ──
+        # ── Upload leads ──
         if not _checkpoint(f"Upload {len(seg_contacts)} leads to '{campaign_name}'?"):
             print("  Skipping leads upload.")
         else:
@@ -1932,16 +2421,18 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
             upload_log[seg_name]["uploaded_at"] = ts()
             save_json(config.state_dir / "upload_log.json", upload_log)
 
-        # ── 12d: Load and upload sequences ──
+        # ── Upload sequences (from step 11) ──
         sequences = get_sequences(config, seg_slug) if seg_slug else None
         if sequences:
-            if not _checkpoint(f"Upload {len(sequences)} email steps to '{campaign_name}'?"):
+            if not _checkpoint(
+                f"Upload {len(sequences)} email steps to '{campaign_name}'?"
+            ):
                 print("  Skipping sequences.")
             else:
                 # Group A/B variants
                 step_groups = {}
                 for s in sequences:
-                    step_num = re.match(r'(\d+)', s["label"]).group(1)
+                    step_num = re.match(r"(\d+)", s["label"]).group(1)
                     step_groups.setdefault(step_num, []).append(s)
 
                 # Upload all steps at once (variant A only — API limitation)
@@ -1956,21 +2447,29 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
                     # Replace em dash with regular dash for email compatibility
                     subject = subject.replace("\u2014", "-").replace("\u2013", "-")
                     body = body.replace("\u2014", "-").replace("\u2013", "-")
-                    seq_payload.append({
-                        "seq_number": i + 1,
-                        "seq_delay_details": {"delay_in_days": wait_days},
-                        "subject": subject,
-                        "email_body": body,
-                    })
+                    seq_payload.append(
+                        {
+                            "seq_number": i + 1,
+                            "seq_delay_details": {"delay_in_days": wait_days},
+                            "subject": subject,
+                            "email_body": body,
+                        }
+                    )
 
-                r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/sequences",
-                               params=sl_params(), json={"sequences": seq_payload}, timeout=30)
+                r = httpx.post(
+                    f"{SMARTLEAD_BASE}/campaigns/{cid}/sequences",
+                    params=sl_params(),
+                    json={"sequences": seq_payload},
+                    timeout=30,
+                )
                 if r.status_code == 200:
                     print(f"  Sequences uploaded ({len(seq_payload)} steps)")
                     # Report B variants that need manual add
                     for num, variants in sorted(step_groups.items()):
                         if len(variants) > 1:
-                            print(f"    ⚠ Step {num} B variant — add manually in SmartLead UI")
+                            print(
+                                f"    ⚠ Step {num} B variant — add manually in SmartLead UI"
+                            )
                             print(f"      Subject: {variants[1]['subject']}")
                 else:
                     print(f"  ⚠ Sequences error: {r.status_code} {r.text[:200]}")
@@ -1980,13 +2479,17 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
         else:
             print("  ⚠ No sequences — add manually in SmartLead UI.")
 
-        # ── 12e: Set schedule ──
+        # ── Set schedule ──
         if config.schedule:
             if not _checkpoint(f"Set schedule for '{campaign_name}'?"):
                 print("  Skipping schedule.")
             else:
-                r = httpx.post(f"{SMARTLEAD_BASE}/campaigns/{cid}/schedule",
-                               params=sl_params(), json=config.schedule, timeout=30)
+                r = httpx.post(
+                    f"{SMARTLEAD_BASE}/campaigns/{cid}/schedule",
+                    params=sl_params(),
+                    json=config.schedule,
+                    timeout=30,
+                )
                 if r.status_code == 200:
                     tz = config.schedule.get("timezone", "?")
                     start = config.schedule.get("start_hour", "?")
@@ -1995,19 +2498,21 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
                 else:
                     print(f"  ⚠ Schedule error: {r.status_code} {r.text[:200]}")
 
-        # ── 12f: Активация — ТОЛЬКО вручную в SmartLead UI ──
+        # ── Активация — ТОЛЬКО вручную в SmartLead UI ──
         # Скрипт НИКОГДА не активирует кампанию. Это делает оператор
         # в SmartLead после финальной проверки всех настроек.
         print(f"\n  ✓ Campaign '{campaign_name}' готова в DRAFTED статусе.")
-        print(f"  → Активируйте вручную в SmartLead UI после проверки.")
+        print("  → Активируйте вручную в SmartLead UI после проверки.")
 
     # Final summary
-    print(f"\n{'='*60}")
-    print(f"  SUMMARY")
+    print(f"\n{'=' * 60}")
+    print("  SUMMARY")
     for seg, info in upload_log.items():
         seqs = "✅" if info.get("sequences_uploaded") else "❌"
-        print(f"    {info.get('campaign_name', seg)}: {info.get('leads', 0)} leads, sequences={seqs}")
-    print(f"{'='*60}")
+        print(
+            f"    {info.get('campaign_name', seg)}: {info.get('leads', 0)} leads, sequences={seqs}"
+        )
+    print(f"{'=' * 60}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2017,36 +2522,64 @@ def step12_upload(config: ProjectConfig, contacts: list[dict]):
 # похожих компаний. Пример: "найди компании похожие на impact.com и modash.io"
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def mode3_lookalike(config: ProjectConfig, examples: list[str]) -> dict:
     """Build Clay filters by analyzing example companies from DB."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"MODE 3: Lookalike — {len(examples)} examples")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     import subprocess
+
     domains_sql = "','".join(d.strip().lower() for d in examples)
-    sql = (f"SELECT domain, name, matched_segment, country, employee_count "
-           f"FROM discovered_companies WHERE project_id={config.project_id} "
-           f"AND lower(domain) IN ('{domains_sql}')")
+    sql = (
+        f"SELECT domain, name, matched_segment, country, employee_count "
+        f"FROM discovered_companies WHERE project_id={config.project_id} "
+        f"AND lower(domain) IN ('{domains_sql}')"
+    )
     r = subprocess.run(
-        ["docker", "exec", "leadgen-postgres", "psql", "-U", "leadgen",
-         "-d", "leadgen", "-t", "-A", "-F", "|", "-c", sql],
-        capture_output=True, text=True, timeout=15,
+        [
+            "docker",
+            "exec",
+            "leadgen-postgres",
+            "psql",
+            "-U",
+            "leadgen",
+            "-d",
+            "leadgen",
+            "-t",
+            "-A",
+            "-F",
+            "|",
+            "-c",
+            sql,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
 
     companies = []
     for line in r.stdout.strip().split("\n"):
-        if not line.strip(): continue
+        if not line.strip():
+            continue
         parts = line.split("|")
         if len(parts) >= 3:
-            companies.append({
-                "domain": parts[0].strip(), "name": parts[1].strip(),
-                "segment": parts[2].strip(),
-                "country": parts[3].strip() if len(parts) > 3 else "",
-                "employees": parts[4].strip() if len(parts) > 4 else "",
-            })
+            companies.append(
+                {
+                    "domain": parts[0].strip(),
+                    "name": parts[1].strip(),
+                    "segment": parts[2].strip(),
+                    "country": parts[3].strip() if len(parts) > 3 else "",
+                    "employees": parts[4].strip() if len(parts) > 4 else "",
+                }
+            )
 
-    missing = [d for d in examples if d.strip().lower() not in {c["domain"].lower() for c in companies}]
+    missing = [
+        d
+        for d in examples
+        if d.strip().lower() not in {c["domain"].lower() for c in companies}
+    ]
     if missing:
         print(f"  ⚠ Not in DB: {', '.join(missing)}")
     if not companies:
@@ -2056,7 +2589,7 @@ def mode3_lookalike(config: ProjectConfig, examples: list[str]) -> dict:
     # Extract patterns
     segments = Counter(c["segment"] for c in companies if c["segment"])
     countries = Counter(c["country"] for c in companies if c["country"])
-    dominant_segment = segments.most_common(1)[0][0] if segments else "INFLUENCER_PLATFORMS"
+    dominant_segment = segments.most_common(1)[0][0] if segments else "UNKNOWN"
     top_countries = [c for c, _ in countries.most_common(5)] if countries else []
 
     emp_values = [int(c["employees"]) for c in companies if c["employees"].isdigit()]
@@ -2072,8 +2605,13 @@ def mode3_lookalike(config: ProjectConfig, examples: list[str]) -> dict:
 
     filters = {
         "icp_text": icp_text,
-        "industries": ["Computer Software", "Internet", "Marketing and Advertising",
-                        "Information Technology and Services", "Online Media"],
+        "industries": [
+            "Computer Software",
+            "Internet",
+            "Marketing and Advertising",
+            "Information Technology and Services",
+            "Online Media",
+        ],
         "minimum_member_count": max(min_emp, 5),
         "maximum_member_count": min(max_emp, 5000),
         "max_results": 5000,
@@ -2083,7 +2621,9 @@ def mode3_lookalike(config: ProjectConfig, examples: list[str]) -> dict:
 
     print(f"  Segment: {dominant_segment}")
     print(f"  Countries: {', '.join(top_countries) if top_countries else 'global'}")
-    print(f"  Employees: {filters['minimum_member_count']}-{filters['maximum_member_count']}")
+    print(
+        f"  Employees: {filters['minimum_member_count']}-{filters['maximum_member_count']}"
+    )
     return {"segment": dominant_segment, "filters": filters}
 
 
@@ -2094,11 +2634,12 @@ def mode3_lookalike(config: ProjectConfig, examples: list[str]) -> dict:
 # Удобно для масштабирования удачных поисков на новые регионы.
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def mode4_expand(base_run_id: int, overrides: dict) -> dict:
     """Clone filters from an existing run, apply JSON overrides."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"MODE 4: Expand — base run #{base_run_id}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     run = api("get", f"/pipeline/gathering/runs/{base_run_id}")
     base_filters = run.get("filters", {})
@@ -2109,9 +2650,7 @@ def mode4_expand(base_run_id: int, overrides: dict) -> dict:
         sys.exit(1)
 
     new_filters = {**base_filters, **overrides}
-    segment = "INFLUENCER_PLATFORMS"
-    if "agencies" in notes.lower() or "IM_FIRST" in str(base_filters.get("icp_text", "")):
-        segment = "IM_FIRST_AGENCIES"
+    segment = overrides.get("segment", base_filters.get("segment", "UNKNOWN"))
 
     print(f"  Base: {notes}")
     print(f"  Overrides: {json.dumps(overrides, indent=2)}")
@@ -2125,39 +2664,89 @@ def mode4_expand(base_run_id: int, overrides: dict) -> dict:
 # Можно запустить с любого шага: --from-step people (начать с импорта людей)
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEPS = ["start", "blacklist", "prefilter", "scrape", "analyze", "verify",
-         "people", "findymail", "upload"]
+STEPS = [
+    "start",
+    "blacklist",
+    "prefilter",
+    "scrape",
+    "classify",
+    "verify",
+    "export",
+    "people",
+    "findymail",
+    "sequences",
+    "upload",
+]
+
 
 def main():
     p = argparse.ArgumentParser(description="Universal Lead Generation Pipeline")
-    p.add_argument("--project-id", type=int, required=True, help="Project ID from database")
-    p.add_argument("--mode", choices=["natural", "structured", "keywords", "apollo", "lookalike", "expand"],
-                   default="structured", help="Input mode for filter generation")
+    p.add_argument(
+        "--project-id", type=int, required=True, help="Project ID from database"
+    )
+    p.add_argument(
+        "--mode",
+        choices=["natural", "structured", "keywords", "apollo", "lookalike", "expand"],
+        default="structured",
+        help="Input mode for filter generation",
+    )
     p.add_argument("--segment", help="Segment slug (for structured mode)")
-    p.add_argument("--input", dest="input_text", help="Mode 1: natural language description")
-    p.add_argument("--filters", type=json.loads, help="Mode 1: JSON filters from Claude")
+    p.add_argument(
+        "--input", dest="input_text", help="Mode 1: natural language description"
+    )
+    p.add_argument(
+        "--filters", type=json.loads, help="Mode 1: JSON filters from Claude"
+    )
     p.add_argument("--examples", help="Mode 3: comma-separated example domains")
     p.add_argument("--base-run", type=int, help="Mode 4: run ID to clone")
-    p.add_argument("--override", type=json.loads, default={}, help="Mode 4: JSON overrides")
+    p.add_argument(
+        "--override", type=json.loads, default={}, help="Mode 4: JSON overrides"
+    )
     p.add_argument("--from-step", choices=STEPS, default="start")
     p.add_argument("--run-id", type=int, help="Resume existing run")
     p.add_argument("--apollo-csv", help="Apollo People CSV (platforms or single)")
-    p.add_argument("--apollo-csv-agencies", help="Apollo People CSV for agencies segment")
-    p.add_argument("--apollo-profile", help="Puppeteer profile path for Apollo login (--mode apollo)")
+    p.add_argument(
+        "--apollo-csv-agencies", help="Apollo People CSV for agencies segment"
+    )
+    p.add_argument(
+        "--apollo-profile",
+        help="Puppeteer profile path for Apollo login (--mode apollo)",
+    )
     p.add_argument("--max-findymail", type=int, default=1500)
+    p.add_argument(
+        "--filter-file",
+        help="JSON file with company_filters + people_filters + segment",
+    )
     p.add_argument("--prompt-file", help="Custom analysis prompt file")
     p.add_argument("--re-analyze", action="store_true")
     p.add_argument("--force", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
-    print(f"\n{'═'*60}")
+    print(f"\n{'═' * 60}")
     print(f"  Universal Pipeline — {ts()}")
-    print(f"{'═'*60}")
+    print(f"{'═' * 60}")
 
     # Load project config from DB
     config = ProjectConfig(args.project_id)
     config.load()
+
+    # Load filter-file (company_filters + people_filters + segment)
+    filter_file_data = {}
+    if args.filter_file:
+        filter_file_data = json.loads(
+            Path(args.filter_file).read_text(encoding="utf-8")
+        )
+        print(f"  Filter file loaded: {args.filter_file}")
+        if "people_filters" in filter_file_data:
+            print(
+                f"    People filters: {len(filter_file_data['people_filters'].get('titles', []))} titles, "
+                f"{len(filter_file_data['people_filters'].get('seniorities', []))} seniorities"
+            )
+    # Store people_filters on config for step9
+    config.people_filters = filter_file_data.get(
+        "people_filters", DEFAULT_PEOPLE_FILTERS
+    )
 
     # Custom prompt override
     prompt_text = None
@@ -2182,58 +2771,83 @@ def main():
         return
 
     # ── Resolve filters (only for "start" step) ──
-    steps = STEPS[STEPS.index(args.from_step):]
+    steps = STEPS[STEPS.index(args.from_step) :]
     mode_config = None
     needs_filters = "start" in steps
 
     if not needs_filters:
         pass
     elif args.mode == "natural":
-        if not args.filters:
-            print("ERROR: --filters JSON required for --mode natural")
+        natural_filters = filter_file_data.get("company_filters", {})
+        if args.filters:
+            natural_filters.update(args.filters)
+        if not natural_filters:
+            print("ERROR: --filters JSON or --filter-file required for --mode natural")
             sys.exit(1)
-        segment = "INFLUENCER_PLATFORMS"
-        if any(kw in json.dumps(args.filters).lower() for kw in ["agency", "agencies", "im_first", "mcn"]):
-            segment = "IM_FIRST_AGENCIES"
-        mode_config = {"segment": segment, "filters": args.filters}
+        segment = args.segment or filter_file_data.get("segment")
+        if not segment:
+            print("ERROR: --segment required for --mode natural")
+            sys.exit(1)
+        mode_config = {"segment": segment, "filters": natural_filters}
     elif args.mode == "structured":
         if not args.segment:
-            print(f"ERROR: --segment required. Available: {', '.join(config.segments.keys())}")
+            print(
+                f"ERROR: --segment required. Available: {', '.join(config.segments.keys())}"
+            )
             sys.exit(1)
         seg = config.get_segment(args.segment)
         # Build filters from segment data — or use provided ICP
-        mode_config = {"segment": seg["name"], "filters": seg.get("default_filters", {})}
+        mode_config = {
+            "segment": seg["name"],
+            "filters": seg.get("default_filters", {}),
+        }
     elif args.mode == "keywords":
-        if not args.filters:
-            print("ERROR: --filters JSON required for --mode keywords")
+        kw_filters = filter_file_data.get("company_filters", {})
+        if args.filters:
+            kw_filters.update(args.filters)
+        if not kw_filters:
+            print("ERROR: --filters JSON or --filter-file required for --mode keywords")
             print('  Must contain "description_keywords" list.')
-            print('  Example: --filters \'{"description_keywords": ["influencer marketing platform", "creator analytics"], '
-                  '"industries": ["Computer Software"], "max_results": 5000}\'')
+            print(
+                '  Example: --filters \'{"description_keywords": ["keyword1", "keyword2"], '
+                '"industries": ["Computer Software"], "max_results": 5000}\''
+            )
             sys.exit(1)
-        if "description_keywords" not in args.filters:
-            print("ERROR: --filters must contain 'description_keywords' list for --mode keywords")
+        if "description_keywords" not in kw_filters:
+            print(
+                "ERROR: filters must contain 'description_keywords' list for --mode keywords"
+            )
             sys.exit(1)
-        segment = args.segment or "INFLUENCER_PLATFORMS"
-        if any(kw in json.dumps(args.filters).lower() for kw in ["agency", "agencies", "im_first"]):
-            segment = "IM_FIRST_AGENCIES"
-        mode_config = {"segment": segment, "filters": args.filters}
+        segment = args.segment or filter_file_data.get("segment")
+        if not segment:
+            print("ERROR: --segment required for --mode keywords")
+            sys.exit(1)
+        mode_config = {"segment": segment, "filters": kw_filters}
     elif args.mode == "apollo":
-        if not args.filters:
-            print("ERROR: --filters JSON required for --mode apollo")
+        if not args.filters and not filter_file_data.get("company_filters"):
+            print("ERROR: --filters JSON or --filter-file required for --mode apollo")
             print('  Must contain "keyword_tags" and "locations" lists.')
-            print('  Example: --filters \'{"keyword_tags": ["influencer marketing platform"], '
-                  '"locations": ["United Kingdom", "India"], "max_pages": 25}\'')
+            print(
+                '  Example: --filters \'{"keyword_tags": ["keyword1"], '
+                '"locations": ["United States"], "max_pages": 25}\''
+                "\n  Or use: --filter-file path/to/filters.json"
+            )
             sys.exit(1)
-        if "keyword_tags" not in args.filters:
-            print("ERROR: --filters must contain 'keyword_tags' list for --mode apollo")
+        # Merge: --filter-file company_filters as base, --filters as override
+        apollo_filters = filter_file_data.get("company_filters", {})
+        if args.filters:
+            apollo_filters.update(args.filters)
+        if "keyword_tags" not in apollo_filters:
+            print("ERROR: filters must contain 'keyword_tags' list for --mode apollo")
             sys.exit(1)
-        if "locations" not in args.filters:
-            print("ERROR: --filters must contain 'locations' list for --mode apollo")
+        if "locations" not in apollo_filters:
+            print("ERROR: filters must contain 'locations' list for --mode apollo")
             sys.exit(1)
-        segment = args.segment or "INFLUENCER_PLATFORMS"
-        if any(kw in json.dumps(args.filters).lower() for kw in ["agency", "agencies", "im_first"]):
-            segment = "IM_FIRST_AGENCIES"
-        mode_config = {"segment": segment, "filters": args.filters}
+        if not args.segment and not filter_file_data.get("segment"):
+            print("ERROR: --segment required for --mode apollo")
+            sys.exit(1)
+        segment = args.segment or filter_file_data.get("segment")
+        mode_config = {"segment": segment, "filters": apollo_filters}
     elif args.mode == "lookalike":
         if not args.examples:
             print("ERROR: --examples required for --mode lookalike")
@@ -2249,16 +2863,18 @@ def main():
     # Dry run
     if args.dry_run:
         filters = mode_config["filters"] if mode_config else {}
-        print(f"\n  DRY RUN — no API calls")
+        print("\n  DRY RUN — no API calls")
         print(f"  Mode: {args.mode}")
         print(f"  Segment: {mode_config.get('segment', '?') if mode_config else '?'}")
 
         if args.mode == "apollo":
             kw_tags = filters.get("keyword_tags", [])
             locs = filters.get("locations", [])
-            sizes = filters.get("sizes", ["5,50", "51,200", "201,500", "501,1000", "1001,5000"])
+            sizes = filters.get(
+                "sizes", ["5,50", "51,200", "201,500", "501,1000", "1001,5000"]
+            )
             excl = filters.get("excluded_keywords", [])
-            print(f"  Search: Apollo internal API (q_organization_keyword_tags)")
+            print("  Search: Apollo internal API (q_organization_keyword_tags)")
             print(f"  keyword_tags ({len(kw_tags)}):")
             for k in kw_tags:
                 print(f"    - {k}")
@@ -2272,7 +2888,9 @@ def main():
         else:
             has_kw = bool(filters.get("description_keywords"))
             has_icp = bool(filters.get("icp_text"))
-            print(f"  Clay search: {'description_keywords (direct)' if has_kw else 'icp_text (AI-mapped)' if has_icp else '?'}")
+            print(
+                f"  Clay search: {'description_keywords (direct)' if has_kw else 'icp_text (AI-mapped)' if has_icp else '?'}"
+            )
             if has_kw:
                 kw = filters["description_keywords"]
                 print(f"  description_keywords ({len(kw)}):")
@@ -2286,14 +2904,18 @@ def main():
             if has_icp:
                 print(f"  ICP: {filters['icp_text'][:200]}...")
             print(f"  Industries: {filters.get('industries', '?')}")
-            print(f"  Countries: {', '.join(filters.get('country_names', ['ALL GEO']))}")
-            print(f"  Employees: {filters.get('minimum_member_count', '?')}-{filters.get('maximum_member_count', '?')}")
+            print(
+                f"  Countries: {', '.join(filters.get('country_names', ['ALL GEO']))}"
+            )
+            print(
+                f"  Employees: {filters.get('minimum_member_count', '?')}-{filters.get('maximum_member_count', '?')}"
+            )
             print(f"  Max results: {filters.get('max_results', 5000)}")
 
         print(f"  Steps: {' → '.join(steps)}")
         return
 
-    # ── Steps 0-8: Backend gathering API ──
+    # ── Steps 0-5: Gathering + Backend pipeline ──
     if "start" in steps:
         if not mode_config:
             print("ERROR: no filters resolved")
@@ -2301,15 +2923,18 @@ def main():
 
         if args.mode == "apollo":
             # Apollo mode: scrape companies via Puppeteer → feed domains to backend
-            domains = step0_apollo_companies(config, mode_config["filters"],
-                                             apollo_profile=args.apollo_profile)
+            domains = step0_apollo_companies(
+                config, mode_config["filters"], apollo_profile=args.apollo_profile
+            )
             if not domains:
                 print("  ERROR: No domains from Apollo search")
                 sys.exit(1)
 
             seg_name = mode_config.get("segment", "UNKNOWN")
             notes_prefix = f"Apollo Companies API — {seg_name} {len(domains)} domains"
-            if not _checkpoint(f"Feed {len(domains)} Apollo domains into backend pipeline?"):
+            if not _checkpoint(
+                f"Feed {len(domains)} Apollo domains into backend pipeline?"
+            ):
                 sys.exit(0)
 
             run_ids = create_batched_runs(config, domains, "apollo", notes_prefix)
@@ -2318,7 +2943,7 @@ def main():
             # Process all runs through backend pipeline (dedup → blacklist → scrape → classify)
             prompt_text_resolved = prompt_text or config.prompt_text
             for i, rid in enumerate(run_ids):
-                print(f"\n  === Run {i+1}/{len(run_ids)} (#{rid}) ===")
+                print(f"\n  === Run {i + 1}/{len(run_ids)} (#{rid}) ===")
                 process_run_pipeline(config, rid, prompt_text=prompt_text_resolved)
 
             print(f"\n  All {len(run_ids)} runs processed.")
@@ -2328,15 +2953,20 @@ def main():
         else:
             # Clay/other modes: send filters to backend API
             notes = f"{args.mode} — {args.input_text or args.segment or args.examples or f'expand#{args.base_run}'}"
-            run_id = step0_start(config, mode_config["filters"], args.mode, args.input_text, notes)
+            run_id = step0_gather(
+                config, mode_config["filters"], args.mode, args.input_text, notes
+            )
             # Wait for Clay
             print("\n  Waiting for gathering to complete...")
             conn_errors = 0
             while True:
                 time.sleep(15)
                 try:
-                    r = httpx.get(f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
-                                  headers=BACKEND_HEADERS, timeout=30)
+                    r = httpx.get(
+                        f"{BACKEND_BASE}/api/pipeline/gathering/runs/{run_id}",
+                        headers=BACKEND_HEADERS,
+                        timeout=30,
+                    )
                     phase = r.json().get("current_phase", "")
                     if phase != "gather":
                         print(f"  Phase: {phase}")
@@ -2345,53 +2975,73 @@ def main():
                 except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException):
                     conn_errors += 1
                     if conn_errors >= 10:
-                        print(f"  Too many errors. Resume: --from-step blacklist --run-id {run_id}")
+                        print(
+                            f"  Too many errors. Resume: --from-step blacklist --run-id {run_id}"
+                        )
                         sys.exit(1)
                     time.sleep(15)
 
     if "blacklist" in steps and run_id:
-        run_info = api("get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False)
+        run_info = api(
+            "get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False
+        )
         phase = run_info.get("current_phase", "")
         if phase == "awaiting_scope_ok":
-            gates = api("get", f"/pipeline/gathering/approval-gates?project_id={args.project_id}",
-                        raise_on_error=False)
+            gates = api(
+                "get",
+                f"/pipeline/gathering/approval-gates?project_id={args.project_id}",
+                raise_on_error=False,
+            )
             gate_list = gates if isinstance(gates, list) else gates.get("items", [])
-            pending = [g for g in gate_list if g.get("gathering_run_id") == run_id and g.get("status") == "pending"]
+            pending = [
+                g
+                for g in gate_list
+                if g.get("gathering_run_id") == run_id and g.get("status") == "pending"
+            ]
             if pending:
                 gate = pending[0]
-                print(f"\n  ★ CP1 — gate #{gate['id']}, passed={gate.get('scope',{}).get('passed','?')}")
-                print(f"  Pausing. Run with --from-step prefilter --run-id {run_id} after approval.")
+                print(
+                    f"\n  ★ CP1 — gate #{gate['id']}, passed={gate.get('scope', {}).get('passed', '?')}"
+                )
+                print(
+                    f"  Pausing. Run with --from-step prefilter --run-id {run_id} after approval."
+                )
                 return
         elif phase in ("gathered", "gather"):
             cp1 = step2_blacklist(config, run_id)
             if cp1.get("gate_id"):
-                print(f"  Pausing at CP1. Approve then: --from-step prefilter --run-id {run_id}")
+                print(
+                    f"  Pausing at CP1. Approve then: --from-step prefilter --run-id {run_id}"
+                )
                 return
 
     if "prefilter" in steps and run_id:
         step3_prefilter(run_id)
     if "scrape" in steps and run_id:
         step4_scrape(run_id)
-    if "analyze" in steps and run_id:
-        cp2 = step5_analyze(config, run_id, prompt_text)
+    # ── Step 5: Classify ──
+    if "classify" in steps and run_id:
+        cp2 = step5_classify(config, run_id, prompt_text)
         if cp2.get("gate_id"):
-            print(f"\n  ★ PAUSING AT CP2.")
-            print(f"  Step 6: Verify targets with Claude Code in chat.")
-            print(f"  Step 7: If accuracy <90% → adjust prompt → re-analyze:")
+            print("\n  ★ PAUSING AT CP2.")
+            print("  Step 6: Verify targets with Claude Code in chat.")
+            print("  Step 7: If accuracy <90% → adjust prompt → re-classify:")
             print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
-            print(f"  When accuracy ≥90% → approve gate and resume:")
+            print("  When accuracy ≥90% → approve gate and resume:")
             print(f"    --from-step verify --run-id {run_id}")
             return
 
+    # ── Steps 6-7: Verify + Adjust (manual, in chat) ──
     if "verify" in steps and run_id:
-        # Step 6-7 done in chat. Now: approve CP2 gate + export targets.
-        # No blacklist_approved_targets — CRM sync handles this automatically.
         approve_pending_gate(config, run_id)
-        targets = step9_export_targets(config, force=args.force)
+
+    # ── Step 8: Export Targets ──
+    if "export" in steps or "verify" in steps:
+        targets = step8_export_targets(config, force=args.force)
     else:
         targets = load_json(config.state_dir / "targets.json") or []
 
-    # ── Step 8: Apollo People Search ──
+    # ── Step 9: People Search ──
     if "people" in steps:
         if args.apollo_csv:
             all_contacts = []
@@ -2401,8 +3051,13 @@ def main():
                     if "platform" in slug.lower():
                         seg_override = seg_data["name"]
                         break
-            c1 = step10_import_apollo_csv(config, args.apollo_csv, targets, force=args.force,
-                                           segment_override=seg_override)
+            c1 = step9_import_apollo_csv(
+                config,
+                args.apollo_csv,
+                targets,
+                force=args.force,
+                segment_override=seg_override,
+            )
             all_contacts.extend(c1)
             if args.apollo_csv_agencies:
                 agencies_name = None
@@ -2410,38 +3065,54 @@ def main():
                     if "agenc" in slug.lower():
                         agencies_name = seg_data["name"]
                         break
-                c2 = step10_import_apollo_csv(config, args.apollo_csv_agencies, targets, force=True,
-                                               segment_override=agencies_name)
+                c2 = step9_import_apollo_csv(
+                    config,
+                    args.apollo_csv_agencies,
+                    targets,
+                    force=True,
+                    segment_override=agencies_name,
+                )
                 all_contacts.extend(c2)
                 save_json(config.state_dir / "contacts.json", all_contacts)
                 print(f"\n  Combined: {len(all_contacts)} contacts from both segments")
             contacts = all_contacts
         else:
-            contacts = step10_apollo_people_search(config, targets, force=args.force)
+            contacts = step9_people_search(
+                config, targets, force=args.force, apollo_profile=args.apollo_profile
+            )
 
         # CP3: approve FindyMail cost before proceeding
-        with_li = sum(1 for c in contacts if c.get("linkedin_url") and not c.get("email"))
+        with_li = sum(
+            1 for c in contacts if c.get("linkedin_url") and not c.get("email")
+        )
         cost_est = with_li * 0.01
-        print(f"\n  ★ CP3 — FindyMail cost estimate:")
+        print("\n  ★ CP3 — FindyMail cost estimate:")
         print(f"  Contacts to enrich: {with_li}")
         print(f"  Estimated cost: ${cost_est:.2f}")
-        print(f"  PAUSING. Approve cost, then resume:")
+        print("  PAUSING. Approve cost, then resume:")
         print(f"    --from-step findymail --run-id {run_id}")
         return
     else:
-        contacts = load_json(config.state_dir / "contacts.json") or \
-                   load_json(config.state_dir / "enriched.json") or []
+        contacts = (
+            load_json(config.state_dir / "contacts.json")
+            or load_json(config.state_dir / "enriched.json")
+            or []
+        )
 
-    # ── Step 9: FindyMail email enrichment ──
+    # ── Step 10: FindyMail ──
     if "findymail" in steps:
-        contacts = asyncio.run(step11_findymail(config, contacts,
-                                                 max_contacts=args.max_findymail, force=args.force))
+        contacts = asyncio.run(
+            step10_findymail(
+                config, contacts, max_contacts=args.max_findymail, force=args.force
+            )
+        )
     else:
         contacts = load_json(config.state_dir / "enriched.json") or contacts
 
-    # ── Step 10: SmartLead upload ──
-    if "upload" in steps:
-        step12_upload(config, contacts)
+    # ── Steps 11-12: Sequences + SmartLead Upload ──
+    # Sequences are loaded/generated inside step12_smartlead (per segment).
+    if "sequences" in steps or "upload" in steps:
+        step12_smartlead(config, contacts)
 
 
 if __name__ == "__main__":

@@ -1392,14 +1392,59 @@ ANALYSIS FOCUS — answer with EVIDENCE:
         username = (from_user.get("username") or "").lower().strip()
         first_name = from_user.get("first_name", "")
 
-        if not chat_id or not text.startswith("/"):
+        if not chat_id:
+            return
+
+        # Handle quick-reply to an outreach notification (no "/" prefix needed)
+        reply_to = message.get("reply_to_message")
+        if reply_to and text and not text.startswith("/"):
+            try:
+                from app.services.tg_outreach_notif_service import tg_outreach_notif_service
+                reply_msg_id = reply_to.get("message_id")
+                if reply_msg_id:
+                    asyncio.create_task(
+                        tg_outreach_notif_service.handle_quick_reply(chat_id, reply_msg_id, text)
+                    )
+                    return
+            except Exception as e:
+                logger.debug(f"Quick reply handling failed (non-fatal): {e}")
+
+        if not text.startswith("/"):
             return
 
         async with async_session_maker() as session:
+            # TG Outreach notification commands
+            if text.startswith("/tg_"):
+                from app.services.tg_outreach_notif_service import tg_outreach_notif_service
+                cmd = text.split()[0].lower()
+                if cmd == "/tg_settings":
+                    await tg_outreach_notif_service.handle_settings(chat_id)
+                elif cmd == "/tg_mode_all":
+                    await tg_outreach_notif_service.handle_mode_change(chat_id, "all")
+                elif cmd == "/tg_mode_interested":
+                    await tg_outreach_notif_service.handle_mode_change(chat_id, "interested")
+                elif cmd == "/tg_mode_new":
+                    await tg_outreach_notif_service.handle_mode_change(chat_id, "new_only")
+                elif cmd == "/tg_digest_on":
+                    await tg_outreach_notif_service.handle_digest_toggle(chat_id, True)
+                elif cmd == "/tg_digest_off":
+                    await tg_outreach_notif_service.handle_digest_toggle(chat_id, False)
+                elif cmd == "/tg_digest":
+                    await tg_outreach_notif_service.send_daily_digest()
+                elif cmd == "/tg_stop":
+                    await tg_outreach_notif_service.handle_stop(chat_id)
+                return
+
             if text.startswith("/start"):
                 # Parse deep link payload: /start project_22
                 parts = text.split(maxsplit=1)
                 payload = parts[1].strip() if len(parts) > 1 else ""
+
+                # Deep link: /start tg_outreach
+                if payload == "tg_outreach":
+                    from app.services.tg_outreach_notif_service import tg_outreach_notif_service
+                    await tg_outreach_notif_service.handle_start(chat_id, username, first_name)
+                    return
 
                 # Deep link: /start project_<id>
                 if payload.startswith("project_"):

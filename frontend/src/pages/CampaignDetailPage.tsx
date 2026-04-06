@@ -5,6 +5,7 @@ import {
   Plus, Trash2, Save, Upload, Loader2, Play, Pause,
   ChevronLeft, ChevronRight, RefreshCw, Type, BarChart3, X, Search, UserPlus, Check,
   Table2, AlertTriangle, Image, Video, FileText, Mic, Paperclip,
+  Bold, Italic, Code, Clock, Pencil, Send, Bot,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../lib/utils';
@@ -15,6 +16,7 @@ import { telegramOutreachApi } from '../api/telegramOutreach';
 import type {
   TgCampaign, TgSequence, TgSequenceStep, TgStepVariant,
   TgRecipient, TgCampaignStats, TgAccount, MessageType,
+  SegmentFilters, SegmentFilter,
 } from '../api/telegramOutreach';
 
 type Tab = 'recipients' | 'messages' | 'accounts' | 'review';
@@ -242,10 +244,13 @@ interface TabProps {
 function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { campaign: TgCampaign; onUpdate: () => void }) {
   const [form, setForm] = useState({
     name: campaign.name,
+    campaign_type: campaign.campaign_type || 'one_time',
+    segment_filters: (campaign.segment_filters || { logic: 'AND', filters: [] }) as SegmentFilters,
     daily_message_limit: campaign.daily_message_limit ?? '',
     timezone: campaign.timezone,
     send_from_hour: campaign.send_from_hour,
     send_to_hour: campaign.send_to_hour,
+    send_days: campaign.send_days ?? [0, 1, 2, 3, 4, 5, 6],
     link_preview: (campaign as any).link_preview || false,
     silent: (campaign as any).silent || false,
     delete_dialog_after: (campaign as any).delete_dialog_after || false,
@@ -256,6 +261,75 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
   });
   const [saving, setSaving] = useState(false);
   const [newCrmTag, setNewCrmTag] = useState('');
+
+  // Dynamic segment state
+  const [segmentPreview, setSegmentPreview] = useState<{ total: number; contacts: any[] } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [customFields, setCustomFields] = useState<{ id: number; name: string; field_type: string; options_json: string[] }[]>([]);
+
+  useEffect(() => {
+    if (form.campaign_type === 'dynamic') {
+      telegramOutreachApi.listCustomFields().then((data: any) => setCustomFields(data || [])).catch(() => {});
+    }
+  }, [form.campaign_type]);
+
+  const handlePreviewSegment = async () => {
+    setPreviewLoading(true);
+    try {
+      // Save filters first
+      await telegramOutreachApi.updateCampaign(campaign.id, {
+        campaign_type: form.campaign_type,
+        segment_filters: form.segment_filters,
+      });
+      const preview = await telegramOutreachApi.segmentPreview(campaign.id);
+      setSegmentPreview(preview);
+    } catch { toast('Failed to preview segment', 'error'); }
+    finally { setPreviewLoading(false); }
+  };
+
+  const handleSyncSegment = async () => {
+    setSyncing(true);
+    try {
+      const result = await telegramOutreachApi.syncSegment(campaign.id);
+      toast(`Synced: +${result.added} new recipients (total: ${result.total_recipients})`, 'success');
+      onUpdate();
+    } catch { toast('Failed to sync segment', 'error'); }
+    finally { setSyncing(false); }
+  };
+
+  const addFilter = () => {
+    setForm(f => ({
+      ...f,
+      segment_filters: {
+        ...f.segment_filters,
+        filters: [...f.segment_filters.filters, { field: 'status', operator: 'in', value: [] }],
+      },
+    }));
+  };
+
+  const updateFilter = (idx: number, patch: Partial<SegmentFilter>) => {
+    setForm(f => {
+      const filters = [...f.segment_filters.filters];
+      filters[idx] = { ...filters[idx], ...patch };
+      // Reset value when field changes
+      if (patch.field && patch.field !== f.segment_filters.filters[idx].field) {
+        filters[idx].value = patch.field === 'owner' ? '' : [];
+        filters[idx].operator = patch.field === 'owner' ? 'eq' : 'in';
+      }
+      return { ...f, segment_filters: { ...f.segment_filters, filters } };
+    });
+  };
+
+  const removeFilter = (idx: number) => {
+    setForm(f => ({
+      ...f,
+      segment_filters: {
+        ...f.segment_filters,
+        filters: f.segment_filters.filters.filter((_, i) => i !== idx),
+      },
+    }));
+  };
 
   // Accounts management
   const [allAccounts, setAllAccounts] = useState<TgAccount[]>([]);
@@ -287,6 +361,8 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
       else updateData.daily_message_limit = Number(updateData.daily_message_limit);
       if (updateData.crm_status_on_reply === '') updateData.crm_status_on_reply = null;
       if (updateData.crm_owner_on_reply === '') updateData.crm_owner_on_reply = null;
+      // For one_time campaigns, clear segment_filters
+      if (updateData.campaign_type === 'one_time') updateData.segment_filters = null;
 
       await telegramOutreachApi.updateCampaign(campaign.id, updateData);
       await telegramOutreachApi.setCampaignAccounts(campaign.id, Array.from(campaignAccountIds));
@@ -326,6 +402,219 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
         </div>
       </div>
 
+      {/* Campaign Type */}
+      <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
+        <h3 className={cn('text-sm font-semibold mb-1', t.text1)}>Campaign Type</h3>
+        <p className={cn('text-xs mb-4', t.text3)}>One-Time uses a fixed recipient list. Dynamic auto-adds CRM contacts matching your filters.</p>
+
+        <div className="flex gap-2 mb-4">
+          {(['one_time', 'dynamic'] as const).map(ct => (
+            <button key={ct} onClick={() => setForm(f => ({ ...f, campaign_type: ct }))}
+              className={cn('px-4 py-2 rounded-lg text-sm font-medium transition-colors border',
+                form.campaign_type === ct
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : cn('border-gray-200 dark:border-gray-700', t.text2, 'hover:border-indigo-400'))}>
+              {ct === 'one_time' ? 'One-Time' : 'Dynamic (Evergreen)'}
+            </button>
+          ))}
+        </div>
+
+        {form.campaign_type === 'dynamic' && (
+          <div className={cn('rounded-lg border p-4', 'border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/20')}>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className={cn('text-sm font-semibold', t.text1)}>Segment Filters</h4>
+              <div className="flex items-center gap-2">
+                <select value={form.segment_filters.logic}
+                  onChange={e => setForm(f => ({ ...f, segment_filters: { ...f.segment_filters, logic: e.target.value as 'AND' | 'OR' } }))}
+                  className={cn('px-2 py-1 rounded text-xs border', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)}>
+                  <option value="AND">Match ALL (AND)</option>
+                  <option value="OR">Match ANY (OR)</option>
+                </select>
+                <button onClick={addFilter}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                  <Plus className="w-3 h-3" /> Add Filter
+                </button>
+              </div>
+            </div>
+
+            {form.segment_filters.filters.length === 0 && (
+              <p className={cn('text-xs py-3 text-center', t.text3)}>No filters yet. Add a filter to define your target segment.</p>
+            )}
+
+            <div className="space-y-2">
+              {form.segment_filters.filters.map((filter, idx) => {
+                const fieldOptions = [
+                  { value: 'status', label: 'Status' },
+                  { value: 'tags', label: 'Tags' },
+                  { value: 'owner', label: 'Owner' },
+                  ...customFields.map(cf => ({ value: `custom:${cf.id}`, label: cf.name })),
+                ];
+                const isArrayField = ['status', 'tags'].includes(filter.field) || filter.field.startsWith('custom:');
+                const statusOptions = ['cold', 'contacted', 'replied', 'interested', 'qualified', 'meeting_set', 'converted', 'not_interested'];
+
+                // Get custom field info
+                const customField = filter.field.startsWith('custom:')
+                  ? customFields.find(cf => cf.id === parseInt(filter.field.split(':')[1]))
+                  : null;
+
+                return (
+                  <div key={idx} className={cn('flex items-center gap-2 p-2 rounded-lg', isDark ? 'bg-gray-800/50' : 'bg-white')}>
+                    {/* Field selector */}
+                    <select value={filter.field} onChange={e => updateFilter(idx, { field: e.target.value })}
+                      className={cn('px-2 py-1.5 rounded text-xs border w-32', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)}>
+                      {fieldOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+
+                    {/* Operator selector */}
+                    <select value={filter.operator} onChange={e => updateFilter(idx, { operator: e.target.value })}
+                      className={cn('px-2 py-1.5 rounded text-xs border w-28', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)}>
+                      {filter.field === 'tags' ? (
+                        <>
+                          <option value="contains_any">has any of</option>
+                          <option value="contains_all">has all of</option>
+                        </>
+                      ) : filter.field === 'owner' ? (
+                        <>
+                          <option value="eq">equals</option>
+                          <option value="neq">not equals</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="in">is any of</option>
+                          <option value="not_in">is not</option>
+                          {!isArrayField && <option value="eq">equals</option>}
+                        </>
+                      )}
+                    </select>
+
+                    {/* Value input */}
+                    <div className="flex-1">
+                      {filter.field === 'status' ? (
+                        <div className="flex flex-wrap gap-1">
+                          {statusOptions.map(s => {
+                            const vals = Array.isArray(filter.value) ? filter.value : [];
+                            const active = vals.includes(s);
+                            return (
+                              <button key={s} onClick={() => {
+                                const newVal = active ? vals.filter((v: string) => v !== s) : [...vals, s];
+                                updateFilter(idx, { value: newVal });
+                              }}
+                                className={cn('px-2 py-0.5 rounded-full text-xs border transition-colors',
+                                  active ? 'bg-indigo-600 text-white border-indigo-600' : cn('border-gray-200 dark:border-gray-700', t.text3))}>
+                                {s.replace('_', ' ')}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : filter.field === 'tags' ? (
+                        <input type="text" placeholder="tag1, tag2, ..."
+                          value={Array.isArray(filter.value) ? filter.value.join(', ') : ''}
+                          onChange={e => updateFilter(idx, { value: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                          className={cn('w-full px-2 py-1.5 rounded text-xs border', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)} />
+                      ) : filter.field === 'owner' ? (
+                        <input type="text" placeholder="Owner name"
+                          value={typeof filter.value === 'string' ? filter.value : ''}
+                          onChange={e => updateFilter(idx, { value: e.target.value })}
+                          className={cn('w-full px-2 py-1.5 rounded text-xs border', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)} />
+                      ) : customField && (customField.field_type === 'select' || customField.field_type === 'multi_select') ? (
+                        <div className="flex flex-wrap gap-1">
+                          {(customField.options_json || []).map((opt: string) => {
+                            const vals = Array.isArray(filter.value) ? filter.value : [];
+                            const active = vals.includes(opt);
+                            return (
+                              <button key={opt} onClick={() => {
+                                const newVal = active ? vals.filter((v: string) => v !== opt) : [...vals, opt];
+                                updateFilter(idx, { value: newVal });
+                              }}
+                                className={cn('px-2 py-0.5 rounded-full text-xs border transition-colors',
+                                  active ? 'bg-indigo-600 text-white border-indigo-600' : cn('border-gray-200 dark:border-gray-700', t.text3))}>
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <input type="text" placeholder="Value"
+                          value={typeof filter.value === 'string' ? filter.value : (Array.isArray(filter.value) ? filter.value.join(', ') : '')}
+                          onChange={e => updateFilter(idx, { value: e.target.value })}
+                          className={cn('w-full px-2 py-1.5 rounded text-xs border', 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900', t.text1)} />
+                      )}
+                    </div>
+
+                    {/* Remove button */}
+                    <button onClick={() => removeFilter(idx)}
+                      className={cn('p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors', t.text3, 'hover:text-red-500')}>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Preview & Sync buttons */}
+            {form.segment_filters.filters.length > 0 && (
+              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-indigo-200 dark:border-indigo-800">
+                <button onClick={handlePreviewSegment} disabled={previewLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-400 transition-colors">
+                  {previewLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
+                  Preview Segment
+                </button>
+                {campaign.campaign_type === 'dynamic' && (
+                  <button onClick={handleSyncSegment} disabled={syncing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                    {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    Sync Now
+                  </button>
+                )}
+                {segmentPreview && (
+                  <span className={cn('text-xs', t.text2)}>
+                    <strong>{segmentPreview.total}</strong> contacts match
+                  </span>
+                )}
+                {campaign.segment_last_synced_at && (
+                  <span className={cn('text-xs ml-auto', t.text3)}>
+                    Last synced: {new Date(campaign.segment_last_synced_at).toLocaleString()}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Preview results */}
+            {segmentPreview && segmentPreview.contacts.length > 0 && (
+              <div className={cn('mt-3 rounded-lg border overflow-hidden max-h-48 overflow-y-auto', 'border-gray-200 dark:border-gray-700')}>
+                <table className="w-full text-xs">
+                  <thead className={cn('border-b sticky top-0 z-10', isDark ? 'bg-gray-800' : 'bg-gray-50')}>
+                    <tr>
+                      <th className={cn('text-left px-3 py-1.5 font-medium', t.text3)}>Username</th>
+                      <th className={cn('text-left px-3 py-1.5 font-medium', t.text3)}>Name</th>
+                      <th className={cn('text-left px-3 py-1.5 font-medium', t.text3)}>Status</th>
+                      <th className={cn('text-left px-3 py-1.5 font-medium', t.text3)}>Tags</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {segmentPreview.contacts.map(c => (
+                      <tr key={c.id} className={cn('border-b', 'border-gray-100 dark:border-gray-800')}>
+                        <td className={cn('px-3 py-1.5', t.text1)}>@{c.username}</td>
+                        <td className={cn('px-3 py-1.5', t.text2)}>{c.first_name || '—'}</td>
+                        <td className="px-3 py-1.5">
+                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                            {c.status}
+                          </span>
+                        </td>
+                        <td className={cn('px-3 py-1.5', t.text3)}>{(c.tags || []).join(', ') || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {segmentPreview.total > 50 && (
+                  <p className={cn('text-[10px] text-center py-1', t.text3)}>Showing 50 of {segmentPreview.total} matching contacts</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Sending Settings */}
       <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
         <h3 className={cn('text-sm font-semibold mb-4', t.text1)}>Sending Settings</h3>
@@ -352,16 +641,52 @@ function SettingsTab({ campaign, onUpdate, t, toast, isDark }: TabProps & { camp
             </select>
           </div>
           <div>
-            <label className={labelCls}>Send From (hour)</label>
-            <input type="number" min={0} max={23} value={form.send_from_hour}
-                   onChange={e => setForm(f => ({ ...f, send_from_hour: Number(e.target.value) }))}
-                   className={inputCls} />
+            <label className={labelCls}>Send From</label>
+            <select value={form.send_from_hour}
+                    onChange={e => setForm(f => ({ ...f, send_from_hour: Number(e.target.value) }))}
+                    className={inputCls}>
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className={labelCls}>Send To (hour)</label>
-            <input type="number" min={0} max={23} value={form.send_to_hour}
-                   onChange={e => setForm(f => ({ ...f, send_to_hour: Number(e.target.value) }))}
-                   className={inputCls} />
+            <label className={labelCls}>Send To</label>
+            <select value={form.send_to_hour}
+                    onChange={e => setForm(f => ({ ...f, send_to_hour: Number(e.target.value) }))}
+                    className={inputCls}>
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Send Days */}
+        <div className="mt-3">
+          <label className={labelCls}>Send Days</label>
+          <div className="flex gap-1.5 mt-1">
+            {(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const).map((day, idx) => {
+              const active = form.send_days.includes(idx);
+              return (
+                <button key={day} type="button"
+                  onClick={() => setForm(f => ({
+                    ...f,
+                    send_days: active ? f.send_days.filter(d => d !== idx) : [...f.send_days, idx].sort(),
+                  }))}
+                  className={cn(
+                    'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
+                    active
+                      ? 'bg-indigo-500 text-white shadow-sm'
+                      : isDark
+                        ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
+                  )}
+                >
+                  {day}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -592,6 +917,22 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
 
   useEffect(() => { loadSequence(); }, [loadSequence]);
 
+  // Per-step statistics
+  const [stepStats, setStepStats] = useState<{
+    steps: { step_order: number; step_id: number; delay_days: number; sent: number; read: number; replied: number }[];
+    totals: { sent: number; read: number; replied: number; total_recipients: number };
+  } | null>(null);
+  const [expandedStepIdx, setExpandedStepIdx] = useState<number | null>(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await telegramOutreachApi.getCampaignStepStats(campaignId);
+        setStepStats(data);
+      } catch { /* ok */ }
+    })();
+  }, [campaignId]);
+
   const handleSave = async () => {
     if (!sequence) return;
     setSaving(true);
@@ -689,6 +1030,26 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
     }, 0);
   };
 
+  // ── Formatting helpers ───────────────────────────────────────────
+  const applyFormat = (stepIdx: number, varIdx: number, prefix: string, suffix: string) => {
+    const el = document.getElementById(`seq-${stepIdx}-${varIdx}`) as HTMLTextAreaElement | null;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const currentText = sequence?.steps[stepIdx]?.variants[varIdx]?.message_text || '';
+    const selected = currentText.substring(start, end);
+    const newText = currentText.substring(0, start) + prefix + (selected || 'text') + suffix + currentText.substring(end);
+    updateVariant(stepIdx, varIdx, { message_text: newText });
+    setTimeout(() => {
+      el.focus();
+      if (selected) {
+        el.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
+      } else {
+        el.setSelectionRange(start + prefix.length, start + prefix.length + 4);
+      }
+    }, 0);
+  };
+
   // ── { Variable insertion popup ────────────────────────────────────
   const [varPopup, setVarPopup] = useState<{
     stepIdx: number; varIdx: number; triggerPos: number; selectedIdx: number; filter: string;
@@ -768,8 +1129,9 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
   }
 
   return (
-    <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className={cn('text-sm font-semibold', t.text1)}>Message Sequence</h3>
           <p className={cn('text-xs mt-0.5', t.text3)}>
@@ -778,11 +1140,12 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
         </div>
         <div className="flex items-center gap-2">
           <button onClick={addStep}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
             <Plus className="w-3.5 h-3.5" /> Add Step
           </button>
           <button onClick={handleSave} disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                  className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50',
+                    'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800', t.text1)}>
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             Save
           </button>
@@ -790,229 +1153,308 @@ function SequenceTab({ campaignId, t, toast, isDark }: TabProps & { campaignId: 
       </div>
 
       {(!sequence || sequence.steps.length === 0) ? (
-        <div className={cn('text-center py-12 rounded-lg border', 'border-gray-200 dark:border-gray-700')}>
-          <ListOrdered className={cn('w-10 h-10 mx-auto mb-3', t.text3)} />
-          <p className={cn('text-sm', t.text3)}>No steps yet. Add your first message step.</p>
+        <div className={cn('text-center py-16 rounded-xl border-2 border-dashed', 'border-gray-200 dark:border-gray-700')}>
+          <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-3">
+            <ListOrdered className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <p className={cn('text-sm font-medium', t.text1)}>No steps yet</p>
+          <p className={cn('text-xs mt-1', t.text3)}>Add your first message step to start the sequence.</p>
           <button onClick={addStep}
-                  className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                  className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700">
             <Plus className="w-4 h-4 inline mr-1" /> Add Step
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          {sequence.steps.map((step, stepIdx) => (
-            <div key={stepIdx} className={cn('rounded-lg border', 'border-gray-200 dark:border-gray-700')}>
-              {/* Step Header */}
-              <div className={cn('flex items-center justify-between px-4 py-3 border-b', 'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-800/50' : 'bg-gray-50')}>
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400 text-xs font-bold">
-                    {step.step_order}
-                  </span>
-                  <span className={cn('text-sm font-medium', t.text1)}>
-                    {stepIdx === 0 ? 'Initial Message' : `Follow-up ${stepIdx}`}
-                  </span>
-                  {stepIdx > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <span className={cn('text-xs', t.text3)}>after</span>
-                      <input type="number" min={0} value={step.delay_days}
-                             onChange={e => updateStep(stepIdx, { delay_days: Number(e.target.value) })}
-                             className={cn('w-14 px-2 py-1 rounded border text-xs text-center', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)} />
-                      <span className={cn('text-xs', t.text3)}>days</span>
-                    </div>
-                  )}
-                  <select value={step.message_type || 'text'}
-                          onChange={e => updateStep(stepIdx, { message_type: e.target.value as MessageType })}
-                          className={cn('text-xs px-2 py-1 rounded border', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}>
-                    <option value="text">Text</option>
-                    <option value="image">Image</option>
-                    <option value="video">Video</option>
-                    <option value="document">Document</option>
-                    <option value="voice">Voice</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  {step.variants.length < 5 && (
-                    <button onClick={() => addVariant(stepIdx)}
-                            className={cn('text-xs px-2 py-1 rounded border hover:bg-gray-100 dark:hover:bg-gray-800', 'border-gray-200 dark:border-gray-700', t.text3)}>
-                      + A/B Variant
-                    </button>
-                  )}
-                  <button onClick={() => removeStep(stepIdx)}
-                          className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
-                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                  </button>
-                </div>
-              </div>
+        <div className="relative">
+          {/* Vertical timeline line */}
+          {sequence.steps.length > 1 && (
+            <div className="absolute left-[15px] top-6 bottom-6 w-0.5 bg-emerald-200 dark:bg-emerald-800/50" />
+          )}
 
-              {/* Variants */}
-              <div className="p-4 space-y-3">
-                {step.variants.map((variant, varIdx) => (
-                  <div key={varIdx} className="space-y-2">
-                    {step.variants.length > 1 && (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded',
-                            varIdx === 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                          )}>
-                            Variant {variant.variant_label}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <input type="number" min={1} max={99} value={variant.weight_percent}
-                                   onChange={e => updateVariant(stepIdx, varIdx, { weight_percent: Number(e.target.value) })}
-                                   className={cn('w-12 px-1.5 py-0.5 rounded border text-xs text-center', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)} />
-                            <span className={cn('text-xs', t.text3)}>%</span>
-                          </div>
-                        </div>
+          <div className="space-y-3">
+            {sequence.steps.map((step, stepIdx) => {
+              const isExpanded = expandedStepIdx === stepIdx;
+              const stats = stepStats?.steps?.find(s => s.step_order === step.step_order);
+              const previewText = step.variants[0]?.message_text || '';
+              const stepLabel = stepIdx === 0
+                ? `Send ${step.message_type || 'text'}`
+                : `Wait ${step.delay_days} day${step.delay_days !== 1 ? 's' : ''} \u00b7 Send ${step.message_type || 'text'}`;
+
+              return (
+                <div key={stepIdx} className="relative pl-10">
+                  {/* Green circle marker */}
+                  <div className={cn(
+                    'absolute left-0 top-3.5 w-[30px] h-[30px] rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm transition-all',
+                    isExpanded
+                      ? 'bg-emerald-500 text-white ring-4 ring-emerald-100 dark:ring-emerald-900/40'
+                      : 'bg-emerald-500 text-white'
+                  )}>
+                    {step.step_order}
+                  </div>
+
+                  {/* Step Card */}
+                  <div className={cn(
+                    'rounded-xl border transition-all',
+                    isExpanded ? 'shadow-md border-emerald-200 dark:border-emerald-800/50' : 'shadow-sm border-gray-200 dark:border-gray-700 hover:shadow-md',
+                    'bg-white dark:bg-gray-900'
+                  )}>
+                    {/* Collapsed header — always visible */}
+                    <div
+                      className={cn('flex items-center justify-between px-4 py-3 cursor-pointer select-none rounded-xl transition-colors',
+                        !isExpanded && 'hover:bg-gray-50/50 dark:hover:bg-gray-800/30')}
+                      onClick={() => setExpandedStepIdx(isExpanded ? null : stepIdx)}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <span className={cn('text-sm font-medium', t.text1)}>{stepLabel}</span>
                         {step.variants.length > 1 && (
-                          <button onClick={() => removeVariant(stepIdx, varIdx)}
-                                  className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
-                            <Trash2 className="w-3 h-3 text-red-400" />
-                          </button>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 font-medium shrink-0">
+                            {step.variants.length} variants
+                          </span>
                         )}
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {stats && (stats.sent > 0 || stats.read > 0 || stats.replied > 0) && (
+                          <div className="flex items-center gap-2.5 text-[11px]">
+                            <span className={t.text3}>Sent <span className={cn('font-semibold', t.text2)}>{stats.sent}</span></span>
+                            <span className={t.text3}>Read <span className={cn('font-semibold', t.text2)}>{stats.read}</span></span>
+                            <span className={t.text3}>Replied <span className="font-semibold text-emerald-600 dark:text-emerald-400">{stats.replied}</span></span>
+                          </div>
+                        )}
+                        <Pencil className={cn('w-3.5 h-3.5 transition-colors', isExpanded ? 'text-emerald-500' : t.text3)} />
+                      </div>
+                    </div>
+
+                    {/* Preview when collapsed */}
+                    {!isExpanded && previewText && (
+                      <div className="px-4 pb-3 -mt-1">
+                        <p className={cn('text-xs leading-relaxed line-clamp-2', t.text3)}>
+                          {previewText.length > 150 ? previewText.slice(0, 150) + '\u2026' : previewText}
+                        </p>
                       </div>
                     )}
 
-                    {/* Media upload for non-text steps */}
-                    {(step.message_type || 'text') !== 'text' && (
-                      <div className={cn('flex items-center gap-3 p-3 rounded-lg border border-dashed', 'border-gray-300 dark:border-gray-600', isDark ? 'bg-gray-800/30' : 'bg-gray-50/50')}>
-                        {variant.media_file_path ? (
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            {step.message_type === 'image' && <Image className="w-4 h-4 text-blue-500 shrink-0" />}
-                            {step.message_type === 'video' && <Video className="w-4 h-4 text-purple-500 shrink-0" />}
-                            {step.message_type === 'document' && <FileText className="w-4 h-4 text-orange-500 shrink-0" />}
-                            {step.message_type === 'voice' && <Mic className="w-4 h-4 text-green-500 shrink-0" />}
-                            <span className={cn('text-xs truncate', t.text2)}>{variant.media_file_path.split('/').pop()}</span>
-                            <button onClick={() => updateVariant(stepIdx, varIdx, { media_file_path: null })}
-                                    className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded shrink-0">
-                              <X className="w-3 h-3 text-red-400" />
+                    {/* ── Expanded editor ─────────────────────────── */}
+                    {isExpanded && (
+                      <div className={cn('border-t px-4 py-4 space-y-4', 'border-gray-100 dark:border-gray-800')}>
+                        {/* Step settings row */}
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {stepIdx > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <Clock className={cn('w-3.5 h-3.5', t.text3)} />
+                              <span className={cn('text-xs', t.text3)}>Wait</span>
+                              <input type="number" min={0} value={step.delay_days}
+                                     onChange={e => updateStep(stepIdx, { delay_days: Number(e.target.value) })}
+                                     className={cn('w-14 px-2 py-1 rounded-lg border text-xs text-center', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)} />
+                              <span className={cn('text-xs', t.text3)}>days</span>
+                            </div>
+                          )}
+                          <select value={step.message_type || 'text'}
+                                  onChange={e => updateStep(stepIdx, { message_type: e.target.value as MessageType })}
+                                  className={cn('text-xs px-2.5 py-1.5 rounded-lg border', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)}>
+                            <option value="text">Text</option>
+                            <option value="image">Image</option>
+                            <option value="video">Video</option>
+                            <option value="document">Document</option>
+                            <option value="voice">Voice</option>
+                          </select>
+                          <div className="ml-auto flex items-center gap-2">
+                            {step.variants.length < 5 && (
+                              <button onClick={() => addVariant(stepIdx)}
+                                      className={cn('text-xs px-2.5 py-1 rounded-lg border font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors', 'border-gray-200 dark:border-gray-700', t.text2)}>
+                                + A/B Variant
+                              </button>
+                            )}
+                            <button onClick={() => removeStep(stepIdx)}
+                                    className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                              <Trash2 className="w-3.5 h-3.5 text-red-400" />
                             </button>
                           </div>
-                        ) : (
-                          <label className="flex items-center gap-2 cursor-pointer flex-1">
-                            <Paperclip className={cn('w-4 h-4', t.text3)} />
-                            <span className={cn('text-xs', t.text3)}>
-                              Upload {step.message_type === 'voice' ? 'voice message (.ogg)' : step.message_type}
-                            </span>
-                            <input type="file" className="hidden"
-                                   accept={step.message_type === 'image' ? 'image/*' : step.message_type === 'video' ? 'video/*' : step.message_type === 'voice' ? 'audio/ogg,audio/*' : '*/*'}
-                                   onChange={async (e) => {
-                                     const f = e.target.files?.[0];
-                                     if (!f || !campaignId) return;
-                                     try {
-                                       const res = await telegramOutreachApi.uploadMedia(Number(campaignId), f);
-                                       updateVariant(stepIdx, varIdx, { media_file_path: res.file_path });
-                                       toast('File uploaded', 'success');
-                                     } catch { toast('Upload failed', 'error'); }
-                                   }} />
-                          </label>
-                        )}
+                        </div>
+
+                        {/* Variants */}
+                        {step.variants.map((variant, varIdx) => (
+                          <div key={varIdx} className={cn('space-y-2.5', step.variants.length > 1 && 'p-3 rounded-lg border border-gray-100 dark:border-gray-800')}>
+                            {/* Variant header */}
+                            {step.variants.length > 1 && (
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full',
+                                    varIdx === 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                    : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                  )}>
+                                    Variant {variant.variant_label}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <input type="number" min={1} max={99} value={variant.weight_percent}
+                                           onChange={e => updateVariant(stepIdx, varIdx, { weight_percent: Number(e.target.value) })}
+                                           className={cn('w-12 px-1.5 py-0.5 rounded border text-xs text-center', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1)} />
+                                    <span className={cn('text-xs', t.text3)}>%</span>
+                                  </div>
+                                </div>
+                                <button onClick={() => removeVariant(stepIdx, varIdx)}
+                                        className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
+                                  <Trash2 className="w-3 h-3 text-red-400" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Media upload for non-text steps */}
+                            {(step.message_type || 'text') !== 'text' && (
+                              <div className={cn('flex items-center gap-3 p-3 rounded-lg border border-dashed', 'border-gray-300 dark:border-gray-600', isDark ? 'bg-gray-800/30' : 'bg-gray-50/50')}>
+                                {variant.media_file_path ? (
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    {step.message_type === 'image' && <Image className="w-4 h-4 text-blue-500 shrink-0" />}
+                                    {step.message_type === 'video' && <Video className="w-4 h-4 text-purple-500 shrink-0" />}
+                                    {step.message_type === 'document' && <FileText className="w-4 h-4 text-orange-500 shrink-0" />}
+                                    {step.message_type === 'voice' && <Mic className="w-4 h-4 text-green-500 shrink-0" />}
+                                    <span className={cn('text-xs truncate', t.text2)}>{variant.media_file_path.split('/').pop()}</span>
+                                    <button onClick={() => updateVariant(stepIdx, varIdx, { media_file_path: null })}
+                                            className="p-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded shrink-0">
+                                      <X className="w-3 h-3 text-red-400" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="flex items-center gap-2 cursor-pointer flex-1">
+                                    <Paperclip className={cn('w-4 h-4', t.text3)} />
+                                    <span className={cn('text-xs', t.text3)}>
+                                      Upload {step.message_type === 'voice' ? 'voice message (.ogg)' : step.message_type}
+                                    </span>
+                                    <input type="file" className="hidden"
+                                           accept={step.message_type === 'image' ? 'image/*' : step.message_type === 'video' ? 'video/*' : step.message_type === 'voice' ? 'audio/ogg,audio/*' : '*/*'}
+                                           onChange={async (e) => {
+                                             const f = e.target.files?.[0];
+                                             if (!f || !campaignId) return;
+                                             try {
+                                               const res = await telegramOutreachApi.uploadMedia(Number(campaignId), f);
+                                               updateVariant(stepIdx, varIdx, { media_file_path: res.file_path });
+                                               toast('File uploaded', 'success');
+                                             } catch { toast('Upload failed', 'error'); }
+                                           }} />
+                                  </label>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Formatting toolbar + Variable buttons */}
+                            {(step.message_type || 'text') !== 'voice' && (
+                              <div className={cn('flex items-center gap-1 flex-wrap', 'border-b pb-2 border-gray-100 dark:border-gray-800')}>
+                                <button onClick={() => applyFormat(stepIdx, varIdx, '**', '**')} title="Bold (Telegram markdown)"
+                                        className={cn('p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors', t.text3, 'hover:text-gray-700 dark:hover:text-gray-200')}>
+                                  <Bold className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => applyFormat(stepIdx, varIdx, '__', '__')} title="Italic (Telegram markdown)"
+                                        className={cn('p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors', t.text3, 'hover:text-gray-700 dark:hover:text-gray-200')}>
+                                  <Italic className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => applyFormat(stepIdx, varIdx, '`', '`')} title="Code (Telegram markdown)"
+                                        className={cn('p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors', t.text3, 'hover:text-gray-700 dark:hover:text-gray-200')}>
+                                  <Code className="w-3.5 h-3.5" />
+                                </button>
+                                <div className={cn('w-px h-4 mx-0.5', 'bg-gray-200 dark:bg-gray-700')} />
+                                {['first_name', 'company_name', 'username', ...customVars].map(v => (
+                                  <button key={v} onClick={() => insertVariable(stepIdx, varIdx, v)}
+                                          className={cn('text-[11px] px-1.5 py-0.5 rounded border font-mono hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors',
+                                            'border-gray-200 dark:border-gray-700',
+                                            customVars.includes(v) ? 'text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800' : t.text3)}>
+                                    {`{{${v}}}`}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Message textarea with { variable popup */}
+                            <div className="relative">
+                              <textarea
+                                id={`seq-${stepIdx}-${varIdx}`}
+                                rows={step.message_type === 'voice' ? 1 : 5}
+                                value={variant.message_text}
+                                onChange={e => handleSeqChange(e, stepIdx, varIdx)}
+                                onKeyDown={e => handleSeqKeyDown(e, stepIdx, varIdx)}
+                                placeholder={step.message_type === 'voice' ? 'Voice messages have no text caption' : (step.message_type || 'text') !== 'text' ? 'Caption (optional)... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables' : 'Type your message... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables'}
+                                className={cn('w-full px-3 py-2 rounded-lg border text-sm font-mono leading-relaxed resize-y', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1, step.message_type === 'voice' && 'hidden')}
+                              />
+                              {varPopup?.stepIdx === stepIdx && varPopup?.varIdx === varIdx && popupItems.length > 0 && (() => {
+                                const sysItems = popupItems.filter(i => i.section === 'system' && i.type === 'var');
+                                const spxItem = popupItems.find(i => i.type === 'spintax');
+                                const csvItems = popupItems.filter(i => i.section === 'csv');
+                                return (
+                                  <div ref={varPopupRef}
+                                       className={cn('absolute z-50 left-0 w-72 bottom-full mb-1 rounded-lg border shadow-lg overflow-hidden max-h-64 overflow-y-auto',
+                                         'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-900' : 'bg-white')}>
+                                    {sysItems.length > 0 && (
+                                      <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold',
+                                        isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
+                                        Variables
+                                      </div>
+                                    )}
+                                    {sysItems.map(item => {
+                                      const gi = popupItems.indexOf(item);
+                                      return (
+                                        <button key={item.name}
+                                                onClick={() => selectPopupItem(item)}
+                                                onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
+                                                className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
+                                                  varPopup.selectedIdx === gi
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                                    : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
+                                          <span className="font-mono text-xs opacity-40">{'{{'}</span>
+                                          <span>{item.label}</span>
+                                          <span className="font-mono text-xs opacity-40">{'}}'}</span>
+                                        </button>
+                                      );
+                                    })}
+                                    {spxItem && (() => {
+                                      const gi = popupItems.indexOf(spxItem);
+                                      return (
+                                        <button onClick={() => selectPopupItem(spxItem)}
+                                                onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
+                                                className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 border-t',
+                                                  'border-gray-100 dark:border-gray-800',
+                                                  varPopup.selectedIdx === gi
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                                    : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
+                                          <Type className="w-3.5 h-3.5 opacity-50" />
+                                          <span>Random text</span>
+                                          <span className={cn('text-xs ml-auto', t.text3)}>Spintax</span>
+                                        </button>
+                                      );
+                                    })()}
+                                    {csvItems.length > 0 && (
+                                      <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold border-t',
+                                        'border-gray-100 dark:border-gray-800',
+                                        isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
+                                        CSV Columns
+                                      </div>
+                                    )}
+                                    {csvItems.map(item => {
+                                      const gi = popupItems.indexOf(item);
+                                      return (
+                                        <button key={item.name}
+                                                onClick={() => selectPopupItem(item)}
+                                                onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
+                                                className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
+                                                  varPopup.selectedIdx === gi
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                                    : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
+                                          <span className="font-mono text-xs text-indigo-500">{'{{'}</span>
+                                          <span>{item.label}</span>
+                                          <span className="font-mono text-xs text-indigo-500">{'}}'}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
-
-                    {/* Variable Insert Buttons */}
-                    {(step.message_type || 'text') !== 'voice' && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={cn('text-xs', t.text3)}>Insert:</span>
-                      {['first_name', 'company_name', 'username', ...customVars].map(v => (
-                        <button key={v} onClick={() => insertVariable(stepIdx, varIdx, v)}
-                                className={cn('text-xs px-1.5 py-0.5 rounded border hover:bg-gray-100 dark:hover:bg-gray-800 font-mono', 'border-gray-200 dark:border-gray-700',
-                                  customVars.includes(v) ? 'text-indigo-600 dark:text-indigo-400 border-indigo-300 dark:border-indigo-700' : t.text3)}>
-                          {`{{${v}}}`}
-                        </button>
-                      ))}
-                    </div>
-                    )}
-
-                    {/* Message textarea with { variable popup */}
-                    <div className="relative">
-                      <textarea
-                        id={`seq-${stepIdx}-${varIdx}`}
-                        rows={step.message_type === 'voice' ? 1 : 5}
-                        value={variant.message_text}
-                        onChange={e => handleSeqChange(e, stepIdx, varIdx)}
-                        onKeyDown={e => handleSeqKeyDown(e, stepIdx, varIdx)}
-                        placeholder={step.message_type === 'voice' ? 'Voice messages have no text caption' : (step.message_type || 'text') !== 'text' ? 'Caption (optional)... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables' : 'Type your message... Use {Hi|Hello|Hey} for spintax and {{first_name}} for variables'}
-                        className={cn('w-full px-3 py-2 rounded-lg border text-sm font-mono leading-relaxed resize-y', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1, step.message_type === 'voice' && 'hidden')}
-                      />
-                      {varPopup?.stepIdx === stepIdx && varPopup?.varIdx === varIdx && popupItems.length > 0 && (() => {
-                        const sysItems = popupItems.filter(i => i.section === 'system' && i.type === 'var');
-                        const spxItem = popupItems.find(i => i.type === 'spintax');
-                        const csvItems = popupItems.filter(i => i.section === 'csv');
-                        return (
-                          <div ref={varPopupRef}
-                               className={cn('absolute z-50 left-0 w-72 bottom-full mb-1 rounded-lg border shadow-lg overflow-hidden max-h-64 overflow-y-auto',
-                                 'border-gray-200 dark:border-gray-700', isDark ? 'bg-gray-900' : 'bg-white')}>
-                            {sysItems.length > 0 && (
-                              <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold',
-                                isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
-                                Variables
-                              </div>
-                            )}
-                            {sysItems.map(item => {
-                              const gi = popupItems.indexOf(item);
-                              return (
-                                <button key={item.name}
-                                        onClick={() => selectPopupItem(item)}
-                                        onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
-                                        className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
-                                          varPopup.selectedIdx === gi
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                                            : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
-                                  <span className="font-mono text-xs opacity-40">{'{{'}</span>
-                                  <span>{item.label}</span>
-                                  <span className="font-mono text-xs opacity-40">{'}}'}</span>
-                                </button>
-                              );
-                            })}
-                            {spxItem && (() => {
-                              const gi = popupItems.indexOf(spxItem);
-                              return (
-                                <button onClick={() => selectPopupItem(spxItem)}
-                                        onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
-                                        className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 border-t',
-                                          'border-gray-100 dark:border-gray-800',
-                                          varPopup.selectedIdx === gi
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                                            : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
-                                  <Type className="w-3.5 h-3.5 opacity-50" />
-                                  <span>Random text</span>
-                                  <span className={cn('text-xs ml-auto', t.text3)}>Spintax</span>
-                                </button>
-                              );
-                            })()}
-                            {csvItems.length > 0 && (
-                              <div className={cn('px-3 py-1 text-[10px] uppercase tracking-wider font-semibold border-t',
-                                'border-gray-100 dark:border-gray-800',
-                                isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-50 text-gray-400')}>
-                                CSV Columns
-                              </div>
-                            )}
-                            {csvItems.map(item => {
-                              const gi = popupItems.indexOf(item);
-                              return (
-                                <button key={item.name}
-                                        onClick={() => selectPopupItem(item)}
-                                        onMouseEnter={() => setVarPopup(p => p ? { ...p, selectedIdx: gi } : null)}
-                                        className={cn('w-full text-left px-3 py-1.5 text-sm flex items-center gap-2',
-                                          varPopup.selectedIdx === gi
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                                            : cn('hover:bg-gray-50 dark:hover:bg-gray-800', t.text1))}>
-                                  <span className="font-mono text-xs text-indigo-500">{'{{'}</span>
-                                  <span>{item.label}</span>
-                                  <span className="font-mono text-xs text-indigo-500">{'}}'}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -2033,11 +2475,12 @@ function TimelineTab({ campaignId, t: _t, toast }: TabProps & { campaignId: numb
                       {cell.status !== 'pending' && (
                         <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block">
                           <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
-                            {cell.sent_at && <div>Sent: {formatTimelineDate(cell.sent_at)}</div>}
+                            {cell.status === 'scheduled' && cell.sent_at && <div>Scheduled: {formatTimelineDate(cell.sent_at)}</div>}
+                            {cell.status === 'failed' && cell.sent_at && <div>Failed: {formatTimelineDate(cell.sent_at)}</div>}
+                            {cell.status !== 'scheduled' && cell.status !== 'failed' && cell.sent_at && <div>Sent: {formatTimelineDate(cell.sent_at)}</div>}
                             {cell.read_at && <div>Read: {formatTimelineDate(cell.read_at)}</div>}
                             {cell.replied_at && <div>Replied: {formatTimelineDate(cell.replied_at)}</div>}
                             {cell.error_message && <div className="text-red-300">Error: {cell.error_message}</div>}
-                            {cell.status === 'scheduled' && cell.sent_at && <div>Scheduled: {formatTimelineDate(cell.sent_at)}</div>}
                           </div>
                         </div>
                       )}
@@ -2079,7 +2522,7 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
     totals: { sent: number; read: number; replied: number; total_recipients: number };
     period: string | null;
   } | null>(null);
-  const [activity, setActivity] = useState<any[]>([]);
+  const [dailyStats, setDailyStats] = useState<{ date: string; sent: number; replied: number; failed: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<string>('all');
   const [customFrom, setCustomFrom] = useState('');
@@ -2094,33 +2537,21 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, ss, a] = await Promise.all([
+      const [s, ss, ds] = await Promise.all([
         telegramOutreachApi.getCampaignStats(campaignId),
         telegramOutreachApi.getCampaignStepStats(campaignId, periodParams),
-        telegramOutreachApi.getCampaignActivity(campaignId, 200),
+        telegramOutreachApi.getCampaignDailyStats(campaignId),
       ]);
       setStats(s);
       setStepStats(ss);
-      setActivity(a.activity || []);
+      setDailyStats(ds.daily_stats || []);
     } catch { toast('Failed to load analytics', 'error'); }
     finally { setLoading(false); }
   }, [campaignId, toast, periodParams]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const chartData = (() => {
-    if (!activity.length) return [];
-    const m: Record<string, { date: string; sent: number; replied: number; failed: number }> = {};
-    for (const a of activity) {
-      if (!a.time) continue;
-      const d = new Date(a.time).toLocaleDateString('en-CA');
-      if (!m[d]) m[d] = { date: d, sent: 0, replied: 0, failed: 0 };
-      if (a.type === 'reply') m[d].replied++;
-      else if (a.status === 'sent') m[d].sent++;
-      else if (a.status === 'failed' || a.status === 'spamblocked') m[d].failed++;
-    }
-    return Object.values(m).sort((a, b) => a.date.localeCompare(b.date));
-  })();
+  const chartData = dailyStats;
 
   const funnelItems = stats ? [
     { label: 'Pending', value: stats.pending, color: '#9CA3AF' },
@@ -2245,7 +2676,7 @@ function AnalyticsTab({ campaignId, t, toast, isDark: _isDark }: TabProps & { ca
           {[
             { label: 'Recipients', value: stats.total_recipients, color: B.blue },
             { label: 'Total Sent', value: stats.total_messages_sent, color: B.text1 },
-            { label: 'Replied', value: stats.replied, color: '#22C55E' },
+            { label: 'Total Replied', value: stats.replied, color: '#22C55E' },
             { label: 'Reply Rate', value: `${pct(stats.replied, totalR)}%`, color: B.blue },
             { label: 'Delivery', value: `${pct(totalR - stats.failed - stats.bounced, totalR)}%`, color: '#3B82F6' },
           ].map(s => (
@@ -2638,6 +3069,11 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
+  // Test dialog state
+  const [testMsg, setTestMsg] = useState('');
+  const [testHistory, setTestHistory] = useState<{ role: string; text: string }[]>([]);
+  const [testLoading, setTestLoading] = useState(false);
+  const testEndRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -2667,16 +3103,67 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
     finally { setSaving(false); }
   };
 
+  const handleTestSend = async () => {
+    if (!testMsg.trim() || testLoading) return;
+    const msg = testMsg.trim();
+    setTestMsg('');
+    const newHistory = [...testHistory, { role: 'user', text: msg }];
+    setTestHistory(newHistory);
+    setTestLoading(true);
+    try {
+      const resp = await telegramOutreachApi.testAutoReply(campaignId, {
+        message: msg,
+        history: newHistory.slice(0, -1),
+        system_prompt: config?.system_prompt,
+        model_provider: config?.model_provider || 'gemini',
+        knowledge_base: config?.knowledge_base,
+      });
+      setTestHistory(h => [...h, { role: 'assistant', text: resp.response }]);
+    } catch {
+      setTestHistory(h => [...h, { role: 'assistant', text: '(error generating response)' }]);
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
+  useEffect(() => { testEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [testHistory]);
+
   if (loading) return <div className="flex justify-center py-12"><Loader2 className={cn('w-6 h-6 animate-spin', t.text3)} /></div>;
 
   const inputCls = cn('w-full px-3 py-2 rounded-lg border text-sm', 'border-gray-200 dark:border-gray-700', 'bg-white dark:bg-gray-900', t.text1);
   const labelCls = cn('block text-xs font-medium mb-1', t.text2);
 
+  const Toggle = ({ value, onChange, label }: { value: boolean; onChange: () => void; label: string }) => (
+    <label className="flex items-center gap-2 cursor-pointer">
+      <button onClick={onChange}
+              style={{ width: 36, height: 20, borderRadius: 10, background: value ? '#4F6BF0' : '#D1D5DB', transition: 'background 0.2s', position: 'relative', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <div style={{ width: 16, height: 16, borderRadius: 8, background: '#fff', position: 'absolute', top: 2, left: value ? 18 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+      </button>
+      <span className={cn('text-sm', t.text1)}>{label}</span>
+    </label>
+  );
+
+  const modelOptions = [
+    { value: 'gemini', label: 'Gemini 2.5 Flash', desc: 'Fast & free' },
+    { value: 'openai', label: 'GPT-4o Mini', desc: 'OpenAI' },
+    { value: 'anthropic', label: 'Claude Haiku', desc: 'Anthropic' },
+  ];
+
+  const timezones = [
+    'UTC', 'Europe/Moscow', 'Europe/London', 'Europe/Berlin', 'Europe/Paris',
+    'America/New_York', 'America/Los_Angeles', 'America/Chicago', 'Asia/Dubai',
+    'Asia/Singapore', 'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Kolkata',
+  ];
+
   return (
     <div className="max-w-4xl space-y-6">
+      {/* Main Config */}
       <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={cn('text-sm font-semibold', t.text1)}>Auto-Reply (Gemini AI)</h3>
+          <div className="flex items-center gap-2">
+            <Bot className={cn('w-4 h-4', t.text2)} />
+            <h3 className={cn('text-sm font-semibold', t.text1)}>AI Auto-Responder</h3>
+          </div>
           <button onClick={() => setConfig((c: any) => ({ ...c, enabled: !c?.enabled }))}
                   className="flex items-center gap-2 cursor-pointer">
             <div style={{ width: 36, height: 20, borderRadius: 10, background: config?.enabled ? '#4F6BF0' : '#D1D5DB', transition: 'background 0.2s', position: 'relative' }}>
@@ -2688,17 +3175,48 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
           </button>
         </div>
         <div className="space-y-4">
+          {/* Model selector */}
+          <div>
+            <label className={labelCls}>AI Model</label>
+            <div className="grid grid-cols-3 gap-2">
+              {modelOptions.map(m => (
+                <button key={m.value}
+                  onClick={() => setConfig((c: any) => ({ ...c, model_provider: m.value }))}
+                  className={cn('rounded-lg border px-3 py-2.5 text-left transition-all',
+                    (config?.model_provider || 'gemini') === m.value
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-indigo-500'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300')}>
+                  <div className={cn('text-sm font-medium', t.text1)}>{m.label}</div>
+                  <div className={cn('text-xs', t.text3)}>{m.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
           <div>
             <label className={labelCls}>System Prompt</label>
             <textarea rows={4} value={config?.system_prompt || ''}
                       onChange={e => setConfig((c: any) => ({ ...c, system_prompt: e.target.value }))}
-                      className={inputCls} />
+                      className={inputCls}
+                      placeholder="You are a helpful business development manager. Reply concisely and professionally..." />
           </div>
           <div>
-            <label className={labelCls}>Stop Phrases (one per line)</label>
+            <label className={labelCls}>Knowledge Base (FAQ, product info, docs — included in AI context)</label>
+            <textarea rows={5} value={config?.knowledge_base || ''}
+                      onChange={e => setConfig((c: any) => ({ ...c, knowledge_base: e.target.value }))}
+                      className={inputCls}
+                      placeholder="Paste your product FAQ, company info, pricing details, or any reference material the AI should use when answering..." />
+            {config?.knowledge_base && (
+              <p className={cn('text-xs mt-1', t.text3)}>
+                {config.knowledge_base.length.toLocaleString()} characters
+              </p>
+            )}
+          </div>
+          <div>
+            <label className={labelCls}>Stop Phrases (one per line — bot stops & escalates to manager)</label>
             <textarea rows={3} value={(config?.stop_phrases || []).join('\n')}
                       onChange={e => setConfig((c: any) => ({ ...c, stop_phrases: e.target.value.split('\n').filter((s: string) => s.trim()) }))}
-                      className={inputCls} />
+                      className={inputCls}
+                      placeholder="call me&#10;human agent&#10;speak to manager" />
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -2714,15 +3232,50 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
                      className={inputCls} />
             </div>
             <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <button onClick={() => setConfig((c: any) => ({ ...c, simulate_human: !(c?.simulate_human ?? true) }))}
-                        style={{ width: 36, height: 20, borderRadius: 10, background: (config?.simulate_human ?? true) ? '#4F6BF0' : '#D1D5DB', transition: 'background 0.2s', position: 'relative', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  <div style={{ width: 16, height: 16, borderRadius: 8, background: '#fff', position: 'absolute', top: 2, left: (config?.simulate_human ?? true) ? 18 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                </button>
-                <span className={cn('text-sm', t.text1)}>Simulate Human</span>
-              </label>
+              <Toggle value={config?.simulate_human ?? true}
+                      onChange={() => setConfig((c: any) => ({ ...c, simulate_human: !(c?.simulate_human ?? true) }))}
+                      label="Simulate Human" />
             </div>
           </div>
+
+          {/* Working Hours */}
+          <div className={cn('rounded-lg border p-4', 'border-gray-200 dark:border-gray-700')}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Clock className={cn('w-3.5 h-3.5', t.text2)} />
+                <span className={cn('text-xs font-semibold', t.text1)}>Working Hours</span>
+                <span className={cn('text-xs', t.text3)}>— only reply during these hours</span>
+              </div>
+              <Toggle value={config?.working_hours_enabled ?? false}
+                      onChange={() => setConfig((c: any) => ({ ...c, working_hours_enabled: !c?.working_hours_enabled }))}
+                      label="" />
+            </div>
+            {config?.working_hours_enabled && (
+              <div className="grid grid-cols-3 gap-4 mt-2">
+                <div>
+                  <label className={labelCls}>From</label>
+                  <input type="time" value={config?.working_hours_start || '09:00'}
+                         onChange={e => setConfig((c: any) => ({ ...c, working_hours_start: e.target.value }))}
+                         className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>To</label>
+                  <input type="time" value={config?.working_hours_end || '18:00'}
+                         onChange={e => setConfig((c: any) => ({ ...c, working_hours_end: e.target.value }))}
+                         className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Timezone</label>
+                  <select value={config?.working_hours_timezone || 'UTC'}
+                          onChange={e => setConfig((c: any) => ({ ...c, working_hours_timezone: e.target.value }))}
+                          className={inputCls}>
+                    {timezones.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end">
             <button onClick={handleSave} disabled={saving}
                     className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
@@ -2731,6 +3284,61 @@ function AutoReplyTab({ campaignId, t, toast }: TabProps & { campaignId: number 
           </div>
         </div>
       </div>
+
+      {/* Test Dialog */}
+      <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <MessageSquare className={cn('w-4 h-4', t.text2)} />
+            <h3 className={cn('text-sm font-semibold', t.text1)}>Test Dialog</h3>
+            <span className={cn('text-xs', t.text3)}>— preview how the bot responds</span>
+          </div>
+          {testHistory.length > 0 && (
+            <button onClick={() => setTestHistory([])}
+                    className={cn('text-xs hover:underline', t.text3)}>Clear</button>
+          )}
+        </div>
+        <div className={cn('rounded-lg border overflow-hidden', 'border-gray-200 dark:border-gray-700')}>
+          <div className={cn('h-64 overflow-y-auto p-3 space-y-2', 'bg-gray-50 dark:bg-gray-900/50')}>
+            {testHistory.length === 0 && (
+              <p className={cn('text-xs text-center py-8', t.text3)}>
+                Send a test message to see how the bot responds with your current config
+              </p>
+            )}
+            {testHistory.map((msg, i) => (
+              <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                <div className={cn('rounded-lg px-3 py-2 text-sm max-w-[80%]',
+                  msg.role === 'user'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 ' + t.text1)}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {testLoading && (
+              <div className="flex justify-start">
+                <div className={cn('rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700', t.text3)}>
+                  <Loader2 className="w-4 h-4 animate-spin inline" /> Thinking...
+                </div>
+              </div>
+            )}
+            <div ref={testEndRef} />
+          </div>
+          <div className={cn('flex border-t', 'border-gray-200 dark:border-gray-700')}>
+            <input type="text" value={testMsg}
+                   onChange={e => setTestMsg(e.target.value)}
+                   onKeyDown={e => e.key === 'Enter' && handleTestSend()}
+                   placeholder="Type a test message..."
+                   className={cn('flex-1 px-3 py-2.5 text-sm border-none outline-none', 'bg-white dark:bg-gray-900', t.text1)} />
+            <button onClick={handleTestSend} disabled={testLoading || !testMsg.trim()}
+                    className="px-4 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-30 transition-colors">
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Conversations */}
       <div className={cn('rounded-lg border p-5', 'border-gray-200 dark:border-gray-700')}>
         <h3 className={cn('text-sm font-semibold mb-3', t.text1)}>Conversations ({conversations.length})</h3>
         {conversations.length === 0 ? (

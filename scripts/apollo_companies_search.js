@@ -170,11 +170,23 @@ async function login(page) {
     return;
   }
 
+  // React-compatible input: page.type() doesn't trigger React state updates
+  async function typeReact(selector, value) {
+    await page.click(selector, { clickCount: 3 });
+    await sleep(200);
+    await page.evaluate((sel, val) => {
+      const el = document.querySelector(sel);
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(el, val);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, selector, value);
+    await sleep(300);
+  }
+
   await page.waitForSelector('input[name="email"]', { timeout: 10000 });
-  await page.type('input[name="email"]', APOLLO_EMAIL, { delay: 30 });
-  await sleep(500);
-  await page.type('input[name="password"]', APOLLO_PASS, { delay: 30 });
-  await sleep(500);
+  await typeReact('input[name="email"]', APOLLO_EMAIL);
+  await typeReact('input[name="password"]', APOLLO_PASS);
   await page.click('button[type="submit"]');
   console.log(`[${ts()}] LOGIN: Submitted, waiting...`);
   await sleep(5000);

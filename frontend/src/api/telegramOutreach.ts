@@ -40,6 +40,10 @@ export interface TgAccount {
   proxy_group_name?: string;
   assigned_proxy_id?: number;
   assigned_proxy_host?: string;
+  proxy_country?: string;
+  proxy_protocol?: string;
+  proxy_is_active?: boolean;
+  proxy_last_checked_at?: string;
   tags: TgAccountTag[];
   campaigns_count: number;
   country_code?: string;
@@ -80,15 +84,30 @@ export interface TgProxy {
   created_at?: string;
 }
 
+export interface SegmentFilter {
+  field: string;    // "status", "tags", "owner", "custom:<field_id>"
+  operator: string; // "in", "not_in", "contains_any", "contains_all", "eq", "neq"
+  value: any;
+}
+
+export interface SegmentFilters {
+  logic: 'AND' | 'OR';
+  filters: SegmentFilter[];
+}
+
 export interface TgCampaign {
   id: number;
   project_id?: number;
   name: string;
   status: string;
+  campaign_type: string;  // "one_time" | "dynamic"
+  segment_filters?: SegmentFilters | null;
+  segment_last_synced_at?: string | null;
   daily_message_limit?: number;
   timezone: string;
   send_from_hour: number;
   send_to_hour: number;
+  send_days: number[];  // 0=Mon..6=Sun
   delay_between_sends_min: number;
   delay_between_sends_max: number;
   delay_randomness_percent: number;
@@ -214,7 +233,7 @@ export const telegramOutreachApi = {
   checkProxyGroup: async (groupId: number, autoDelete: boolean = false) =>
     (await api.post<{
       total: number; alive: number; dead: number; deleted: number;
-      deleted_ids: number[];
+      deleted_ids: number[]; reassigned: number; infatica_assigned: number;
       results: { proxy_id: number; host: string; port: number; alive: boolean; latency_ms: number | null; error: string | null }[];
     }>(`${BASE}/proxy-groups/${groupId}/check`, null, { params: { auto_delete: autoDelete } })).data,
 
@@ -431,6 +450,12 @@ export const telegramOutreachApi = {
   getCampaignStats: async (id: number) =>
     (await api.get<TgCampaignStats>(`${BASE}/campaigns/${id}/stats`)).data,
 
+  segmentPreview: async (id: number) =>
+    (await api.post<{ total: number; contacts: { id: number; username: string; first_name?: string; status: string; tags: string[] }[] }>(`${BASE}/campaigns/${id}/segment-preview`)).data,
+
+  syncSegment: async (id: number) =>
+    (await api.post<{ ok: boolean; added: number; total_recipients: number; synced_at: string | null }>(`${BASE}/campaigns/${id}/sync-segment`)).data,
+
   getCampaignStepStats: async (id: number, params: { period?: string; from_date?: string; to_date?: string } = {}) =>
     (await api.get(`${BASE}/campaigns/${id}/step-stats`, { params })).data as {
       steps: { step_order: number; step_id: number; delay_days: number; sent: number; read: number; replied: number }[];
@@ -565,7 +590,7 @@ export const telegramOutreachApi = {
     (await api.post<{ results: Record<string, any>[] }>(`${BASE}/accounts/bulk-check-live`, { account_ids: accountIds })).data,
 
   bulkCheckAlive: async (accountIds: number[]) =>
-    (await api.post<{ total: number; alive: number; frozen: number; banned: number; dead: number; results: Record<string, any>[] }>(`${BASE}/accounts/bulk-check-alive`, { account_ids: accountIds })).data,
+    (await api.post<{ total: number; alive: number; frozen: number; banned: number; dead: number; errors: number; results: Record<string, any>[] }>(`${BASE}/accounts/bulk-check-alive`, { account_ids: accountIds })).data,
 
   updateProfile: async (accountId: number, params: {
     first_name?: string; last_name?: string; about?: string; username?: string;
@@ -577,6 +602,12 @@ export const telegramOutreachApi = {
 
   suggestUsernames: async (accountId: number, firstName: string, lastName: string) =>
     (await api.post<{ suggestions: string[] }>(`${BASE}/accounts/${accountId}/suggest-usernames`, null, { params: { first_name: firstName, last_name: lastName } })).data,
+
+  testAccountProxy: async (accountId: number) =>
+    (await api.post<{ alive: boolean; latency_ms: number | null; exit_ip: string | null; error: string | null }>(`${BASE}/accounts/${accountId}/test-proxy`)).data,
+
+  setAccountProxyMode: async (accountId: number, data: { mode: string; host?: string; port?: number; username?: string; password?: string; protocol?: string }) =>
+    (await api.post<TgAccount>(`${BASE}/accounts/${accountId}/set-proxy-mode`, data)).data,
 
   // CRM
   listCrmContacts: async (params: { page?: number; page_size?: number; status?: string; search?: string; project_id?: number } = {}) =>
@@ -600,11 +631,17 @@ export const telegramOutreachApi = {
   getCrmStats: async () =>
     (await api.get(`${BASE}/crm/stats`)).data,
 
+  getCrmContactDialog: async (id: number) =>
+    (await api.get(`${BASE}/crm/contacts/${id}/dialog`)).data,
+
   getCrmContactHistory: async (id: number) =>
     (await api.get(`${BASE}/crm/contacts/${id}/history`)).data,
 
   getCrmContactCampaigns: async (id: number) =>
     (await api.get(`${BASE}/crm/contacts/${id}/campaigns`)).data,
+
+  addCrmContactNote: async (contactId: number, text: string) =>
+    (await api.post(`${BASE}/crm/contacts/${contactId}/notes`, { text })).data,
 
   getCrmPipeline: async (params: { search?: string; limit_per_status?: number; project_id?: number } = {}) =>
     (await api.get(`${BASE}/crm/pipeline`, { params })).data,
@@ -651,6 +688,9 @@ export const telegramOutreachApi = {
   stopConversation: async (campaignId: number, convId: number) =>
     (await api.post(`${BASE}/campaigns/${campaignId}/conversations/${convId}/stop`)).data,
 
+  testAutoReply: async (campaignId: number, body: { message: string; history?: any[]; system_prompt?: string; model_provider?: string; knowledge_base?: string }) =>
+    (await api.post(`${BASE}/campaigns/${campaignId}/auto-reply/test`, body)).data,
+
   // Reports
   downloadReportURL: (campaignId: number, format: string = 'html') =>
     `${api.defaults.baseURL}${BASE}/campaigns/${campaignId}/report?format=${format}`,
@@ -667,6 +707,10 @@ export const telegramOutreachApi = {
   // Activity log
   getCampaignActivity: async (campaignId: number, limit: number = 50) =>
     (await api.get<{ activity: any[] }>(`${BASE}/campaigns/${campaignId}/activity`, { params: { limit } })).data,
+
+  // Daily stats (accurate SQL aggregation for chart)
+  getCampaignDailyStats: async (campaignId: number) =>
+    (await api.get<{ daily_stats: { date: string; sent: number; replied: number; failed: number }[] }>(`${BASE}/campaigns/${campaignId}/daily-stats`)).data,
 
   // ── Replies (Phase 6) ──────────────────────────────────────────
 
@@ -710,8 +754,11 @@ export const telegramOutreachApi = {
   listInboxDialogs: async (params: { account_id?: number; campaign_id?: number; campaign_tag?: string; tag?: string; search?: string; project_id?: number; page?: number; page_size?: number }) =>
     (await api.get(`${BASE}/inbox/dialogs`, { params })).data,
 
-  getDialogMessages: async (dialogId: number, limit: number = 30) =>
-    (await api.get(`${BASE}/inbox/dialogs/${dialogId}/messages`, { params: { limit } })).data,
+  getDialogMessages: async (dialogId: number, limit: number = 30, offsetId: number = 0) =>
+    (await api.get(`${BASE}/inbox/dialogs/${dialogId}/messages`, { params: { limit, offset_id: offsetId } })).data,
+
+  getDialogTyping: async (dialogId: number): Promise<{ typing: boolean }> =>
+    (await api.get(`${BASE}/inbox/dialogs/${dialogId}/typing`)).data,
 
   sendDialogMessage: async (dialogId: number, text: string, opts?: { parseMode?: string; replyTo?: number }) =>
     (await api.post(`${BASE}/inbox/dialogs/${dialogId}/send`, { text, parseMode: opts?.parseMode, replyTo: opts?.replyTo })).data,
@@ -781,4 +828,43 @@ export const telegramOutreachApi = {
 
   getBlacklistCount: async () =>
     (await api.get(`${BASE}/blacklist/count`)).data,
+
+  // CRM Custom Fields
+  listCustomFields: async (projectId?: number) =>
+    (await api.get(`${BASE}/crm/custom-fields`, { params: projectId != null ? { project_id: projectId } : {} })).data,
+
+  createCustomField: async (data: { name: string; field_type: string; options_json?: string[]; project_id?: number; sort_order?: number }) =>
+    (await api.post(`${BASE}/crm/custom-fields`, data)).data,
+
+  updateCustomField: async (id: number, data: { name?: string; field_type?: string; options_json?: string[]; sort_order?: number }) =>
+    (await api.put(`${BASE}/crm/custom-fields/${id}`, data)).data,
+
+  deleteCustomField: async (id: number) =>
+    (await api.delete(`${BASE}/crm/custom-fields/${id}`)).data,
+
+  getContactCustomFields: async (contactId: number) =>
+    (await api.get(`${BASE}/crm/contacts/${contactId}/custom-fields`)).data,
+
+  updateContactCustomFields: async (contactId: number, values: { field_id: number; value: string | null }[]) =>
+    (await api.put(`${BASE}/crm/contacts/${contactId}/custom-fields`, values)).data,
+
+  // Notification Bot
+  getNotifBotInfo: async () =>
+    (await api.get(`${BASE}/notifications/bot-info`)).data as { bot_username: string | null; deep_link: string | null; subscribers_count: number },
+
+  listNotifSubscribers: async () =>
+    (await api.get(`${BASE}/notifications/subscribers`)).data as Array<{
+      id: number; chat_id: string; username: string | null; first_name: string | null;
+      notify_mode: string; daily_digest: boolean; digest_hour: number;
+      campaign_ids: number[] | null; is_active: boolean; created_at: string | null;
+    }>,
+
+  updateNotifSubscriber: async (id: number, data: { notify_mode?: string; daily_digest?: boolean; digest_hour?: number; campaign_ids?: number[] | null; is_active?: boolean }) =>
+    (await api.put(`${BASE}/notifications/subscribers/${id}`, data)).data,
+
+  deleteNotifSubscriber: async (id: number) =>
+    (await api.delete(`${BASE}/notifications/subscribers/${id}`)).data,
+
+  sendTestNotification: async () =>
+    (await api.post(`${BASE}/notifications/test`)).data as { ok: boolean; sent: number; total: number },
 };

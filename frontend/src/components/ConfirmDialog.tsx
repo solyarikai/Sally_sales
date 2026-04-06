@@ -37,6 +37,11 @@ export function ConfirmDialog({
                 <AlertTriangle className="w-5 h-5 text-red-600" />
               </div>
             )}
+            {variant === 'warning' && (
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+            )}
             <h3 className="font-semibold text-neutral-900">{title}</h3>
           </div>
           <button
@@ -47,7 +52,7 @@ export function ConfirmDialog({
           </button>
         </div>
         <div className="p-4">
-          <p className="text-sm text-neutral-600">{message}</p>
+          <p className="text-sm text-neutral-600 whitespace-pre-line">{message}</p>
         </div>
         <div className="flex justify-end gap-3 p-4 border-t border-neutral-200">
           <button onClick={onCancel} className="btn btn-secondary">

@@ -18,17 +18,19 @@ from typing import Optional
 
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.device_fingerprints import get_default_app_version
 from sqlalchemy.orm import selectinload
 
 from app.db import async_session_maker
 from app.models.telegram_outreach import (
-    TgCampaign, TgCampaignAccount, TgCampaignStatus,
+    TgCampaign, TgCampaignAccount, TgCampaignStatus, TgCampaignType,
     TgAccount, TgAccountStatus, TgSpamblockType,
     TgRecipient, TgRecipientStatus,
     TgSequence, TgSequenceStep, TgStepVariant,
     TgOutreachMessage, TgMessageStatus,
     TgProxy, TgContact, TgContactStatus,
-    TgIncomingReply,
+    TgIncomingReply, TgBlacklist,
+    TgCrmLeadFieldValue,
 )
 from app.services.telegram_engine import telegram_engine
 
@@ -51,10 +53,19 @@ MAX_COLD_PER_HOUR_PER_ACCOUNT = 2  # hard limit: max cold messages per hour per 
 
 
 def get_session_age_days(account) -> int | None:
-    """Return session age in days, or None if unknown."""
-    if not account.session_created_at:
+    """Return account age in days, or None if unknown.
+
+    Prefers telegram_created_at (real Telegram account age) over
+    session_created_at (when session was added to our system).
+    Uses the older of the two so old accounts aren't stuck in warm-up.
+    """
+    created = getattr(account, "telegram_created_at", None) or account.session_created_at
+    if not created:
+        # Fallback: if only session_created_at exists
+        created = account.session_created_at
+    if not created:
         return None
-    return (datetime.utcnow() - account.session_created_at).days
+    return (datetime.utcnow() - created).days
 
 
 def is_young_session(account) -> bool:
@@ -138,8 +149,14 @@ def now_in_tz(tz_name: str) -> datetime:
 
 
 def is_within_send_window(campaign: TgCampaign) -> bool:
-    """Check if current hour is within campaign's send window."""
+    """Check if current hour is within campaign's send window and day is enabled."""
     now = now_in_tz(campaign.timezone or "UTC")
+
+    # Day-of-week check: 0=Monday..6=Sunday (Python weekday convention)
+    send_days = getattr(campaign, "send_days", None)
+    if send_days is not None and now.weekday() not in send_days:
+        return False
+
     hour = now.hour
     if campaign.send_from_hour <= campaign.send_to_hour:
         return campaign.send_from_hour <= hour < campaign.send_to_hour
@@ -360,8 +377,18 @@ class SendingWorker:
             await session.commit()
 
     async def _recheck_spamblocked_accounts(self):
-        """Recheck temporarily spamblocked and frozen accounts — try to connect and check @SpamBot."""
+        """Recheck temporarily spamblocked and frozen accounts.
+
+        FROZEN accounts: do NOT hit @SpamBot (freeze ≠ spamblock).
+        Just check if freeze_until has passed, reactivate if so. Recheck once per 24h.
+
+        TEMP_SPAMBLOCKED accounts: check via @SpamBot no more than once per 4h.
+        """
         logger.info("Rechecking spamblocked/frozen accounts...")
+        now = datetime.utcnow()
+        FROZEN_RECHECK_HOURS = 24
+        SPAMBLOCK_RECHECK_HOURS = 4
+
         async with async_session_maker() as session:
             result = await session.execute(
                 select(TgAccount).where(
@@ -377,16 +404,58 @@ class SendingWorker:
             accounts = result.scalars().all()
 
             if not accounts:
-                logger.info("No temporarily spamblocked accounts to recheck")
+                logger.info("No temporarily spamblocked/frozen accounts to recheck")
                 return
 
             reactivated = 0
+            checked = 0
+            skipped = 0
+
             for account in accounts:
+                # ── FROZEN accounts: date-based only, no SpamBot ─────────
+                if account.status == TgAccountStatus.FROZEN:
+                    # Throttle: only recheck every 24h
+                    if account.last_spambot_check_at:
+                        hours_since = (now - account.last_spambot_check_at).total_seconds() / 3600
+                        if hours_since < FROZEN_RECHECK_HOURS:
+                            skipped += 1
+                            continue
+
+                    account.last_spambot_check_at = now
+
+                    # If freeze_until has not passed yet, skip
+                    if account.freeze_until and account.freeze_until > now:
+                        logger.debug(
+                            f"Account {account.phone} still frozen until {account.freeze_until}"
+                        )
+                        continue
+
+                    # Freeze period expired — reactivate without hitting SpamBot
+                    account.status = TgAccountStatus.ACTIVE
+                    account.freeze_since = None
+                    account.freeze_until = None
+                    account.last_checked_at = now
+                    reactivated += 1
+                    logger.info(
+                        f"Account {account.phone} freeze expired — reactivated (no SpamBot check)"
+                    )
+                    continue
+
+                # ── TEMP_SPAMBLOCKED accounts: SpamBot check, throttled to 4h ──
+                if account.last_spambot_check_at:
+                    hours_since = (now - account.last_spambot_check_at).total_seconds() / 3600
+                    if hours_since < SPAMBLOCK_RECHECK_HOURS:
+                        skipped += 1
+                        continue
+
                 if not account.api_id or not account.api_hash:
                     continue
                 if not telegram_engine.session_file_exists(account.phone):
                     continue
+
                 try:
+                    account.last_spambot_check_at = now
+                    checked += 1
                     check = await telegram_engine.check_account(
                         account.id,
                         phone=account.phone,
@@ -394,7 +463,7 @@ class SendingWorker:
                         api_hash=account.api_hash,
                         device_model=account.device_model or "PC 64bit",
                         system_version=account.system_version or "Windows 10",
-                        app_version=account.app_version or "6.5.1 x64",
+                        app_version=account.app_version or get_default_app_version(),
                         lang_code=account.lang_code or "en",
                         system_lang_code=account.system_lang_code or "en-US",
                     )
@@ -402,27 +471,79 @@ class SendingWorker:
                     if check.get("banned"):
                         account.status = TgAccountStatus.BANNED
                         account.ban_reason = check.get("ban_reason")
-                        account.banned_at = datetime.utcnow()
+                        account.banned_at = now
                         logger.warning(f"Account {account.phone} permanent ban detected during recheck")
                     elif check.get("spamblock", "unknown") == "none" and check.get("authorized"):
                         account.status = TgAccountStatus.ACTIVE
                         account.spamblock_type = TgSpamblockType.NONE
-                        account.last_checked_at = datetime.utcnow()
+                        account.last_checked_at = now
                         reactivated += 1
                         logger.info(f"Account {account.phone} spamblock lifted — reactivated!")
                     await telegram_engine.disconnect(account.id)
                 except Exception as e:
                     logger.debug(f"Recheck failed for {account.phone}: {e}")
 
-            if reactivated:
-                await session.commit()
-            logger.info(f"Spamblock recheck done: {reactivated}/{len(accounts)} reactivated")
+            await session.commit()
+            logger.info(
+                f"Spamblock recheck done: {reactivated} reactivated, "
+                f"{checked} SpamBot-checked, {skipped} throttled (of {len(accounts)} total)"
+            )
 
     # ── Campaign processing ───────────────────────────────────────────
+
+    async def _sync_dynamic_segment(self, campaign: TgCampaign, session: AsyncSession):
+        """For dynamic campaigns, periodically sync segment — add new matching CRM contacts."""
+        if campaign.campaign_type != "dynamic" or not campaign.segment_filters:
+            return
+        filters = campaign.segment_filters
+        if not filters.get("filters"):
+            return
+        # Only sync every 10 minutes
+        if campaign.segment_last_synced_at:
+            elapsed = (datetime.utcnow() - campaign.segment_last_synced_at).total_seconds()
+            if elapsed < 600:
+                return
+
+        cname = f"[Campaign {campaign.id}]"
+        from app.api.telegram_outreach import _build_segment_query
+        q = _build_segment_query(filters)
+        result = await session.execute(q)
+        contacts = result.scalars().all()
+
+        existing_q = await session.execute(
+            select(TgRecipient.username).where(TgRecipient.campaign_id == campaign.id)
+        )
+        existing_usernames = {r.lower() for r in existing_q.scalars().all()}
+        bl_q = await session.execute(select(TgBlacklist.username))
+        blacklisted = {r.lower() for r in bl_q.scalars().all()}
+
+        added = 0
+        for contact in contacts:
+            uname = (contact.username or "").lower()
+            if not uname or uname in existing_usernames or uname in blacklisted:
+                continue
+            session.add(TgRecipient(
+                campaign_id=campaign.id, username=contact.username,
+                first_name=contact.first_name, company_name=contact.company_name,
+                custom_variables=contact.custom_data or {},
+            ))
+            existing_usernames.add(uname)
+            added += 1
+
+        campaign.segment_last_synced_at = datetime.utcnow()
+        if added:
+            total_q = await session.execute(
+                select(func.count(TgRecipient.id)).where(TgRecipient.campaign_id == campaign.id)
+            )
+            campaign.total_recipients = total_q.scalar() or 0
+            logger.info(f"{cname} Dynamic segment sync: +{added} new recipients (total={campaign.total_recipients})")
 
     async def _process_campaign(self, campaign: TgCampaign, session: AsyncSession):
         """Process a batch of sends for this campaign in parallel (one per available account)."""
         cname = f"[Campaign {campaign.id} '{campaign.name}']"
+
+        # Dynamic campaigns: auto-sync segment periodically
+        await self._sync_dynamic_segment(campaign, session)
 
         # Check timezone window
         if not is_within_send_window(campaign):
@@ -625,7 +746,7 @@ class SendingWorker:
                 await telegram_engine.connect(
                     account.id, phone=account.phone, api_id=account.api_id, api_hash=account.api_hash,
                     device_model=account.device_model or "PC 64bit", system_version=account.system_version or "Windows 10",
-                    app_version=account.app_version or "6.5.1 x64", lang_code=account.lang_code or "en",
+                    app_version=account.app_version or get_default_app_version(), lang_code=account.lang_code or "en",
                     system_lang_code=account.system_lang_code or "en-US", proxy=proxy_dict,
                 )
             except Exception as e:
@@ -737,8 +858,8 @@ class SendingWorker:
                             contact.last_contacted_at = now
                             if contact.status == TgContactStatus.COLD:
                                 contact.status = TgContactStatus.CONTACTED
-                            # Add campaign if not already
-                            camp_list = contact.campaigns or []
+                            # Add campaign if not already (filter out corrupted non-dict entries)
+                            camp_list = [c for c in (contact.campaigns or []) if isinstance(c, dict)]
                             if not any(c.get("id") == campaign.id for c in camp_list):
                                 camp_list.append({"id": campaign.id, "name": campaign.name})
                                 contact.campaigns = camp_list
