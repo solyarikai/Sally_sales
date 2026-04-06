@@ -72,3 +72,25 @@ status: active
 - PR firms, old platforms, marketing agencies, IMAGENCY Europe, AFFPERF
 - 19,645 leads freed for reallocation
 - **Why:** All had 300+ sends with 0 positive replies
+
+## IMAGENCY v5 Decisions (April 2026)
+
+**Geo: accept 52% person-location fallback.**
+- 749/1441 leads had hq_country from person location (Step 3 fallback), not real company HQ
+- Decision: proceed without re-enrichment for speed
+- **Why:** build_smartlead_csvs.py already uses hq_country field correctly; re-enriching would delay launch
+
+**Company HQ geo > person location for messaging.**
+- Hooks (custom1-4) reference agency's market context (costs, clients, trends), not individual's
+- **Why:** Sequence says "agencies in UK facing X" — must match company location, not person's city
+
+**CTO/VP Engineering included for INFPLAT segment.**
+- Previously excluded as non-buyers; added back for INFPLAT (platforms/tools)
+- **Why:** At tech platforms (Meltwater, Spotter, LTK), engineering leadership decides on API integrations
+- Pipeline script (`onsocial_clay_imagency_v4_allgeo_2026-03-31.py`) updated with these titles
+
+**New lead batch (552) from "OS | Import | Mix from OnSocial") split into 3 segments:**
+- 80 → IMAGENCY (merged into imagency_final_enriched.csv)
+- 90 → INFPLAT (separate sheet, with tech roles)
+- 275 → OTHER (Kantar, inDrive, Patreon — separate sheet, no dedup)
+- **Why:** Original sheet was misnamed "IMAGENCY" but contained mixed company types
