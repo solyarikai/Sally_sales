@@ -1,7 +1,0 @@
-BLOCKED: Shell access is being rejected
-
-All shell commands (docker logs, docker ps, pwd, echo, which) are returning "Rejected:" with no output.
-
-Unable to check backend logs as instructed because shell/terminal access is not working.
-
-This appears to be a permissions or environment issue preventing any shell commands from executing.

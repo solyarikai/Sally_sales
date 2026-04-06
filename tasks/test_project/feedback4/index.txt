@@ -1,9 +1,0 @@
-❯ 1. no hover on send button, it should be darkened in night mode, and probalby the opposite for light                                                        
-  2. allow cancel edidint reply message on esc keyboard press                                                                                                  
-  3. you did nothing on click in crm, is it so difficult? filter only contact by query url and open modal? also why only 1 camaping shown for                  
-  pn@ghetsally.io? make sure all campaings in convesation histry are both shown in replies page and crm page          
-  4. How's your UI/UX analysis was made of the CRM view page? I mean, you see there is some overlapping title and campaign columns. There are some duplicating like projects filter, campaigns filter. I mean, any filters, duplicating filters embedded in columns are excessive, right? And these strange inputs are like strange filters are strange too, so like show this filter on the click on each column, you see? I mean, re-sync totally your approach for CRM UX. As you once made good replies page UI UX, do the same for CRM. Like make it like Apple, like minimalistic.
-
-
-  5. also make sent message clean finally as i've benn asking for ages, remove red selected shit mentioning test in the latest screenshot in tasks/test_project/feedback4
-  6.  if no contact is crm after clicking in replies, that's a bug, every cotnact shown in replies must be the same contact shown in crm ,arange data layer proeprly

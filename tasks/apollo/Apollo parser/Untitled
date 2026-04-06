@@ -1,9 +1,0 @@
-Background received message: startScraping
-background.js:91 Starting scraping for tab: 194401795
-background.js:129 startBackgroundScraping called with tabId: 194401795
-background.js:148 Starting scrapeAllPagesBackground for tab: 194401795
-background.js:173 scrapeAllPagesBackground started for tab: 194401795
-background.js:177 Tab found: https://app.apollo.io/#/people?page=3&qPersonPersonaIds[]=68d4ed4747209500212e74df&personNotTitles[]=vp&qSearchListId=69adb0619cd96d001505309f&recommendationConfigId=6882692f8c5466000d1cb27f&sortByField=%5Bnone%5D&sortAscending=false&uniqueUrlId=b0t9fYwV4Q
-background.js:197 Starting from page: 1
-background.js:409 Scraped page 3 - Found 10 rows
-background.js:89 Background received message: getScrapingStatus

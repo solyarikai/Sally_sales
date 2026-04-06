@@ -1,4 +1,0 @@
-1. "reply doesnot dissapear after sending reply.png"
-2. conversation hisory link must lead to crm page with opened modal with details for the contact, now some sheet in "wtf in crm.pngis opened
-3. "reply doesnot dissapear after sending reply.png", find out the issue behind
-4. act as architecture god

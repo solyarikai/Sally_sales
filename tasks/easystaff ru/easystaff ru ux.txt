@@ -1,6 +1,0 @@
-1. add to the right panel info about the contact lead - linkedin profile, other social media if available,take from data columns of the contact from smartlead of getsales
-
-also info about company, business segment and other abilalbe info )
-
-
-

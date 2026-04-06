@@ -1,8 +1,0 @@
-{
-  "timestamp": "2026-03-30T16:23:10.301264+00:00",
-  "source": "automated_framework",
-  "engine": "Claude (Anthropic API) \u2192 MCP SSE",
-  "server": "http://46.62.210.24:8002/mcp/sse",
-  "results": [],
-  "average": 0
-}
