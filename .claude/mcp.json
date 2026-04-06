@@ -68,7 +68,7 @@
         "TRANSKRIPTOR_API_KEY": "e84efc25af1bf68caa6f9f7792e7d26c07c535b45728408c4b281b629cedf596306fc1c342bf808c1a99f7894cb4bdc775173b0f13b51920c32b46fc6fcfbf5f"
       }
     },
-    "linear": {
+    "linear-getsally": {
       "type": "stdio",
       "command": "node",
       "args": ["/Users/user/.nvm/versions/node/v20.19.6/lib/node_modules/linear-mcp/build/index.js"],
