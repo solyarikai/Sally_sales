@@ -52,7 +52,7 @@ Hi {{first_name}},
 
 {{custom4}}
 
-When your clients ask for creator analytics - do they see {{company_name}}'s brand or a third-party logo?
+One question: when your clients ask for creator analytics - do they see {{company_name}}'s brand or a third-party logo?
 
 Agencies like {{custom2}} white-label our creator data as their own. 450M+ profiles, fraud scoring, audience demographics - under your brand.
 
