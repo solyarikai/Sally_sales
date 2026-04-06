@@ -25,6 +25,27 @@ status: active
 - **Email 5:** Break-up with redirect
 - **Timing:** Day 0 → +4 → +4 → +6 → +7
 
+### IMAGENCY v5 (3 segment files, in progress)
+Files: `sofia/projects/OnSocial/hub/smartlead_hub/sequences/v5_imagency_*.md`
+- **3 emails** per segment, Pain→Proof→Exit framework, Day 0/4/8
+- **3 segments:** founders (`v5_imagency_founders.md`), creative (`v5_imagency_creative.md`), account_ops (`v5_imagency_account_ops.md`)
+- **Email 1:** Geo-specific hook ({{custom4}}) + JTBD question ("One question: ...") + custom1 pain
+- **Email 2:** Social proof — region-specific client list ({{custom2}}) + case study hook
+- **Email 3:** Exit frame with redirect
+- **Sender:** Bhaskar from OnSocial
+- **Custom fields per geo cluster:**
+
+| Cluster | custom2 (social proof) |
+|---------|----------------------|
+| UK+IE | Whalar, InfluencerUK, LADbible and Billion Dollar Boy |
+| DACH+Nordics | Zalando, Linkster, Intermate and Gocomo |
+| Southern EU | Kolsquare, Ykone, SAMYGroup and Favikon |
+| CEE+Turkey | Traackr, Audiense and Upfluence (global fallback — no CEE clients) |
+| India+APAC | Phyllo, KlugKlug, Qoruz and TRIBEGroup |
+| MENA+LATAM | ArabyAds and Sociata |
+
+- **Status:** Files complete, NOT uploaded to SmartLead yet (custom fields under review)
+
 ### LinkedIn (GetSales)
 - **30-step automation** per campaign
 - Flow: Visit profile → 24h → CR with note → wait accept → Like post → Message 1 → Endorse → Message 2 → Visit → Message 3
