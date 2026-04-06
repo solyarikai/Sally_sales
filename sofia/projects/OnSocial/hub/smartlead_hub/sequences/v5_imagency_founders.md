@@ -59,7 +59,7 @@ Agencies like {{custom2}} white-label our creator data as their own. 450M+ profi
 Quick 15-min call to see if it fits {{company_name}}?
 
 Best,
-Daniil from OnSocial
+Bhaskar from OnSocial
 
 ---
 
