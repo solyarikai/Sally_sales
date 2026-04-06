@@ -8,7 +8,7 @@ const API_KEY = 'OWRlZDdiNDctMjU0Ni00N2VhLTk5NjQtNWM3MWQ1N2I3OGI2OmlTb0RjaU5ZdVl
 const headers = { 'Authorization': 'Bearer ' + API_KEY, 'Content-Type': 'application/json' };
 
 const TESTS = [
-  { id: '019d61f5-fbab-721d-99f6-31b3b76592ad', name: 'Onsocial', webhook: 'https://hooks.slack.com/services/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' },
+  { id: '019d6205-c78d-77b6-bfc4-05e098132e83', name: 'Onsocial', webhook: 'https://hooks.slack.com/services/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' },
 ];
 
 async function getAnalytics(testId) {
