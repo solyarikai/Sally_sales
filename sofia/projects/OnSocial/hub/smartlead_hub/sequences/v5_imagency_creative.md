@@ -59,7 +59,7 @@ Creative teams at {{custom2}} use our API to check audience demographics, fraud 
 Quick 15-min call to see if relevant for {{company_name}}?
 
 Best,
-Daniil from OnSocial
+Bhaskar from OnSocial
 
 ---
 
