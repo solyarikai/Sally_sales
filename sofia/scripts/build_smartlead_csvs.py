@@ -112,37 +112,37 @@ DEFAULT_CLUSTER = "MENA_LATAM_AFRICA"
 GEO_FIELDS = {
     "UK_IE": {
         "custom1": "balancing influencer freedom with brand safety",
-        "custom2": "teams like Whalar and Billion Dollar Boy",
+        "custom2": "Whalar, InfluencerUK, LADbible and Billion Dollar Boy",
         "custom3": "agencies moving off HypeAuditor over pricing transparency",
         "custom4": "UK agencies plan to scale creator programs 50%+ this year",
     },
     "DACH_NORDICS": {
         "custom1": "finding verified creators with reliable audience data",
-        "custom2": "teams like Zalando, Linkster and Intermate",
+        "custom2": "Zalando, Linkster, Intermate and Gocomo",
         "custom3": "analytics gaps in tools like HypeAuditor",
         "custom4": "51% of Nordic marketers say data reliability is their top challenge",
     },
     "SOUTHERN_EU": {
-        "custom1": "rising influencer costs with no clear ROI proof",
-        "custom2": "teams like Kolsquare, Ykone and SAMY Alliance",
+        "custom1": "facing rising influencer costs with no clear ROI proof",
+        "custom2": "Kolsquare, Ykone, SAMYGroup and Favikon",
         "custom3": "tools that lack creator coverage outside Western Europe",
         "custom4": "IM budgets across Southern Europe are growing - but so is cost inflation",
     },
     "CEE_TURKEY": {
         "custom1": "verifying real engagement when fake followers are everywhere",
-        "custom2": "agencies across 30+ markets who use our fraud detection",
+        "custom2": "Traackr, Audiense and Upfluence",
         "custom3": "global tools that lack depth in CEE and Turkish creator data",
         "custom4": "Buying popularity is easy - proving engagement is real is the hard part",
     },
     "INDIA_APAC": {
         "custom1": "protecting margins when clients ask to see the data source",
-        "custom2": "teams like KlugKlug, Qoruz and TRIBEGroup",
+        "custom2": "Phyllo, KlugKlug, Qoruz and TRIBEGroup",
         "custom3": "paying for HypeAuditor while clients see their branding in your reports",
         "custom4": "IM agencies run on 15-25% margins - white-label data keeps clients seeing you as the source",
     },
     "MENA_LATAM_AFRICA": {
         "custom1": "getting reliable creator data across multiple markets from one source",
-        "custom2": "platforms like ArabyAds and Sociata",
+        "custom2": "ArabyAds and Sociata",
         "custom3": "stitching together 5+ data sources for multi-market campaigns",
         "custom4": "Running creator campaigns across markets means fragmented data - unless you have one API",
     },
@@ -150,14 +150,25 @@ GEO_FIELDS = {
 
 # SmartLead required columns
 SMARTLEAD_COLS = [
-    "email", "first_name", "last_name", "company_name",
-    "custom1", "custom2", "custom3", "custom4",
+    "email",
+    "first_name",
+    "last_name",
+    "company_name",
+    "custom1",
+    "custom2",
+    "custom3",
+    "custom4",
 ]
 
 # GetSales columns (for excluded leads without email)
 GETSALES_COLS = [
-    "email", "first_name", "last_name", "company_name", "job_title",
-    "linkedin_profile", "location",
+    "email",
+    "first_name",
+    "last_name",
+    "company_name",
+    "job_title",
+    "linkedin_profile",
+    "location",
 ]
 
 
@@ -222,17 +233,24 @@ def main():
 
     write_csv(founders, f"{OUT_DIR}/imagency_founders_smartlead.csv", SMARTLEAD_COLS)
     write_csv(creative, f"{OUT_DIR}/imagency_creative_smartlead.csv", SMARTLEAD_COLS)
-    write_csv(account_ops, f"{OUT_DIR}/imagency_account_ops_smartlead.csv", SMARTLEAD_COLS)
+    write_csv(
+        account_ops, f"{OUT_DIR}/imagency_account_ops_smartlead.csv", SMARTLEAD_COLS
+    )
     write_csv(excluded, f"{OUT_DIR}/imagency_excluded_getsales.csv", GETSALES_COLS)
 
     print("\nGeo distribution summary:")
     all_rows = founders + creative + account_ops
     from collections import Counter
+
     cluster_counts = Counter()
     for r in founders:
         cluster_counts[r["custom4"][:40]] += 1
-    print(f"\nFounders ({len(founders)}), Creative ({len(creative)}), Account/Ops ({len(account_ops)}), Excluded ({len(excluded)})")
-    print(f"Total processed: {len(founders) + len(creative) + len(account_ops) + len(excluded)}")
+    print(
+        f"\nFounders ({len(founders)}), Creative ({len(creative)}), Account/Ops ({len(account_ops)}), Excluded ({len(excluded)})"
+    )
+    print(
+        f"Total processed: {len(founders) + len(creative) + len(account_ops) + len(excluded)}"
+    )
 
 
 if __name__ == "__main__":
