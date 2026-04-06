@@ -1,3 +1,7 @@
 [submodule "magnum-opus"]
 	path = magnum-opus
 	url = git@gitlab.com:sally-saas/magnum-opus.git
+
+[submodule "tam-guide"]
+	path = tam-guide
+	url = https://github.com/solyarikai/tam-guide.git
