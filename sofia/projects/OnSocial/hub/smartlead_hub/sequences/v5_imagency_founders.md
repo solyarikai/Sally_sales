@@ -95,6 +95,266 @@ Bhaskar
 
 ---
 
+## Rendered Emails by Geo-Cluster
+
+### UK+IE
+
+**Email 1** — Subject: `{{company_name}} - creator data question`
+
+> Hi {{first_name}},
+>
+> UK agencies plan to scale creator programs 50%+ this year
+>
+> One question: when your clients ask for creator analytics - do they see {{company_name}}'s brand or a third-party logo?
+>
+> Agencies like Whalar, InfluencerUK, LADbible and Billion Dollar Boy white-label our creator data as their own. 450M+ profiles, fraud scoring, audience demographics - under your brand.
+>
+> Quick 15-min call to see if it fits {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> When Lefty moved to our API, they freed 2 engineering roles and expanded from 1 platform to 5. No more maintaining scrapers.
+>
+> For agencies balancing influencer freedom with brand safety - this is the difference between building infrastructure and building client relationships.
+>
+> Happy to mock up a branded report for {{company_name}} - takes 10 minutes on our side.
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, last note from me.
+>
+> If creator analytics aren't a priority right now - understood. But if I'm reaching the wrong person at {{company_name}}, who handles data or tool decisions?
+>
+> Either way - wishing you continued growth.
+>
+> Bhaskar
+
+---
+
+### DACH+Nordics+NL+BE
+
+**Email 1** — Subject: `{{company_name}} - creator data question`
+
+> Hi {{first_name}},
+>
+> 51% of Nordic marketers say data reliability is their top challenge
+>
+> One question: when your clients ask for creator analytics - do they see {{company_name}}'s brand or a third-party logo?
+>
+> Agencies like Zalando, Linkster, Intermate and Gocomo white-label our creator data as their own. 450M+ profiles, fraud scoring, audience demographics - under your brand.
+>
+> Quick 15-min call to see if it fits {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> When Lefty moved to our API, they freed 2 engineering roles and expanded from 1 platform to 5. No more maintaining scrapers.
+>
+> For agencies finding verified creators with reliable audience data - this is the difference between building infrastructure and building client relationships.
+>
+> Happy to mock up a branded report for {{company_name}} - takes 10 minutes on our side.
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, last note from me.
+>
+> If creator analytics aren't a priority right now - understood. But if I'm reaching the wrong person at {{company_name}}, who handles data or tool decisions?
+>
+> Either way - wishing you continued growth.
+>
+> Bhaskar
+
+---
+
+### Southern EU
+
+**Email 1** — Subject: `{{company_name}} - creator data question`
+
+> Hi {{first_name}},
+>
+> IM budgets across Southern Europe are growing - but so is cost inflation
+>
+> One question: when your clients ask for creator analytics - do they see {{company_name}}'s brand or a third-party logo?
+>
+> Agencies like Kolsquare, Ykone, SAMYGroup and Favikon white-label our creator data as their own. 450M+ profiles, fraud scoring, audience demographics - under your brand.
+>
+> Quick 15-min call to see if it fits {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> When Lefty moved to our API, they freed 2 engineering roles and expanded from 1 platform to 5. No more maintaining scrapers.
+>
+> For agencies facing rising influencer costs with no clear ROI proof - this is the difference between building infrastructure and building client relationships.
+>
+> Happy to mock up a branded report for {{company_name}} - takes 10 minutes on our side.
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, last note from me.
+>
+> If creator analytics aren't a priority right now - understood. But if I'm reaching the wrong person at {{company_name}}, who handles data or tool decisions?
+>
+> Either way - wishing you continued growth.
+>
+> Bhaskar
+
+---
+
+### CEE+Turkey
+
+**Email 1** — Subject: `{{company_name}} - creator data question`
+
+> Hi {{first_name}},
+>
+> Buying popularity is easy - proving engagement is real is the hard part
+>
+> One question: when your clients ask for creator analytics - do they see {{company_name}}'s brand or a third-party logo?
+>
+> Agencies like Traackr, Audiense and Upfluence white-label our creator data as their own. 450M+ profiles, fraud scoring, audience demographics - under your brand.
+>
+> Quick 15-min call to see if it fits {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> When Lefty moved to our API, they freed 2 engineering roles and expanded from 1 platform to 5. No more maintaining scrapers.
+>
+> For agencies verifying real engagement when fake followers are everywhere - this is the difference between building infrastructure and building client relationships.
+>
+> Happy to mock up a branded report for {{company_name}} - takes 10 minutes on our side.
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, last note from me.
+>
+> If creator analytics aren't a priority right now - understood. But if I'm reaching the wrong person at {{company_name}}, who handles data or tool decisions?
+>
+> Either way - wishing you continued growth.
+>
+> Bhaskar
+
+---
+
+### India+APAC
+
+**Email 1** — Subject: `{{company_name}} - creator data question`
+
+> Hi {{first_name}},
+>
+> IM agencies run on 15-25% margins - white-label data keeps clients seeing you as the source
+>
+> One question: when your clients ask for creator analytics - do they see {{company_name}}'s brand or a third-party logo?
+>
+> Agencies like Phyllo, KlugKlug, Qoruz and TRIBEGroup white-label our creator data as their own. 450M+ profiles, fraud scoring, audience demographics - under your brand.
+>
+> Quick 15-min call to see if it fits {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> When Lefty moved to our API, they freed 2 engineering roles and expanded from 1 platform to 5. No more maintaining scrapers.
+>
+> For agencies protecting margins when clients ask to see the data source - this is the difference between building infrastructure and building client relationships.
+>
+> Happy to mock up a branded report for {{company_name}} - takes 10 minutes on our side.
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, last note from me.
+>
+> If creator analytics aren't a priority right now - understood. But if I'm reaching the wrong person at {{company_name}}, who handles data or tool decisions?
+>
+> Either way - wishing you continued growth.
+>
+> Bhaskar
+
+---
+
+### MENA+LATAM+Africa
+
+**Email 1** — Subject: `{{company_name}} - creator data question`
+
+> Hi {{first_name}},
+>
+> Running creator campaigns across markets means fragmented data - unless you have one API
+>
+> One question: when your clients ask for creator analytics - do they see {{company_name}}'s brand or a third-party logo?
+>
+> Agencies like ArabyAds and Sociata white-label our creator data as their own. 450M+ profiles, fraud scoring, audience demographics - under your brand.
+>
+> Quick 15-min call to see if it fits {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> When Lefty moved to our API, they freed 2 engineering roles and expanded from 1 platform to 5. No more maintaining scrapers.
+>
+> For agencies getting reliable creator data across multiple markets from one source - this is the difference between building infrastructure and building client relationships.
+>
+> Happy to mock up a branded report for {{company_name}} - takes 10 minutes on our side.
+>
+> Quick 15-min call?
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: {{company_name}} - creator data question`
+
+> Hi {{first_name}}, last note from me.
+>
+> If creator analytics aren't a priority right now - understood. But if I'm reaching the wrong person at {{company_name}}, who handles data or tool decisions?
+>
+> Either way - wishing you continued growth.
+>
+> Bhaskar
+
+---
+
 ## Notes
 
 - No em dashes. Use regular dashes.
