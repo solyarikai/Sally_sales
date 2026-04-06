@@ -75,7 +75,7 @@ For teams {{custom1}} - it frees up time for the work that actually wins pitches
 
 Happy to show you how it works - takes 15 minutes.
 
-Daniil
+Bhaskar
 
 ---
 
@@ -89,7 +89,7 @@ If creator data tools aren't in your scope - who at {{company_name}} handles too
 
 Thanks either way.
 
-Daniil
+Bhaskar
 
 ---
 
