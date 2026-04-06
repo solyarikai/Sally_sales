@@ -70,8 +70,8 @@
     },
     "linear-getsally": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/linear-getsally/node_modules/linear-mcp/build/index.js"],
+      "command": "/Users/user/sales_engineer/.claude/mcp/linear-getsally/run.sh",
+      "args": [],
       "env": {
         "LINEAR_API_KEY": "lin_api_PGUGpz14xDFwfLyAPwcUb7VtzkW15OlRRPiVaLjB"
       }
