@@ -52,7 +52,7 @@ Hi {{first_name}},
 
 {{custom4}}
 
-How does your team at {{company_name}} vet creators before pitching them to clients? Manual research, or do you have a data layer behind it?
+One question: how does your team at {{company_name}} vet creators before pitching them to clients? Manual research, or do you have a data layer behind it?
 
 Creative teams at {{custom2}} use our API to check audience demographics, fraud scores, and engagement - before the brief goes out. Means fewer surprises after launch.
 
