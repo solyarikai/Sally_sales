@@ -93,6 +93,254 @@ Bhaskar
 
 ---
 
+## Rendered Emails by Geo-Cluster
+
+### UK+IE
+
+**Email 1** — Subject: `creator vetting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> UK agencies plan to scale creator programs 50%+ this year
+>
+> One question: how does your team at {{company_name}} vet creators before pitching them to clients? Manual research, or do you have a data layer behind it?
+>
+> Creative teams at Whalar, InfluencerUK, LADbible and Billion Dollar Boy use our API to check audience demographics, fraud scores, and engagement - before the brief goes out. Means fewer surprises after launch.
+>
+> Quick 15-min call to see if relevant for {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> One pattern we see - creative teams spend 6+ hours researching creators per campaign. With 450M+ profiles indexed across IG, TikTok and YouTube, that drops to minutes.
+>
+> For teams balancing influencer freedom with brand safety - it frees up time for the work that actually wins pitches.
+>
+> Happy to show you how it works - takes 15 minutes.
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, last note.
+>
+> If creator data tools aren't in your scope - who at {{company_name}} handles tool or platform decisions? Happy to connect with them instead.
+>
+> Thanks either way.
+>
+> Bhaskar
+
+---
+
+### DACH+Nordics+NL+BE
+
+**Email 1** — Subject: `creator vetting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> 51% of Nordic marketers say data reliability is their top challenge
+>
+> One question: how does your team at {{company_name}} vet creators before pitching them to clients? Manual research, or do you have a data layer behind it?
+>
+> Creative teams at Zalando, Linkster, Intermate and Gocomo use our API to check audience demographics, fraud scores, and engagement - before the brief goes out. Means fewer surprises after launch.
+>
+> Quick 15-min call to see if relevant for {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> One pattern we see - creative teams spend 6+ hours researching creators per campaign. With 450M+ profiles indexed across IG, TikTok and YouTube, that drops to minutes.
+>
+> For teams finding verified creators with reliable audience data - it frees up time for the work that actually wins pitches.
+>
+> Happy to show you how it works - takes 15 minutes.
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, last note.
+>
+> If creator data tools aren't in your scope - who at {{company_name}} handles tool or platform decisions? Happy to connect with them instead.
+>
+> Thanks either way.
+>
+> Bhaskar
+
+---
+
+### Southern EU
+
+**Email 1** — Subject: `creator vetting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> IM budgets across Southern Europe are growing - but so is cost inflation
+>
+> One question: how does your team at {{company_name}} vet creators before pitching them to clients? Manual research, or do you have a data layer behind it?
+>
+> Creative teams at Kolsquare, Ykone, SAMYGroup and Favikon use our API to check audience demographics, fraud scores, and engagement - before the brief goes out. Means fewer surprises after launch.
+>
+> Quick 15-min call to see if relevant for {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> One pattern we see - creative teams spend 6+ hours researching creators per campaign. With 450M+ profiles indexed across IG, TikTok and YouTube, that drops to minutes.
+>
+> For teams facing rising influencer costs with no clear ROI proof - it frees up time for the work that actually wins pitches.
+>
+> Happy to show you how it works - takes 15 minutes.
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, last note.
+>
+> If creator data tools aren't in your scope - who at {{company_name}} handles tool or platform decisions? Happy to connect with them instead.
+>
+> Thanks either way.
+>
+> Bhaskar
+
+---
+
+### CEE+Turkey
+
+**Email 1** — Subject: `creator vetting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> Buying popularity is easy - proving engagement is real is the hard part
+>
+> One question: how does your team at {{company_name}} vet creators before pitching them to clients? Manual research, or do you have a data layer behind it?
+>
+> Creative teams at Traackr, Audiense and Upfluence use our API to check audience demographics, fraud scores, and engagement - before the brief goes out. Means fewer surprises after launch.
+>
+> Quick 15-min call to see if relevant for {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> One pattern we see - creative teams spend 6+ hours researching creators per campaign. With 450M+ profiles indexed across IG, TikTok and YouTube, that drops to minutes.
+>
+> For teams verifying real engagement when fake followers are everywhere - it frees up time for the work that actually wins pitches.
+>
+> Happy to show you how it works - takes 15 minutes.
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, last note.
+>
+> If creator data tools aren't in your scope - who at {{company_name}} handles tool or platform decisions? Happy to connect with them instead.
+>
+> Thanks either way.
+>
+> Bhaskar
+
+---
+
+### India+APAC
+
+**Email 1** — Subject: `creator vetting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> IM agencies run on 15-25% margins - white-label data keeps clients seeing you as the source
+>
+> One question: how does your team at {{company_name}} vet creators before pitching them to clients? Manual research, or do you have a data layer behind it?
+>
+> Creative teams at Phyllo, KlugKlug, Qoruz and TRIBEGroup use our API to check audience demographics, fraud scores, and engagement - before the brief goes out. Means fewer surprises after launch.
+>
+> Quick 15-min call to see if relevant for {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> One pattern we see - creative teams spend 6+ hours researching creators per campaign. With 450M+ profiles indexed across IG, TikTok and YouTube, that drops to minutes.
+>
+> For teams protecting margins when clients ask to see the data source - it frees up time for the work that actually wins pitches.
+>
+> Happy to show you how it works - takes 15 minutes.
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, last note.
+>
+> If creator data tools aren't in your scope - who at {{company_name}} handles tool or platform decisions? Happy to connect with them instead.
+>
+> Thanks either way.
+>
+> Bhaskar
+
+---
+
+### MENA+LATAM+Africa
+
+**Email 1** — Subject: `creator vetting - {{company_name}}`
+
+> Hi {{first_name}},
+>
+> Running creator campaigns across markets means fragmented data - unless you have one API
+>
+> One question: how does your team at {{company_name}} vet creators before pitching them to clients? Manual research, or do you have a data layer behind it?
+>
+> Creative teams at ArabyAds and Sociata use our API to check audience demographics, fraud scores, and engagement - before the brief goes out. Means fewer surprises after launch.
+>
+> Quick 15-min call to see if relevant for {{company_name}}?
+>
+> Best,
+> Bhaskar from OnSocial
+
+**Email 2** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, quick follow-up.
+>
+> One pattern we see - creative teams spend 6+ hours researching creators per campaign. With 450M+ profiles indexed across IG, TikTok and YouTube, that drops to minutes.
+>
+> For teams getting reliable creator data across multiple markets from one source - it frees up time for the work that actually wins pitches.
+>
+> Happy to show you how it works - takes 15 minutes.
+>
+> Bhaskar
+
+**Email 3** — Subject: `Re: creator vetting - {{company_name}}`
+
+> Hi {{first_name}}, last note.
+>
+> If creator data tools aren't in your scope - who at {{company_name}} handles tool or platform decisions? Happy to connect with them instead.
+>
+> Thanks either way.
+>
+> Bhaskar
+
+---
+
 ## Notes
 
 - No em dashes. Use regular dashes.
