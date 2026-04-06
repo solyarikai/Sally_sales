@@ -77,7 +77,7 @@ Happy to mock up a branded report for {{company_name}} - takes 10 minutes on our
 
 Quick 15-min call?
 
-Daniil
+Bhaskar
 
 ---
 
@@ -91,7 +91,7 @@ If creator analytics aren't a priority right now - understood. But if I'm reachi
 
 Either way - wishing you continued growth.
 
-Daniil
+Bhaskar
 
 ---
 
