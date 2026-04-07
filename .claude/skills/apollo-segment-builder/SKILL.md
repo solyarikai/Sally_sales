@@ -272,9 +272,9 @@ Content Writer, Designer, Social Media Manager
 
 ### 8.1 Создай filter JSON
 
-Путь: `magnum-opus/scripts/sofia/filters/<project_lower>_<segment_lower>_v5.json`
+Путь: `<папка из шага 0.2>/<segment_lower>_filters.json`
 
-Формат строго как в существующих файлах:
+Формат:
 
 ```json
 {
@@ -294,24 +294,37 @@ Content Writer, Designer, Social Media Manager
 }
 ```
 
-`sizes` — всегда в формате `["min,max"]` или список диапазонов.
+`sizes` — в формате `["min,max"]` или список диапазонов.
 `excluded_keywords` — стандартные + сегмент-специфичные из вопроса 5.
 
-### 8.2 Обнови apollo-filters-v4.md
+### 8.2 Сохрани документ с фильтрами
 
-Найди файл в `sofia/projects/<Project>/docs/apollo-filters-v4.md`.
-Добавь новый раздел `## Segment N — SEGMENT_NAME (new)` перед секцией `## Cross-segment exclusions`.
+Найди в папке из шага 0.2 существующий файл с фильтрами других сегментов (любой `.md` с секциями "Segment" или "filters").
 
-Структура раздела:
-- Краткое описание сегмента (1 предложение)
+**Если файл существует** — добавь новый раздел `## Segment — SEGMENT_NAME` в конец (перед cross-segment exclusions если они есть).
+
+**Если файла нет** — создай новый `apollo-filters.md` в указанной папке. Структура:
+```
+# Apollo Filters — [Project/Segment name]
+> Created: YYYY-MM-DD
+
+## Segment — SEGMENT_NAME
+[полное описание фильтров]
+
+## Cross-segment exclusions
+[стандартный список]
+```
+
+Структура раздела сегмента:
+- Краткое описание (1 предложение)
 - `### Company filters` — Industry, Keywords, Excluded Keywords, Employees, Locations
 - `### People filters` — Job Titles, Management Level, Excluded Titles
 
-### 8.3 Обнови segment-doc (если существует)
+### 8.3 Обнови segment-doc (только если существует)
 
-Найди `sofia/projects/<Project>/docs/segment-*.md` для этого сегмента.
-Если есть секция "Phase 1: Filters" с черновыми фильтрами — замени на финальные.
-Добавь ссылку: `(validated YYYY-MM-DD, full version in apollo-filters-v4.md → Segment N)`
+Ищи в указанной папке файл с именем похожим на сегмент (`segment-*.md`, `*social-commerce*.md` и т.д.).
+Если нашёл и там есть черновые фильтры — замени на финальные, добавь ссылку на `apollo-filters.md`.
+Если не нашёл — не создавай, просто пропусти.
 
 ### 8.4 Обнови базу знаний
 
