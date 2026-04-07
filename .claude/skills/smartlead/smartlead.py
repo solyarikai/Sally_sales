@@ -72,7 +72,10 @@ def _request(url, method="GET", body=None, retries=3):
                 time.sleep(RATE_LIMIT_PAUSE)
                 if not raw.strip():
                     return {}
-                return json.loads(raw)
+                try:
+                    return json.loads(raw)
+                except json.JSONDecodeError:
+                    return {"raw": raw}
         except HTTPError as e:
             if e.code == 429 and attempt < retries - 1:
                 wait = (attempt + 1) * 5
