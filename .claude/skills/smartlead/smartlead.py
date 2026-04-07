@@ -15,9 +15,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
+_SSL_CTX = ssl._create_unverified_context()
 
 BASE_URL = "https://server.smartlead.ai/api/v1"
 API_KEY = "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
