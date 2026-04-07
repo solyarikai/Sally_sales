@@ -158,6 +158,15 @@ Co-Founder, Founder, CEO, COO
 
 **Management Level:** c_suite, vp, director, owner, head, partner, founder
 
+**Excluded Titles**
+```
+Intern, Junior, Assistant, Student, Freelance,
+Marketing Manager, Sales Representative, Account Executive,
+Account Manager, Customer Success, Support, HR, Recruiter,
+Content Writer, Designer, Social Media Manager,
+Affiliate Manager, Partner Manager
+```
+
 ### Phase 2: Messaging Angle
 
 **Pain:** "Your marketplace runs on creator trust. How do you verify who's real before they list?"
