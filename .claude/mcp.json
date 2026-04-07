@@ -67,14 +67,6 @@
       "env": {
         "TRANSKRIPTOR_API_KEY": "e84efc25af1bf68caa6f9f7792e7d26c07c535b45728408c4b281b629cedf596306fc1c342bf808c1a99f7894cb4bdc775173b0f13b51920c32b46fc6fcfbf5f"
       }
-    },
-    "linear-getsally": {
-      "type": "stdio",
-      "command": "/Users/user/sales_engineer/.claude/mcp/linear-getsally/run.sh",
-      "args": [],
-      "env": {
-        "LINEAR_API_KEY": "lin_api_PGUGpz14xDFwfLyAPwcUb7VtzkW15OlRRPiVaLjB"
-      }
     }
   }
 }
