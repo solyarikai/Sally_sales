@@ -7,7 +7,6 @@ Covers: campaigns, leads, sequences, email-accounts, analytics, webhooks, master
 import argparse
 import csv
 import json
-import os
 import sys
 import time
 from datetime import datetime
@@ -23,6 +22,7 @@ RATE_LIMIT_PAUSE = 0.35
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
+
 
 def api_get(endpoint, params=None):
     """GET request to SmartLead API."""
@@ -93,6 +93,7 @@ def out(data):
 # CAMPAIGNS
 # ---------------------------------------------------------------------------
 
+
 def cmd_campaigns_list(args):
     """List all campaigns."""
     data = api_get("/campaigns/", {"include_tags": "true"})
@@ -103,7 +104,9 @@ def cmd_campaigns_list(args):
         campaigns = [c for c in campaigns if q in c.get("name", "").lower()]
 
     if args.status:
-        campaigns = [c for c in campaigns if c.get("status", "").upper() == args.status.upper()]
+        campaigns = [
+            c for c in campaigns if c.get("status", "").upper() == args.status.upper()
+        ]
 
     if args.json:
         out(campaigns)
@@ -111,7 +114,7 @@ def cmd_campaigns_list(args):
         print(f"\n{'ID':<10} {'Status':<10} {'Name'}")
         print("-" * 70)
         for c in campaigns:
-            print(f"{c['id']:<10} {c.get('status','?'):<10} {c.get('name','')}")
+            print(f"{c['id']:<10} {c.get('status', '?'):<10} {c.get('name', '')}")
         print(f"\nTotal: {len(campaigns)}")
 
 
@@ -135,7 +138,10 @@ def cmd_campaigns_status(args):
     """Update campaign status. NEVER sends START — safety rule."""
     status = args.status.upper()
     if status in ("START", "ACTIVE"):
-        print("ERROR: Activating campaigns via API is forbidden. Use SmartLead UI.", file=sys.stderr)
+        print(
+            "ERROR: Activating campaigns via API is forbidden. Use SmartLead UI.",
+            file=sys.stderr,
+        )
         sys.exit(1)
     data = api_post(f"/campaigns/{args.campaign_id}/status", {"status": status})
     out(data)
@@ -158,6 +164,7 @@ def cmd_campaigns_schedule(args):
 # ---------------------------------------------------------------------------
 # LEADS
 # ---------------------------------------------------------------------------
+
 
 def _fetch_all_leads(campaign_id, status=None, email_status=None, category_id=None):
     """Paginate through all leads."""
@@ -248,10 +255,21 @@ def cmd_leads_export(args):
 
     # Standard fields
     std_fields = [
-        "campaign_lead_map_id", "status", "lead_category_id", "created_at",
-        "lead_id", "email", "first_name", "last_name",
-        "company_name", "job_title", "phone_number",
-        "location", "linkedin_profile", "website", "company_url",
+        "campaign_lead_map_id",
+        "status",
+        "lead_category_id",
+        "created_at",
+        "lead_id",
+        "email",
+        "first_name",
+        "last_name",
+        "company_name",
+        "job_title",
+        "phone_number",
+        "location",
+        "linkedin_profile",
+        "website",
+        "company_url",
         "is_unsubscribed",
     ]
     all_fields = std_fields + [f"cf_{k}" for k in cf_keys]
@@ -302,19 +320,24 @@ def cmd_leads_add(args):
     total_skipped = 0
 
     for i in range(0, len(all_leads), batch_size):
-        batch = all_leads[i:i + batch_size]
+        batch = all_leads[i : i + batch_size]
         body = {"lead_list": batch}
         if args.skip_blocklist:
             body["settings"] = {"ignore_global_block_list": True}
         if args.allow_duplicates:
-            body.setdefault("settings", {})["ignore_duplicate_leads_in_other_campaign"] = True
+            body.setdefault("settings", {})[
+                "ignore_duplicate_leads_in_other_campaign"
+            ] = True
 
         result = api_post(f"/campaigns/{args.campaign_id}/leads", body)
         added = result.get("added_count", result.get("upload_count", 0))
         skipped = result.get("skipped_count", 0)
         total_added += added
         total_skipped += skipped
-        print(f"  Batch {i // batch_size + 1}: +{added}, skipped {skipped}", file=sys.stderr)
+        print(
+            f"  Batch {i // batch_size + 1}: +{added}, skipped {skipped}",
+            file=sys.stderr,
+        )
 
     print(f"\nTotal added: {total_added}, skipped: {total_skipped}", file=sys.stderr)
 
@@ -344,6 +367,27 @@ def cmd_leads_resume(args):
     out(data)
 
 
+def cmd_leads_delete(args):
+    """Delete a lead from a campaign."""
+    data = api_delete(f"/campaigns/{args.campaign_id}/leads/{args.lead_id}")
+    out(data)
+
+
+def cmd_leads_bulk_delete(args):
+    """Delete all leads in a campaign that match IDs from a file (one lead_id per line)."""
+    with open(args.file) as f:
+        lead_ids = [int(line.strip()) for line in f if line.strip()]
+    total = len(lead_ids)
+    print(
+        f"Deleting {total} leads from campaign {args.campaign_id}...", file=sys.stderr
+    )
+    for i, lead_id in enumerate(lead_ids, 1):
+        result = api_delete(f"/campaigns/{args.campaign_id}/leads/{lead_id}")
+        ok = result.get("message") or result.get("status") or result
+        if i % 50 == 0 or i == total:
+            print(f"  {i}/{total} done", file=sys.stderr)
+
+
 def cmd_leads_unsubscribe(args):
     """Unsubscribe lead globally."""
     data = api_post(f"/leads/{args.lead_id}/unsubscribe")
@@ -360,20 +404,23 @@ def cmd_leads_set_category(args):
     """Set lead category in campaign."""
     data = api_post(
         f"/campaigns/{args.campaign_id}/leads/{args.lead_id}/category",
-        {"category_id": int(args.category_id)}
+        {"category_id": int(args.category_id)},
     )
     out(data)
 
 
 def cmd_leads_history(args):
     """Get message history for lead in campaign."""
-    data = api_get(f"/campaigns/{args.campaign_id}/leads/{args.lead_id}/message-history")
+    data = api_get(
+        f"/campaigns/{args.campaign_id}/leads/{args.lead_id}/message-history"
+    )
     out(data)
 
 
 # ---------------------------------------------------------------------------
 # SEQUENCES
 # ---------------------------------------------------------------------------
+
 
 def cmd_sequences_get(args):
     """Get sequences for a campaign."""
@@ -385,13 +432,16 @@ def cmd_sequences_set(args):
     """Create/update sequences from JSON file."""
     with open(args.file, "r") as f:
         sequences = json.load(f)
-    data = api_post(f"/campaigns/{args.campaign_id}/sequences", {"sequences": sequences})
+    data = api_post(
+        f"/campaigns/{args.campaign_id}/sequences", {"sequences": sequences}
+    )
     out(data)
 
 
 # ---------------------------------------------------------------------------
 # EMAIL ACCOUNTS
 # ---------------------------------------------------------------------------
+
 
 def cmd_accounts_list(args):
     """List all email accounts."""
@@ -408,16 +458,18 @@ def cmd_accounts_list(args):
     if args.json:
         out(accounts)
     else:
-        print(f"\n{'ID':<8} {'Email':<35} {'Type':<8} {'SMTP':<6} {'Warmup':<10} {'Campaigns'}")
+        print(
+            f"\n{'ID':<8} {'Email':<35} {'Type':<8} {'SMTP':<6} {'Warmup':<10} {'Campaigns'}"
+        )
         print("-" * 90)
         for a in accounts:
             warmup = a.get("warmup_details") or {}
             print(
-                f"{a.get('id',''):<8} "
-                f"{a.get('from_email',''):<35} "
-                f"{a.get('type',''):<8} "
+                f"{a.get('id', ''):<8} "
+                f"{a.get('from_email', ''):<35} "
+                f"{a.get('type', ''):<8} "
                 f"{'OK' if a.get('is_smtp_success') else 'FAIL':<6} "
-                f"{warmup.get('status','N/A'):<10} "
+                f"{warmup.get('status', 'N/A'):<10} "
                 f"{a.get('campaign_count', 0)}"
             )
         print(f"\nTotal: {len(accounts)}")
@@ -433,8 +485,7 @@ def cmd_accounts_add(args):
     """Add email accounts to a campaign."""
     ids = [int(x.strip()) for x in args.account_ids.split(",")]
     data = api_post(
-        f"/campaigns/{args.campaign_id}/email-accounts",
-        {"email_account_ids": ids}
+        f"/campaigns/{args.campaign_id}/email-accounts", {"email_account_ids": ids}
     )
     out(data)
 
@@ -442,6 +493,7 @@ def cmd_accounts_add(args):
 # ---------------------------------------------------------------------------
 # ANALYTICS
 # ---------------------------------------------------------------------------
+
 
 def cmd_analytics_campaign(args):
     """Get campaign statistics."""
@@ -469,6 +521,7 @@ def cmd_analytics_by_date(args):
 # ---------------------------------------------------------------------------
 # WEBHOOKS
 # ---------------------------------------------------------------------------
+
 
 def cmd_webhooks_list(args):
     """List all webhooks."""
@@ -500,6 +553,7 @@ def cmd_webhooks_delete(args):
 # MASTER INBOX
 # ---------------------------------------------------------------------------
 
+
 def cmd_inbox_replies(args):
     """Fetch replied leads from master inbox."""
     body = {}
@@ -517,7 +571,7 @@ def cmd_inbox_reply(args):
     """Reply to a lead in campaign."""
     data = api_post(
         f"/campaigns/{args.campaign_id}/reply-email-thread",
-        {"lead_id": int(args.lead_id), "message": args.message}
+        {"lead_id": int(args.lead_id), "message": args.message},
     )
     out(data)
 
@@ -525,8 +579,7 @@ def cmd_inbox_reply(args):
 def cmd_inbox_note(args):
     """Create a note for a lead."""
     data = api_post(
-        "/master-inbox/create-note",
-        {"lead_id": int(args.lead_id), "note": args.note}
+        "/master-inbox/create-note", {"lead_id": int(args.lead_id), "note": args.note}
     )
     out(data)
 
@@ -535,7 +588,7 @@ def cmd_inbox_category(args):
     """Update lead category in master inbox."""
     data = api_patch(
         "/master-inbox/update-category",
-        {"lead_id": int(args.lead_id), "category_id": int(args.category_id)}
+        {"lead_id": int(args.lead_id), "category_id": int(args.category_id)},
     )
     out(data)
 
@@ -544,12 +597,20 @@ def cmd_inbox_category(args):
 # HELPERS
 # ---------------------------------------------------------------------------
 
+
 def _get_job_title(item):
     """Extract job title from lead structure."""
     lead = item.get("lead", item)
     cf = lead.get("custom_fields") or {}
     if isinstance(cf, dict):
-        for key in ("job_title", "title", "position", "designation", "Job Title", "Title"):
+        for key in (
+            "job_title",
+            "title",
+            "position",
+            "designation",
+            "Job Title",
+            "Title",
+        ):
             val = cf.get(key)
             if val and str(val).strip():
                 return str(val).strip()
@@ -564,10 +625,10 @@ def _get_job_title(item):
 # CLI PARSER
 # ---------------------------------------------------------------------------
 
+
 def build_parser():
     parser = argparse.ArgumentParser(
-        prog="smartlead",
-        description="Universal SmartLead API CLI"
+        prog="smartlead", description="Universal SmartLead API CLI"
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -587,7 +648,9 @@ def build_parser():
     p.add_argument("--client-id", type=int)
     p.set_defaults(func=cmd_campaigns_create)
 
-    p = sub.add_parser("campaign-status", help="Update campaign status (PAUSED/STOPPED only)")
+    p = sub.add_parser(
+        "campaign-status", help="Update campaign status (PAUSED/STOPPED only)"
+    )
     p.add_argument("campaign_id", type=int)
     p.add_argument("status", choices=["PAUSED", "STOPPED"])
     p.set_defaults(func=cmd_campaigns_status)
@@ -606,7 +669,10 @@ def build_parser():
     p = sub.add_parser("leads", help="List leads (JSON)")
     p.add_argument("campaign_id", type=int)
     p.add_argument("--status", help="STARTED/INPROGRESS/COMPLETED/PAUSED/STOPPED")
-    p.add_argument("--email-status", help="is_replied/is_opened/is_clicked/is_bounced/is_unsubscribed")
+    p.add_argument(
+        "--email-status",
+        help="is_replied/is_opened/is_clicked/is_bounced/is_unsubscribed",
+    )
     p.add_argument("--category-id", type=int)
     p.add_argument("--require-job-title", action="store_true")
     p.set_defaults(func=cmd_leads_list)
