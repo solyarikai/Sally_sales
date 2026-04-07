@@ -69,7 +69,7 @@ def _request(url, method="GET", body=None, retries=3):
         req.add_header("Content-Type", "application/json")
         req.add_header("User-Agent", "Mozilla/5.0 SmartLead-CLI/1.0")
         try:
-            with urlopen(req) as resp:
+            with urlopen(req, context=_SSL_CTX) as resp:
                 raw = resp.read().decode("utf-8")
                 time.sleep(RATE_LIMIT_PAUSE)
                 if not raw.strip():
