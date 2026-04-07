@@ -713,6 +713,18 @@ def build_parser():
     p.add_argument("lead_id", type=int)
     p.set_defaults(func=cmd_leads_resume)
 
+    p = sub.add_parser("leads-delete", help="Delete a lead from a campaign")
+    p.add_argument("campaign_id", type=int)
+    p.add_argument("lead_id", type=int)
+    p.set_defaults(func=cmd_leads_delete)
+
+    p = sub.add_parser(
+        "leads-bulk-delete", help="Delete leads listed in a file (one lead_id per line)"
+    )
+    p.add_argument("campaign_id", type=int)
+    p.add_argument("file", help="File with lead IDs, one per line")
+    p.set_defaults(func=cmd_leads_bulk_delete)
+
     p = sub.add_parser("leads-unsubscribe", help="Unsubscribe lead globally")
     p.add_argument("lead_id", type=int)
     p.set_defaults(func=cmd_leads_unsubscribe)
