@@ -77,21 +77,27 @@ def fetch_campaign_leads(campaign_id: int) -> dict[int, dict]:
             break
 
         if isinstance(data, dict):
-            leads = data.get("data", [])
+            rows = data.get("data", [])
             total = int(data.get("total_leads", data.get("total", 0)))
         elif isinstance(data, list):
-            leads = data
+            rows = data
             total = len(data)
         else:
             break
 
-        if not leads:
+        if not rows:
             break
 
-        for lead in leads:
-            lead_id = lead.get("id") or lead.get("lead_id")
+        for row in rows:
+            # API structure: {campaign_lead_map_id, status, lead: {id, email, ...}}
+            nested = row.get("lead") or row
+            lead_id = nested.get("id") or nested.get("lead_id") or row.get("lead_id")
             if lead_id:
-                all_leads[int(lead_id)] = lead
+                all_leads[int(lead_id)] = {
+                    "status": row.get("status", "UNKNOWN"),
+                    "lead_category_id": row.get("lead_category_id"),
+                    "email": nested.get("email", ""),
+                }
 
         print(f"  Fetched {len(all_leads)}/{total} leads from campaign {campaign_id}")
 
