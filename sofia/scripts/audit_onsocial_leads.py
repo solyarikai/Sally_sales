@@ -42,6 +42,7 @@ def api_get(endpoint, params=None):
     url = f"{BASE_URL}{endpoint}?{qs}"
     req = Request(url)
     req.add_header("Content-Type", "application/json")
+    req.add_header("User-Agent", "Mozilla/5.0 SmartLead-CLI/1.0")
     for attempt in range(3):
         try:
             with urlopen(req, context=SSL_CTX) as resp:
