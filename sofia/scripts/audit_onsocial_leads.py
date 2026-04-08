@@ -87,7 +87,12 @@ def get_all_onsocial_campaigns():
     """Get all OnSocial campaigns."""
     data = api_get("/campaigns/", {"include_tags": "true"})
     camps = data if isinstance(data, list) else data.get("campaigns", [])
-    return [c for c in camps if "onsocial" in c.get("name", "").lower()]
+    return [
+        c
+        for c in camps
+        if "onsocial" in c.get("name", "").lower()
+        and c.get("id") not in EXCLUDE_CAMPAIGN_IDS
+    ]
 
 
 def fetch_leads_paginated(campaign_id):
