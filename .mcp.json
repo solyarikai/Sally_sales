@@ -77,6 +77,13 @@
       "env": {
         "LINEAR_ACCESS_TOKEN": "lin_api_PGUGpz14xDFwfLyAPwcUb7VtzkW15OlRRPiVaLjB"
       }
+    },
+    "publora": {
+      "type": "http",
+      "url": "https://mcp.publora.com",
+      "headers": {
+        "Authorization": "Bearer sk_mnq49l6k_787cb22d.8b2b9e51db3f86d0770676593a7cb59e8578e63d6894d6d8f365"
+      }
     }
   }
 }
