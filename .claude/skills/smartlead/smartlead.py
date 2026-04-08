@@ -316,10 +316,67 @@ def cmd_leads_export(args):
     print(f"\nExported {len(leads)} leads → {output_path}", file=sys.stderr)
 
 
+def _check_contacts_db(emails, project_id=42):
+    """Check emails against contacts DB on Hetzner via SSH.
+    Returns set of emails that should be blocked (already contacted).
+    """
+    import subprocess
+
+    BLOCK_STATUSES = ("replied", "meeting_booked", "not_qualified", "sent")
+    sanitized = [e.replace("'", "''").lower().strip() for e in emails if e and "@" in e]
+    if not sanitized:
+        return set()
+    blocked = set()
+    for i in range(0, len(sanitized), 500):
+        batch = sanitized[i : i + 500]
+        email_list = ",".join(f"'{e}'" for e in batch)
+        sql = (
+            f"SELECT lower(email), status FROM contacts "
+            f"WHERE project_id = {project_id} "
+            f"AND lower(email) IN ({email_list})"
+        )
+        psql_cmd = f'docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -F"|" -c "{sql}"'
+        cmd = f'ssh hetzner "{psql_cmd}"'
+        try:
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True, timeout=30
+            )
+            for line in result.stdout.strip().split("\n"):
+                if "|" in line:
+                    email, status = line.split("|", 1)
+                    if status.strip() in BLOCK_STATUSES:
+                        blocked.add(email.strip())
+        except Exception as e:
+            print(f"  WARNING: contact DB check failed: {e}", file=sys.stderr)
+    return blocked
+
+
 def cmd_leads_add(args):
     """Add leads to campaign from JSON file (max 400 per batch)."""
     with open(args.file, "r") as f:
         all_leads = json.load(f)
+
+    # Contact-level dedup: check DB before uploading
+    all_emails = [
+        l.get("email", "").strip().lower() for l in all_leads if l.get("email")
+    ]
+    if all_emails and not args.skip_blocklist:
+        print(
+            f"  Checking {len(all_emails)} emails against contacts DB...",
+            file=sys.stderr,
+        )
+        blocked = _check_contacts_db(all_emails)
+        if blocked:
+            before = len(all_leads)
+            all_leads = [
+                l
+                for l in all_leads
+                if l.get("email", "").strip().lower() not in blocked
+            ]
+            print(
+                f"  CONTACT DEDUP: removed {before - len(all_leads)} already-contacted leads",
+                file=sys.stderr,
+            )
 
     batch_size = 400
     total_added = 0
