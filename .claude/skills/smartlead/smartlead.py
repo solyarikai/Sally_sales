@@ -335,11 +335,16 @@ def _check_contacts_db(emails, project_id=42):
             f"WHERE project_id = {project_id} "
             f"AND lower(email) IN ({email_list})"
         )
-        psql_cmd = f'docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -F"|" -c "{sql}"'
-        cmd = f'ssh hetzner "{psql_cmd}"'
+        psql_cmd = (
+            "docker exec leadgen-postgres psql -U leadgen -d leadgen "
+            f"-t -A -F'|' -c \"{sql}\""
+        )
         try:
             result = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True, timeout=30
+                ["ssh", "hetzner", psql_cmd],
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             for line in result.stdout.strip().split("\n"):
                 if "|" in line:
