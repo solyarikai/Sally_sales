@@ -34,6 +34,11 @@ BLACKLIST_PATH = (
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output" / "OnSocial"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# Campaigns to exclude from analysis (reused signatures, invalid data)
+EXCLUDE_CAMPAIGN_IDS = {
+    3064335,  # c-OnSocial_IM-FIRST AGENCIES EUROPE #C (переиспользовали подпись)
+}
+
 
 def api_get(endpoint, params=None):
     params = params or {}
