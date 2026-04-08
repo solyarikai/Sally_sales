@@ -46,6 +46,7 @@ import json
 import os
 import re
 import socket
+import subprocess  # used by filter_existing_contacts
 import sys
 import time
 from datetime import datetime, timezone
@@ -61,7 +62,9 @@ sys.path.insert(0, str(Path(os.environ.get("REPO_DIR", "/app"))))
 # На Hetzner: REPO_DIR=/app, state хранится между запусками.
 # Локально: auto-detect от расположения скрипта.
 REPO_DIR = Path(os.environ.get("REPO_DIR", str(Path(__file__).parent.parent.parent)))
-STATE_DIR = Path(os.environ.get("ONSOCIAL_STATE_DIR", str(REPO_DIR / "state" / "onsocial")))
+STATE_DIR = Path(
+    os.environ.get("ONSOCIAL_STATE_DIR", str(REPO_DIR / "state" / "onsocial"))
+)
 INPUT_DIR = STATE_DIR / "input"  # сюда Claude заливает CSV через scp
 
 # Общий кеш скрапинга между проектами (OnSocial, ArchiStruct и др.)
@@ -72,33 +75,45 @@ WEBSITE_CACHE_DIR = SHARED_CACHE_DIR / "website_cache"
 # Версионирование промптов — для воспроизводимости результатов
 PROMPT_VERSIONS_DIR = STATE_DIR / "prompt_versions"
 
-for _d in [STATE_DIR, INPUT_DIR, SHARED_CACHE_DIR, WEBSITE_CACHE_DIR, PROMPT_VERSIONS_DIR]:
+for _d in [
+    STATE_DIR,
+    INPUT_DIR,
+    SHARED_CACHE_DIR,
+    WEBSITE_CACHE_DIR,
+    PROMPT_VERSIONS_DIR,
+]:
     _d.mkdir(parents=True, exist_ok=True)
 
 # ── STATE FILES ───────────────────────────────────────────────────────────────
 # Все state файлы живут в state/onsocial/ и сохраняются между запусками.
 # Каждый шаг проверяет наличие своего файла — если есть, пропускает (кеш).
 # --force пересчитывает всё с нуля.
-BLACKLIST_FILE   = STATE_DIR / "campaign_blacklist.json"   # домены в аутриче + клиенты
-ALL_COMPANIES    = STATE_DIR / "all_companies.json"        # Step 1: все загруженные компании
-AFTER_BLACKLIST  = STATE_DIR / "after_blacklist.json"      # Step 3: после blacklist фильтра
-PRIORITY_FILE    = STATE_DIR / "priority.json"             # Step 4: компании с положительными сигналами
-NORMAL_FILE      = STATE_DIR / "normal.json"               # Step 4: компании без сигналов
-DISQUALIFIED     = STATE_DIR / "disqualified.json"         # Step 4: отсеянные (размер, индустрия, FSA)
-CLASSIFICATIONS  = STATE_DIR / "classifications.json"      # Step 7: DEDUP CACHE — все классифицированные
-TARGETS_FILE     = STATE_DIR / "targets.json"              # Step 8: финальные таргеты для аутрича
-REJECTS_FILE     = STATE_DIR / "rejects.json"              # Step 8: OTHER — не наш ICP
-STATS_FILE       = STATE_DIR / "pipeline_stats.json"       # Step 8: статистика прогона
+BLACKLIST_FILE = STATE_DIR / "campaign_blacklist.json"  # домены в аутриче + клиенты
+ALL_COMPANIES = STATE_DIR / "all_companies.json"  # Step 1: все загруженные компании
+AFTER_BLACKLIST = STATE_DIR / "after_blacklist.json"  # Step 3: после blacklist фильтра
+PRIORITY_FILE = (
+    STATE_DIR / "priority.json"
+)  # Step 4: компании с положительными сигналами
+NORMAL_FILE = STATE_DIR / "normal.json"  # Step 4: компании без сигналов
+DISQUALIFIED = (
+    STATE_DIR / "disqualified.json"
+)  # Step 4: отсеянные (размер, индустрия, FSA)
+CLASSIFICATIONS = (
+    STATE_DIR / "classifications.json"
+)  # Step 7: DEDUP CACHE — все классифицированные
+TARGETS_FILE = STATE_DIR / "targets.json"  # Step 8: финальные таргеты для аутрича
+REJECTS_FILE = STATE_DIR / "rejects.json"  # Step 8: OTHER — не наш ICP
+STATS_FILE = STATE_DIR / "pipeline_stats.json"  # Step 8: статистика прогона
 
 # ── SHEET FILES ───────────────────────────────────────────────────────────────
 # Входные данные: CSV из Apollo/Clay, загруженные через scp в INPUT_DIR.
 # Также поддерживает legacy формат sheet_*.json (headers + rows).
 SHEET_FILES = {
-    "us":     INPUT_DIR / "sheet_us.json",
-    "uk_eu":  INPUT_DIR / "sheet_uk_eu.json",
-    "latam":  INPUT_DIR / "sheet_latam.json",
-    "india":  INPUT_DIR / "sheet_india.json",
-    "mixed":  INPUT_DIR / "sheet_mixed.json",
+    "us": INPUT_DIR / "sheet_us.json",
+    "uk_eu": INPUT_DIR / "sheet_uk_eu.json",
+    "latam": INPUT_DIR / "sheet_latam.json",
+    "india": INPUT_DIR / "sheet_india.json",
+    "mixed": INPUT_DIR / "sheet_mixed.json",
 }
 
 # ── CSV EXPORT ────────────────────────────────────────────────────────────────
@@ -112,9 +127,11 @@ CSV_ARCHIVE_DIR = CSV_OUTPUT_DIR / "Archive"
 for _d in [CSV_OUTPUT_DIR, CSV_TARGETS_DIR, CSV_ARCHIVE_DIR]:
     _d.mkdir(parents=True, exist_ok=True)
 
+
 def _date_tag() -> str:
     """Короткая метка даты для именования файлов, например 'Mar 24'."""
     return datetime.now().strftime("%b %d")
+
 
 def _csv_name(type_: str, segment: str = "", suffix: str = "") -> str:
     """Стандартизированное имя CSV. Пример: 'OS | Targets | INFPLAT — Mar 24.csv'"""
@@ -128,6 +145,7 @@ def _csv_name(type_: str, segment: str = "", suffix: str = "") -> str:
         name += f" — {_date_tag()}"
     return f"{name}.csv"
 
+
 def save_csv(path: Path, rows: list[dict]):
     """Сохраняет list of dicts в CSV."""
     if not rows:
@@ -139,39 +157,64 @@ def save_csv(path: Path, rows: list[dict]):
         writer.writerows(rows)
     print(f"  → saved CSV: {path.name} ({len(rows)} rows)")
 
+
 # ── AI CONFIG ─────────────────────────────────────────────────────────────────
 # Версия промпта — при изменении промпта нужно увеличить версию,
 # иначе старые и новые классификации смешаются в кеше.
 PROMPT_VERSION = "v1"
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")      # основной: GPT-4o-mini
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")  # fallback: Claude Haiku 4.5
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")  # основной: GPT-4o-mini
+ANTHROPIC_API_KEY = os.environ.get(
+    "ANTHROPIC_API_KEY", ""
+)  # fallback: Claude Haiku 4.5
 
 # ── API KEYS (Steps 9-11) ────────────────────────────────────────────────────
-APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY", "")       # Step 9: People Search
-FINDYMAIL_API_KEY = os.environ.get("FINDYMAIL_API_KEY", "") # Step 10: Email enrichment
-SMARTLEAD_API_KEY = os.environ.get("SMARTLEAD_API_KEY", "") # Step 11: Campaign upload
+APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY", "")  # Step 9: People Search
+FINDYMAIL_API_KEY = os.environ.get("FINDYMAIL_API_KEY", "")  # Step 10: Email enrichment
+SMARTLEAD_API_KEY = os.environ.get("SMARTLEAD_API_KEY", "")  # Step 11: Campaign upload
 
 APOLLO_BASE = "https://api.apollo.io/api/v1"
 FINDYMAIL_BASE = "https://app.findymail.com"
 SMARTLEAD_BASE = "https://server.smartlead.ai/api/v1"
 
 # State files for Steps 9-11
-CONTACTS_FILE = STATE_DIR / "contacts.json"         # Step 9: найденные контакты
-ENRICHED_FILE = STATE_DIR / "enriched_contacts.json" # Step 10: контакты с email
+CONTACTS_FILE = STATE_DIR / "contacts.json"  # Step 9: найденные контакты
+ENRICHED_FILE = STATE_DIR / "enriched_contacts.json"  # Step 10: контакты с email
 
 # SmartLead email accounts (OnSocial #C persona set)
 DEFAULT_EMAIL_ACCOUNTS = [
-    2718958, 2718959, 2718960, 2718961, 2718962,
-    2718963, 2718964, 2718965, 2718966, 2718967,
-    2718968, 2718969, 2718970, 2718971,
+    2718958,
+    2718959,
+    2718960,
+    2718961,
+    2718962,
+    2718963,
+    2718964,
+    2718965,
+    2718966,
+    2718967,
+    2718968,
+    2718969,
+    2718970,
+    2718971,
 ]
 
 MAX_CONTACTS_PER_COMPANY = 3
 DEFAULT_TITLES = [
-    "CEO", "CTO", "CMO", "COO", "Founder", "Co-Founder",
-    "VP Marketing", "VP Partnerships", "VP Growth", "VP Sales",
-    "Head of Marketing", "Head of Partnerships", "Head of Growth",
-    "Director of Marketing", "Director of Partnerships",
+    "CEO",
+    "CTO",
+    "CMO",
+    "COO",
+    "Founder",
+    "Co-Founder",
+    "VP Marketing",
+    "VP Partnerships",
+    "VP Growth",
+    "VP Sales",
+    "Head of Marketing",
+    "Head of Partnerships",
+    "Head of Growth",
+    "Director of Marketing",
+    "Director of Partnerships",
 ]
 DEFAULT_SENIORITIES = ["owner", "founder", "c_suite", "vp", "head", "director"]
 
@@ -180,33 +223,74 @@ DEFAULT_SENIORITIES = ["owner", "founder", "c_suite", "vp", "head", "director"]
 # Положительные сигналы — если слово есть в keywords/description,
 # компания попадает в priority queue (обрабатывается первой).
 POSITIVE_KEYWORDS = [
-    "influencer", "creator", "ugc", "affiliate", "social media marketing",
-    "talent management", "content creator", "brand ambassador",
-    "influencer marketing", "creator economy", "mcn", "creator marketplace",
-    "influencer analytics", "influencer platform", "creator monetization",
-    "social commerce", "live shopping", "influencer agency", "creator campaigns",
-    "affiliate network", "performance marketing", "cpa network",
+    "influencer",
+    "creator",
+    "ugc",
+    "affiliate",
+    "social media marketing",
+    "talent management",
+    "content creator",
+    "brand ambassador",
+    "influencer marketing",
+    "creator economy",
+    "mcn",
+    "creator marketplace",
+    "influencer analytics",
+    "influencer platform",
+    "creator monetization",
+    "social commerce",
+    "live shopping",
+    "influencer agency",
+    "creator campaigns",
+    "affiliate network",
+    "performance marketing",
+    "cpa network",
 ]
 
 # Индустрии-дисквалификаторы — компании из этих индустрий отсеиваются в Step 4.
 # Исключение: если у компании есть положительный сигнал (influencer + staffing = ок).
 DISQUALIFY_INDUSTRIES = [
-    "staffing", "recruitment", "real estate", "construction", "mining",
-    "oil & gas", "legal services", "law firm", "accounting", "banking",
-    "government", "military", "defense", "utilities", "agriculture",
-    "farming", "food production", "insurance", "logistics", "shipping",
-    "transportation", "civil engineering", "pharmaceuticals",
-    "veterinary", "dairy", "fishery", "forestry", "ranching",
+    "staffing",
+    "recruitment",
+    "real estate",
+    "construction",
+    "mining",
+    "oil & gas",
+    "legal services",
+    "law firm",
+    "accounting",
+    "banking",
+    "government",
+    "military",
+    "defense",
+    "utilities",
+    "agriculture",
+    "farming",
+    "food production",
+    "insurance",
+    "logistics",
+    "shipping",
+    "transportation",
+    "civil engineering",
+    "pharmaceuticals",
+    "veterinary",
+    "dairy",
+    "fishery",
+    "forestry",
+    "ranching",
 ]
 
 # FSA (Full-Service Agency) паттерны — агентства которые делают всё
 # (SEO + PPC + web design + social media). Не наш ICP — нужны агентства
 # где influencer marketing = основной бизнес, а не одна из 8 услуг.
 FSA_PATTERNS = [
-    r"\bseo\b.*\bppc\b", r"\bppc\b.*\bseo\b",
-    r"\bseo\b.*\bweb design\b", r"\bfull.?service\b.*\bagency\b",
+    r"\bseo\b.*\bppc\b",
+    r"\bppc\b.*\bseo\b",
+    r"\bseo\b.*\bweb design\b",
+    r"\bfull.?service\b.*\bagency\b",
     r"\bdigital marketing agency\b.*\bseo\b",
-    r"\bpr agency\b", r"\bpublic relations\b.*\bagency\b",
+    r"\bpr agency\b",
+    r"\bpublic relations\b.*\bagency\b",
 ]
 
 # Паттерны парковочных/мёртвых доменов — проверяются ПОСЛЕ скрапинга,
@@ -361,6 +445,7 @@ NEW:SOCIAL_COMMERCE_TOOLS | Builds shoppable video tools for e-commerce brands, 
 
 # ── HELPERS ────────────────────────────────────────────────────────────────────
 
+
 def norm_domain(raw: str) -> str:
     """Normalize domain: strip protocol, www, port, trailing slash."""
     if not raw:
@@ -374,17 +459,21 @@ def norm_domain(raw: str) -> str:
     d = d.split(":")[0]  # strip port
     return d.strip()
 
+
 def has_positive_signal(text: str) -> bool:
     t = (text or "").lower()
     return any(kw in t for kw in POSITIVE_KEYWORDS)
+
 
 def is_fsa(text: str) -> bool:
     t = (text or "").lower()
     return any(re.search(p, t) for p in FSA_PATTERNS)
 
+
 def count_positive_signals(keywords: str, description: str) -> int:
     combined = f"{keywords} {description}".lower()
     return sum(1 for kw in POSITIVE_KEYWORDS if kw in combined)
+
 
 def load_json(path: Path):
     if not path.exists():
@@ -392,10 +481,14 @@ def load_json(path: Path):
     with path.open(encoding="utf-8") as f:
         return json.load(f)
 
+
 def save_json(path: Path, data):
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"  → saved {path.name} ({len(data) if isinstance(data, (list, dict)) else ''})")
+    print(
+        f"  → saved {path.name} ({len(data) if isinstance(data, (list, dict)) else ''})"
+    )
+
 
 def ts() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -431,18 +524,30 @@ def can_skip_scraping(company: dict) -> bool:
 
 # ── IMPROVEMENT C: Self-check helpers ─────────────────────────────────────────
 
-def self_check(step_name: str, value: int, total: int, expected_min_pct: float,
-               expected_max_pct: float, metric_name: str):
+
+def self_check(
+    step_name: str,
+    value: int,
+    total: int,
+    expected_min_pct: float,
+    expected_max_pct: float,
+    metric_name: str,
+):
     """Print warning if metric is outside expected range."""
     if total == 0:
         return
     pct = value * 100 / total
     if pct < expected_min_pct:
-        print(f"  ⚠️  ALERT [{step_name}]: {metric_name} = {pct:.1f}% — below expected {expected_min_pct}%")
+        print(
+            f"  ⚠️  ALERT [{step_name}]: {metric_name} = {pct:.1f}% — below expected {expected_min_pct}%"
+        )
         print(f"       ({value}/{total}). Check pipeline logic or input data.")
     elif pct > expected_max_pct:
-        print(f"  ⚠️  ALERT [{step_name}]: {metric_name} = {pct:.1f}% — above expected {expected_max_pct}%")
+        print(
+            f"  ⚠️  ALERT [{step_name}]: {metric_name} = {pct:.1f}% — above expected {expected_max_pct}%"
+        )
         print(f"       ({value}/{total}). Check if filters are too broad/narrow.")
+
 
 # ── STEP 0: LOAD BLACKLIST ─────────────────────────────────────────────────────
 # Загружает существующий campaign_blacklist.json. НЕ формирует — только читает.
@@ -457,6 +562,7 @@ def self_check(step_name: str, value: int, total: int, expected_min_pct: float,
 #   findymail_to_smartlead.py → sync_blacklist() — после каждой заливки лидов.
 #
 # Blacklist ≠ dedup. Dedup делает classifications.json кеш в Step 7.
+
 
 def step0_blacklist(force: bool = False):
     print("\n=== STEP 0: Blacklist ===")
@@ -482,6 +588,7 @@ def step0_blacklist(force: bool = False):
 # Нормализует домены, обрезает длинные поля.
 # Результат кешируется в all_companies.json — при повторном запуске не перечитывает.
 
+
 def step1_load(force: bool = False):
     print("\n=== STEP 1: Load & Normalize ===")
     if ALL_COMPANIES.exists() and not force:
@@ -506,17 +613,17 @@ def step1_load(force: bool = False):
                         return i
             return -1
 
-        ci_name     = col(["Company Name"])
-        ci_emp      = col(["# Employees"])
+        ci_name = col(["Company Name"])
+        ci_emp = col(["# Employees"])
         ci_industry = col(["Industry"])
-        ci_website  = col(["Website"])
+        ci_website = col(["Website"])
         ci_linkedin = col(["Company Linkedin Url"])
-        ci_country  = col(["Company Country"])
+        ci_country = col(["Company Country"])
         ci_keywords = col(["Keywords"])
-        ci_short    = col(["Short Description"])
-        ci_desc     = col(["Description"])
-        ci_tech     = col(["Technologies"])
-        ci_founded  = col(["Founded Year"])
+        ci_short = col(["Short Description"])
+        ci_desc = col(["Description"])
+        ci_tech = col(["Technologies"])
+        ci_founded = col(["Founded Year"])
 
         def get(row, idx):
             if idx < 0 or idx >= len(row):
@@ -529,30 +636,36 @@ def step1_load(force: bool = False):
             if not domain:
                 continue
 
-            companies.append({
-                "domain": domain,
-                "company_name": get(row, ci_name),
-                "employees": get(row, ci_emp),
-                "industry": get(row, ci_industry),
-                "website": website,
-                "linkedin_url": get(row, ci_linkedin),
-                "country": get(row, ci_country),
-                "keywords": get(row, ci_keywords)[:500],
-                "short_description": get(row, ci_short)[:500],
-                "description": get(row, ci_desc)[:1000],
-                "technologies": get(row, ci_tech)[:300],
-                "founded_year": get(row, ci_founded),
-                "source_sheet": sheet_key,
-            })
+            companies.append(
+                {
+                    "domain": domain,
+                    "company_name": get(row, ci_name),
+                    "employees": get(row, ci_emp),
+                    "industry": get(row, ci_industry),
+                    "website": website,
+                    "linkedin_url": get(row, ci_linkedin),
+                    "country": get(row, ci_country),
+                    "keywords": get(row, ci_keywords)[:500],
+                    "short_description": get(row, ci_short)[:500],
+                    "description": get(row, ci_desc)[:1000],
+                    "technologies": get(row, ci_tech)[:300],
+                    "founded_year": get(row, ci_founded),
+                    "source_sheet": sheet_key,
+                }
+            )
 
         print(f"  {sheet_key}: {len(rows)} rows → loaded")
 
     print(f"  Total loaded: {len(companies)}")
     # Self-check: expect 20,000-100,000 companies from Apollo
     if len(companies) < 5000:
-        print(f"  ⚠️  ALERT [Step 1]: Only {len(companies)} companies loaded — expected 20,000+. Check input files.")
+        print(
+            f"  ⚠️  ALERT [Step 1]: Only {len(companies)} companies loaded — expected 20,000+. Check input files."
+        )
     elif len(companies) < 20000:
-        print(f"  ℹ️  NOTE [Step 1]: {len(companies)} companies loaded — slightly below typical 20,000+")
+        print(
+            f"  ℹ️  NOTE [Step 1]: {len(companies)} companies loaded — slightly below typical 20,000+"
+        )
     save_json(ALL_COMPANIES, companies)
     return companies
 
@@ -562,6 +675,7 @@ def step1_load(force: bool = False):
 # одну компанию несколько раз из разных источников/фильтров).
 # Это dedup на уровне ВХОДНЫХ ДАННЫХ, не путать с classifications cache
 # который предотвращает повторную КЛАССИФИКАЦИЮ между прогонами.
+
 
 def step2_dedup(companies: list, force: bool = False):
     print("\n=== STEP 2: Deduplicate ===")
@@ -592,6 +706,7 @@ def step2_dedup(companies: list, force: bool = False):
 # Это БИЗНЕС-фильтр: "не таргетить тех, кого уже таргетим".
 # Ожидаемый процент отсева: 1-15%.
 
+
 def step3_blacklist_filter(companies: list, blacklist: dict, force: bool = False):
     print("\n=== STEP 3: Blacklist Filter ===")
     if AFTER_BLACKLIST.exists() and not force:
@@ -610,7 +725,9 @@ def step3_blacklist_filter(companies: list, blacklist: dict, force: bool = False
 
     print(f"  {len(companies)} → {len(passed)} (removed {removed} blacklisted)")
     if removed == 0:
-        print("  ⚠️  ALERT [Step 3]: 0 removed — check domain normalization (www, trailing /)")
+        print(
+            "  ⚠️  ALERT [Step 3]: 0 removed — check domain normalization (www, trailing /)"
+        )
     # Self-check: blacklist should remove 1-10%
     self_check("Step 3", removed, len(companies), 0.5, 15, "Blacklist removal rate")
     save_json(AFTER_BLACKLIST, passed)
@@ -626,14 +743,22 @@ def step3_blacklist_filter(companies: list, blacklist: dict, force: bool = False
 # Разделяет на три очереди: priority (есть сигналы), normal (нет сигналов), disqualified.
 # Priority обрабатывается первым — экономит время на лучших кандидатах.
 
+
 def step4_filter(companies: list, force: bool = False):
     print("\n=== STEP 4: Deterministic Filter ===")
 
-    if PRIORITY_FILE.exists() and NORMAL_FILE.exists() and DISQUALIFIED.exists() and not force:
+    if (
+        PRIORITY_FILE.exists()
+        and NORMAL_FILE.exists()
+        and DISQUALIFIED.exists()
+        and not force
+    ):
         priority = load_json(PRIORITY_FILE)
         normal = load_json(NORMAL_FILE)
         disq = load_json(DISQUALIFIED)
-        print(f"  already exists: {len(priority)} priority, {len(normal)} normal, {len(disq)} disqualified (skip)")
+        print(
+            f"  already exists: {len(priority)} priority, {len(normal)} normal, {len(disq)} disqualified (skip)"
+        )
         return priority, normal, disq
 
     priority = []
@@ -671,7 +796,7 @@ def step4_filter(companies: list, force: bool = False):
 
         # 4c. FSA filter (full-service agency)
         if not disq_reason:
-            combined_text = f"{c.get('keywords','')} {c.get('short_description','')} {c.get('description','')}".lower()
+            combined_text = f"{c.get('keywords', '')} {c.get('short_description', '')} {c.get('description', '')}".lower()
             if is_fsa(combined_text) and not has_positive_signal(combined_text):
                 disq_reason = "Full-service agency (FSA filter)"
 
@@ -680,8 +805,11 @@ def step4_filter(companies: list, force: bool = False):
             disq_list.append(c)
         else:
             # 4d. Positive signal detection → priority queue
-            signal_text = f"{c.get('keywords','')} {c.get('short_description','')} {c.get('description','')}"
-            n_signals = count_positive_signals(c.get("keywords",""), c.get("short_description","") + " " + c.get("description",""))
+            signal_text = f"{c.get('keywords', '')} {c.get('short_description', '')} {c.get('description', '')}"
+            n_signals = count_positive_signals(
+                c.get("keywords", ""),
+                c.get("short_description", "") + " " + c.get("description", ""),
+            )
             c["has_positive_signal"] = n_signals > 0
             c["signal_count"] = n_signals
 
@@ -696,14 +824,18 @@ def step4_filter(companies: list, force: bool = False):
     print(f"  Priority (positive signals): {len(priority)}")
     print(f"  Normal (no signals):         {len(normal)}")
     print(f"  Disqualified:                {len(disq_list)}")
-    print(f"  Total:                       {len(priority)+len(normal)+len(disq_list)}")
+    print(
+        f"  Total:                       {len(priority) + len(normal) + len(disq_list)}"
+    )
 
     # Self-checks from ENRICHMENT_PIPELINE.md best practices
     total_processed = len(priority) + len(normal) + len(disq_list)
     self_check("Step 4", len(priority), total_processed, 5, 25, "Priority queue %")
     self_check("Step 4", len(disq_list), total_processed, 2, 30, "Disqualified %")
     if len(normal) == 0 and len(priority) == 0:
-        print("  ⚠️  ALERT [Step 4]: No companies passed filtering! Check input data or relax filters.")
+        print(
+            "  ⚠️  ALERT [Step 4]: No companies passed filtering! Check input data or relax filters."
+        )
 
     save_json(PRIORITY_FILE, priority)
     save_json(NORMAL_FILE, normal)
@@ -715,6 +847,7 @@ def step4_filter(companies: list, force: bool = False):
 # Быстрая проверка: домен вообще существует? Если DNS не резолвится —
 # нет смысла скрапить и классифицировать. Экономит время на мёртвых доменах.
 # Результаты кешируются в dns_cache.json.
+
 
 def step5_dns(companies: list, force: bool = False) -> list:
     """DNS check on priority companies. Updates in-place and returns alive subset."""
@@ -758,7 +891,9 @@ def step5_dns(companies: list, force: bool = False) -> list:
             dead.append(c)
 
     save_json(dns_cache_file, dns_cache)
-    print(f"  {len(companies)} domains → {len(alive)} alive, {len(dead)} dead ({new_checks} new checks)")
+    print(
+        f"  {len(companies)} domains → {len(alive)} alive, {len(dead)} dead ({new_checks} new checks)"
+    )
     return alive
 
 
@@ -767,6 +902,7 @@ def step5_dns(companies: list, force: bool = False) -> list:
 # Ограничение: 5000 символов на домен. Кешируется по файлам в website_cache/.
 # Кеш общий между проектами (OnSocial, ArchiStruct) — один скрап на домен.
 # Стоимость: $0 (httpx запросы). Согласование не требуется.
+
 
 async def scrape_domain(client: httpx.AsyncClient, domain: str) -> dict:
     """Scrape a single domain. Returns cache entry."""
@@ -791,13 +927,17 @@ async def scrape_domain(client: httpx.AsyncClient, domain: str) -> dict:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
         }
-        response = await client.get(url, headers=headers, timeout=15.0, follow_redirects=True)
+        response = await client.get(
+            url, headers=headers, timeout=15.0, follow_redirects=True
+        )
         result["status_code"] = response.status_code
 
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
             # Remove noise tags
-            for tag in soup(["nav", "footer", "script", "style", "noscript", "header", "aside"]):
+            for tag in soup(
+                ["nav", "footer", "script", "style", "noscript", "header", "aside"]
+            ):
                 tag.decompose()
             text = soup.get_text(separator=" ", strip=True)
             # Normalize whitespace
@@ -829,8 +969,12 @@ async def step6_scrape(companies: list, concurrency: int = 8) -> dict:
     print(f"\n=== STEP 6: Website Scraping (concurrency={concurrency}) ===")
 
     # Check how many are already cached
-    cached = sum(1 for c in companies if (WEBSITE_CACHE_DIR / f"{c['domain']}.json").exists())
-    to_scrape = [c for c in companies if not (WEBSITE_CACHE_DIR / f"{c['domain']}.json").exists()]
+    cached = sum(
+        1 for c in companies if (WEBSITE_CACHE_DIR / f"{c['domain']}.json").exists()
+    )
+    to_scrape = [
+        c for c in companies if not (WEBSITE_CACHE_DIR / f"{c['domain']}.json").exists()
+    ]
     print(f"  {len(companies)} companies: {cached} cached, {len(to_scrape)} to scrape")
 
     if to_scrape:
@@ -847,10 +991,14 @@ async def step6_scrape(companies: list, concurrency: int = 8) -> dict:
                     elapsed = time.time() - t0
                     rate = done / elapsed
                     remaining = (len(to_scrape) - done) / rate if rate > 0 else 0
-                    print(f"    {done}/{len(to_scrape)} scraped ({rate:.1f}/s, ~{remaining:.0f}s remaining)")
+                    print(
+                        f"    {done}/{len(to_scrape)} scraped ({rate:.1f}/s, ~{remaining:.0f}s remaining)"
+                    )
                 return result
 
-        async with httpx.AsyncClient(limits=httpx.Limits(max_connections=concurrency * 2)) as client:
+        async with httpx.AsyncClient(
+            limits=httpx.Limits(max_connections=concurrency * 2)
+        ) as client:
             await asyncio.gather(*[scrape_with_sem(c) for c in to_scrape])
 
     # Load all cache results
@@ -862,14 +1010,20 @@ async def step6_scrape(companies: list, concurrency: int = 8) -> dict:
             entry = load_json(cache_file)
             results[c["domain"]] = entry
             s = entry.get("status", "error")
-            if s == "success": success += 1
-            elif s == "timeout": timeout += 1
-            elif s == "blocked": blocked += 1
-            else: error += 1
+            if s == "success":
+                success += 1
+            elif s == "timeout":
+                timeout += 1
+            elif s == "blocked":
+                blocked += 1
+            else:
+                error += 1
 
     total = success + error + timeout + blocked
     if total > 0:
-        print(f"  Results: {success} success ({success*100//total}%), {error} error, {timeout} timeout, {blocked} blocked")
+        print(
+            f"  Results: {success} success ({success * 100 // total}%), {error} error, {timeout} timeout, {blocked} blocked"
+        )
     # Self-check: success rate should be 50-90%
     self_check("Step 6", success, max(total, 1), 30, 95, "Scrape success rate")
 
@@ -883,9 +1037,10 @@ async def step6_scrape(companies: list, concurrency: int = 8) -> dict:
 # Экономит ~10-15% вызовов GPT. Результаты сохраняются в classifications.json
 # как "classified_by: regexp_prefilter" — не пересчитываются при повторном запуске.
 
+
 def step6b_prefilter(companies: list, website_cache: dict) -> tuple[list, dict]:
     """Pre-filter companies using regexp on scraped content. Returns (filtered_companies, auto_classifications)."""
-    print(f"\n=== STEP 6.5: Regexp Pre-filter (before GPT) ===")
+    print("\n=== STEP 6.5: Regexp Pre-filter (before GPT) ===")
 
     # Load existing classifications to avoid re-filtering already classified
     existing = load_json(CLASSIFICATIONS) or {}
@@ -904,7 +1059,11 @@ def step6b_prefilter(companies: list, website_cache: dict) -> tuple[list, dict]:
             continue
 
         cache_entry = website_cache.get(domain, {})
-        content = cache_entry.get("content", "") if cache_entry.get("status") == "success" else ""
+        content = (
+            cache_entry.get("content", "")
+            if cache_entry.get("status") == "success"
+            else ""
+        )
 
         # Check 1: Parked/dead domain
         parked_reason = is_parked_or_dead(content)
@@ -939,13 +1098,17 @@ def step6b_prefilter(companies: list, website_cache: dict) -> tuple[list, dict]:
 
     print(f"  Filtered out: {parked} parked/dead, {fsa_caught} FSA websites")
     print(f"  Already classified: {already_done}")
-    print(f"  Passed to GPT: {len(passed) - already_done} new + {already_done} cached = {len(passed)} total")
+    print(
+        f"  Passed to GPT: {len(passed) - already_done} new + {already_done} cached = {len(passed)} total"
+    )
 
     # Merge auto-classifications into the cache file
     if auto_classified:
         existing.update(auto_classified)
         save_json(CLASSIFICATIONS, existing)
-        print(f"  → saved {len(auto_classified)} auto-classifications (saved ~${len(auto_classified) * 0.00012:.2f} GPT cost)")
+        print(
+            f"  → saved {len(auto_classified)} auto-classifications (saved ~${len(auto_classified) * 0.00012:.2f} GPT cost)"
+        )
 
     return passed, auto_classified
 
@@ -956,7 +1119,15 @@ def step6b_prefilter(companies: list, website_cache: dict) -> tuple[list, dict]:
 # Даёт GPT больше контекста для точной классификации.
 # Лимит: 200 компаний за раз, concurrency=4 (щадящий режим).
 
-DEEP_SCRAPE_PATHS = ["/about", "/about-us", "/team", "/our-team", "/services", "/contact"]
+DEEP_SCRAPE_PATHS = [
+    "/about",
+    "/about-us",
+    "/team",
+    "/our-team",
+    "/services",
+    "/contact",
+]
+
 
 async def deep_scrape_domain(client: httpx.AsyncClient, domain: str) -> str:
     """Scrape additional pages for borderline companies. Returns concatenated extra text."""
@@ -975,7 +1146,9 @@ async def deep_scrape_domain(client: httpx.AsyncClient, domain: str) -> str:
             )
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, "html.parser")
-                for tag in soup(["nav", "footer", "script", "style", "noscript", "header", "aside"]):
+                for tag in soup(
+                    ["nav", "footer", "script", "style", "noscript", "header", "aside"]
+                ):
                     tag.decompose()
                 text = soup.get_text(separator=" ", strip=True)
                 text = re.sub(r"\s+", " ", text).strip()
@@ -987,10 +1160,11 @@ async def deep_scrape_domain(client: httpx.AsyncClient, domain: str) -> str:
     return "\n".join(extra_texts)
 
 
-async def step6c_deep_scrape(companies: list, website_cache: dict,
-                              classifications: dict, concurrency: int = 4) -> dict:
+async def step6c_deep_scrape(
+    companies: list, website_cache: dict, classifications: dict, concurrency: int = 4
+) -> dict:
     """Deep scrape borderline companies — only those with homepage but unclear signal."""
-    print(f"\n=== STEP 6.7: Deep Scrape (borderline companies) ===")
+    print("\n=== STEP 6.7: Deep Scrape (borderline companies) ===")
 
     deep_cache_file = STATE_DIR / "deep_scrape_cache.json"
     deep_cache = load_json(deep_cache_file) or {}
@@ -1004,16 +1178,19 @@ async def step6c_deep_scrape(companies: list, website_cache: dict,
         cache_entry = website_cache.get(domain, {})
         content = cache_entry.get("content", "")
         # Borderline = has content but no clear signal from keywords AND homepage is ambiguous
-        if (content and len(content) > 200
+        if (
+            content
+            and len(content) > 200
             and c.get("signal_count", 0) == 0
-            and not has_positive_signal(content)):
+            and not has_positive_signal(content)
+        ):
             borderline.append(c)
 
     # Limit to most promising (sort by employee count in target range)
     borderline = borderline[:200]  # Cap at 200 to avoid excessive scraping
 
     if not borderline:
-        print(f"  No borderline companies found — skipping deep scrape")
+        print("  No borderline companies found — skipping deep scrape")
         return deep_cache
 
     print(f"  Found {len(borderline)} borderline companies for deep scraping")
@@ -1033,13 +1210,17 @@ async def step6c_deep_scrape(companies: list, website_cache: dict,
                 # Append extra text to website cache
                 if domain in website_cache:
                     existing_content = website_cache[domain].get("content", "")
-                    website_cache[domain]["content"] = existing_content + "\n" + extra[:3000]
+                    website_cache[domain]["content"] = (
+                        existing_content + "\n" + extra[:3000]
+                    )
                     website_cache[domain]["deep_scraped"] = True
             done += 1
             if done % 20 == 0:
                 print(f"    Deep scrape: {done}/{len(borderline)} done")
 
-    async with httpx.AsyncClient(limits=httpx.Limits(max_connections=concurrency * 2)) as client:
+    async with httpx.AsyncClient(
+        limits=httpx.Limits(max_connections=concurrency * 2)
+    ) as client:
         await asyncio.gather(*[deep_scrape_with_sem(c) for c in borderline])
 
     save_json(deep_cache_file, deep_cache)
@@ -1059,8 +1240,12 @@ async def step6c_deep_scrape(companies: list, website_cache: dict,
 # Это главный механизм защиты от повторной обработки между прогонами.
 
 VALID_SEGMENTS = {
-    "INFLUENCER_PLATFORMS", "AFFILIATE_PERFORMANCE", "IM_FIRST_AGENCIES", "OTHER",
+    "INFLUENCER_PLATFORMS",
+    "AFFILIATE_PERFORMANCE",
+    "IM_FIRST_AGENCIES",
+    "OTHER",
 }
+
 
 def _parse_classification_response(text: str) -> tuple[str, str]:
     """Parse 'SEGMENT | reasoning' from model response.
@@ -1078,13 +1263,22 @@ def _parse_classification_response(text: str) -> tuple[str, str]:
     return "OTHER", text[:200]
 
 
-async def _classify_openai(client: httpx.AsyncClient, prompt: str) -> tuple[str, str, int, str]:
+async def _classify_openai(
+    client: httpx.AsyncClient, prompt: str
+) -> tuple[str, str, int, str]:
     """Call OpenAI GPT-4o-mini. Returns (text, model_name, tokens, error_or_empty)."""
     response = await client.post(
         "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
-        json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": prompt}],
-              "max_tokens": 200, "temperature": 0},
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 200,
+            "temperature": 0,
+        },
         timeout=30.0,
     )
     if response.status_code == 200:
@@ -1092,10 +1286,17 @@ async def _classify_openai(client: httpx.AsyncClient, prompt: str) -> tuple[str,
         text = data["choices"][0]["message"]["content"].strip()
         tokens = data.get("usage", {}).get("total_tokens", 0)
         return text, "gpt-4o-mini", tokens, ""
-    return "", "gpt-4o-mini", 0, f"API error {response.status_code}: {response.text[:100]}"
+    return (
+        "",
+        "gpt-4o-mini",
+        0,
+        f"API error {response.status_code}: {response.text[:100]}",
+    )
 
 
-async def _classify_anthropic(client: httpx.AsyncClient, prompt: str) -> tuple[str, str, int, str]:
+async def _classify_anthropic(
+    client: httpx.AsyncClient, prompt: str
+) -> tuple[str, str, int, str]:
     """Call Anthropic Claude (haiku-4.5 for cost parity with gpt-4o-mini). Returns (text, model_name, tokens, error_or_empty)."""
     response = await client.post(
         "https://api.anthropic.com/v1/messages",
@@ -1114,16 +1315,27 @@ async def _classify_anthropic(client: httpx.AsyncClient, prompt: str) -> tuple[s
     if response.status_code == 200:
         data = response.json()
         text = data["content"][0]["text"].strip()
-        tokens = data.get("usage", {}).get("input_tokens", 0) + data.get("usage", {}).get("output_tokens", 0)
+        tokens = data.get("usage", {}).get("input_tokens", 0) + data.get(
+            "usage", {}
+        ).get("output_tokens", 0)
         return text, "claude-haiku-4.5", tokens, ""
-    return "", "claude-haiku-4.5", 0, f"API error {response.status_code}: {response.text[:100]}"
+    return (
+        "",
+        "claude-haiku-4.5",
+        0,
+        f"API error {response.status_code}: {response.text[:100]}",
+    )
 
 
-async def classify_company(client: httpx.AsyncClient, company: dict, website_cache: dict) -> dict:
+async def classify_company(
+    client: httpx.AsyncClient, company: dict, website_cache: dict
+) -> dict:
     """Classify one company. Uses OpenAI (primary) or Anthropic (fallback)."""
     domain = company["domain"]
     cache_entry = website_cache.get(domain, {})
-    website_content = cache_entry.get("content", "") if cache_entry.get("status") == "success" else ""
+    website_content = (
+        cache_entry.get("content", "") if cache_entry.get("status") == "success" else ""
+    )
 
     description = company.get("description", "") or company.get("short_description", "")
 
@@ -1131,7 +1343,9 @@ async def classify_company(client: httpx.AsyncClient, company: dict, website_cac
     employees = company.get("employees", "") or "unknown"
     industry = company.get("industry", "") or "not specified"
     keywords = company.get("keywords", "")[:200] or "not specified"
-    desc = description[:800] or ("see website content below" if website_content else "none")
+    desc = description[:800] or (
+        "see website content below" if website_content else "none"
+    )
 
     prompt = CLASSIFICATION_PROMPT.format(
         company_name=company.get("company_name", domain),
@@ -1149,48 +1363,73 @@ async def classify_company(client: httpx.AsyncClient, company: dict, website_cac
             text, model_name, tokens, error = await _classify_anthropic(client, prompt)
         else:
             return {
-                "domain": domain, "segment": "ERROR",
+                "domain": domain,
+                "segment": "ERROR",
                 "reasoning": "No API key (OPENAI_API_KEY or ANTHROPIC_API_KEY)",
-                "classified_by": "none", "prompt_version": PROMPT_VERSION, "classified_at": ts(),
+                "classified_by": "none",
+                "prompt_version": PROMPT_VERSION,
+                "classified_at": ts(),
             }
 
         if error:
             return {
-                "domain": domain, "segment": "ERROR", "reasoning": error,
-                "classified_by": model_name, "prompt_version": PROMPT_VERSION, "classified_at": ts(),
+                "domain": domain,
+                "segment": "ERROR",
+                "reasoning": error,
+                "classified_by": model_name,
+                "prompt_version": PROMPT_VERSION,
+                "classified_at": ts(),
             }
 
         segment, reasoning = _parse_classification_response(text)
         return {
-            "domain": domain, "segment": segment, "reasoning": reasoning,
-            "tokens_used": tokens, "classified_by": model_name,
-            "prompt_version": PROMPT_VERSION, "classified_at": ts(), "model": model_name,
+            "domain": domain,
+            "segment": segment,
+            "reasoning": reasoning,
+            "tokens_used": tokens,
+            "classified_by": model_name,
+            "prompt_version": PROMPT_VERSION,
+            "classified_at": ts(),
+            "model": model_name,
         }
 
     except Exception as e:
         return {
-            "domain": domain, "segment": "ERROR", "reasoning": str(e)[:100],
-            "classified_by": "unknown", "prompt_version": PROMPT_VERSION, "classified_at": ts(),
+            "domain": domain,
+            "segment": "ERROR",
+            "reasoning": str(e)[:100],
+            "classified_by": "unknown",
+            "prompt_version": PROMPT_VERSION,
+            "classified_at": ts(),
         }
 
 
-async def step7_classify(companies: list, website_cache: dict,
-                          limit_targets: int = 0, concurrency: int = 20) -> dict:
+async def step7_classify(
+    companies: list, website_cache: dict, limit_targets: int = 0, concurrency: int = 20
+) -> dict:
     """Classify companies. Returns updated classifications dict."""
-    print(f"\n=== STEP 7: AI Classification ===")
+    print("\n=== STEP 7: AI Classification ===")
 
     # Load existing classifications
     classifications = load_json(CLASSIFICATIONS) or {}
     to_classify = [c for c in companies if c["domain"] not in classifications]
 
-    targets_found = sum(1 for v in classifications.values()
-                        if v.get("segment", "OTHER") != "OTHER" and not v.get("segment","").startswith("ERROR"))
+    targets_found = sum(
+        1
+        for v in classifications.values()
+        if v.get("segment", "OTHER") != "OTHER"
+        and not v.get("segment", "").startswith("ERROR")
+    )
 
-    print(f"  {len(companies)} companies: {len(classifications)} cached, {len(to_classify)} to classify")
+    print(
+        f"  {len(companies)} companies: {len(classifications)} cached, {len(to_classify)} to classify"
+    )
     print(f"  Existing targets in cache: {targets_found}")
 
     if limit_targets and targets_found >= limit_targets:
-        print(f"  Already have {targets_found} targets >= limit {limit_targets}, skipping classification")
+        print(
+            f"  Already have {targets_found} targets >= limit {limit_targets}, skipping classification"
+        )
         return classifications
 
     if not OPENAI_API_KEY and not ANTHROPIC_API_KEY:
@@ -1198,7 +1437,9 @@ async def step7_classify(companies: list, website_cache: dict,
         print("  Set OPENAI_API_KEY or ANTHROPIC_API_KEY env var to enable")
         return classifications
 
-    provider = "OpenAI (gpt-4o-mini)" if OPENAI_API_KEY else "Anthropic (claude-haiku-4.5)"
+    provider = (
+        "OpenAI (gpt-4o-mini)" if OPENAI_API_KEY else "Anthropic (claude-haiku-4.5)"
+    )
     print(f"  Provider: {provider}")
 
     if not to_classify:
@@ -1220,14 +1461,20 @@ async def step7_classify(companies: list, website_cache: dict,
             result = await classify_company(client, company, website_cache)
             classifications[company["domain"]] = result
             done += 1
-            if result["segment"] not in ("OTHER", "ERROR") and not result["segment"].startswith("ERROR"):
+            if result["segment"] not in ("OTHER", "ERROR") and not result[
+                "segment"
+            ].startswith("ERROR"):
                 targets_found += 1
-                print(f"  ★ TARGET: {company['domain']} → {result['segment']} | {result['reasoning'][:80]}")
+                print(
+                    f"  ★ TARGET: {company['domain']} → {result['segment']} | {result['reasoning'][:80]}"
+                )
 
             if done % 100 == 0:
                 elapsed = time.time() - t0
                 save_json(CLASSIFICATIONS, classifications)
-                print(f"    {done}/{len(to_classify)} classified ({elapsed:.0f}s), {targets_found} targets")
+                print(
+                    f"    {done}/{len(to_classify)} classified ({elapsed:.0f}s), {targets_found} targets"
+                )
 
             if limit_targets and targets_found >= limit_targets:
                 print(f"\n  STOP: Reached {limit_targets} targets limit")
@@ -1245,11 +1492,15 @@ async def step7_classify(companies: list, website_cache: dict,
     # Self-checks from ENRICHMENT_PIPELINE.md
     total_cls = len(classifications)
     others = sum(1 for v in classifications.values() if v.get("segment") == "OTHER")
-    errors = sum(1 for v in classifications.values() if v.get("segment", "").startswith("ERROR"))
+    errors = sum(
+        1 for v in classifications.values() if v.get("segment", "").startswith("ERROR")
+    )
     self_check("Step 7", others, max(total_cls, 1), 50, 95, "OTHER classification rate")
     self_check("Step 7", errors, max(total_cls, 1), 0, 5, "ERROR rate")
     if targets_found == 0 and done > 100:
-        print("  ⚠️  ALERT [Step 7]: 0 targets found after 100+ classifications — prompt may be too strict")
+        print(
+            "  ⚠️  ALERT [Step 7]: 0 targets found after 100+ classifications — prompt may be too strict"
+        )
 
     # Estimate GPT cost
     total_tokens = sum(v.get("tokens_used", 0) for v in classifications.values())
@@ -1260,6 +1511,7 @@ async def step7_classify(companies: list, website_cache: dict,
 
 
 # ── STEP 7b: IMPORT EXISTING RESULTS ──────────────────────────────────────────
+
 
 def import_existing_results():
     """Import pipeline_results_run*.json into classifications.json cache."""
@@ -1309,6 +1561,7 @@ def import_existing_results():
 # Blacklist пополняется только когда лиды реально отправлены в кампанию
 # (findymail_to_smartlead.py → sync_blacklist()).
 # Защита от повторной обработки — через classifications.json кеш (Step 7).
+
 
 def step8_output(companies_map: dict, classifications: dict, website_cache: dict):
     """Generate targets.json, rejects.json, pipeline_stats.json."""
@@ -1432,8 +1685,10 @@ def step8_output(companies_map: dict, classifications: dict, website_cache: dict
 # Кеш: contacts_cache.json — домены которые уже обработаны не повторяются.
 # Код взят из targets_to_contacts.py.
 
-def search_people(domain: str, titles: list[str], seniorities: list[str],
-                  per_page: int = 25) -> list[dict]:
+
+def search_people(
+    domain: str, titles: list[str], seniorities: list[str], per_page: int = 25
+) -> list[dict]:
     """Search Apollo for people at a company domain. FREE — no credits consumed."""
     try:
         r = httpx.post(
@@ -1452,7 +1707,7 @@ def search_people(domain: str, titles: list[str], seniorities: list[str],
         if r.status_code == 200:
             return r.json().get("people", [])
         elif r.status_code == 429:
-            print(f"  Rate limit on search — waiting 60s...")
+            print("  Rate limit on search — waiting 60s...")
             time.sleep(60)
             return search_people(domain, titles, seniorities, per_page)
         else:
@@ -1463,9 +1718,13 @@ def search_people(domain: str, titles: list[str], seniorities: list[str],
         return []
 
 
-def enrich_person(person_id: str = None, linkedin_url: str = None,
-                  first_name: str = None, last_name: str = None,
-                  domain: str = None) -> dict:
+def enrich_person(
+    person_id: str = None,
+    linkedin_url: str = None,
+    first_name: str = None,
+    last_name: str = None,
+    domain: str = None,
+) -> dict:
     """Enrich a person to get email + full details. COSTS 1 Apollo credit."""
     payload = {"api_key": APOLLO_API_KEY}
     if person_id:
@@ -1490,7 +1749,7 @@ def enrich_person(person_id: str = None, linkedin_url: str = None,
             person = r.json().get("person", {})
             return person if person else {}
         elif r.status_code == 429:
-            print(f"  Rate limit on enrich — waiting 60s...")
+            print("  Rate limit on enrich — waiting 60s...")
             time.sleep(60)
             return enrich_person(person_id, linkedin_url, first_name, last_name, domain)
         else:
@@ -1500,10 +1759,11 @@ def enrich_person(person_id: str = None, linkedin_url: str = None,
         return {}
 
 
-def step9_people_search(targets: list, skip_enrich: bool = True,
-                        force: bool = False) -> list[dict]:
+def step9_people_search(
+    targets: list, skip_enrich: bool = True, force: bool = False
+) -> list[dict]:
     """Find decision-maker contacts for target companies via Apollo."""
-    print(f"\n=== STEP 9: People Search (Apollo) ===")
+    print("\n=== STEP 9: People Search (Apollo) ===")
 
     if CONTACTS_FILE.exists() and not force:
         contacts = load_json(CONTACTS_FILE)
@@ -1554,7 +1814,9 @@ def step9_people_search(targets: list, skip_enrich: bool = True,
                 enriched = enrich_person(
                     person_id=person.get("id"),
                     linkedin_url=linkedin_url,
-                    first_name=first_name, last_name=last_name, domain=domain,
+                    first_name=first_name,
+                    last_name=last_name,
+                    domain=domain,
                 )
                 if enriched:
                     email = enriched.get("email", "")
@@ -1596,8 +1858,10 @@ def step9_people_search(targets: list, skip_enrich: bool = True,
     with_email = sum(1 for c in all_contacts if c.get("Email"))
     companies_hit = len(set(c["Company Domain"] for c in all_contacts))
     print(f"\n  Companies with contacts: {companies_hit}/{len(targets)}")
-    print(f"  Total contacts: {len(all_contacts)} ({with_email} with email, "
-          f"{len(all_contacts) - with_email} without → Step 10 FindyMail)")
+    print(
+        f"  Total contacts: {len(all_contacts)} ({with_email} with email, "
+        f"{len(all_contacts) - with_email} without → Step 10 FindyMail)"
+    )
 
     return all_contacts
 
@@ -1614,8 +1878,12 @@ def step9_people_search(targets: list, skip_enrich: bool = True,
 
 FINDYMAIL_CONCURRENT = 5
 
+
 def fm_headers():
-    return {"Authorization": f"Bearer {FINDYMAIL_API_KEY}", "Content-Type": "application/json"}
+    return {
+        "Authorization": f"Bearer {FINDYMAIL_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
 
 async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
@@ -1650,10 +1918,11 @@ async def find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
         return {"email": "", "verified": False}
 
 
-async def step10_findymail(contacts: list, max_contacts: int = 1500,
-                           force: bool = False) -> list[dict]:
+async def step10_findymail(
+    contacts: list, max_contacts: int = 1500, force: bool = False
+) -> list[dict]:
     """Enrich contacts with email via FindyMail."""
-    print(f"\n=== STEP 10: FindyMail Enrichment ===")
+    print("\n=== STEP 10: FindyMail Enrichment ===")
 
     if ENRICHED_FILE.exists() and not force:
         enriched = load_json(ENRICHED_FILE)
@@ -1667,7 +1936,9 @@ async def step10_findymail(contacts: list, max_contacts: int = 1500,
     # Контакты без email но с LinkedIn URL → к обогащению
     to_enrich = [c for c in contacts if not c.get("Email") and c.get("Profile URL")]
     already_have = [c for c in contacts if c.get("Email")]
-    no_linkedin = [c for c in contacts if not c.get("Email") and not c.get("Profile URL")]
+    no_linkedin = [
+        c for c in contacts if not c.get("Email") and not c.get("Profile URL")
+    ]
     print(f"  {len(already_have)} already have email")
     print(f"  {len(to_enrich)} to enrich via FindyMail")
     print(f"  {len(no_linkedin)} without LinkedIn URL (skipped)")
@@ -1730,15 +2001,17 @@ async def step10_findymail(contacts: list, max_contacts: int = 1500,
         if out_of_credits:
             print("\n  OUT OF CREDITS — stopping")
             break
-        batch = to_enrich[i:i + batch_size]
+        batch = to_enrich[i : i + batch_size]
         await asyncio.gather(*[process_one(r) for r in batch])
         progress_file.write_text(json.dumps(done))
         processed = found + not_found + skipped
         elapsed = time.time() - t0
         rate = processed / elapsed if elapsed else 0
         eta = (len(to_enrich) - processed) / rate if rate else 0
-        print(f"[{processed}/{len(to_enrich)}] found={found} not_found={not_found} "
-              f"rate={rate:.1f}/s ETA={eta:.0f}s")
+        print(
+            f"[{processed}/{len(to_enrich)}] found={found} not_found={not_found} "
+            f"rate={rate:.1f}/s ETA={eta:.0f}s"
+        )
 
     progress_file.write_text(json.dumps(done))
 
@@ -1748,9 +2021,13 @@ async def step10_findymail(contacts: list, max_contacts: int = 1500,
     save_json(ENRICHED_FILE, all_enriched)
 
     # CSV backup
-    save_csv(CSV_OUTPUT_DIR / f"enriched_{_date_tag().replace(' ', '_')}.csv", with_email)
-    save_csv(CSV_OUTPUT_DIR / f"without_email_{_date_tag().replace(' ', '_')}.csv",
-             [c for c in without_email if c.get("Profile URL")])
+    save_csv(
+        CSV_OUTPUT_DIR / f"enriched_{_date_tag().replace(' ', '_')}.csv", with_email
+    )
+    save_csv(
+        CSV_OUTPUT_DIR / f"without_email_{_date_tag().replace(' ', '_')}.csv",
+        [c for c in without_email if c.get("Profile URL")],
+    )
 
     elapsed = time.time() - t0
     print(f"\n  FindyMail done in {elapsed:.0f}s")
@@ -1768,6 +2045,7 @@ async def step10_findymail(contacts: list, max_contacts: int = 1500,
 #
 # ★ CHECKPOINT: Перед этим шагом оператор подтверждает создание кампании.
 #   Claude Code покажет: "Step 11: {N} лидов с email. Создать кампанию '{name}'?"
+
 
 def sl_params():
     return {"api_key": SMARTLEAD_API_KEY}
@@ -1809,8 +2087,10 @@ def set_schedule(campaign_id: int, timezone: str = "America/New_York"):
         json={
             "timezone": timezone,
             "days_of_the_week": [1, 2, 3, 4, 5],
-            "start_hour": "08:00", "end_hour": "18:00",
-            "min_time_btw_emails": 10, "max_new_leads_per_day": 1000,
+            "start_hour": "08:00",
+            "end_hour": "18:00",
+            "min_time_btw_emails": 10,
+            "max_new_leads_per_day": 1000,
         },
         timeout=30,
     )
@@ -1818,27 +2098,99 @@ def set_schedule(campaign_id: int, timezone: str = "America/New_York"):
     print(f"  Schedule: Mon-Fri 08:00-18:00 ({timezone})")
 
 
+def filter_existing_contacts(emails: list[str], project_id: int = 42) -> dict:
+    """Check emails against contacts DB. Returns {email: status} for existing contacts.
+
+    Blocks: replied, meeting_booked, not_qualified, sent.
+    Works on Hetzner (docker exec) or locally (ssh hetzner).
+    """
+    if not emails:
+        return {}
+    BLOCK_STATUSES = ("replied", "meeting_booked", "not_qualified", "sent")
+    sanitized = [e.replace("'", "''").lower().strip() for e in emails if e and "@" in e]
+    if not sanitized:
+        return {}
+    existing = {}
+    for i in range(0, len(sanitized), 500):
+        batch = sanitized[i : i + 500]
+        email_list = ",".join(f"'{e}'" for e in batch)
+        sql = (
+            f"SELECT lower(email), status FROM contacts "
+            f"WHERE project_id = {project_id} "
+            f"AND lower(email) IN ({email_list})"
+        )
+        psql_cmd = (
+            "docker exec leadgen-postgres psql -U leadgen -d leadgen "
+            f"-t -A -F'|' -c \"{sql}\""
+        )
+        is_hetzner = os.path.exists("/root/magnum-opus-project")
+        if is_hetzner:
+            run_args = ["bash", "-c", psql_cmd]
+        else:
+            run_args = ["ssh", "hetzner", psql_cmd]
+        try:
+            result = subprocess.run(
+                run_args, capture_output=True, text=True, timeout=30
+            )
+            for line in result.stdout.strip().split("\n"):
+                if "|" in line:
+                    parts = line.split("|")
+                    existing[parts[0].strip()] = parts[1].strip()
+        except Exception as e:
+            print(f"  WARNING: contact DB check failed: {e}")
+    blocked = {e: s for e, s in existing.items() if s in BLOCK_STATUSES}
+    if blocked:
+        print(f"  CONTACT DEDUP: {len(blocked)} emails blocked (already in DB)")
+        by_status = {}
+        for e, s in blocked.items():
+            by_status.setdefault(s, []).append(e)
+        for status, emails_list in sorted(by_status.items()):
+            print(
+                f"    {status}: {len(emails_list)} ({', '.join(emails_list[:3])}{'...' if len(emails_list) > 3 else ''})"
+            )
+    return blocked
+
+
 def upload_leads(campaign_id: int, rows: list[dict]) -> int:
+    # Contact-level dedup: check DB before uploading
+    all_emails = [
+        r.get("Email", r.get("email", "")).strip().lower()
+        for r in rows
+        if r.get("Email") or r.get("email")
+    ]
+    blocked_emails = filter_existing_contacts(all_emails)
+    if blocked_emails:
+        before = len(rows)
+        rows = [
+            r
+            for r in rows
+            if r.get("Email", r.get("email", "")).strip().lower() not in blocked_emails
+        ]
+        print(
+            f"  Filtered: {before} -> {len(rows)} (removed {before - len(rows)} existing contacts)"
+        )
     leads = []
     for r in rows:
         name = r.get("Name", "").strip()
         parts = name.split(" ", 1)
-        leads.append({
-            "email": r.get("Email", "").strip(),
-            "first_name": parts[0] if parts else "",
-            "last_name": parts[1] if len(parts) > 1 else "",
-            "company_name": normalize_company(r.get("Company", "")),
-            "linkedin_profile": r.get("Profile URL", "").strip(),
-            "custom_fields": {
-                "title": r.get("Title", "").strip(),
-                "location": r.get("Location", "").strip(),
-            },
-        })
+        leads.append(
+            {
+                "email": r.get("Email", "").strip(),
+                "first_name": parts[0] if parts else "",
+                "last_name": parts[1] if len(parts) > 1 else "",
+                "company_name": normalize_company(r.get("Company", "")),
+                "linkedin_profile": r.get("Profile URL", "").strip(),
+                "custom_fields": {
+                    "title": r.get("Title", "").strip(),
+                    "location": r.get("Location", "").strip(),
+                },
+            }
+        )
 
     batch_size = 100
     total_ok = 0
     for i in range(0, len(leads), batch_size):
-        batch = leads[i:i + batch_size]
+        batch = leads[i : i + batch_size]
         r = httpx.post(
             f"{SMARTLEAD_BASE}/leads",
             params={**sl_params(), "campaign_id": campaign_id},
@@ -1847,9 +2199,11 @@ def upload_leads(campaign_id: int, rows: list[dict]) -> int:
         )
         if r.status_code == 200:
             total_ok += len(batch)
-            print(f"  Batch {i // batch_size + 1}: {len(batch)} leads (total {total_ok})")
+            print(
+                f"  Batch {i // batch_size + 1}: {len(batch)} leads (total {total_ok})"
+            )
         elif r.status_code == 429:
-            print(f"  Rate limit — waiting 70s...")
+            print("  Rate limit — waiting 70s...")
             time.sleep(70)
             r2 = httpx.post(
                 f"{SMARTLEAD_BASE}/leads",
@@ -1901,10 +2255,11 @@ def sync_blacklist(rows: list[dict]):
     print(f"\n  Blacklist: +{len(new_domains)} domains (total: {len(bl_set)})")
 
 
-def step11_smartlead(contacts: list, campaign_name: str,
-                     campaign_id: int | None = None) -> int | None:
+def step11_smartlead(
+    contacts: list, campaign_name: str, campaign_id: int | None = None
+) -> int | None:
     """Create SmartLead campaign (DRAFT) and upload leads with email."""
-    print(f"\n=== STEP 11: SmartLead Upload ===")
+    print("\n=== STEP 11: SmartLead Upload ===")
 
     if not SMARTLEAD_API_KEY:
         print("  ERROR: SMARTLEAD_API_KEY not set")
@@ -1928,40 +2283,95 @@ def step11_smartlead(contacts: list, campaign_name: str,
     sync_blacklist(with_email)
 
     print(f"\n  Campaign {campaign_id}: DRAFTED")
-    print(f"  Next: add sequences in SmartLead UI, then activate")
+    print("  Next: add sequences in SmartLead UI, then activate")
     return campaign_id
 
 
 # ── MAIN ───────────────────────────────────────────────────────────────────────
 
+
 def main():
-    parser = argparse.ArgumentParser(description="OnSocial Enrichment Pipeline (v2 — improved)")
+    parser = argparse.ArgumentParser(
+        description="OnSocial Enrichment Pipeline (v2 — improved)"
+    )
     parser.add_argument("--step", type=int, help="Run only this step (0-8)")
     parser.add_argument("--from-step", type=int, default=0, help="Start from this step")
-    parser.add_argument("--limit", type=int, default=0, help="Stop after N targets found")
-    parser.add_argument("--force", action="store_true", help="Re-run even if output exists")
-    parser.add_argument("--import-existing", action="store_true", help="Import legacy pipeline_results_run*.json")
+    parser.add_argument(
+        "--limit", type=int, default=0, help="Stop after N targets found"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Re-run even if output exists"
+    )
+    parser.add_argument(
+        "--import-existing",
+        action="store_true",
+        help="Import legacy pipeline_results_run*.json",
+    )
     parser.add_argument("--concurrency-scrape", type=int, default=8)
     parser.add_argument("--concurrency-classify", type=int, default=20)
-    parser.add_argument("--no-prefilter", action="store_true", help="Skip Step 6.5 regexp pre-filter")
-    parser.add_argument("--no-deep-scrape", action="store_true", help="Skip Step 6.7 deep scrape")
-    parser.add_argument("--no-skip-scrape", action="store_true", help="Don't skip scraping for high-signal companies")
-    parser.add_argument("--validate", type=int, metavar="N", help="Show N random targets for manual review (no pipeline run)")
-    parser.add_argument("--finalize-rejects", action="store_true", help="Move OTHER domains from classifications to blacklist")
-    parser.add_argument("--run-name", type=str, default=None, help="Name for this run (saved in state/onsocial/runs/)")
+    parser.add_argument(
+        "--no-prefilter", action="store_true", help="Skip Step 6.5 regexp pre-filter"
+    )
+    parser.add_argument(
+        "--no-deep-scrape", action="store_true", help="Skip Step 6.7 deep scrape"
+    )
+    parser.add_argument(
+        "--no-skip-scrape",
+        action="store_true",
+        help="Don't skip scraping for high-signal companies",
+    )
+    parser.add_argument(
+        "--validate",
+        type=int,
+        metavar="N",
+        help="Show N random targets for manual review (no pipeline run)",
+    )
+    parser.add_argument(
+        "--finalize-rejects",
+        action="store_true",
+        help="Move OTHER domains from classifications to blacklist",
+    )
+    parser.add_argument(
+        "--run-name",
+        type=str,
+        default=None,
+        help="Name for this run (saved in state/onsocial/runs/)",
+    )
     # Steps 9-11 arguments
-    parser.add_argument("--campaign-name", type=str, default=None,
-                        help="SmartLead campaign name (required for Step 11)")
-    parser.add_argument("--campaign-id", type=int, default=None,
-                        help="Existing SmartLead campaign ID (skip creation)")
-    parser.add_argument("--max-contacts", type=int, default=1500,
-                        help="Max contacts to enrich in Step 10 (default: 1500)")
-    parser.add_argument("--skip-enrich", action="store_true", default=True,
-                        help="Step 9: skip Apollo email enrichment, rely on FindyMail (default: True)")
-    parser.add_argument("--no-skip-enrich", action="store_true",
-                        help="Step 9: DO enrich via Apollo (costs credits)")
-    parser.add_argument("--timezone", default="America/New_York",
-                        help="SmartLead campaign timezone (default: America/New_York)")
+    parser.add_argument(
+        "--campaign-name",
+        type=str,
+        default=None,
+        help="SmartLead campaign name (required for Step 11)",
+    )
+    parser.add_argument(
+        "--campaign-id",
+        type=int,
+        default=None,
+        help="Existing SmartLead campaign ID (skip creation)",
+    )
+    parser.add_argument(
+        "--max-contacts",
+        type=int,
+        default=1500,
+        help="Max contacts to enrich in Step 10 (default: 1500)",
+    )
+    parser.add_argument(
+        "--skip-enrich",
+        action="store_true",
+        default=True,
+        help="Step 9: skip Apollo email enrichment, rely on FindyMail (default: True)",
+    )
+    parser.add_argument(
+        "--no-skip-enrich",
+        action="store_true",
+        help="Step 9: DO enrich via Apollo (costs credits)",
+    )
+    parser.add_argument(
+        "--timezone",
+        default="America/New_York",
+        help="SmartLead campaign timezone (default: America/New_York)",
+    )
     args = parser.parse_args()
 
     print(f"OnSocial Pipeline v2 | {ts()}")
@@ -1976,16 +2386,22 @@ def main():
         # Check if prompt changed but version not bumped
         existing = prompt_file.read_text(encoding="utf-8")
         if existing != CLASSIFICATION_PROMPT:
-            print(f"  ⚠️  WARNING: CLASSIFICATION_PROMPT changed but PROMPT_VERSION is still '{PROMPT_VERSION}'!")
-            print(f"       Bump PROMPT_VERSION to avoid mixing results from different prompts.")
+            print(
+                f"  ⚠️  WARNING: CLASSIFICATION_PROMPT changed but PROMPT_VERSION is still '{PROMPT_VERSION}'!"
+            )
+            print(
+                "       Bump PROMPT_VERSION to avoid mixing results from different prompts."
+            )
 
     # ── --validate N: show random targets for manual review, then exit ──
     if args.validate:
         import random
+
         classifications = load_json(CLASSIFICATIONS) or {}
         website_cache_data = {}  # lazy load
         targets_list = [
-            (domain, info) for domain, info in classifications.items()
+            (domain, info)
+            for domain, info in classifications.items()
             if info.get("segment", "OTHER") not in ("OTHER", "ERROR")
             and not info.get("segment", "").startswith("ERROR")
         ]
@@ -1994,9 +2410,9 @@ def main():
             sys.exit(0)
         n = min(args.validate, len(targets_list))
         sample = random.sample(targets_list, n)
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"VALIDATION: {n} random targets (out of {len(targets_list)} total)")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
         for i, (domain, info) in enumerate(sample, 1):
             cache_file = WEBSITE_CACHE_DIR / f"{domain}.json"
             if cache_file.exists():
@@ -2011,9 +2427,9 @@ def main():
             print(f"  By:        {info.get('classified_by', '?')}")
             print(f"  Website:   {preview}")
             print(f"  Check:     https://{domain}")
-        print(f"\n{'='*80}")
-        print(f"Review each domain: open the URL, compare with segment/reasoning.")
-        print(f"If accuracy < 90% → revise prompt and re-run classification.")
+        print(f"\n{'=' * 80}")
+        print("Review each domain: open the URL, compare with segment/reasoning.")
+        print("If accuracy < 90% → revise prompt and re-run classification.")
         sys.exit(0)
 
     # ── --finalize-rejects: move OTHER domains to blacklist ──
@@ -2024,8 +2440,11 @@ def main():
             print("ERROR: blacklist not found. Run step 0 first.")
             sys.exit(1)
         bl_set = set(blacklist.get("domains", []))
-        others = [d for d, info in classifications.items()
-                  if info.get("segment") == "OTHER" and d not in bl_set]
+        others = [
+            d
+            for d, info in classifications.items()
+            if info.get("segment") == "OTHER" and d not in bl_set
+        ]
         if not others:
             print("No new OTHER domains to add to blacklist.")
             sys.exit(0)
@@ -2035,7 +2454,9 @@ def main():
         blacklist["finalized_at"] = ts()
         blacklist["finalized_others"] = len(others)
         save_json(BLACKLIST_FILE, blacklist)
-        print(f"✅ Added {len(others)} OTHER domains to blacklist (total: {len(bl_set)})")
+        print(
+            f"✅ Added {len(others)} OTHER domains to blacklist (total: {len(bl_set)})"
+        )
         sys.exit(0)
 
     # Import existing results first if requested
@@ -2053,7 +2474,11 @@ def main():
         return n >= from_step
 
     # Step 0
-    blacklist = step0_blacklist(force=args.force) if should_run(0) else load_json(BLACKLIST_FILE)
+    blacklist = (
+        step0_blacklist(force=args.force)
+        if should_run(0)
+        else load_json(BLACKLIST_FILE)
+    )
     if blacklist is None:
         print("ERROR: blacklist not found. Run step 0 first.")
         sys.exit(1)
@@ -2081,10 +2506,14 @@ def main():
             companies = step3_blacklist_filter(companies, blacklist, force=args.force)
         else:
             companies = load_json(AFTER_BLACKLIST)
-            print(f"\n[Step 3] Loaded {len(companies)} after-blacklist companies from cache")
+            print(
+                f"\n[Step 3] Loaded {len(companies)} after-blacklist companies from cache"
+            )
     elif AFTER_BLACKLIST.exists():
         companies = load_json(AFTER_BLACKLIST)
-        print(f"\n[Step 3] Loaded {len(companies)} after-blacklist companies from cache")
+        print(
+            f"\n[Step 3] Loaded {len(companies)} after-blacklist companies from cache"
+        )
 
     # Step 4 (deterministic filter)
     if should_run(4):
@@ -2093,7 +2522,9 @@ def main():
         priority = load_json(PRIORITY_FILE)
         normal = load_json(NORMAL_FILE)
         disq = load_json(DISQUALIFIED)
-        print(f"\n[Step 4] Loaded: {len(priority)} priority, {len(normal)} normal, {len(disq)} disqualified")
+        print(
+            f"\n[Step 4] Loaded: {len(priority)} priority, {len(normal)} normal, {len(disq)} disqualified"
+        )
     else:
         print("ERROR: priority.json not found. Run step 4 first.")
         sys.exit(1)
@@ -2118,7 +2549,9 @@ def main():
             else:
                 scrape_queue.append(c)
         if skip_scraped:
-            print(f"\n  [Skip-scrape] {len(skip_scraped)} companies have 3+ signals + Apollo description → classify without scraping")
+            print(
+                f"\n  [Skip-scrape] {len(skip_scraped)} companies have 3+ signals + Apollo description → classify without scraping"
+            )
     else:
         scrape_queue = process_queue
 
@@ -2141,18 +2574,25 @@ def main():
     # ── IMPROVEMENT D: Step 6.7 — Deep scrape borderline companies ────────────
     if should_run(6) and not args.no_deep_scrape:
         classifications_so_far = load_json(CLASSIFICATIONS) or {}
-        asyncio.run(step6c_deep_scrape(
-            process_queue, website_cache, classifications_so_far,
-            concurrency=min(args.concurrency_scrape, 4),
-        ))
+        asyncio.run(
+            step6c_deep_scrape(
+                process_queue,
+                website_cache,
+                classifications_so_far,
+                concurrency=min(args.concurrency_scrape, 4),
+            )
+        )
 
     # Step 7 (classification)
     if should_run(7):
-        classifications = asyncio.run(step7_classify(
-            process_queue, website_cache,
-            limit_targets=args.limit,
-            concurrency=args.concurrency_classify,
-        ))
+        classifications = asyncio.run(
+            step7_classify(
+                process_queue,
+                website_cache,
+                limit_targets=args.limit,
+                concurrency=args.concurrency_classify,
+            )
+        )
     else:
         classifications = load_json(CLASSIFICATIONS) or {}
         print(f"\n[Step 7] Loaded {len(classifications)} cached classifications")
@@ -2163,8 +2603,11 @@ def main():
         print(f"\nDone. {len(targets)} targets → {TARGETS_FILE.name}")
     else:
         # Still show current stats
-        targets = [v for v in classifications.values()
-                   if v.get("segment", "OTHER") not in ("OTHER", "ERROR")]
+        targets = [
+            v
+            for v in classifications.values()
+            if v.get("segment", "OTHER") not in ("OTHER", "ERROR")
+        ]
         rejects = []
         print(f"\nCurrent targets in cache: {len(targets)}")
 
@@ -2180,11 +2623,17 @@ def main():
         "run_name": run_name,
         "started_at": ts(),
         "prompt_version": PROMPT_VERSION,
-        "provider": "openai" if OPENAI_API_KEY else ("anthropic" if ANTHROPIC_API_KEY else "none"),
+        "provider": "openai"
+        if OPENAI_API_KEY
+        else ("anthropic" if ANTHROPIC_API_KEY else "none"),
         "args": {
-            "step": args.step, "from_step": args.from_step, "limit": args.limit,
-            "force": args.force, "no_prefilter": args.no_prefilter,
-            "no_deep_scrape": args.no_deep_scrape, "no_skip_scrape": args.no_skip_scrape,
+            "step": args.step,
+            "from_step": args.from_step,
+            "limit": args.limit,
+            "force": args.force,
+            "no_prefilter": args.no_prefilter,
+            "no_deep_scrape": args.no_deep_scrape,
+            "no_skip_scrape": args.no_skip_scrape,
         },
         "results": {
             "targets": len(targets) if isinstance(targets, list) else 0,
@@ -2210,7 +2659,9 @@ def main():
             print("ERROR: no targets. Run steps 0-8 first.")
             sys.exit(1)
         skip_enrich = args.skip_enrich and not args.no_skip_enrich
-        contacts = step9_people_search(targets, skip_enrich=skip_enrich, force=args.force)
+        contacts = step9_people_search(
+            targets, skip_enrich=skip_enrich, force=args.force
+        )
     elif CONTACTS_FILE.exists():
         contacts = load_json(CONTACTS_FILE)
         print(f"\n[Step 9] Loaded {len(contacts)} contacts from cache")
@@ -2224,9 +2675,13 @@ def main():
         if not contacts:
             print("ERROR: no contacts. Run step 9 first.")
             sys.exit(1)
-        contacts = asyncio.run(step10_findymail(
-            contacts, max_contacts=args.max_contacts, force=args.force,
-        ))
+        contacts = asyncio.run(
+            step10_findymail(
+                contacts,
+                max_contacts=args.max_contacts,
+                force=args.force,
+            )
+        )
     elif ENRICHED_FILE.exists() and should_run(11):
         contacts = load_json(ENRICHED_FILE)
         print(f"\n[Step 10] Loaded {len(contacts)} enriched contacts from cache")
@@ -2246,7 +2701,7 @@ def main():
 
     # Итоговая сводка
     if should_run(8) and not should_run(9):
-        print(f"\n   Next: verify targets, then --from-step 9 --campaign-name '...'")
+        print("\n   Next: verify targets, then --from-step 9 --campaign-name '...'")
 
 
 if __name__ == "__main__":

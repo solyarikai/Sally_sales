@@ -106,20 +106,66 @@ The key difference: social commerce platforms don't just analyze creators — th
 
 ### Phase 1: Filters
 
-Dedicated Apollo filter set with keywords:
+Apollo filter set (validated 2026-04-07, see full version in `apollo-filters-v4.md` → Segment 4):
 
+**Industry**
+```
+Computer Software, Internet, Marketing & Advertising,
+Information Technology, E-commerce, Online Media, Retail
+```
+
+**Company Keywords — ANY of (21)**
 ```
 live shopping platform, creator storefront, shoppable content,
 social commerce marketplace, live video commerce, live selling platform,
 creator monetization marketplace, UGC commerce, shoppable video,
 creator-led commerce, social shopping platform,
-live auction marketplace, shoppable livestream
+live auction marketplace, shoppable livestream,
+live commerce, video commerce, social selling platform,
+creator marketplace, shoppable media, live stream shopping,
+interactive video commerce, social commerce platform
 ```
 
-- **Industry:** Computer Software, Internet, E-commerce, Online Media
-- **Company size:** 20-5,000 employees
-- **Location:** ALL GEO
-- **Titles:** CTO, VP Engineering, VP Product, Head of Product, Head of Marketplace, VP Commerce, Head of Partnerships, Founder, CEO, COO
+**Excluded Keywords**
+```
+e-commerce platform, online store builder, shopping cart,
+payment processing, logistics platform, dropshipping,
+affiliate network, affiliate tracking,
+video streaming platform, live streaming entertainment,
+gaming streaming, sports streaming
++ standard exclusions (recruitment, healthcare, fintech, etc.)
+```
+
+**Company size:** 20–5,000 employees
+
+**Location (20 countries)**
+```
+United States, United Kingdom, Germany, Netherlands, France,
+Canada, Australia, Spain, Italy, Sweden, Denmark, Belgium,
+India, Singapore, Japan, South Korea, United Arab Emirates,
+Brazil, Mexico, Israel
+```
+
+**Titles (18)**
+```
+CTO, VP Engineering, VP of Engineering, Head of Engineering,
+VP Product, Head of Product, Chief Product Officer,
+Director of Engineering, Director of Product,
+Head of Marketplace, VP Commerce, Director of Marketplace,
+Head of Partnerships, VP Partnerships,
+Co-Founder, Founder, CEO, COO
+```
+
+**Management Level:** c_suite, vp, director, owner, head, partner, founder
+
+**Excluded Titles**
+```
+Intern, Junior, Assistant, Student, Freelance,
+Marketing Manager, Sales Representative, Account Executive,
+Account Manager, Customer Success, Support, HR, Recruiter,
+Content Writer, Designer, Social Media Manager,
+Affiliate Manager, Partner Manager
+```
 
 ### Phase 2: Messaging Angle
 

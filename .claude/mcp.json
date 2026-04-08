@@ -70,10 +70,10 @@
     },
     "linear-getsally": {
       "type": "stdio",
-      "command": "/Users/user/sales_engineer/.claude/mcp/linear-getsally/run.sh",
-      "args": [],
+      "command": "node",
+      "args": ["/Users/user/sales_engineer/.claude/mcp/linear-getsally/node_modules/linear-mcp/build/index.js"],
       "env": {
-        "LINEAR_API_KEY": "lin_api_PGUGpz14xDFwfLyAPwcUb7VtzkW15OlRRPiVaLjB"
+        "LINEAR_ACCESS_TOKEN": "lin_api_PGUGpz14xDFwfLyAPwcUb7VtzkW15OlRRPiVaLjB"
       }
     }
   }

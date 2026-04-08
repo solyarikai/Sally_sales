@@ -1,0 +1,317 @@
+[
+  {
+    "email": "nader@linqia.com",
+    "lead_id": "2952686378",
+    "campaign_id": "3121190",
+    "campaign_name": "c-OnSocial_Re-engagement_IMAGENCY",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "nader@linqia.com",
+    "lead_id": "2952686378",
+    "campaign_id": "3078491",
+    "campaign_name": "c-OnSocial_Re-engagement",
+    "current_status": "STARTED",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "urban@influee.co",
+    "lead_id": "3348933364",
+    "campaign_id": "3121190",
+    "campaign_name": "c-OnSocial_Re-engagement_IMAGENCY",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "urban@influee.co",
+    "lead_id": "3348933364",
+    "campaign_id": "3078491",
+    "campaign_name": "c-OnSocial_Re-engagement",
+    "current_status": "STARTED",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "ernest@runwayinfluence.com",
+    "lead_id": "3348933452",
+    "campaign_id": "3121190",
+    "campaign_name": "c-OnSocial_Re-engagement_IMAGENCY",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "ernest@runwayinfluence.com",
+    "lead_id": "3348933452",
+    "campaign_id": "3096747",
+    "campaign_name": "c-OnSocial_INFLUENCER PLATFORMS ALL GEO #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "ernest@runwayinfluence.com",
+    "lead_id": "3348933452",
+    "campaign_id": "3078491",
+    "campaign_name": "c-OnSocial_Re-engagement",
+    "current_status": "STARTED",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "yunus@yagency.dk",
+    "lead_id": "3365715736",
+    "campaign_id": "3121190",
+    "campaign_name": "c-OnSocial_Re-engagement_IMAGENCY",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "yunus@yagency.dk",
+    "lead_id": "3365715736",
+    "campaign_id": "3078491",
+    "campaign_name": "c-OnSocial_Re-engagement",
+    "current_status": "STARTED",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "georg@gamesforest.club",
+    "lead_id": "3348934733",
+    "campaign_id": "3121190",
+    "campaign_name": "c-OnSocial_Re-engagement_IMAGENCY",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Info Request",
+    "all_categories": "Info Request"
+  },
+  {
+    "email": "georg@gamesforest.club",
+    "lead_id": "3348934733",
+    "campaign_id": "3078491",
+    "campaign_name": "c-OnSocial_Re-engagement",
+    "current_status": "STARTED",
+    "trigger_reason": "Info Request",
+    "all_categories": "Info Request"
+  },
+  {
+    "email": "atul@theshelf.com",
+    "lead_id": "2988567249",
+    "campaign_id": "3121190",
+    "campaign_name": "c-OnSocial_Re-engagement_IMAGENCY",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "atul@theshelf.com",
+    "lead_id": "2988567249",
+    "campaign_id": "3078491",
+    "campaign_name": "c-OnSocial_Re-engagement",
+    "current_status": "STARTED",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "natalie@glistenmgmt.com",
+    "lead_id": "3365830344",
+    "campaign_id": "3121190",
+    "campaign_name": "c-OnSocial_Re-engagement_IMAGENCY",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "hola@brandmanic.com",
+    "lead_id": "3386108459",
+    "campaign_id": "3121190",
+    "campaign_name": "c-OnSocial_Re-engagement_IMAGENCY",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "valentine@hireinfluence.com",
+    "lead_id": "3537185079",
+    "campaign_id": "3096746",
+    "campaign_name": "c-OnSocial_IM-FIRST AGENCIES ALL GEO #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "arnab@peersway.com",
+    "lead_id": "3348933424",
+    "campaign_id": "3096747",
+    "campaign_name": "c-OnSocial_INFLUENCER PLATFORMS ALL GEO #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Qualified",
+    "all_categories": "Qualified"
+  },
+  {
+    "email": "lorenz@team5pm.com",
+    "lead_id": "3537185204",
+    "campaign_id": "3096747",
+    "campaign_name": "c-OnSocial_INFLUENCER PLATFORMS ALL GEO #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Do Not Contact",
+    "all_categories": "Do Not Contact"
+  },
+  {
+    "email": "ana.lozano@dipaolalatina.com",
+    "lead_id": "3548182875",
+    "campaign_id": "3096747",
+    "campaign_name": "c-OnSocial_INFLUENCER PLATFORMS ALL GEO #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Not Interested",
+    "all_categories": "Not Interested"
+  },
+  {
+    "email": "rory@thesocialcat.com",
+    "lead_id": "3537184978",
+    "campaign_id": "3096747",
+    "campaign_name": "c-OnSocial_INFLUENCER PLATFORMS ALL GEO #C",
+    "current_status": "STARTED",
+    "trigger_reason": "Do Not Contact",
+    "all_categories": "Do Not Contact"
+  },
+  {
+    "email": "james@scrollstop.com",
+    "lead_id": "3491090111",
+    "campaign_id": "3096746",
+    "campaign_name": "c-OnSocial_IM-FIRST AGENCIES ALL GEO #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Not Interested",
+    "all_categories": "Not Interested"
+  },
+  {
+    "email": "vinicius@noodle.cx",
+    "lead_id": "3537185046",
+    "campaign_id": "3096746",
+    "campaign_name": "c-OnSocial_IM-FIRST AGENCIES ALL GEO #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "elie@pipame.com",
+    "lead_id": "3548248061",
+    "campaign_id": "3096746",
+    "campaign_name": "c-OnSocial_IM-FIRST AGENCIES ALL GEO #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "marina.paschoalli@gmd.digital",
+    "lead_id": "3548249053",
+    "campaign_id": "3096746",
+    "campaign_name": "c-OnSocial_IM-FIRST AGENCIES ALL GEO #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Not Interested",
+    "all_categories": "Not Interested"
+  },
+  {
+    "email": "aa@musetheagency.com",
+    "lead_id": "3378852145",
+    "campaign_id": "3078491",
+    "campaign_name": "c-OnSocial_Re-engagement",
+    "current_status": "STARTED",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "nilouferdundh@ventesavenues.in",
+    "lead_id": "2988567579",
+    "campaign_id": "3064966",
+    "campaign_name": "c-OnSocial_INFLUENCER PLATFORMS INDIA #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Qualified",
+    "all_categories": "Qualified"
+  },
+  {
+    "email": "ronit@berolling.in",
+    "lead_id": "3499205690",
+    "campaign_id": "3063527",
+    "campaign_name": "c-OnSocial_IM-FIRST AGENCIES INDIA #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "mohit.sharma@grapsmarketing.com",
+    "lead_id": "3499207920",
+    "campaign_id": "3063527",
+    "campaign_name": "c-OnSocial_IM-FIRST AGENCIES INDIA #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "pranav@opraahfx.com",
+    "lead_id": "2474366876",
+    "campaign_id": "3059650",
+    "campaign_name": "c-OnSocial_INDIA #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "mukesh@digitalshoutouts.com",
+    "lead_id": "3499210154",
+    "campaign_id": "3063527",
+    "campaign_name": "c-OnSocial_IM-FIRST AGENCIES INDIA #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Not Interested",
+    "all_categories": "Not Interested"
+  },
+  {
+    "email": "amit@creatorsmela.com",
+    "lead_id": "3490703066",
+    "campaign_id": "3059650",
+    "campaign_name": "c-OnSocial_INDIA #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "veeraj@thepopcornmedia.com",
+    "lead_id": "2474369338",
+    "campaign_id": "3059650",
+    "campaign_name": "c-OnSocial_INDIA #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "rachit@thepopcornmedia.com",
+    "lead_id": "2474364905",
+    "campaign_id": "3059650",
+    "campaign_name": "c-OnSocial_INDIA #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Meeting Request",
+    "all_categories": "Meeting Request"
+  },
+  {
+    "email": "luiz@smt.social",
+    "lead_id": "3491290841",
+    "campaign_id": "3059277",
+    "campaign_name": "c-OnSocial_LATAM #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  },
+  {
+    "email": "nicolas@devourtalent.com",
+    "lead_id": "3482009019",
+    "campaign_id": "3050462",
+    "campaign_name": "c-OnSocial_IM-FIRST AGENCIES #C",
+    "current_status": "INPROGRESS",
+    "trigger_reason": "Interested",
+    "all_categories": "Interested"
+  }
+]
