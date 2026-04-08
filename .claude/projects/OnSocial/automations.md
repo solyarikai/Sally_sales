@@ -81,6 +81,14 @@ Company Search (Apollo/Clay) → Contact Enrichment (Apollo People/Findymail)
 - sofia/ scripts не на Hetzner по умолчанию — SCP перед запуском
 - Python: `python3.11` для Google API скриптов (локально)
 
+## Linear Task Management
+
+- **MCP:** `linear-getsally` (Sally workspace, PAT auth) + `claude_ai_Linear` (personal workspace)
+- **Skill:** `/linear` — project templates, smart triage, status dashboard, weekly reports, bulk ops
+- **Templates:** campaign (12 steps), segment (7), deliverability (6), infra (4), weekly-ops (6), sequence (5)
+- **Labels taxonomy:** 7 type + 7 tool + 4 segment labels, auto-triage by keyword matching
+- **Principle:** "Suggest, don't decide" — skill proposes labels/priority/project, user confirms
+
 ## Capacity & Operational Notes
 
 - SmartLead: 750 emails/day → expanding to 1,500 by April 2026
