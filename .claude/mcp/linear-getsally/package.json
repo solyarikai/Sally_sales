@@ -1,6 +1,7 @@
 {
   "name": "linear-getsally-mcp",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "dependencies": {
     "linear-mcp": "^1.2.0"

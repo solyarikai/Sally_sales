@@ -97,20 +97,48 @@ description: >-
 
 ### `add <title>` — Smart-создание issue
 
-1. Проанализируй title и контекст разговора
-2. Определи авто-triage:
+Пользователь часто надиктовывает задачи голосом — сырой, неструктурированный текст. Скилл должен осмыслить input и выдать чистую задачу.
+
+**Шаг 1 — Parse intent:**
+1. Определи тип: feature, bug, research, ops task, idea
+2. Извлеки суть: что именно нужно сделать, какой результат ожидается
+3. Если input слишком размытый — задай 1 уточняющий вопрос (не больше)
+
+**Шаг 2 — Quick research (Exa):**
+1. Сделай 1-2 запроса через `web_search_exa` или `get_code_context_exa` по ключевой теме
+2. Найди: есть ли готовые решения, API, инструменты, best practices
+3. Сожми findings в 2-3 bullet points для description
+
+**Шаг 3 — Structure:**
+1. **Title** — чистый, на английском, action-oriented (Build X, Fix Y, Research Z)
+2. **Description** — 3 блока:
+   - **Goal:** 1-2 предложения, что и зачем
+   - **Research findings:** 2-3 bullets из Exa (API, tools, approaches)
+   - **Scope:** конкретные deliverables или open questions
+3. **Auto-triage:**
    - **Labels:** по ключевым словам (pipeline → `pipeline`, spam/deliverability → `infra`, sequence → `sequence`)
    - **Project:** по сегменту или текущему контексту
-   - **Priority:** по срочности (bug/fix → High, research → Low)
-3. Покажи предложение пользователю:
+   - **Priority:** по срочности (bug/fix → High, research/idea → Low)
+
+**Шаг 4 — Confirm:**
+1. Покажи предложение пользователю:
    ```
-   Issue: "Fix blacklist sync script"
-   Labels: infra, smartlead
-   Project: Weekly Ops
-   Priority: High
+   Issue: "Build LinkedIn Content Factory skill"
+   Project: —
+   Labels: feature
+   Priority: Normal
+
+   Goal: Auto-generate LinkedIn posts from templates/rules, optionally auto-publish
+   Research:
+   - LinkedIn API supports posting via /ugcPosts (OAuth2)
+   - Popular formats: carousel (highest engagement), story-driven, contrarian
+   - Tools: Taplio, AuthoredUp — но можно заменить Claude skill
+   Scope: skill with format templates, tone rules, optional scheduling
    ```
-4. Дождись подтверждения (или пользователь поправит)
-5. Создай через `mcp__claude_ai_Linear__save_issue`
+2. Дождись подтверждения (или пользователь поправит)
+3. Создай через `mcp__claude_ai_Linear__save_issue`
+
+**Когда НЕ делать research:** если задача чисто операционная и конкретная ("загрузи лидов в SmartLead", "почини blacklist sync"). Research только для features, ideas, и research-type задач.
 
 **Правила авто-triage (прочитай `references/label-taxonomy.md` для полного списка):**
 
