@@ -182,9 +182,7 @@ def main():
                 print(f"  OK (PAUSED) {a['email']:45s}")
             else:
                 not_paused.append(entry)
-                print(
-                    f"  ⚠ ACTIVE   {a['email']:45s} → status={sl_status}, isPaused={is_paused_flag}"
-                )
+                print(f"  ⚠ ACTIVE   {a['email']:45s} → status={sl_status}")
 
         print()
 
