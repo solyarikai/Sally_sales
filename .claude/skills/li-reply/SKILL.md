@@ -101,6 +101,21 @@ triggers:
 - [ ] Длина не превышает лимит для данной категории?
 - [ ] Нет ни одного em dash?
 
+**Humanizer-проверка (29 паттернов из blader/humanizer):**
+- [ ] Нет significance inflation ("testament", "pivotal", "vital role")?
+- [ ] Нет AI vocabulary ("additionally", "crucial", "delve", "landscape", "showcase", "foster")?
+- [ ] Нет copula avoidance ("serves as", "stands as", "boasts")?
+- [ ] Нет rule of three (три прилагательных/существительных в ряд)?
+- [ ] Нет negative parallelism ("It's not just X, it's Y")?
+- [ ] Нет chatbot artifacts ("I hope this helps", "Let me know if")?
+- [ ] Нет sycophantic tone ("Great question!", "Absolutely!")?
+- [ ] Нет filler phrases ("In order to", "It is important to note")?
+- [ ] Нет excessive hedging ("could potentially")?
+- [ ] Нет promotional language ("vibrant", "groundbreaking", "seamless")?
+- [ ] Нет signposting ("Let's dive in", "Here's what you need to know")?
+
+Если хоть один чекбокс не пройден — переписать до показа пользователю.
+
 ### Step 5: Показ драфта
 
 Показать пользователю:
