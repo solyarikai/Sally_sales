@@ -1,0 +1,369 @@
+email,campaign_id,campaign_name,lead_id,action,reason
+aarnold@authenticnoise.com,3121190,Re-engagement_IMAGENCY,3348933617,keep,"winner: geo=GLOBAL, gen=3, step=2"
+aarnold@authenticnoise.com,3078491,Re-engagement,3348933617,keep,protected: special
+aayush@monk-e.in,3063527,IM-FIRST AGENCIES INDIA #C,3537185104,keep,"winner: geo=INDIA, gen=2, step=2"
+aayush@monk-e.in,3064966,INFLUENCER PLATFORMS INDIA #C,3537185104,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+abdulaziz@smartcode.sa,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3506236719,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+abdulaziz@smartcode.sa,3096746,IM-FIRST AGENCIES ALL GEO #C,3506236719,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+adam@q.digital,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702107,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+adam@q.digital,3096746,IM-FIRST AGENCIES ALL GEO #C,3507702107,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+adecker@stonefieldeng.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507777178,keep,"winner: geo=US_CA_LATAM, gen=2, step=1"
+adecker@stonefieldeng.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507777178,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=1"
+aghataborghetti@allfluence.com.br,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507777342,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+aghataborghetti@allfluence.com.br,3096747,INFLUENCER PLATFORMS ALL GEO #C,3507777342,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=99"
+aghataborghetti@allfluence.com.br,3096746,IM-FIRST AGENCIES ALL GEO #C,3507777342,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+aishwarya@monk-e.in,3063527,IM-FIRST AGENCIES INDIA #C,3499210091,keep,"winner: geo=INDIA, gen=2, step=2"
+aishwarya@monk-e.in,3064966,INFLUENCER PLATFORMS INDIA #C,3499210091,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+akash@fancall.in,3063527,IM-FIRST AGENCIES INDIA #C,3490703044,keep,"winner: geo=INDIA, gen=2, step=2"
+akash@fancall.in,3064966,INFLUENCER PLATFORMS INDIA #C,3490703044,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+akash@fancall.in,3059650,INDIA #C,3490703044,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=1, step=2"
+alan@inhouse.team,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702372,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+alan@inhouse.team,3096746,IM-FIRST AGENCIES ALL GEO #C,3507702372,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+alexis.ramos@sixteenth.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185086,keep,"winner: geo=ALL_GEO, gen=2, step=99"
+alexis.ramos@sixteenth.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185086,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+alison.bringe@launchmetrics.com,3121190,Re-engagement_IMAGENCY,3355659779,keep,"winner: geo=GLOBAL, gen=3, step=2"
+alison.bringe@launchmetrics.com,3078491,Re-engagement,3355659779,keep,protected: special
+allegra.kadet@neomediaworld.com,3121190,Re-engagement_IMAGENCY,3358072834,keep,"winner: geo=GLOBAL, gen=3, step=2"
+allegra.kadet@neomediaworld.com,3078491,Re-engagement,3358072834,keep,protected: special
+ame@haiagency.nl,3121190,Re-engagement_IMAGENCY,3374447847,keep,"winner: geo=GLOBAL, gen=3, step=2"
+ame@haiagency.nl,3078491,Re-engagement,3374447847,keep,protected: special
+amelia.pierre@havasedge.fr,3121190,Re-engagement_IMAGENCY,3374634306,keep,"winner: geo=GLOBAL, gen=3, step=99"
+amelia.pierre@havasedge.fr,3078491,Re-engagement,3374634306,keep,protected: special
+amit@galvor.com,3063527,IM-FIRST AGENCIES INDIA #C,3499205718,keep,"winner: geo=INDIA, gen=2, step=2"
+amit@galvor.com,3064966,INFLUENCER PLATFORMS INDIA #C,3499205718,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+amor@caagency.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185062,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+amor@caagency.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185062,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+anders@nofuzzmedia.com,3121190,Re-engagement_IMAGENCY,2964073341,keep,"winner: geo=GLOBAL, gen=3, step=2"
+anders@nofuzzmedia.com,3078491,Re-engagement,2964073341,keep,protected: special
+andi@a2influence.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702323,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+andi@a2influence.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507702323,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+andrea.martinez@keepers.es,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185185,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+andrea.martinez@keepers.es,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185185,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+andrea@milkyway-agency.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185127,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+andrea@milkyway-agency.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185127,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+angelo@alist.ae,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3537185011,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+angelo@alist.ae,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185011,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+anne-laure@digital-content-expert.com,3121190,Re-engagement_IMAGENCY,3374447897,keep,"winner: geo=GLOBAL, gen=3, step=2"
+anne-laure@digital-content-expert.com,3078491,Re-engagement,3374447897,keep,protected: special
+anouk@kesselskramer.com,3121190,Re-engagement_IMAGENCY,3374634147,keep,"winner: geo=GLOBAL, gen=3, step=2"
+anouk@kesselskramer.com,3078491,Re-engagement,3374634147,keep,protected: special
+anthony@themesh.co,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185159,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+anthony@themesh.co,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185159,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+atul@growdiesel.com,3064966,INFLUENCER PLATFORMS INDIA #C,3486764529,keep,"winner: geo=INDIA, gen=2, step=2"
+atul@growdiesel.com,3050462,IM-FIRST AGENCIES #C,3486764529,pause,"lose to INFLUENCER PLATFORMS INDIA #C: geo=GLOBAL(1) < INDIA(3), gen=1, step=2"
+berenice@grupo-go.es,3121190,Re-engagement_IMAGENCY,3365830305,keep,"winner: geo=GLOBAL, gen=3, step=2"
+berenice@grupo-go.es,3078491,Re-engagement,3365830305,keep,protected: special
+bharat@flynt.social,3063527,IM-FIRST AGENCIES INDIA #C,3537185042,keep,"winner: geo=INDIA, gen=2, step=2"
+bharat@flynt.social,3064966,INFLUENCER PLATFORMS INDIA #C,3537185042,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+bob.crombag@deptagency.com,3121190,Re-engagement_IMAGENCY,3374447698,keep,"winner: geo=GLOBAL, gen=3, step=2"
+bob.crombag@deptagency.com,3078491,Re-engagement,3374447698,keep,protected: special
+bronson@luxelatam.com,3121190,Re-engagement_IMAGENCY,3348934881,keep,"winner: geo=GLOBAL, gen=3, step=2"
+bronson@luxelatam.com,3078491,Re-engagement,3348934881,keep,protected: special
+cara@mightyjoy.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702191,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+cara@mightyjoy.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507702191,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=1"
+carinam@ecommercenurse.com,3121190,Re-engagement_IMAGENCY,3374447989,keep,"winner: geo=GLOBAL, gen=3, step=2"
+carinam@ecommercenurse.com,3078491,Re-engagement,3374447989,keep,protected: special
+catherine.shuttleworth@getsavvy.com,3121190,Re-engagement_IMAGENCY,3349556502,keep,"winner: geo=GLOBAL, gen=3, step=99"
+catherine.shuttleworth@getsavvy.com,3078491,Re-engagement,3349556502,keep,protected: special
+charlie@creativelysquared.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3485866155,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+charlie@creativelysquared.com,3050419,INFLUENCER PLATFORMS #C,3485866155,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=GLOBAL(1) < ALL_GEO(2), gen=1, step=99"
+chris.jacks@later.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185056,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+chris.jacks@later.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185056,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+chris@brandpal.ai,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184878,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+chris@brandpal.ai,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184878,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+chris@q.digital,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507701888,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+chris@q.digital,3096746,IM-FIRST AGENCIES ALL GEO #C,3507701888,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+christiana@flightstory.com,3121190,Re-engagement_IMAGENCY,3355659947,keep,"winner: geo=GLOBAL, gen=3, step=2"
+christiana@flightstory.com,3078491,Re-engagement,3355659947,keep,protected: special
+christopher@new-moon.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507701725,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+christopher@new-moon.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507701725,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+claudio@praytellagency.com,3121190,Re-engagement_IMAGENCY,3365715705,keep,"winner: geo=GLOBAL, gen=3, step=2"
+claudio@praytellagency.com,3078491,Re-engagement,3365715705,keep,protected: special
+cristian@milkyway-agency.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185126,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+cristian@milkyway-agency.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185126,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+dara.febianti@moca-tech.net,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3537185131,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+dara.febianti@moca-tech.net,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185131,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=1"
+darren.loveday@mention-me.com,3121190,Re-engagement_IMAGENCY,3347911791,keep,"winner: geo=GLOBAL, gen=3, step=2"
+darren.loveday@mention-me.com,3078491,Re-engagement,3347911791,keep,protected: special
+david@ugcfactory.io,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185167,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+david@ugcfactory.io,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185167,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+denisebeti@sxsmkt.com.br,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702267,keep,"winner: geo=US_CA_LATAM, gen=2, step=99"
+denisebeti@sxsmkt.com.br,3092917,WRONG-PERSON-referral,3507702267,keep,protected: special
+dvalverde@flymetothemoon.es,3121190,Re-engagement_IMAGENCY,3348934648,keep,"winner: geo=GLOBAL, gen=3, step=2"
+dvalverde@flymetothemoon.es,3078491,Re-engagement,3348934648,keep,protected: special
+elizabeth@a2influence.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702077,keep,"winner: geo=US_CA_LATAM, gen=2, step=99"
+elizabeth@a2influence.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507702077,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+elizabeth@theshelf.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3485868504,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+elizabeth@theshelf.com,3050462,IM-FIRST AGENCIES #C,3485868504,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=GLOBAL(1) < ALL_GEO(2), gen=1, step=2"
+emily@buttermilk.com,3121190,Re-engagement_IMAGENCY,3347911578,keep,"winner: geo=GLOBAL, gen=3, step=2"
+emily@buttermilk.com,3078491,Re-engagement,3347911578,keep,protected: special
+fabi@gen-z-nation.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185193,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+fabi@gen-z-nation.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185193,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+felix@keeperexperience.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185198,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+felix@keeperexperience.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185198,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+filip@sweede.agency,3121190,Re-engagement_IMAGENCY,3374634178,keep,"winner: geo=GLOBAL, gen=3, step=2"
+filip@sweede.agency,3078491,Re-engagement,3374634178,keep,protected: special
+gemma.cocker@disruptmarketing.co,3092917,WRONG-PERSON-referral,3348933376,keep,"winner: geo=GLOBAL, gen=3, step=2"
+gemma.cocker@disruptmarketing.co,3096747,INFLUENCER PLATFORMS ALL GEO #C,3348933376,pause,"lose to WRONG-PERSON-referral: geo=ALL_GEO(2) < GLOBAL(1), gen=2, step=1"
+georgie@digitalnativescontent.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185067,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+georgie@digitalnativescontent.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185067,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+gilles@beinfluence.eu,3121190,Re-engagement_IMAGENCY,3355718764,keep,"winner: geo=GLOBAL, gen=3, step=2"
+gilles@beinfluence.eu,3078491,Re-engagement,3355718764,keep,protected: special
+go@socializers.digital,3121190,Re-engagement_IMAGENCY,3386108658,keep,"winner: geo=GLOBAL, gen=3, step=99"
+go@socializers.digital,3078491,Re-engagement,3386108658,keep,protected: special
+greta@ugcfactory.io,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185166,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+greta@ugcfactory.io,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185166,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+gustaf@mondsteinmedia.com,3121190,Re-engagement_IMAGENCY,3348933622,keep,"winner: geo=GLOBAL, gen=3, step=2"
+gustaf@mondsteinmedia.com,3078491,Re-engagement,3348933622,keep,protected: special
+hadeek@tikit.ae,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3537185149,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+hadeek@tikit.ae,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185149,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=1"
+hannah.feng@impact.com,3121190,Re-engagement_IMAGENCY,3355718756,keep,"winner: geo=GLOBAL, gen=3, step=2"
+hannah.feng@impact.com,3078491,Re-engagement,3355718756,keep,protected: special
+hannah@digitalnativescontent.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185065,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+hannah@digitalnativescontent.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185065,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+hayley@fromthelobby.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185039,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+hayley@fromthelobby.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185039,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+hein@yimb.nl,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185047,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+hein@yimb.nl,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185047,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+henni@10pmcurfew.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507776403,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+henni@10pmcurfew.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507776403,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+ian@q.digital,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507701695,keep,"winner: geo=US_CA_LATAM, gen=2, step=99"
+ian@q.digital,3096746,IM-FIRST AGENCIES ALL GEO #C,3507701695,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+idanr@shout.market,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184971,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+idanr@shout.market,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184971,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+jamie.hambleton@disruptmarketing.co,3092917,WRONG-PERSON-referral,3386108662,keep,"winner: geo=GLOBAL, gen=3, step=2"
+jamie.hambleton@disruptmarketing.co,3096747,INFLUENCER PLATFORMS ALL GEO #C,3386108662,pause,"lose to WRONG-PERSON-referral: geo=ALL_GEO(2) < GLOBAL(1), gen=2, step=1"
+jane.hlaihel@pulsarplatform.com,3121190,Re-engagement_IMAGENCY,3349556736,keep,"winner: geo=GLOBAL, gen=3, step=2"
+jane.hlaihel@pulsarplatform.com,3078491,Re-engagement,3349556736,keep,protected: special
+jenny@cogentworld.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185076,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+jenny@cogentworld.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185076,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+jeremy@clipster.gg,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3490703151,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+jeremy@clipster.gg,3059650,INDIA #C,3490703151,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=INDIA(3) < MENA_APAC(3), gen=1, step=2"
+jeremy@clipster.gg,3096746,IM-FIRST AGENCIES ALL GEO #C,3490703151,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+jermaine@gamesight.io,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184914,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+jermaine@gamesight.io,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184914,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+jgoetz@webershandwick.com,3121190,Re-engagement_IMAGENCY,3374447828,keep,"winner: geo=GLOBAL, gen=3, step=2"
+jgoetz@webershandwick.com,3078491,Re-engagement,3374447828,keep,protected: special
+jhartnett@chartbeat.com,3121190,Re-engagement_IMAGENCY,3347911693,keep,"winner: geo=GLOBAL, gen=3, step=2"
+jhartnett@chartbeat.com,3078491,Re-engagement,3347911693,keep,protected: special
+jimmy.jakobsson@ingager.com,3121190,Re-engagement_IMAGENCY,3374447725,keep,"winner: geo=GLOBAL, gen=3, step=2"
+jimmy.jakobsson@ingager.com,3078491,Re-engagement,3374447725,keep,protected: special
+joby@scoop.app,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3501092218,keep,"winner: geo=MENA_APAC, gen=2, step=99"
+joby@scoop.app,3064966,INFLUENCER PLATFORMS INDIA #C,3501092218,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=INDIA(3) < MENA_APAC(3), gen=2, step=2"
+joe.watson@deptagency.com,3121190,Re-engagement_IMAGENCY,3374634276,keep,"winner: geo=GLOBAL, gen=3, step=2"
+joe.watson@deptagency.com,3078491,Re-engagement,3374634276,keep,protected: special
+jordan.malthus@deptagency.com,3121190,Re-engagement_IMAGENCY,3374634123,keep,"winner: geo=GLOBAL, gen=3, step=2"
+jordan.malthus@deptagency.com,3078491,Re-engagement,3374634123,keep,protected: special
+joseph.regan@thefifthagency.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185176,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+joseph.regan@thefifthagency.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185176,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+julia@dazzle-agency.com,3121190,Re-engagement_IMAGENCY,3378852526,keep,"winner: geo=GLOBAL, gen=3, step=2"
+julia@dazzle-agency.com,3078491,Re-engagement,3378852526,keep,protected: special
+julia@relatable.me,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185199,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+julia@relatable.me,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185199,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+julien@ramd.am,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184999,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+julien@ramd.am,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184999,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+juls@viralco.mx,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507777005,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+juls@viralco.mx,3096746,IM-FIRST AGENCIES ALL GEO #C,3507777005,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+kari@hireinfluence.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185080,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+kari@hireinfluence.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185080,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+karishma.nayak@starbuzz.ai,3064966,INFLUENCER PLATFORMS INDIA #C,3490703147,keep,"winner: geo=INDIA, gen=2, step=2"
+karishma.nayak@starbuzz.ai,3059650,INDIA #C,3490703147,pause,"lose to INFLUENCER PLATFORMS INDIA #C: geo=INDIA(3) < INDIA(3), gen=1, step=2"
+kate.maidment@mnstr.com,3121190,Re-engagement_IMAGENCY,3356907356,keep,"winner: geo=GLOBAL, gen=3, step=2"
+kate.maidment@mnstr.com,3078491,Re-engagement,3356907356,keep,protected: special
+kate.smailes@redagency.com.au,3121190,Re-engagement_IMAGENCY,3365715698,keep,"winner: geo=GLOBAL, gen=3, step=2"
+kate.smailes@redagency.com.au,3078491,Re-engagement,3365715698,keep,protected: special
+kayla.krische@favored.live,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184897,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+kayla.krische@favored.live,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184897,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+kennya@viralco.mx,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507776469,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+kennya@viralco.mx,3096746,IM-FIRST AGENCIES ALL GEO #C,3507776469,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=1"
+kitty@ovide.agency,3121190,Re-engagement_IMAGENCY,3374634348,keep,"winner: geo=GLOBAL, gen=3, step=2"
+kitty@ovide.agency,3078491,Re-engagement,3374634348,keep,protected: special
+kkilcoyne@webfx.com,3121190,Re-engagement_IMAGENCY,3378852429,keep,"winner: geo=GLOBAL, gen=3, step=2"
+kkilcoyne@webfx.com,3078491,Re-engagement,3378852429,keep,protected: special
+kylie@a2influence.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507776707,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+kylie@a2influence.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507776707,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+l.pontoise@mnstr.com,3121190,Re-engagement_IMAGENCY,3356907230,keep,"winner: geo=GLOBAL, gen=3, step=2"
+l.pontoise@mnstr.com,3078491,Re-engagement,3356907230,keep,protected: special
+larissa.rimmler@deptagency.com,3121190,Re-engagement_IMAGENCY,3374634274,keep,"winner: geo=GLOBAL, gen=3, step=2"
+larissa.rimmler@deptagency.com,3078491,Re-engagement,3374634274,keep,protected: special
+laura@andagency.amsterdam,3121190,Re-engagement_IMAGENCY,3378852355,keep,"winner: geo=GLOBAL, gen=3, step=2"
+laura@andagency.amsterdam,3078491,Re-engagement,3378852355,keep,protected: special
+lauren@jabberhaus.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702379,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+lauren@jabberhaus.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507702379,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+lauren@jabberhaus.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3507702379,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+lisandro@meetandfun.com.ar,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185118,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+lisandro@meetandfun.com.ar,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185118,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+lola.nanclares@tatam.digital,3096746,IM-FIRST AGENCIES ALL GEO #C,3486764500,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+lola.nanclares@tatam.digital,3050462,IM-FIRST AGENCIES #C,3486764500,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=GLOBAL(1) < ALL_GEO(2), gen=1, step=2"
+luc@centerstone.capital,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3537184870,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+luc@centerstone.capital,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184870,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=1"
+lucas@ramd.am,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184998,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+lucas@ramd.am,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184998,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+luciamegia@twic.es,3121190,Re-engagement_IMAGENCY,3356449799,keep,"winner: geo=GLOBAL, gen=3, step=2"
+luciamegia@twic.es,3078491,Re-engagement,3356449799,keep,protected: special
+lucy@fabulate.com.au,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3501092211,keep,"winner: geo=MENA_APAC, gen=2, step=99"
+lucy@fabulate.com.au,3096746,IM-FIRST AGENCIES ALL GEO #C,3501092211,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+luis@grupo-go.es,3121190,Re-engagement_IMAGENCY,3356907237,keep,"winner: geo=GLOBAL, gen=3, step=2"
+luis@grupo-go.es,3078491,Re-engagement,3356907237,keep,protected: special
+magnus@wecreate.media,3121190,Re-engagement_IMAGENCY,3349556727,keep,"winner: geo=GLOBAL, gen=3, step=2"
+magnus@wecreate.media,3078491,Re-engagement,3349556727,keep,protected: special
+maia@new-moon.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507701724,keep,"winner: geo=US_CA_LATAM, gen=2, step=99"
+maia@new-moon.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507701724,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+manal@usetwirl.com,3121190,Re-engagement_IMAGENCY,3378852469,keep,"winner: geo=GLOBAL, gen=3, step=2"
+manal@usetwirl.com,3078491,Re-engagement,3378852469,keep,protected: special
+mani@ventesavenues.in,3063527,IM-FIRST AGENCIES INDIA #C,2988567578,keep,"winner: geo=INDIA, gen=2, step=2"
+mani@ventesavenues.in,3064966,INFLUENCER PLATFORMS INDIA #C,2988567578,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+mara@sumate.eu,3121190,Re-engagement_IMAGENCY,3374634193,keep,"winner: geo=GLOBAL, gen=3, step=2"
+mara@sumate.eu,3078491,Re-engagement,3374634193,keep,protected: special
+mark@mediavx.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3485868505,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+mark@mediavx.com,3050462,IM-FIRST AGENCIES #C,3485868505,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=GLOBAL(1) < ALL_GEO(2), gen=1, step=2"
+marlaina@htcollective.com,3121190,Re-engagement_IMAGENCY,3349137434,keep,"winner: geo=GLOBAL, gen=3, step=2"
+marlaina@htcollective.com,3078491,Re-engagement,3349137434,keep,protected: special
+martijn@storyboard-agency.com,3121190,Re-engagement_IMAGENCY,3374448114,keep,"winner: geo=GLOBAL, gen=3, step=2"
+martijn@storyboard-agency.com,3078491,Re-engagement,3374448114,keep,protected: special
+martin.tollde@bizkithavas.se,3121190,Re-engagement_IMAGENCY,3374447766,keep,"winner: geo=GLOBAL, gen=3, step=99"
+martin.tollde@bizkithavas.se,3078491,Re-engagement,3374447766,keep,protected: special
+martine@team5pm.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185202,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+martine@team5pm.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185202,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+martyna.lukowiak@gethero.pl,3121190,Re-engagement_IMAGENCY,3348933717,keep,"winner: geo=GLOBAL, gen=3, step=2"
+martyna.lukowiak@gethero.pl,3078491,Re-engagement,3348933717,keep,protected: special
+marwan@aidem-agency.com,3121190,Re-engagement_IMAGENCY,3356907248,keep,"winner: geo=GLOBAL, gen=3, step=2"
+marwan@aidem-agency.com,3078491,Re-engagement,3356907248,keep,protected: special
+matthias@zezam.io,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184917,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+matthias@zezam.io,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184917,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+maulidya@pop-star.me,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3537184975,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+maulidya@pop-star.me,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184975,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+max@unmuted.com,3121190,Re-engagement_IMAGENCY,2474365560,keep,"winner: geo=GLOBAL, gen=3, step=2"
+max@unmuted.com,3078491,Re-engagement,2474365560,keep,protected: special
+melina.lee@nonsensical.agency,3121190,Re-engagement_IMAGENCY,3349137414,keep,"winner: geo=GLOBAL, gen=3, step=2"
+melina.lee@nonsensical.agency,3078491,Re-engagement,3349137414,keep,protected: special
+messiah.richardo@socialbread.id,3096746,IM-FIRST AGENCIES ALL GEO #C,3485866135,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+messiah.richardo@socialbread.id,3050419,INFLUENCER PLATFORMS #C,3485866135,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=GLOBAL(1) < ALL_GEO(2), gen=1, step=99"
+monika@metapic.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184942,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+monika@metapic.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184942,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+nahema.fryer@ctzar.com,3121190,Re-engagement_IMAGENCY,3365830348,keep,"winner: geo=GLOBAL, gen=3, step=2"
+nahema.fryer@ctzar.com,3078491,Re-engagement,3365830348,keep,protected: special
+niklas.wallenberg@makeyourmark.se,3121190,Re-engagement_IMAGENCY,3374447765,keep,"winner: geo=GLOBAL, gen=3, step=2"
+niklas.wallenberg@makeyourmark.se,3078491,Re-engagement,3374447765,keep,protected: special
+nj@buzzanova.dk,3121190,Re-engagement_IMAGENCY,3355718828,keep,"winner: geo=GLOBAL, gen=3, step=2"
+nj@buzzanova.dk,3078491,Re-engagement,3355718828,keep,protected: special
+oliver.cloppenburg@deptagency.com,3121190,Re-engagement_IMAGENCY,3374634222,keep,"winner: geo=GLOBAL, gen=3, step=2"
+oliver.cloppenburg@deptagency.com,3078491,Re-engagement,3374634222,keep,protected: special
+ollie.richardson@omg.com,3121190,Re-engagement_IMAGENCY,3374447983,keep,"winner: geo=GLOBAL, gen=3, step=2"
+ollie.richardson@omg.com,3078491,Re-engagement,3374447983,keep,protected: special
+olof@meltstudios.se,3121190,Re-engagement_IMAGENCY,3348933611,keep,"winner: geo=GLOBAL, gen=3, step=2"
+olof@meltstudios.se,3078491,Re-engagement,3348933611,keep,protected: special
+olof@meltstudios.se,3096747,INFLUENCER PLATFORMS ALL GEO #C,3348933611,pause,"lose to Re-engagement_IMAGENCY: geo=ALL_GEO(2) < GLOBAL(1), gen=2, step=2"
+orlane.dinis@socialcut.agency,3121190,Re-engagement_IMAGENCY,3365830366,keep,"winner: geo=GLOBAL, gen=3, step=2"
+orlane.dinis@socialcut.agency,3078491,Re-engagement,3365830366,keep,protected: special
+orlane.dinis@socialcut.agency,3096747,INFLUENCER PLATFORMS ALL GEO #C,3365830366,pause,"lose to Re-engagement_IMAGENCY: geo=ALL_GEO(2) < GLOBAL(1), gen=2, step=2"
+ourhai.tower@havasred.com,3121190,Re-engagement_IMAGENCY,3365715734,keep,"winner: geo=GLOBAL, gen=3, step=2"
+ourhai.tower@havasred.com,3078491,Re-engagement,3365715734,keep,protected: special
+owen.hancock@impact.com,3121190,Re-engagement_IMAGENCY,3355718610,keep,"winner: geo=GLOBAL, gen=3, step=2"
+owen.hancock@impact.com,3078491,Re-engagement,3355718610,keep,protected: special
+pa.leroux@socialcut.agency,3121190,Re-engagement_IMAGENCY,3365830367,keep,"winner: geo=GLOBAL, gen=3, step=2"
+pa.leroux@socialcut.agency,3078491,Re-engagement,3365830367,keep,protected: special
+paul@convosphere.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3485866152,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+paul@convosphere.com,3050419,INFLUENCER PLATFORMS #C,3485866152,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=GLOBAL(1) < ALL_GEO(2), gen=1, step=2"
+paul@duel.tech,3121190,Re-engagement_IMAGENCY,3349556786,keep,"winner: geo=GLOBAL, gen=3, step=2"
+paul@duel.tech,3078491,Re-engagement,3349556786,keep,protected: special
+philip@storytimeapp.io,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507701834,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+philip@storytimeapp.io,3096746,IM-FIRST AGENCIES ALL GEO #C,3507701834,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+pn@getsally.io,3092917,WRONG-PERSON-referral,2916006166,keep,"winner: geo=GLOBAL, gen=3, step=2"
+pn@getsally.io,3121190,Re-engagement_IMAGENCY,2916006166,keep,protected: special
+pn@getsally.io,3078491,Re-engagement,2916006166,keep,protected: special
+pn@getsally.io,3096746,IM-FIRST AGENCIES ALL GEO #C,2916006166,pause,"lose to WRONG-PERSON-referral: geo=ALL_GEO(2) < GLOBAL(1), gen=2, step=1"
+pn@getsally.io,3096747,INFLUENCER PLATFORMS ALL GEO #C,2916006166,pause,"lose to WRONG-PERSON-referral: geo=ALL_GEO(2) < GLOBAL(1), gen=2, step=1"
+pooja@aer.media,3064966,INFLUENCER PLATFORMS INDIA #C,3490703099,keep,"winner: geo=INDIA, gen=2, step=2"
+pooja@aer.media,3059650,INDIA #C,3490703099,pause,"lose to INFLUENCER PLATFORMS INDIA #C: geo=INDIA(3) < INDIA(3), gen=1, step=2"
+prathamesh@monk-e.in,3063527,IM-FIRST AGENCIES INDIA #C,3537185106,keep,"winner: geo=INDIA, gen=2, step=2"
+prathamesh@monk-e.in,3064966,INFLUENCER PLATFORMS INDIA #C,3537185106,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+priya.kumar@cre8r.ai,3063527,IM-FIRST AGENCIES INDIA #C,3537184875,keep,"winner: geo=INDIA, gen=2, step=2"
+priya.kumar@cre8r.ai,3064966,INFLUENCER PLATFORMS INDIA #C,3537184875,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+qasim@creativelysquared.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184885,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+qasim@creativelysquared.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184885,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+rachel@mightyjoy.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702022,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+rachel@mightyjoy.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507702022,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+raquel.nunez@fiftykey.com,3121190,Re-engagement_IMAGENCY,3366369577,keep,"winner: geo=GLOBAL, gen=3, step=2"
+raquel.nunez@fiftykey.com,3078491,Re-engagement,3366369577,keep,protected: special
+ray.p@vxmedia.co,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507776834,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+ray.p@vxmedia.co,3096747,INFLUENCER PLATFORMS ALL GEO #C,3507776834,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+rg@maxxer.com,3121190,Re-engagement_IMAGENCY,3365830438,keep,"winner: geo=GLOBAL, gen=3, step=2"
+rg@maxxer.com,3078491,Re-engagement,3365830438,keep,protected: special
+riddhi.mehta@cre8r.ai,3063527,IM-FIRST AGENCIES INDIA #C,3537184876,keep,"winner: geo=INDIA, gen=2, step=2"
+riddhi.mehta@cre8r.ai,3064966,INFLUENCER PLATFORMS INDIA #C,3537184876,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+rishabh@krazyfox.in,3059650,INDIA #C,3490703146,keep,"winner: geo=INDIA, gen=1, step=2"
+rishabh@krazyfox.in,3096746,IM-FIRST AGENCIES ALL GEO #C,3490703146,pause,"lose to INDIA #C: geo=ALL_GEO(2) < INDIA(3), gen=2, step=1"
+rob.parkin@pulsarplatform.com,3121190,Re-engagement_IMAGENCY,3349556836,keep,"winner: geo=GLOBAL, gen=3, step=2"
+rob.parkin@pulsarplatform.com,3078491,Re-engagement,3349556836,keep,protected: special
+rob@a2influence.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507701914,keep,"winner: geo=US_CA_LATAM, gen=2, step=99"
+rob@a2influence.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507701914,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+robin@tourn.com,3092917,WRONG-PERSON-referral,3348933654,keep,"winner: geo=GLOBAL, gen=3, step=2"
+robin@tourn.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3348933654,pause,"lose to WRONG-PERSON-referral: geo=ALL_GEO(2) < GLOBAL(1), gen=2, step=2"
+rodrigo.jun@infleux.co,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184916,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+rodrigo.jun@infleux.co,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184916,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+roman@clipster.gg,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3537184861,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+roman@clipster.gg,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184861,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+ryan@themesh.co,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185158,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+ryan@themesh.co,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185158,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+ryley@ugcfactory.io,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185170,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+ryley@ugcfactory.io,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185170,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+s.emetc@insense.pro,3121190,Re-engagement_IMAGENCY,3378852122,keep,"winner: geo=GLOBAL, gen=3, step=2"
+s.emetc@insense.pro,3078491,Re-engagement,3378852122,keep,protected: special
+sanna.byrd@deptagency.com,3121190,Re-engagement_IMAGENCY,3374447759,keep,"winner: geo=GLOBAL, gen=3, step=2"
+sanna.byrd@deptagency.com,3078491,Re-engagement,3374447759,keep,protected: special
+saqib@hashtag.com.pk,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3537185055,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+saqib@hashtag.com.pk,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185055,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+sarah@popcomms.ae,3121190,Re-engagement_IMAGENCY,3365830377,keep,"winner: geo=GLOBAL, gen=3, step=2"
+sarah@popcomms.ae,3078491,Re-engagement,3365830377,keep,protected: special
+semyon@socialpruf.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184991,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+semyon@socialpruf.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184991,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+sergio@orishinal.com,3059277,LATAM #C,3490881082,keep,"winner: geo=LATAM, gen=1, step=2"
+sergio@orishinal.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3490881082,pause,"lose to LATAM #C: geo=ALL_GEO(2) < LATAM(3), gen=2, step=2"
+sernin@hemblem.app,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184959,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+sernin@hemblem.app,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184959,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+sgillmer@breaktimemedia.com,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702116,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+sgillmer@breaktimemedia.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3507702116,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+shehzeen@socialstudies.io,3121190,Re-engagement_IMAGENCY,3356907206,keep,"winner: geo=GLOBAL, gen=3, step=2"
+shehzeen@socialstudies.io,3078491,Re-engagement,3356907206,keep,protected: special
+shyam.panicker@cre8r.ai,3063527,IM-FIRST AGENCIES INDIA #C,3537184877,keep,"winner: geo=INDIA, gen=2, step=2"
+shyam.panicker@cre8r.ai,3064966,INFLUENCER PLATFORMS INDIA #C,3537184877,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+steven@influenceable.io,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702270,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+steven@influenceable.io,3096746,IM-FIRST AGENCIES ALL GEO #C,3507702270,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+stuart.hood@redhavas.com,3121190,Re-engagement_IMAGENCY,3365715718,keep,"winner: geo=GLOBAL, gen=3, step=2"
+stuart.hood@redhavas.com,3078491,Re-engagement,3365715718,keep,protected: special
+sudipta@enmmey.com,3063527,IM-FIRST AGENCIES INDIA #C,3499207891,keep,"winner: geo=INDIA, gen=2, step=99"
+sudipta@enmmey.com,3092917,WRONG-PERSON-referral,3499207891,keep,protected: special
+suraj@click2commission.com,3063527,IM-FIRST AGENCIES INDIA #C,3537184883,keep,"winner: geo=INDIA, gen=2, step=2"
+suraj@click2commission.com,3064966,INFLUENCER PLATFORMS INDIA #C,3537184883,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+suraj@theboredmonkey.com,3063527,IM-FIRST AGENCIES INDIA #C,2474363799,keep,"winner: geo=INDIA, gen=2, step=2"
+suraj@theboredmonkey.com,3059650,INDIA #C,2474363799,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=1, step=2"
+tameem@smartcode.sa,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3506241801,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+tameem@smartcode.sa,3096746,IM-FIRST AGENCIES ALL GEO #C,3506241801,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+teeravit@pinpung.com,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3537185120,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+teeravit@pinpung.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185120,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+thiago@ftwcomunicacao.com.br,3071851,IM-FIRST AGENCIES US_CANADA_LATAM #C,3507702027,keep,"winner: geo=US_CA_LATAM, gen=2, step=2"
+thiago@ftwcomunicacao.com.br,3096747,INFLUENCER PLATFORMS ALL GEO #C,3507702027,pause,"lose to IM-FIRST AGENCIES US_CANADA_LATAM #C: geo=ALL_GEO(2) < US_CA_LATAM(3), gen=2, step=2"
+thomas.vanslooten@deptagency.com,3121190,Re-engagement_IMAGENCY,3374634172,keep,"winner: geo=GLOBAL, gen=3, step=2"
+thomas.vanslooten@deptagency.com,3078491,Re-engagement,3374634172,keep,protected: special
+titouan@gen-z-nation.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185191,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+titouan@gen-z-nation.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185191,pause,"lose to INFLUENCER PLATFORMS ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+turan@sketchmedia.co,3065429,INFLUENCER PLATFORMS MENA+APAC #C,3490703061,keep,"winner: geo=MENA_APAC, gen=2, step=2"
+turan@sketchmedia.co,3059650,INDIA #C,3490703061,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=INDIA(3) < MENA_APAC(3), gen=1, step=2"
+turan@sketchmedia.co,3096746,IM-FIRST AGENCIES ALL GEO #C,3490703061,pause,"lose to INFLUENCER PLATFORMS MENA+APAC #C: geo=ALL_GEO(2) < MENA_APAC(3), gen=2, step=2"
+ucha@settr.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3500326660,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+ucha@settr.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3500326660,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=2"
+vedant@monk-e.in,3063527,IM-FIRST AGENCIES INDIA #C,3499210074,keep,"winner: geo=INDIA, gen=2, step=2"
+vedant@monk-e.in,3064966,INFLUENCER PLATFORMS INDIA #C,3499210074,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=2, step=2"
+vicent@keeperexperience.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185197,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+vicent@keeperexperience.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185197,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+victor.asuai@igotrend.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537184948,keep,"winner: geo=ALL_GEO, gen=2, step=2"
+victor.asuai@igotrend.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537184948,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+vishal@krazyfox.in,3063527,IM-FIRST AGENCIES INDIA #C,3490703051,keep,"winner: geo=INDIA, gen=2, step=2"
+vishal@krazyfox.in,3059650,INDIA #C,3490703051,pause,"lose to IM-FIRST AGENCIES INDIA #C: geo=INDIA(3) < INDIA(3), gen=1, step=2"
+wardah@rasooc.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185008,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+wardah@rasooc.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185008,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+zarnain@rasooc.com,3096746,IM-FIRST AGENCIES ALL GEO #C,3537185007,keep,"winner: geo=ALL_GEO, gen=2, step=1"
+zarnain@rasooc.com,3096747,INFLUENCER PLATFORMS ALL GEO #C,3537185007,pause,"lose to IM-FIRST AGENCIES ALL GEO #C: geo=ALL_GEO(2) < ALL_GEO(2), gen=2, step=1"
+zoe.millette@impact.com,3121190,Re-engagement_IMAGENCY,3355718767,keep,"winner: geo=GLOBAL, gen=3, step=2"
+zoe.millette@impact.com,3078491,Re-engagement,3355718767,keep,protected: special

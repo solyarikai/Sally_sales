@@ -1,0 +1,472 @@
+{
+  "summary": {
+    "total": 115,
+    "paused_ok": 115,
+    "not_paused": 0,
+    "errors": 0
+  },
+  "not_paused": [],
+  "paused_ok": [
+    {
+      "email": "aayush@monk-e.in",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "aishwarya@monk-e.in",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "akash@fancall.in",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "amit@galvor.com",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "bharat@flynt.social",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "joby@scoop.app",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "mani@ventesavenues.in",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "prathamesh@monk-e.in",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "priya.kumar@cre8r.ai",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "riddhi.mehta@cre8r.ai",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "shyam.panicker@cre8r.ai",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "suraj@click2commission.com",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "vedant@monk-e.in",
+      "campaign_name": "INFLUENCER PLATFORMS INDIA #C"
+    },
+    {
+      "email": "abdulaziz@smartcode.sa",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "adam@q.digital",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "adecker@stonefieldeng.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "aghataborghetti@allfluence.com.br",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "alan@inhouse.team",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "alexis.ramos@sixteenth.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "andi@a2influence.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "angelo@alist.ae",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "cara@mightyjoy.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "chris@q.digital",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "christopher@new-moon.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "cristian@milkyway-agency.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "dara.febianti@moca-tech.net",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "elizabeth@a2influence.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "georgie@digitalnativescontent.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "greta@ugcfactory.io",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "hadeek@tikit.ae",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "henni@10pmcurfew.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "ian@q.digital",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "jenny@cogentworld.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "jeremy@clipster.gg",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "juls@viralco.mx",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "kari@hireinfluence.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "kennya@viralco.mx",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "kylie@a2influence.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "lauren@jabberhaus.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "luc@centerstone.capital",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "lucy@fabulate.com.au",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "maia@new-moon.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "maulidya@pop-star.me",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "philip@storytimeapp.io",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "pn@getsally.io",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "rachel@mightyjoy.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "rishabh@krazyfox.in",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "rob@a2influence.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "roman@clipster.gg",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "saqib@hashtag.com.pk",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "sgillmer@breaktimemedia.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "steven@influenceable.io",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "tameem@smartcode.sa",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "teeravit@pinpung.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "titouan@gen-z-nation.com",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "turan@sketchmedia.co",
+      "campaign_name": "IM-FIRST AGENCIES ALL GEO #C"
+    },
+    {
+      "email": "aghataborghetti@allfluence.com.br",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "amor@caagency.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "andrea.martinez@keepers.es",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "andrea@milkyway-agency.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "anthony@themesh.co",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "chris.jacks@later.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "chris@brandpal.ai",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "david@ugcfactory.io",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "fabi@gen-z-nation.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "felix@keeperexperience.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "gemma.cocker@disruptmarketing.co",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "hannah@digitalnativescontent.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "hayley@fromthelobby.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "hein@yimb.nl",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "idanr@shout.market",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "jamie.hambleton@disruptmarketing.co",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "jermaine@gamesight.io",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "joseph.regan@thefifthagency.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "julia@relatable.me",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "julien@ramd.am",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "kayla.krische@favored.live",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "lauren@jabberhaus.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "lisandro@meetandfun.com.ar",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "lucas@ramd.am",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "martine@team5pm.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "matthias@zezam.io",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "monika@metapic.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "olof@meltstudios.se",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "orlane.dinis@socialcut.agency",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "pn@getsally.io",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "qasim@creativelysquared.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "ray.p@vxmedia.co",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "robin@tourn.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "rodrigo.jun@infleux.co",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "ryan@themesh.co",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "ryley@ugcfactory.io",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "semyon@socialpruf.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "sergio@orishinal.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "sernin@hemblem.app",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "thiago@ftwcomunicacao.com.br",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "ucha@settr.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "vicent@keeperexperience.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "victor.asuai@igotrend.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "wardah@rasooc.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "zarnain@rasooc.com",
+      "campaign_name": "INFLUENCER PLATFORMS ALL GEO #C"
+    },
+    {
+      "email": "akash@fancall.in",
+      "campaign_name": "INDIA #C"
+    },
+    {
+      "email": "jeremy@clipster.gg",
+      "campaign_name": "INDIA #C"
+    },
+    {
+      "email": "karishma.nayak@starbuzz.ai",
+      "campaign_name": "INDIA #C"
+    },
+    {
+      "email": "pooja@aer.media",
+      "campaign_name": "INDIA #C"
+    },
+    {
+      "email": "suraj@theboredmonkey.com",
+      "campaign_name": "INDIA #C"
+    },
+    {
+      "email": "turan@sketchmedia.co",
+      "campaign_name": "INDIA #C"
+    },
+    {
+      "email": "vishal@krazyfox.in",
+      "campaign_name": "INDIA #C"
+    },
+    {
+      "email": "atul@growdiesel.com",
+      "campaign_name": "IM-FIRST AGENCIES #C"
+    },
+    {
+      "email": "elizabeth@theshelf.com",
+      "campaign_name": "IM-FIRST AGENCIES #C"
+    },
+    {
+      "email": "lola.nanclares@tatam.digital",
+      "campaign_name": "IM-FIRST AGENCIES #C"
+    },
+    {
+      "email": "mark@mediavx.com",
+      "campaign_name": "IM-FIRST AGENCIES #C"
+    },
+    {
+      "email": "charlie@creativelysquared.com",
+      "campaign_name": "INFLUENCER PLATFORMS #C"
+    },
+    {
+      "email": "messiah.richardo@socialbread.id",
+      "campaign_name": "INFLUENCER PLATFORMS #C"
+    },
+    {
+      "email": "paul@convosphere.com",
+      "campaign_name": "INFLUENCER PLATFORMS #C"
+    }
+  ],
+  "errors": []
+}
