@@ -34,6 +34,14 @@ status: active
 - **Why:** MENA+APAC показали 10x конверсию, ограничивать гео нет смысла
 - **Risk:** ~40-50% overlap с v3 exports, dedup обязателен
 
+## Operations
+
+**Linear as dedicated skill, not part of /sync (April 8, 2026):**
+- Created `/linear` skill with full task management: templates, triage, reports, bulk ops
+- Removed Linear/Notion from `/sync` — sync now handles only memory + docs
+- Connected `linear-getsally` MCP (Sally workspace) with PAT auth in `.mcp.json`
+- **Why:** Linear deserves dedicated workflow, not just "close tasks at end of session". Separate skill enables project creation, smart triage, weekly reports — things /sync couldn't do well.
+
 ## Architecture
 
 **Blacklist: approved_targets removed.**
