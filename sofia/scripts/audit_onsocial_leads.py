@@ -48,15 +48,16 @@ def api_get(endpoint, params=None):
     req = Request(url)
     req.add_header("Content-Type", "application/json")
     req.add_header("User-Agent", "Mozilla/5.0 SmartLead-CLI/1.0")
-    for attempt in range(3):
+    for attempt in range(5):
         try:
             with urlopen(req, context=SSL_CTX) as resp:
                 raw = resp.read().decode("utf-8")
                 time.sleep(RATE_PAUSE)
                 return json.loads(raw) if raw.strip() else {}
         except HTTPError as e:
-            if e.code == 429 and attempt < 2:
-                time.sleep(5)
+            if e.code == 429 and attempt < 4:
+                wait = (attempt + 1) * 10
+                time.sleep(wait)
                 continue
             raise
 
@@ -70,15 +71,16 @@ def api_post(endpoint, body=None, params=None):
     req = Request(url, data=data, method="POST")
     req.add_header("Content-Type", "application/json")
     req.add_header("User-Agent", "Mozilla/5.0 SmartLead-CLI/1.0")
-    for attempt in range(3):
+    for attempt in range(5):
         try:
             with urlopen(req, context=SSL_CTX) as resp:
                 raw = resp.read().decode("utf-8")
                 time.sleep(RATE_PAUSE)
                 return json.loads(raw) if raw.strip() else {}
         except HTTPError as e:
-            if e.code == 429 and attempt < 2:
-                time.sleep(5)
+            if e.code == 429 and attempt < 4:
+                wait = (attempt + 1) * 10
+                time.sleep(wait)
                 continue
             raise
 
