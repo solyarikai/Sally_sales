@@ -169,25 +169,12 @@ def main():
                 )
                 continue
 
-            # Check status field — SmartLead uses 'status' on the lead object
-            # Possible values vary; look for 'isPaused', 'status', 'lead_status'
-            sl_status = (
-                lead.get("status")
-                or lead.get("lead_status")
-                or lead.get("email_status")
-                or "UNKNOWN"
-            )
-            is_paused_flag = lead.get("isPaused") or lead.get("is_paused")
-
-            is_paused = (
-                str(sl_status).upper() in ("PAUSED", "PAUSE") or is_paused_flag is True
-            )
+            sl_status = lead.get("status", "UNKNOWN")
+            is_paused = str(sl_status).upper() == "PAUSED"
 
             entry = {
                 **a,
                 "sl_status": sl_status,
-                "is_paused_flag": is_paused_flag,
-                "raw_keys": list(lead.keys())[:10],
             }
 
             if is_paused:
