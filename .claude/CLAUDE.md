@@ -1,81 +1,40 @@
-# Sales Engineer — Shared Instructions
+# Sales Engineer
 
-This CLAUDE.md applies to ALL projects under sales_engineer/ (magnum-opus, sofia, scripts, etc.).
+Sales automation tooling for Sally — B2B outreach infrastructure for OnSocial (creator/influencer data API).
 
-## Google Sheets & Drive — MCP Server (25 tools)
+## Pipeline Overview
 
-**Google Sheets + Drive MCP server is connected** via `.mcp.json` → `google-sheets`.
-- Server: `.claude/mcp/google-sheets/server.py`
-- Scopes: `spreadsheets` + `drive` (full, NOT `drive.readonly`)
-- Auth: OAuth2 credentials from `.claude/mcp/google-sheets/token.json`
+The core workflow is a 12-step leadgen pipeline (`magnum-opus/scripts/sofia/onsocial_universal_pipeline.py`):
 
-### Available MCP Tools
+```
+Step 0: GATHER    — find companies (Clay ICP / Clay Keywords / Clay Lookalike / Apollo internal API)
+Step 1: DEDUP     — skip companies already in discovered_companies
+Step 2: BLACKLIST — filter against project exclusion list
+Step 3: PREFILTER — remove non-target industries/sizes (deterministic)
+Step 4: SCRAPE    — fetch homepage HTML via backend
+Step 5: CLASSIFY  — GPT-4o-mini scores: is_target? which segment?
+Step 6: VERIFY    — manual QA on classification accuracy (checkpoint)
+Step 7: ADJUST    — re-classify with tuned prompt if accuracy < 90%
+Step 8: EXPORT    — ship approved targets
+Step 9: PEOPLE    — find decision-makers via Apollo (Puppeteer, free)
+Step 10: FINDYMAIL — enrich with emails ($0.01/found)
+Step 11: SEQUENCES — generate 5-step email sequences
+Step 12: UPLOAD   — create SmartLead campaign & load leads
+```
 
-**Sheets — Data (8 tools):**
-- `sheets_read_range` — read cells (supports as_json mode)
-- `sheets_write_range` — write/overwrite cells
-- `sheets_append_rows` — append rows after last filled row
-- `sheets_search` — search text across sheet/tab
-- `sheets_clear_range` — clear values in range
-- `sheets_list_sheets` — list tabs in a spreadsheet
-- `sheets_list_my_spreadsheets` — find spreadsheets by name
-- `sheets_create_spreadsheet` — create new spreadsheet
+Key scripts: `onsocial_universal_pipeline.py` (orchestrator), `onsocial_apollo_people_search.js` (Puppeteer people search), `onsocial_apollo_companies_search.js` (company search by keywords).
 
-**Sheets — Structure (8 tools):**
-- `sheets_add_tab` / `sheets_delete_tab` / `sheets_rename_tab` / `sheets_duplicate_tab` — manage tabs
-- `sheets_get_metadata` / `sheets_update_metadata` — title, locale, timezone
-- `sheets_sort_range` — sort by column
-- `sheets_auto_resize` — auto-fit column widths
-- `sheets_format_range` — bold, background color
+## ICP Segments
 
-**Drive (9 tools):**
-- `drive_create_folder` — create folder
-- `drive_move_file` — move file to folder (for Dual Save Rule)
-- `drive_list_folder` — list folder contents
-- `drive_search_files` — search files by name
-- `drive_get_file_info` — file metadata
-- `drive_delete_file` — trash file (recoverable)
-- `drive_share_file` — share with email
-- `drive_copy_file` — copy file
+| Code | Full Name | Target Profile |
+|------|-----------|---------------|
+| `INFPLAT` | Influencer Platforms | SaaS platforms for creator data/analytics (5-5K employees) |
+| `IMAGENCY` | IM-First Agencies | Agencies with dedicated influencer practice (10-200 employees) |
+| `AFFPERF` | Affiliate Performance | Affiliate platforms bundling creator data |
+| `SOCCOM` | Social Commerce | Marketplace + live shopping platforms (LTK, ShopMy, Bazaarvoice) |
 
-**Always use MCP tools instead of writing Python scripts for Google Sheets/Drive operations.**
-Fallback to Python only for unsupported operations (conditional formatting, charts, etc.).
-
-**NEVER use service account / Docker for Google Sheets.**
-
-### Naming Convention
-
-**All data exports must be saved BOTH locally and to Google Sheets with identical names.**
-
-Formula: `[PROJECT] | [TYPE] | [SEGMENT] — [DATE]`
-
-| Field | Values |
-|-------|--------|
-| PROJECT | `OS` (OnSocial), `Sally` (internal), `Ops` (shared) |
-| TYPE | `Leads` (campaign-ready), `Targets` (pre-enrichment), `Import` (raw exports), `Archive` (historical), `Analytics` (audits), `Ops` (operational) |
-| SEGMENT | `INFPLAT` (Influencer Platforms), `IMAGENCY` (IM-First Agencies), `AFFPERF` (Affiliate Performance) |
-| DATE | `YYYY-MM-DD` |
-
-**Examples:**
-- Google Sheets: `OS | Targets | INFPLAT — 2026-03-27`
-- Local file:    `OS_Targets_INFPLAT_2026-03-27.csv`
-
-Local filenames: replace ` | ` → `_`, ` — ` → `_`, spaces → `_`. No spaces in local filenames.
-
-### Dual Save Rule
-
-Every time data is saved to a CSV locally, it MUST also be uploaded to Google Sheets with the same name (per naming convention). Every time data is read from Google Sheets, save a local copy too.
-
-### Protected Sheets (DO NOT rename or overwrite)
-
-| Name | Sheet ID |
-|------|----------|
-| OnSocial <> Sally | `1ImSKJFuZtUVYqWPBQYQ1Xo8KOzA9rHVCmWSCg2wXB1E` |
-| OS \| Ops \| Blacklist | `1drDBlOBr_BEeYd0Fv5292IbAfdTApLgITOht6PZHCU4` |
-| OS \| Leads \| All | `1Jia8Sor5V2cby3sORXZxuaSvM_vgWB-uMdazK6RZ5wA` |
-| OS \| Ops \| Exclusion List — Apollo | `1O2xy9Huo0uaCErTq5Er_6xj0PQv8AXZc_DWC13einn8` |
-| OS \| Ops \| Daily | `1c0PpKPsZfxbPYUPTqEyVPfKPOffExwLhrCOUDk3-RKA` |
-| Infra (Accounts) | `1MepWTwCGJX-fGQPkygQouF-hfL8WYV4DRAdmqI3DbDg` |
+Filter definitions: `sofia/projects/OnSocial/docs/apollo-filters-v4.md`
+Segment docs: `sofia/projects/OnSocial/docs/segment-*.md`
 
 ## Execution Environment — Hetzner
 
@@ -85,28 +44,25 @@ Every time data is saved to a CSV locally, it MUST also be uploaded to Google Sh
 - Backend container: `leadgen-backend` (FastAPI on port 8000)
 - Deploy: `ssh hetzner "cd ~/magnum-opus-project/repo && git pull origin main && docker-compose up --build -d"`
 - Env vars: `set -a && source .env && set +a` before running Python scripts directly
-- **sofia/ scripts are NOT on Hetzner by default.** SCP script + dependencies (sequences/) before running: `scp sofia/scripts/foo.py hetzner:~/magnum-opus-project/repo/sofia/scripts/`
+- **sofia/ scripts are NOT on Hetzner by default.** SCP first: `scp sofia/scripts/foo.py hetzner:~/magnum-opus-project/repo/sofia/scripts/`
 - Hetzner repo path: `~/magnum-opus-project/repo`
 
-## SmartLead - Formatting Rules
+## Google Sheets & Drive
 
-When writing email sequences (markdown files or GOD_SEQUENCE):
-- **No em dashes** (`—`). Use regular dash (`-`). Em dashes break in some email clients.
-- **Line breaks**: SmartLead API ignores `\n`. Use `<br>` for line breaks, `<br><br>` for paragraph breaks.
-- Pipeline scripts auto-convert `\n` → `<br>` and `—` → `-` when uploading, but markdown source files should be clean.
-- **A/B variants**: SmartLead API doesn't support variants. Add B variants manually in SmartLead UI.
-- **Activation**: NEVER activate campaigns via API. Only manually in SmartLead UI.
+**Use MCP tools** (`google-sheets` server) for all Sheets/Drive operations. Never write Python scripts for this. Never use service account / Docker.
+
+**Dual Save Rule**: every CSV saved locally MUST also be uploaded to Google Sheets (same name). Every Sheets read -> save local copy.
+
+Naming convention and protected sheets: see `.claude/rules/sheets-reference.md`
 
 ## GetSales Export
 
-Contacts without email from Findymail → auto-export to GetSales-ready CSV in `sofia/get_sales_hub/{dd_mm}/`.
-- 49 columns matching GetSales import format (full_name, first_name, last_name, position, linkedin_nickname, linkedin_url, company_name, cf_location, list_name, tags, etc.)
-- Built into both `findymail_to_smartlead.py` and `onsocial_clay_to_smartlead...py`
+Contacts without email from Findymail -> auto-export to GetSales-ready CSV in `sofia/get_sales_hub/{dd_mm}/` (49-column format). Built into pipeline scripts.
 
 ## Local Python
 
-- Use `python3.11` (homebrew) for local scripts — has google-auth, google-api-python-client installed
-- System `python3` (3.9) lacks most dependencies and has no write access to site-packages
+- Use `python3.11` (homebrew) — has google-auth, google-api-python-client
+- System `python3` (3.9) lacks dependencies, no write access to site-packages
 
 ## Project Structure
 
@@ -118,13 +74,16 @@ Contacts without email from Findymail → auto-export to GetSales-ready CSV in `
 | `sofia/smartlead-hub/` | SmartLead campaigns, sequences, lead data |
 | `tam-guide/` | Training/onboarding materials (HTML lessons) |
 | `scripts/` | Shared utility scripts |
-| `.claude/mcp/` | All MCP servers (apollo, crona, google-sheets, smartlead, findymail, getsales, transkriptor) |
+| `.claude/mcp/` | MCP servers (apollo, crona, google-sheets, smartlead, findymail, getsales, transkriptor) |
 | `.claude/skills/` | Shared Claude Code skills |
+| `.claude/rules/` | Path-scoped rules (sheets naming, SmartLead formatting) |
 
-## Git Structure
+## Gotchas
 
-- **Parent repo** (`sales_engineer/`): GitHub
-- **Submodule** (`magnum-opus/`): GitLab (`git@gitlab.com:sally-saas/magnum-opus.git`)
-- Always push submodule FIRST, then parent
-- Always check `git submodule status` before git operations
-- API keys are per-project (OnSocial, TAM, etc.) — never change globally
+- **Backend crashes on 3000+ sites** in one run — always batch by 500
+- **Apollo People search** returns person location, NOT company country. For geo-based sequences, use `company_country` field from target data
+- **Apollo login** requires email verification from unknown IPs — use Hetzner IP directly, no Apify proxy
+- **Clay free plan** = 100 results/search, not unlimited (period resets monthly)
+- **Backend API `/analyze`** requires `prompt_text`, NOT `prompt_id`
+- **Classification accuracy gate**: if < 90%, must re-tune prompt before proceeding (Step 7)
+- **SmartLead gotchas**: see `.claude/rules/smartlead-formatting.md`
