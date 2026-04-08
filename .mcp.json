@@ -75,7 +75,7 @@
         "/Users/user/sales_engineer/.claude/mcp/linear-getsally/run.sh"
       ],
       "env": {
-        "LINEAR_API_KEY": "lin_api_PGUGpz14xDFwfLyAPwcUb7VtzkW15OlRRPiVaLjB"
+        "LINEAR_ACCESS_TOKEN": "lin_api_PGUGpz14xDFwfLyAPwcUb7VtzkW15OlRRPiVaLjB"
       }
     }
   }
