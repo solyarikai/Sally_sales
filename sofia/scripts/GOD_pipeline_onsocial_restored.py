@@ -2097,7 +2097,77 @@ def set_schedule(campaign_id: int, timezone: str = "America/New_York"):
     print(f"  Schedule: Mon-Fri 08:00-18:00 ({timezone})")
 
 
+def filter_existing_contacts(emails: list[str], project_id: int = 42) -> dict:
+    """Check emails against contacts DB. Returns {email: status} for existing contacts.
+
+    Blocks: replied, meeting_booked, not_qualified, sent.
+    Works on Hetzner (docker exec) or locally (ssh hetzner).
+    """
+    if not emails:
+        return {}
+    BLOCK_STATUSES = ("replied", "meeting_booked", "not_qualified", "sent")
+    sanitized = [e.replace("'", "''").lower().strip() for e in emails if e and "@" in e]
+    if not sanitized:
+        return {}
+    existing = {}
+    for i in range(0, len(sanitized), 500):
+        batch = sanitized[i : i + 500]
+        email_list = ",".join(f"'{e}'" for e in batch)
+        sql = (
+            f"SELECT lower(email), status FROM contacts "
+            f"WHERE project_id = {project_id} "
+            f"AND lower(email) IN ({email_list})"
+        )
+        psql_cmd = (
+            "docker exec leadgen-postgres psql -U leadgen -d leadgen "
+            f"-t -A -F'|' -c \"{sql}\""
+        )
+        is_hetzner = os.path.exists("/root/magnum-opus-project")
+        if is_hetzner:
+            run_args = ["bash", "-c", psql_cmd]
+        else:
+            run_args = ["ssh", "hetzner", psql_cmd]
+        try:
+            result = subprocess.run(
+                run_args, capture_output=True, text=True, timeout=30
+            )
+            for line in result.stdout.strip().split("\n"):
+                if "|" in line:
+                    parts = line.split("|")
+                    existing[parts[0].strip()] = parts[1].strip()
+        except Exception as e:
+            print(f"  WARNING: contact DB check failed: {e}")
+    blocked = {e: s for e, s in existing.items() if s in BLOCK_STATUSES}
+    if blocked:
+        print(f"  CONTACT DEDUP: {len(blocked)} emails blocked (already in DB)")
+        by_status = {}
+        for e, s in blocked.items():
+            by_status.setdefault(s, []).append(e)
+        for status, emails_list in sorted(by_status.items()):
+            print(
+                f"    {status}: {len(emails_list)} ({', '.join(emails_list[:3])}{'...' if len(emails_list) > 3 else ''})"
+            )
+    return blocked
+
+
 def upload_leads(campaign_id: int, rows: list[dict]) -> int:
+    # Contact-level dedup: check DB before uploading
+    all_emails = [
+        r.get("Email", r.get("email", "")).strip().lower()
+        for r in rows
+        if r.get("Email") or r.get("email")
+    ]
+    blocked_emails = filter_existing_contacts(all_emails)
+    if blocked_emails:
+        before = len(rows)
+        rows = [
+            r
+            for r in rows
+            if r.get("Email", r.get("email", "")).strip().lower() not in blocked_emails
+        ]
+        print(
+            f"  Filtered: {before} -> {len(rows)} (removed {before - len(rows)} existing contacts)"
+        )
     leads = []
     for r in rows:
         name = r.get("Name", "").strip()
