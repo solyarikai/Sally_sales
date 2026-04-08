@@ -64,6 +64,7 @@ def api_post(endpoint, body=None, params=None):
     data = json.dumps(body).encode("utf-8") if body else None
     req = Request(url, data=data, method="POST")
     req.add_header("Content-Type", "application/json")
+    req.add_header("User-Agent", "Mozilla/5.0 SmartLead-CLI/1.0")
     for attempt in range(3):
         try:
             with urlopen(req, context=SSL_CTX) as resp:
