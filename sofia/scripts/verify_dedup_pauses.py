@@ -101,7 +101,7 @@ def fetch_campaign_leads(campaign_id: int) -> dict[int, dict]:
 
         print(f"  Fetched {len(all_leads)}/{total} leads from campaign {campaign_id}")
 
-        if len(all_leads) >= total or len(leads) < limit:
+        if len(all_leads) >= total or len(rows) < limit:
             break
         offset += limit
 
