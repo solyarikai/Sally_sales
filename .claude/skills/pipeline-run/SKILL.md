@@ -198,6 +198,12 @@ ssh hetzner "cd ~/magnum-opus-project/repo/scripts/sofia && node apollo_2captcha
 - `apollo_cookie_test.js` — проверить валидность сохранённой сессии
 - `apollo_dump_dom.js` — дамп DOM для отладки логин-формы
 
+### ⛔ Деструктивные операции — читай перед запуском
+
+- **`/analyze` и `/re-analyze` — деструктивны.** Они немедленно перезаписывают классификацию ВСЕХ компаний в ране. Никогда не тестируй с заглушкой-промптом.
+- **`--re-analyze`** работает только при `current_phase = 'awaiting_targets_ok'`. **`/analyze`** только при `scraped`. Подробнее: `.claude/rules/pipeline-phases.md`.
+- **Не запускай несколько classify-процессов параллельно** — они конкурируют за один и тот же ран и перезаписывают результаты друг друга. Перед запуском: `ps aux | grep onsocial_universal | grep -v grep`.
+
 ### Перед запуском проверь
 
 1. Backend работает: `ssh hetzner "curl -s localhost:8000/health"`
