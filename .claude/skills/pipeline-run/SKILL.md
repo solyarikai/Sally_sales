@@ -249,8 +249,14 @@ ssh hetzner "cd ~/magnum-opus-project/repo/scripts/sofia && node apollo_2captcha
 Шаг 8:  EXPORT TARGETS  [скрипт]     — выгрузка таргетов
 Шаг 9:  PEOPLE SEARCH   [скрипт]     — поиск людей через Apollo (Puppeteer, бесплатно) ★ CP3
 Шаг 10: FINDYMAIL       [скрипт]     — email enrichment ($0.01/email)
+         ⚠ --apollo-csv НЕ пробрасывается напрямую в findymail/upload.
+           Для --from-step upload: контакты должны быть в state/onsocial/enriched.json.
+           Для использования существующей кампании: пропиши campaign_id в upload_log.json заранее.
+           Подробнее: .claude/rules/pipeline-phases.md
 Шаг 11: SEQUENCES       [скрипт]     — загрузка email-секвенций
 Шаг 12: SMARTLEAD       [скрипт]     — создание кампании, загрузка лидов
+         ⚠ SmartLead leads count = 0 для DRAFTED кампаний через local API (total_stats=null).
+           Проверяй реальное количество через Hetzner: прямой GET /campaigns/{id}/leads.
 ```
 
 ---
