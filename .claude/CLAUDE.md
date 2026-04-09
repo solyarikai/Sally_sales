@@ -85,6 +85,7 @@ Contacts without email from Findymail -> auto-export to GetSales-ready CSV in `s
 - **Apollo login** requires email verification from unknown IPs — use Hetzner IP directly, no Apify proxy
 - **Clay free plan** = 100 results/search, not unlimited (period resets monthly)
 - **Backend API `/analyze`** requires `prompt_text`, NOT `prompt_id`
+- **Classify prompts MUST NOT include output format instructions** — backend wraps every `custom_system_prompt` with "Respond ONLY with valid JSON `{is_target, confidence, segment, reasoning}`". If prompt also says "pipe format" or defines its own OUTPUT FORMAT, GPT gets conflicting instructions → parsing errors → `is_target=false`. Prompts should only describe WHAT to classify, not HOW to format the answer.
 - **Classification accuracy gate**: if < 90%, must re-tune prompt before proceeding (Step 7)
 - **SmartLead gotchas**: see `.claude/rules/smartlead-formatting.md`
 - **Pipeline script edits**: always apply changes point-by-point to ALL copies (`sofia/scripts/`, `magnum-opus/scripts/`, Hetzner). Never overwrite the whole file — copies may have diverged with independent fixes.
