@@ -87,3 +87,4 @@ Contacts without email from Findymail -> auto-export to GetSales-ready CSV in `s
 - **Backend API `/analyze`** requires `prompt_text`, NOT `prompt_id`
 - **Classification accuracy gate**: if < 90%, must re-tune prompt before proceeding (Step 7)
 - **SmartLead gotchas**: see `.claude/rules/smartlead-formatting.md`
+- **Pipeline script edits**: always apply changes point-by-point to ALL copies (`sofia/scripts/`, `magnum-opus/scripts/`, Hetzner). Never overwrite the whole file — copies may have diverged with independent fixes.
