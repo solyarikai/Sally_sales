@@ -15,11 +15,37 @@ status: active
 - SmartLead: `c-OnSocial_SOCIAL_COMMERCE#C` (ID: 3151592)
 - **Why:** ниша маленькая (~20-30 целевых компаний), но высокоценная — им критична верификация creator quality для GMV
 
+**Per-segment classify prompts (April 9, 2026):**
+- Разбили единый промпт (v4/v5) на 4 отдельных: SOCCOM(#56), INFPLAT(#57), IMAGENCY(#58), AFFPERF(#59)
+- Добавили `--prompt-id` флаг в universal_pipeline.py
+- v4 и v5 деактивированы, старые Analysis промпты тоже
+- **Why:** универсальный промпт путал сегменты (SOCCOM компании классифицировались как INFPLAT). Per-segment промпт даёт чистую бинарную классификацию: TARGET vs OTHER
+- **How to use:** `--prompt-id 56` для SOCCOM, `--prompt-id 57` для INFPLAT, etc.
+
+**Apollo 2captcha login (April 9, 2026):**
+- Apollo показывает Cloudflare Turnstile при каждом логине с Hetzner IP
+- Решение: `apollo_2captcha_login.js` — puppeteer-extra stealth + 2captcha Turnstile solver
+- Sitekey извлекается из CF challenge frame URL (pattern: `0x...`)
+- После логина Chrome profile сохраняется в `~/apollo_chrome_profile/`
+- **Why:** без 2captcha невозможно логиниться в Apollo с Hetzner (ни stealth ни cookies не помогли)
+- **Cost:** ~$0.003 за логин, $3 баланс хватит на ~1000 логинов
+
+**Contacts auto-sync in step12 (April 9, 2026):**
+- Добавлена `_sync_contacts_to_backend()` в step12 — сразу после SmartLead upload пишет в `contacts` через `POST /api/contacts/bulk`
+- **Why:** CRM sync каждые 10 мин, но между загрузкой и sync пайплайн может запустить новый ран и найти дубли
+- **How:** source="pipeline_step12", segment и project_id передаются
+
 **Exa как fallback для people search (April 9, 2026):**
-- Apollo Puppeteer заблокирован капчей (Cloudflare Turnstile + invisible challenge на странице поиска)
+- Apollo Puppeteer заблокирован капчей на People Search (API возвращает HTML вместо JSON)
 - Exa `people_search_exa` нашёл LinkedIn профили по company+title запросам → FindyMail обогатил email
-- **Why:** Apollo scraper нестабилен (captcha, login issues), Exa даёт LinkedIn профили бесплатно и мгновенно
-- **Limitation:** менее структурированные данные чем Apollo, нет фильтра по seniority/title точно
+- **Why:** Apollo scraper нестабилен, Exa даёт LinkedIn профили бесплатно и мгновенно
+- **Limitation:** менее структурированные данные, нет фильтра по seniority. Не находит мелкие стартапы
+
+**SOCCOM TAM reality check (April 9, 2026):**
+- Apollo keyword search по 33 keywords × 5 гео = 99 компаний, но 0 genuine SOCCOM после classify
+- Lookalike (Clay) = 158 компаний, но только ~4 genuine SOCCOM из 16 targets
+- Exa Deep Research = самый эффективный источник: 52 компании, 39 после курации, 6 targets
+- **Вывод:** SOCCOM — микро-сегмент (~30-50 компаний globally). Apollo/Clay плохо индексируют эту нишу. Ручной research + Exa — единственный надёжный метод
 
 **"OTHER" batch redistribution (April 6, 2026):** 276 контактов из `OS | Import | OTHER from OnSocial` распределены:
 - Patreon (19→7) → INFPLAT_NEW: creator monetization platform
