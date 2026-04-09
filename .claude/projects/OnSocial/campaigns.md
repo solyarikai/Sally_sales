@@ -59,15 +59,18 @@ status: active
 - DM clusters: FOUNDERS_CSUITE (33), ACCOUNT_OPS (21), CREATIVE_LEADERSHIP (8)
 - Sheet: `OS | Leads | SOCCOM — 2026-04-06` (ID: 1wYC-na4M8cjF2FSaAV3hJ64PY03-YjIawT9Hr0GWz84)
 
-### Clay ICP batch (April 9)
-- **4 Clay ICP рана** с разными ICP формулировками: creator-led commerce, marketplace, tech/SaaS, social selling
-- Classify: промпт v6 (ID: 60) с SOCIAL_COMMERCE сегментом → 23 SOCCOM / 18 IMAGENCY / 16 INFPLAT
-- People search: Exa (Apollo Puppeteer заблокирован капчей) → 22 контакта из 12 компаний
-- FindyMail: 20/22 email найдено
-- **SmartLead кампания:** `c-OnSocial_SOCIAL_COMMERCE#C` (ID: 3151592) — 20 лидов загружены
-- Blocklist: 27 email в `kb_blocklist`, домены в `discovered_companies`
-- **Блокер:** секвенции не написаны (ждём коллегу)
-- Next: секвенции → активация кампании
+### Clay ICP batch (April 9 morning)
+- 4 Clay ICP рана → 23 SOCCOM / 18 IMAGENCY / 16 INFPLAT
+- 20 лидов загружены в SmartLead
+
+### Apollo + Lookalike + Exa batch (April 9 evening)
+- **3 источника протестированы:** Apollo keyword (99 raw → 0 SOCCOM), Lookalike (158 → 16 targets, ~4 genuine), Exa Deep Research (52 → 39 curated)
+- **Ручной список 39 компаний** из Exa research → blacklist/prefilter/scrape/classify(#56) → 6 таргетов
+- People search: Exa people_search + FindyMail → 7 контактов из 3 компаний (TalkShopLive, CommentSold, Smartzer)
+- **SmartLead кампания:** `c-OnSocial_SOCIAL_COMMERCE#C` (ID: 3151592) — 7 новых лидов (итого ~27 в кампании)
+- Contacts synced to backend DB (pipeline_step12)
+- **Блокер:** секвенции не написаны
+- **Report:** [Google Sheets](https://docs.google.com/spreadsheets/d/1407-rX66kQFuZIaPsagNt3Stv2L6OkULbF1VS3KpnLs) — funnel, targets, contacts
 
 ## IMAGENCY v5 (In Progress — April 2026, branch: feat/imagency-v5-sequences)
 
