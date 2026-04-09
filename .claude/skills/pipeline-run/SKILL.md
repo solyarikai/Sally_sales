@@ -177,6 +177,32 @@ python3 universal_pipeline.py --project-id <ID> --mode <MODE> --dry-run \
 **Рабочие JS-скрипты** (Apollo) живут в `scripts/sofia/` на Hetzner — не трогать оригиналы в `scripts/`.
 **Clay JS-скрипты** (`onsocial_clay_*.js`) в `scripts/sofia/` — standalone бэкапы, не используются пайплайном (Clay идёт через backend).
 
+### Apollo Login — решение CAPTCHA (2captcha)
+
+Apollo часто блокирует логин Cloudflare Turnstile. Для решения есть скрипт `apollo_2captcha_login.js`:
+
+```bash
+# Запуск перед Apollo-шагами (step 0 mode=apollo, step 9 people search)
+ssh hetzner "cd ~/magnum-opus-project/repo/scripts/sofia && node apollo_2captcha_login.js"
+```
+
+**Что делает:**
+- Логинится в Apollo через Puppeteer + stealth plugin
+- Если появляется Turnstile CAPTCHA — решает через 2captcha API ($0.002/запрос)
+- Сохраняет Chrome-профиль в `~/apollo_chrome_profile/` (переиспользуется всеми Apollo-скриптами)
+- Сохраняет cookies в `data/apollo_session.json`
+
+**Когда запускать:**
+- Перед первым Apollo-скриптом в сессии
+- Если `onsocial_apollo_companies_search.js` или `onsocial_apollo_people_search.js` падают с "Login blocked"
+- Если скриншот `/tmp/apollo_login_blocked.png` показывает CAPTCHA
+
+**Вспомогательные скрипты** (на Hetzner, `scripts/sofia/`):
+- `apollo_stealth_login.js` — логин без 2captcha (stealth only, работает не всегда)
+- `apollo_get_sitekey.js` — извлечь Turnstile sitekey для отладки
+- `apollo_cookie_test.js` — проверить валидность сохранённой сессии
+- `apollo_dump_dom.js` — дамп DOM для отладки логин-формы
+
 ### Перед запуском проверь
 
 1. Backend работает: `ssh hetzner "curl -s localhost:8000/health"`
