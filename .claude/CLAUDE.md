@@ -80,6 +80,7 @@ Contacts without email from Findymail -> auto-export to GetSales-ready CSV in `s
 
 ## Gotchas
 
+- **NEVER bypass scraping** — do NOT populate `scraped_text` from CSV/Apollo descriptions as a workaround for scraping failures. Apollo Short Description is too sparse for classification (results in ~2% target rate instead of expected 20-40%). If the scrape endpoint hangs, debug the backend issue (check DB locks via `pg_stat_activity`, restart containers, check event loop blocking) and wait. Stop and ask the user before taking shortcuts that corrupt classification quality.
 - **Backend crashes on 3000+ sites** in one run — always batch by 500
 - **Apollo People search** returns person location, NOT company country. For geo-based sequences, use `company_country` field from target data
 - **Apollo login** requires email verification from unknown IPs — use Hetzner IP directly, no Apify proxy
