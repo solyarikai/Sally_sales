@@ -81,12 +81,20 @@ Contacts without email from Findymail -> auto-export to GetSales-ready CSV in `s
 ## Gotchas
 
 - **NEVER bypass scraping** — do NOT populate `scraped_text` from CSV/Apollo descriptions as a workaround for scraping failures. Apollo Short Description is too sparse for classification (results in ~2% target rate instead of expected 20-40%). If the scrape endpoint hangs, debug the backend issue (check DB locks via `pg_stat_activity`, restart containers, check event loop blocking) and wait. Stop and ask the user before taking shortcuts that corrupt classification quality.
+- **NEVER test `/analyze` endpoint with a stub/dummy prompt** — backend immediately re-classifies ALL companies in the run with whatever prompt you send. Even a "test" call destroys correctly classified targets. To verify the endpoint works: read the code or check backend logs. Never `curl /analyze` to see if it responds.
 - **Backend crashes on 3000+ sites** in one run — always batch by 500
 - **Apollo People search** returns person location, NOT company country. For geo-based sequences, use `company_country` field from target data
 - **Apollo login** requires email verification from unknown IPs — use Hetzner IP directly, no Apify proxy
 - **Clay free plan** = 100 results/search, not unlimited (period resets monthly)
 - **Backend API `/analyze`** requires `prompt_text`, NOT `prompt_id`
+- **`/analyze` requires `current_phase = 'scraped'`** — backend returns 400 for any other phase. `/re-analyze` requires `current_phase = 'awaiting_targets_ok'`. Do NOT manually reset phases without understanding the state machine. See `.claude/rules/pipeline-phases.md`.
+- **`--apollo-csv` does NOT feed findymail/upload directly** — it loads contacts into Step 9 cache. For `--from-step upload` to work, contacts must be in `state/onsocial/enriched.json`. Write there directly if bypassing steps 9-10.
+- **SmartLead campaign_id for upload** — pipeline reads from `state/onsocial/upload_log.json`. Pre-populate with `{"SEGMENT_NAME": {"campaign_id": 12345}}` before running `--from-step upload` to use an existing campaign.
+- **SmartLead leads count = 0 for DRAFTED campaigns** via local smartlead.py (checks `total_stats` which SmartLead omits). Verify via direct API from Hetzner: `curl localhost:... /campaigns/{id}/leads`.
+- **Hetzner uses `python3`** (= 3.12), NOT `python3.11`. Local machine uses `python3.11`.
+- **`postgres COPY TO '/tmp/...'`** writes inside the container, not on the host. Use `docker cp leadgen-postgres:/tmp/file.csv /tmp/file.csv` to extract.
 - **Classify prompts MUST NOT include output format instructions** — backend wraps every `custom_system_prompt` with "Respond ONLY with valid JSON `{is_target, confidence, segment, reasoning}`". If prompt also says "pipe format" or defines its own OUTPUT FORMAT, GPT gets conflicting instructions → parsing errors → `is_target=false`. Prompts should only describe WHAT to classify, not HOW to format the answer.
 - **Classification accuracy gate**: if < 90%, must re-tune prompt before proceeding (Step 7)
 - **SmartLead gotchas**: see `.claude/rules/smartlead-formatting.md`
 - **Pipeline script edits**: always apply changes point-by-point to ALL copies (`sofia/scripts/`, `magnum-opus/scripts/`, Hetzner). Never overwrite the whole file — copies may have diverged with independent fixes.
+- **Findymail/SmartLead/blacklist — always via pipeline**, never custom scripts or MCP calls in a loop. Pipeline handles dedup, logging, state.
