@@ -2834,7 +2834,15 @@ def main():
     )
     p.add_argument(
         "--mode",
-        choices=["natural", "structured", "keywords", "apollo", "lookalike", "expand"],
+        choices=[
+            "natural",
+            "structured",
+            "keywords",
+            "apollo",
+            "lookalike",
+            "expand",
+            "import",
+        ],
         default="structured",
         help="Input mode for filter generation",
     )
@@ -2852,6 +2860,10 @@ def main():
     )
     p.add_argument("--from-step", choices=STEPS, default="start")
     p.add_argument("--run-id", type=int, help="Resume existing run")
+    p.add_argument(
+        "--import-csv",
+        help="CSV with pre-gathered companies (--mode import). Reads 'Website' column for domains.",
+    )
     p.add_argument("--apollo-csv", help="Apollo People CSV (platforms or single)")
     p.add_argument(
         "--apollo-csv-agencies", help="Apollo People CSV for agencies segment"
@@ -2945,10 +2957,12 @@ def main():
             print("ERROR: --run-id required for --re-analyze")
             sys.exit(1)
         params = {"model": "gpt-4o-mini"}
-        if config.prompt_id:
-            params["prompt_id"] = config.prompt_id
-        elif prompt_text:
+        if prompt_text:
             params["prompt_text"] = prompt_text
+        elif config.prompt_text:
+            params["prompt_text"] = config.prompt_text
+        elif config.prompt_id:
+            params["prompt_id"] = config.prompt_id
         api("post", f"/pipeline/gathering/runs/{run_id}/re-analyze", params=params)
         return
 
@@ -3041,6 +3055,10 @@ def main():
             print("ERROR: --base-run required for --mode expand")
             sys.exit(1)
         mode_config = mode4_expand(args.base_run, args.override)
+    elif args.mode == "import":
+        # No company filters needed — domains come from CSV
+        segment = args.segment or filter_file_data.get("segment", "SOCIAL_COMMERCE")
+        mode_config = {"segment": segment, "filters": {}}
 
     # Dry run
     if args.dry_run:
@@ -3103,23 +3121,54 @@ def main():
             print("ERROR: no filters resolved")
             sys.exit(1)
 
-        if args.mode == "apollo":
-            # Apollo mode: scrape companies via Puppeteer → feed domains to backend
-            domains = step0_apollo_companies(
-                config, mode_config["filters"], apollo_profile=args.apollo_profile
-            )
-            if not domains:
-                print("  ERROR: No domains from Apollo search")
+        if args.mode == "import":
+            # Import mode: read pre-gathered companies from CSV → feed domains to backend
+            if not args.import_csv:
+                print("ERROR: --import-csv required for --mode import")
+                sys.exit(1)
+            csv_path = Path(args.import_csv)
+            if not csv_path.exists():
+                print(f"ERROR: file not found: {csv_path}")
                 sys.exit(1)
 
-            seg_name = mode_config.get("segment", "UNKNOWN")
-            notes_prefix = f"Apollo Companies API — {seg_name} {len(domains)} domains"
+            import urllib.parse
+
+            domains = []
+            skipped = 0
+            with csv_path.open(encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    website = (row.get("Website") or row.get("website") or "").strip()
+                    if not website:
+                        skipped += 1
+                        continue
+                    # Normalize: strip protocol + trailing slash → bare domain
+                    parsed = urllib.parse.urlparse(
+                        website if "://" in website else f"https://{website}"
+                    )
+                    raw = (parsed.netloc or parsed.path).rstrip("/").lower()
+                    domain = raw.removeprefix("www.")
+                    if domain:
+                        domains.append(domain)
+                    else:
+                        skipped += 1
+
+            # Deduplicate
+            domains = list(dict.fromkeys(domains))
+            seg_name = mode_config.get("segment", "SOCCOM") if mode_config else "SOCCOM"
+            print(f"\n  Import CSV: {csv_path.name}")
+            print(f"  Domains extracted: {len(domains)} (skipped {skipped} empty)")
+            if not domains:
+                print("  ERROR: No domains extracted from CSV")
+                sys.exit(1)
+
+            notes_prefix = f"CSV Import — {seg_name} {len(domains)} domains"
             if not _checkpoint(
-                f"Feed {len(domains)} Apollo domains into backend pipeline?"
+                f"Feed {len(domains)} imported domains into backend pipeline?"
             ):
                 sys.exit(0)
 
-            run_ids = create_batched_runs(config, domains, "apollo", notes_prefix)
+            run_ids = create_batched_runs(config, domains, "import", notes_prefix)
             save_json(config.state_dir / "apollo_run_ids.json", run_ids)
 
             # Process all runs through backend pipeline (dedup → blacklist → scrape → classify)
