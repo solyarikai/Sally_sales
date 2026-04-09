@@ -9,7 +9,7 @@ description: "Push current branch to remote for sales_engineer (GitHub) or magnu
 
 | Alias | Path | Remote |
 |-------|------|--------|
-| `sales` | `/Users/user/sales_engineer` | GitHub `https://github.com/solyarikai/Sally_sales.git` |
+| `sales` | `/Users/user/sales_engineer` | GitHub `https://$GITHUB_TOKEN@github.com/solyarikai/Sally_sales.git` |
 | `mo` | `/Users/user/sales_engineer/magnum-opus` | GitLab (sally-saas/magnum-opus) |
 
 ## Язык
