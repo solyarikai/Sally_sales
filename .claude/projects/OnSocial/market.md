@@ -29,13 +29,16 @@ status: active
 - **Seed companies:** Whalar, Billion Dollar Boy, Linkster, Ykone, Intermate, LADbible, InfluencerUK
 
 ### SOCCOM (Social Commerce Platforms)
-- **Roles:** VP/SVP Growth & Strategy, Head of Brand Strategy, SVP Creative Strategy, Managing Partner, Client Service Directors
-- **Company size:** 1,000+ employees (enterprise)
-- **Example:** Kantar (global brand measurement, 20k employees)
-- **Pain:** Клиенты спрашивают про influencer effectiveness — Kantar измеряет медиа, но нет слоя creator data
-- **Trigger:** Клиент запрашивает influencer ROI в рамках brand tracking / media effectiveness study
-- **Pitch angle:** OnSocial как data provider/партнёр для enrichment их исследований
-- **Status:** Новый сегмент, не тестировался. 62 контакта готовы.
+- **Roles:** CEO, CTO, VP Engineering, VP Product, Head of Marketplace, Founder
+- **Company size:** 20-20,000 employees
+- **Subcategories:** live shopping (TalkShopLive, CommentSold), shoppable video (Firework, Smartzer, Bambuser), creator storefronts (LTK, ShopMy), UGC commerce (Bazaarvoice, Yotpo), live auctions (Whatnot)
+- **Pain:** marketplace depends on creator quality for GMV. Bad creators = bad sales = platform dies. Need creator verification, fraud detection at scale
+- **Trigger:** scaling creator onboarding, launching creator marketplace features
+- **Pitch angle:** "Your marketplace runs on creator trust. How do you verify who's real before they list?"
+- **TAM reality:** micro-segment, ~30-50 targetable companies globally. Apollo/Clay poorly index this niche. Exa Deep Research = best source
+- **Status:** 6 targets classified, 7 contacts in SmartLead (3 companies). Sequences not written yet
+- **Filter files:** `onsocial_soccom_v4_{us,eu_west,apac,mena,latam}.json` (33 keywords, 20-20K employees)
+- **Classify prompt:** #56 (`onsocial_classify_soccom_v1`) — binary: SOCIAL_COMMERCE vs OTHER
 
 ### AFFPERF (Affiliate & Performance)
 - **Roles:** VP Product, Head of Data, CTO
