@@ -7,13 +7,19 @@ status: active
 
 ## Segmentation
 
-**SOCCOM — новый сегмент (April 6, 2026):** Social Commerce Platforms — крупные корпоративные компании вне IMAGENCY/INFPLAT/AFFPERF.
-- Первый батч: Kantar (220 raw → 62 после фильтрации)
-- Фильтр: срезаем engineering/HR/IT ops/product owner; оставляем Brand Strategy, Growth & Strategy, Creative, Client Service, C-suite
-- Питч-угол: Kantar измеряет маркетинг для брендов → OnSocial как data layer для influencer measurement в их исследованиях
-- Лист: `OS | Leads | SOCCOM — 2026-04-06` (ID: 1wYC-na4M8cjF2FSaAV3hJ64PY03-YjIawT9Hr0GWz84)
-- DM clusters: FOUNDERS_CSUITE (33), ACCOUNT_OPS (21), CREATIVE_LEADERSHIP (8)
-- **Why:** 62 квалифицированных контакта достаточно для кампании; 70% среза — стандартная гигиена для enterprise
+**SOCCOM — новый сегмент (April 6-9, 2026):** Social Commerce Platforms — компании где commerce происходит через creator контент.
+- Два типа: A) маркетплейсы (live shopping, creator storefronts), B) commerce tech (shoppable video, livestream infrastructure)
+- Первый батч: Kantar (220 raw → 62), второй: Clay ICP 4 рана → 23 SOCCOM компании → 20 лидов с email
+- Classify промпт v6 (ID: 60): KEY TEST — "is the core product about turning creator content into sales?"
+- Компании: Firework, Videoshops, Droppii, WALEE, Catenoid, SugarReach, LikeMinds, Mandu и др.
+- SmartLead: `c-OnSocial_SOCIAL_COMMERCE#C` (ID: 3151592)
+- **Why:** ниша маленькая (~20-30 целевых компаний), но высокоценная — им критична верификация creator quality для GMV
+
+**Exa как fallback для people search (April 9, 2026):**
+- Apollo Puppeteer заблокирован капчей (Cloudflare Turnstile + invisible challenge на странице поиска)
+- Exa `people_search_exa` нашёл LinkedIn профили по company+title запросам → FindyMail обогатил email
+- **Why:** Apollo scraper нестабилен (captcha, login issues), Exa даёт LinkedIn профили бесплатно и мгновенно
+- **Limitation:** менее структурированные данные чем Apollo, нет фильтра по seniority/title точно
 
 **"OTHER" batch redistribution (April 6, 2026):** 276 контактов из `OS | Import | OTHER from OnSocial` распределены:
 - Patreon (19→7) → INFPLAT_NEW: creator monetization platform
