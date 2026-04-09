@@ -98,9 +98,11 @@ description: >-
 | apollo | filter-file и/или inline | ✅ company_filters мерджится | ✅ поверх файла |
 | keywords | filter-file и/или inline | ✅ company_filters мерджится | ✅ поверх файла |
 | natural | filter-file и/или inline | ✅ company_filters мерджится | ✅ поверх файла |
-| structured | БД (kb_segments) | не нужен | не нужен |
+| structured | БД (kb_segments.default_filters) ИЛИ filter-file | ✅ company_filters как fallback если DB пустой | не поддерживается |
 | lookalike | из примеров доменов | не нужен | не нужен |
 | expand | из base run | не нужен | `--override` для изменений |
+
+> **⚠️ structured + новый сегмент:** Если у сегмента нет `default_filters` в БД **и** не передан `--filter-file` — пайплайн остановится с ошибкой и покажет путь куда создать filter-file. Путь: `sofia/projects/<Project>/filters/<Project>_<SEGMENT>_v1.json`
 
 ### People filters (для step 9 — People Search)
 
