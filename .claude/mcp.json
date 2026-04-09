@@ -70,11 +70,8 @@
     },
     "linear-getsally": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/linear-getsally/node_modules/linear-mcp/build/index.js"],
-      "env": {
-        "LINEAR_ACCESS_TOKEN": "$LINEAR_ACCESS_TOKEN"
-      }
+      "command": "/bin/bash",
+      "args": ["/Users/user/sales_engineer/.claude/mcp/linear-getsally/run.sh"]
     }
   }
 }
