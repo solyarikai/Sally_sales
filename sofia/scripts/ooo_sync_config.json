@@ -1,0 +1,83 @@
+{
+  "defaults": {
+    "days_after_return": 7,
+    "fallback_days": 21,
+    "exclude_keywords": ["Re-engagement", "re-engagement", "OOO", "Out of office", "Mailboxes Healthcheck"]
+  },
+  "projects": {
+    "OnSocial": {
+      "campaign_match": ["c-OnSocial_"],
+      "segments": {
+        "INFPLAT": {
+          "keywords": ["INFLUENCER PLATFORMS", "INFPLAT", "PLATFORM"],
+          "re_engagement_campaign_id": 3123881
+        },
+        "IMAGENCY": {
+          "keywords": ["IMAGENCY", "IM AGENCIES", "IM-FIRST", "IM_FIRST", "IM agencies"],
+          "re_engagement_campaign_id": 3121190
+        }
+      },
+      "exclude_keywords": ["Re-engagement", "iGaming", "trading", "GWC", "Inxy", "Gcore", "SquareFi", "Deliryo", "CrowdControl", "gaming"]
+    },
+    "Inxy": {
+      "campaign_match": ["Inxy ", "Inxy-", "INXY "],
+      "segments": {
+        "ALL": {
+          "keywords": [],
+          "re_engagement_campaign_id": null
+        }
+      },
+      "exclude_keywords": ["Mailboxes Healthcheck"]
+    },
+    "EasyStaff": {
+      "campaign_match": ["EasyStaff", "Easystaff"],
+      "segments": {
+        "ALL": {
+          "keywords": [],
+          "re_engagement_campaign_id": null
+        }
+      },
+      "exclude_keywords": ["Mailboxes Healthcheck"]
+    },
+    "Gcore": {
+      "campaign_match": ["Gcore"],
+      "segments": {
+        "ALL": {
+          "keywords": [],
+          "re_engagement_campaign_id": null
+        }
+      },
+      "exclude_keywords": ["Mailboxes Healthcheck"]
+    },
+    "SquareFi": {
+      "campaign_match": ["SquareFi", "Squarefi", "SqaureFi"],
+      "segments": {
+        "ALL": {
+          "keywords": [],
+          "re_engagement_campaign_id": null
+        }
+      },
+      "exclude_keywords": ["Mailboxes Healthcheck"]
+    },
+    "Deliryo": {
+      "campaign_match": ["Deliryo"],
+      "segments": {
+        "ALL": {
+          "keywords": [],
+          "re_engagement_campaign_id": null
+        }
+      },
+      "exclude_keywords": []
+    },
+    "Palark": {
+      "campaign_match": ["Palark"],
+      "segments": {
+        "ALL": {
+          "keywords": [],
+          "re_engagement_campaign_id": null
+        }
+      },
+      "exclude_keywords": []
+    }
+  }
+}

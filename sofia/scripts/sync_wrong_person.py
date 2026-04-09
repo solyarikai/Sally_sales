@@ -317,6 +317,10 @@ def send_telegram_notification(stats: dict, leads: list, project: str, campaign_
         logger.warning("Telegram config missing, skipping notification")
         return
 
+    if datetime.now().weekday() >= 5:  # 5=Saturday, 6=Sunday
+        logger.info("Weekend — skipping Telegram notification")
+        return
+
     try:
         timestamp = datetime.now().strftime('%b %d, %Y at %H:%M UTC')
 
