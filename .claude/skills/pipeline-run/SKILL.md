@@ -237,6 +237,9 @@ ssh hetzner "cd ~/magnum-opus-project/repo/scripts/sofia && node apollo_2captcha
 Шаг 5:  CLASSIFY        [backend]    — AI классификация (GPT-4o-mini) ★ CP2
 Шаг 6:  VERIFY          [ручной]     — проверка rejected на false negatives (recall)
 Шаг 7:  ADJUST PROMPT   [ручной]     — смягчение промпта если recall низкий
+         ⚠ PROMPT RULE: не добавляй OUTPUT FORMAT / pipe-format в промпт.
+           Backend сам добавляет JSON инструкцию. Конфликт форматов → parsing errors → потеря targets.
+           Промпт описывает только логику классификации. Подробнее: .claude/rules/classify-prompt-format.md
 Шаг 8:  EXPORT TARGETS  [скрипт]     — выгрузка таргетов
 Шаг 9:  PEOPLE SEARCH   [скрипт]     — поиск людей через Apollo (Puppeteer, бесплатно) ★ CP3
 Шаг 10: FINDYMAIL       [скрипт]     — email enrichment ($0.01/email)
