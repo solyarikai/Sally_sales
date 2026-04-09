@@ -2,16 +2,16 @@
   "mcpServers": {
     "apollo": {
       "type": "stdio",
-      "command": "/Users/user/sales_engineer/.claude/mcp/apollo-mcp/.venv/bin/python3",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/apollo-mcp/server.py"],
+      "command": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/apollo-mcp/.venv/bin/python3",
+      "args": ["/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/apollo-mcp/server.py"],
       "env": {
         "APOLLO_API_KEY": "V4yEBnZDhB1kwdA0u6GDtQ"
       }
     },
     "crona": {
       "type": "stdio",
-      "command": "/Users/user/sales_engineer/.claude/mcp/crona-mcp/.venv/bin/python3",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/crona-mcp/server.py"],
+      "command": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/crona-mcp/.venv/bin/python3",
+      "args": ["/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/crona-mcp/server.py"],
       "env": {
         "CRONA_EMAIL": "sofia.kamyshenko@gmail.com",
         "CRONA_PASSWORD": "gyrzu9sUvnybmynkom"
@@ -19,41 +19,41 @@
     },
     "google-sheets": {
       "type": "stdio",
-      "command": "/opt/homebrew/bin/python3.11",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/google-sheets/server.py"],
+      "command": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/google-sheets/.venv/bin/python3",
+      "args": ["/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/google-sheets/server.py"],
       "env": {
-        "GOOGLE_CREDENTIALS_PATH": "/Users/user/sales_engineer/.claude/mcp/google-sheets/credentials.json",
-        "GOOGLE_TOKEN_PATH": "/Users/user/sales_engineer/.claude/mcp/google-sheets/token.json"
+        "GOOGLE_CREDENTIALS_PATH": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/google-sheets/credentials.json",
+        "GOOGLE_TOKEN_PATH": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/google-sheets/token.json"
       }
     },
     "smartlead": {
       "type": "stdio",
-      "command": "/Users/user/sales_engineer/.claude/mcp/smartlead-mcp/.venv/bin/python3",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/smartlead-mcp/server.py"],
+      "command": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/smartlead-mcp/.venv/bin/python3",
+      "args": ["/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/smartlead-mcp/server.py"],
       "env": {
         "SMARTLEAD_API_KEY": "eaa086b6-b7c0-4b2f-a6e9-b183c81122d5_638f7e5"
       }
     },
     "findymail": {
       "type": "stdio",
-      "command": "/Users/user/sales_engineer/.claude/mcp/findymail-mcp/.venv/bin/python3",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/findymail-mcp/server.py"],
+      "command": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/findymail-mcp/.venv/bin/python3",
+      "args": ["/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/findymail-mcp/server.py"],
       "env": {
         "FINDYMAIL_API_KEY": "dSxRrqArQIsG2E5zba36HLTy0pBk1bGZra5ZDtykea70c139"
       }
     },
     "getsales": {
       "type": "stdio",
-      "command": "/Users/user/sales_engineer/.claude/mcp/getsales-mcp/.venv/bin/python3",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/getsales-mcp/server.py"],
+      "command": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/getsales-mcp/.venv/bin/python3",
+      "args": ["/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/getsales-mcp/server.py"],
       "env": {
         "GETSALES_API_TOKEN": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vYW1hemluZy5nZXRzYWxlcy5pby9hcGkvand0LXRva2Vucy9jcmVhdGUtYXBpLWtleSIsImlhdCI6MTc3NDQ1NzU0MywiZXhwIjoxODY5MDY1NTQzLCJuYmYiOjE3NzQ0NTc1NDMsImp0aSI6ImNWOEJDVmprV08yeGdLdEIiLCJzdWIiOiI3OTg4IiwidXNyIjp7ImlkIjo3OTg4LCJ1dWlkIjoiZTBiZDgzMTgtNGEwZC0xMWYwLThiYWItYThhMTU5YzBiZmJjIiwiZmlyc3RfbmFtZSI6IlNlcmdlIiwibGFzdF9uYW1lIjoiS3V6bmV0c292IiwiZW1haWwiOiJzZXJnZUBpbnh5ZGlnaXRhbC5jb20iLCJnYV90cmFja2luZ19pZCI6IjQ1OTY0OTcyMS4xNzQyNTY1Mzc4LiIsImZiX2NsaWNrX2lkIjpudWxsLCJmYl9icm93c2VyX2lkIjoiZmIuMS4xNzQyNTY1Mzc4NjIxLjI4ODI0NDQ5MjUzMzQ2NTgwNSIsIndoaXRlbGFiZWxfdXVpZCI6bnVsbCwiY3JlYXRlZF9hdCI6IjIwMjUtMDMtMjFUMTM6NTY6NTkuMDAwMDAwWiJ9LCJzcGVjaWZpY190ZWFtX2lkIjo3NDMwLCJ1c2VyX3RlYW1zIjp7Ijc0MzAiOjN9LCJ0b2tlbl90eXBlIjoiYXBpIn0.2dDmw7L-ZWNd4RJWL0XOSlP2qq1PjZtS1QSJr3pe0Vw"
       }
     },
     "instantly": {
       "type": "stdio",
-      "command": "/Users/user/sales_engineer/.claude/mcp/instantly-mcp/.venv/bin/python3",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/instantly-mcp/server.py"],
+      "command": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/instantly-mcp/.venv/bin/python3",
+      "args": ["/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/instantly-mcp/server.py"],
       "env": {
         "INSTANTLY_API_KEY": "OWRlZDdiNDctMjU0Ni00N2VhLTk5NjQtNWM3MWQ1N2I3OGI2OlJJQlZ1amJRcWdYVQ==",
         "INSTANTLY_ONSOCIAL_TEST_ID": "019d6206-de23-75c1-8525-0ed92d5cafde",
@@ -62,8 +62,8 @@
     },
     "transkriptor": {
       "type": "stdio",
-      "command": "/Users/user/sales_engineer/.claude/mcp/transkriptor-mcp/.venv/bin/python3",
-      "args": ["/Users/user/sales_engineer/.claude/mcp/transkriptor-mcp/server.py"],
+      "command": "/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/transkriptor-mcp/.venv/bin/python3",
+      "args": ["/Users/sofia/Documents/GitHub/Sally_sales/.claude/mcp/transkriptor-mcp/server.py"],
       "env": {
         "TRANSKRIPTOR_API_KEY": "e84efc25af1bf68caa6f9f7792e7d26c07c535b45728408c4b281b629cedf596306fc1c342bf808c1a99f7894cb4bdc775173b0f13b51920c32b46fc6fcfbf5f"
       }
