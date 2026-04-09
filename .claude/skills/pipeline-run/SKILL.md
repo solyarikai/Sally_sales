@@ -235,8 +235,8 @@ ssh hetzner "cd ~/magnum-opus-project/repo/scripts/sofia && node apollo_2captcha
 Шаг 3:  PREFILTER       [backend]    — отсев мусора
 Шаг 4:  SCRAPE          [backend]    — скрейпинг сайтов
 Шаг 5:  CLASSIFY        [backend]    — AI классификация (GPT-4o-mini) ★ CP2
-Шаг 6:  VERIFY          [ручной]     — проверка accuracy
-Шаг 7:  ADJUST PROMPT   [ручной]     — правка промпта если accuracy < 90%
+Шаг 6:  VERIFY          [ручной]     — проверка rejected на false negatives (recall)
+Шаг 7:  ADJUST PROMPT   [ручной]     — смягчение промпта если recall низкий
 Шаг 8:  EXPORT TARGETS  [скрипт]     — выгрузка таргетов
 Шаг 9:  PEOPLE SEARCH   [скрипт]     — поиск людей через Apollo (Puppeteer, бесплатно) ★ CP3
 Шаг 10: FINDYMAIL       [скрипт]     — email enrichment ($0.01/email)
