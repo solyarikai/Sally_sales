@@ -1,10 +1,6 @@
 ---
 name: git-sync
-description: >-
-  Полная git-синхронизация sales_engineer + magnum-opus (сабмодуль).
-  Статус, commit, push, pull, ветки, мердж, PR — всё с учётом сабмодуля.
-  Используй когда: "синкани", "git sync", "обнови репо", "git-sync",
-  "статус репо", "запушь всё", "sync repos", "что с гитом".
+description: "Полная git-синхронизация sales_engineer + magnum-opus (сабмодуль). Статус, commit, push, pull, ветки, мердж, PR — всё с учётом сабмодуля. Используй когда: \"синкани\", \"git sync\", \"обнови репо\", \"git-sync\", \"статус репо\", \"запушь всё\", \"sync repos\", \"что с гитом\"."
 ---
 
 # /git-sync — полная git-синхронизация sales_engineer + magnum-opus

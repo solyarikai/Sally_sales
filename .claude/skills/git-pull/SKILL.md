@@ -1,8 +1,6 @@
 ---
 name: git-pull
-description: >-
-  Pull latest changes from remote for sales_engineer (GitHub) or magnum-opus (GitLab).
-  Используй когда: "пулл", "pull", "обнови репо", "стяни", "забери изменения".
+description: "Pull latest changes from remote for sales_engineer (GitHub) or magnum-opus (GitLab). Используй когда: \"пулл\", \"pull\", \"обнови репо\", \"стяни\", \"забери изменения\"."
 ---
 
 # /git-pull
@@ -11,7 +9,7 @@ description: >-
 
 | Alias | Path | Remote |
 |-------|------|--------|
-| `sales` | `/Users/user/sales_engineer` | GitHub `https://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@github.com/solyarikai/Sally_sales.git` |
+| `sales` | `/Users/user/sales_engineer` | GitHub `https://github.com/solyarikai/Sally_sales.git` |
 | `mo` | `/Users/user/sales_engineer/magnum-opus` | GitLab (sally-saas/magnum-opus) |
 
 ## Язык

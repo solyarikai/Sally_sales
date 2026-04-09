@@ -1,11 +1,6 @@
 ---
 name: pipeline-run
-description: >-
-  Запуск лидген-пайплайна через onsocial_universal_pipeline.py.
-  12 шагов: gather → dedup → blacklist → prefilter → scrape → classify → verify → export → people → findymail → sequences → smartlead.
-  Используй когда: "запусти пайплайн", "pipeline", "прогони лиды", "enrichment",
-  "обогати контакты", "залей в SmartLead", "загрузи лиды", "pipeline-run",
-  "universal pipeline", "собери компании".
+description: "Запуск лидген-пайплайна через onsocial_universal_pipeline.py. 12 шагов: gather → dedup → blacklist → prefilter → scrape → classify → verify → export → people → findymail → sequences → smartlead. Используй когда: \"запусти пайплайн\", \"pipeline\", \"прогони лиды\", \"enrichment\", \"обогати контакты\", \"залей в SmartLead\", \"загрузи лиды\", \"pipeline-run\", \"universal pipeline\", \"собери компании\"."
 ---
 
 # /pipeline-run — Universal Lead Generation Pipeline

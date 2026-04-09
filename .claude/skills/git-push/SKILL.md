@@ -1,8 +1,6 @@
 ---
 name: git-push
-description: >-
-  Push current branch to remote for sales_engineer (GitHub) or magnum-opus (GitLab).
-  Используй когда: "запушь", "push", "отправь в репо", "пуш", "залей".
+description: "Push current branch to remote for sales_engineer (GitHub) or magnum-opus (GitLab). Используй когда: \"запушь\", \"push\", \"отправь в репо\", \"пуш\", \"залей\"."
 ---
 
 # /git-push
@@ -11,7 +9,7 @@ description: >-
 
 | Alias | Path | Remote |
 |-------|------|--------|
-| `sales` | `/Users/user/sales_engineer` | GitHub `https://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@github.com/solyarikai/Sally_sales.git` |
+| `sales` | `/Users/user/sales_engineer` | GitHub `https://github.com/solyarikai/Sally_sales.git` |
 | `mo` | `/Users/user/sales_engineer/magnum-opus` | GitLab (sally-saas/magnum-opus) |
 
 ## Язык
