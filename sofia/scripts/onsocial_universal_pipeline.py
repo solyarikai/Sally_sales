@@ -1183,8 +1183,15 @@ def step5_classify(config: ProjectConfig, run_id: int, prompt_text: str = None) 
         else "  No companies analyzed"
     )
 
-    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
-    pending = [g for g in gates if g["status"] == "pending"]
+    gates = api(
+        "get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}"
+    )
+    items = gates if isinstance(gates, list) else gates.get("items", [])
+    pending = [
+        g
+        for g in items
+        if g.get("gathering_run_id") == run_id and g.get("status") == "pending"
+    ]
     if pending:
         gate = pending[0]
         save_state(config.state_dir, run_id, "awaiting_targets_ok", gate_id=gate["id"])
