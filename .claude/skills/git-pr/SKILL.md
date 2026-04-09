@@ -13,7 +13,7 @@ description: "Создать, посмотреть, замерджить Pull Re
 
 | Alias | Path | Remote |
 |-------|------|--------|
-| `sales` | `/Users/user/sales_engineer` | GitHub `https://$GITHUB_TOKEN@github.com/solyarikai/Sally_sales.git` |
+| `sales` | `/Users/user/sales_engineer` | GitHub `https://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@github.com/solyarikai/Sally_sales.git` |
 | `mo` | `/Users/user/sales_engineer/magnum-opus` | GitLab (sally-saas/magnum-opus) — PR через GitLab, не gh |
 
 ## Действия
