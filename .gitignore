@@ -73,6 +73,7 @@ poetry/
 .claude/hueta/
 .sofia-sync-backup/
 .claude/worktrees/
+.env.local
 .claude/mcp/**/.venv/
 .claude/mcp/**/__pycache__/
 .claude/skills/**/__pycache__/
