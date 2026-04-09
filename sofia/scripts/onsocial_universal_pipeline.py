@@ -3267,17 +3267,23 @@ def main():
                 print(
                     f"\n  ★ CP1 — gate #{gate['id']}, passed={gate.get('scope', {}).get('passed', '?')}"
                 )
-                print(
-                    f"  Pausing. Run with --from-step prefilter --run-id {run_id} after approval."
-                )
-                return
+                if _AUTO_APPROVE:
+                    approve_gate(gate["id"], "Auto-approved")
+                else:
+                    print(
+                        f"  Pausing. Run with --from-step prefilter --run-id {run_id} after approval."
+                    )
+                    return
         elif phase in ("gathered", "gather"):
             cp1 = step2_blacklist(config, run_id)
             if cp1.get("gate_id"):
-                print(
-                    f"  Pausing at CP1. Approve then: --from-step prefilter --run-id {run_id}"
-                )
-                return
+                if _AUTO_APPROVE:
+                    approve_gate(cp1["gate_id"], "Auto-approved")
+                else:
+                    print(
+                        f"  Pausing at CP1. Approve then: --from-step prefilter --run-id {run_id}"
+                    )
+                    return
 
     if "prefilter" in steps and run_id:
         step3_prefilter(run_id)
