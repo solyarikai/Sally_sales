@@ -1,11 +1,6 @@
 ---
 name: publora
-description: >-
-  Publora API — schedule and publish social media posts across 10 platforms
-  (X/Twitter, LinkedIn, Instagram, Threads, TikTok, YouTube, Facebook, Bluesky,
-  Mastodon, Telegram). Use this skill when the user wants to post, schedule,
-  draft, bulk-schedule, manage workspace users, configure webhooks, or retrieve
-  LinkedIn analytics via Publora.
+description: "Publora API — schedule and publish social media posts across 10 platforms (X/Twitter, LinkedIn, Instagram, Threads, TikTok, YouTube, Facebook, Bluesky, Mastodon, Telegram). Use this skill when the user wants to post, schedule, draft, bulk-schedule, manage workspace users, configure webhooks, or retrieve LinkedIn analytics via Publora."
 ---
 
 # Publora API — Core Skill

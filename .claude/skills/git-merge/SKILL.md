@@ -1,8 +1,6 @@
 ---
 name: git-merge
-description: >-
-  Merge branches for sales_engineer or magnum-opus.
-  Используй когда: "мердж", "merge", "слей ветки", "объедини", "влей ветку".
+description: "Merge branches for sales_engineer or magnum-opus. Используй когда: \"мердж\", \"merge\", \"слей ветки\", \"объедини\", \"влей ветку\"."
 ---
 
 # /git-merge

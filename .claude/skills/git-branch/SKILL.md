@@ -1,8 +1,6 @@
 ---
 name: git-branch
-description: >-
-  Create, switch, list, or delete branches for sales_engineer or magnum-opus.
-  Используй когда: "ветка", "branch", "создай ветку", "переключись", "покажи ветки".
+description: "Create, switch, list, or delete branches for sales_engineer or magnum-opus. Используй когда: \"ветка\", \"branch\", \"создай ветку\", \"переключись\", \"покажи ветки\"."
 ---
 
 # /git-branch

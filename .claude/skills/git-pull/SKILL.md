@@ -1,8 +1,6 @@
 ---
 name: git-pull
-description: >-
-  Pull latest changes from remote for sales_engineer (GitHub) or magnum-opus (GitLab).
-  Используй когда: "пулл", "pull", "обнови репо", "стяни", "забери изменения".
+description: "Pull latest changes from remote for sales_engineer (GitHub) or magnum-opus (GitLab). Используй когда: \"пулл\", \"pull\", \"обнови репо\", \"стяни\", \"забери изменения\"."
 ---
 
 # /git-pull

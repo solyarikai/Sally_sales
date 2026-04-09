@@ -1,11 +1,6 @@
 ---
 name: lead-extract
-description: >-
-  Извлечение и обогащение контактов из Apollo, Clay, или CSV через скрипты
-  в magnum-opus/scripts/sofia/. Отдельный шаг 0 из universal pipeline.
-  Используй когда: "найди лиды", "extract leads", "собери контакты",
-  "Apollo search", "Clay export", "обогати через FindyMail",
-  "lead-extract", "найди компании", "поиск по Apollo".
+description: "Извлечение и обогащение контактов из Apollo, Clay, или CSV через скрипты в magnum-opus/scripts/sofia/. Отдельный шаг 0 из universal pipeline. Используй когда: \"найди лиды\", \"extract leads\", \"собери контакты\", \"Apollo search\", \"Clay export\", \"обогати через FindyMail\", \"lead-extract\", \"найди компании\", \"поиск по Apollo\"."
 ---
 
 # /lead-extract — извлечение контактов

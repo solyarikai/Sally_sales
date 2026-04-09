@@ -1,15 +1,6 @@
 ---
 name: smartlead
-description: >-
-  Универсальный SmartLead API скилл - кампании, лиды, секвенции, аккаунты, аналитика, вебхуки, инбокс.
-  Используй ВСЕГДА когда пользователь упоминает SmartLead, кампании рассылок, cold email,
-  выгрузку лидов, экспорт из кампании, создание кампании, секвенции писем, email accounts,
-  аналитику кампании, replies inbox, вебхуки SmartLead.
-  Триггеры: "smartlead", "смартлид", "кампания", "выгрузи лиды", "экспорт лидов",
-  "leads export", "создай кампанию", "секвенция", "sequence", "email accounts",
-  "аналитика кампании", "campaign stats", "inbox replies", "вебхук", "webhook",
-  "добавь лиды", "add leads", "поставь на паузу", "pause campaign",
-  "покажи кампании", "list campaigns", "message history", "история переписки".
+description: "Универсальный SmartLead API скилл - кампании, лиды, секвенции, аккаунты, аналитика, вебхуки, инбокс. Используй ВСЕГДА когда пользователь упоминает SmartLead, кампании рассылок, cold email, выгрузку лидов, экспорт из кампании, создание кампании, секвенции писем, email accounts, аналитику кампании, replies inbox, вебхуки SmartLead. Триггеры: \"smartlead\", \"смартлид\", \"кампания\", \"выгрузи лиды\", \"экспорт лидов\", \"leads export\", \"создай кампанию\", \"секвенция\", \"sequence\", \"email accounts\", \"аналитика кампании\", \"campaign stats\", \"inbox replies\", \"вебхук\", \"webhook\", \"добавь лиды\", \"add leads\", \"поставь на паузу\", \"pause campaign\", \"покажи кампании\", \"list campaigns\", \"message history\", \"история переписки\"."
 ---
 
 # SmartLead — Universal API Tool

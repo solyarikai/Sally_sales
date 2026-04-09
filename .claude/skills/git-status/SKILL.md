@@ -1,8 +1,6 @@
 ---
 name: git-status
-description: >-
-  Show git status for both repos at once.
-  Используй когда: "статус", "status", "что изменилось", "какие изменения", "git status".
+description: "Show git status for both repos at once. Используй когда: \"статус\", \"status\", \"что изменилось\", \"какие изменения\", \"git status\"."
 ---
 
 # /git-status

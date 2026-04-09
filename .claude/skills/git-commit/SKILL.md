@@ -1,8 +1,6 @@
 ---
 name: git-commit
-description: >-
-  Auto-commit with generated message and push for sales_engineer or magnum-opus.
-  Используй когда: "закоммить", "commit", "коммит", "сохрани изменения", "зафиксируй код".
+description: "Auto-commit with generated message and push for sales_engineer or magnum-opus. Используй когда: \"закоммить\", \"commit\", \"коммит\", \"сохрани изменения\", \"зафиксируй код\"."
 ---
 
 # /git-commit

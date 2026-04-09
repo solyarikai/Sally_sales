@@ -1,8 +1,6 @@
 ---
 name: git-push
-description: >-
-  Push current branch to remote for sales_engineer (GitHub) or magnum-opus (GitLab).
-  Используй когда: "запушь", "push", "отправь в репо", "пуш", "залей".
+description: "Push current branch to remote for sales_engineer (GitHub) or magnum-opus (GitLab). Используй когда: \"запушь\", \"push\", \"отправь в репо\", \"пуш\", \"залей\"."
 ---
 
 # /git-push

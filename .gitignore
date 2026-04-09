@@ -67,6 +67,9 @@ screenshots/
 /.last_docker_build
 /google-credentials.json
 
+# Machine-specific MCP config (each machine has its own paths)
+.mcp.json
+
 # Local folders
 projects/
 poetry/
