@@ -1409,8 +1409,9 @@ def step8_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
                 break
         code = config.project_name[:2].upper()
         sheet_name = f"{code} | Targets | {seg_code} — {today}"
+        safe_seg = seg_code.replace("/", "-").replace(" ", "_").replace("|", "-")
         save_csv(
-            config.csv_dir / f"targets_{seg_code}_{today}.csv",
+            config.csv_dir / f"targets_{safe_seg}_{today}.csv",
             seg_targets,
             sheet_name=sheet_name,
         )
@@ -2957,6 +2958,7 @@ def main():
     if args.prompt_file:
         prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
         config.prompt_id = None
+        config.prompt_text = prompt_text
         print(f"  Custom prompt loaded: {args.prompt_file}")
     elif hasattr(args, "prompt_id") and args.prompt_id:
         # Fetch specific prompt from DB by ID
@@ -2970,6 +2972,7 @@ def main():
         if match:
             config.prompt_id = match["id"]
             prompt_text = match.get("prompt_text", "")
+            config.prompt_text = prompt_text
             print(
                 f"  Prompt override: #{match['id']} '{match.get('name', '?')}'  ({len(prompt_text)} chars)"
             )
