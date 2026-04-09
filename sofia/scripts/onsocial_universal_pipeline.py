@@ -1260,12 +1260,19 @@ def step5_reclassify(
     # at already-targeted companies. See TAM_GATHERING_ARCHITECTURE.md.
 
 
-def step6_verify(run_id: int) -> dict:
+def step6_verify(config: ProjectConfig, run_id: int) -> dict:
     """Prepare FindyMail verification → creates CP3 with cost estimate."""
     print(f"\n  STEP 6: VERIFY (run #{run_id})")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/prepare-verification")
-    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
-    pending = [g for g in gates if g["status"] == "pending"]
+    gates = api(
+        "get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}"
+    )
+    items = gates if isinstance(gates, list) else gates.get("items", [])
+    pending = [
+        g
+        for g in items
+        if g.get("gathering_run_id") == run_id and g.get("status") == "pending"
+    ]
     if pending:
         gate = pending[0]
         scope = gate.get("scope", {})
