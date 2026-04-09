@@ -1235,8 +1235,15 @@ def step5_reclassify(
     targets_count = result.get("targets_count", 0)
     print(f"\n  New target rate: {target_rate * 100:.1f}%")
     print(f"  Targets: {targets_count}")
-    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
-    pending = [g for g in gates if g["status"] == "pending"]
+    gates = api(
+        "get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}"
+    )
+    items = gates if isinstance(gates, list) else gates.get("items", [])
+    pending = [
+        g
+        for g in items
+        if g.get("gathering_run_id") == run_id and g.get("status") == "pending"
+    ]
     if pending:
         gate_id = pending[0]["id"]
         save_state(config.state_dir, run_id, "awaiting_targets_ok", gate_id=gate_id)
