@@ -120,6 +120,14 @@ Backend checks 4 sources:
 - `onsocial_universal_pipeline.py`: `_map_apollo_person` — `person.get("company")` проверяется как домен через `_normalize_domain`
 - `onsocial_apollo_scraper.js`: добавлен `userDataDir` для Chrome profile (сессия сохраняется между запусками)
 
+## Pipeline Updates (April 9, 2026)
+
+- **`--prompt-id` flag**: выбор конкретного classify промпта по ID. Override `get_latest_prompt()` auto-select
+- **`_sync_contacts_to_backend()`**: step12 сразу пишет контакты в `contacts` через `POST /api/contacts/bulk` (не ждёт CRM sync)
+- **Per-segment prompts in DB**: SOCCOM(#56), INFPLAT(#57), IMAGENCY(#58), AFFPERF(#59). v4/v5 деактивированы
+- **Apollo 2captcha login**: `apollo_2captcha_login.js` — Turnstile solver, сохраняет Chrome profile + cookies
+- **Dual copy rule**: pipeline ВСЕГДА копируется в `magnum-opus/scripts/sofia/` И `sofia/scripts/`
+
 ## People Search Alternatives
 
 | Метод | Статус | Когда использовать |
