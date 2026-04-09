@@ -305,7 +305,7 @@ Platforms where creators sell directly through content: live shopping, creator s
 
 ```
 Computer Software, Internet, Marketing & Advertising,
-Information Technology, E-commerce, Online Media, Retail
+Information Technology & services, E-commerce, Online Media, Retail
 ```
 
 **Company Keywords — ANY of**
@@ -340,6 +340,7 @@ gaming streaming, sports streaming
 **# Employees:** 20–5,000
 
 **Location:**
+
 ```
 United States, United Kingdom, Germany, Netherlands, France,
 Canada, Australia, Spain, Italy, Sweden, Denmark, Belgium,
