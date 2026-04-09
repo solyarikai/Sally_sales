@@ -104,3 +104,27 @@ Company Search (Apollo/Clay) → Contact Enrichment (Apollo People/Findymail)
 - Competitors blacklisted: HypeAuditor, Modash, GRIN
 - Cross-segment exclusions: negative responders, active pipeline
 - 25-company manual sample check required before launch (70%+ match rate)
+
+### How step 2 (blacklist-check) works
+Backend checks 4 sources:
+1. `project_blacklist` table — ручной блэклист проекта
+2. `contacts` table — домены из кампаний этого проекта (заполняется CRM sync из SmartLead)
+3. Cross-project contacts (опционально)
+4. Enterprise blacklist (JSON файл)
+
+**`kb_blocklist` НЕ используется в step 2.** CRM sync (`sync_smartlead_contacts`) тянет лиды из SmartLead → `contacts` → step 2 их видит. Но sync в scoped mode пропускает полный CSV export, контакты создаются только при reply processing.
+
+## Backend Patches (April 9, 2026)
+
+- `gathering.py`: `re-analyze` endpoint принимает `prompt_name` (lookup из DB) — обход лимита длины URL для prompt_text
+- `onsocial_universal_pipeline.py`: `_map_apollo_person` — `person.get("company")` проверяется как домен через `_normalize_domain`
+- `onsocial_apollo_scraper.js`: добавлен `userDataDir` для Chrome profile (сессия сохраняется между запусками)
+
+## People Search Alternatives
+
+| Метод | Статус | Когда использовать |
+|-------|--------|-------------------|
+| Apollo Puppeteer | ⚠️ Captcha блокирует | Основной, но нестабилен |
+| Exa `people_search_exa` | ✅ Работает | Fallback — LinkedIn profiles бесплатно |
+| Apollo MCP API | ❌ Не используем | Неполные данные за бесплатно |
+| Ручной CSV | ✅ Работает | `--apollo-csv` импорт в пайплайн |
