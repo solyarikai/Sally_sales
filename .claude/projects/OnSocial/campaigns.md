@@ -52,13 +52,22 @@ status: active
 - Capacity: 750 emails/day (target 1,500 by April 2026)
 - Tiered allocation: T1 67%, T2 27%, T3 6%
 
-## SOCCOM — Kantar (In Progress — April 6, 2026)
+## SOCCOM — Social Commerce Pipeline (Active — April 2026)
 
+### Kantar batch (April 6)
 - **62 leads** (Kantar, filtered from 220 raw: engineering/HR/IT срезаны)
 - DM clusters: FOUNDERS_CSUITE (33), ACCOUNT_OPS (21), CREATIVE_LEADERSHIP (8)
 - Sheet: `OS | Leads | SOCCOM — 2026-04-06` (ID: 1wYC-na4M8cjF2FSaAV3hJ64PY03-YjIawT9Hr0GWz84)
-- Status: лиды готовы, **последовательность не написана**, кампания не создана
-- Next: написать SOCCOM sequence + создать SmartLead кампанию
+
+### Clay ICP batch (April 9)
+- **4 Clay ICP рана** с разными ICP формулировками: creator-led commerce, marketplace, tech/SaaS, social selling
+- Classify: промпт v6 (ID: 60) с SOCIAL_COMMERCE сегментом → 23 SOCCOM / 18 IMAGENCY / 16 INFPLAT
+- People search: Exa (Apollo Puppeteer заблокирован капчей) → 22 контакта из 12 компаний
+- FindyMail: 20/22 email найдено
+- **SmartLead кампания:** `c-OnSocial_SOCIAL_COMMERCE#C` (ID: 3151592) — 20 лидов загружены
+- Blocklist: 27 email в `kb_blocklist`, домены в `discovered_companies`
+- **Блокер:** секвенции не написаны (ждём коллегу)
+- Next: секвенции → активация кампании
 
 ## IMAGENCY v5 (In Progress — April 2026, branch: feat/imagency-v5-sequences)
 
