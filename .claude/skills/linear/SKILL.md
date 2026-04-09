@@ -74,16 +74,20 @@ description: "Управление задачами в Linear для Sales Engin
 
 Пользователь часто говорит голосом — осмысли input.
 
-**Шаг 1 — Parse:**
+**Шаг 1 — Dedup check (ОБЯЗАТЕЛЬНО):**
+- `linear_search_issues` по ключевым словам из задачи (states: ["Backlog", "Todo", "In Progress"])
+- Если нашлась похожая задача → покажи пользователю, спроси: обновить существующую или создать новую?
+- НЕ создавай дубли. Лучше обновить description/comment существующей задачи.
+
+**Шаг 2 — Parse:**
 - Определи тип: feature, bug, ops, research
 - Извлеки суть и ожидаемый результат
 
-**Шаг 2 — Structure:**
+**Шаг 3 — Structure:**
 - **Title** — английский, action-oriented (Build X, Fix Y, Run Z)
 - **Description** — Goal + конкретные шаги/deliverables
-- **Project** — по умолчанию OnSocial (`40777ae1-c4f3-42fb-940b-5958febc4ac6`)
 
-**Шаг 3 — Confirm:**
+**Шаг 4 — Confirm:**
 Покажи пользователю перед созданием:
 ```
 Issue: "Run SOCCOM pipeline — Social Commerce platforms"
@@ -92,9 +96,17 @@ Project: OnSocial
 Goal: Gather SOCCOM leads via universal pipeline using v4 filters.
 Steps: Apollo keyword search → Findymail enrichment → dedup/blacklist → SmartLead upload
 ```
-Дождись подтверждения → `linear_create_issue`
+Дождись подтверждения → `linear_create_issue` → `linear_bulk_update_issues` (добавить в проект)
 
 **Не делай research** для операционных задач ("загрузи лидов", "запусти пайплайн").
+
+### Привязка к проекту (ОБЯЗАТЕЛЬНО)
+
+`linear_create_issue` НЕ поддерживает `projectId` — баг в MCP. После создания ВСЕГДА вызывай:
+```
+linear_bulk_update_issues(issueIds=["GET-XX"], update={projectId: "40777ae1-c4f3-42fb-940b-5958febc4ac6"})
+```
+Проект по умолчанию: OnSocial (`40777ae1-c4f3-42fb-940b-5958febc4ac6`). Другой проект — только если пользователь явно указал.
 
 ### `update <identifier> <status>` — Обновить статус
 
