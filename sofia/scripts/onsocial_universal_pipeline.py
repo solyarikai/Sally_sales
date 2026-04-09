@@ -1085,9 +1085,9 @@ def step0_apollo_companies(
 #   Шаг 4 (Scrape):      скачиваем главную страницу сайта каждой компании.
 #   Шаг 5 (Classify):    GPT читает сайт и классифицирует компанию —
 #     наш сегмент (platform/agency) или нет (OTHER).
-#     → CP2: оператор проверяет список таргетов.
-#   Шаг 6 (Verify):      оператор с Claude проверяют таргеты GPT в чате.
-#   Шаг 7 (Adjust):      если accuracy <90% → правим промпт → повторяем 5-6.
+#     → CP2: оператор смотрит rejected на false negatives.
+#   Шаг 6 (Verify):      оператор с Claude проверяют rejected компании в чате.
+#   Шаг 7 (Adjust):      если recall низкий → смягчаем промпт → повторяем 5-6.
 # ══════════════════════════════════════════════════════════════════════════════
 
 
@@ -1097,8 +1097,15 @@ def step2_blacklist(config: ProjectConfig, run_id: int) -> dict:
     print(f"STEP 2: BLACKLIST (run #{run_id})")
     print(f"{'=' * 60}")
     result = api("post", f"/pipeline/gathering/runs/{run_id}/blacklist-check")
-    gates = api("get", f"/pipeline/gathering/runs/{run_id}/gates")
-    pending = [g for g in gates if g["status"] == "pending"]
+    gates = api(
+        "get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}"
+    )
+    items = gates if isinstance(gates, list) else gates.get("items", [])
+    pending = [
+        g
+        for g in items
+        if g.get("gathering_run_id") == run_id and g.get("status") == "pending"
+    ]
     if pending:
         gate = pending[0]
         gate_id = gate["id"]
@@ -3258,9 +3265,9 @@ def main():
         if cp2.get("gate_id"):
             print("\n  ★ PAUSING AT CP2.")
             print("  Step 6: Verify targets with Claude Code in chat.")
-            print("  Step 7: If accuracy <90% → adjust prompt → re-classify:")
+            print("  Step 7: If recall is low → loosen prompt → re-classify:")
             print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
-            print("  When accuracy ≥90% → approve gate and resume:")
+            print("  When recall is good → approve gate and resume:")
             print(f"    --from-step verify --run-id {run_id}")
             return
 
