@@ -1375,7 +1375,9 @@ def _run_people(config: ProjectConfig, args):
     print(f"\n  С email: {len(with_email)}, только LinkedIn: {len(without_email_li)}")
 
     # ── SmartLead upload ────────────────────────────────────────────────────
-    if with_email:
+    if getattr(args, "no_upload", False):
+        print("  ✓ SmartLead upload пропущен (--no-upload)")
+    elif with_email:
         _upload_to_smartlead(config, with_email)
     else:
         print("  ⚠ Нет контактов с email — SmartLead upload пропущен")
