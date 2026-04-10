@@ -147,13 +147,22 @@ Universal Lead Generation Pipeline
   python3 universal_pipeline.py --project-id <ID> --mode expand --base-run <RUN_ID> \\
     --override '{"country_names": [...]}'
 
-  # Resume — продолжить с любого шага
-  python3 universal_pipeline.py --project-id <ID> --from-step people
-  python3 universal_pipeline.py --project-id <ID> --from-step people --apollo-csv export.csv
-
   # Dry run — напечатать параметры без API вызовов
   python3 universal_pipeline.py --project-id <ID> --mode apollo --segment <SEGMENT> --dry-run \\
     --filter-file path/to/filters.json
+
+  # Точки входа — с какого шага можно стартовать:
+  python3 universal_pipeline.py --project-id <ID> --mode apollo --filter-file f.json        # шаг 0: полный запуск
+  python3 universal_pipeline.py --project-id <ID> --mode csv --csv-file companies.csv       # шаг 1: готовый список компаний
+  python3 universal_pipeline.py --project-id <ID> --from-step people --apollo-csv p.csv     # шаг 9: готовые контакты из Apollo
+  python3 universal_pipeline.py --project-id <ID> --from-step findymail                     # шаг 10: контакты уже в contacts.json
+  python3 universal_pipeline.py --project-id <ID> --from-step upload                        # шаг 12: enriched.json готов, только SmartLead
+
+  # --from-step значения: blacklist / prefilter / scrape / classify / people / findymail / sequences / upload
+
+  # Для --from-step upload нужно подготовить:
+  #   state/onsocial/enriched.json  — контакты с email
+  #   state/onsocial/upload_log.json — {"SEGMENT": {"campaign_id": 12345}} (если кампания уже есть)
 
 Env vars: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
 Backend must be running on localhost:8000 (Hetzner)
@@ -579,10 +588,6 @@ def api_long(
         print(f"  Polling until phase reaches '{expected_phase}'...")
 
         start = time.time()
-        last_phase = None
-        stuck_since = None
-        STUCK_THRESHOLD = 300  # 5 min same phase → print DB diagnostics
-
         while time.time() - start < timeout:
             time.sleep(poll_interval)
             try:
@@ -598,49 +603,6 @@ def api_long(
                     if phase == expected_phase or phase.startswith("awaiting_"):
                         print(f"  Backend finished — phase is now '{phase}'")
                         return r2.json()
-                    # Hang detection: same phase for too long
-                    if phase != last_phase:
-                        last_phase = phase
-                        stuck_since = time.time()
-                    elif stuck_since and (time.time() - stuck_since) > STUCK_THRESHOLD:
-                        print(
-                            f"\n  ⚠️  STUCK: phase '{phase}' unchanged for {int(time.time() - stuck_since)}s"
-                        )
-                        print("  Checking DB for active queries / locks...")
-                        import subprocess
-
-                        db_sql = (
-                            "SELECT pid, state, wait_event_type, "
-                            "EXTRACT(EPOCH FROM (now() - query_start))::int AS age_sec, "
-                            "LEFT(query, 120) AS query "
-                            "FROM pg_stat_activity "
-                            "WHERE datname='leadgen' AND state != 'idle' "
-                            "ORDER BY age_sec DESC LIMIT 10;"
-                        )
-                        try:
-                            db_r = subprocess.run(
-                                [
-                                    "docker",
-                                    "exec",
-                                    "leadgen-postgres",
-                                    "psql",
-                                    "-U",
-                                    "leadgen",
-                                    "-d",
-                                    "leadgen",
-                                    "-c",
-                                    db_sql,
-                                ],
-                                capture_output=True,
-                                text=True,
-                                timeout=10,
-                            )
-                            print(db_r.stdout or "(no active queries)")
-                        except Exception as db_e:
-                            print(f"  Could not query DB: {db_e}")
-                        stuck_since = (
-                            time.time()
-                        )  # reset so it prints again after another STUCK_THRESHOLD
             except Exception:
                 print(
                     f"  [{int(time.time() - start)}s] Backend unreachable, waiting..."
@@ -1224,25 +1186,11 @@ def step5_classify(config: ProjectConfig, run_id: int, prompt_text: str = None) 
     )
     targets = result.get("targets_found", 0)
     total = result.get("total_analyzed", 0)
-    if total:
-        rate = targets / total * 100
-        print(f"  Targets: {targets}/{total} ({rate:.0f}%)")
-        if rate < 5:
-            print(
-                "\n  ⚠️  WARNING: TARGET RATE IS ABNORMALLY LOW ({:.1f}%)".format(rate)
-            )
-            print("  Expected: 15-40%. This likely means:")
-            print("  1. Wrong segment definition in prompt")
-            print(
-                "  2. Source data doesn't match segment (e.g. WhatsApp bots in SOCCOM)"
-            )
-            print("  3. Prompt too strict — needs loosening")
-            print("  DO NOT approve gate. Fix prompt first (step 7).")
-            print(
-                "  Re-classify: --re-analyze --run-id {run_id} --prompt-file new_prompt.txt"
-            )
-    else:
-        print("  No companies analyzed")
+    print(
+        f"  Targets: {targets}/{total} ({targets / total * 100:.0f}%)"
+        if total
+        else "  No companies analyzed"
+    )
 
     gates = api(
         "get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}"
@@ -1350,120 +1298,6 @@ def step6_verify(config: ProjectConfig, run_id: int) -> dict:
 # Разбиваем по сегментам, сохраняем CSV локально и в Google Sheets.
 # Эти компании — основа для поиска людей (контактов) на следующем шаге.
 # ══════════════════════════════════════════════════════════════════════════════
-
-
-def _print_target_sample(run_id: int, n: int = 15) -> None:
-    """Print a random sample of classified targets for manual QA at CP2."""
-    import subprocess
-
-    sql = (
-        f"SELECT dc.domain, ar.segment, ar.confidence, ar.reasoning "
-        f"FROM analysis_results ar "
-        f"JOIN discovered_companies dc ON dc.id = ar.discovered_company_id "
-        f"WHERE ar.analysis_run_id = ("
-        f"  SELECT MAX(id) FROM analysis_runs "
-        f"  WHERE scope_filter->>'gathering_run_id' = '{run_id}' AND status = 'completed'"
-        f") AND ar.is_target = true "
-        f"ORDER BY RANDOM() LIMIT {n}"
-    )
-    try:
-        r = subprocess.run(
-            [
-                "docker",
-                "exec",
-                "leadgen-postgres",
-                "psql",
-                "-U",
-                "leadgen",
-                "-d",
-                "leadgen",
-                "-t",
-                "-A",
-                "-F",
-                "|",
-                "-c",
-                sql,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        rows = [line.strip() for line in r.stdout.strip().split("\n") if line.strip()]
-        if not rows:
-            print("  (no targets found for sample)")
-            return
-        print(f"\n  ── Target sample (random {len(rows)}) ──────────────────────────")
-        for row in rows:
-            parts = row.split("|")
-            if len(parts) >= 4:
-                domain, segment, conf, reasoning = (
-                    parts[0],
-                    parts[1],
-                    parts[2],
-                    "|".join(parts[3:]),
-                )
-                print(f"  ✓  {domain:<32} {segment:<25} conf={conf}")
-                print(f"     {reasoning[:110]}")
-        print("  ────────────────────────────────────────────────────────────────")
-    except Exception as e:
-        print(f"  WARNING: Could not fetch sample: {e}")
-
-
-def _apply_domain_overrides(
-    reject: str | None,
-    approve: str | None,
-    segment: str | None,
-    project_id: int,
-) -> None:
-    """Manually override is_target for specific domains. Avoids raw SQL surgery."""
-    import subprocess
-
-    def _run_update(sql: str) -> None:
-        r = subprocess.run(
-            [
-                "docker",
-                "exec",
-                "leadgen-postgres",
-                "psql",
-                "-U",
-                "leadgen",
-                "-d",
-                "leadgen",
-                "-c",
-                sql,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        print(r.stdout.strip() or r.stderr.strip())
-
-    if reject:
-        domains = [d.strip().lower() for d in reject.split(",") if d.strip()]
-        domain_list = ", ".join(f"'{d}'" for d in domains)
-        sql = (
-            f"UPDATE discovered_companies "
-            f"SET is_target=false, matched_segment='NOT_A_MATCH' "
-            f"WHERE project_id={project_id} AND LOWER(domain) IN ({domain_list});"
-        )
-        print(f"\n  Rejecting {len(domains)} domain(s):")
-        for d in domains:
-            print(f"    ✗ {d}")
-        _run_update(sql)
-
-    if approve:
-        domains = [d.strip().lower() for d in approve.split(",") if d.strip()]
-        domain_list = ", ".join(f"'{d}'" for d in domains)
-        seg = segment or "SOCIAL_COMMERCE"
-        sql = (
-            f"UPDATE discovered_companies "
-            f"SET is_target=true, matched_segment='{seg}' "
-            f"WHERE project_id={project_id} AND LOWER(domain) IN ({domain_list});"
-        )
-        print(f"\n  Approving {len(domains)} domain(s) as {seg}:")
-        for d in domains:
-            print(f"    ✓ {d}")
-        _run_update(sql)
 
 
 def _get_run_domains(config: ProjectConfig, run_id: int) -> set[str] | None:
@@ -3093,14 +2927,6 @@ def main():
     p.add_argument("--force", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument(
-        "--reject-domains",
-        help="Comma-separated domains to mark is_target=false (manual override after classify)",
-    )
-    p.add_argument(
-        "--approve-domains",
-        help="Comma-separated domains to mark is_target=true with segment from --segment",
-    )
-    p.add_argument(
         "--auto-approve",
         action="store_true",
         help="Skip checkpoints without stopping (dangerous — use only for re-runs)",
@@ -3110,16 +2936,6 @@ def main():
     # Set global auto-approve flag
     global _AUTO_APPROVE
     _AUTO_APPROVE = args.auto_approve
-
-    # ── Domain override (--reject-domains / --approve-domains) ──
-    if args.reject_domains or args.approve_domains:
-        _apply_domain_overrides(
-            reject=args.reject_domains,
-            approve=args.approve_domains,
-            segment=args.segment,
-            project_id=args.project_id,
-        )
-        return
 
     print(f"\n{'═' * 60}")
     print(f"  Universal Pipeline — {ts()}")
@@ -3479,21 +3295,34 @@ def main():
                     return
 
     if "prefilter" in steps and run_id:
-        step3_prefilter(run_id)
+        _phase = api(
+            "get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False
+        ).get("current_phase", "")
+        if _phase == "scope_approved":
+            step3_prefilter(run_id)
     if "scrape" in steps and run_id:
-        step4_scrape(run_id)
+        _phase = api(
+            "get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False
+        ).get("current_phase", "")
+        if _phase == "filtered":
+            step4_scrape(run_id)
     # ── Step 5: Classify ──
     if "classify" in steps and run_id:
-        cp2 = step5_classify(config, run_id, prompt_text)
-        if cp2.get("gate_id"):
-            _print_target_sample(run_id)
-            print("\n  ★ PAUSING AT CP2.")
-            print("  Review the sample above — are 80%+ legit targets?")
-            print("  If NO → tune prompt (step 7) and re-classify:")
-            print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
-            print("  If YES → approve gate and resume:")
-            print(f"    --from-step verify --run-id {run_id}")
-            return
+        _phase = api(
+            "get", f"/pipeline/gathering/runs/{run_id}", raise_on_error=False
+        ).get("current_phase", "")
+        if _phase == "scraped":
+            cp2 = step5_classify(config, run_id, prompt_text)
+            if cp2.get("gate_id"):
+                print("\n  ★ PAUSING AT CP2.")
+                print("  Step 6: Verify targets with Claude Code in chat.")
+                print("  Step 7: If recall is low → loosen prompt → re-classify:")
+                print(
+                    f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt"
+                )
+                print("  When recall is good → approve gate and resume:")
+                print(f"    --from-step verify --run-id {run_id}")
+                return
 
     # ── Steps 6-7: Verify + Adjust (manual, in chat) ──
     if "verify" in steps and run_id:
@@ -3515,22 +3344,6 @@ def main():
                 t for t in targets if t.get("domain", "").strip().lower() in run_domains
             ]
             print(f"  Filtered targets: {before} → {len(targets)} (run #{run_id} only)")
-        else:
-            print(
-                f"\n  ⛔ ABORT: --run-id {run_id} указан, но company_source_links вернул пустой список."
-            )
-            print(
-                f"  Возможно: run {run_id} не существует или таблица company_source_links пустая."
-            )
-            print(
-                "  Без фильтра по рану продолжать нельзя — затронешь все таргеты проекта."
-            )
-            sys.exit(1)
-    elif not run_id and targets:
-        print(
-            f"  ⚠️  WARNING: --run-id не задан. Экспортируются ВСЕ таргеты проекта ({len(targets)})."
-        )
-        print("  Если нужен конкретный ран — передай --run-id.")
 
     # ── Step 9: People Search ──
     if "people" in steps:
