@@ -3350,11 +3350,12 @@ def main():
     if "classify" in steps and run_id:
         cp2 = step5_classify(config, run_id, prompt_text)
         if cp2.get("gate_id"):
+            _print_target_sample(run_id)
             print("\n  ★ PAUSING AT CP2.")
-            print("  Step 6: Verify targets with Claude Code in chat.")
-            print("  Step 7: If recall is low → loosen prompt → re-classify:")
+            print("  Review the sample above — are 80%+ legit targets?")
+            print("  If NO → tune prompt (step 7) and re-classify:")
             print(f"    --re-analyze --run-id {run_id} --prompt-file new_prompt.txt")
-            print("  When recall is good → approve gate and resume:")
+            print("  If YES → approve gate and resume:")
             print(f"    --from-step verify --run-id {run_id}")
             return
 
