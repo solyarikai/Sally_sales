@@ -821,9 +821,9 @@ def _run_companies_pipeline(
             print(f"    {seg_name}: {len(seg_targets)}")
             safe = seg_name.replace("/", "-").replace(" ", "_").replace("|", "-")
             save_csv(
-                config.csv_dir / f"targets_{safe}_{today}.csv",
+                config.csv_dir / f"targets_{safe}_r{run_id}_{today}.csv",
                 seg_targets,
-                sheet_name=f"OS | Targets | {seg_name} — {today}",
+                sheet_name=f"OS | Targets | {seg_name} r{run_id} — {today}",
             )
         print("\n  Готово. Идёшь в Apollo, берёшь людей → pipeline.py people --csv ...")
 
