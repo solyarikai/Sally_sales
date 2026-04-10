@@ -219,6 +219,7 @@ def _checkpoint(message: str) -> bool:
 def _get_gsheets_creds():
     for path in [
         Path.home() / ".claude/google-sheets/token.json",
+        SCRIPT_DIR.parent.parent / ".claude/mcp/google-sheets/token.json",
         Path.home() / "magnum-opus-project/repo/sofia/.google-sheets/token.json",
         SOFIA_DIR / ".google-sheets" / "token.json",
     ]:
