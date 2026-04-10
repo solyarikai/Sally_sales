@@ -3569,7 +3569,10 @@ def main():
             contacts = all_contacts
         else:
             contacts = step9_people_search(
-                config, targets, force=args.force, apollo_profile=args.apollo_profile
+                config,
+                targets,
+                force=args.force or bool(run_id),
+                apollo_profile=args.apollo_profile,
             )
 
         # CP3: approve FindyMail cost before proceeding
