@@ -3054,6 +3054,16 @@ def main():
     global _AUTO_APPROVE
     _AUTO_APPROVE = args.auto_approve
 
+    # ── Domain override (--reject-domains / --approve-domains) ──
+    if args.reject_domains or args.approve_domains:
+        _apply_domain_overrides(
+            reject=args.reject_domains,
+            approve=args.approve_domains,
+            segment=args.segment,
+            project_id=args.project_id,
+        )
+        return
+
     print(f"\n{'═' * 60}")
     print(f"  Universal Pipeline — {ts()}")
     print(f"{'═' * 60}")
