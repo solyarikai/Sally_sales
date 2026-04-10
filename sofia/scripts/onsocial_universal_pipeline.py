@@ -3515,6 +3515,22 @@ def main():
                 t for t in targets if t.get("domain", "").strip().lower() in run_domains
             ]
             print(f"  Filtered targets: {before} → {len(targets)} (run #{run_id} only)")
+        else:
+            print(
+                f"\n  ⛔ ABORT: --run-id {run_id} указан, но company_source_links вернул пустой список."
+            )
+            print(
+                f"  Возможно: run {run_id} не существует или таблица company_source_links пустая."
+            )
+            print(
+                "  Без фильтра по рану продолжать нельзя — затронешь все таргеты проекта."
+            )
+            sys.exit(1)
+    elif not run_id and targets:
+        print(
+            f"  ⚠️  WARNING: --run-id не задан. Экспортируются ВСЕ таргеты проекта ({len(targets)})."
+        )
+        print("  Если нужен конкретный ран — передай --run-id.")
 
     # ── Step 9: People Search ──
     if "people" in steps:
