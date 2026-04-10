@@ -22,7 +22,7 @@ description: "Merge branches for sales_engineer or magnum-opus. Использу
 2. `cd <repo_path>`
 3. Покажи текущую ветку: `git branch --show-current`
 4. Покажи доступные ветки: `git branch -a`
-5. Спроси какую ветку влить в текущую
-6. `git merge <branch>`
+5. Спроси в какую ветку влить текущую (обычно main)
+6. `git checkout <target>` → `git merge <current_branch>`
 7. Если конфликты — покажи конфликтные файлы, спроси как решать
 8. Покажи результат
