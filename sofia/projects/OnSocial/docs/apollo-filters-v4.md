@@ -51,10 +51,17 @@ reputation management platform, sentiment analysis platform,
 social media intelligence, brand intelligence,
 content analytics platform, engagement analytics,
 creator economy infrastructure, social proof platform,
-review management platform, word of mouth platform
+review management platform, word of mouth platform,
+influencer data API, creator data API, social data API,
+creator search engine, creator search platform,
+brand ambassador platform, ambassador management platform,
+audience data platform, creator intelligence platform,
+influencer measurement platform, creator measurement,
+social analytics API, influencer tech
 ```
 
-> New keywords (not in v3): social intelligence, earned media, digital PR platform, media monitoring, creator CRM, talent marketplace technology, social ROI, reputation management, sentiment analysis, brand intelligence, content analytics, social proof, review management, word of mouth. These target adjacent companies that need creator/audience data but don't describe themselves as "influencer marketing."
+> New keywords (v4 Mar 31): social intelligence, earned media, digital PR platform, media monitoring, creator CRM, talent marketplace technology, social ROI, reputation management, sentiment analysis, brand intelligence, content analytics, social proof, review management, word of mouth.
+> New keywords (v4 Apr 10): influencer/creator/social data API, creator search engine/platform, brand ambassador platform, audience data platform, creator intelligence platform, influencer measurement, social analytics API, influencer tech — targets API-first and data infrastructure companies.
 
 **Excluded Company Keywords**
 
