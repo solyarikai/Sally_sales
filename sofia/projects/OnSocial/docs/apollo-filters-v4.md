@@ -396,18 +396,19 @@ Same as v3 — apply competitor blacklist, negative responder blacklist, and act
 
 ---
 
-## Volume estimates (v4 vs v3)
+## Volume estimates (v4 Apr 10 vs v4 Mar 31)
 
 
-| Segment               | v3 est. contacts | v4 est. contacts | Delta                                        |
-| --------------------- | ---------------- | ---------------- | -------------------------------------------- |
-| INFLUENCER_PLATFORMS  | 1,500-2,500      | 3,000-5,000      | +2x (all geo + adjacent keywords)            |
-| AFFILIATE_PERFORMANCE | 400-800          | 800-1,500        | +2x (all geo + loyalty/attribution keywords) |
-| IM_FIRST_AGENCIES     | 800-1,500        | 1,500-3,000      | +2x (all geo + studio/talent keywords)       |
-| **Total**             | **2,700-4,800**  | **5,300-9,500**  | **~2x expansion**                            |
+| Segment               | v4 Mar 31 est.  | v4 Apr 10 est.  | Delta                                                      |
+| --------------------- | --------------- | --------------- | ---------------------------------------------------------- |
+| INFLUENCER_PLATFORMS  | 3,000-5,000     | 3,500-6,000     | +15-20% (new API/data/ambassador keywords)                 |
+| AFFILIATE_PERFORMANCE | 800-1,500       | 1,000-2,000     | +25% (min 10 empl, SaaS/tech/content commerce keywords)    |
+| IM_FIRST_AGENCIES     | 1,500-3,000     | 2,000-4,000     | +30% (min 5 empl, KOL/digital influence keywords, fewer exclusions) |
+| SOCIAL_COMMERCE       | ~500-1,000      | 1,500-3,000     | +3x (ALL GEO removed, min 10 empl, new keywords)           |
+| **Total**             | **5,800-10,500** | **8,000-15,000** | **~40-50% expansion**                                     |
 
 
-> Estimates assume ~40-50% of new contacts are net-new (not already in v3 exports). Real unique contacts: ~2,500-4,500 incremental.
+> SOCCOM geo removal is the single biggest unlock. Net-new after dedup vs existing pipeline: estimate 50-60% are genuinely new contacts.
 
 ---
 
