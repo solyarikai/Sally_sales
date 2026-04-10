@@ -1384,7 +1384,7 @@ def _fetch_kb_blocklist() -> tuple[set, set]:
     """Fetch kb_blocklist from DB. Returns (blocked_domains, blocked_emails)."""
     sql = "SELECT domain, email FROM kb_blocklist"
     psql_cmd = f"docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -F'|' -c \"{sql}\""
-    is_hetzner = os.path.exists("/root/magnum-opus-project")
+    is_hetzner = os.path.exists("/home/leadokol/magnum-opus-project")
     run_args = ["bash", "-c", psql_cmd] if is_hetzner else ["ssh", "hetzner", psql_cmd]
     try:
         result = subprocess.run(run_args, capture_output=True, text=True, timeout=30)
