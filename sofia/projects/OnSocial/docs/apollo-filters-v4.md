@@ -359,16 +359,9 @@ video streaming platform, live streaming entertainment,
 gaming streaming, sports streaming
 ```
 
-**# Employees:** 20–5,000
+**# Employees:** 10–5,000
 
-**Location:**
-
-```
-United States, United Kingdom, Germany, Netherlands, France,
-Canada, Australia, Spain, Italy, Sweden, Denmark, Belgium,
-India, Singapore, Japan, South Korea, United Arab Emirates,
-Brazil, Mexico, Israel
-```
+**Location:** ALL GEO (no filter)
 
 ### People filters
 
