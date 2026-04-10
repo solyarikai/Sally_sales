@@ -1614,10 +1614,37 @@ def _map_apollo_person(
     )
     if not domain:
         company = person.get("company", "")
+        company_lower = company.lower().strip()
+        # Exact match first
         for d, t in targets_by_domain.items():
-            if t.get("company_name", "").lower() == company.lower():
+            if t.get("company_name", "").lower() == company_lower:
                 domain = d
                 break
+        # Fuzzy fallback: strip legal suffixes and check partial containment
+        if not domain and company_lower:
+            import re as _re
+
+            _clean = lambda s: _re.sub(
+                r"\b(inc|ltd|llc|gmbh|bv|sas|srl|corp|limited|group|ag|oy|ab|as|sa)\b\.?",
+                "",
+                s.lower(),
+            ).strip(" ,.")
+            co_clean = _clean(company_lower)
+            for d, t in targets_by_domain.items():
+                tname_clean = _clean(t.get("company_name", ""))
+                if (
+                    tname_clean
+                    and co_clean
+                    and (
+                        tname_clean == co_clean
+                        or tname_clean in co_clean
+                        or co_clean in tname_clean
+                    )
+                ):
+                    domain = d
+                    break
+        if not domain and company_lower:
+            print(f"    [debug] no domain match for company: '{company}'")
     target = targets_by_domain.get(domain, {})
     segment = target.get("segment", target.get("analysis_segment", "UNKNOWN"))
     seg_slug = ""
