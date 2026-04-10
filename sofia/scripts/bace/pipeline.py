@@ -1214,11 +1214,18 @@ def _upload_to_smartlead(config: ProjectConfig, contacts: list[dict]):
                     "company_name": normalize_company(c.get("company_name", "")),
                     "website": c.get("domain", ""),
                     "linkedin_profile": c.get("linkedin_url", ""),
+                    "location": c.get("city", ""),
                     "custom_fields": {
                         "social_proof": c.get("social_proof", ""),
                         "title": c.get("title", ""),
                         "country": c.get("company_country", "") or c.get("country", ""),
                         "segment": c.get("segment", ""),
+                        "city": c.get("city", ""),
+                        "industry": c.get("industry", ""),
+                        "seniority": c.get("seniority", ""),
+                        "employees": c.get("employees", ""),
+                        "company_linkedin": c.get("company_linkedin_url", ""),
+                        "phone": c.get("phone", ""),
                     },
                 }
             )
