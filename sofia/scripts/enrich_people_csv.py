@@ -203,8 +203,8 @@ def upload_to_sheets(rows: list[dict], sheet_name: str):
         service = build("sheets", "v4", credentials=creds)
         drive = build("drive", "v3", credentials=creds)
 
-        # OnSocial folder ID
-        FOLDER_ID = "1Q3W3dKbGSU7JXBqf2oqCpSWmTmWwkST0"
+        # OnSocial / Import folder
+        FOLDER_ID = "1O-rkQK6btZjXzO-p31ZMsrjcLWeacZRV"
 
         headers = list(rows[0].keys())
         values = [headers] + [[r.get(h, "") for h in headers] for r in rows]
