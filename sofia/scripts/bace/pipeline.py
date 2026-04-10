@@ -783,9 +783,11 @@ def _run_companies_pipeline(
         sql = (
             f"SELECT dc.domain, dc.name, dc.matched_segment, dc.confidence "
             f"FROM discovered_companies dc "
-            f"JOIN search_jobs sj ON sj.id = dc.search_job_id "
             f"WHERE dc.project_id={config.project_id} "
-            f"AND dc.is_target=true AND sj.gathering_run_id={run_id}"
+            f"AND dc.is_target=true "
+            f"AND dc.domain = ANY("
+            f"SELECT jsonb_array_elements_text(gr.filters->'domains') "
+            f"FROM gathering_runs gr WHERE gr.id={run_id})"
         )
         is_hetzner = os.path.exists("/home/leadokol/magnum-opus-project")
         psql_cmd = f"docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -F'|' -c \"{sql}\""
