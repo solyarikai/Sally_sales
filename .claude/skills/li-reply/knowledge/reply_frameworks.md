@@ -40,11 +40,52 @@ Worth a 15-min call to see if it maps to what {company} needs? Happy to run a qu
 - If asks for calendar → send link, done
 - If generic "let's talk" → calendar link + 2 time slots
 
-**Example:**
-```
-{name}, great - let's do it! Here's my calendar: {link}
+**Meeting agenda to outline (adapt each point to the lead's company):**
 
-I'll prepare a few data points specific to {company} so we make the most of the time.
+1. **Learn about them first** — we'll read up on their company beforehand, but on the call we confirm: are they a platform, agency, or another type? What data do they currently use/need? Adapt this point to what's known (e.g. for an agency: "understand which verticals your clients are in and what creator data you report on"; for a platform: "see where our API fits into your existing stack").
+2. **Live platform demo** — walk through OnSocial's APIs and product, tailored to their use case. Show real creator data relevant to their market/niche. Not a generic demo - pick creators or segments that matter to THEM.
+3. **Pricing discussion** — based on what they outline on the call (volume, endpoints, use case), or a general overview of how pricing works if they're still exploring.
+4. **Free trial + next steps** — offer a trial, agree on follow-up over email.
+
+When writing the reply, translate these 4 points into natural language adapted to the specific lead. Don't use numbered lists with generic language - make each point feel like it's about THEIR company.
+
+**Example (generic):**
+```
+{name}, great - let's do it!
+
+On the call I'll walk through a few things with {company} in mind:
+- {personalized point about understanding their setup}
+- Live demo on {relevant creators/data for their market}
+- Pricing based on what you're looking for
+- If it's a fit, we can set up a free trial right after
+
+Here's my calendar: {link}
+```
+
+**Example (for an Indian IM agency like Flutch):**
+```
+{name}, great - let's do it.
+
+On the call I'll walk you through a few things tailored to {company}:
+- How our creator data maps to the Indian market and verticals you cover
+- Live API demo - bring a few creator handles and I'll run them through the system
+- Pricing based on your volume and use case
+- If it clicks, we set up a free trial and take it from there on email
+
+Here's my calendar: {link}
+```
+
+**Example (for a SaaS platform like CreatorIQ):**
+```
+{name}, sounds good.
+
+Here's what I'm thinking for the call:
+- Quick look at where our data API could plug into {company}'s stack
+- Live demo on the endpoints most relevant to you - audience demographics, fraud scoring, brand affinity
+- Walk through pricing based on your expected call volume
+- If it makes sense, spin up a trial so your team can test the integration
+
+Calendar: {link}
 ```
 
 ### 3. QUESTION — Lead has questions

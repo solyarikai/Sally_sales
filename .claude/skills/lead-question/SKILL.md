@@ -237,6 +237,48 @@ Happy to walk you through the docs if useful - takes 15 min.
 
 **Вывод:** карточка с ресёрчем + ответ НЕ с прайсом, а с предложением обсудить на звонке (цены не публичные - обсуждаются после квалификации)
 
+### Пример 3: Лид согласился получить данные ("yeah, send me")
+
+**Ввод:** "paul.adewumi@viralget.io" (только email — лид в SmartLead, история в inbox)
+
+**Контекст:** Bhaskar предложил прогнать локальных creators через API и показать реальный output. Лид ответил: "Yeah, that would be great. You can share the result with me."
+
+**Алгоритм:**
+1. Поиск по email в SmartLead (`fetch_lead_by_email`) → получаем campaign_id + lead_id
+2. `get_lead_message_history` → видим последний ответ лида
+3. Если SmartLead обрезает HTML-тело — сообщи пользователю что видно, попроси полный текст
+
+**Вывод:**
+```
+#question
+
+📩 Channel: Email
+🧩 Hypothesis: OnSocial | Agencies (IM-Tool / SaaS)
+
+👤 [Founder Name] - @ [Company Name]
+✉️ Email: [email]
+🔗 LinkedIn: [url]
+🏢 [Company] ([domain])
+🧩 Description: Founder & COO at [Company] - data-driven end-to-end IM platform for brands
+🌍 Location: [City, Country]
+
+Message:
+"Yeah, that would be great. You can share the result with me."
+
+💬 Draft Reply:
+
+Hey [Name],
+
+Pulling a few [geo] creators through now - you'll see audience breakdown by city/state, engagement rate, fraud score, and credibility index. Public data, no creator sign-up needed.
+
+Any specific handles you want included? Otherwise I'll pick a mix across Instagram and TikTok relevant for [their market].
+
+Best,
+[Sender]
+```
+
+**Паттерн "yeah send me"**: лид согласился на data demo. Ответ короткий — подтверди что делаем, спроси handles или скажи что выберем сами. Не питчи заново.
+
 ---
 
 ## AI Red Flags — обязательная проверка перед отправкой
