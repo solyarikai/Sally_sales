@@ -37,7 +37,7 @@ found_in_db = set()
 for i in range(0, len(email_list), CHUNK):
     chunk = email_list[i : i + CHUNK]
     values = ",".join(f"'{e}'" for e in chunk)
-    sql = f"SELECT LOWER(email) FROM contacts WHERE LOWER(email) IN ({values})"
+    sql = f"SELECT LOWER(email) FROM contacts WHERE project_id = 42 AND LOWER(email) IN ({values})"
     cmd = [
         "ssh",
         "hetzner",
