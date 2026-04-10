@@ -1441,7 +1441,7 @@ def step8_export_targets(config: ProjectConfig, force: bool = False) -> list[dic
 # ══════════════════════════════════════════════════════════════════════════════
 
 APOLLO_SCRAPER_SCRIPT = "scripts/sofia/onsocial_apollo_scraper.js"
-APOLLO_PEOPLE_BATCH_SIZE = 30
+APOLLO_PEOPLE_BATCH_SIZE = 1
 APOLLO_PEOPLE_MAX_PAGES = 5
 
 DEFAULT_PEOPLE_FILTERS = {
