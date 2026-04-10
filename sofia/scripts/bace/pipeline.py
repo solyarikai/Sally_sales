@@ -228,27 +228,64 @@ def _get_gsheets_creds():
     return None
 
 
+_GSHEETS_FOLDER_MAP = {
+    "Leads": "1_1ck-0sn1jXm2px4MCz4o_ZST6J6JfOe",
+    "Targets": "124SCStl6SHuMPquxyfj0Av5O8U4kNrTj",
+    "Import": "1O-rkQK6btZjXzO-p31ZMsrjcLWeacZRV",
+    "Ops": "1K7bVbvVU3LIK5V_cGLwhFKINBdURZLD0",
+    "Analytics": "1xRAdlbn2BK3QYBuYtUjgVjhsb2wH5MiV",
+    "Archive": "1uLKLR6NFzJHb_XraE5sfKrSe-HbNja9t",
+}
+
+
 def _upload_to_sheets(headers: list[str], rows: list[dict], sheet_name: str):
     token_path = _get_gsheets_creds()
     if not token_path:
         print("  ⚠ Sheet upload failed: Google Sheets token.json not found")
         return
     try:
-        import importlib.util
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
 
-        spec = importlib.util.spec_from_file_location(
-            "gsheets",
-            SOFIA_DIR / "scripts" / "google_sheets_helper.py",
-        )
-        if spec and spec.loader:
-            mod = importlib.util.load_from_spec(spec)
-            spec.loader.exec_module(mod)
-            mod.upload(headers, rows, sheet_name, str(token_path))
-            print(f"  ✓ Sheets: {sheet_name}")
-            return
-    except Exception:
-        pass
-    print(f"  ⚠ Sheets upload skipped: {sheet_name}")
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds = Credentials.from_authorized_user_file(str(token_path), scopes)
+        sheets_svc = build("sheets", "v4", credentials=creds).spreadsheets()
+        drive_svc = build("drive", "v3", credentials=creds)
+
+        # rows can be list[dict] or list[list]
+        if rows and isinstance(rows[0], dict):
+            data = [headers] + [[str(r.get(h, "")) for h in headers] for r in rows]
+        else:
+            data = [headers] + [list(r) for r in rows]
+
+        ss = sheets_svc.create(body={"properties": {"title": sheet_name}}).execute()
+        sid = ss["spreadsheetId"]
+        sheets_svc.values().update(
+            spreadsheetId=sid,
+            range="Sheet1!A1",
+            valueInputOption="RAW",
+            body={"values": data},
+        ).execute()
+
+        # Move to correct Drive folder based on sheet name type
+        folder_id = None
+        for key, fid in _GSHEETS_FOLDER_MAP.items():
+            if f"| {key} |" in sheet_name:
+                folder_id = fid
+                break
+        if folder_id:
+            meta = drive_svc.files().get(fileId=sid, fields="parents").execute()
+            prev = ",".join(meta.get("parents", []))
+            drive_svc.files().update(
+                fileId=sid, addParents=folder_id, removeParents=prev, fields="id"
+            ).execute()
+
+        print(f"  ✓ Sheets: {sheet_name} ({len(data) - 1} rows)")
+    except Exception as e:
+        print(f"  ⚠ Sheets upload failed: {e}")
 
 
 # ── Backend API ────────────────────────────────────────────────────────────────
