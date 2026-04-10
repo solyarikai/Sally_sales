@@ -781,9 +781,11 @@ def _run_companies_pipeline(
         print(f"\n{'─' * 50}")
         print(f"  STEP 8: EXPORT (run #{run_id})")
         sql = (
-            f"SELECT domain, name, matched_segment, confidence "
-            f"FROM discovered_companies WHERE project_id={config.project_id} "
-            f"AND is_target=true AND gathering_run_id={run_id}"
+            f"SELECT dc.domain, dc.name, dc.matched_segment, dc.confidence "
+            f"FROM discovered_companies dc "
+            f"JOIN search_jobs sj ON sj.id = dc.search_job_id "
+            f"WHERE dc.project_id={config.project_id} "
+            f"AND dc.is_target=true AND sj.gathering_run_id={run_id}"
         )
         is_hetzner = os.path.exists("/home/leadokol/magnum-opus-project")
         psql_cmd = f"docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -F'|' -c \"{sql}\""
