@@ -1197,6 +1197,7 @@ def _upload_to_smartlead(config: ProjectConfig, contacts: list[dict]):
                     "first_name": c.get("first_name", ""),
                     "last_name": c.get("last_name", ""),
                     "company_name": normalize_company(c.get("company_name", "")),
+                    "website": c.get("domain", ""),
                     "linkedin_profile": c.get("linkedin_url", ""),
                     "custom_fields": {
                         "social_proof": c.get("social_proof", ""),
