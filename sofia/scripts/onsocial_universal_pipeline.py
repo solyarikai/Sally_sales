@@ -1177,11 +1177,25 @@ def step5_classify(config: ProjectConfig, run_id: int, prompt_text: str = None) 
     )
     targets = result.get("targets_found", 0)
     total = result.get("total_analyzed", 0)
-    print(
-        f"  Targets: {targets}/{total} ({targets / total * 100:.0f}%)"
-        if total
-        else "  No companies analyzed"
-    )
+    if total:
+        rate = targets / total * 100
+        print(f"  Targets: {targets}/{total} ({rate:.0f}%)")
+        if rate < 5:
+            print(
+                "\n  ⚠️  WARNING: TARGET RATE IS ABNORMALLY LOW ({:.1f}%)".format(rate)
+            )
+            print("  Expected: 15-40%. This likely means:")
+            print("  1. Wrong segment definition in prompt")
+            print(
+                "  2. Source data doesn't match segment (e.g. WhatsApp bots in SOCCOM)"
+            )
+            print("  3. Prompt too strict — needs loosening")
+            print("  DO NOT approve gate. Fix prompt first (step 7).")
+            print(
+                "  Re-classify: --re-analyze --run-id {run_id} --prompt-file new_prompt.txt"
+            )
+    else:
+        print("  No companies analyzed")
 
     gates = api(
         "get", f"/pipeline/gathering/approval-gates?project_id={config.project_id}"
