@@ -3500,8 +3500,8 @@ def main():
         approve_pending_gate(config, run_id)
 
     # ── Step 8: Export Targets ──
-    # --force always re-exports from DB (even when skipping to people/findymail)
-    if "export" in steps or "verify" in steps or args.force:
+    # --force OR --run-id always re-exports from DB (avoid stale targets.json from other runs)
+    if "export" in steps or "verify" in steps or args.force or run_id:
         targets = step8_export_targets(config, force=True)
     else:
         targets = load_json(config.state_dir / "targets.json") or []
