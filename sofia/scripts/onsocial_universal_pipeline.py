@@ -579,6 +579,10 @@ def api_long(
         print(f"  Polling until phase reaches '{expected_phase}'...")
 
         start = time.time()
+        last_phase = None
+        stuck_since = None
+        STUCK_THRESHOLD = 300  # 5 min same phase → print DB diagnostics
+
         while time.time() - start < timeout:
             time.sleep(poll_interval)
             try:
@@ -594,6 +598,49 @@ def api_long(
                     if phase == expected_phase or phase.startswith("awaiting_"):
                         print(f"  Backend finished — phase is now '{phase}'")
                         return r2.json()
+                    # Hang detection: same phase for too long
+                    if phase != last_phase:
+                        last_phase = phase
+                        stuck_since = time.time()
+                    elif stuck_since and (time.time() - stuck_since) > STUCK_THRESHOLD:
+                        print(
+                            f"\n  ⚠️  STUCK: phase '{phase}' unchanged for {int(time.time() - stuck_since)}s"
+                        )
+                        print("  Checking DB for active queries / locks...")
+                        import subprocess
+
+                        db_sql = (
+                            "SELECT pid, state, wait_event_type, "
+                            "EXTRACT(EPOCH FROM (now() - query_start))::int AS age_sec, "
+                            "LEFT(query, 120) AS query "
+                            "FROM pg_stat_activity "
+                            "WHERE datname='leadgen' AND state != 'idle' "
+                            "ORDER BY age_sec DESC LIMIT 10;"
+                        )
+                        try:
+                            db_r = subprocess.run(
+                                [
+                                    "docker",
+                                    "exec",
+                                    "leadgen-postgres",
+                                    "psql",
+                                    "-U",
+                                    "leadgen",
+                                    "-d",
+                                    "leadgen",
+                                    "-c",
+                                    db_sql,
+                                ],
+                                capture_output=True,
+                                text=True,
+                                timeout=10,
+                            )
+                            print(db_r.stdout or "(no active queries)")
+                        except Exception as db_e:
+                            print(f"  Could not query DB: {db_e}")
+                        stuck_since = (
+                            time.time()
+                        )  # reset so it prints again after another STUCK_THRESHOLD
             except Exception:
                 print(
                     f"  [{int(time.time() - start)}s] Backend unreachable, waiting..."
