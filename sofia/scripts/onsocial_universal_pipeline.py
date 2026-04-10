@@ -3036,6 +3036,14 @@ def main():
     p.add_argument("--force", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument(
+        "--reject-domains",
+        help="Comma-separated domains to mark is_target=false (manual override after classify)",
+    )
+    p.add_argument(
+        "--approve-domains",
+        help="Comma-separated domains to mark is_target=true with segment from --segment",
+    )
+    p.add_argument(
         "--auto-approve",
         action="store_true",
         help="Skip checkpoints without stopping (dangerous — use only for re-runs)",
