@@ -1425,6 +1425,11 @@ def main():
     )
     p_ppl.add_argument("--from-step", choices=["findymail", "upload"])
     p_ppl.add_argument("--auto-approve", action="store_true")
+    p_ppl.add_argument(
+        "--no-upload",
+        action="store_true",
+        help="Пропустить SmartLead upload, сохранить только в Sheets",
+    )
 
     args = parser.parse_args()
 
