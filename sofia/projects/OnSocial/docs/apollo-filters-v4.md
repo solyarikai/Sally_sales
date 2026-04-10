@@ -1,8 +1,8 @@
-# Apollo Filters v4 — OnSocial (3 segments, expanded)
+# Apollo Filters v4 — OnSocial (4 segments, expanded)
 
-> Date: 2026-03-31
-> Based on: v3 filters (exhausted), same 3 segments with expanded reach
-> Changes from v3: ALL GEO (no location filter), expanded management levels (+senior), broader excluded titles, reworked company keywords to catch adjacent companies missed by v3
+> Date: 2026-04-10
+> Based on: v4 filters (2026-03-31), optimized for volume
+> Changes from v4 (Mar 31): SOCCOM geo removed → ALL GEO, employee minimums lowered, new keywords per segment, IMAGENCY exclusions tightened (removed over-broad "video production / photography / event" exclusions)
 > Purpose: filters only — apply cross-segment exclusions from v3 (competitor blacklist, negative responders, active pipeline)
 
 ---
