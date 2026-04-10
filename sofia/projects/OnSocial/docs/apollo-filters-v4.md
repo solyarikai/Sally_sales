@@ -265,12 +265,11 @@ PR agency, public relations, crisis communications,
 web development, app development, branding only,
 market research, consulting firm, management consulting,
 antivirus, cybersecurity, IT infrastructure,
-modelling agency, casting agency, event management only,
-photography studio only, video production only,
+modelling agency, casting agency,
 translation agency, localization agency
 ```
 
-> Added: modelling/casting agency, event management, photography/video production only, translation/localization — these sometimes appear in "Marketing & Advertising" but are not IM agencies.
+> Removed from exclusions (v4 Apr 10): "video production only", "photography studio only", "event management only" — Apollo doesn't understand "only" qualifier, so these were over-excluding IM agencies that also do production/events. Modelling/casting agency kept (genuinely not IM).
 
 **# Employees:** 10-500
 
