@@ -1353,6 +1353,126 @@ def _get_sequences(config: ProjectConfig, segment_slug: str) -> list:
     return None
 
 
+def _fetch_kb_blocklist() -> tuple[set, set]:
+    """Fetch kb_blocklist from DB. Returns (blocked_domains, blocked_emails)."""
+    sql = "SELECT domain, email FROM kb_blocklist"
+    psql_cmd = f"docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -F'|' -c \"{sql}\""
+    is_hetzner = os.path.exists("/root/magnum-opus-project")
+    run_args = ["bash", "-c", psql_cmd] if is_hetzner else ["ssh", "hetzner", psql_cmd]
+    try:
+        result = subprocess.run(run_args, capture_output=True, text=True, timeout=30)
+        domains: set = set()
+        emails: set = set()
+        for line in result.stdout.strip().splitlines():
+            if "|" in line:
+                parts = line.split("|", 1)
+                d = parts[0].strip().lower()
+                e = parts[1].strip().lower() if len(parts) > 1 else ""
+                if d:
+                    domains.add(d)
+                if e:
+                    emails.add(e)
+        print(f"  Блэклист: {len(domains)} доменов, {len(emails)} email из БД")
+        return domains, emails
+    except Exception as ex:
+        print(f"  WARNING: kb_blocklist fetch failed: {ex}")
+        return set(), set()
+
+
+def _apply_blacklist(
+    contacts: list[dict], blocked_domains: set, blocked_emails: set
+) -> list[dict]:
+    """Drop contacts matching kb_blocklist by email or domain."""
+    kept = []
+    dropped = []
+    for c in contacts:
+        email = c.get("email", "").strip().lower()
+        domain = c.get("domain", "").strip().lower()
+        email_domain = email.split("@")[-1] if "@" in email else ""
+
+        if email and email in blocked_emails:
+            dropped.append((c, f"email:{email}"))
+            continue
+        if email_domain and email_domain in blocked_domains:
+            dropped.append((c, f"domain:{email_domain}"))
+            continue
+        if domain and domain in blocked_domains:
+            dropped.append((c, f"domain:{domain}"))
+            continue
+        kept.append(c)
+
+    if dropped:
+        print(f"  BLACKLIST: убрано {len(dropped)} контактов")
+        for c, reason in dropped[:10]:
+            name = f"{c.get('first_name', '')} {c.get('last_name', '')}".strip()
+            print(f"    ✗ {name} [{reason}]")
+        if len(dropped) > 10:
+            print(f"    ... и ещё {len(dropped) - 10}")
+    return kept
+
+
+def _dedup_vs_crm(contacts: list[dict], project_id: int = 42) -> list[dict]:
+    """Drop contacts whose email already exists in CRM (contacts table) for this project.
+    Only blocks contacts with statuses: sent, replied, meeting_booked, not_qualified.
+    """
+    BLOCK_STATUSES = ("replied", "meeting_booked", "not_qualified", "sent")
+    emails = [
+        c.get("email", "").replace("'", "''").strip().lower()
+        for c in contacts
+        if c.get("email") and "@" in c.get("email", "")
+    ]
+    if not emails:
+        return contacts
+
+    found: set = set()
+    for i in range(0, len(emails), 500):
+        batch = emails[i : i + 500]
+        email_list = ",".join(f"'{e}'" for e in batch)
+        sql = (
+            f"SELECT lower(email) FROM contacts "
+            f"WHERE project_id = {project_id} "
+            f"AND lower(email) IN ({email_list}) "
+            f"AND status IN {BLOCK_STATUSES!r}".replace("[", "(").replace("]", ")")
+        )
+        # Fix tuple repr for SQL
+        statuses_sql = "(" + ",".join(f"'{s}'" for s in BLOCK_STATUSES) + ")"
+        sql = (
+            f"SELECT lower(email) FROM contacts "
+            f"WHERE project_id = {project_id} "
+            f"AND lower(email) IN ({email_list}) "
+            f"AND status IN {statuses_sql}"
+        )
+        psql_cmd = (
+            f'docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -c "{sql}"'
+        )
+        is_hetzner = os.path.exists("/root/magnum-opus-project")
+        run_args = (
+            ["bash", "-c", psql_cmd] if is_hetzner else ["ssh", "hetzner", psql_cmd]
+        )
+        try:
+            result = subprocess.run(
+                run_args, capture_output=True, text=True, timeout=30
+            )
+            for line in result.stdout.strip().splitlines():
+                e = line.strip().lower()
+                if e:
+                    found.add(e)
+        except Exception as ex:
+            print(f"  WARNING: CRM dedup check failed: {ex}")
+
+    if found:
+        before = len(contacts)
+        contacts = [
+            c for c in contacts if c.get("email", "").strip().lower() not in found
+        ]
+        print(
+            f"  DEDUP CRM: {before} → {len(contacts)} (убрано {before - len(contacts)})"
+        )
+    else:
+        print("  DEDUP CRM: дублей нет")
+    return contacts
+
+
 def _run_people(config: ProjectConfig, args):
     from_step = args.from_step or "findymail"
     today = tag()
@@ -1378,8 +1498,21 @@ def _run_people(config: ProjectConfig, args):
         )
         print(f"  С email: {with_email}, без email (LinkedIn): {without_email}")
 
+        # ── Blacklist (kb_blocklist) ─────────────────────────────────────────
+        print(f"\n{'=' * 60}")
+        print("  BLACKLIST — kb_blocklist")
+        print(f"{'=' * 60}")
+        bl_domains, bl_emails = _fetch_kb_blocklist()
+        contacts = _apply_blacklist(contacts, bl_domains, bl_emails)
+
         # FindyMail
         enriched = asyncio.run(_run_findymail(config, contacts))
+
+        # ── Dedup vs OnSocial CRM ────────────────────────────────────────────
+        print(f"\n{'=' * 60}")
+        print("  DEDUP — OnSocial CRM (contacts project_id=42)")
+        print(f"{'=' * 60}")
+        enriched = _dedup_vs_crm(enriched, project_id=config.project_id)
     else:
         # from-step upload: load from enriched.json
         enriched_file = config.state_dir / "enriched.json"
