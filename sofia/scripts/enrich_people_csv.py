@@ -196,7 +196,9 @@ def upload_to_sheets(rows: list[dict], sheet_name: str):
         from googleapiclient.discovery import build
         from google.oauth2.credentials import Credentials
 
-        token_path = REPO_DIR / "magnum-opus" / "infra" / "google-oauth-token.json"
+        token_path = Path(
+            "/Users/user/sales_engineer/.claude/mcp/google-sheets/token.json"
+        )
         creds = Credentials.from_authorized_user_file(str(token_path))
         service = build("sheets", "v4", credentials=creds)
         drive = build("drive", "v3", credentials=creds)
