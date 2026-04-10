@@ -145,10 +145,15 @@ partner relationship management, channel partner platform,
 reseller platform, marketplace monetization,
 creator payments platform, payout platform creators,
 referral program platform, ambassador platform technology,
-revenue sharing platform
+revenue sharing platform,
+social affiliate, creator affiliate, performance commerce,
+influencer affiliate program, content commerce,
+social shopping affiliate, creator commerce platform,
+affiliate SaaS, performance SaaS, partner tech
 ```
 
-> New keywords (not in v3): loyalty/rewards/cashback/coupon/deal platforms (converging with affiliate), attribution/conversion tracking (performance measurement), partner relationship management, channel partner, marketplace monetization, creator payments, ambassador platform tech, revenue sharing. These capture the affiliate-adjacent ecosystem.
+> New keywords (v4 Mar 31): loyalty/rewards/cashback/coupon/deal platforms, attribution/conversion tracking, partner relationship management, channel partner, marketplace monetization, creator payments, ambassador platform tech, revenue sharing.
+> New keywords (v4 Apr 10): social affiliate, creator affiliate, performance commerce, content commerce, social shopping affiliate, affiliate/performance/partner SaaS/tech — catches companies that build tooling for the space without calling themselves "affiliate network."
 
 **Excluded Company Keywords**
 
