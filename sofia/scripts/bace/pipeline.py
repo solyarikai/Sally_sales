@@ -856,9 +856,14 @@ def _map_apollo_row(row: dict, config: ProjectConfig, segment_slug: str) -> dict
         "domain": domain,
         "segment": segment_name,
         "linkedin_url": _get("linkedin_url"),
+        "company_linkedin_url": _get("company_linkedin_url"),
         "country": country,
-        "company_country": country,
+        "city": _get("city"),
+        "company_country": _get("company_country") or country,
         "employees": _get("employees"),
+        "industry": _get("industry"),
+        "seniority": _get("seniority"),
+        "phone": _get("phone"),
         "social_proof": social_proof,
     }
 
