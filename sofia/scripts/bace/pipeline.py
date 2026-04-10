@@ -1465,7 +1465,7 @@ def _dedup_vs_crm(contacts: list[dict], project_id: int = 42) -> list[dict]:
         psql_cmd = (
             f'docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -c "{sql}"'
         )
-        is_hetzner = os.path.exists("/root/magnum-opus-project")
+        is_hetzner = os.path.exists("/home/leadokol/magnum-opus-project")
         run_args = (
             ["bash", "-c", psql_cmd] if is_hetzner else ["ssh", "hetzner", psql_cmd]
         )
