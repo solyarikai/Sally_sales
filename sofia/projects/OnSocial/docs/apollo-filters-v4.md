@@ -240,10 +240,17 @@ social-first agency, creator-first agency,
 influencer activation agency, creator activation,
 micro-influencer agency, nano-influencer agency,
 influencer seeding agency, gifting agency,
-creator network agency, influencer collective
+creator network agency, influencer collective,
+creator management agency, KOL agency,
+key opinion leader agency, digital influence agency,
+social media influence agency, creator-led campaigns,
+influencer PR agency, social commerce agency,
+performance influencer agency, data-driven influencer,
+creator economy agency
 ```
 
-> New keywords (not in v3): creator/content/branded content studio, talent management/representation, social-first/creator-first agency, influencer activation, micro/nano-influencer agency, seeding/gifting agency, creator network/collective. These catch agencies that don't use the exact phrase "influencer marketing agency" but do IM as core business.
+> New keywords (v4 Mar 31): creator/content/branded content studio, talent management/representation, social-first/creator-first agency, influencer activation, micro/nano-influencer agency, seeding/gifting agency, creator network/collective.
+> New keywords (v4 Apr 10): creator management agency, KOL agency, key opinion leader agency, digital influence agency, social media influence agency, creator-led campaigns, influencer PR agency, social commerce agency, performance influencer agency, creator economy agency.
 
 **Excluded Company Keywords**
 
