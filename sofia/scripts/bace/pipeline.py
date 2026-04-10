@@ -74,7 +74,17 @@ APOLLO_CSV_COLUMNS = {
         "Person LinkedIn URL",
     ],
     "country": ["Country", "country", "Person Country"],
+    "company_country": ["Company Country", "company_country"],
+    "city": ["City", "city", "Person City"],
     "employees": ["# Employees", "employees", "Number of Employees", "Company Size"],
+    "industry": ["Industry", "industry"],
+    "seniority": ["Seniority", "seniority"],
+    "company_linkedin_url": [
+        "Company Linkedin Url",
+        "Company LinkedIn URL",
+        "company_linkedin_url",
+    ],
+    "phone": ["Mobile Phone", "Phone", "phone", "Phone Number"],
 }
 
 GETSALES_HEADERS = [
