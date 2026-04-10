@@ -226,7 +226,7 @@ ssh hetzner "cd ~/magnum-opus-project/repo/scripts/sofia && node apollo_2captcha
 | Чекпоинт | После шага | Что проверять |
 |----------|-----------|---------------|
 | ★ CP1 | Шаг 2 (Blacklist) | Правильный проект? Правильный scope? |
-| ★ CP2 | Шаг 5 (Classify) | Список компаний корректный? Accuracy > 90%? |
+| ★ CP2 | Шаг 5 (Classify) | Пайплайн автоматически печатает 15 рандомных таргетов с reasoning. **Покажи их пользователю и спроси: "80%+ выглядят правильно?"** Если да → approve gate. Если нет → tune prompt (step 7). Не одобряй gate не показав sample. |
 | ★ CP3 | Шаг 9 (People Search) | Одобряешь расходы на FindyMail enrichment? |
 
 ### 12 шагов пайплайна
