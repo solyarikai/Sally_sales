@@ -1,4 +1,5 @@
 {
+  "enableAllProjectMcpServers": true,
   "mcpServers": {
     "apollo": {
       "command": "/Users/user/sales_engineer/.claude/mcp/apollo-mcp/.venv/bin/python3",
