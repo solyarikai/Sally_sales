@@ -846,6 +846,29 @@ async def _find_email(client: httpx.AsyncClient, linkedin_url: str) -> dict:
         return {"email": "", "verified": False}
 
 
+async def _verify_email(client: httpx.AsyncClient, email: str) -> dict:
+    try:
+        r = await client.post(
+            f"{FINDYMAIL_BASE}/api/verify",
+            headers={
+                "Authorization": f"Bearer {FINDYMAIL_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={"email": email},
+            timeout=30.0,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            return {"email": email, "verified": data.get("verified", False)}
+        elif r.status_code == 402:
+            raise RuntimeError("OUT_OF_CREDITS")
+        return {"email": email, "verified": False}
+    except RuntimeError:
+        raise
+    except Exception:
+        return {"email": email, "verified": False}
+
+
 async def _run_findymail(config: ProjectConfig, contacts: list[dict]) -> list[dict]:
     enriched_file = config.state_dir / "enriched.json"
     progress_file = config.state_dir / "findymail_progress.json"
@@ -856,20 +879,65 @@ async def _run_findymail(config: ProjectConfig, contacts: list[dict]) -> list[di
     print(f"\n{'=' * 60}")
     print("  FINDYMAIL — Email Enrichment")
     print(f"{'=' * 60}")
-    print(f"  С email: {len(already_have)}")
+    print(f"  С email: {len(already_have)} (к верификации)")
     print(f"  К обогащению: {len(to_enrich)} (${len(to_enrich) * 0.01:.2f} макс)")
-
-    _checkpoint(f"Запустить FindyMail для {len(to_enrich)} контактов?")
 
     if not FINDYMAIL_API_KEY:
         print("  ERROR: FINDYMAIL_API_KEY not set")
         sys.exit(1)
 
-    done = load_json(progress_file) or {}
-    found = not_found = 0
     out_of_credits = False
     sem = asyncio.Semaphore(FINDYMAIL_CONCURRENT)
     t0 = time.time()
+
+    # ── Verify existing emails ────────────────────────────────────────────────
+    verified_count = unverified_count = 0
+    print(f"\n  Верификация {len(already_have)} существующих email...")
+    _checkpoint(
+        f"Верифицировать {len(already_have)} email через FindyMail (${len(already_have) * 0.01:.2f})?"
+    )
+
+    async def verify_one(row):
+        nonlocal verified_count, unverified_count, out_of_credits
+        if out_of_credits:
+            return
+        email = row.get("email", "").strip()
+        if not email:
+            return
+        async with sem:
+            async with httpx.AsyncClient() as client:
+                try:
+                    res = await _verify_email(client, email)
+                except RuntimeError:
+                    out_of_credits = True
+                    return
+        row["email_verified"] = res.get("verified", False)
+        if res.get("verified"):
+            verified_count += 1
+            print(
+                f"  ✓ {row.get('first_name', '')} {row.get('last_name', '')} <{email}>"
+            )
+        else:
+            unverified_count += 1
+            print(
+                f"  ✗ {row.get('first_name', '')} {row.get('last_name', '')} <{email}>"
+            )
+
+    for i in range(0, len(already_have), 20):
+        if out_of_credits:
+            print("\n  OUT OF CREDITS — верификация прервана")
+            break
+        await asyncio.gather(*[verify_one(r) for r in already_have[i : i + 20]])
+
+    print(
+        f"  Верификация: ✓ {verified_count} валидных, ✗ {unverified_count} невалидных"
+    )
+
+    # ── Find missing emails ───────────────────────────────────────────────────
+    _checkpoint(f"Запустить FindyMail для {len(to_enrich)} контактов?")
+
+    done = load_json(progress_file) or {}
+    found = not_found = 0
 
     async def process_one(row):
         nonlocal found, not_found, out_of_credits
@@ -880,7 +948,7 @@ async def _run_findymail(config: ProjectConfig, contacts: list[dict]) -> list[di
             return
         if li in done:
             row["email"] = done[li].get("email", "")
-            (found if done[li].get("email") else not_found).__class__  # just count
+            row["email_verified"] = done[li].get("verified", False)
             if done[li].get("email"):
                 found += 1
             else:
@@ -894,6 +962,7 @@ async def _run_findymail(config: ProjectConfig, contacts: list[dict]) -> list[di
                     out_of_credits = True
                     return
             row["email"] = res.get("email", "")
+            row["email_verified"] = res.get("verified", False)
             done[li] = res
             if res.get("email"):
                 found += 1
@@ -912,8 +981,11 @@ async def _run_findymail(config: ProjectConfig, contacts: list[dict]) -> list[di
 
     all_enriched = already_have + to_enrich
     save_json(enriched_file, all_enriched)
-    print(f"\n  Done in {time.time() - t0:.0f}s — с email: {found}, без: {not_found}")
-    print(f"  Стоимость: ${found * 0.01:.2f}")
+    print(
+        f"\n  Done in {time.time() - t0:.0f}s — найдено: {found}, не найдено: {not_found}"
+    )
+    total_cost = (verified_count + unverified_count + found) * 0.01
+    print(f"  Стоимость: ${total_cost:.2f}")
     return all_enriched
 
 
