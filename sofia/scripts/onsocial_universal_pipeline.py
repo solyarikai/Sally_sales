@@ -1409,6 +1409,63 @@ def _print_target_sample(run_id: int, n: int = 15) -> None:
         print(f"  WARNING: Could not fetch sample: {e}")
 
 
+def _apply_domain_overrides(
+    reject: str | None,
+    approve: str | None,
+    segment: str | None,
+    project_id: int,
+) -> None:
+    """Manually override is_target for specific domains. Avoids raw SQL surgery."""
+    import subprocess
+
+    def _run_update(sql: str) -> None:
+        r = subprocess.run(
+            [
+                "docker",
+                "exec",
+                "leadgen-postgres",
+                "psql",
+                "-U",
+                "leadgen",
+                "-d",
+                "leadgen",
+                "-c",
+                sql,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        print(r.stdout.strip() or r.stderr.strip())
+
+    if reject:
+        domains = [d.strip().lower() for d in reject.split(",") if d.strip()]
+        domain_list = ", ".join(f"'{d}'" for d in domains)
+        sql = (
+            f"UPDATE discovered_companies "
+            f"SET is_target=false, matched_segment='NOT_A_MATCH' "
+            f"WHERE project_id={project_id} AND LOWER(domain) IN ({domain_list});"
+        )
+        print(f"\n  Rejecting {len(domains)} domain(s):")
+        for d in domains:
+            print(f"    ✗ {d}")
+        _run_update(sql)
+
+    if approve:
+        domains = [d.strip().lower() for d in approve.split(",") if d.strip()]
+        domain_list = ", ".join(f"'{d}'" for d in domains)
+        seg = segment or "SOCIAL_COMMERCE"
+        sql = (
+            f"UPDATE discovered_companies "
+            f"SET is_target=true, matched_segment='{seg}' "
+            f"WHERE project_id={project_id} AND LOWER(domain) IN ({domain_list});"
+        )
+        print(f"\n  Approving {len(domains)} domain(s) as {seg}:")
+        for d in domains:
+            print(f"    ✓ {d}")
+        _run_update(sql)
+
+
 def _get_run_domains(config: ProjectConfig, run_id: int) -> set[str] | None:
     """Get domains belonging to a specific gathering run via company_source_links."""
     import subprocess
