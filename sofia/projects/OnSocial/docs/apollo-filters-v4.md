@@ -336,7 +336,11 @@ creator-led commerce, social shopping platform,
 live auction marketplace, shoppable livestream,
 live commerce, video commerce, social selling platform,
 creator marketplace, shoppable media, live stream shopping,
-interactive video commerce, social commerce platform
+interactive video commerce, social commerce platform,
+video shopping, shoppable social, social commerce tool,
+creator checkout, live buying platform, social buying,
+creator shop, social storefront, influencer shop,
+live sale platform, real-time commerce, social retail
 ```
 
 **Excluded Company Keywords**
