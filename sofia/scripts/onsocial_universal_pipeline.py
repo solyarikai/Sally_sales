@@ -1291,6 +1291,63 @@ def step6_verify(config: ProjectConfig, run_id: int) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+def _print_target_sample(run_id: int, n: int = 15) -> None:
+    """Print a random sample of classified targets for manual QA at CP2."""
+    import subprocess
+
+    sql = (
+        f"SELECT dc.domain, ar.segment, ar.confidence, ar.reasoning "
+        f"FROM analysis_results ar "
+        f"JOIN discovered_companies dc ON dc.id = ar.discovered_company_id "
+        f"WHERE ar.analysis_run_id = ("
+        f"  SELECT MAX(id) FROM analysis_runs "
+        f"  WHERE scope_filter->>'gathering_run_id' = '{run_id}' AND status = 'completed'"
+        f") AND ar.is_target = true "
+        f"ORDER BY RANDOM() LIMIT {n}"
+    )
+    try:
+        r = subprocess.run(
+            [
+                "docker",
+                "exec",
+                "leadgen-postgres",
+                "psql",
+                "-U",
+                "leadgen",
+                "-d",
+                "leadgen",
+                "-t",
+                "-A",
+                "-F",
+                "|",
+                "-c",
+                sql,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        rows = [line.strip() for line in r.stdout.strip().split("\n") if line.strip()]
+        if not rows:
+            print("  (no targets found for sample)")
+            return
+        print(f"\n  ── Target sample (random {len(rows)}) ──────────────────────────")
+        for row in rows:
+            parts = row.split("|")
+            if len(parts) >= 4:
+                domain, segment, conf, reasoning = (
+                    parts[0],
+                    parts[1],
+                    parts[2],
+                    "|".join(parts[3:]),
+                )
+                print(f"  ✓  {domain:<32} {segment:<25} conf={conf}")
+                print(f"     {reasoning[:110]}")
+        print("  ────────────────────────────────────────────────────────────────")
+    except Exception as e:
+        print(f"  WARNING: Could not fetch sample: {e}")
+
+
 def _get_run_domains(config: ProjectConfig, run_id: int) -> set[str] | None:
     """Get domains belonging to a specific gathering run via company_source_links."""
     import subprocess
