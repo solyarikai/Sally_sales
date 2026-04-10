@@ -27,6 +27,11 @@ npm-debug.log*
 *.swo
 .DS_Store
 
+# MCP config (machine-specific)
+.mcp.json
+.claude/mcp.json
+.cursor/mcp.json
+
 # Test/temp files
 .pytest_cache/
 .coverage

@@ -28,6 +28,7 @@ These patterns were observed in dismissed/rejected draft replies. NEVER use them
 - Using "we" exclusively instead of "I" (feels corporate)
 - Buzzword-heavy sentences that read like marketing copy
 - Asking multiple questions in one message
+- "Worth 20 minutes?" — zaезженный cold outreach шаблон, считывается как скрипт; для тёплого диалога (lead уже заинтересован) использовать конкретный оффер: "Want to hop on a call and I'll run [market] live?" или "Should we find a time this week?"
 
 ## Operational Mistakes
 - Replying to "STOP" or unsubscribe requests
