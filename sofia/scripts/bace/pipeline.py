@@ -1428,13 +1428,6 @@ def _dedup_vs_crm(contacts: list[dict], project_id: int = 42) -> list[dict]:
     for i in range(0, len(emails), 500):
         batch = emails[i : i + 500]
         email_list = ",".join(f"'{e}'" for e in batch)
-        sql = (
-            f"SELECT lower(email) FROM contacts "
-            f"WHERE project_id = {project_id} "
-            f"AND lower(email) IN ({email_list}) "
-            f"AND status IN {BLOCK_STATUSES!r}".replace("[", "(").replace("]", ")")
-        )
-        # Fix tuple repr for SQL
         statuses_sql = "(" + ",".join(f"'{s}'" for s in BLOCK_STATUSES) + ")"
         sql = (
             f"SELECT lower(email) FROM contacts "
