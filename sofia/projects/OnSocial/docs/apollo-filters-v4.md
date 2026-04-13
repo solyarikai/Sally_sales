@@ -96,33 +96,7 @@ South Africa, Nigeria, Kenya
 
 ### People filters
 
-**Job Titles**
-
-```
-CTO, VP Engineering, VP of Engineering, Head of Engineering,
-Head of Product, Chief Product Officer, VP Product,
-Director of Engineering, Director of Product,
-Co-Founder, Founder, CEO, COO,
-Senior Director of Engineering, Senior Director of Product,
-Senior VP Engineering, Senior VP Product,
-Head of Data, VP Data, Chief Data Officer,
-Head of Platform, VP Platform
-```
-
-**Management Level:** c_suite, vp, director, owner, head, partner, founder
-
-**Excluded Titles**
-
-```
-Intern, Junior, Assistant, Student, Freelance,
-Marketing Manager, Sales Representative, Account Executive,
-Customer Success, Support, HR, People, Recruiter,
-Content Writer, Designer, Social Media Manager,
-Solutions Architect, Technical Architect, Enterprise Architect,
-Staff Engineer, Principal Engineer, Lead Engineer, Lead Developer
-```
-
-> Expanded exclusions: since management level now includes "senior," we must explicitly exclude senior individual contributors (engineers, designers, analysts, sales reps, recruiters, etc.) who are NOT decision-makers for API/data purchases.
+→ See **Tech Leaders — People Filter (cross-segment persona)** below.
 
 ---
 
