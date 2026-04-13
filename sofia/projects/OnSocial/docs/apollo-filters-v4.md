@@ -243,7 +243,7 @@ translation agency, localization agency
 
 > Removed from exclusions (v4 Apr 10): "video production only", "photography studio only", "event management only" — Apollo doesn't understand "only" qualifier, so these were over-excluding IM agencies that also do production/events. Modelling/casting agency kept (genuinely not IM).
 
-**# Employees:** 5-500
+**# Employees:** 10-10,000
 
 **Location:**
 
