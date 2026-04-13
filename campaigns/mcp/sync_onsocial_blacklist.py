@@ -78,9 +78,11 @@ def main():
         reason = reason.strip().replace("'", "''")[:200]  # truncate long GPT reasons
         upsert_sql = f"""
             INSERT INTO discovered_companies
-                (project_id, domain, name, status, is_blacklisted, blacklist_reason, created_at, updated_at)
+                (project_id, company_id, domain, name, status, is_blacklisted, blacklist_reason, created_at, updated_at)
             VALUES
-                ({mcp_project_id}, '{domain}', '{domain}', 'REJECTED', true,
+                ({mcp_project_id},
+                 (SELECT company_id FROM projects WHERE id = {mcp_project_id}),
+                 '{domain}', '{domain}', 'REJECTED', true,
                  'onsocial_crm_sync: {reason}', NOW(), NOW())
             ON CONFLICT (project_id, domain) DO UPDATE
             SET is_blacklisted = true,
