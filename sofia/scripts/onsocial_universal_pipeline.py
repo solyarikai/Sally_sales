@@ -2808,8 +2808,8 @@ def mode3_lookalike(config: ProjectConfig, examples: list[str]) -> dict:
     top_countries = [c for c, _ in countries.most_common(5)] if countries else []
 
     emp_values = [int(c["employees"]) for c in companies if c["employees"].isdigit()]
-    min_emp = min(emp_values) // 2 if emp_values else 5
-    max_emp = max(emp_values) * 2 if emp_values else 5000
+    min_emp = min(emp_values) // 2 if emp_values else 10
+    max_emp = max(emp_values) * 2 if emp_values else 10000
 
     example_names = ", ".join(c["name"] for c in companies[:5])
     icp_text = (
