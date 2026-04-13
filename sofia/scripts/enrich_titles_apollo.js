@@ -31,9 +31,30 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function ts()      { return new Date().toISOString().replace('T',' ').slice(0,19); }
 
 // ── CSV ───────────────────────────────────────────────────────────────────────
+function parseCSVLine(line) {
+  const fields = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === ',' && !inQ) { fields.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  fields.push(cur);
+  return fields.map(f => f.trim());
+}
+
 function readLeads() {
-  const content = fs.readFileSync(INPUT_CSV, 'utf-8');
-  return csv.parse(content, { columns: true, skip_empty_lines: true, trim: true });
+  const lines = fs.readFileSync(INPUT_CSV, 'utf-8').replace(/\r/g, '').split('\n').filter(Boolean);
+  const headers = parseCSVLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = parseCSVLine(line);
+    const row = {};
+    headers.forEach((h, i) => { row[h] = vals[i] || ''; });
+    return row;
+  });
 }
 
 function writeCSV(rows) {
