@@ -4,102 +4,78 @@ Sales automation tooling for Sally — B2B outreach infrastructure for OnSocial 
 
 ## Pipeline Overview
 
-The core workflow is a 12-step leadgen pipeline (`magnum-opus/scripts/sofia/onsocial_universal_pipeline.py`):
+12-step leadgen pipeline (`magnum-opus/scripts/sofia/onsocial_universal_pipeline.py`):
 
 ```
-Step 0: GATHER    — find companies (Clay ICP / Clay Keywords / Clay Lookalike / Apollo internal API)
-Step 1: DEDUP     — skip companies already in discovered_companies
-Step 2: BLACKLIST — filter against project exclusion list
-Step 3: PREFILTER — remove non-target industries/sizes (deterministic)
-Step 4: SCRAPE    — fetch homepage HTML via backend
-Step 5: CLASSIFY  — GPT-4o-mini scores: is_target? which segment?
-Step 6: VERIFY    — manual QA on classification accuracy (checkpoint)
-Step 7: ADJUST    — re-classify with tuned prompt if accuracy < 90%
-Step 8: EXPORT    — ship approved targets
-Step 9: PEOPLE    — find decision-makers via Apollo (Puppeteer, free)
-Step 10: FINDYMAIL — enrich with emails ($0.01/found)
-Step 11: SEQUENCES — generate 5-step email sequences
-Step 12: UPLOAD   — create SmartLead campaign & load leads
+0: GATHER    — find companies (Clay / Apollo internal API)
+1: DEDUP     — skip companies in discovered_companies
+2: BLACKLIST — filter against project exclusion list
+3: PREFILTER — remove non-target industries/sizes (deterministic)
+4: SCRAPE    — fetch homepage HTML via backend
+5: CLASSIFY  — GPT-4o-mini: is_target? which segment?
+6: VERIFY    — QA checkpoint on classification accuracy
+7: ADJUST    — re-classify with tuned prompt if accuracy < 90%
+8: EXPORT    — ship approved targets
+9: PEOPLE    — find decision-makers via Apollo (Puppeteer, free)
+10: FINDYMAIL — enrich with emails ($0.01/found)
+11: SEQUENCES — generate 5-step email sequences
+12: UPLOAD   — create SmartLead campaign & load leads
 ```
 
-Key scripts: `onsocial_universal_pipeline.py` (orchestrator), `onsocial_apollo_people_search.js` (Puppeteer people search), `onsocial_apollo_companies_search.js` (company search by keywords).
+Key scripts: `onsocial_universal_pipeline.py` (orchestrator), `onsocial_apollo_people_search.js`, `onsocial_apollo_companies_search.js`.
 
 ## ICP Segments
 
+| Code       | Full Name             | Target Profile                                      |
+| ---------- | --------------------- | --------------------------------------------------- |
+| `INFPLAT`  | Influencer Platforms  | SaaS for creator data/analytics                     |
+| `IMAGENCY` | IM-First Agencies     | Agencies with dedicated influencer practice        |
+| `AFFPERF`  | Affiliate Performance | Affiliate platforms bundling creator data           |
+| `SOCCOM`   | Social Commerce       | Live shopping / creator marketplaces (LTK, ShopMy)  |
 
-| Code       | Full Name             | Target Profile                                                   |
-| ---------- | --------------------- | ---------------------------------------------------------------- |
-| `INFPLAT`  | Influencer Platforms  | SaaS platforms for creator data/analytics                        |
-| `IMAGENCY` | IM-First Agencies     | Agencies with dedicated influencer practice                      |
-| `AFFPERF`  | Affiliate Performance | Affiliate platforms bundling creator data                        |
-| `SOCCOM`   | Social Commerce       | Marketplace + live shopping platforms (LTK, ShopMy, Bazaarvoice) |
-
-
-Filter definitions: `sofia/projects/OnSocial/docs/apollo-filters-v5.md` (v4 — archived)
+Filters: `sofia/projects/OnSocial/docs/apollo-filters-v5.md`
 Segment docs: `sofia/projects/OnSocial/docs/segment-*.md`
 
-## Execution Environment — Hetzner
+## Execution — Hetzner
 
-- **All scripts, DB queries, scrapers run on Hetzner.** Local machine is for code editing only.
-- SSH: `ssh hetzner` (host alias in ~/.ssh/config)
+All scripts, DB queries, scrapers run on Hetzner. Local machine = code editing only.
+
+- SSH: `ssh hetzner` (alias in `~/.ssh/config`)
+- Repo: `~/magnum-opus-project/repo`
 - DB: `ssh hetzner "docker exec leadgen-postgres psql -U leadgen -d leadgen -c 'SQL'"`
-- Backend container: `leadgen-backend` (FastAPI on port 8000)
+- Backend container: `leadgen-backend` (FastAPI :8000)
 - Deploy: `ssh hetzner "cd ~/magnum-opus-project/repo && git pull origin main && docker-compose up --build -d"`
-- Env vars: `set -a && source .env && set +a` before running Python scripts directly
-- **sofia/ scripts are NOT on Hetzner by default.** SCP first: `scp sofia/scripts/foo.py hetzner:~/magnum-opus-project/repo/sofia/scripts/`
-- Hetzner repo path: `~/magnum-opus-project/repo`
+- Hetzner python = `python3` (3.12), local python = `python3.11` (homebrew, has google-auth)
+- `sofia/` scripts not on Hetzner by default — SCP first
 
-## Google Sheets & Drive
+## Integration Rules (live in `.claude/rules/`)
 
-**Use MCP tools** (`google-sheets` server) for all Sheets/Drive operations. Never write Python scripts for this. Never use service account / Docker.
+- **SmartLead formatting** → `smartlead-formatting.md` (no em-dashes, `<br>` breaks, POST replaces all seqs)
+- **GetSales CSV format** → `getsales-formatting.md` (49-column schema, required fields)
+- **Pipeline phase state machine** → `pipeline-phases.md` (which endpoint needs which phase)
+- **Classify prompt format** → `classify-prompt-format.md` (no OUTPUT FORMAT sections)
+- **Sheets naming & protected tabs** → `sheets-reference.md`
 
-**Dual Save Rule**: every CSV saved locally MUST also be uploaded to Google Sheets (same name). Every Sheets read -> save local copy.
+Google Sheets/Drive — use MCP tools only, never Python/service-account. Dual save: local CSV ↔ Sheets with same name.
 
-Naming convention and protected sheets: see `.claude/rules/sheets-reference.md`
+## Destructive Gotchas (non-obvious, will corrupt data)
 
-## GetSales Export
+- **NEVER bypass scraping** — don't populate `scraped_text` from Apollo descriptions. Too sparse → ~2% target rate vs expected 20-40%. Debug scrape endpoint instead (DB locks, event loop blocking).
+- **NEVER test `/analyze` endpoint** — backend re-classifies ALL companies in the run with whatever prompt you send, even test stubs. Verify via code/logs only.
+- **Backend crashes on 3000+ sites/run** — always batch by 500.
+- **`--apollo-csv` does NOT feed findymail/upload** — loads into Step 9 cache. For `--from-step upload`, write contacts to `state/onsocial/enriched.json` directly.
+- **Pre-populate `state/onsocial/upload_log.json`** with `{"SEGMENT": {"campaign_id": N}}` to reuse existing SmartLead campaign on `--from-step upload`.
+- **SmartLead DRAFT leads count = 0** via local smartlead.py (`total_stats` omitted). Verify via direct API from Hetzner.
+- **Classification accuracy gate**: < 90% → re-tune prompt (Step 7) before proceeding.
+- **Pipeline script edits — apply to ALL copies**: `sofia/scripts/`, `magnum-opus/scripts/`, Hetzner. Copies diverge independently.
+- **Findymail / SmartLead / blacklist — always via pipeline**, never custom scripts. Pipeline handles dedup, logging, state.
+- **Apollo login** requires email verify from unknown IPs — use Hetzner IP, no Apify proxy.
+- **`postgres COPY TO '/tmp/...'`** writes inside container. Extract: `docker cp leadgen-postgres:/tmp/file.csv /tmp/file.csv`.
 
-Contacts without email from Findymail -> auto-export to GetSales-ready CSV in `sofia/get_sales_hub/{dd_mm}/` (49-column format). Built into pipeline scripts.
+## Structure
 
-## Local Python
-
-- Use `python3.11` (homebrew) — has google-auth, google-api-python-client
-- System `python3` (3.9) lacks dependencies, no write access to site-packages
-
-## Project Structure
-
-
-| Directory                  | What                                                                                     |
-| -------------------------- | ---------------------------------------------------------------------------------------- |
-| `magnum-opus/`             | Backend (FastAPI + SQLAlchemy), gathering pipeline, API — **GIT SUBMODULE**              |
-| `sofia/`                   | Sales ops: scripts, sequences, research, projects                                        |
-| `sofia/projects/OnSocial/` | OnSocial-specific sequences, docs, segments                                              |
-| `sofia/smartlead-hub/`     | SmartLead campaigns, sequences, lead data                                                |
-| `tam-guide/`               | Training/onboarding materials (HTML lessons)                                             |
-| `scripts/`                 | Shared utility scripts                                                                   |
-| `.claude/mcp/`             | MCP servers (apollo, crona, google-sheets, smartlead, findymail, getsales, transkriptor) |
-| `.claude/skills/`          | Shared Claude Code skills                                                                |
-| `.claude/rules/`           | Path-scoped rules (sheets naming, SmartLead formatting)                                  |
-
-
-## Gotchas
-
-- **NEVER bypass scraping** — do NOT populate `scraped_text` from CSV/Apollo descriptions as a workaround for scraping failures. Apollo Short Description is too sparse for classification (results in ~2% target rate instead of expected 20-40%). If the scrape endpoint hangs, debug the backend issue (check DB locks via `pg_stat_activity`, restart containers, check event loop blocking) and wait. Stop and ask the user before taking shortcuts that corrupt classification quality.
-- **NEVER test `/analyze` endpoint with a stub/dummy prompt** — backend immediately re-classifies ALL companies in the run with whatever prompt you send. Even a "test" call destroys correctly classified targets. To verify the endpoint works: read the code or check backend logs. Never `curl /analyze` to see if it responds.
-- **Backend crashes on 3000+ sites** in one run — always batch by 500
-- **Apollo People search** returns person location, NOT company country. For geo-based sequences, use `company_country` field from target data
-- **Apollo login** requires email verification from unknown IPs — use Hetzner IP directly, no Apify proxy
-- **Clay free plan** = 100 results/search, not unlimited (period resets monthly)
-- **Backend API `/analyze`** requires `prompt_text`, NOT `prompt_id`
-- `**/analyze` requires `current_phase = 'scraped'**` — backend returns 400 for any other phase. `/re-analyze` requires `current_phase = 'awaiting_targets_ok'`. Do NOT manually reset phases without understanding the state machine. See `.claude/rules/pipeline-phases.md`.
-- `**--apollo-csv` does NOT feed findymail/upload directly** — it loads contacts into Step 9 cache. For `--from-step upload` to work, contacts must be in `state/onsocial/enriched.json`. Write there directly if bypassing steps 9-10.
-- **SmartLead campaign_id for upload** — pipeline reads from `state/onsocial/upload_log.json`. Pre-populate with `{"SEGMENT_NAME": {"campaign_id": 12345}}` before running `--from-step upload` to use an existing campaign.
-- **SmartLead leads count = 0 for DRAFTED campaigns** via local smartlead.py (checks `total_stats` which SmartLead omits). Verify via direct API from Hetzner: `curl localhost:... /campaigns/{id}/leads`.
-- **Hetzner uses `python3`** (= 3.12), NOT `python3.11`. Local machine uses `python3.11`.
-- `**postgres COPY TO '/tmp/...'**` writes inside the container, not on the host. Use `docker cp leadgen-postgres:/tmp/file.csv /tmp/file.csv` to extract.
-- **Classify prompts MUST NOT include output format instructions** — backend wraps every `custom_system_prompt` with "Respond ONLY with valid JSON `{is_target, confidence, segment, reasoning}`". If prompt also says "pipe format" or defines its own OUTPUT FORMAT, GPT gets conflicting instructions → parsing errors → `is_target=false`. Prompts should only describe WHAT to classify, not HOW to format the answer.
-- **Classification accuracy gate**: if < 90%, must re-tune prompt before proceeding (Step 7)
-- **SmartLead gotchas**: see `.claude/rules/smartlead-formatting.md`
-- **Pipeline script edits**: always apply changes point-by-point to ALL copies (`sofia/scripts/`, `magnum-opus/scripts/`, Hetzner). Never overwrite the whole file — copies may have diverged with independent fixes.
-- **Findymail/SmartLead/blacklist — always via pipeline**, never custom scripts or MCP calls in a loop. Pipeline handles dedup, logging, state.
-
+- `magnum-opus/` — backend, gathering pipeline (**git submodule**)
+- `sofia/` — sales ops: scripts, sequences, projects, research
+- `sofia/smartlead-hub/` — campaigns, sequences, lead data
+- `.claude/mcp/` — MCP servers (apollo, smartlead, findymail, getsales, google-sheets, crona, transkriptor)
+- `.claude/rules/` — path-scoped integration rules
