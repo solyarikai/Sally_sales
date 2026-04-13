@@ -79,8 +79,20 @@ Angles per step:
 4. Soft push — 15-min demo ask
 5. Break-up — last email
 
-## Exclusions
+## Previous Campaigns
 
-- Automatic: dedup against already-contacted in OnSocial (project_blacklist, 11k+ domains)
-- Automatic: skip active campaigns (same_project_campaigns)
-- Manual: no Sally clients, no GetSally LLC, no agencies that replied negatively before
+Import all SmartLead campaigns with prefix `c-OnSocial_` as blacklist
+(call `import_smartlead_campaigns` with rules={"prefixes": ["c-OnSocial_"]}).
+
+Save as persistent rule via `set_campaign_rules` so future launches auto-import.
+
+## Additional Manual Blacklist
+
+Before launch, sync these 305 domains from main leadgen `project_blacklist`
+(categories not covered by SmartLead campaign import):
+
+- 83 OnSocial paid clients (never contact — active customers)
+- 189 Known competitors (Modash, HypeAuditor, Captiv8, Lefty, etc.)
+- 33 GPT-rejected domains (wrong industry, not influencer marketing)
+
+Run `sync_onsocial_blacklist.py` before launching any OnSocial campaign via MCP.
