@@ -2,8 +2,6 @@
 
 Sales automation tooling for Sally — B2B outreach infrastructure for OnSocial (creator/influencer data API).
 
-Core pipeline: `magnum-opus/scripts/sofia/onsocial_universal_pipeline.py` (12-step leadgen orchestrator). Step details — в самом скрипте.
-
 ## ICP Segments
 
 | Code       | Full Name             | Target Profile                                      |
