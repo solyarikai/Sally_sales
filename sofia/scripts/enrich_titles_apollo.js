@@ -180,38 +180,58 @@ async function searchByDomains(page, domains, pageNum = 1) {
   const titleMap = {}; // email → title
   let matched = 0, batchNum = 0, totalBatches = Math.ceil(uniqueDomains.length / BATCH_SIZE);
 
+  const MAX_PAGES = 3;
+
   for (let i = 0; i < uniqueDomains.length; i += BATCH_SIZE) {
     const batch = uniqueDomains.slice(i, i + BATCH_SIZE);
     batchNum++;
-    process.stdout.write(`[${ts()}] Batch ${batchNum}/${totalBatches} (${batch.slice(0,3).join(', ')}...) `);
+    let batchMatched = 0;
 
-    try {
-      const data = await searchByDomains(page, batch);
+    for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
+      process.stdout.write(`[${ts()}] Batch ${batchNum}/${totalBatches} p${pageNum} `);
 
-      if (data.error) {
-        console.log(`ERROR: ${data.error}`);
-        await sleep(3000);
-        continue;
-      }
+      try {
+        const data = await searchByDomains(page, batch, pageNum);
 
-      const people = data.people || [];
-      let batchMatched = 0;
+        if (data.error) {
+          console.log(`ERROR: ${data.error}`);
+          if (data.status === 401 || data.status === 403) {
+            await ensureLoggedIn(page);
+          }
+          await sleep(3000);
+          break;
+        }
 
-      for (const p of people) {
-        const pEmail = (p.email || '').toLowerCase().trim();
-        if (pEmail && emailIndex[pEmail] && !emailIndex[pEmail]._enriched_title) {
-          emailIndex[pEmail]._enriched_title = p.title || '';
-          if (p.title) {
-            titleMap[pEmail] = p.title;
-            batchMatched++;
-            matched++;
+        const people = data.people || [];
+        let pageMatched = 0;
+
+        for (const p of people) {
+          const pEmail = (p.email || '').toLowerCase().trim();
+          if (pEmail && emailIndex[pEmail] && !titleMap[pEmail]) {
+            if (p.title) {
+              titleMap[pEmail] = p.title;
+              pageMatched++;
+              batchMatched++;
+              matched++;
+            }
           }
         }
+
+        console.log(`→ ${people.length} people, ${pageMatched} matched`);
+
+        // No more pages if less than per_page results
+        if (people.length < 100) break;
+
+      } catch (e) {
+        console.log(`ERROR: ${e.message}`);
+        break;
       }
 
-      console.log(`→ ${people.length} people, ${batchMatched} matched`);
-    } catch (e) {
-      console.log(`ERROR: ${e.message}`);
+      await sleep(DELAY_MS);
+    }
+
+    if (batchNum % 10 === 0) {
+      console.log(`[${ts()}] Progress: ${matched} titles found so far`);
     }
 
     await sleep(DELAY_MS);
