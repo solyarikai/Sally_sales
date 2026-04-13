@@ -206,11 +206,30 @@ async function searchDomains(page, domains, pageNum) {
       const people = data.people || [];
       let hit = 0;
       for (const person of people) {
-        const em = (person.email || '').toLowerCase().trim();
-        if (em && emailIndex[em] && !titleMap[em] && person.title) {
-          titleMap[em] = person.title;
-          hit++;
-          matched++;
+        if (!person.title) continue;
+
+        let lead = null;
+
+        // 1. Match by LinkedIn URL
+        const pLi = normLinkedin(person.linkedin_url || '');
+        if (pLi && linkedinIndex[pLi]) lead = linkedinIndex[pLi];
+
+        // 2. Match by first + last name + domain
+        if (!lead) {
+          const pDomain = batch.find(d => (person.organization?.primary_domain || '').includes(d) || batch.includes(d));
+          if (pDomain) {
+            const nameKey = `${(person.first_name||'').toLowerCase()} ${(person.last_name||'').toLowerCase()} @${pDomain}`;
+            if (nameIndex[nameKey]) lead = nameIndex[nameKey];
+          }
+        }
+
+        if (lead) {
+          const em = (lead.email || '').toLowerCase().trim();
+          if (!titleMap[em]) {
+            titleMap[em] = person.title;
+            hit++;
+            matched++;
+          }
         }
       }
       console.log(`${people.length} results, ${hit} new titles (total: ${matched})`);
