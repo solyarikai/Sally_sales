@@ -157,7 +157,10 @@ async function searchByDomains(page, domains, pageNum = 1) {
   // Launch browser
   const browser = await puppeteer.launch({
     headless: HEADLESS,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+           '--disable-gpu', '--disable-blink-features=AutomationControlled'],
+    defaultViewport: { width: 1440, height: 900 },
   });
   const page = await browser.newPage();
   await page.setViewport({ width: 1440, height: 900 });
