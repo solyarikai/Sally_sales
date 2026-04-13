@@ -165,21 +165,6 @@ crypto exchange, blockchain wallet
 
 ```
 
-Account Location
-
-11
-Company Locations:
-United States
-Europe
-Germany
-India
-United Kingdom
-France
-Canada
-barzil
-North America
-EMEA
-Australia
 
 ```
 
@@ -349,25 +334,24 @@ Alternative people filter for tech decision-maker targeting across all segments.
 ### Job Titles
 
 ```
+CEO, Co-Founder, Founder, COO, Managing Director, Managing Partner, General Manager,
 CTO, Chief Technology Officer,
-CIO, Chief Information Officer,
 CPO, Chief Product Officer,
-CDO, Chief Data Officer, Chief Digital Officer,
+CDO, Chief Data Officer,
+CMO, VP Marketing,
 VP Engineering, VP of Engineering, VP Technology,
 VP Product, VP of Product,
 VP Data, VP Analytics, VP Platform,
-SVP Engineering, SVP Product, SVP Technology,
+VP Partnerships, VP Growth,
 Head of Engineering, Head of Technology,
 Head of Product, Head of Data, Head of Analytics,
-Head of Platform, Head of Integrations, Head of Innovation, Head of Digital,
+Head of Platform, Head of Integrations, Head of Digital,
+Head of Partnerships, Head of Growth, Head of Martech,
 Director of Engineering, Director of Technology,
-Director of Product, Director of Data, Director of Analytics, Director of Platform,
+Director of Product, Director of Data, Director of Analytics,
+Director of Partnerships, Director of Growth, Director of Martech,
 Technical Director, Technology Director,
-Engineering Manager,
-Tech Lead, Technical Lead,
-Solutions Architect, Principal Architect, Chief Architect,
-Platform Lead, Integration Lead,
-Head of Martech, Director of Martech,
+Chief Architect,
 Co-Founder CTO, Founding Engineer, Technical Co-Founder
 ```
 
