@@ -214,12 +214,13 @@ async function searchDomains(page, domains, pageNum) {
         const pLi = normLinkedin(person.linkedin_url || '');
         if (pLi && linkedinIndex[pLi]) lead = linkedinIndex[pLi];
 
-        // 2. Match by first + last name + domain
+        // 2. Match by first + last name + domain (try each domain in batch)
         if (!lead) {
-          const pDomain = batch.find(d => (person.organization?.primary_domain || '').includes(d) || batch.includes(d));
-          if (pDomain) {
-            const nameKey = `${(person.first_name||'').toLowerCase()} ${(person.last_name||'').toLowerCase()} @${pDomain}`;
-            if (nameIndex[nameKey]) lead = nameIndex[nameKey];
+          const firstName = (person.first_name || '').toLowerCase().trim();
+          const lastName  = (person.last_name  || '').toLowerCase().trim();
+          for (const d of batch) {
+            const nameKey = `${firstName} ${lastName} @${d}`;
+            if (nameIndex[nameKey]) { lead = nameIndex[nameKey]; break; }
           }
         }
 
