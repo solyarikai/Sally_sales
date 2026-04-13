@@ -1,0 +1,20 @@
+first_name,last_name,email,title,company_name,domain,segment,linkedin_url,company_linkedin_url,country,city,company_country,employees,industry,seniority,phone,social_proof,email_verified
+Xinghu,Lu,xinghu@euka.ai,Head of Engineering,Euka AI,euka.ai,SOCCOM,http://www.linkedin.com/in/xinghulu,,United States,,United States,24,,,,,True
+Siran,Shen,siran@euka.ai,Head of Engineering,Euka AI,euka.ai,SOCCOM,http://www.linkedin.com/in/siranshen,,United States,,United States,24,,,,,False
+Jeremy,Ding,jeremy@euka.ai,Co-Founder,Euka AI,euka.ai,SOCCOM,http://www.linkedin.com/in/jeremy-yaoxin-ding-6bb60554,,United States,,United States,24,,,,,True
+Kevin,Wang,kevin@euka.ai,Co-Founder,Euka AI,euka.ai,SOCCOM,http://www.linkedin.com/in/wkevwang,,United States,,United States,24,,,,,True
+Stella,Li,stella@euka.ai,Head of Creator Product,Euka AI,euka.ai,SOCCOM,http://www.linkedin.com/in/stella-li-1503b92b7,,United States,,United States,24,,,,,True
+Val,Segal,val@ello.tv,Co-Founder,ELLO Messenger,ellomessenger.com,SOCCOM,http://www.linkedin.com/in/valsegal,,United States,,United States,6,,,,,True
+Kush,Sanghadia,kush@upcyclers.com,Co-Founder,Upcyclers,upcyclers.com,SOCCOM,http://www.linkedin.com/in/kush-sanghadia-5a540b105,,Senegal,,Senegal,6,,,,,False
+Mike,Hanuschik,m@theflow.com,"Founder, CEO",The Flow,theflow.com,SOCCOM,http://www.linkedin.com/in/michaelhanuschik,,United States,,United States,2,,,,,True
+Mohamed,Aziz,mohamed@enara.co,Co-Founder and CEO,enara,enara.co,SOCCOM,http://www.linkedin.com/in/mohabdulaziz,,United Kingdom,,United Kingdom,7,,,,,True
+Mehmet,Elicin,mehmet@enara.co,Co-founder & Chief Product and Technology Officer,enara,enara.co,SOCCOM,http://www.linkedin.com/in/mehmetelicin,,United Kingdom,,United Kingdom,7,,,,,True
+Lynda,Radosevich,lynda@bazlaco.com,Co-founder and CEO,Bazla,bazla.co,SOCCOM,http://www.linkedin.com/in/radosevich,,,,,2,,,,,True
+Philippe,Isaac,philippe@wooskill.com,COO & Co-founder @ Wooskill,Wooskill,wooskill.com,SOCCOM,http://www.linkedin.com/in/philippe-isaac-3937a91,,France,,France,44,,,,,True
+Bertrand,Laboulaye,bertrand@wooskill.com,Chief Product Officer,Wooskill,wooskill.com,SOCCOM,http://www.linkedin.com/in/bertrand-de-laboulaye-795758226,,France,,France,44,,,,,True
+Corentin,Bras,corentin.bras@wooskill.com,CTO,Wooskill,wooskill.com,SOCCOM,http://www.linkedin.com/in/corentin-bras-685176a9,,France,,France,44,,,,,True
+Enzo,Arous,enzo@wooskill.com,Co-Founder,Wooskill,wooskill.com,SOCCOM,http://www.linkedin.com/in/enzo-arous-specialiste-monetisation-audience,,France,,France,44,,,,,True
+Sophie,Kerob,sophie@wooskill.com,CEO Fondateur,Wooskill,wooskill.com,SOCCOM,http://www.linkedin.com/in/sophie-kerob,,France,,France,44,,,,,True
+Duccio,Travaglini,duccio@greencome.media,CEO e Co-Founder,Greencome,zaap.bio,SOCCOM,http://www.linkedin.com/in/ducciotravaglini,,Italy,,Italy,8,,,,,False
+Ginevra,Zolli,ginevra@greencome.media,Co-Founder,Greencome,zaap.bio,SOCCOM,http://www.linkedin.com/in/ginevra-zolli-7b46b7195,,Italy,,Italy,8,,,,,False
+Kari,Masson,kari@kayoong.com,Co-Founder,Upcyclers,upcyclers.com,SOCCOM,http://www.linkedin.com/in/kmasson,,Senegal,,Senegal,6,,,,,False

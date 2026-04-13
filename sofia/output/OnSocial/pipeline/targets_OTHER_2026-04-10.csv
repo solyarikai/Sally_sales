@@ -1,0 +1,4 @@
+domain,company_name,segment,confidence,reasoning
+fiftyandfive.com,fifty & five,OTHER,0.9,"Fifty & Five is a full-service social media and digital marketing agency that explicitly lists 'INFLUENCER MANAGEMENT' among its services, indicating a clear need for creator/influencer data. However, influencer marketing does not appear to be their core business, placing them outside the IM_FIRST_AGENCIES segment."
+neurafluence.com,,OTHER,0.7,"While the company prominently states it is an 'influencer marketing agency,' its listed projects, testimonials, and team roles are primarily focused on website design, SEO, and general branding, indicating influencer marketing is not its core or dominant offering."
+dimucctv.com,,OTHER,0.4,"The website is a personal portfolio for an individual digital creator, not a B2B company that would integrate an API like OnSocial. This entity is too small and is a user of influencer services, not a provider."

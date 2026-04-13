@@ -1,0 +1,7 @@
+domain,company_name,segment,confidence,reasoning
+optymous.com,,NOT_A_MATCH,0.9,"The company offers specialized social listening and KOL identification for EU pharma companies, focusing on regulatory compliance and medical intelligence, which is outside OnSocial's target market of social media creator marketing and social commerce."
+8tag.ir,,NOT_A_MATCH,0.9,"The company provides a generic social media monitoring and listening system. There is no explicit mention of creators, influencers, or tools specifically for influencer marketing campaigns."
+synthesio.com,,NOT_A_MATCH,0.4,"Synthesio offers an AI-enabled consumer intelligence solution for social listening and trend analysis, which is not directly involved in working with social media creators or enabling commerce through social channels."
+thecreatorspov.com,,NOT_A_MATCH,0.3,"The website offers articles and insights on building creator programs and communities, functioning as a content hub or consultancy rather than a platform, agency, or social commerce provider that would directly integrate creator data."
+outsider.xyz,,NOT_A_MATCH,0.3,"Outsider is an investment club and advisory firm that funds companies in the creator economy and AI tools space. Their core business is investment and advisory, not directly operating a platform or agency that would utilize OnSocial's API."
+cepta.io,,NOT_A_MATCH,0.1,"The website content is extremely minimal, consisting only of a title and generic navigation text. It provides no description of the company's business or services, making classification impossible."
