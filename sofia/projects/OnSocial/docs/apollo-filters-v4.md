@@ -190,16 +190,23 @@ crypto exchange, blockchain wallet
 **Location:**
 
 ```
-United States, Canada,
-United Kingdom, Germany, France, Netherlands, Spain, Italy, Belgium,
-Switzerland, Austria, Denmark, Sweden, Norway, Finland, Ireland, Portugal, Luxembourg,
-Poland, Czech Republic, Romania, Hungary, Ukraine, Serbia, Croatia, Bulgaria, Greece,
-Slovakia, Slovenia, Estonia, Latvia, Lithuania,
-Israel, United Arab Emirates, Turkey, Saudi Arabia, Egypt,
-India, Singapore, Australia, New Zealand, Japan, South Korea,
-Indonesia, Malaysia, Philippines, Thailand, Hong Kong, Taiwan,
-Brazil, Mexico, Argentina, Colombia, Chile,
-South Africa, Nigeria, Kenya
+
+Account Location
+
+11
+Company Locations:
+United States
+Europe
+Germany
+India
+United Kingdom
+France
+Canada
+barzil
+North America
+EMEA
+Australia
+
 ```
 
 ### People filters
@@ -442,6 +449,65 @@ Affiliate Manager, Partner Manager
 
 ---
 
+## Tech Leaders — People Filter (cross-segment persona)
+
+Alternative people filter for tech decision-maker targeting across all segments. Use instead of segment-specific people filters when the goal is engineering/product/data leadership.
+
+### Job Titles
+
+```
+CTO, Chief Technology Officer, Chief Technical Officer,
+CIO, Chief Information Officer,
+CPO, Chief Product Officer,
+CDO, Chief Data Officer, Chief Digital Officer,
+VP Engineering, VP of Engineering, VP Technology, VP of Technology,
+VP Product, VP of Product,
+VP Data, VP of Data, VP Analytics, VP of Analytics,
+VP Platform, VP of Platform,
+SVP Engineering, SVP Product, SVP Technology,
+Head of Engineering, Head of Technology, Head of Tech,
+Head of Product, Head of Data, Head of Analytics,
+Head of Platform, Head of Integrations, Head of Innovation,
+Head of Development, Head of Digital,
+Director of Engineering, Director of Technology,
+Director of Product, Director of Data, Director of Analytics,
+Director of Platform, Director of Development,
+Technical Director, Technology Director,
+Engineering Manager, Senior Engineering Manager,
+Lead Engineer, Principal Engineer, Staff Engineer,
+Tech Lead, Technical Lead, Engineering Lead,
+Product Lead, Data Lead,
+Solutions Architect, Principal Architect, Chief Architect,
+Platform Lead, Integration Lead, Integrations Lead,
+Head of Martech, Director of Martech, Martech Lead,
+Co-Founder CTO, Founding Engineer, Technical Co-Founder
+```
+
+### Management Level
+
+```
+c_suite, vp, director, head, partner, founder
+```
+
+### Excluded Titles
+
+```
+Intern, Junior, Assistant, Student, Freelance,
+IT Support, IT Manager, IT Administrator, Desktop Support,
+Systems Administrator, Network Administrator,
+Help Desk, Helpdesk,
+Marketing Technology Manager, MarTech Manager,
+Content Creator, Designer, UX Designer, UI Designer,
+QA Engineer, Junior Engineer, Software Tester,
+HR, People, Recruiter, Finance, Accounting,
+Social Media Manager, Community Manager,
+Campaign Manager, Campaign Coordinator,
+Account Manager, Account Executive, Sales,
+Office Manager, Executive Assistant
+```
+
+---
+
 ## Cross-segment exclusions
 
 Same as v3 — apply competitor blacklist, negative responder blacklist, and active pipeline blacklist from apollo-filters-v3.md to ALL segments.
@@ -451,13 +517,13 @@ Same as v3 — apply competitor blacklist, negative responder blacklist, and act
 ## Volume estimates (v4 Apr 10 vs v4 Mar 31)
 
 
-| Segment               | v4 Mar 31 est.  | v4 Apr 10 est.  | Delta                                                      |
-| --------------------- | --------------- | --------------- | ---------------------------------------------------------- |
-| INFLUENCER_PLATFORMS  | 3,000-5,000     | 3,500-6,000     | +15-20% (new API/data/ambassador keywords)                 |
-| AFFILIATE_PERFORMANCE | 800-1,500       | 1,000-2,000     | +25% (min 10 empl, SaaS/tech/content commerce keywords)    |
-| IM_FIRST_AGENCIES     | 1,500-3,000     | 2,000-4,000     | +30% (min 5 empl, KOL/digital influence keywords, fewer exclusions) |
-| SOCIAL_COMMERCE       | ~500-1,000      | 1,500-3,000     | +3x (ALL GEO removed, min 10 empl, new keywords)           |
-| **Total**             | **5,800-10,500** | **8,000-15,000** | **~40-50% expansion**                                     |
+| Segment               | v4 Mar 31 est.   | v4 Apr 10 est.   | Delta                                                               |
+| --------------------- | ---------------- | ---------------- | ------------------------------------------------------------------- |
+| INFLUENCER_PLATFORMS  | 3,000-5,000      | 3,500-6,000      | +15-20% (new API/data/ambassador keywords)                          |
+| AFFILIATE_PERFORMANCE | 800-1,500        | 1,000-2,000      | +25% (min 10 empl, SaaS/tech/content commerce keywords)             |
+| IM_FIRST_AGENCIES     | 1,500-3,000      | 2,000-4,000      | +30% (min 5 empl, KOL/digital influence keywords, fewer exclusions) |
+| SOCIAL_COMMERCE       | ~500-1,000       | 1,500-3,000      | +3x (ALL GEO removed, min 10 empl, new keywords)                    |
+| **Total**             | **5,800-10,500** | **8,000-15,000** | **~40-50% expansion**                                               |
 
 
 > SOCCOM geo removal is the single biggest unlock. Net-new after dedup vs existing pipeline: estimate 50-60% are genuinely new contacts.
