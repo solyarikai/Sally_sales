@@ -70,18 +70,15 @@ function writeCSV(rows, filePath) {
 
 // ── Apollo login ──────────────────────────────────────────────────────────────
 async function ensureLoggedIn(page) {
-  await page.goto('https://app.apollo.io/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto('https://app.apollo.io/#/people', { waitUntil: 'networkidle2', timeout: 30000 });
   await sleep(2000);
 
-  if (page.url().includes('app.apollo.io') && !page.url().includes('login')) {
+  if (!page.url().includes('login')) {
     console.log(`[${ts()}] Already logged in`);
     return;
   }
 
   console.log(`[${ts()}] Logging in...`);
-  await page.goto('https://app.apollo.io/#/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await sleep(2000);
-
   await page.waitForSelector('input[name="email"]', { timeout: 15000 });
   await page.type('input[name="email"]', APOLLO_EMAIL, { delay: 40 });
   await sleep(300);
@@ -89,6 +86,9 @@ async function ensureLoggedIn(page) {
   await sleep(300);
   await page.keyboard.press('Enter');
   await sleep(5000);
+
+  await page.goto('https://app.apollo.io/#/people', { waitUntil: 'networkidle2', timeout: 30000 });
+  await sleep(2000);
 
   const cookies = await page.cookies();
   fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
