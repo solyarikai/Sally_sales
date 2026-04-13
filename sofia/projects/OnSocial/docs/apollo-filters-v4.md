@@ -159,7 +159,7 @@ banking, credit union, lending platform,
 crypto exchange, blockchain wallet
 ```
 
-**# Employees:** 10-5,000
+**# Employees:** 10-10,000
 
 **Location:**
 
