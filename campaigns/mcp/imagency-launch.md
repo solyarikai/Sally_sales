@@ -61,8 +61,7 @@ Global (all countries — Apollo CSV had strongest signal in US, UK, DE, IN, BR,
 
 ## Email Accounts
 
-Use accounts tagged "rinat" in SmartLead (all ~138 of them).
-If unclear which set — ask Yarik before proceeding.
+all OnSocial mailboxes
 
 ## Sequences
 
