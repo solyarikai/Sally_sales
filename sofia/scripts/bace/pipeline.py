@@ -211,13 +211,13 @@ def _extract_linkedin_nickname(url: str) -> str:
 
 def _checkpoint(message: str) -> bool:
     print(f"\n  ★ {message}")
+    if _AUTO_APPROVE:
+        print("  Auto-approve — продолжаю.")
+        return True
     if sys.stdin.isatty():
         print("  [Enter] продолжить, [s] пропустить, [Ctrl+C] отмена.")
         resp = input("  > ").strip().lower()
         return resp != "s"
-    elif _AUTO_APPROVE:
-        print("  Auto-approve — продолжаю.")
-        return True
     else:
         print("  ПАУЗА. Проверь результат выше, потом возобнови с --from-step.")
         sys.exit(0)
