@@ -269,39 +269,7 @@ South Africa, Nigeria, Kenya
 
 ### People filters
 
-**Job Titles**
-
-```
-CEO, Founder, Co-Founder, Managing Director, Managing Partner,
-Head of Influencer Marketing, Director of Influencer,
-Head of Influencer, VP Strategy, Head of Partnerships,
-Director of Client Services, Head of Strategy,
-General Manager, Partner, Owner,
-Senior Partner, Senior Managing Director,
-Head of Creator Partnerships, Director of Creator,
-Head of Talent, Director of Talent,
-Head of Growth, Director of Business Development,
-Head of Operations, Director of Operations
-```
-
-**Management Level:** c_suite, vp, director, owner, head, partner, founder
-
-**Excluded Titles**
-
-```
-Intern, Junior, Assistant, Student, Freelance,
-Campaign Manager, Campaign Coordinator,
-Social Media Manager, Content Creator, Designer,
-Account Coordinator, Media Planner, Media Buyer,
-PR Manager, Communications Manager,
-HR, People, Recruiter, Finance, Accounting,
-Executive Assistant, Office Manager, Operations Coordinator,
-Community Manager, Senior Community Manager,
-Influencer Coordinator, Senior Influencer Coordinator,
-Talent Coordinator, Senior Talent Coordinator
-```
-
-> Added: senior versions of all execution roles, plus Influencer/Talent Coordinator (junior roles at agencies that slip through with "senior" management level).
+→ See **Tech Leaders — People Filter (cross-segment persona)** below.
 
 ---
 
