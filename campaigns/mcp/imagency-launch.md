@@ -43,12 +43,50 @@ Global (all countries — Apollo CSV had strongest signal in US, UK, DE, IN, BR,
 
 ## Target Roles (decision makers)
 
-- CEO, Founder, Co-founder, Managing Director
-- Head of Influencer / Head of Creator / Head of Talent
-- VP Client Services / Director of Client Services
+From apollo-filters-v4.md (unified for all OnSocial segments):
+
+**C-suite & Founders**
+- CEO, Co-Founder, Founder, COO, CTO, CPO, CDO, CMO
+- Managing Director, Managing Partner, General Manager
+- Technical Co-Founder, Founding Engineer
+
+**VP level**
+- VP Engineering, VP Product, VP Data, VP Analytics
+- VP Platform, VP Partnerships, VP Growth, VP Marketing, VP Technology
+
+**Head of**
+- Head of Engineering, Head of Technology, Head of Product
+- Head of Data, Head of Analytics, Head of Platform
+- Head of Integrations, Head of Digital, Head of Martech
+- Head of Partnerships, Head of Growth
+
+**Director of**
+- Director of Engineering, Director of Technology, Director of Product
+- Director of Data, Director of Analytics
+- Director of Partnerships, Director of Growth, Director of Martech
+
+**Specialty**
+- Technical Director, Chief Architect
+
+**Agency-specific additions** (IMAGENCY only)
+- Head of Influencer Marketing
 - Head of Strategy
-- Account Director
-- Head of Growth
+
+## Excluded Titles
+
+- Junior, Intern, Assistant, Student, Freelance
+- IT Support, IT Manager, Systems Administrator, Help Desk
+- HR, People, Recruiter, Finance, Accounting
+- Social Media Manager, Community Manager, Content Creator
+- Campaign Manager, Campaign Coordinator, Designer
+- Account Manager, Account Executive, Sales
+- Marketing Technology Manager, MarTech Manager
+- QA Engineer, Software Tester
+- Office Manager, Executive Assistant
+
+## Management Level
+
+c_suite, vp, director, head, partner, founder
 
 ## Campaign Settings
 
