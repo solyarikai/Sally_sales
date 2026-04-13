@@ -39,7 +39,12 @@ Primary: `IMAGENCY` (IM-First Agencies)
 
 ## Geo
 
-Global (all countries — Apollo CSV had strongest signal in US, UK, DE, IN, BR, FR, ES, UAE, AU, IT, TR, NL)
+Top 15 countries by volume in Apollo CSV:
+- US (2.6k), IN (1.6k), UK (0.9k), DE (0.5k)
+- CA, BR, FR, ES, AE, AU, IT, TR, NL (150-300 each)
+- PL, MX (<200)
+
+Include all of the above. No additional geo filter — use whatever is in the CSV.
 
 ## Target Roles
 
