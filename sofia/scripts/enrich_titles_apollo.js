@@ -127,18 +127,36 @@ async function searchDomains(page, domains, pageNum) {
   const leads = readLeads();
   console.log(`[${ts()}] Loaded ${leads.length} leads`);
 
-  // Index by email, group by domain
-  const emailIndex = {};
-  const domainMap  = {};
+  // Index by email (primary), linkedin url (secondary), name+domain (fallback)
+  const emailIndex    = {};  // email → lead
+  const linkedinIndex = {};  // normalized linkedin url → lead
+  const nameIndex     = {};  // "firstname lastname @domain" → lead
+  const domainMap     = {};  // domain → [emails]
+
+  const normLinkedin = (url) => {
+    if (!url) return '';
+    return url.toLowerCase()
+      .replace(/^https?:\/\/(www\.)?/, '')
+      .replace(/\/+$/, '')
+      .trim();
+  };
+
   for (const lead of leads) {
     const email = (lead.email || '').toLowerCase().trim();
     if (!email) continue;
     emailIndex[email] = lead;
+
     const domain = email.split('@')[1];
     if (domain) {
       domainMap[domain] = domainMap[domain] || [];
       domainMap[domain].push(email);
     }
+
+    const li = normLinkedin(lead.linkedin_url || lead.linkedin_profile || '');
+    if (li) linkedinIndex[li] = lead;
+
+    const nameKey = `${(lead.first_name||'').toLowerCase()} ${(lead.last_name||'').toLowerCase()} @${domain}`;
+    nameIndex[nameKey] = lead;
   }
 
   const domains = Object.keys(domainMap);
