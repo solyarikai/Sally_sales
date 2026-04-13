@@ -97,8 +97,8 @@ async function ensureLoggedIn(page) {
 }
 
 // ── Apollo internal API search ────────────────────────────────────────────────
-async function searchByDomains(page, domains) {
-  const results = await page.evaluate(async (domainList) => {
+async function searchByDomains(page, domains, pageNum = 1) {
+  const results = await page.evaluate(async (searchParams) => {
     try {
       const csrfMeta = document.querySelector('meta[name="csrf-token"]');
       const csrfToken = csrfMeta ? csrfMeta.content : '';
@@ -106,18 +106,21 @@ async function searchByDomains(page, domains) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Csrf-Token': csrfToken },
         credentials: 'include',
-        body: JSON.stringify({
-          organization_domains: domainList,
-          page: 1,
-          per_page: 100,
-        }),
+        body: JSON.stringify(searchParams),
       });
-      if (!res.ok) return { error: `HTTP ${res.status}` };
+      if (!res.ok) return { error: `HTTP ${res.status}`, status: res.status };
       return await res.json();
     } catch (e) {
       return { error: e.message };
     }
-  }, domains);
+  }, {
+    q_organization_domains_list: domains,
+    page: pageNum,
+    per_page: 100,
+    display_mode: 'explorer_mode',
+    context: 'people-index-page',
+    finder_version: 2,
+  });
   return results;
 }
 
