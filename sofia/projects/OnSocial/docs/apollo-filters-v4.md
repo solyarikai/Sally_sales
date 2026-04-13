@@ -185,35 +185,7 @@ Australia
 
 ### People filters
 
-**Job Titles**
-
-```
-CTO, VP Engineering, VP of Engineering, VP Product,
-Head of Product, Chief Product Officer, Head of Engineering,
-Director of Engineering, Director of Product,
-VP Partnerships, Head of Partnerships, Director of Partnerships,
-Co-Founder, Founder, CEO, COO,
-Senior Director of Engineering, Senior Director of Product,
-Senior Director of Partnerships, Senior VP Partnerships,
-Head of Data, VP Data, Chief Data Officer,
-Head of Platform, VP Platform,
-Head of Growth, VP Growth, Director of Growth
-```
-
-**Management Level:** c_suite, vp, director, owner, head, partner, founder
-
-**Excluded Titles**
-
-```
-Intern, Junior, Assistant, Student, Freelance,
-Marketing Manager, Sales Representative, Account Executive,
-Account Manager, Customer Success, Support, HR, People,
-Recruiter, Content Writer, Designer, Social Media Manager,
-Affiliate Manager, Partner Manager, Solutions Architect, Technical Architect, Enterprise Architect,
-Staff Engineer, Principal Engineer, Lead Engineer, Lead Developer
-```
-
-> Same expanded IC exclusions plus segment-specific: Senior Affiliate Manager, Senior Partner Manager (execution roles, not product/API decision-makers).
+→ See **Tech Leaders — People Filter (cross-segment persona)** below.
 
 ---
 
