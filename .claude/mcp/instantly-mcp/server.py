@@ -299,3 +299,7 @@ def send_spam_report(test_id: str = None, slack_webhook: str = None) -> str:
         return f"Report sent to Slack. Status: {len(bad)} problematic / {len(good)} healthy ({total} total)."
     else:
         return f"Failed to send to Slack: {resp.status_code} {resp.text}"
+
+
+if __name__ == "__main__":
+    mcp.run()
