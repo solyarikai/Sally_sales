@@ -103,13 +103,25 @@ def norm(s: str) -> str:
     return re.sub(r"[^a-z0-9 ]+", " ", (s or "").lower()).strip()
 
 
+# Hard excludes that override include matches (e.g. "Chief Performance Officer" matches CPO)
+TITLE_HARD_EXCLUDES = ["chief performance officer"]
+
+
 def title_matches(title: str, patterns: list[str]) -> bool:
-    t = norm(title)
+    t_lower = norm(title)
+    # Reject hard excludes
+    for he in TITLE_HARD_EXCLUDES:
+        if he in t_lower:
+            return False
     for p in patterns:
-        np = norm(p)
-        # word-boundary contains: ensure the pattern appears as whole token sequence
-        if re.search(rf"(^|\b){re.escape(np)}(\b|$)", t):
-            return True
+        # Short acronyms (<=4 chars, all-caps): require uppercase match in original
+        if len(p) <= 4 and p.isupper():
+            if re.search(rf"(^|[^A-Za-z0-9]){re.escape(p)}([^A-Za-z0-9]|$)", title):
+                return True
+        else:
+            np = norm(p)
+            if re.search(rf"(^|\b){re.escape(np)}(\b|$)", t_lower):
+                return True
     return False
 
 
