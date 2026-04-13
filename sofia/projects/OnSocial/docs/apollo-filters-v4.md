@@ -12,7 +12,7 @@
 
 | Parameter        | v3                       | v4                                                                                |
 | ---------------- | ------------------------ | --------------------------------------------------------------------------------- |
-| Location         | 10-12 priority countries | **ALL GEO** (no location filter)                                                  |
+| Location         | 10-12 priority countries | **ALL GEO** (~55 countries, explicit list per segment)                            |
 | Management Level | varied per segment       | **Unified: c_suite, vp, director, owner, head, partner, founder**                 |
 | Excluded Titles  | basic list               | **Expanded** — covers senior ICs that slip through with "senior" management level |
 | Company Keywords | original set             | **Reworked** — adjacent keywords to catch companies v3 missed                     |
