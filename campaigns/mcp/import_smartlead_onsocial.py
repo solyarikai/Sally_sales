@@ -12,8 +12,8 @@ Run ON HETZNER (needs docker exec mcp-postgres + network to SmartLead).
 import os
 import subprocess
 import sys
-from urllib.request import Request, urlopen
 import json
+from urllib.request import Request, urlopen
 
 
 SMARTLEAD_KEY = os.environ.get("SMARTLEAD_API_KEY") or ""
