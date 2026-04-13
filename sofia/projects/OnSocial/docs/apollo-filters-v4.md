@@ -312,7 +312,7 @@ video streaming platform, live streaming entertainment,
 gaming streaming, sports streaming
 ```
 
-**# Employees:** 10–5,000
+**# Employees:** 10-10,000
 
 **Location:**
 
