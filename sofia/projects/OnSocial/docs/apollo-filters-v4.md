@@ -338,28 +338,7 @@ South Africa, Nigeria, Kenya
 
 ### People filters
 
-**Job Titles**
-
-```
-CTO, VP Engineering, VP of Engineering, Head of Engineering,
-VP Product, Head of Product, Chief Product Officer,
-Director of Engineering, Director of Product,
-Head of Marketplace, VP Commerce, Director of Marketplace,
-Head of Partnerships, VP Partnerships,
-Co-Founder, Founder, CEO, COO
-```
-
-**Management Level:** c_suite, vp, director, owner, head, partner, founder
-
-**Excluded Titles**
-
-```
-Intern, Junior, Assistant, Student, Freelance,
-Marketing Manager, Sales Representative, Account Executive,
-Account Manager, Customer Success, Support, HR, Recruiter,
-Content Writer, Designer, Social Media Manager,
-Affiliate Manager, Partner Manager
-```
+→ See **Tech Leaders — People Filter (cross-segment persona)** below.
 
 ---
 
