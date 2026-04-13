@@ -1,116 +1,91 @@
 /**
  * Enrich job titles for leads without titles via Apollo internal API.
  *
- * Strategy:
- *   1. Read CSV with leads (no job title)
- *   2. Group leads by email domain
- *   3. For each domain batch, search Apollo people (no title filter, broad seniority)
- *   4. Match results back by email → fill job_title
- *   5. Export enriched CSV
- *
  * Usage:
- *   node enrich_titles_apollo.js --input data/imsaas_no_title.csv --output data/imsaas_enriched_titles.csv
- *   node enrich_titles_apollo.js --input data/imsaas_no_title.csv --output data/imsaas_enriched_titles.csv --headless
+ *   node enrich_titles_apollo.js
+ *   node enrich_titles_apollo.js --batch-size 5 --delay 1500
  */
 
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
 const path = require('path');
+const csv = require('csv-parse/sync');
 
 puppeteer.use(StealthPlugin());
 
 const APOLLO_EMAIL = 'danila@getsally.io';
-const APOLLO_PASS = 'UQdzDShCjAi5Nil!!';
+const APOLLO_PASS  = 'UQdzDShCjAi5Nil!!';
 const SESSION_FILE = path.join(__dirname, 'data', 'apollo_session.json');
 
+const INPUT_CSV  = path.join(__dirname, 'data', 'imsaas_no_title.csv');
+const OUTPUT_CSV = path.join(__dirname, 'data', 'imsaas_enriched_titles.csv');
+
+const args       = process.argv.slice(2);
+const getArg     = (f) => { const i = args.indexOf(f); return i >= 0 && args[i+1] ? args[i+1] : null; };
+const BATCH_SIZE = parseInt(getArg('--batch-size') || '10');
+const DELAY_MS   = parseInt(getArg('--delay')      || '1500');
+const MAX_PAGES  = 3;
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-function ts() { return new Date().toISOString().replace('T', ' ').substring(0, 19); }
+function ts()      { return new Date().toISOString().replace('T',' ').slice(0,19); }
 
-// ── Args ──────────────────────────────────────────────────────────────────────
-const args = process.argv.slice(2);
-const get = (flag) => { const i = args.indexOf(flag); return i >= 0 && args[i+1] ? args[i+1] : null; };
-const HEADLESS = args.includes('--headless');
-const INPUT_CSV = get('--input') || path.join(__dirname, 'data', 'imsaas_no_title.csv');
-const OUTPUT_CSV = get('--output') || path.join(__dirname, 'data', 'imsaas_enriched_titles.csv');
-const BATCH_SIZE = parseInt(get('--batch-size') || '10');
-const DELAY_MS = parseInt(get('--delay') || '1200');
-
-// ── CSV parse/write ──────────────────────────────────────────────────────────
-function parseCSV(content) {
-  const lines = content.trim().split('\n');
-  if (!lines.length) return [];
-  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
-  return lines.slice(1).map(line => {
-    // Handle quoted fields with commas
-    const values = [];
-    let cur = '', inQ = false;
-    for (const ch of line) {
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === ',' && !inQ) { values.push(cur.trim()); cur = ''; }
-      else { cur += ch; }
-    }
-    values.push(cur.trim());
-    const row = {};
-    headers.forEach((h, i) => { row[h] = (values[i] || '').replace(/^"|"$/g, ''); });
-    return row;
-  });
+// ── CSV ───────────────────────────────────────────────────────────────────────
+function readLeads() {
+  const content = fs.readFileSync(INPUT_CSV, 'utf-8');
+  return csv.parse(content, { columns: true, skip_empty_lines: true, trim: true });
 }
 
-function writeCSV(rows, filePath) {
+function writeCSV(rows) {
   if (!rows.length) return;
   const headers = Object.keys(rows[0]);
-  const escape = (v) => `"${String(v || '').replace(/"/g, '""')}"`;
-  const lines = [headers.join(',')];
-  for (const r of rows) {
-    lines.push(headers.map(h => escape(r[h])).join(','));
-  }
-  fs.writeFileSync(filePath, lines.join('\n'), 'utf-8');
+  const esc = v => `"${String(v||'').replace(/"/g,'""')}"`;
+  const lines = [headers.join(','), ...rows.map(r => headers.map(h => esc(r[h])).join(','))];
+  fs.writeFileSync(OUTPUT_CSV, lines.join('\n'), 'utf-8');
 }
 
 // ── Apollo login ──────────────────────────────────────────────────────────────
-async function ensureLoggedIn(page) {
+async function login(page) {
   await page.goto('https://app.apollo.io/#/people', { waitUntil: 'networkidle2', timeout: 30000 });
   await sleep(2000);
 
   if (!page.url().includes('login')) {
-    console.log(`[${ts()}] Already logged in`);
+    console.log(`[${ts()}] Session valid`);
     return;
   }
 
   console.log(`[${ts()}] Logging in...`);
   await page.waitForSelector('input[name="email"]', { timeout: 15000 });
-  await page.type('input[name="email"]', APOLLO_EMAIL, { delay: 40 });
+  await page.type('input[name="email"]', APOLLO_EMAIL, { delay: 50 });
   await sleep(300);
-  await page.type('input[name="password"]', APOLLO_PASS, { delay: 40 });
+  await page.type('input[name="password"]', APOLLO_PASS, { delay: 50 });
   await sleep(300);
   await page.keyboard.press('Enter');
-  await sleep(5000);
+  await sleep(6000);
 
   await page.goto('https://app.apollo.io/#/people', { waitUntil: 'networkidle2', timeout: 30000 });
   await sleep(2000);
 
   const cookies = await page.cookies();
-  fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
   fs.writeFileSync(SESSION_FILE, JSON.stringify(cookies, null, 2));
-  console.log(`[${ts()}] Logged in, session saved`);
+  console.log(`[${ts()}] Logged in OK`);
 }
 
-// ── Apollo internal API search ────────────────────────────────────────────────
-async function searchByDomains(page, domains, pageNum = 1) {
-  const results = await page.evaluate(async (searchParams) => {
+// ── API call ──────────────────────────────────────────────────────────────────
+async function searchDomains(page, domains, pageNum) {
+  return page.evaluate(async (payload) => {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     try {
-      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-      const csrfToken = csrfMeta ? csrfMeta.content : '';
       const res = await fetch('https://app.apollo.io/api/v1/mixed_people/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Csrf-Token': csrfToken },
+        headers: { 'Content-Type': 'application/json', 'X-Csrf-Token': csrf },
         credentials: 'include',
-        body: JSON.stringify(searchParams),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) return { error: `HTTP ${res.status}`, status: res.status };
-      return await res.json();
-    } catch (e) {
+      const text = await res.text();
+      if (!res.ok) return { error: `HTTP ${res.status}`, status: res.status, preview: text.slice(0,100) };
+      return JSON.parse(text);
+    } catch(e) {
       return { error: e.message };
     }
   }, {
@@ -121,139 +96,105 @@ async function searchByDomains(page, domains, pageNum = 1) {
     context: 'people-index-page',
     finder_version: 2,
   });
-  return results;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 (async () => {
-  console.log(`[${ts()}] Starting title enrichment`);
-  console.log(`[${ts()}] Input:  ${INPUT_CSV}`);
-  console.log(`[${ts()}] Output: ${OUTPUT_CSV}`);
+  console.log(`[${ts()}] Enrich titles via Apollo`);
 
-  // Read input
-  const content = fs.readFileSync(INPUT_CSV, 'utf-8');
-  const leads = parseCSV(content);
+  const leads = readLeads();
   console.log(`[${ts()}] Loaded ${leads.length} leads`);
 
-  // Build email → lead index, domain → emails map
+  // Index by email, group by domain
   const emailIndex = {};
-  const domainLeads = {};
+  const domainMap  = {};
   for (const lead of leads) {
-    const email = lead.email?.toLowerCase().trim();
+    const email = (lead.email || '').toLowerCase().trim();
     if (!email) continue;
     emailIndex[email] = lead;
     const domain = email.split('@')[1];
     if (domain) {
-      if (!domainLeads[domain]) domainLeads[domain] = [];
-      domainLeads[domain].push(email);
+      domainMap[domain] = domainMap[domain] || [];
+      domainMap[domain].push(email);
     }
   }
 
-  const uniqueDomains = Object.keys(domainLeads);
-  console.log(`[${ts()}] Unique domains: ${uniqueDomains.length}`);
-  console.log(`[${ts()}] Batch size: ${BATCH_SIZE} domains/request`);
-  console.log(`[${ts()}] Total batches: ${Math.ceil(uniqueDomains.length / BATCH_SIZE)}`);
+  const domains = Object.keys(domainMap);
+  const totalBatches = Math.ceil(domains.length / BATCH_SIZE);
+  console.log(`[${ts()}] Domains: ${domains.length}, Batches: ${totalBatches}`);
 
   // Launch browser
   const browser = await puppeteer.launch({
-    headless: HEADLESS,
+    headless: true,
     executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-           '--disable-gpu', '--disable-blink-features=AutomationControlled'],
-    defaultViewport: { width: 1440, height: 900 },
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
   });
   const page = await browser.newPage();
-  await page.setViewport({ width: 1440, height: 900 });
+  await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
 
-  // Load session
+  // Load cookies
   if (fs.existsSync(SESSION_FILE)) {
     try {
       const cookies = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
       await page.setCookie(...cookies);
-      console.log(`[${ts()}] Loaded saved cookies`);
-    } catch (e) {}
+    } catch(e) {}
   }
 
-  await ensureLoggedIn(page);
+  await login(page);
 
-  // Process domains in batches
-  const titleMap = {}; // email → title
-  let matched = 0, batchNum = 0, totalBatches = Math.ceil(uniqueDomains.length / BATCH_SIZE);
+  const titleMap = {};
+  let matched = 0;
 
-  const MAX_PAGES = 3;
+  for (let i = 0; i < domains.length; i += BATCH_SIZE) {
+    const batch   = domains.slice(i, i + BATCH_SIZE);
+    const batchNo = Math.floor(i / BATCH_SIZE) + 1;
 
-  for (let i = 0; i < uniqueDomains.length; i += BATCH_SIZE) {
-    const batch = uniqueDomains.slice(i, i + BATCH_SIZE);
-    batchNum++;
-    let batchMatched = 0;
+    for (let p = 1; p <= MAX_PAGES; p++) {
+      process.stdout.write(`[${ts()}] [${batchNo}/${totalBatches}] p${p} `);
 
-    for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
-      process.stdout.write(`[${ts()}] Batch ${batchNum}/${totalBatches} p${pageNum} `);
+      const data = await searchDomains(page, batch, p);
 
-      try {
-        const data = await searchByDomains(page, batch, pageNum);
-
-        if (data.error) {
-          console.log(`ERROR: ${data.error}`);
-          if (data.status === 401 || data.status === 403) {
-            await ensureLoggedIn(page);
-          }
-          await sleep(3000);
-          break;
+      if (data.error) {
+        console.log(`ERR: ${data.error}`);
+        // If session expired, re-login
+        if (data.status === 401 || data.status === 403) {
+          await login(page);
         }
-
-        const people = data.people || [];
-        let pageMatched = 0;
-
-        for (const p of people) {
-          const pEmail = (p.email || '').toLowerCase().trim();
-          if (pEmail && emailIndex[pEmail] && !titleMap[pEmail]) {
-            if (p.title) {
-              titleMap[pEmail] = p.title;
-              pageMatched++;
-              batchMatched++;
-              matched++;
-            }
-          }
-        }
-
-        console.log(`→ ${people.length} people, ${pageMatched} matched`);
-
-        // No more pages if less than per_page results
-        if (people.length < 100) break;
-
-      } catch (e) {
-        console.log(`ERROR: ${e.message}`);
+        await sleep(3000);
         break;
       }
 
-      await sleep(DELAY_MS);
-    }
+      const people = data.people || [];
+      let hit = 0;
+      for (const person of people) {
+        const em = (person.email || '').toLowerCase().trim();
+        if (em && emailIndex[em] && !titleMap[em] && person.title) {
+          titleMap[em] = person.title;
+          hit++;
+          matched++;
+        }
+      }
+      console.log(`${people.length} results, ${hit} new titles (total: ${matched})`);
 
-    if (batchNum % 10 === 0) {
-      console.log(`[${ts()}] Progress: ${matched} titles found so far`);
+      if (people.length < 50) break; // last page
+      await sleep(DELAY_MS);
     }
 
     await sleep(DELAY_MS);
   }
 
   await browser.close();
+  console.log(`\n[${ts()}] Done. Matched ${matched} / ${leads.length}`);
 
-  console.log(`\n[${ts()}] Total matched: ${matched} / ${leads.length}`);
+  // Write output
+  const output = leads.map(lead => ({
+    ...lead,
+    enriched_title: titleMap[(lead.email||'').toLowerCase().trim()] || '',
+  }));
+  writeCSV(output);
 
-  // Write output — original leads with enriched title added
-  const output = leads.map(lead => {
-    const email = lead.email?.toLowerCase().trim();
-    const title = titleMap[email] || '';
-    return { ...lead, enriched_title: title };
-  });
-
-  fs.mkdirSync(path.dirname(OUTPUT_CSV), { recursive: true });
-  writeCSV(output, OUTPUT_CSV);
+  const enriched   = output.filter(r => r.enriched_title).length;
+  const still_empty = leads.length - enriched;
+  console.log(`[${ts()}] Enriched: ${enriched} | Still empty: ${still_empty}`);
   console.log(`[${ts()}] Saved → ${OUTPUT_CSV}`);
-
-  // Stats
-  const enriched = output.filter(r => r.enriched_title).length;
-  const still_empty = output.filter(r => !r.enriched_title).length;
-  console.log(`[${ts()}] Enriched: ${enriched}, Still no title: ${still_empty}`);
 })();
