@@ -77,7 +77,7 @@ IT infrastructure, cloud hosting, data center,
 ERP, payroll, HRIS, applicant tracking
 ```
 
-**# Employees:** 5-5,000
+**# Employees:** 10-10,000
 
 **Location:**
 
@@ -96,7 +96,7 @@ South Africa, Nigeria, Kenya
 
 ### People filters
 
-→ See **Tech Leaders — People Filter (cross-segment persona)** below.
+## Universal People Filter (cross-segment)
 
 ---
 
@@ -164,13 +164,21 @@ crypto exchange, blockchain wallet
 **Location:**
 
 ```
-
-
+United States, Canada,
+United Kingdom, Germany, France, Netherlands, Spain, Italy, Belgium,
+Switzerland, Austria, Denmark, Sweden, Norway, Finland, Ireland, Portugal, Luxembourg,
+Poland, Czech Republic, Romania, Hungary, Ukraine, Serbia, Croatia, Bulgaria, Greece,
+Slovakia, Slovenia, Estonia, Latvia, Lithuania,
+Israel, United Arab Emirates, Turkey, Saudi Arabia, Egypt,
+India, Singapore, Australia, New Zealand, Japan, South Korea,
+Indonesia, Malaysia, Philippines, Thailand, Hong Kong, Taiwan,
+Brazil, Mexico, Argentina, Colombia, Chile,
+South Africa, Nigeria, Kenya
 ```
 
 ### People filters
 
-→ See **Tech Leaders — People Filter (cross-segment persona)** below.
+## Universal People Filter (cross-segment)
 
 ---
 
@@ -254,7 +262,7 @@ South Africa, Nigeria, Kenya
 
 ### People filters
 
-→ See **Tech Leaders — People Filter (cross-segment persona)** below.
+## Universal People Filter (cross-segment)
 
 ---
 
@@ -323,7 +331,7 @@ South Africa, Nigeria, Kenya
 
 ### People filters
 
-→ See **Tech Leaders — People Filter (cross-segment persona)** below.
+## Universal People Filter (cross-segment)
 
 ---
 
