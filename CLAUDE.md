@@ -26,14 +26,16 @@ Key scripts: `onsocial_universal_pipeline.py` (orchestrator), `onsocial_apollo_p
 
 ## ICP Segments
 
-| Code | Full Name | Target Profile |
-|------|-----------|---------------|
-| `INFPLAT` | Influencer Platforms | SaaS platforms for creator data/analytics (10-10K employees) |
-| `IMAGENCY` | IM-First Agencies | Agencies with dedicated influencer practice (10-10K employees) |
-| `AFFPERF` | Affiliate Performance | Affiliate platforms bundling creator data |
-| `SOCCOM` | Social Commerce | Marketplace + live shopping platforms (LTK, ShopMy, Bazaarvoice) |
 
-Filter definitions: `sofia/projects/OnSocial/docs/apollo-filters-v4.md`
+| Code       | Full Name             | Target Profile                                                   |
+| ---------- | --------------------- | ---------------------------------------------------------------- |
+| `INFPLAT`  | Influencer Platforms  | SaaS platforms for creator data/analytics                        |
+| `IMAGENCY` | IM-First Agencies     | Agencies with dedicated influencer practice                      |
+| `AFFPERF`  | Affiliate Performance | Affiliate platforms bundling creator data                        |
+| `SOCCOM`   | Social Commerce       | Marketplace + live shopping platforms (LTK, ShopMy, Bazaarvoice) |
+
+
+Filter definitions: `sofia/projects/OnSocial/docs/apollo-filters-v5.md` (v4 — archived)
 Segment docs: `sofia/projects/OnSocial/docs/segment-*.md`
 
 ## Execution Environment — Hetzner
@@ -66,17 +68,19 @@ Contacts without email from Findymail -> auto-export to GetSales-ready CSV in `s
 
 ## Project Structure
 
-| Directory | What |
-|-----------|------|
-| `magnum-opus/` | Backend (FastAPI + SQLAlchemy), gathering pipeline, API — **GIT SUBMODULE** |
-| `sofia/` | Sales ops: scripts, sequences, research, projects |
-| `sofia/projects/OnSocial/` | OnSocial-specific sequences, docs, segments |
-| `sofia/smartlead-hub/` | SmartLead campaigns, sequences, lead data |
-| `tam-guide/` | Training/onboarding materials (HTML lessons) |
-| `scripts/` | Shared utility scripts |
-| `.claude/mcp/` | MCP servers (apollo, crona, google-sheets, smartlead, findymail, getsales, transkriptor) |
-| `.claude/skills/` | Shared Claude Code skills |
-| `.claude/rules/` | Path-scoped rules (sheets naming, SmartLead formatting) |
+
+| Directory                  | What                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------- |
+| `magnum-opus/`             | Backend (FastAPI + SQLAlchemy), gathering pipeline, API — **GIT SUBMODULE**              |
+| `sofia/`                   | Sales ops: scripts, sequences, research, projects                                        |
+| `sofia/projects/OnSocial/` | OnSocial-specific sequences, docs, segments                                              |
+| `sofia/smartlead-hub/`     | SmartLead campaigns, sequences, lead data                                                |
+| `tam-guide/`               | Training/onboarding materials (HTML lessons)                                             |
+| `scripts/`                 | Shared utility scripts                                                                   |
+| `.claude/mcp/`             | MCP servers (apollo, crona, google-sheets, smartlead, findymail, getsales, transkriptor) |
+| `.claude/skills/`          | Shared Claude Code skills                                                                |
+| `.claude/rules/`           | Path-scoped rules (sheets naming, SmartLead formatting)                                  |
+
 
 ## Gotchas
 
@@ -87,14 +91,15 @@ Contacts without email from Findymail -> auto-export to GetSales-ready CSV in `s
 - **Apollo login** requires email verification from unknown IPs — use Hetzner IP directly, no Apify proxy
 - **Clay free plan** = 100 results/search, not unlimited (period resets monthly)
 - **Backend API `/analyze`** requires `prompt_text`, NOT `prompt_id`
-- **`/analyze` requires `current_phase = 'scraped'`** — backend returns 400 for any other phase. `/re-analyze` requires `current_phase = 'awaiting_targets_ok'`. Do NOT manually reset phases without understanding the state machine. See `.claude/rules/pipeline-phases.md`.
-- **`--apollo-csv` does NOT feed findymail/upload directly** — it loads contacts into Step 9 cache. For `--from-step upload` to work, contacts must be in `state/onsocial/enriched.json`. Write there directly if bypassing steps 9-10.
+- `**/analyze` requires `current_phase = 'scraped'**` — backend returns 400 for any other phase. `/re-analyze` requires `current_phase = 'awaiting_targets_ok'`. Do NOT manually reset phases without understanding the state machine. See `.claude/rules/pipeline-phases.md`.
+- `**--apollo-csv` does NOT feed findymail/upload directly** — it loads contacts into Step 9 cache. For `--from-step upload` to work, contacts must be in `state/onsocial/enriched.json`. Write there directly if bypassing steps 9-10.
 - **SmartLead campaign_id for upload** — pipeline reads from `state/onsocial/upload_log.json`. Pre-populate with `{"SEGMENT_NAME": {"campaign_id": 12345}}` before running `--from-step upload` to use an existing campaign.
 - **SmartLead leads count = 0 for DRAFTED campaigns** via local smartlead.py (checks `total_stats` which SmartLead omits). Verify via direct API from Hetzner: `curl localhost:... /campaigns/{id}/leads`.
 - **Hetzner uses `python3`** (= 3.12), NOT `python3.11`. Local machine uses `python3.11`.
-- **`postgres COPY TO '/tmp/...'`** writes inside the container, not on the host. Use `docker cp leadgen-postgres:/tmp/file.csv /tmp/file.csv` to extract.
+- `**postgres COPY TO '/tmp/...'**` writes inside the container, not on the host. Use `docker cp leadgen-postgres:/tmp/file.csv /tmp/file.csv` to extract.
 - **Classify prompts MUST NOT include output format instructions** — backend wraps every `custom_system_prompt` with "Respond ONLY with valid JSON `{is_target, confidence, segment, reasoning}`". If prompt also says "pipe format" or defines its own OUTPUT FORMAT, GPT gets conflicting instructions → parsing errors → `is_target=false`. Prompts should only describe WHAT to classify, not HOW to format the answer.
 - **Classification accuracy gate**: if < 90%, must re-tune prompt before proceeding (Step 7)
 - **SmartLead gotchas**: see `.claude/rules/smartlead-formatting.md`
 - **Pipeline script edits**: always apply changes point-by-point to ALL copies (`sofia/scripts/`, `magnum-opus/scripts/`, Hetzner). Never overwrite the whole file — copies may have diverged with independent fixes.
 - **Findymail/SmartLead/blacklist — always via pipeline**, never custom scripts or MCP calls in a loop. Pipeline handles dedup, logging, state.
+
