@@ -684,6 +684,53 @@ def _checkpoint(message: str) -> bool:
 BATCH_SIZE = 500  # Max domains per gathering run (for scrape stability)
 
 
+def _filter_project_blacklist(domains: list[str], project_id: int) -> list[str]:
+    """Filter out domains already in project_blacklist before creating runs.
+    Hetzner-only: shells to `docker exec leadgen-postgres psql`. Returns
+    cleaned list. Backend's blacklist-check still runs as a safety net but
+    catches less since most rejects are eliminated here."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            [
+                "docker",
+                "exec",
+                "leadgen-postgres",
+                "psql",
+                "-U",
+                "leadgen",
+                "-d",
+                "leadgen",
+                "-t",
+                "-A",
+                "-c",
+                f"SELECT LOWER(domain) FROM project_blacklist WHERE project_id = {project_id};",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            print(
+                f"  Pre-blacklist skipped (psql error): {result.stderr.strip()[:120]}"
+            )
+            return domains
+        blacklisted = {ln.strip() for ln in result.stdout.splitlines() if ln.strip()}
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        print(f"  Pre-blacklist skipped ({type(e).__name__}): not on Hetzner?")
+        return domains
+
+    before = len(domains)
+    cleaned = [d for d in domains if d not in blacklisted]
+    removed = before - len(cleaned)
+    print(
+        f"  Pre-blacklist: {removed} removed (project_blacklist={len(blacklisted)}), "
+        f"{len(cleaned)} remain"
+    )
+    return cleaned
+
+
 def create_batched_runs(
     config: ProjectConfig, domains: list[str], mode: str, notes_prefix: str = ""
 ) -> list[int]:
