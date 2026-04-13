@@ -22,7 +22,13 @@ PREFIX = "c-OnSocial_"
 
 
 def http_get(url: str) -> dict | list:
-    req = Request(url, headers={"Accept": "application/json"})
+    req = Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (compatible; SallyScript/1.0)",
+        },
+    )
     with urlopen(req, timeout=60) as r:
         return json.loads(r.read().decode("utf-8"))
 
