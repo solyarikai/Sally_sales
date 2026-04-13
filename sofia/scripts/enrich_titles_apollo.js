@@ -197,7 +197,7 @@ async function searchDomains(page, domains, pageNum) {
       }
       console.log(`${people.length} results, ${hit} new titles (total: ${matched})`);
 
-      if (people.length < 50) break; // last page
+      if (people.length < 25) break; // last page
       await sleep(DELAY_MS);
     }
 
