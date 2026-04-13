@@ -111,6 +111,7 @@ async function searchDomains(page, domains, pageNum) {
     }
   }, {
     q_organization_domains_list: domains,
+    person_seniorities: ['c_suite', 'vp', 'director', 'manager', 'founder', 'owner', 'partner'],
     page: pageNum,
     per_page: 100,
     display_mode: 'explorer_mode',
