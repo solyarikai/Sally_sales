@@ -2,27 +2,7 @@
 
 Sales automation tooling for Sally — B2B outreach infrastructure for OnSocial (creator/influencer data API).
 
-## Pipeline Overview
-
-12-step leadgen pipeline (`magnum-opus/scripts/sofia/onsocial_universal_pipeline.py`):
-
-```
-0: GATHER    — find companies (Clay / Apollo internal API)
-1: DEDUP     — skip companies in discovered_companies
-2: BLACKLIST — filter against project exclusion list
-3: PREFILTER — remove non-target industries/sizes (deterministic)
-4: SCRAPE    — fetch homepage HTML via backend
-5: CLASSIFY  — GPT-4o-mini: is_target? which segment?
-6: VERIFY    — QA checkpoint on classification accuracy
-7: ADJUST    — re-classify with tuned prompt if accuracy < 90%
-8: EXPORT    — ship approved targets
-9: PEOPLE    — find decision-makers via Apollo (Puppeteer, free)
-10: FINDYMAIL — enrich with emails ($0.01/found)
-11: SEQUENCES — generate 5-step email sequences
-12: UPLOAD   — create SmartLead campaign & load leads
-```
-
-Key scripts: `onsocial_universal_pipeline.py` (orchestrator), `onsocial_apollo_people_search.js`, `onsocial_apollo_companies_search.js`.
+Core pipeline: `magnum-opus/scripts/sofia/onsocial_universal_pipeline.py` (12-step leadgen orchestrator). Step details — в самом скрипте.
 
 ## ICP Segments
 
