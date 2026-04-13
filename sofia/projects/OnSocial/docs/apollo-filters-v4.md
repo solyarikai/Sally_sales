@@ -79,7 +79,20 @@ ERP, payroll, HRIS, applicant tracking
 
 **# Employees:** 5-5,000
 
-**Location:** ALL GEO (no filter)
+**Location:**
+
+```
+United States, Canada,
+United Kingdom, Germany, France, Netherlands, Spain, Italy, Belgium,
+Switzerland, Austria, Denmark, Sweden, Norway, Finland, Ireland, Portugal, Luxembourg,
+Poland, Czech Republic, Romania, Hungary, Ukraine, Serbia, Croatia, Bulgaria, Greece,
+Slovakia, Slovenia, Estonia, Latvia, Lithuania,
+Israel, United Arab Emirates, Turkey, Saudi Arabia, Egypt,
+India, Singapore, Australia, New Zealand, Japan, South Korea,
+Indonesia, Malaysia, Philippines, Thailand, Hong Kong, Taiwan,
+Brazil, Mexico, Argentina, Colombia, Chile,
+South Africa, Nigeria, Kenya
+```
 
 ### People filters
 
@@ -174,7 +187,20 @@ crypto exchange, blockchain wallet
 
 **# Employees:** 10-5,000
 
-**Location:** ALL GEO (no filter)
+**Location:**
+
+```
+United States, Canada,
+United Kingdom, Germany, France, Netherlands, Spain, Italy, Belgium,
+Switzerland, Austria, Denmark, Sweden, Norway, Finland, Ireland, Portugal, Luxembourg,
+Poland, Czech Republic, Romania, Hungary, Ukraine, Serbia, Croatia, Bulgaria, Greece,
+Slovakia, Slovenia, Estonia, Latvia, Lithuania,
+Israel, United Arab Emirates, Turkey, Saudi Arabia, Egypt,
+India, Singapore, Australia, New Zealand, Japan, South Korea,
+Indonesia, Malaysia, Philippines, Thailand, Hong Kong, Taiwan,
+Brazil, Mexico, Argentina, Colombia, Chile,
+South Africa, Nigeria, Kenya
+```
 
 ### People filters
 
@@ -273,7 +299,20 @@ translation agency, localization agency
 
 **# Employees:** 5-500
 
-**Location:** ALL GEO (no filter)
+**Location:**
+
+```
+United States, Canada,
+United Kingdom, Germany, France, Netherlands, Spain, Italy, Belgium,
+Switzerland, Austria, Denmark, Sweden, Norway, Finland, Ireland, Portugal, Luxembourg,
+Poland, Czech Republic, Romania, Hungary, Ukraine, Serbia, Croatia, Bulgaria, Greece,
+Slovakia, Slovenia, Estonia, Latvia, Lithuania,
+Israel, United Arab Emirates, Turkey, Saudi Arabia, Egypt,
+India, Singapore, Australia, New Zealand, Japan, South Korea,
+Indonesia, Malaysia, Philippines, Thailand, Hong Kong, Taiwan,
+Brazil, Mexico, Argentina, Colombia, Chile,
+South Africa, Nigeria, Kenya
+```
 
 ### People filters
 
@@ -361,7 +400,20 @@ gaming streaming, sports streaming
 
 **# Employees:** 10–5,000
 
-**Location:** ALL GEO (no filter)
+**Location:**
+
+```
+United States, Canada,
+United Kingdom, Germany, France, Netherlands, Spain, Italy, Belgium,
+Switzerland, Austria, Denmark, Sweden, Norway, Finland, Ireland, Portugal, Luxembourg,
+Poland, Czech Republic, Romania, Hungary, Ukraine, Serbia, Croatia, Bulgaria, Greece,
+Slovakia, Slovenia, Estonia, Latvia, Lithuania,
+Israel, United Arab Emirates, Turkey, Saudi Arabia, Egypt,
+India, Singapore, Australia, New Zealand, Japan, South Korea,
+Indonesia, Malaysia, Philippines, Thailand, Hong Kong, Taiwan,
+Brazil, Mexico, Argentina, Colombia, Chile,
+South Africa, Nigeria, Kenya
+```
 
 ### People filters
 
