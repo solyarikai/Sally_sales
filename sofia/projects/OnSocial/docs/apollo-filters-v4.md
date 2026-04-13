@@ -327,9 +327,9 @@ South Africa, Nigeria, Kenya
 
 ---
 
-## Tech Leaders — People Filter (cross-segment persona)
+## Universal People Filter (cross-segment)
 
-Alternative people filter for tech decision-maker targeting across all segments. Use instead of segment-specific people filters when the goal is engineering/product/data leadership.
+Единый фильтр по людям для всех сегментов. Покрывает tech и business decision-makers: основатели, C-suite, VP/Head/Director уровень по продукту, инженерии, данным, партнёрствам и росту.
 
 ### Job Titles
 
