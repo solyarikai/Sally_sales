@@ -177,8 +177,7 @@ async function searchDomains(page, domains, pageNum) {
       const data = await searchDomains(page, batch, p);
 
       if (data.error) {
-        console.log(`ERR: ${data.error}`);
-        // If session expired, re-login
+        console.log(`ERR: ${data.error} | preview: ${data.preview || ''}`);
         if (data.status === 401 || data.status === 403) {
           await login(page);
         }
