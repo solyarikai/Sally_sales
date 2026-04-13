@@ -68,17 +68,16 @@ all OnSocial mailboxes
 
 ## Sequences
 
-Use existing OnSocial IMAGENCY sequence from SmartLead library
-(if not present — generate fresh via `god_generate_sequence` with IMAGENCY context).
+Generate fresh via `god_generate_sequence`.
 
-5-step sequence, spacing: 3-4-5-5-7 days between emails.
+5 steps, spacing 3-4-5-5-7 days (total ~24 days).
 
-Key angles:
-1. Problem — fragmented creator vetting costs agency hours per pitch
-2. Solution — OnSocial API = single source for audience + engagement + fraud
-3. Case study / social proof — agencies we work with (verify with Yarik)
-4. Soft push — "15-min demo?"
-5. Break-up — "last email, keeping door open"
+Angles per step:
+1. Problem — fragmented creator vetting, hours wasted per pitch
+2. Solution — OnSocial API: single source for audience + engagement + fraud detection
+3. Social proof — agencies using OnSocial
+4. Soft push — 15-min demo ask
+5. Break-up — last email
 
 ## Exclusions
 
