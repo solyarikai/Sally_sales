@@ -3278,6 +3278,13 @@ def main():
                 print("  ERROR: No domains extracted from CSV")
                 sys.exit(1)
 
+            # Pre-filter against project_blacklist (Hetzner-only via docker exec).
+            # Avoids creating runs/CSL records for domains we already wrote to.
+            domains = _filter_project_blacklist(domains, args.project_id)
+            if not domains:
+                print("  ERROR: All domains filtered out by blacklist")
+                sys.exit(1)
+
             notes_prefix = f"CSV Import — {seg_name} {len(domains)} domains"
             if not _checkpoint(
                 f"Feed {len(domains)} imported domains into backend pipeline?"
