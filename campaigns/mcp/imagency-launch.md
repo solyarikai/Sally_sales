@@ -41,52 +41,17 @@ Primary: `IMAGENCY` (IM-First Agencies)
 
 Global (all countries — Apollo CSV had strongest signal in US, UK, DE, IN, BR, FR, ES, UAE, AU, IT, TR, NL)
 
-## Target Roles (decision makers)
+## Target Roles
 
-From apollo-filters-v4.md (unified for all OnSocial segments):
-
-**C-suite & Founders**
-- CEO, Co-Founder, Founder, COO, CTO, CPO, CDO, CMO
-- Managing Director, Managing Partner, General Manager
-- Technical Co-Founder, Founding Engineer
-
-**VP level**
-- VP Engineering, VP Product, VP Data, VP Analytics
-- VP Platform, VP Partnerships, VP Growth, VP Marketing, VP Technology
-
-**Head of**
-- Head of Engineering, Head of Technology, Head of Product
-- Head of Data, Head of Analytics, Head of Platform
-- Head of Integrations, Head of Digital, Head of Martech
-- Head of Partnerships, Head of Growth
-
-**Director of**
-- Director of Engineering, Director of Technology, Director of Product
-- Director of Data, Director of Analytics
-- Director of Partnerships, Director of Growth, Director of Martech
-
-**Specialty**
-- Technical Director, Chief Architect
-
-**Agency-specific additions** (IMAGENCY only)
+**Titles** (10 — CEO + C-level + specific buyers):
+- CEO, Founder, Co-Founder, Managing Director
+- CTO, CPO, CMO
+- Head of Product, Head of Partnerships, Head of Growth
 - Head of Influencer Marketing
-- Head of Strategy
 
-## Excluded Titles
+**Seniorities**: c_suite, vp, head, director, founder, partner
 
-- Junior, Intern, Assistant, Student, Freelance
-- IT Support, IT Manager, Systems Administrator, Help Desk
-- HR, People, Recruiter, Finance, Accounting
-- Social Media Manager, Community Manager, Content Creator
-- Campaign Manager, Campaign Coordinator, Designer
-- Account Manager, Account Executive, Sales
-- Marketing Technology Manager, MarTech Manager
-- QA Engineer, Software Tester
-- Office Manager, Executive Assistant
-
-## Management Level
-
-c_suite, vp, director, head, partner, founder
+**Reasoning**: Decision makers at influencer-first agencies who approve tool stack — founders drive budget, CPO/CTO approve API integration, Head of Influencer owns workflow.
 
 ## Campaign Settings
 
