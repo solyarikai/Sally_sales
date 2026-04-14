@@ -13,7 +13,12 @@ OnSocial Lead Pipeline
   python3 pipeline.py people --csv apollo_export.csv --project-id 42 --segment SOCCOM
   python3 pipeline.py people --csv apollo_export.csv --project-id 42 --segment SOCCOM --from-step upload
 
-Env: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
+  # 2a. Apollo people search (домены → поиск людей → FindyMail → SmartLead)
+  python3 pipeline.py people --domains-csv targets.csv --project-id 42 --segment SOCCOM
+  # + override фильтров (опционально):
+  #   --titles "CEO,Founder,VP Marketing" --seniorities "vp,director" --max-people 50
+
+Env: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY, APOLLO_API_KEY (для --domains-csv)
 Backend: localhost:8000 (Hetzner)
 """
 
