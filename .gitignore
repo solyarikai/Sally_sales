@@ -29,9 +29,6 @@ npm-debug.log*
 
 # IDE settings (machine-specific)
 .mcp.json
-.claude/mcp.json
-.cursor/mcp.json
-.cursor/settings.json
 
 # Test/temp files
 .pytest_cache/
@@ -47,38 +44,12 @@ bugs/
 screenshots/
 
 # magnum-opus duplicates (code lives in magnum-opus/ submodule only)
-/backend/
-/checks/
-/docs/
-/easystaff-global/
-/extensions/
-/frontend/
-/gathering-dach/
-/gathering-data/
-/infra/
-/mcp/
-/moltbot-monitor/
-/reports/
-/scripts/
-/skills/
-/state/
-/tasks/
-/test-results/
-/tests/
-/tg/
-/screenshot_*.png
-/.dev-setup-complete.md
-/.dockerignore
-/.env.example
-/.last_docker_build
-/google-credentials.json
+
 
 # Machine-specific MCP config (each machine has its own paths)
 .mcp.json
 
 # Local folders
-projects/
-poetry/
 .claude/hueta/
 .sofia-sync-backup/
 .claude/worktrees/

@@ -1,0 +1,5 @@
+domain,company_name,segment,confidence
+blackflag.nyc,,IM_FIRST_AGENCIES,0.85
+mesoo.co.uk,,IM_FIRST_AGENCIES,0.95
+system.social,,IM_FIRST_AGENCIES,0.85
+plugcollective.io,,IM_FIRST_AGENCIES,0.85
