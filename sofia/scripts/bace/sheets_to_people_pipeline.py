@@ -23,6 +23,7 @@ import argparse
 import json
 import os
 import re
+import socket
 import sys
 import time
 from datetime import date
@@ -31,6 +32,9 @@ from pathlib import Path
 import httpx
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+
+# Global socket timeout to prevent hanging on Google API calls
+socket.setdefaulttimeout(60)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 TOKEN_PATH = Path("/Users/user/sales_engineer/.claude/mcp/google-sheets/token.json")
