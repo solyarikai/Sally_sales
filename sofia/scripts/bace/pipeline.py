@@ -1731,12 +1731,11 @@ def _apollo_search_to_csv(
             )
         time.sleep(0.2)
 
-    usage_after_search = _apollo_fetch_usage()
-    _apollo_report_usage(usage_before, usage_after_search, counters["search"], 0, 0)
-
     total = len(raw_by_id)
     print(f"\n  Found {total} unique people ({hits}/{len(domains)} domains had hits)")
     if total == 0:
+        usage_after = _apollo_fetch_usage()
+        _apollo_report_usage(usage_before, usage_after, counters["search"])
         return 0
 
     # ── Step 2: Exa LinkedIn lookup ──────────────────────────────────────────
