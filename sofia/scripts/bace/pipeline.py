@@ -1597,31 +1597,23 @@ def _apollo_report_usage(
     before: dict,
     after: dict,
     search_calls_made: int,
-    bulk_match_calls_made: int,
-    people_enriched: int,
+    exa_cost: float = 0.0,
 ) -> None:
-    """Print Apollo usage summary, ending with $ cost estimate if possible."""
+    """Print Apollo + Exa usage summary."""
     print(f"\n  {'─' * 56}")
-    print("  APOLLO USAGE")
+    print("  API USAGE")
     print(f"  {'─' * 56}")
     if before and after:
         for key, name in _APOLLO_CREDIT_ENDPOINTS.items():
             delta = after.get(key, 0) - before.get(key, 0)
-            if delta > 0:
-                print(f"  {name}: +{delta} call(s) | today: {after.get(key, 0)}")
+            total = after.get(key, 0)
+            print(f"  Apollo {name}: +{delta} call(s) | today total: {total}")
     else:
-        print("  (usage_stats unavailable — falling back to request count)")
+        print("  (Apollo usage_stats unavailable)")
         if search_calls_made:
-            print(f"  people_search: +{search_calls_made} call(s)")
-        if bulk_match_calls_made:
-            print(f"  bulk_match: +{bulk_match_calls_made} call(s)")
-    # Cost estimate — bulk_match is the paid enrichment signal
-    if people_enriched:
-        # Apollo API cost ≈ $0.03/person for bulk_match enrichment (no personal emails).
-        # This is an estimate; actual cost depends on the plan.
-        est = people_enriched * 0.03
-        print(f"  Enriched: {people_enriched} people")
-        print(f"  Ориентировочная стоимость: ~${est:.2f} (bulk_match ≈ $0.03/person)")
+            print(f"  Apollo people_search: +{search_calls_made} call(s)")
+    if exa_cost > 0:
+        print(f"  Exa LinkedIn lookup: ${exa_cost:.3f}")
 
 
 def _apollo_search_one_domain(
