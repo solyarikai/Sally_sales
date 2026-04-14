@@ -403,24 +403,67 @@ def main():
     exa_key = os.environ.get("EXA_API_KEY", "")
     fm_key = os.environ.get("FINDYMAIL_API_KEY", "")
 
-    if not apollo_key and not args.dry_run:
+    if not apollo_key and not args.dry_run and args.from_step == "apollo":
         sys.exit("ERROR: APOLLO_API_KEY not set")
-    if not exa_key and not args.skip_exa and not args.dry_run:
+    if (
+        not exa_key
+        and not args.skip_exa
+        and not args.dry_run
+        and args.from_step in ("apollo", "exa")
+    ):
         sys.exit("ERROR: EXA_API_KEY not set")
+
+    # Default cache file path
+    cache_file = args.cache_file or f"/tmp/pipeline_{args.segment}_{args.date}.json"
+
+    def save_cache(rows: list[dict]):
+        with open(cache_file, "w") as f:
+            json.dump(rows, f)
+        print(f"  [cache] Saved {len(rows)} rows to {cache_file}")
+
+    def load_cache() -> list[dict]:
+        with open(cache_file) as f:
+            rows = json.load(f)
+        print(f"  [cache] Loaded {len(rows)} rows from {cache_file}")
+        return rows
 
     sheet_ids = [s.strip() for s in args.sheet_ids.split(",") if s.strip()]
 
-    # ── Step 1: Read & dedup domains ─────────────────────────────────────────
     print(f"\n{'=' * 60}")
-    print(f"Segment: {args.segment} | Date: {args.date}")
-    print(f"Source sheets: {len(sheet_ids)}")
+    print(f"Segment: {args.segment} | Date: {args.date} | From step: {args.from_step}")
 
-    sheets_svc, drive_svc = get_services()
-    all_domains: set[str] = set()
-    for sid in sheet_ids:
-        domains = read_sheet_domains(sheets_svc, sid)
-        print(f"  Sheet {sid[:20]}...: {len(domains)} domains")
-        all_domains.update(domains)
+    # ── Resume from cache if --from-step != apollo ────────────────────────────
+    if args.from_step != "apollo":
+        if not Path(cache_file).exists():
+            sys.exit(f"ERROR: Cache file not found: {cache_file}")
+        all_rows = load_cache()
+        print(f"Resuming with {len(all_rows)} cached people")
+        sheets_svc, drive_svc = get_services()
+        # Jump to correct step
+        if args.from_step == "sheets":
+            goto_sheets = True
+            goto_findymail = False
+            goto_exa = False
+        elif args.from_step == "findymail":
+            goto_findymail = True
+            goto_exa = False
+            goto_sheets = False
+        else:  # exa
+            goto_exa = True
+            goto_findymail = False
+            goto_sheets = False
+    else:
+        goto_exa = goto_findymail = goto_sheets = False
+
+    if args.from_step == "apollo":
+        # ── Step 1: Read & dedup domains ─────────────────────────────────────
+        print(f"Source sheets: {len(sheet_ids)}")
+        sheets_svc, drive_svc = get_services()
+        all_domains: set[str] = set()
+        for sid in sheet_ids:
+            domains = read_sheet_domains(sheets_svc, sid)
+            print(f"  Sheet {sid[:20]}...: {len(domains)} domains")
+            all_domains.update(domains)
 
     domains_list = sorted(all_domains)
     print(f"\nUnique domains after dedup: {len(domains_list)}")
