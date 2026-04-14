@@ -662,9 +662,10 @@ def _run_companies(config: ProjectConfig, args):
         else:
             batches = [domains]
 
-        run_ids = [_create_run(config, batch) for batch in batches]
-        # Process each run through dedup→blacklist→prefilter→scrape→classify
-        for rid in run_ids:
+        # Create and process one batch at a time to avoid overwhelming backend
+        for i, batch in enumerate(batches):
+            print(f"\n  Batch {i + 1}/{len(batches)}")
+            rid = _create_run(config, batch)
             _wait_for_phase(rid, "gathered")
             _run_companies_pipeline(config, rid, args)
         return
