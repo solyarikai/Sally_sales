@@ -1707,10 +1707,16 @@ def _apollo_search_to_csv(
     """Search → bulk_match → write Apollo-compatible CSV. Returns row count."""
     print(f"\n  Apollo search: {len(domains)} domains, max {max_per_domain}/domain")
     print(f"  Titles: {len(titles)} | Seniorities: {', '.join(seniorities)}")
+
+    counters = {"search": 0, "bulk_match": 0}
+    usage_before = _apollo_fetch_usage()
+
     raw_by_id: dict[str, dict] = {}
     hits = 0
     for i, domain in enumerate(domains, 1):
-        people = _apollo_search_one_domain(domain, titles, seniorities, max_per_domain)
+        people = _apollo_search_one_domain(
+            domain, titles, seniorities, max_per_domain, counters
+        )
         if people:
             hits += 1
         for p in people:
@@ -1728,11 +1734,15 @@ def _apollo_search_to_csv(
         f"\n  Found {total_to_enrich} unique people ({hits}/{len(domains)} domains had hits)"
     )
     if total_to_enrich == 0:
+        usage_after = _apollo_fetch_usage()
+        _apollo_report_usage(usage_before, usage_after, counters["search"], 0, 0)
         return 0
 
     print(f"\n  ⚠ /people/bulk_match will consume ~{total_to_enrich} Apollo credits")
     if not _checkpoint(f"Enrich {total_to_enrich} people via Apollo?"):
         print("  Aborted by user")
+        usage_after = _apollo_fetch_usage()
+        _apollo_report_usage(usage_before, usage_after, counters["search"], 0, 0)
         sys.exit(0)
 
     print("\n  Enriching via /people/bulk_match (batch 10)...")
@@ -1740,7 +1750,7 @@ def _apollo_search_to_csv(
     ids = list(raw_by_id.keys())
     for i in range(0, len(ids), 10):
         batch = ids[i : i + 10]
-        for m in _apollo_bulk_match(batch):
+        for m in _apollo_bulk_match(batch, counters):
             mid = m.get("id")
             if mid:
                 enriched_by_id[mid] = m
