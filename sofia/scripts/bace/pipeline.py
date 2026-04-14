@@ -1793,6 +1793,15 @@ def _apollo_search_to_csv(
     with_li = sum(1 for r in rows if r["Person Linkedin Url"])
     print(f"\n  ✓ Wrote {len(rows)} people → {out_csv}")
     print(f"    With LinkedIn URL: {with_li}/{len(rows)}")
+
+    usage_after = _apollo_fetch_usage()
+    _apollo_report_usage(
+        usage_before,
+        usage_after,
+        counters["search"],
+        counters["bulk_match"],
+        len(enriched_by_id),
+    )
     return len(rows)
 
 
