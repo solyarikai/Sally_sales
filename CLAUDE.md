@@ -50,6 +50,12 @@ Google Sheets/Drive — use MCP tools only, never Python/service-account. Dual s
 - **Apollo login** requires email verify from unknown IPs — use Hetzner IP, no Apify proxy.
 - **`postgres COPY TO '/tmp/...'`** writes inside container. Extract: `docker cp leadgen-postgres:/tmp/file.csv /tmp/file.csv`.
 
+## Data Integrity Rules
+
+- **Never assume duplicates without verifying by linkedin_url/nickname.** Files with different dates are different exports — don't skip them. Always check field-level match, not just filename similarity.
+- **Before declaring "0 new contacts"** — verify by actually comparing nicknames, not by assumption.
+- **Two files named similarly ≠ same data.** Date in filename = different snapshot. Always read and compare.
+
 ## Structure
 
 - `magnum-opus/` — backend, gathering pipeline (**git submodule**)
