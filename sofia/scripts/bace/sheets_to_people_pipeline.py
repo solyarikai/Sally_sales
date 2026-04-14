@@ -386,6 +386,17 @@ def main():
     ap.add_argument(
         "--dry-run", action="store_true", help="Print domains only, no API calls"
     )
+    ap.add_argument(
+        "--cache-file",
+        default="",
+        help="Path to JSON cache file (save/resume progress)",
+    )
+    ap.add_argument(
+        "--from-step",
+        default="apollo",
+        choices=["apollo", "exa", "findymail", "sheets"],
+        help="Resume from step (requires --cache-file)",
+    )
     args = ap.parse_args()
 
     apollo_key = os.environ.get("APOLLO_API_KEY", "")
