@@ -47,6 +47,64 @@ FINDYMAIL_CONCURRENT = 5
 SMARTLEAD_API_KEY = os.environ.get("SMARTLEAD_API_KEY", "")
 SMARTLEAD_BASE = "https://server.smartlead.ai/api/v1"
 
+APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY", "")
+APOLLO_BASE = "https://api.apollo.io/api/v1"
+
+# Default people filter (cross-segment)
+APOLLO_DEFAULT_TITLES = [
+    "CEO",
+    "Co-Founder",
+    "Founder",
+    "COO",
+    "Managing Director",
+    "Managing Partner",
+    "General Manager",
+    "CTO",
+    "Chief Technology Officer",
+    "CPO",
+    "Chief Product Officer",
+    "CDO",
+    "Chief Data Officer",
+    "CMO",
+    "VP Marketing",
+    "VP Engineering",
+    "VP of Engineering",
+    "VP Technology",
+    "VP Product",
+    "VP of Product",
+    "VP Data",
+    "VP Analytics",
+    "VP Platform",
+    "VP Partnerships",
+    "VP Growth",
+    "Head of Engineering",
+    "Head of Technology",
+    "Head of Product",
+    "Head of Data",
+    "Head of Analytics",
+    "Head of Platform",
+    "Head of Integrations",
+    "Head of Digital",
+    "Head of Partnerships",
+    "Head of Growth",
+    "Head of Martech",
+    "Director of Engineering",
+    "Director of Technology",
+    "Director of Product",
+    "Director of Data",
+    "Director of Analytics",
+    "Director of Partnerships",
+    "Director of Growth",
+    "Director of Martech",
+    "Technical Director",
+    "Technology Director",
+    "Chief Architect",
+    "Co-Founder CTO",
+    "Founding Engineer",
+    "Technical Co-Founder",
+]
+APOLLO_DEFAULT_SENIORITIES = ["owner", "founder", "c_suite", "vp", "head", "director"]
+
 BATCH_SIZE = 500
 
 _AUTO_APPROVE = False
