@@ -108,55 +108,93 @@ def fetch_domains(segment: str, run_ids: list[int], project_id: int) -> list[str
     return [line.strip() for line in r.stdout.strip().split("\n") if line.strip()]
 
 
-def apollo_search(
-    domains: list[str],
-    api_key: str,
-    page: int = 1,
-    per_page: int = 100,
-) -> dict:
-    headers = {
+def apollo_headers(api_key: str) -> dict:
+    return {
         "X-Api-Key": api_key,
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
     }
+
+
+def apollo_search_one_domain(
+    domain: str, api_key: str, per_page: int = 100
+) -> list[dict]:
+    """Search people at one domain. Returns list of person dicts (obfuscated last_name)."""
+    all_people = []
+    page = 1
+    while page <= 10:  # safety cap
+        payload = {
+            "page": page,
+            "per_page": per_page,
+            "q_organization_domains_list": [domain],
+            "person_titles": V4_TITLES,
+            "person_seniorities": V4_SENIORITIES,
+            "include_similar_titles": True,
+        }
+        r = httpx.post(
+            f"{APOLLO_BASE}/mixed_people/api_search",
+            headers=apollo_headers(api_key),
+            json=payload,
+            timeout=60,
+        )
+        if r.status_code != 200:
+            print(
+                f"  HTTP {r.status_code} for {domain}: {r.text[:200]}", file=sys.stderr
+            )
+            return all_people
+        data = r.json()
+        people = data.get("people", [])
+        all_people.extend(people)
+        if len(people) < per_page:
+            break
+        page += 1
+        time.sleep(0.3)
+    return all_people
+
+
+def apollo_bulk_match(person_ids: list[str], api_key: str) -> list[dict]:
+    """Enrich a batch of people by id. Returns list of enriched person dicts.
+    Does NOT reveal personal emails (no email credit spent)."""
+    if not person_ids:
+        return []
     payload = {
-        "page": page,
-        "per_page": per_page,
-        "q_organization_domains_list": domains,
-        "person_titles": V4_TITLES,
-        "person_seniorities": V4_SENIORITIES,
-        "include_similar_titles": True,
+        "details": [{"id": pid} for pid in person_ids],
+        "reveal_personal_emails": False,
+        "reveal_phone_number": False,
     }
     r = httpx.post(
-        f"{APOLLO_BASE}/mixed_people/api_search",
-        headers=headers,
+        f"{APOLLO_BASE}/people/bulk_match",
+        headers=apollo_headers(api_key),
         json=payload,
-        timeout=60,
+        timeout=90,
     )
     if r.status_code != 200:
-        print(f"HTTP {r.status_code}: {r.text[:400]}", file=sys.stderr)
-        sys.exit(1)
-    return r.json()
+        print(f"  bulk_match HTTP {r.status_code}: {r.text[:300]}", file=sys.stderr)
+        return []
+    data = r.json()
+    # Response shape: {"matches": [person, ...]} or {"status":"success","matches":[...]}
+    return data.get("matches", []) or []
 
 
-def normalize_person(p: dict) -> dict:
-    org = p.get("organization") or {}
+def merge_record(raw: dict, enriched: dict, domain: str) -> dict:
+    """Combine search (obfuscated) + enrichment (full) into final row."""
+    # enrichment has the full name + linkedin_url
+    src = enriched if enriched else raw
+    org = src.get("organization") or raw.get("organization") or {}
     return {
-        "domain": (org.get("primary_domain") or org.get("website_url") or "")
-        .replace("https://", "")
-        .replace("http://", "")
-        .rstrip("/"),
-        "organization_name": org.get("name", ""),
-        "first_name": p.get("first_name", ""),
-        "last_name": p.get("last_name_obfuscated", "") or p.get("last_name", ""),
-        "title": p.get("title", ""),
-        "seniority": p.get("seniority", ""),
-        "linkedin_url": p.get("linkedin_url", "") or "",
-        "person_id": p.get("id", ""),
-        "has_email": p.get("has_email"),
-        "city": p.get("city", "") or "",
-        "state": p.get("state", "") or "",
-        "country": p.get("country", "") or "",
+        "domain": domain,
+        "organization_name": org.get("name")
+        or raw.get("organization", {}).get("name", ""),
+        "first_name": src.get("first_name", "") or raw.get("first_name", ""),
+        "last_name": src.get("last_name", "") or raw.get("last_name_obfuscated", ""),
+        "title": src.get("title", "") or raw.get("title", ""),
+        "seniority": src.get("seniority", "") or raw.get("seniority", ""),
+        "linkedin_url": src.get("linkedin_url", "") or "",
+        "person_id": src.get("id", "") or raw.get("id", ""),
+        "city": src.get("city", "") or raw.get("city", "") or "",
+        "state": src.get("state", "") or raw.get("state", "") or "",
+        "country": src.get("country", "") or raw.get("country", "") or "",
+        "headline": src.get("headline", "") or "",
     }
 
 
