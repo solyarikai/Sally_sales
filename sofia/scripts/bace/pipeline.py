@@ -1551,10 +1551,219 @@ def _dedup_vs_crm(contacts: list[dict], project_id: int = 42) -> list[dict]:
     return contacts
 
 
+# ── Apollo People Search ───────────────────────────────────────────────────────
+
+
+def _apollo_headers() -> dict:
+    return {
+        "X-Api-Key": APOLLO_API_KEY,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+    }
+
+
+def _apollo_search_one_domain(
+    domain: str,
+    titles: list[str],
+    seniorities: list[str],
+    max_people: int,
+    per_page: int = 100,
+) -> list[dict]:
+    """Search people at one domain via /mixed_people/api_search (free).
+    Returns raw person dicts (obfuscated last_name)."""
+    out = []
+    page = 1
+    while len(out) < max_people and page <= 10:
+        payload = {
+            "page": page,
+            "per_page": min(per_page, max_people - len(out)),
+            "q_organization_domains_list": [domain],
+            "person_titles": titles,
+            "person_seniorities": seniorities,
+            "include_similar_titles": True,
+        }
+        try:
+            r = httpx.post(
+                f"{APOLLO_BASE}/mixed_people/api_search",
+                headers=_apollo_headers(),
+                json=payload,
+                timeout=60,
+            )
+        except Exception as e:
+            print(f"    ✗ {domain}: {e}")
+            return out
+        if r.status_code != 200:
+            print(f"    ✗ {domain}: HTTP {r.status_code} {r.text[:200]}")
+            return out
+        people = r.json().get("people", [])
+        out.extend(people)
+        if len(people) < payload["per_page"]:
+            break
+        page += 1
+        time.sleep(0.3)
+    return out[:max_people]
+
+
+def _apollo_bulk_match(person_ids: list[str]) -> list[dict]:
+    """Enrich via /people/bulk_match. Returns matches.
+    NOTE: consumes 1 Apollo credit per person."""
+    if not person_ids:
+        return []
+    payload = {
+        "details": [{"id": pid} for pid in person_ids],
+        "reveal_personal_emails": False,
+        "reveal_phone_number": False,
+    }
+    try:
+        r = httpx.post(
+            f"{APOLLO_BASE}/people/bulk_match",
+            headers=_apollo_headers(),
+            json=payload,
+            timeout=90,
+        )
+    except Exception as e:
+        print(f"    ✗ bulk_match: {e}")
+        return []
+    if r.status_code != 200:
+        print(f"    ✗ bulk_match HTTP {r.status_code}: {r.text[:300]}")
+        return []
+    return r.json().get("matches", []) or []
+
+
+def _apollo_search_to_csv(
+    domains: list[str],
+    titles: list[str],
+    seniorities: list[str],
+    max_per_domain: int,
+    out_csv: Path,
+) -> int:
+    """Search → bulk_match → write Apollo-compatible CSV. Returns row count."""
+    print(f"\n  Apollo search: {len(domains)} domains, max {max_per_domain}/domain")
+    print(f"  Titles: {len(titles)} | Seniorities: {', '.join(seniorities)}")
+    raw_by_id: dict[str, dict] = {}
+    hits = 0
+    for i, domain in enumerate(domains, 1):
+        people = _apollo_search_one_domain(domain, titles, seniorities, max_per_domain)
+        if people:
+            hits += 1
+        for p in people:
+            pid = p.get("id")
+            if pid and pid not in raw_by_id:
+                raw_by_id[pid] = {"raw": p, "domain": domain}
+        if i % 10 == 0 or i == len(domains):
+            print(
+                f"    {i}/{len(domains)} | {hits} with hits | {len(raw_by_id)} unique"
+            )
+        time.sleep(0.2)
+
+    total_to_enrich = len(raw_by_id)
+    print(
+        f"\n  Found {total_to_enrich} unique people ({hits}/{len(domains)} domains had hits)"
+    )
+    if total_to_enrich == 0:
+        return 0
+
+    print(f"\n  ⚠ /people/bulk_match will consume ~{total_to_enrich} Apollo credits")
+    if not _checkpoint(f"Enrich {total_to_enrich} people via Apollo?"):
+        print("  Aborted by user")
+        sys.exit(0)
+
+    print("\n  Enriching via /people/bulk_match (batch 10)...")
+    enriched_by_id: dict[str, dict] = {}
+    ids = list(raw_by_id.keys())
+    for i in range(0, len(ids), 10):
+        batch = ids[i : i + 10]
+        for m in _apollo_bulk_match(batch):
+            mid = m.get("id")
+            if mid:
+                enriched_by_id[mid] = m
+        print(f"    {min(i + 10, len(ids))}/{len(ids)} enriched")
+        time.sleep(0.2)
+
+    rows = []
+    for pid, entry in raw_by_id.items():
+        raw = entry["raw"]
+        enr = enriched_by_id.get(pid, {})
+        src = enr or raw
+        org = src.get("organization") or raw.get("organization") or {}
+        rows.append(
+            {
+                "First Name": src.get("first_name") or raw.get("first_name", ""),
+                "Last Name": src.get("last_name")
+                or raw.get("last_name_obfuscated", ""),
+                "Title": src.get("title") or raw.get("title", ""),
+                "Seniority": src.get("seniority") or raw.get("seniority", ""),
+                "Email": src.get("email", "") or "",
+                "Person Linkedin Url": src.get("linkedin_url", "") or "",
+                "Company": org.get("name", "") or "",
+                "Website": entry["domain"],
+                "Company Linkedin Url": org.get("linkedin_url", "") or "",
+                "# Employees": str(org.get("estimated_num_employees", "") or ""),
+                "Industry": org.get("industry", "") or "",
+                "City": src.get("city", "") or raw.get("city", "") or "",
+                "Country": src.get("country", "") or raw.get("country", "") or "",
+                "Company Country": org.get("country", "") or "",
+            }
+        )
+
+    rows.sort(key=lambda r: (r["Website"], r["Title"]))
+
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    with out_csv.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w.writeheader()
+        w.writerows(rows)
+    with_li = sum(1 for r in rows if r["Person Linkedin Url"])
+    print(f"\n  ✓ Wrote {len(rows)} people → {out_csv}")
+    print(f"    With LinkedIn URL: {with_li}/{len(rows)}")
+    return len(rows)
+
+
 def _run_people(config: ProjectConfig, args):
-    from_step = args.from_step or "findymail"
     today = tag()
     segment_slug = args.segment.lower() if args.segment else ""
+
+    # Resolve starting step
+    if args.from_step:
+        from_step = args.from_step
+    elif args.domains_csv:
+        from_step = "apollo-search"
+    else:
+        from_step = "findymail"
+
+    # ── Apollo search (domains → people CSV) ────────────────────────────────
+    if from_step == "apollo-search":
+        if not args.domains_csv:
+            print("ERROR: --domains-csv required for apollo-search step")
+            sys.exit(1)
+        if not APOLLO_API_KEY:
+            print("ERROR: APOLLO_API_KEY not set")
+            sys.exit(1)
+        domains = _read_domains_from_csv(Path(args.domains_csv))
+        if not domains:
+            print("ERROR: no domains found in CSV")
+            sys.exit(1)
+        titles = (
+            [t.strip() for t in args.titles.split(",") if t.strip()]
+            if args.titles
+            else APOLLO_DEFAULT_TITLES
+        )
+        seniorities = (
+            [s.strip() for s in args.seniorities.split(",") if s.strip()]
+            if args.seniorities
+            else APOLLO_DEFAULT_SENIORITIES
+        )
+        seg_label = segment_slug.upper()
+        out_csv = config.csv_dir / f"apollo_people_{seg_label}_{today}.csv"
+        n = _apollo_search_to_csv(
+            domains, titles, seniorities, args.max_people, out_csv
+        )
+        if n == 0:
+            print("  No people found — exiting")
+            sys.exit(0)
+        # Feed the freshly-written CSV into the findymail step below
+        args.csv = str(out_csv)
+        from_step = "findymail"
 
     # ── Load contacts ────────────────────────────────────────────────────────
     if from_step == "findymail":
