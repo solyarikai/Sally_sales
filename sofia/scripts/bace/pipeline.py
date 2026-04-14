@@ -1818,6 +1818,9 @@ def _apollo_search_to_csv(
         w.writeheader()
         w.writerows(rows)
     print(f"\n  ✓ Wrote {len(rows)} people → {out_csv}")
+
+    usage_after = _apollo_fetch_usage()
+    _apollo_report_usage(usage_before, usage_after, counters["search"], exa_total_cost)
     return len(rows)
 
 
