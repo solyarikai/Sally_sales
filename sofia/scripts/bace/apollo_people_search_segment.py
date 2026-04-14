@@ -291,38 +291,51 @@ def main():
         print("\n".join(domains))
         return
 
-    print("\nQuerying Apollo /mixed_people/api_search...")
-    all_people = []
-    page = 1
-    while page <= args.max_pages:
-        data = apollo_search(domains, api_key, page=page, per_page=100)
-        people = data.get("people", [])
-        total = data.get("total_entries", 0)
-        pagination = data.get("pagination", {}) or {}
-        total_pages = pagination.get("total_pages", 1)
-        print(
-            f"  page {page}/{total_pages} | returned {len(people)} | total_entries {total}"
-        )
-        all_people.extend(normalize_person(p) for p in people)
-        if page >= total_pages or not people:
-            break
-        page += 1
-        time.sleep(0.5)  # gentle on rate limit
+    # Step 1: search per-domain (obfuscated results, but we know which domain they belong to)
+    print("\nStep 1 — searching people per domain (/mixed_people/api_search)...")
+    raw_by_id: dict[str, dict] = {}  # person_id -> {"raw": ..., "domain": ...}
+    domains_with_hits = 0
+    for i, domain in enumerate(domains, 1):
+        people = apollo_search_one_domain(domain, api_key, per_page=100)
+        if people:
+            domains_with_hits += 1
+        for p in people:
+            pid = p.get("id")
+            if pid and pid not in raw_by_id:
+                raw_by_id[pid] = {"raw": p, "domain": domain}
+        if i % 10 == 0 or i == len(domains):
+            print(
+                f"  {i}/{len(domains)} domains | {domains_with_hits} with hits | {len(raw_by_id)} unique people"
+            )
+        time.sleep(0.2)  # 200/min → pace at 300ms
 
-    # Deduplicate by person_id
-    seen = set()
+    # Step 2: bulk_match to de-obfuscate (full name, linkedin_url, title)
+    print(f"\nStep 2 — enriching {len(raw_by_id)} people via /people/bulk_match...")
+    all_ids = list(raw_by_id.keys())
+    enriched_by_id: dict[str, dict] = {}
+    BATCH = 10  # Apollo bulk_match: max 10 per request
+    for i in range(0, len(all_ids), BATCH):
+        batch_ids = all_ids[i : i + BATCH]
+        matches = apollo_bulk_match(batch_ids, api_key)
+        for m in matches:
+            mid = m.get("id")
+            if mid:
+                enriched_by_id[mid] = m
+        print(f"  {min(i + BATCH, len(all_ids))}/{len(all_ids)} enriched")
+        time.sleep(0.2)
+
+    # Step 3: merge
+    print("\nStep 3 — merging search + enrichment...")
     deduped = []
-    for p in all_people:
-        pid = p.get("person_id")
-        if pid and pid in seen:
-            continue
-        seen.add(pid)
-        deduped.append(p)
-    print(f"\n  Total people: {len(deduped)} (across {len(domains)} domains)")
+    for pid, entry in raw_by_id.items():
+        enr = enriched_by_id.get(pid, {})
+        deduped.append(merge_record(entry["raw"], enr, entry["domain"]))
 
-    # Coverage stats
-    matched_domains = {p["domain"] for p in deduped if p.get("domain")}
-    print(f"  Domains with people: {len(matched_domains)}/{len(domains)}")
+    print(
+        f"  Total people: {len(deduped)} (across {domains_with_hits}/{len(domains)} domains)"
+    )
+    with_linkedin = sum(1 for r in deduped if r.get("linkedin_url"))
+    print(f"  With linkedin_url: {with_linkedin}/{len(deduped)}")
 
     # Sort: domain, then title
     deduped.sort(key=lambda r: (r.get("domain", ""), r.get("title", "")))
