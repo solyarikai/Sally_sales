@@ -1670,31 +1670,41 @@ def _apollo_search_one_domain(
     return out[:max_people]
 
 
-def _apollo_bulk_match(person_ids: list[str], counters: dict) -> list[dict]:
-    """Enrich via /people/bulk_match. Returns matches.
-    NOTE: consumes 1 Apollo credit per person. Mutates counters['bulk_match']."""
-    if not person_ids:
-        return []
-    payload = {
-        "details": [{"id": pid} for pid in person_ids],
-        "reveal_personal_emails": False,
-        "reveal_phone_number": False,
-    }
+EXA_API_KEY = os.environ.get("EXA_API_KEY", "197fc32a-3563-4e29-bdb1-5f5a796034c9")
+EXA_BASE = "https://api.exa.ai"
+
+
+def _exa_find_linkedin(
+    first_name: str, last_name: str, title: str, company: str
+) -> tuple[str, float]:
+    """Search LinkedIn profile via Exa API.
+    Returns (linkedin_url, cost_usd). linkedin_url is '' if not found."""
+    query = f"{first_name} {last_name} {title} {company} site:linkedin.com/in"
     try:
         r = httpx.post(
-            f"{APOLLO_BASE}/people/bulk_match",
-            headers=_apollo_headers(),
-            json=payload,
-            timeout=90,
+            f"{EXA_BASE}/search",
+            headers={"x-api-key": EXA_API_KEY, "Content-Type": "application/json"},
+            json={
+                "query": query,
+                "numResults": 1,
+                "type": "neural",
+                "includeDomains": ["linkedin.com"],
+            },
+            timeout=15,
         )
-        counters["bulk_match"] = counters.get("bulk_match", 0) + 1
-    except Exception as e:
-        print(f"    ✗ bulk_match: {e}")
-        return []
-    if r.status_code != 200:
-        print(f"    ✗ bulk_match HTTP {r.status_code}: {r.text[:300]}")
-        return []
-    return r.json().get("matches", []) or []
+        if r.status_code != 200:
+            return "", 0.0
+        data = r.json()
+        results = data.get("results", [])
+        cost = data.get("costDollars", {}).get("total", 0.0)
+        if results:
+            url = results[0].get("url", "")
+            # Only accept /in/ profile URLs, not company/school pages
+            if "/in/" in url:
+                return url, cost
+        return "", cost
+    except Exception:
+        return "", 0.0
 
 
 def _apollo_search_to_csv(
