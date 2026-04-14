@@ -1558,11 +1558,9 @@ def _dedup_vs_crm(contacts: list[dict], project_id: int = 42) -> list[dict]:
 
 # ── Apollo People Search ───────────────────────────────────────────────────────
 
-# Endpoints that consume Apollo credits (keys as in /usage_stats response)
+# Endpoints tracked via /usage_stats (people_search may or may not cost credits)
 _APOLLO_CREDIT_ENDPOINTS = {
     '["api/v1/mixed_people", "search"]': "people_search",
-    '["api/v1/people", "bulk_match"]': "bulk_match",
-    '["api/v1/people", "match"]': "enrich_person",
 }
 
 
