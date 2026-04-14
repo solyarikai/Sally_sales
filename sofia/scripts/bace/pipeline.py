@@ -1714,13 +1714,15 @@ def _apollo_search_to_csv(
     max_per_domain: int,
     out_csv: Path,
 ) -> int:
-    """Search → bulk_match → write Apollo-compatible CSV. Returns row count."""
+    """Apollo search → Exa LinkedIn lookup → write Apollo-compatible CSV.
+    Returns row count. No bulk_match — zero Apollo enrichment credits."""
     print(f"\n  Apollo search: {len(domains)} domains, max {max_per_domain}/domain")
     print(f"  Titles: {len(titles)} | Seniorities: {', '.join(seniorities)}")
 
-    counters = {"search": 0, "bulk_match": 0}
+    counters = {"search": 0}
     usage_before = _apollo_fetch_usage()
 
+    # ── Step 1: Apollo people search (free, obfuscated last_name) ────────────
     raw_by_id: dict[str, dict] = {}
     hits = 0
     for i, domain in enumerate(domains, 1):
@@ -1739,56 +1741,82 @@ def _apollo_search_to_csv(
             )
         time.sleep(0.2)
 
-    total_to_enrich = len(raw_by_id)
-    print(
-        f"\n  Found {total_to_enrich} unique people ({hits}/{len(domains)} domains had hits)"
-    )
-    if total_to_enrich == 0:
-        usage_after = _apollo_fetch_usage()
-        _apollo_report_usage(usage_before, usage_after, counters["search"], 0, 0)
+    usage_after_search = _apollo_fetch_usage()
+    _apollo_report_usage(usage_before, usage_after_search, counters["search"], 0, 0)
+
+    total = len(raw_by_id)
+    print(f"\n  Found {total} unique people ({hits}/{len(domains)} domains had hits)")
+    if total == 0:
         return 0
 
-    print(f"\n  ⚠ /people/bulk_match will consume ~{total_to_enrich} Apollo credits")
-    if not _checkpoint(f"Enrich {total_to_enrich} people via Apollo?"):
+    # ── Step 2: Exa LinkedIn lookup ──────────────────────────────────────────
+    print(f"\n  Exa LinkedIn lookup for {total} people...")
+    exa_total_cost = 0.0
+    found_li = 0
+    people_list = list(raw_by_id.items())
+    for i, (pid, entry) in enumerate(people_list, 1):
+        raw = entry["raw"]
+        org = raw.get("organization") or {}
+        first = raw.get("first_name", "")
+        last = raw.get("last_name_obfuscated", "")
+        title = raw.get("title", "")
+        company = org.get("name", "") or entry["domain"]
+        li_url, cost = _exa_find_linkedin(first, last, title, company)
+        exa_total_cost += cost
+        raw_by_id[pid]["linkedin_url"] = li_url
+        if li_url:
+            found_li += 1
+        if i % 20 == 0 or i == total:
+            print(
+                f"    {i}/{total} | LinkedIn found: {found_li} | Exa cost so far: ${exa_total_cost:.3f}"
+            )
+        time.sleep(0.15)
+
+    print(
+        f"\n  Exa: {found_li}/{total} LinkedIn URLs found | Total cost: ${exa_total_cost:.3f}"
+    )
+
+    # ── Checkpoint: show preview, wait for approval ──────────────────────────
+    print(f"\n{'=' * 60}")
+    print(f"  PREVIEW — {found_li} people with LinkedIn URL")
+    print(f"{'=' * 60}")
+    preview = [(pid, e) for pid, e in raw_by_id.items() if e.get("linkedin_url")][:20]
+    for pid, entry in preview:
+        raw = entry["raw"]
+        org = raw.get("organization") or {}
+        print(
+            f"  {raw.get('first_name', '')} {raw.get('last_name_obfuscated', '')} | "
+            f"{raw.get('title', 'N/A')} @ {org.get('name', entry['domain'])} | "
+            f"{entry['linkedin_url']}"
+        )
+    if found_li > 20:
+        print(f"  ... and {found_li - 20} more")
+    print(f"\n  Total: {found_li} with LinkedIn, {total - found_li} without (skipped)")
+
+    if not _checkpoint(f"Proceed with {found_li} contacts to FindyMail?"):
         print("  Aborted by user")
-        usage_after = _apollo_fetch_usage()
-        _apollo_report_usage(usage_before, usage_after, counters["search"], 0, 0)
         sys.exit(0)
 
-    print("\n  Enriching via /people/bulk_match (batch 10)...")
-    enriched_by_id: dict[str, dict] = {}
-    ids = list(raw_by_id.keys())
-    for i in range(0, len(ids), 10):
-        batch = ids[i : i + 10]
-        for m in _apollo_bulk_match(batch, counters):
-            mid = m.get("id")
-            if mid:
-                enriched_by_id[mid] = m
-        print(f"    {min(i + 10, len(ids))}/{len(ids)} enriched")
-        time.sleep(0.2)
-
+    # ── Step 3: build rows ───────────────────────────────────────────────────
     rows = []
     for pid, entry in raw_by_id.items():
         raw = entry["raw"]
-        enr = enriched_by_id.get(pid, {})
-        src = enr or raw
-        org = src.get("organization") or raw.get("organization") or {}
+        org = raw.get("organization") or {}
         rows.append(
             {
-                "First Name": src.get("first_name") or raw.get("first_name", ""),
-                "Last Name": src.get("last_name")
-                or raw.get("last_name_obfuscated", ""),
-                "Title": src.get("title") or raw.get("title", ""),
-                "Seniority": src.get("seniority") or raw.get("seniority", ""),
-                "Email": src.get("email", "") or "",
-                "Person Linkedin Url": src.get("linkedin_url", "") or "",
-                "Company": org.get("name", "") or "",
+                "First Name": raw.get("first_name", ""),
+                "Last Name": raw.get("last_name_obfuscated", ""),
+                "Title": raw.get("title", ""),
+                "Seniority": raw.get("seniority", ""),
+                "Email": "",
+                "Person Linkedin Url": entry.get("linkedin_url", ""),
+                "Company": org.get("name", ""),
                 "Website": entry["domain"],
                 "Company Linkedin Url": org.get("linkedin_url", "") or "",
                 "# Employees": str(org.get("estimated_num_employees", "") or ""),
                 "Industry": org.get("industry", "") or "",
-                "City": src.get("city", "") or raw.get("city", "") or "",
-                "Country": src.get("country", "") or raw.get("country", "") or "",
+                "City": raw.get("city", "") or "",
+                "Country": raw.get("country", "") or "",
                 "Company Country": org.get("country", "") or "",
             }
         )
@@ -1800,18 +1828,7 @@ def _apollo_search_to_csv(
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
-    with_li = sum(1 for r in rows if r["Person Linkedin Url"])
     print(f"\n  ✓ Wrote {len(rows)} people → {out_csv}")
-    print(f"    With LinkedIn URL: {with_li}/{len(rows)}")
-
-    usage_after = _apollo_fetch_usage()
-    _apollo_report_usage(
-        usage_before,
-        usage_after,
-        counters["search"],
-        counters["bulk_match"],
-        len(enriched_by_id),
-    )
     return len(rows)
 
 
