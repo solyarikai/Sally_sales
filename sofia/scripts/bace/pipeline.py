@@ -1558,6 +1558,13 @@ def _dedup_vs_crm(contacts: list[dict], project_id: int = 42) -> list[dict]:
 
 # ── Apollo People Search ───────────────────────────────────────────────────────
 
+# Endpoints that consume Apollo credits (keys as in /usage_stats response)
+_APOLLO_CREDIT_ENDPOINTS = {
+    '["api/v1/mixed_people", "search"]': "people_search",
+    '["api/v1/people", "bulk_match"]': "bulk_match",
+    '["api/v1/people", "match"]': "enrich_person",
+}
+
 
 def _apollo_headers() -> dict:
     return {
@@ -1565,6 +1572,58 @@ def _apollo_headers() -> dict:
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
     }
+
+
+def _apollo_fetch_usage() -> dict[str, int]:
+    """Return {endpoint_key: consumed_today} for credit-consuming endpoints.
+    Returns empty dict on failure (we still report request counts)."""
+    try:
+        r = httpx.post(
+            f"{APOLLO_BASE}/usage_stats/api_usage_stats",
+            headers=_apollo_headers(),
+            json={},
+            timeout=30,
+        )
+        if r.status_code != 200:
+            return {}
+        data = r.json()
+        return {
+            key: data.get(key, {}).get("day", {}).get("consumed", 0)
+            for key in _APOLLO_CREDIT_ENDPOINTS
+        }
+    except Exception:
+        return {}
+
+
+def _apollo_report_usage(
+    before: dict,
+    after: dict,
+    search_calls_made: int,
+    bulk_match_calls_made: int,
+    people_enriched: int,
+) -> None:
+    """Print Apollo usage summary, ending with $ cost estimate if possible."""
+    print(f"\n  {'─' * 56}")
+    print("  APOLLO USAGE")
+    print(f"  {'─' * 56}")
+    if before and after:
+        for key, name in _APOLLO_CREDIT_ENDPOINTS.items():
+            delta = after.get(key, 0) - before.get(key, 0)
+            if delta > 0:
+                print(f"  {name}: +{delta} call(s) | today: {after.get(key, 0)}")
+    else:
+        print("  (usage_stats unavailable — falling back to request count)")
+        if search_calls_made:
+            print(f"  people_search: +{search_calls_made} call(s)")
+        if bulk_match_calls_made:
+            print(f"  bulk_match: +{bulk_match_calls_made} call(s)")
+    # Cost estimate — bulk_match is the paid enrichment signal
+    if people_enriched:
+        # Apollo API cost ≈ $0.03/person for bulk_match enrichment (no personal emails).
+        # This is an estimate; actual cost depends on the plan.
+        est = people_enriched * 0.03
+        print(f"  Enriched: {people_enriched} people")
+        print(f"  Ориентировочная стоимость: ~${est:.2f} (bulk_match ≈ $0.03/person)")
 
 
 def _apollo_search_one_domain(
