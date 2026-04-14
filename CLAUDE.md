@@ -56,6 +56,13 @@ Google Sheets/Drive — use MCP tools only, never Python/service-account. Dual s
 - **Before declaring "0 new contacts"** — verify by actually comparing nicknames, not by assumption.
 - **Two files named similarly ≠ same data.** Date in filename = different snapshot. Always read and compare.
 
+## Epistemic Rules (don't assert without checking)
+
+- **Never state facts about a file without reading it first.** Filename, path, or context don't tell you the contents. Read first, then claim.
+- **Never state facts about live data (counts, statuses, campaign state, API responses) from memory.** Query or fetch first.
+- **Never state facts about external products, APIs, or services without verifying.** Training data is stale. If context suggests the fact matters — use Exa to check.
+- **Hedging is required when unverified.** Say "probably", "likely", or "I'd need to check" rather than asserting. One false confident claim wastes more time than one honest hedge.
+
 ## Structure
 
 - `magnum-opus/` — backend, gathering pipeline (**git submodule**)
