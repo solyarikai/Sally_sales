@@ -1631,10 +1631,11 @@ def _apollo_search_one_domain(
     titles: list[str],
     seniorities: list[str],
     max_people: int,
+    counters: dict,
     per_page: int = 100,
 ) -> list[dict]:
-    """Search people at one domain via /mixed_people/api_search (free).
-    Returns raw person dicts (obfuscated last_name)."""
+    """Search people at one domain via /mixed_people/api_search.
+    Returns raw person dicts (obfuscated last_name). Mutates counters['search']."""
     out = []
     page = 1
     while len(out) < max_people and page <= 10:
@@ -1653,6 +1654,7 @@ def _apollo_search_one_domain(
                 json=payload,
                 timeout=60,
             )
+            counters["search"] = counters.get("search", 0) + 1
         except Exception as e:
             print(f"    ✗ {domain}: {e}")
             return out
@@ -1668,9 +1670,9 @@ def _apollo_search_one_domain(
     return out[:max_people]
 
 
-def _apollo_bulk_match(person_ids: list[str]) -> list[dict]:
+def _apollo_bulk_match(person_ids: list[str], counters: dict) -> list[dict]:
     """Enrich via /people/bulk_match. Returns matches.
-    NOTE: consumes 1 Apollo credit per person."""
+    NOTE: consumes 1 Apollo credit per person. Mutates counters['bulk_match']."""
     if not person_ids:
         return []
     payload = {
@@ -1685,6 +1687,7 @@ def _apollo_bulk_match(person_ids: list[str]) -> list[dict]:
             json=payload,
             timeout=90,
         )
+        counters["bulk_match"] = counters.get("bulk_match", 0) + 1
     except Exception as e:
         print(f"    ✗ bulk_match: {e}")
         return []
