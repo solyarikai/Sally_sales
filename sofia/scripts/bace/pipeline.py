@@ -1875,13 +1875,34 @@ def main():
     p_comp.add_argument("--auto-approve", action="store_true")
 
     # people
-    p_ppl = sub.add_parser("people", help="Apollo CSV → FindyMail → SmartLead")
+    p_ppl = sub.add_parser(
+        "people",
+        help="Apollo search / CSV → FindyMail → SmartLead",
+    )
     p_ppl.add_argument("--csv", help="Apollo CSV export с людьми")
+    p_ppl.add_argument(
+        "--domains-csv",
+        help="CSV с доменами → Apollo people search (вместо --csv)",
+    )
     p_ppl.add_argument("--project-id", type=int, default=42)
     p_ppl.add_argument(
         "--segment", required=True, help="Сегмент: soccom / imagency / infplat"
     )
-    p_ppl.add_argument("--from-step", choices=["findymail", "upload"])
+    p_ppl.add_argument("--from-step", choices=["apollo-search", "findymail", "upload"])
+    p_ppl.add_argument(
+        "--titles",
+        help='Override default titles, comma-separated: "CEO,Founder"',
+    )
+    p_ppl.add_argument(
+        "--seniorities",
+        help='Override default seniorities, comma-separated: "vp,director"',
+    )
+    p_ppl.add_argument(
+        "--max-people",
+        type=int,
+        default=100,
+        help="Макс людей на домен (default 100)",
+    )
     p_ppl.add_argument("--auto-approve", action="store_true")
     p_ppl.add_argument(
         "--no-upload",
