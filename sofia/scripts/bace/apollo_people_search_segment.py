@@ -309,33 +309,15 @@ def main():
             )
         time.sleep(0.2)  # 200/min → pace at 300ms
 
-    # Step 2: bulk_match to de-obfuscate (full name, linkedin_url, title)
-    print(f"\nStep 2 — enriching {len(raw_by_id)} people via /people/bulk_match...")
-    all_ids = list(raw_by_id.keys())
-    enriched_by_id: dict[str, dict] = {}
-    BATCH = 10  # Apollo bulk_match: max 10 per request
-    for i in range(0, len(all_ids), BATCH):
-        batch_ids = all_ids[i : i + BATCH]
-        matches = apollo_bulk_match(batch_ids, api_key)
-        for m in matches:
-            mid = m.get("id")
-            if mid:
-                enriched_by_id[mid] = m
-        print(f"  {min(i + BATCH, len(all_ids))}/{len(all_ids)} enriched")
-        time.sleep(0.2)
-
-    # Step 3: merge
-    print("\nStep 3 — merging search + enrichment...")
+    # Step 2: build records from search results (FREE, no credits)
+    print("\nStep 2 — building records from search results...")
     deduped = []
     for pid, entry in raw_by_id.items():
-        enr = enriched_by_id.get(pid, {})
-        deduped.append(merge_record(entry["raw"], enr, entry["domain"]))
+        deduped.append(merge_record(entry["raw"], {}, entry["domain"]))
 
     print(
         f"  Total people: {len(deduped)} (across {domains_with_hits}/{len(domains)} domains)"
     )
-    with_linkedin = sum(1 for r in deduped if r.get("linkedin_url"))
-    print(f"  With linkedin_url: {with_linkedin}/{len(deduped)}")
 
     # Sort: domain, then title
     deduped.sort(key=lambda r: (r.get("domain", ""), r.get("title", "")))
