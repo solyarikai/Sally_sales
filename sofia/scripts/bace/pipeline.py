@@ -1698,15 +1698,57 @@ def _exa_find_linkedin(
         return "", 0.0
 
 
+def _apollo_bulk_enrich(person_ids: list[str]) -> dict[str, dict]:
+    """Enrich people by Apollo person IDs via /people/bulk_match.
+    Returns {person_id: enriched_data} with email, real name, linkedin_url.
+    Costs Apollo credits (~1 per person)."""
+    enriched: dict[str, dict] = {}
+    batch_size = 10
+    total = len(person_ids)
+    print(f"\n  Apollo bulk_enrich: {total} people (batches of {batch_size})...")
+    for i in range(0, total, batch_size):
+        batch = person_ids[i : i + batch_size]
+        payload = {
+            "reveal_personal_emails": False,
+            "details": [{"id": pid} for pid in batch],
+        }
+        try:
+            r = httpx.post(
+                f"{APOLLO_BASE}/people/bulk_match",
+                headers=_apollo_headers(),
+                json=payload,
+                timeout=60,
+            )
+            if r.status_code != 200:
+                print(f"    ✗ batch {i // batch_size + 1}: HTTP {r.status_code}")
+                continue
+            data = r.json()
+            matches = data.get("matches", [])
+            for person in matches:
+                pid = person.get("id")
+                if pid:
+                    enriched[pid] = person
+        except Exception as e:
+            print(f"    ✗ batch {i // batch_size + 1}: {e}")
+        if (i // batch_size + 1) % 5 == 0 or i + batch_size >= total:
+            print(
+                f"    {min(i + batch_size, total)}/{total} | enriched: {len(enriched)}"
+            )
+        time.sleep(0.5)
+    print(f"\n  Bulk enrich complete: {len(enriched)}/{total} matched")
+    return enriched
+
+
 def _apollo_search_to_csv(
     domains: list[str],
     titles: list[str],
     seniorities: list[str],
     max_per_domain: int,
     out_csv: Path,
+    use_apollo_enrich: bool = False,
 ) -> int:
-    """Apollo search → Exa LinkedIn lookup → write Apollo-compatible CSV.
-    Returns row count. No bulk_match — zero Apollo enrichment credits."""
+    """Apollo search → (bulk_enrich OR Exa LinkedIn) → write Apollo-compatible CSV.
+    Returns row count. bulk_enrich costs Apollo credits; Exa path is free."""
     print(f"\n  Apollo search: {len(domains)} domains, max {max_per_domain}/domain")
     print(f"  Titles: {len(titles)} | Seniorities: {', '.join(seniorities)}")
 
