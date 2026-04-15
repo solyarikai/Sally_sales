@@ -172,21 +172,81 @@ def normalize_company_name(name: str) -> str:
     return "".join(result)
 
 
+# Name particles that stay lowercase when not first word
+NAME_PARTICLES = {
+    "de",
+    "van",
+    "von",
+    "der",
+    "den",
+    "la",
+    "le",
+    "du",
+    "di",
+    "da",
+    "do",
+    "los",
+    "las",
+}
+
+
+def capitalize_name_part(part: str) -> str:
+    """
+    Capitalize a single name token properly:
+    - Mc/Mac prefix: McFarland, MacDonald
+    - O' prefix: O'Brien
+    - Hyphenated: Mary-Jane
+    - ALL CAPS → Title case
+    - already mixed case → leave as-is
+    """
+    if not part:
+        return part
+
+    # Already mixed case (intentional) — preserve
+    if is_mixed_case(part):
+        return part
+
+    # Mc prefix: McFarland
+    mc = re.match(r"^(Mc|mc|MC)(.+)$", part)
+    if mc:
+        return "Mc" + mc.group(2).capitalize()
+
+    # Mac prefix (only if followed by uppercase letter in original, e.g. MacDonald)
+    mac = re.match(r"^(Mac|mac|MAC)([A-Z].*)$", part, re.IGNORECASE)
+    if mac:
+        return "Mac" + mac.group(2).capitalize()
+
+    # Hyphenated: Mary-Jane
+    if "-" in part:
+        return "-".join(capitalize_name_part(p) for p in part.split("-"))
+
+    # O'Brien, D'Angelo
+    if "'" in part:
+        sub = part.split("'", 1)
+        return sub[0].capitalize() + "'" + sub[1].capitalize()
+
+    return part.capitalize()
+
+
 def normalize_name(name: str) -> str:
-    """Capitalize first letter of each word (Title Case)."""
+    """
+    Normalize a person's name:
+    - Title Case each word
+    - Preserve particles (de, van, von...) as lowercase unless they're first
+    - Handle Mc/Mac, O', hyphenated names
+    - ALL CAPS → Title Case
+    """
     if not name or not name.strip():
         return name
-    # Handle names like "shelby" → "Shelby", "SMITH" → "Smith"
+
     parts = name.strip().split()
     normalized = []
-    for part in parts:
-        # Preserve apostrophes in names like O'Brien, hyphenated like Mary-Jane
-        if "-" in part:
-            normalized.append("-".join(p.capitalize() for p in part.split("-")))
-        elif "'" in part:
-            normalized.append("'".join(p.capitalize() for p in part.split("'")))
+    for i, part in enumerate(parts):
+        lower_part = part.lower()
+        if i > 0 and lower_part in NAME_PARTICLES:
+            normalized.append(lower_part)
         else:
-            normalized.append(part.capitalize())
+            normalized.append(capitalize_name_part(part))
     return " ".join(normalized)
 
 
