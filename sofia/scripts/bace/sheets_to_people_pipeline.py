@@ -455,60 +455,65 @@ def main():
     else:
         goto_exa = goto_findymail = goto_sheets = False
 
+    sheets_svc, drive_svc = get_services()
+
+    # ── Step 1 + 2: Apollo (skip if resuming) ────────────────────────────────
     if args.from_step == "apollo":
-        # ── Step 1: Read & dedup domains ─────────────────────────────────────
         print(f"Source sheets: {len(sheet_ids)}")
-        sheets_svc, drive_svc = get_services()
         all_domains: set[str] = set()
         for sid in sheet_ids:
             domains = read_sheet_domains(sheets_svc, sid)
             print(f"  Sheet {sid[:20]}...: {len(domains)} domains")
             all_domains.update(domains)
 
-    domains_list = sorted(all_domains)
-    print(f"\nUnique domains after dedup: {len(domains_list)}")
+        domains_list = sorted(all_domains)
+        print(f"\nUnique domains after dedup: {len(domains_list)}")
 
-    if args.dry_run:
-        print("\n".join(domains_list))
-        return
+        if args.dry_run:
+            print("\n".join(domains_list))
+            return
 
-    # ── Step 2: Apollo People Search ─────────────────────────────────────────
-    print(f"\n{'─' * 60}")
-    print("Step 2 — Apollo /mixed_people/api_search (free endpoint)...")
-    all_rows: list[dict] = []
-    seen_person_ids: set[str] = set()
-    domains_with_hits = 0
+        print(f"\n{'─' * 60}")
+        print("Step 2 — Apollo /mixed_people/api_search (free endpoint)...")
+        all_rows: list[dict] = []
+        seen_person_ids: set[str] = set()
+        domains_with_hits = 0
 
-    for i, domain in enumerate(domains_list, 1):
-        people = apollo_search_domain(domain, apollo_key)
-        new_for_domain = 0
-        for p in people:
-            pid = p.get("id", "")
-            if pid and pid in seen_person_ids:
-                continue
-            if pid:
-                seen_person_ids.add(pid)
-            row = person_to_row(p, domain, args.segment)
-            all_rows.append(row)
-            new_for_domain += 1
-        if new_for_domain > 0:
-            domains_with_hits += 1
-        if i % 20 == 0 or i == len(domains_list):
-            print(
-                f"  {i}/{len(domains_list)} domains | {domains_with_hits} with hits | {len(all_rows)} people"
-            )
-        time.sleep(0.25)
+        for i, domain in enumerate(domains_list, 1):
+            people = apollo_search_domain(domain, apollo_key)
+            new_for_domain = 0
+            for p in people:
+                pid = p.get("id", "")
+                if pid and pid in seen_person_ids:
+                    continue
+                if pid:
+                    seen_person_ids.add(pid)
+                row = person_to_row(p, domain, args.segment)
+                all_rows.append(row)
+                new_for_domain += 1
+            if new_for_domain > 0:
+                domains_with_hits += 1
+            if i % 20 == 0 or i == len(domains_list):
+                print(
+                    f"  {i}/{len(domains_list)} domains | {domains_with_hits} with hits | {len(all_rows)} people"
+                )
+            time.sleep(0.25)
 
-    print(
-        f"\nApollo done: {len(all_rows)} people from {domains_with_hits}/{len(domains_list)} domains"
-    )
+        print(
+            f"\nApollo done: {len(all_rows)} people from {domains_with_hits}/{len(domains_list)} domains"
+        )
 
-    if not all_rows:
-        print("No people found. Exiting.")
-        return
+        if not all_rows:
+            print("No people found. Exiting.")
+            return
+
+        # Save cache after Apollo
+        save_cache(all_rows)
 
     # ── Step 3: Exa → LinkedIn URL ────────────────────────────────────────────
-    if not args.skip_exa:
+    if args.from_step in ("apollo", "exa") and not args.skip_exa:
+        if args.from_step == "exa":
+            all_rows = load_cache()
         print(f"\n{'─' * 60}")
         without_li = [r for r in all_rows if not r.get("linkedin_url")]
         print(
@@ -532,11 +537,15 @@ def main():
                 )
             time.sleep(0.2)
         print(f"Exa done: {li_found}/{len(without_li)} LinkedIn URLs found")
-    else:
+        # Save cache after Exa
+        save_cache(all_rows)
+    elif args.skip_exa:
         print("\nSkipping Exa (--skip-exa)")
 
     # ── Step 4: FindyMail → email ─────────────────────────────────────────────
-    if not args.skip_findymail:
+    if args.from_step in ("apollo", "exa", "findymail") and not args.skip_findymail:
+        if args.from_step == "findymail":
+            all_rows = load_cache()
         if not fm_key:
             print("\nWARN: FINDYMAIL_API_KEY not set, skipping email enrichment")
         else:
@@ -574,19 +583,22 @@ def main():
                     )
                 time.sleep(0.15)
             print(f"FindyMail done: {fm_found}/{len(to_enrich)} emails found")
-    else:
+            # Save cache after FindyMail
+            save_cache(all_rows)
+    elif args.skip_findymail:
         print("\nSkipping FindyMail (--skip-findymail)")
 
     # ── Step 5: Write output sheets ───────────────────────────────────────────
+    if args.from_step == "sheets":
+        all_rows = load_cache()
+
     print(f"\n{'─' * 60}")
     print("Step 5 — Writing output sheets...")
 
-    # All people (LinkedIn only + with email) sorted by domain
     all_sorted = sorted(
         all_rows, key=lambda r: (r.get("domain", ""), r.get("title", ""))
     )
 
-    # Sheet 1: LinkedIn only (no email)
     li_only = [r for r in all_sorted if r.get("linkedin_url") and not r.get("email")]
     title_li = f"OS | People | {args.segment} LinkedIn only — {args.date}"
     if li_only:
@@ -597,7 +609,6 @@ def main():
     else:
         print("  LinkedIn only: 0 rows, skipping")
 
-    # Sheet 2: with email
     with_email = [r for r in all_sorted if r.get("email")]
     title_email = f"OS | People | {args.segment} with email — {args.date}"
     if with_email:
@@ -608,19 +619,18 @@ def main():
     else:
         print("  With email: 0 rows, skipping")
 
-    # Summary
     total_with_li = sum(1 for r in all_rows if r.get("linkedin_url"))
     total_with_email = sum(1 for r in all_rows if r.get("email"))
     print(f"\n{'=' * 60}")
     print(f"DONE — {args.segment}")
-    print(f"  Domains processed:  {len(domains_list)}")
-    print(f"  Total people:       {len(all_rows)}")
+    print(f"  Total people:   {len(all_rows)}")
     print(
-        f"  With LinkedIn:      {total_with_li} ({total_with_li * 100 // max(len(all_rows), 1)}%)"
+        f"  With LinkedIn:  {total_with_li} ({total_with_li * 100 // max(len(all_rows), 1)}%)"
     )
     print(
-        f"  With email:         {total_with_email} ({total_with_email * 100 // max(len(all_rows), 1)}%)"
+        f"  With email:     {total_with_email} ({total_with_email * 100 // max(len(all_rows), 1)}%)"
     )
+    print(f"  Cache file:     {cache_file}")
 
 
 if __name__ == "__main__":
