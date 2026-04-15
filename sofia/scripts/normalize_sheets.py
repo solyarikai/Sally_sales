@@ -114,28 +114,40 @@ COMPANY_OVERRIDES = {
 }
 
 
+def is_mixed_case(s: str) -> bool:
+    """True if string has both upper and lower letters (intentional brand casing)."""
+    has_upper = any(c.isupper() for c in s)
+    has_lower = any(c.islower() for c in s)
+    return has_upper and has_lower
+
+
 def normalize_company_name(name: str) -> str:
     """
-    Normalize a company name:
-    1. Check overrides first
-    2. Title Case with exceptions for lowercase/uppercase words
-    3. Clean extra whitespace
+    Normalize a company name.
+    Rules (in order):
+    1. Strip whitespace
+    2. Check COMPANY_OVERRIDES (case-insensitive)
+    3. If already mixed-case (e.g. 'HypeAuditor', 'iMOX', 'twigBIG') — leave as-is
+    4. If all-lowercase or all-uppercase → apply Title Case with UPPER_WORDS/LOWER_WORDS exceptions
     """
     if not name or not name.strip():
         return name
 
     stripped = name.strip()
 
-    # Check overrides (case-insensitive key lookup)
+    # 1. Override table (case-insensitive)
     lower_key = stripped.lower()
     if lower_key in COMPANY_OVERRIDES:
         return COMPANY_OVERRIDES[lower_key]
 
-    # Tokenize on spaces and hyphens, preserving separators
-    # Title case each word with exceptions
+    # 2. If already mixed-case — it's an intentional brand name, don't touch
+    if is_mixed_case(stripped):
+        return stripped
+
+    # 3. All-lower or all-upper → Title Case
     words = re.split(r"(\s+|-)", stripped)
     result = []
-    word_index = 0  # track actual words (skip separators)
+    word_index = 0
     actual_words = [w for w in words if w.strip() and w != "-"]
 
     for token in words:
@@ -153,9 +165,7 @@ def normalize_company_name(name: str) -> str:
         ):
             result.append(token.lower())
         else:
-            # Title-case: capitalize first letter, lowercase rest
-            # But preserve internal caps if looks like a brand (e.g. "iMagency", "HypeAuditor")
-            result.append(token[0].upper() + token[1:])
+            result.append(token[0].upper() + token[1:].lower())
 
         word_index += 1
 
