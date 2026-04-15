@@ -187,9 +187,8 @@ def fetch_lead(email: str):
 
 def unsubscribe(lead_id: int) -> bool:
     r = requests.post(
-        f"{BASE}/leads/unsubscribe",
+        f"{BASE}/leads/{lead_id}/unsubscribe",
         params={"api_key": API_KEY},
-        json={"lead_id": lead_id},
         timeout=15,
     )
     return r.status_code == 200
