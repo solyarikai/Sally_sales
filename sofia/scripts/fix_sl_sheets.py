@@ -121,20 +121,21 @@ def remap_row(r, segment):
         return out
 
     if row_type == "A":
+        # company_name = должность
+        # website = название компании
         # linkedin_url = домен → website
         # phone_number = сегмент → custom5
         # location = реальный linkedin → linkedin_url
-        # title пустой (нет данных о должности)
         out = {
             "first_name": r.get("first_name", ""),
             "last_name": r.get("last_name", ""),
             "email": r.get("email", ""),
-            "company_name": r.get("company_name", ""),
+            "company_name": r.get("website", ""),  # название компании было в website
             "website": r.get("linkedin_url", ""),  # домен был в linkedin_url
             "linkedin_url": r.get("location", ""),  # реальный linkedin был в location
             "phone_number": "",
             "location": "",
-            "title": r.get("title", ""),
+            "title": r.get("company_name", ""),  # должность была в company_name
             "custom1": r.get("custom1", ""),
             "custom2": r.get("custom2", ""),
             "custom3": r.get("custom3", ""),
