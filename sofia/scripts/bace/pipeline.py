@@ -1445,8 +1445,8 @@ def _get_sequences(config: ProjectConfig, segment_slug: str) -> list:
 
 
 def _fetch_kb_blocklist() -> tuple[set, set]:
-    """Fetch kb_blocklist from DB. Returns (blocked_domains, blocked_emails)."""
-    sql = "SELECT domain, email FROM kb_blocklist"
+    """Fetch blocked domains/emails from kb_blocklist + project_blacklist. Returns (blocked_domains, blocked_emails)."""
+    sql = "SELECT domain, email FROM kb_blocklist UNION SELECT domain, NULL FROM project_blacklist"
     psql_cmd = f"docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -F'|' -c \"{sql}\""
     is_hetzner = os.path.exists("/home/leadokol/magnum-opus-project")
     run_args = ["bash", "-c", psql_cmd] if is_hetzner else ["ssh", "hetzner", psql_cmd]
