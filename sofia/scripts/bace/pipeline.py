@@ -1928,7 +1928,12 @@ def _run_people(config: ProjectConfig, args):
         seg_label = segment_slug.upper()
         out_csv = config.csv_dir / f"apollo_people_{seg_label}_{today}.csv"
         n = _apollo_search_to_csv(
-            domains, titles, seniorities, args.max_people, out_csv
+            domains,
+            titles,
+            seniorities,
+            args.max_people,
+            out_csv,
+            use_apollo_enrich=getattr(args, "apollo_enrich", False),
         )
         if n == 0:
             print("  No people found — exiting")
