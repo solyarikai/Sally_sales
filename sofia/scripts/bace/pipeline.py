@@ -1781,51 +1781,71 @@ def _apollo_search_to_csv(
         _apollo_report_usage(usage_before, usage_after, counters["search"])
         return 0
 
-    # ── Step 2: Exa LinkedIn lookup ──────────────────────────────────────────
-    print(f"\n  Exa LinkedIn lookup for {total} people...")
+    # ── Step 2: Enrich — Apollo bulk_enrich OR Exa LinkedIn ─────────────────
     exa_total_cost = 0.0
-    found_li = 0
-    people_list = list(raw_by_id.items())
-    for i, (pid, entry) in enumerate(people_list, 1):
-        raw = entry["raw"]
-        org = raw.get("organization") or {}
-        first = raw.get("first_name", "")
-        last = raw.get("last_name_obfuscated", "")
-        title = raw.get("title", "")
-        company = org.get("name", "") or entry["domain"]
-        li_url, cost = _exa_find_linkedin(first, last, title, company)
-        exa_total_cost += cost
-        raw_by_id[pid]["linkedin_url"] = li_url
-        if li_url:
-            found_li += 1
-        if i % 20 == 0 or i == total:
-            print(
-                f"    {i}/{total} | LinkedIn found: {found_li} | Exa cost so far: ${exa_total_cost:.3f}"
-            )
-        time.sleep(0.15)
+    enriched_map: dict[str, dict] = {}  # pid → enriched data from bulk_match
 
-    print(
-        f"\n  Exa: {found_li}/{total} LinkedIn URLs found | Total cost: ${exa_total_cost:.3f}"
-    )
+    if use_apollo_enrich:
+        print("\n  Mode: Apollo bulk_enrich (paid credits)")
+        person_ids = list(raw_by_id.keys())
+        enriched_map = _apollo_bulk_enrich(person_ids)
+        # Populate linkedin_url + email from enriched data
+        for pid, edata in enriched_map.items():
+            raw_by_id[pid]["linkedin_url"] = edata.get("linkedin_url") or ""
+            raw_by_id[pid]["email"] = edata.get("email") or ""
+            raw_by_id[pid]["last_name"] = edata.get("last_name") or ""
+        found_li = sum(1 for e in raw_by_id.values() if e.get("linkedin_url"))
+        found_email = sum(1 for e in raw_by_id.values() if e.get("email"))
+        print(
+            f"\n  Apollo enrich: {found_li}/{total} LinkedIn | {found_email}/{total} emails"
+        )
+    else:
+        print("\n  Mode: Exa LinkedIn lookup (free)")
+        found_li = 0
+        people_list = list(raw_by_id.items())
+        for i, (pid, entry) in enumerate(people_list, 1):
+            raw = entry["raw"]
+            org = raw.get("organization") or {}
+            first = raw.get("first_name", "")
+            last = raw.get("last_name_obfuscated", "")
+            title = raw.get("title", "")
+            company = org.get("name", "") or entry["domain"]
+            li_url, cost = _exa_find_linkedin(first, last, title, company)
+            exa_total_cost += cost
+            raw_by_id[pid]["linkedin_url"] = li_url
+            if li_url:
+                found_li += 1
+            if i % 20 == 0 or i == total:
+                print(
+                    f"    {i}/{total} | LinkedIn found: {found_li} | Exa cost so far: ${exa_total_cost:.3f}"
+                )
+            time.sleep(0.15)
+        print(
+            f"\n  Exa: {found_li}/{total} LinkedIn URLs found | Total cost: ${exa_total_cost:.3f}"
+        )
 
     # ── Checkpoint: show preview, wait for approval ──────────────────────────
     print(f"\n{'=' * 60}")
-    print(f"  PREVIEW — {found_li} people with LinkedIn URL")
+    print("  PREVIEW — first 20 people")
     print(f"{'=' * 60}")
-    preview = [(pid, e) for pid, e in raw_by_id.items() if e.get("linkedin_url")][:20]
+    preview = list(raw_by_id.items())[:20]
     for pid, entry in preview:
         raw = entry["raw"]
         org = raw.get("organization") or {}
+        enr = enriched_map.get(pid, {})
+        last = enr.get("last_name") or raw.get("last_name_obfuscated", "")
+        email = entry.get("email") or enr.get("email") or ""
         print(
-            f"  {raw.get('first_name', '')} {raw.get('last_name_obfuscated', '')} | "
+            f"  {raw.get('first_name', '')} {last} | "
             f"{raw.get('title', 'N/A')} @ {org.get('name', entry['domain'])} | "
-            f"{entry['linkedin_url']}"
+            f"email={email or '-'} li={entry.get('linkedin_url') or '-'}"
         )
-    if found_li > 20:
-        print(f"  ... and {found_li - 20} more")
-    print(f"\n  Total: {found_li} with LinkedIn, {total - found_li} without (skipped)")
+    found_with_contact = sum(
+        1 for e in raw_by_id.values() if e.get("linkedin_url") or e.get("email")
+    )
+    print(f"\n  Total: {found_with_contact}/{total} have LinkedIn or email")
 
-    if not _checkpoint(f"Proceed with {found_li} contacts to FindyMail?"):
+    if not _checkpoint(f"Proceed with {found_with_contact} contacts to FindyMail?"):
         print("  Aborted by user")
         sys.exit(0)
 
@@ -1834,14 +1854,18 @@ def _apollo_search_to_csv(
     for pid, entry in raw_by_id.items():
         raw = entry["raw"]
         org = raw.get("organization") or {}
+        enr = enriched_map.get(pid, {})
+        last_name = enr.get("last_name") or raw.get("last_name_obfuscated", "")
+        email = entry.get("email") or enr.get("email") or ""
+        li_url = entry.get("linkedin_url") or enr.get("linkedin_url") or ""
         rows.append(
             {
                 "First Name": raw.get("first_name", ""),
-                "Last Name": raw.get("last_name_obfuscated", ""),
+                "Last Name": last_name,
                 "Title": raw.get("title", ""),
                 "Seniority": raw.get("seniority", ""),
-                "Email": "",
-                "Person Linkedin Url": entry.get("linkedin_url", ""),
+                "Email": email,
+                "Person Linkedin Url": li_url,
                 "Company": org.get("name", ""),
                 "Website": entry["domain"],
                 "Company Linkedin Url": org.get("linkedin_url", "") or "",
