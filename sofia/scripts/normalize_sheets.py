@@ -196,7 +196,8 @@ def capitalize_name_part(part: str) -> str:
     - Mc/Mac prefix: McFarland, MacDonald
     - O' prefix: O'Brien
     - Hyphenated: Mary-Jane
-    - ALL CAPS → Title case
+    - ALL CAPS short (≤4 chars, no digits) → treat as initials/acronym, leave as-is
+    - ALL CAPS long → Title case
     - already mixed case → leave as-is
     """
     if not part:
@@ -204,6 +205,10 @@ def capitalize_name_part(part: str) -> str:
 
     # Already mixed case (intentional) — preserve
     if is_mixed_case(part):
+        return part
+
+    # ALL CAPS short token (≤4 chars, letters only) → likely initials or acronym, preserve
+    if part.isupper() and len(part) <= 4 and part.isalpha():
         return part
 
     # Mc prefix: McFarland
