@@ -172,7 +172,7 @@ EMAILS = [
 ]
 
 
-def fetch_lead(email: str) -> dict | None:
+def fetch_lead(email: str):
     r = requests.get(
         f"{BASE}/leads",
         params={"api_key": API_KEY, "email": email},
