@@ -2082,6 +2082,11 @@ def main():
     )
     p_ppl.add_argument("--auto-approve", action="store_true")
     p_ppl.add_argument(
+        "--apollo-enrich",
+        action="store_true",
+        help="Использовать платный Apollo bulk_match вместо Exa для получения реальных имён и emails",
+    )
+    p_ppl.add_argument(
         "--no-upload",
         action="store_true",
         help="Пропустить SmartLead upload, сохранить только в Sheets",
