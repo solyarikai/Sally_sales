@@ -663,11 +663,19 @@ def _run_companies(config: ProjectConfig, args):
             batches = [domains]
 
         # Create and process one batch at a time to avoid overwhelming backend
+        defer = getattr(args, "defer_export", False)
+        accumulated: dict[str, list[dict]] = {}
         for i, batch in enumerate(batches):
             print(f"\n  Batch {i + 1}/{len(batches)}")
             rid = _create_run(config, batch)
             _wait_for_phase(rid, "gathered")
-            _run_companies_pipeline(config, rid, args)
+            result = _run_companies_pipeline(config, rid, args, defer_export=defer)
+            if defer:
+                for seg, rows in result.items():
+                    accumulated.setdefault(seg, []).extend(rows)
+
+        if defer and accumulated:
+            _export_accumulated(config, accumulated, tag())
         return
 
     # ── Resume existing run ─────────────────────────────────────────────────
