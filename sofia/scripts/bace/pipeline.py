@@ -676,8 +676,12 @@ def _run_companies(config: ProjectConfig, args):
 
 
 def _run_companies_pipeline(
-    config: ProjectConfig, run_id: int, args, from_step: str = "blacklist"
-):
+    config: ProjectConfig,
+    run_id: int,
+    args,
+    from_step: str = "blacklist",
+    defer_export: bool = False,
+) -> dict:
     STEPS = [
         "blacklist",
         "prefilter",
