@@ -879,14 +879,20 @@ def _run_companies_pipeline(
                 )
         if not targets:
             print("  No targets found for this run")
-            return
+            return {}
         today = tag()
-        by_seg = {}
+        by_seg: dict[str, list[dict]] = {}
         for t in targets:
             by_seg.setdefault(t["segment"], []).append(t)
         print(f"  Targets: {len(targets)}")
         for seg_name, seg_targets in sorted(by_seg.items()):
             print(f"    {seg_name}: {len(seg_targets)}")
+
+        if defer_export:
+            # Не сохраняем — возвращаем для накопления
+            return by_seg
+
+        for seg_name, seg_targets in sorted(by_seg.items()):
             safe = seg_name.replace("/", "-").replace(" ", "_").replace("|", "-")
             save_csv(
                 config.csv_dir / f"targets_{safe}_r{run_id}_{today}.csv",
@@ -894,6 +900,7 @@ def _run_companies_pipeline(
                 sheet_name=f"OS | Targets | {seg_name} r{run_id} — {today}",
             )
         print("\n  Готово. Идёшь в Apollo, берёшь людей → pipeline.py people --csv ...")
+        return {}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
