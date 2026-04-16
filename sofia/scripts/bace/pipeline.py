@@ -2103,6 +2103,11 @@ def main():
     )
     p_comp.add_argument("--prompt-file", help="Новый промпт для --from-step adjust")
     p_comp.add_argument("--auto-approve", action="store_true")
+    p_comp.add_argument(
+        "--defer-export",
+        action="store_true",
+        help="Не сохранять CSV/Sheets после каждого батча — один экспорт per segment в конце",
+    )
 
     # people
     p_ppl = sub.add_parser(
