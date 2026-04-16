@@ -903,6 +903,40 @@ def _run_companies_pipeline(
         return {}
 
 
+def _export_accumulated(
+    config: ProjectConfig, accumulated: dict[str, list[dict]], today: str
+):
+    """Final export after all batches: one CSV + one Google Sheet per segment."""
+    total = sum(len(v) for v in accumulated.values())
+    print(f"\n{'═' * 60}")
+    print(f"  FINAL EXPORT — {total} targets across {len(accumulated)} segments")
+    print(f"{'═' * 60}")
+    for seg_name, rows in sorted(accumulated.items()):
+        if not rows:
+            continue
+        # dedup by domain within segment
+        seen: set[str] = set()
+        deduped = []
+        for r in rows:
+            key = r.get("domain", "") or r.get("company_name", "")
+            if key and key not in seen:
+                seen.add(key)
+                deduped.append(r)
+            elif not key:
+                deduped.append(r)
+        safe = (
+            seg_name.replace("/", "-")
+            .replace(":", "_")
+            .replace(" ", "_")
+            .replace("|", "-")
+        )
+        csv_path = config.csv_dir / f"targets_{safe}_{today}.csv"
+        sheet_name = f"OS | Targets | {seg_name} — {today}"
+        save_csv(csv_path, deduped, sheet_name=sheet_name)
+        print(f"  {seg_name}: {len(deduped)} unique targets")
+    print("\n  Готово. Идёшь в Apollo, берёшь людей → pipeline.py people --csv ...")
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # CMD: PEOPLE — Apollo CSV → FindyMail → SmartLead
 # ══════════════════════════════════════════════════════════════════════════════
