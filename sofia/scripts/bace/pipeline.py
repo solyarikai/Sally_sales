@@ -2153,13 +2153,30 @@ def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
             if all_domains:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT domain, country, city, employee_range "
-                        "FROM discovered_companies "
-                        "WHERE domain = ANY(%s) AND project_id = %s",
+                        """
+                        SELECT
+                            domain,
+                            COALESCE(NULLIF(country, ''),
+                                     NULLIF(company_info->>'country', ''),
+                                     NULLIF(apollo_org_data->>'country', '')) AS country,
+                            COALESCE(NULLIF(city, ''),
+                                     NULLIF(company_info->>'city', ''),
+                                     NULLIF(apollo_org_data->>'city', '')) AS city,
+                            COALESCE(NULLIF(employee_range, ''),
+                                     NULLIF(company_info->>'employees', ''),
+                                     NULLIF(apollo_org_data->>'estimated_num_employees', ''),
+                                     CASE WHEN employee_count > 0 THEN employee_count::text ELSE NULL END) AS employees
+                        FROM discovered_companies
+                        WHERE domain = ANY(%s) AND project_id = %s
+                        """,
                         (all_domains, project_id),
                     )
                     geo_map = {
-                        row[0]: {"country": row[1], "city": row[2], "employees": row[3]}
+                        row[0]: {
+                            "country": row[1] or "",
+                            "city": row[2] or "",
+                            "employees": row[3] or "",
+                        }
                         for row in cur.fetchall()
                     }
                 for col in ["Company Country", "City", "# Employees"]:
