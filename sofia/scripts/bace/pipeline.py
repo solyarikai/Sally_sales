@@ -1915,23 +1915,24 @@ def _apollo_bulk_enrich(person_ids: list[str]) -> dict[str, dict]:
     return enriched
 
 
-def _apollo_search_to_csv(
+def _run_apollo_search_step(
     domains: list[str],
     titles: list[str],
     seniorities: list[str],
     max_per_domain: int,
     out_csv: Path,
-    use_apollo_enrich: bool = False,
+    project_id: int = 42,
+    segment: str = "",
 ) -> int:
-    """Apollo search → (bulk_enrich OR Exa LinkedIn) → write Apollo-compatible CSV.
-    Returns row count. bulk_enrich costs Apollo credits; Exa path is free."""
+    """Apollo people search only (no Exa). Writes CSV with EC_ID + Apollo_ID columns.
+    DB: extracted_contacts INSERT + enrichment_attempts + discovered_companies UPDATE.
+    Returns row count."""
     print(f"\n  Apollo search: {len(domains)} domains, max {max_per_domain}/domain")
     print(f"  Titles: {len(titles)} | Seniorities: {', '.join(seniorities)}")
 
     counters = {"search": 0}
     usage_before = _apollo_fetch_usage()
 
-    # ── Step 1: Apollo people search (free, obfuscated last_name) ────────────
     raw_by_id: dict[str, dict] = {}
     hits = 0
     for i, domain in enumerate(domains, 1):
@@ -1953,72 +1954,28 @@ def _apollo_search_to_csv(
     total = len(raw_by_id)
     print(f"\n  Found {total} unique people ({hits}/{len(domains)} domains had hits)")
     if total == 0:
-        usage_after = _apollo_fetch_usage()
-        _apollo_report_usage(usage_before, usage_after, counters["search"])
+        _apollo_report_usage(usage_before, _apollo_fetch_usage(), counters["search"])
         return 0
 
-    # ── Step 2: Enrich — Apollo bulk_enrich OR Exa LinkedIn ─────────────────
-    exa_total_cost = 0.0
-    enriched_map: dict[str, dict] = {}  # pid → enriched data from bulk_match
-
-    if use_apollo_enrich:
-        print("\n  Mode: Apollo bulk_enrich (paid credits)")
-        person_ids = list(raw_by_id.keys())
-        enriched_map = _apollo_bulk_enrich(person_ids)
-        # Populate linkedin_url + email from enriched data
-        for pid, edata in enriched_map.items():
-            raw_by_id[pid]["linkedin_url"] = edata.get("linkedin_url") or ""
-            raw_by_id[pid]["email"] = edata.get("email") or ""
-            raw_by_id[pid]["last_name"] = edata.get("last_name") or ""
-        found_li = sum(1 for e in raw_by_id.values() if e.get("linkedin_url"))
-        found_email = sum(1 for e in raw_by_id.values() if e.get("email"))
-        print(
-            f"\n  Apollo enrich: {found_li}/{total} LinkedIn | {found_email}/{total} emails"
-        )
-    else:
-        print("\n  Mode: Exa LinkedIn lookup (free)")
-        found_li = 0
-        people_list = list(raw_by_id.items())
-        for i, (pid, entry) in enumerate(people_list, 1):
-            raw = entry["raw"]
-            org = raw.get("organization") or {}
-            first = raw.get("first_name", "")
-            last = raw.get("last_name_obfuscated", "")
-            title = raw.get("title", "")
-            company = org.get("name", "") or entry["domain"]
-            li_url, cost = _exa_find_linkedin(first, last, title, company)
-            exa_total_cost += cost
-            raw_by_id[pid]["linkedin_url"] = li_url
-            if li_url:
-                found_li += 1
-            if i % 20 == 0 or i == total:
-                print(
-                    f"    {i}/{total} | LinkedIn found: {found_li} | Exa cost so far: ${exa_total_cost:.3f}"
-                )
-            time.sleep(0.15)
-        print(
-            f"\n  Exa: {found_li}/{total} LinkedIn URLs found | Total cost: ${exa_total_cost:.3f}"
-        )
-
-    # ── Step 3: build rows & write CSV (before checkpoint so data is saved) ────
+    # Build rows
     rows = []
+    people_by_domain: dict[str, list] = {}
     for pid, entry in raw_by_id.items():
         raw = entry["raw"]
         org = raw.get("organization") or {}
-        enr = enriched_map.get(pid, {})
-        last_name = enr.get("last_name") or raw.get("last_name_obfuscated", "")
-        email = entry.get("email") or enr.get("email") or ""
-        li_url = entry.get("linkedin_url") or enr.get("linkedin_url") or ""
+        domain = entry["domain"]
         rows.append(
             {
+                "EC_ID": "",
+                "Apollo_ID": pid,
                 "First Name": raw.get("first_name", ""),
-                "Last Name": last_name,
+                "Last Name": raw.get("last_name_obfuscated", ""),
                 "Title": raw.get("title", ""),
                 "Seniority": raw.get("seniority", ""),
-                "Email": email,
-                "Person Linkedin Url": li_url,
+                "Email": "",
+                "Person Linkedin Url": "",
                 "Company": org.get("name", ""),
-                "Website": entry["domain"],
+                "Website": domain,
                 "Company Linkedin Url": org.get("linkedin_url", "") or "",
                 "# Employees": str(org.get("estimated_num_employees", "") or ""),
                 "Industry": org.get("industry", "") or "",
@@ -2027,45 +1984,173 @@ def _apollo_search_to_csv(
                 "Company Country": org.get("country", "") or "",
             }
         )
+        people_by_domain.setdefault(domain, []).append(
+            {
+                "first_name": raw.get("first_name", ""),
+                "last_name": raw.get("last_name_obfuscated", ""),
+                "title": raw.get("title", ""),
+                "seniority": raw.get("seniority", ""),
+                "segment": segment,
+                "apollo_id": pid,
+            }
+        )
 
     rows.sort(key=lambda r: (r["Website"], r["Title"]))
+
+    # DB logging (best-effort)
+    apollo_id_to_ec: dict[str, int] = {}
+    try:
+        conn = _db_conn()
+        apollo_id_to_ec = _db_save_apollo_people(
+            conn, people_by_domain, project_id, segment
+        )
+
+        # enrichment_attempts + discovered_companies update per domain
+        dc_map = _dc_ids_by_domains(conn, list(people_by_domain.keys()), project_id)
+        for domain, people in people_by_domain.items():
+            dc_id = dc_map.get(domain)
+            if not dc_id:
+                continue
+            _db_log_enrichment(
+                conn,
+                dc_id,
+                "apollo_people",
+                contacts_found=len(people),
+                config={"segment": segment, "titles_sample": titles[:5]},
+            )
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE discovered_companies SET apollo_people_count = %s, apollo_enriched_at = NOW() WHERE id = %s",
+                    (len(people), dc_id),
+                )
+            conn.commit()
+        conn.close()
+        print(f"  DB: saved {len(apollo_id_to_ec)} contacts to extracted_contacts")
+    except Exception as e:
+        print(f"  ⚠ DB logging failed (non-fatal): {e}")
+
+    # Fill EC_ID in rows
+    for row in rows:
+        ec_id = apollo_id_to_ec.get(row["Apollo_ID"])
+        if ec_id:
+            row["EC_ID"] = str(ec_id)
+
+    # Preview
+    print(f"\n{'=' * 60}")
+    print("  PREVIEW — first 20 people")
+    print(f"{'=' * 60}")
+    for row in rows[:20]:
+        print(
+            f"  {row['First Name']} {row['Last Name']} | "
+            f"{row['Title'] or 'N/A'} @ {row['Company'] or row['Website']}"
+        )
+    print(f"\n  Total: {total} people")
 
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     with out_csv.open("w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
-    print(f"\n  ✓ Wrote {len(rows)} people → {out_csv}")
+    print(f"  ✓ Saved → {out_csv}")
 
-    # ── Checkpoint: show preview, wait for approval ──────────────────────────
-    print(f"\n{'=' * 60}")
-    print("  PREVIEW — first 20 people")
-    print(f"{'=' * 60}")
-    preview = list(raw_by_id.items())[:20]
-    for pid, entry in preview:
-        raw = entry["raw"]
-        org = raw.get("organization") or {}
-        enr = enriched_map.get(pid, {})
-        last = enr.get("last_name") or raw.get("last_name_obfuscated", "")
-        email = entry.get("email") or enr.get("email") or ""
-        print(
-            f"  {raw.get('first_name', '')} {last} | "
-            f"{raw.get('title', 'N/A')} @ {org.get('name', entry['domain'])} | "
-            f"email={email or '-'} li={entry.get('linkedin_url') or '-'}"
-        )
-    found_with_contact = sum(
-        1 for e in raw_by_id.values() if e.get("linkedin_url") or e.get("email")
-    )
-    print(f"\n  Total: {found_with_contact}/{total} have LinkedIn or email")
-    print(f"  CSV saved → {out_csv}")
-
-    if not _checkpoint(f"Proceed with {found_with_contact} contacts to FindyMail?"):
-        print("  Aborted by user")
-        sys.exit(0)
-
-    usage_after = _apollo_fetch_usage()
-    _apollo_report_usage(usage_before, usage_after, counters["search"], exa_total_cost)
+    _apollo_report_usage(usage_before, _apollo_fetch_usage(), counters["search"])
     return len(rows)
+
+
+def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
+    """Exa LinkedIn lookup on Apollo search CSV.
+    Reads CSV (with EC_ID), adds Person Linkedin Url, writes out_csv.
+    DB: UPDATE extracted_contacts.linkedin_url + INSERT enrichment_attempts.
+    Returns (found_count, total_cost_usd)."""
+    rows = []
+    fieldnames = []
+    with in_csv.open(encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+
+    if not rows:
+        print("  No rows in CSV")
+        return 0, 0.0
+
+    total = len(rows)
+    found = 0
+    total_cost = 0.0
+    print(f"\n  Exa LinkedIn lookup: {total} people from {in_csv.name}")
+
+    try:
+        conn = _db_conn()
+        db_ok = True
+    except Exception as e:
+        print(f"  ⚠ DB unavailable (non-fatal): {e}")
+        conn = None
+        db_ok = False
+
+    for i, row in enumerate(rows, 1):
+        first = row.get("First Name", "")
+        last = row.get("Last Name", "")
+        title = row.get("Title", "")
+        company = row.get("Company", "") or row.get("Website", "")
+
+        li_url, cost = _exa_find_linkedin(first, last, title, company)
+        total_cost += cost
+        row["Person Linkedin Url"] = li_url
+
+        if li_url:
+            found += 1
+            ec_id_str = row.get("EC_ID", "")
+            if db_ok and conn and ec_id_str:
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE extracted_contacts SET linkedin_url = %s WHERE id = %s",
+                            (li_url, int(ec_id_str)),
+                        )
+                    conn.commit()
+                except Exception:
+                    pass
+
+        if i % 20 == 0 or i == total:
+            print(f"    {i}/{total} | found: {found} | cost: ${total_cost:.3f}")
+        time.sleep(0.15)
+
+    # enrichment_attempts summary — one row per domain that had LinkedIn found
+    if db_ok and conn:
+        try:
+            domains_found: dict[str, int] = {}
+            for row in rows:
+                if row.get("Person Linkedin Url"):
+                    domains_found[row.get("Website", "")] = (
+                        domains_found.get(row.get("Website", ""), 0) + 1
+                    )
+            if domains_found:
+                dc_map = _dc_ids_by_domains(
+                    conn, list(domains_found.keys()), project_id
+                )
+                for dom, cnt in domains_found.items():
+                    dc_id = dc_map.get(dom)
+                    if dc_id:
+                        _db_log_enrichment(
+                            conn,
+                            dc_id,
+                            "exa_linkedin",
+                            contacts_found=cnt,
+                            cost_usd=round(total_cost, 4),
+                        )
+            conn.close()
+        except Exception as e:
+            print(f"  ⚠ DB enrichment log failed: {e}")
+
+    print(f"\n  Exa: {found}/{total} LinkedIn URLs found | Cost: ${total_cost:.3f}")
+
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    with out_csv.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print(f"  ✓ Saved → {out_csv}")
+
+    return found, total_cost
 
 
 def _run_people(config: ProjectConfig, args):
