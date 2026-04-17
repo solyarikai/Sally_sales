@@ -104,19 +104,11 @@ GS_COLUMNS = [
 
 def _get_gsheets_creds() -> Path:
     candidates = [
-        REPO_DIR.parent
-        / "sales_engineer"
-        / ".claude"
-        / "mcp"
-        / "google-sheets"
-        / "token.json",
-        Path.home()
-        / "sales_engineer"
-        / ".claude"
-        / "mcp"
-        / "google-sheets"
-        / "token.json",
-        REPO_DIR / ".claude" / "mcp" / "google-sheets" / "token.json",
+        Path.home() / ".claude/google-sheets/token.json",
+        SCRIPT_DIR.parent.parent / ".claude/mcp/google-sheets/token.json",
+        Path.home() / "magnum-opus-project/repo/sofia/.google-sheets/token.json",
+        SOFIA_DIR / ".google-sheets" / "token.json",
+        SOFIA_DIR.parent / "sofia" / ".google-sheets" / "token.json",
         Path(os.environ.get("GOOGLE_SHEETS_TOKEN", "")),
     ]
     for p in candidates:
