@@ -1718,41 +1718,53 @@ def _apollo_search_one_domain(
     return out[:max_people]
 
 
-EXA_API_KEY = os.environ.get("EXA_API_KEY", "197fc32a-3563-4e29-bdb1-5f5a796034c9")
 EXA_BASE = "https://api.exa.ai"
+_EXA_KEYS = [
+    os.environ.get("EXA_API_KEY", "39f2648c-681a-460f-ac5b-bd04d8c468a4"),
+    "197fc32a-3563-4e29-bdb1-5f5a796034c9",
+]
+_exa_key_idx = 0
 
 
 def _exa_find_linkedin(
     first_name: str, last_name: str, title: str, company: str
 ) -> tuple[str, float]:
-    """Search LinkedIn profile via Exa API.
+    """Search LinkedIn profile via Exa API with auto key rotation on 402.
     Returns (linkedin_url, cost_usd). linkedin_url is '' if not found."""
+    global _exa_key_idx
     query = f"{first_name} {last_name} {title} {company} site:linkedin.com/in"
-    try:
-        r = httpx.post(
-            f"{EXA_BASE}/search",
-            headers={"x-api-key": EXA_API_KEY, "Content-Type": "application/json"},
-            json={
-                "query": query,
-                "numResults": 1,
-                "type": "neural",
-                "includeDomains": ["linkedin.com"],
-            },
-            timeout=15,
-        )
-        if r.status_code != 200:
+    for attempt in range(len(_EXA_KEYS)):
+        key = _EXA_KEYS[_exa_key_idx]
+        try:
+            r = httpx.post(
+                f"{EXA_BASE}/search",
+                headers={"x-api-key": key, "Content-Type": "application/json"},
+                json={
+                    "query": query,
+                    "numResults": 1,
+                    "type": "neural",
+                    "includeDomains": ["linkedin.com"],
+                },
+                timeout=15,
+            )
+            if r.status_code == 402:
+                print(f"    ⚠ Exa key [{_exa_key_idx}] exhausted → rotating")
+                _exa_key_idx = (_exa_key_idx + 1) % len(_EXA_KEYS)
+                continue
+            if r.status_code != 200:
+                return "", 0.0
+            data = r.json()
+            results = data.get("results", [])
+            cost = data.get("costDollars", {}).get("total", 0.0)
+            if results:
+                url = results[0].get("url", "")
+                if "/in/" in url:
+                    return url, cost
+            return "", cost
+        except Exception:
             return "", 0.0
-        data = r.json()
-        results = data.get("results", [])
-        cost = data.get("costDollars", {}).get("total", 0.0)
-        if results:
-            url = results[0].get("url", "")
-            # Only accept /in/ profile URLs, not company/school pages
-            if "/in/" in url:
-                return url, cost
-        return "", cost
-    except Exception:
-        return "", 0.0
+    print("    ✗ All Exa keys exhausted")
+    return "", 0.0
 
 
 def _apollo_bulk_enrich(person_ids: list[str]) -> dict[str, dict]:
