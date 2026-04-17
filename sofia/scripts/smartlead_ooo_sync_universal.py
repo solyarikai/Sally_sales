@@ -50,6 +50,7 @@ if not KEY:
 DRY_RUN = "--dry-run" in sys.argv or "-n" in sys.argv
 CREATE_RE = "--create-re" in sys.argv
 RUN_ALL = "--all" in sys.argv
+NO_TG = "--no-tg" in sys.argv
 
 project_names = []
 if "--project" in sys.argv:
@@ -114,6 +115,25 @@ def post(path, data, timeout=30):
         print(f"  API error {r.status_code}: {r.text[:300]}")
     r.raise_for_status()
     return r.json()
+
+
+def delete(path, timeout=30):
+    time.sleep(API_DELAY)
+    p = {"api_key": KEY}
+    for attempt in range(4):
+        r = httpx.delete(f"{BASE}{path}", params=p, timeout=timeout)
+        if r.status_code == 429:
+            wait = 2 ** attempt + 1
+            time.sleep(wait)
+            continue
+        break
+    if r.status_code >= 400:
+        print(f"  DELETE error {r.status_code}: {r.text[:200]}")
+        return None
+    try:
+        return r.json()
+    except Exception:
+        return {}
 
 
 def tg(message):
@@ -359,11 +379,13 @@ def process_project(project_name, project_cfg, all_campaigns):
     # ── Step 1: Existing leads + repeat OOO ──
     print(f"\nChecking re-engagement campaigns...")
     existing_emails = {}
+    repeat_ooo_data = {}  # email -> {"re_cid": int, "re_lead_id": int, "reply_date": datetime}
 
     for seg_name, seg_cfg in active_segments.items():
         re_id = seg_cfg["re_engagement_campaign_id"]
 
         all_emails = set()
+        email_to_re_lead_id = {}
         offset = 0
         while True:
             resp = get(f"/campaigns/{re_id}/leads", {"limit": 100, "offset": offset})
@@ -372,9 +394,12 @@ def process_project(project_name, project_cfg, all_campaigns):
                 break
             for l in leads:
                 lead = l.get("lead", l)
-                email = lead.get("email", "")
+                email = (lead.get("email") or "").lower()
+                lid = lead.get("id")
                 if email:
-                    all_emails.add(email.lower())
+                    all_emails.add(email)
+                    if lid:
+                        email_to_re_lead_id[email] = lid
             if len(leads) < 100:
                 break
             offset += 100
@@ -393,8 +418,18 @@ def process_project(project_name, project_cfg, all_campaigns):
             for row in data:
                 if row.get("lead_category") == "Out Of Office":
                     email = (row.get("lead_email") or "").lower()
-                    if email:
-                        repeat_ooo.add(email)
+                    if not email:
+                        continue
+                    repeat_ooo.add(email)
+                    reply_date = parse_date(row.get("reply_time") or row.get("sent_time"))
+                    re_lead_id = email_to_re_lead_id.get(email)
+                    if re_lead_id:
+                        repeat_ooo_data[email] = {
+                            "re_cid": re_id,
+                            "re_lead_id": re_lead_id,
+                            "reply_date": reply_date,
+                            "segment": seg_name,
+                        }
             if len(data) < 500:
                 break
             offset += 500
@@ -474,8 +509,36 @@ def process_project(project_name, project_cfg, all_campaigns):
     new_parsed = 0
     cached = 0
     no_date = 0
+    reparsed_repeat = 0
 
     for email, lead in ooo_leads.items():
+        repeat = repeat_ooo_data.get(email)
+
+        # For repeat OOO: bypass cache, parse the latest OOO body from re-engagement
+        if repeat:
+            re_cid = repeat["re_cid"]
+            re_lid = repeat["re_lead_id"]
+            body = fetch_ooo_reply_text(re_cid, re_lid)
+            return_date = extract_return_date(body, repeat.get("reply_date"))
+            lead["return_date"] = return_date
+            # Override reply_date with latest from re-engagement so fallback uses fresh date
+            if repeat.get("reply_date"):
+                lead["reply_date"] = repeat["reply_date"]
+                lead["reply_date_str"] = repeat["reply_date"].isoformat()[:10]
+            state[email] = {
+                "parsed": True,
+                "return_date": return_date.isoformat() if return_date else None,
+                "reply_date": lead["reply_date"].isoformat() if lead.get("reply_date") else None,
+                "segment": lead["segment"],
+                "name": lead["name"],
+                "ooo_snippet": (strip_html(body)[:100] if body else ""),
+                "repeat_ooo": True,
+            }
+            reparsed_repeat += 1
+            if return_date:
+                print(f"    [REPEAT] {email}: returns {return_date.strftime('%Y-%m-%d')}")
+            continue
+
         if email in state and state[email].get("return_date"):
             lead["return_date"] = parse_date(state[email]["return_date"])
             cached += 1
@@ -512,8 +575,8 @@ def process_project(project_name, project_cfg, all_campaigns):
             no_date += 1
 
     save_state(project_name, state)
-    if new_parsed or no_date:
-        print(f"  Parsed: {new_parsed} new, {cached} cached, {no_date} no date")
+    if new_parsed or no_date or reparsed_repeat:
+        print(f"  Parsed: {new_parsed} new, {cached} cached, {no_date} no date, {reparsed_repeat} repeat re-parsed")
 
     # ── Step 4: Filter ready leads ──
     to_upload = {}
@@ -565,12 +628,25 @@ def process_project(project_name, project_cfg, all_campaigns):
         for lead in leads:
             ret = lead.get("return_date")
             src = f"ret {ret.strftime('%m/%d')}+{days_after_return}d" if ret else f"fb {fallback_days}d"
-            print(f"    {lead['email']} ({lead['name']}) - {src}")
+            tag = "[REPEAT]" if lead["email"] in repeat_ooo_data else ""
+            print(f"    {tag}{lead['email']} ({lead['name']}) - {src}")
             upload_summary.append(f"{lead['name']} ({lead['email']}) [{seg}]")
 
         if DRY_RUN:
             total_uploaded += len(leads)
             continue
+
+        # Step 5a: Delete repeat OOO leads from re-engagement so POST can re-add fresh
+        repeat_in_batch = [l for l in leads if l["email"] in repeat_ooo_data]
+        if repeat_in_batch:
+            print(f"    Deleting {len(repeat_in_batch)} repeat OOO leads before re-upload...")
+            deleted_count = 0
+            for lead in repeat_in_batch:
+                rd = repeat_ooo_data[lead["email"]]
+                res = delete(f"/campaigns/{rd['re_cid']}/leads/{rd['re_lead_id']}")
+                if res is not None:
+                    deleted_count += 1
+            print(f"    Deleted: {deleted_count}/{len(repeat_in_batch)}")
 
         lead_list = []
         for lead in leads:
@@ -583,9 +659,13 @@ def process_project(project_name, project_cfg, all_campaigns):
 
         try:
             resp = post(f"/campaigns/{re_id}/leads", {"lead_list": lead_list}, timeout=60)
-            uploaded = resp.get("upload_count", len(lead_list))
+            uploaded = resp.get("upload_count", 0)
+            already = resp.get("already_added_to_campaign", 0)
+            invalid = resp.get("invalid_email_count", 0)
             total_uploaded += uploaded
-            print(f"    Uploaded: {uploaded}")
+            print(f"    API response: upload_count={uploaded}, already_added={already}, invalid={invalid}")
+            if uploaded < len(lead_list) - already - invalid:
+                print(f"    WARNING: sent {len(lead_list)} leads, only {uploaded} accepted")
         except Exception as e:
             print(f"    Upload error: {e}")
 
@@ -638,15 +718,15 @@ for r in results:
     if uploaded > 0:
         has_uploads = True
         names = "\n".join(f"  - {s}" for s in r.get("upload_summary", []))
-        tg_lines.append(f"{proj}: +{uploaded}\n{names}")
-    elif waiting > 0:
-        tg_lines.append(f"{proj}: ждут {waiting}")
+        tg_lines.append(f"{proj}: +{uploaded} uploaded, {waiting} waiting, {total} total OOO\n{names}")
+    else:
+        tg_lines.append(f"{proj}: 0 uploaded, {waiting} waiting, {total} total OOO")
 
 if DRY_RUN:
     print(f"\n[DRY RUN] No changes made.")
     sys.exit(0)
 
-if tg_lines:
+if not NO_TG:
     emoji = "✅" if has_uploads else "📭"
     tg(f"{emoji} OOO Sync - {now.strftime('%d.%m.%Y')}\n\n" + "\n\n".join(tg_lines))
 

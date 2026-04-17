@@ -24,6 +24,7 @@ Flow:
 """
 
 import os
+import re
 import argparse
 import json
 import logging
@@ -31,6 +32,46 @@ from datetime import datetime
 import psycopg2
 import psycopg2.extras
 import httpx
+
+EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+GENERIC_LOCALPARTS = {
+    'noreply', 'no-reply', 'info', 'hello', 'contact', 'admin', 'support',
+    'team', 'office', 'mail', 'enquiries', 'inquiries', 'sales', 'marketing',
+    'hr', 'careers', 'jobs', 'press', 'media', 'webmaster', 'postmaster',
+    'unsubscribe', 'notifications', 'reply', 'bounce',
+}
+
+
+def extract_referred_contacts(reply_text: str, email_body: str, exclude_email: str):
+    """Extract referred email addresses from a wrong_person reply body.
+
+    Returns list of dicts: [{email, first_name}]
+    - Skips the original lead's email and generic addresses (noreply, info, hr, ...).
+    - Deduplicates by email (case-insensitive).
+    - Infers first_name from local part (Mitch@... -> Mitch, lucy.smith@ -> Lucy).
+    """
+    text = f"{email_body or ''}\n{reply_text or ''}"
+    found = EMAIL_RE.findall(text)
+    exclude = (exclude_email or '').lower().strip()
+    exclude_domain = exclude.split('@')[-1] if '@' in exclude else ''
+
+    seen = set()
+    out = []
+    for raw in found:
+        e = raw.lower().strip()
+        if e in seen or e == exclude:
+            continue
+        local = e.split('@', 1)[0]
+        if local in GENERIC_LOCALPARTS:
+            continue
+        if local.startswith('noreply') or local.startswith('no-reply') or local.startswith('do-not-reply'):
+            continue
+        seen.add(e)
+        # Infer first_name: take first token, strip digits, capitalize
+        first_token = re.split(r'[._\-+]', local)[0]
+        first_name = re.sub(r'\d+', '', first_token).capitalize() or first_token.capitalize()
+        out.append({'email': e, 'first_name': first_name})
+    return out
 
 # Setup logging
 logging.basicConfig(
@@ -135,7 +176,8 @@ def get_wrong_person_leads(campaign_names: list):
 
         query = """
             SELECT pr.id, pr.lead_email, pr.lead_first_name, pr.lead_last_name,
-                   pr.lead_company, pr.campaign_name, pr.received_at
+                   pr.lead_company, pr.campaign_name, pr.received_at,
+                   pr.reply_text, pr.email_body
             FROM processed_replies pr
             WHERE pr.category = 'wrong_person'
               AND pr.campaign_name = ANY(%s)
@@ -154,22 +196,63 @@ def get_wrong_person_leads(campaign_names: list):
         rows = cur.fetchall()
         cur.close()
 
-        leads = []
-        seen_emails = set()
+        # Build referral entries: each referred contact becomes one entry.
+        # We iterate each wrong_person reply, extract forwarded contacts from
+        # its body, and skip replies that don't surface any referral.
+        entries = []
+        seen_referred = set()
+        skipped_no_referrals = 0
         for row in rows:
-            email = row['lead_email'].lower().strip()
-            if email and email not in seen_emails:
-                seen_emails.add(email)
-                leads.append({
-                    'email': email,
-                    'first_name': row['lead_first_name'] or '',
-                    'last_name': row['lead_last_name'] or '',
-                    'company': row['lead_company'] or '',
-                    'campaign': row['campaign_name'] or '',
-                    'reply_id': row['id'],
+            original_email = (row['lead_email'] or '').lower().strip()
+            original_first = row['lead_first_name'] or ''
+            original_last = row['lead_last_name'] or ''
+            original_company = row['lead_company'] or ''
+            campaign = row['campaign_name'] or ''
+            reply_id = row['id']
+
+            referrals = extract_referred_contacts(
+                row.get('reply_text') or '',
+                row.get('email_body') or '',
+                original_email,
+            )
+
+            if not referrals:
+                skipped_no_referrals += 1
+                # Mark reply processed anyway (nothing to forward to)
+                entries.append({
+                    'email': '',
+                    'first_name': '',
+                    'last_name': '',
+                    'company': original_company,
+                    'campaign': campaign,
+                    'reply_id': reply_id,
+                    'colleague_name': original_first,
+                    'colleague_email': original_email,
+                    'no_referrals': True,
+                })
+                continue
+
+            for r in referrals:
+                key = (reply_id, r['email'])
+                if r['email'] in seen_referred or key in seen_referred:
+                    continue
+                seen_referred.add(r['email'])
+                seen_referred.add(key)
+                entries.append({
+                    'email': r['email'],
+                    'first_name': r['first_name'],
+                    'last_name': '',
+                    'company': original_company,
+                    'campaign': campaign,
+                    'reply_id': reply_id,
+                    'colleague_name': original_first,
+                    'colleague_email': original_email,
+                    'no_referrals': False,
                 })
 
-        return leads
+        if skipped_no_referrals:
+            logger.info(f"Found {skipped_no_referrals} wrong_person replies with no referred contacts — will mark as processed, no emails sent")
+        return entries
     except Exception as e:
         logger.error(f"Error fetching leads: {e}")
         return []
@@ -180,31 +263,37 @@ def get_wrong_person_leads(campaign_names: list):
 
 def add_leads_to_smartlead(leads: list, campaign_id: int) -> dict:
     """
-    Add leads to SmartLead campaign via direct API call.
+    Add referred contacts to SmartLead campaign via direct API call.
 
-    Sets custom field 'colleague_name' = lead's first_name.
-    In Wrong Person flow, the lead in processed_replies IS the original
-    contact who replied "wrong person". The sequence uses {{colleague_name}}
-    to reference them: "I reached out to {{colleague_name}} - they pointed
-    me to you."
+    Each entry in `leads` represents ONE referred contact (extracted from
+    the wrong_person reply body). We set:
+      - email/first_name = the referred person (Mitch, Lucy, ...)
+      - colleague_name   = the original lead who forwarded (Olivia, Pathida, ...)
+      - company_name     = original lead's company
+
+    Template renders as:
+      "Hey Mitch, I reached out to Olivia at InterTalent — they pointed me to you..."
+
+    Entries marked no_referrals=True are skipped (nothing to send to).
     """
-    if not leads:
+    sendable = [l for l in leads if l.get('email') and not l.get('no_referrals')]
+    if not sendable:
         return {'added': 0, 'failed': 0, 'errors': []}
 
     if not SMARTLEAD_API_KEY:
         error = "SMARTLEAD_API_KEY not set in environment"
         logger.error(error)
-        return {'added': 0, 'failed': len(leads), 'errors': [error]}
+        return {'added': 0, 'failed': len(sendable), 'errors': [error]}
 
     lead_list = []
-    for lead in leads:
+    for lead in sendable:
         entry = {
             'email': lead['email'],
             'first_name': lead['first_name'] or lead['email'].split('@')[0],
             'last_name': lead.get('last_name', ''),
             'company_name': lead['company'] or '',
             'custom_fields': {
-                'colleague_name': lead['first_name'] or '',
+                'colleague_name': lead.get('colleague_name') or '',
             }
         }
         lead_list.append(entry)
@@ -226,7 +315,7 @@ def add_leads_to_smartlead(leads: list, campaign_id: int) -> dict:
             errors = []
 
             if isinstance(result, dict):
-                added = result.get('upload_count', result.get('total', len(leads)))
+                added = result.get('upload_count', result.get('total', len(sendable)))
                 failed = result.get('failed_count', 0)
                 if result.get('failed_leads'):
                     for fl in result['failed_leads'][:5]:
@@ -236,11 +325,11 @@ def add_leads_to_smartlead(leads: list, campaign_id: int) -> dict:
         else:
             error_msg = f"SmartLead API {response.status_code}: {response.text[:200]}"
             logger.error(error_msg)
-            return {'added': 0, 'failed': len(leads), 'errors': [error_msg]}
+            return {'added': 0, 'failed': len(sendable), 'errors': [error_msg]}
     except Exception as e:
         error_msg = f"SmartLead API exception: {e}"
         logger.error(error_msg)
-        return {'added': 0, 'failed': len(leads), 'errors': [error_msg]}
+        return {'added': 0, 'failed': len(sendable), 'errors': [error_msg]}
 
 
 def mark_as_processed(reply_ids: list, campaign_id: int):
@@ -388,40 +477,48 @@ def sync_project(project: str, campaign_id: int, dest_campaign_name: str,
         logger.info("DRY RUN - no changes will be made")
     logger.info("=" * 60)
 
-    # 1. Get Wrong Person leads from source campaigns
-    leads = get_wrong_person_leads(campaign_names)
-    logger.info(f"Found {len(leads)} unprocessed Wrong Person replies")
+    # 1. Get entries (one per referred contact, or a no_referrals marker per reply)
+    entries = get_wrong_person_leads(campaign_names)
+    sendable = [e for e in entries if e.get('email') and not e.get('no_referrals')]
+    no_ref_replies = [e for e in entries if e.get('no_referrals')]
+    unique_replies = len({e['reply_id'] for e in entries})
+    logger.info(f"Found {unique_replies} wrong_person replies -> {len(sendable)} referred contacts to sync ({len(no_ref_replies)} with no referrals)")
 
-    if not leads:
+    if not entries:
         logger.info("No leads to process")
         if not dry_run:
             send_telegram_notification({'added': 0, 'failed': 0, 'errors': []}, [], project, campaign_id, dest_campaign_name, chat_id)
         return {'project': project, 'found': 0, 'added': 0, 'failed': 0}
 
-    # 2. Log what we found
-    for lead in leads:
-        logger.info(f"  {lead['email']} | {lead['first_name']} | {lead['company']} | from: {lead['campaign']}")
+    # 2. Log what we found — keep parseable format for morning_sync wrapper
+    for lead in sendable:
+        colleague = lead.get('colleague_name') or '?'
+        logger.info(f"  {lead['email']} | {lead['first_name']} | {lead['company']} | from: {lead['campaign']} (referred by {colleague})")
+    for lead in no_ref_replies:
+        logger.info(f"  [NO_REFERRAL] {lead.get('colleague_email', '?')} (reply_id={lead['reply_id']}) — no emails in body, marking processed")
 
     if dry_run:
-        logger.info(f"DRY RUN complete - {len(leads)} leads would be synced")
-        return {'project': project, 'found': len(leads), 'added': 0, 'failed': 0}
+        logger.info(f"DRY RUN complete - {len(sendable)} referred contacts would be synced, {len(no_ref_replies)} replies would be marked processed")
+        return {'project': project, 'found': len(sendable), 'added': 0, 'failed': 0}
 
     # 3. Add to SmartLead
-    logger.info(f"Adding {len(leads)} leads to SmartLead campaign {campaign_id}...")
-    stats = add_leads_to_smartlead(leads, campaign_id)
-    logger.info(f"Result: added={stats['added']}, failed={stats['failed']}")
+    if sendable:
+        logger.info(f"Adding {len(sendable)} referred contacts to SmartLead campaign {campaign_id}...")
+        stats = add_leads_to_smartlead(sendable, campaign_id)
+        logger.info(f"Result: added={stats['added']}, failed={stats['failed']}")
+    else:
+        stats = {'added': 0, 'failed': 0, 'errors': []}
 
-    # 4. Mark ALL fetched reply_ids as processed to prevent duplicates.
-    # SmartLead silently skips existing emails (counts them as "added"),
-    # so we mark everything that was sent to the API.
-    if stats['added'] > 0:
-        reply_ids = [lead['reply_id'] for lead in leads]
+    # 4. Mark ALL reply_ids as processed — both those that yielded referrals
+    # and those with no referrals (so we don't re-scan them every run).
+    reply_ids = list({e['reply_id'] for e in entries})
+    if reply_ids and (stats['added'] > 0 or no_ref_replies):
         mark_as_processed(reply_ids, campaign_id)
 
     # 5. Send notification
-    send_telegram_notification(stats, leads, project, campaign_id, dest_campaign_name, chat_id)
+    send_telegram_notification(stats, sendable, project, campaign_id, dest_campaign_name, chat_id)
 
-    return {'project': project, 'found': len(leads), 'added': stats['added'], 'failed': stats['failed']}
+    return {'project': project, 'found': len(sendable), 'added': stats['added'], 'failed': stats['failed']}
 
 
 def main():
@@ -430,7 +527,7 @@ def main():
                         help='Project name for campaign filter (e.g. OnSocial, EasyStaff)')
     parser.add_argument('--campaign-id', type=int, default=0,
                         help='SmartLead campaign ID (optional - auto-discovered if omitted)')
-    parser.add_argument('--chat-id', required=True,
+    parser.add_argument('--chat-id', required=False, default='',
                         help='Telegram chat ID for notifications')
     parser.add_argument('--dry-run', action='store_true',
                         help='Show what would be synced without actually doing it')
