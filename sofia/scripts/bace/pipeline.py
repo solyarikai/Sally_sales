@@ -1702,6 +1702,10 @@ def _apollo_search_one_domain(
         except Exception as e:
             print(f"    ✗ {domain}: {e}")
             return out
+        if r.status_code == 429:
+            print(f"    ⏳ {domain}: rate limit, waiting 70s...")
+            time.sleep(70)
+            continue
         if r.status_code != 200:
             print(f"    ✗ {domain}: HTTP {r.status_code} {r.text[:200]}")
             return out
