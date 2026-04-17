@@ -98,7 +98,7 @@ run_segment() {
         --segment $seg_arg \
         --titles \"$TECHLEAD_TITLES\" \
         --seniorities \"$SENIORITIES\" \
-        --max-people 20 \
+        --max-people 5 \
         --search-only \
         --auto-approve"
 }
