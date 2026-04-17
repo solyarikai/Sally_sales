@@ -43,13 +43,14 @@ US, India, UK, Germany, Canada, Brazil, France, Spain, UAE, Australia, Italy, Tu
 
 ## Target Roles
 
-**Titles** (10 — CEO + C-level + specific buyers):
+**Titles** (14):
 - CEO, Founder, Co-Founder, Managing Director
-- CTO, CPO, CMO
-- Head of Product, Head of Partnerships, Head of Growth
-- Head of Influencer Marketing
+- CTO, CPO, CMO, VP of Marketing
+- Head of Product, Head of Partnerships, Head of Growth, Head of Influencer Marketing
+- Director of Social Media
+- Manager of Creator Partnerships
 
-**Seniorities**: c_suite, vp, head, director, founder, partner
+**Seniorities**: c_suite, vp, head, director, founder, partner, manager
 
 **Reasoning**: Decision makers at influencer-first agencies who approve tool stack — founders drive budget, CPO/CTO approve API integration, Head of Influencer owns workflow.
 
