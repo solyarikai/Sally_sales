@@ -2164,7 +2164,9 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    _AUTO_APPROVE = getattr(args, "auto_approve", False)
+    _AUTO_APPROVE = getattr(args, "auto_approve", False) or getattr(
+        args, "search_only", False
+    )
 
     print("═" * 60)
     print(f"  OnSocial Pipeline — {ts()}")
