@@ -1767,6 +1767,113 @@ def _exa_find_linkedin(
     return "", 0.0
 
 
+# ── DB helpers (best-effort, non-fatal) ───────────────────────────────────────
+
+
+def _db_conn():
+    """psycopg2 connection to leadgen DB on localhost (host access via exposed port)."""
+    import psycopg2
+
+    raw = os.environ.get("DATABASE_URL", "")
+    # DATABASE_URL uses docker hostname; replace with localhost for host-side access
+    url = (
+        raw.replace("@leadgen-postgres:", "@localhost:")
+        if raw
+        else "postgresql://leadgen:leadgen_secret@localhost:5432/leadgen"
+    )
+    return psycopg2.connect(url)
+
+
+def _dc_ids_by_domains(conn, domains: list, project_id: int = 42) -> dict:
+    """Return {domain: discovered_company_id} for all matching domains in project."""
+    if not domains:
+        return {}
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT domain, id FROM discovered_companies WHERE domain = ANY(%s) AND project_id = %s",
+            (list(domains), project_id),
+        )
+        return {row[0]: row[1] for row in cur.fetchall()}
+
+
+def _db_log_enrichment(conn, dc_id: int, source_type: str, **kwargs):
+    """Insert enrichment_attempts row. Non-fatal."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO enrichment_attempts
+               (discovered_company_id, source_type, contacts_found, emails_found,
+                credits_used, cost_usd, status, config)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (
+                dc_id,
+                source_type,
+                kwargs.get("contacts_found", 0),
+                kwargs.get("emails_found", 0),
+                kwargs.get("credits_used", 0),
+                kwargs.get("cost_usd", 0.0),
+                kwargs.get("status", "SUCCESS"),
+                json.dumps(kwargs.get("config", {})),
+            ),
+        )
+    conn.commit()
+
+
+def _db_save_apollo_people(
+    conn, people_by_domain: dict, project_id: int, segment: str
+) -> dict:
+    """Insert extracted_contacts for Apollo search results.
+    people_by_domain: {domain: [{"first_name","last_name","title","seniority","apollo_id"}]}
+    Returns {apollo_id: ec_id} mapping."""
+    if not people_by_domain:
+        return {}
+    import psycopg2.extras
+
+    domains = list(people_by_domain.keys())
+    dc_map = _dc_ids_by_domains(conn, domains, project_id)
+
+    rows_to_insert = []
+    apollo_id_order = []
+    for domain, people in people_by_domain.items():
+        dc_id = dc_map.get(domain)
+        if not dc_id:
+            continue
+        for p in people:
+            rows_to_insert.append(
+                (
+                    dc_id,
+                    p.get("first_name", ""),
+                    p.get("last_name", ""),
+                    p.get("title", ""),
+                    "APOLLO",
+                    project_id,
+                    json.dumps(
+                        {
+                            "segment": segment,
+                            "seniority": p.get("seniority", ""),
+                            "apollo_id": p.get("apollo_id", ""),
+                        }
+                    ),
+                )
+            )
+            apollo_id_order.append(p.get("apollo_id", ""))
+
+    if not rows_to_insert:
+        return {}
+
+    with conn.cursor() as cur:
+        psycopg2.extras.execute_values(
+            cur,
+            """INSERT INTO extracted_contacts
+               (discovered_company_id, first_name, last_name, job_title, source, project_id, apollo_search_context)
+               VALUES %s RETURNING id""",
+            rows_to_insert,
+        )
+        ec_ids = [row[0] for row in cur.fetchall()]
+    conn.commit()
+
+    return dict(zip(apollo_id_order, ec_ids))
+
+
 def _apollo_bulk_enrich(person_ids: list[str]) -> dict[str, dict]:
     """Enrich people by Apollo person IDs via /people/bulk_match.
     Returns {person_id: enriched_data} with email, real name, linkedin_url.
