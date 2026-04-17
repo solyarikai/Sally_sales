@@ -2137,6 +2137,39 @@ def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
                             contacts_found=cnt,
                             cost_usd=round(total_cost, 4),
                         )
+
+            # ── Geo-match from discovered_companies ──────────────────────────
+            all_domains = list({r.get("Website", "") for r in rows if r.get("Website")})
+            if all_domains:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT domain, country, city, employee_range "
+                        "FROM discovered_companies "
+                        "WHERE domain = ANY(%s) AND project_id = %s",
+                        (all_domains, project_id),
+                    )
+                    geo_map = {
+                        row[0]: {"country": row[1], "city": row[2], "employees": row[3]}
+                        for row in cur.fetchall()
+                    }
+                for col in ["Company Country", "City", "# Employees"]:
+                    if col not in fieldnames:
+                        fieldnames.append(col)
+                filled = 0
+                for row in rows:
+                    dom = row.get("Website", "")
+                    geo = geo_map.get(dom, {})
+                    if not row.get("Company Country") and geo.get("country"):
+                        row["Company Country"] = geo["country"]
+                        filled += 1
+                    if not row.get("City") and geo.get("city"):
+                        row["City"] = geo["city"]
+                    if not row.get("# Employees") and geo.get("employees"):
+                        row["# Employees"] = geo["employees"]
+                print(
+                    f"  ✓ Geo-match: {filled}/{total} company countries filled from DB"
+                )
+
             conn.close()
         except Exception as e:
             print(f"  ⚠ DB enrichment log failed: {e}")
