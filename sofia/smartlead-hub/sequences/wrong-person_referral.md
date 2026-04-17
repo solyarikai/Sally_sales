@@ -28,58 +28,71 @@
 
 ### Step 1 | Day 0
 
-**Subject**: `{{colleague_name}} pointed me your way`
+**Subject**: `Creator data API for {{company_name}}`
 
 ```
 Hey {{first_name}},
 
-I reached out to {{colleague_name}} at {{company_name}} — they pointed me to you as the right person to speak with about influencer data.
+I reached out to {{colleague_name}} at {{company_name}} - they pointed me to you as the right person to speak with about influencer data.
 
-We give agencies access to 450M+ creator profiles across Instagram, TikTok, YouTube and 7 other networks — one unified layer, no scraping.
+We give agencies access to 450M+ creator profiles across Instagram, TikTok and YouTube - one unified data layer, no scraping.
 
-Worth a 15-min call?
+Phyllo, Modash, Captiv8, Kolsquare and Lefty all run on our API.
 
-{{sender_name}}
+Is creator data sourcing on your radar, or should I be talking to someone else at {{company_name}}?
+
+Kind regards,
+Bhaskar Vishnu from OnSocial
+Trusted by Viral Nation, Whalar and Billion Dollar Boy
 ```
 
-**Words**: 52 | **CTA**: Call
-**Hook**: Referral name in subject + first line — lowers resistance, warm intro
+**Hook**: Referral + real social proof + CTA-question (right person?)
 
 ---
 
 ### Step 2 | +3 days
 
-**Subject**: `Re: {{colleague_name}} pointed me your way`
+**Subject**: (thread, blank)
 
 ```
 Hey {{first_name}},
 
-Quick follow-up — the main thing agencies tell us saves them the most time is pulling real audience data on any creator across all platforms without depending on a vendor.
+Quick add - two things that matter for agencies like {{company_name}}:
 
-Happy to show it live if relevant for {{company_name}}.
+- Your reports stay under your brand. Our data plugs in via API, clients see your logo, not ours.
+- One source for 450M+ creators. No stitching across vendors for fraud scores, demographics, audience breakdown.
 
-{{sender_name}}
+Worth 15 min to see what this looks like for {{company_name}}?
+
+Kind regards,
+Bhaskar
 ```
 
-**Words**: 42 | **CTA**: Live demo offer
+**CTA**: 15-min call
 
 ---
 
-### Step 3 | +5 days
+### Step 3 | +4 days
 
-**Subject**: `Re: {{colleague_name}} pointed me your way`
+**Subject**: (thread, blank)
 
 ```
 Hey {{first_name}},
 
-Last note — if this is not a priority right now, totally fine.
+Last note from me - if creator data isn't on the radar at {{company_name}} right now, happy to leave it there.
 
-Feel free to reach out whenever the timing is right.
+If I'm reaching the wrong person, who handles creator tooling or partnerships? I'll close this thread either way.
 
-{{sender_name}}
+Best,
+Bhaskar
 ```
 
-**Words**: 25 | **CTA**: Open door / soft breakup
+**CTA**: Soft exit + who's the right person
+
+---
+
+## Deployed to SmartLead: 2026-04-17 (via save_campaign_sequence, replaced step IDs 6980649/6980650/6980651 -> 7564198/7564199/7564200).
+## Fix: removed false "7 other networks" claim. Real scope: IG + TT + YT.
 
 ---
 

@@ -2,19 +2,19 @@
   {
     "seq_number": 1,
     "seq_delay_details": {"delay_in_days": 0},
-    "subject": "{{colleague_name}} suggested I reach out",
-    "email_body": "Hey {{first_name}},\n\nI was in touch with {{colleague_name}} about influencer data at {{company_name}} — they pointed me to you as the right person.\n\nWe give agencies direct access to 450M+ creator profiles across Instagram, TikTok, YouTube and 7 other networks — unified, no scraping required.\n\nWorth a 15-min call?\n\n{{sender_name}}"
+    "subject": "Creator data API for {{company_name}}",
+    "email_body": "Hey {{first_name}},\n\nI reached out to {{colleague_name}} at {{company_name}} - they pointed me to you as the right person to speak with about influencer data.\n\nWe give agencies access to 450M+ creator profiles across Instagram, TikTok and YouTube - one unified data layer, no scraping.\n\nPhyllo, Modash, Captiv8, Kolsquare and Lefty all run on our API.\n\nIs creator data sourcing on your radar, or should I be talking to someone else at {{company_name}}?\n\nKind regards,\nBhaskar Vishnu from OnSocial\nTrusted by Viral Nation, Whalar and Billion Dollar Boy"
   },
   {
     "seq_number": 2,
     "seq_delay_details": {"delay_in_days": 3},
-    "subject": "Re: {{colleague_name}} suggested I reach out",
-    "email_body": "Hey {{first_name}},\n\nFollowing up quickly — the thing most agencies tell us saves them the most time is being able to pull real audience data on any creator across platforms without waiting on a vendor.\n\nIf that's relevant to what {{company_name}} is doing right now, happy to show it live.\n\n{{sender_name}}"
+    "subject": "",
+    "email_body": "Hey {{first_name}},\n\nQuick add - two things that matter for agencies like {{company_name}}:\n\n- Your reports stay under your brand. Our data plugs in via API, clients see your logo, not ours.\n- One source for 450M+ creators. No stitching across vendors for fraud scores, demographics, audience breakdown.\n\nWorth 15 min to see what this looks like for {{company_name}}?\n\nKind regards,\nBhaskar"
   },
   {
     "seq_number": 3,
-    "seq_delay_details": {"delay_in_days": 5},
-    "subject": "Re: {{colleague_name}} suggested I reach out",
-    "email_body": "Hey {{first_name}},\n\nLast note from me — if influencer data isn't a priority right now, no problem at all.\n\nFeel free to ping me whenever the timing works.\n\n{{sender_name}}"
+    "seq_delay_details": {"delay_in_days": 4},
+    "subject": "",
+    "email_body": "Hey {{first_name}},\n\nLast note from me - if creator data isn't on the radar at {{company_name}} right now, happy to leave it there.\n\nIf I'm reaching the wrong person, who handles creator tooling or partnerships? I'll close this thread either way.\n\nBest,\nBhaskar"
   }
 ]
