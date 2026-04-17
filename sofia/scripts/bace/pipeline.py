@@ -1881,32 +1881,7 @@ def _apollo_search_to_csv(
             f"\n  Exa: {found_li}/{total} LinkedIn URLs found | Total cost: ${exa_total_cost:.3f}"
         )
 
-    # ── Checkpoint: show preview, wait for approval ──────────────────────────
-    print(f"\n{'=' * 60}")
-    print("  PREVIEW — first 20 people")
-    print(f"{'=' * 60}")
-    preview = list(raw_by_id.items())[:20]
-    for pid, entry in preview:
-        raw = entry["raw"]
-        org = raw.get("organization") or {}
-        enr = enriched_map.get(pid, {})
-        last = enr.get("last_name") or raw.get("last_name_obfuscated", "")
-        email = entry.get("email") or enr.get("email") or ""
-        print(
-            f"  {raw.get('first_name', '')} {last} | "
-            f"{raw.get('title', 'N/A')} @ {org.get('name', entry['domain'])} | "
-            f"email={email or '-'} li={entry.get('linkedin_url') or '-'}"
-        )
-    found_with_contact = sum(
-        1 for e in raw_by_id.values() if e.get("linkedin_url") or e.get("email")
-    )
-    print(f"\n  Total: {found_with_contact}/{total} have LinkedIn or email")
-
-    if not _checkpoint(f"Proceed with {found_with_contact} contacts to FindyMail?"):
-        print("  Aborted by user")
-        sys.exit(0)
-
-    # ── Step 3: build rows ───────────────────────────────────────────────────
+    # ── Step 3: build rows & write CSV (before checkpoint so data is saved) ────
     rows = []
     for pid, entry in raw_by_id.items():
         raw = entry["raw"]
@@ -1942,6 +1917,32 @@ def _apollo_search_to_csv(
         w.writeheader()
         w.writerows(rows)
     print(f"\n  ✓ Wrote {len(rows)} people → {out_csv}")
+
+    # ── Checkpoint: show preview, wait for approval ──────────────────────────
+    print(f"\n{'=' * 60}")
+    print("  PREVIEW — first 20 people")
+    print(f"{'=' * 60}")
+    preview = list(raw_by_id.items())[:20]
+    for pid, entry in preview:
+        raw = entry["raw"]
+        org = raw.get("organization") or {}
+        enr = enriched_map.get(pid, {})
+        last = enr.get("last_name") or raw.get("last_name_obfuscated", "")
+        email = entry.get("email") or enr.get("email") or ""
+        print(
+            f"  {raw.get('first_name', '')} {last} | "
+            f"{raw.get('title', 'N/A')} @ {org.get('name', entry['domain'])} | "
+            f"email={email or '-'} li={entry.get('linkedin_url') or '-'}"
+        )
+    found_with_contact = sum(
+        1 for e in raw_by_id.values() if e.get("linkedin_url") or e.get("email")
+    )
+    print(f"\n  Total: {found_with_contact}/{total} have LinkedIn or email")
+    print(f"  CSV saved → {out_csv}")
+
+    if not _checkpoint(f"Proceed with {found_with_contact} contacts to FindyMail?"):
+        print("  Aborted by user")
+        sys.exit(0)
 
     usage_after = _apollo_fetch_usage()
     _apollo_report_usage(usage_before, usage_after, counters["search"], exa_total_cost)
