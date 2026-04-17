@@ -93,7 +93,7 @@ run_segment() {
 
     echo ""
     echo "  ── $seg_short ──────────────────────────────────────"
-    ssh "$HETZNER" "cd $REMOTE_REPO && python3 sofia/scripts/bace/pipeline.py people \
+    ssh "$HETZNER" "cd $REMOTE_REPO && set -a && source .env && set +a && python3 sofia/scripts/bace/pipeline.py people \
         --domains-csv $domains_file \
         --segment $seg_arg \
         --titles \"$TECHLEAD_TITLES\" \
