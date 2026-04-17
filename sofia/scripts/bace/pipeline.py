@@ -1991,6 +1991,9 @@ def _run_people(config: ProjectConfig, args):
         if n == 0:
             print("  No people found — exiting")
             sys.exit(0)
+        if getattr(args, "search_only", False):
+            print(f"\n  ✓ --search-only: сохранено → {out_csv}")
+            sys.exit(0)
         # Feed the freshly-written CSV into the findymail step below
         args.csv = str(out_csv)
         from_step = "findymail"
