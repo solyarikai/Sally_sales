@@ -439,10 +439,9 @@ def main():
     dd_dot_mm = dd_mm.replace("_", ".")
 
     pipeline_dir = SOFIA_DIR / "output" / "OnSocial" / "pipeline"
-    gs_dir = SOFIA_DIR.parent / "sofia" / "get_sales_hub" / dd_mm
-    # Fallback: when invoked from sales_engineer local path
+    gs_dir = SOFIA_DIR / "get_sales_hub" / dd_mm
     if not gs_dir.exists():
-        gs_dir = SOFIA_DIR / "get_sales_hub" / dd_mm
+        gs_dir = SOFIA_DIR.parent / "get_sales_hub" / dd_mm
 
     print(f"\n  Master sheet: {args.sheet_id}")
     print(f"  Date: {date}")
