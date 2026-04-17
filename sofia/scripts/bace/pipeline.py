@@ -2352,7 +2352,11 @@ def main():
     p_ppl.add_argument(
         "--segment", required=True, help="Сегмент: soccom / imagency / infplat"
     )
-    p_ppl.add_argument("--from-step", choices=["apollo-search", "findymail", "upload"])
+    p_ppl.add_argument(
+        "--from-step",
+        choices=["apollo-search", "exa-lookup", "findymail", "upload"],
+        help="apollo-search→exa-lookup→findymail→upload",
+    )
     p_ppl.add_argument(
         "--titles",
         help='Override default titles, comma-separated: "CEO,Founder"',
