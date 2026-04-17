@@ -2087,6 +2087,16 @@ def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
         db_ok = False
 
     for i, row in enumerate(rows, 1):
+        # Skip if LinkedIn URL already present
+        existing_li = row.get("Person Linkedin Url", "").strip()
+        if existing_li:
+            found += 1
+            if i % 20 == 0 or i == total:
+                print(
+                    f"    {i}/{total} | found: {found} | cost: ${total_cost:.3f} (skip)"
+                )
+            continue
+
         first = row.get("First Name", "")
         last = row.get("Last Name", "")
         title = row.get("Title", "")
