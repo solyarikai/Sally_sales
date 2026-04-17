@@ -55,16 +55,35 @@ def main():
     conn = _db_conn()
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT domain, country, city, employee_range, employee_count "
-            "FROM discovered_companies "
-            "WHERE domain = ANY(%s) AND project_id = %s",
+            """
+            SELECT
+                domain,
+                COALESCE(
+                    NULLIF(country, ''),
+                    NULLIF(company_info->>'country', ''),
+                    NULLIF(apollo_org_data->>'country', '')
+                ) AS country,
+                COALESCE(
+                    NULLIF(city, ''),
+                    NULLIF(company_info->>'city', ''),
+                    NULLIF(apollo_org_data->>'city', '')
+                ) AS city,
+                COALESCE(
+                    NULLIF(employee_range, ''),
+                    NULLIF(company_info->>'employees', ''),
+                    NULLIF(apollo_org_data->>'estimated_num_employees', ''),
+                    CASE WHEN employee_count > 0 THEN employee_count::text ELSE NULL END
+                ) AS employees
+            FROM discovered_companies
+            WHERE domain = ANY(%s) AND project_id = %s
+            """,
             (domains, args.project_id),
         )
         geo_map = {
             row[0]: {
                 "country": row[1] or "",
                 "city": row[2] or "",
-                "employees": row[3] or (str(row[4]) if row[4] else ""),
+                "employees": row[3] or "",
             }
             for row in cur.fetchall()
         }
