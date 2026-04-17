@@ -2156,6 +2156,7 @@ def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
 def _run_people(config: ProjectConfig, args):
     today = tag()
     segment_slug = args.segment.lower() if args.segment else ""
+    project_id = getattr(args, "project_id", 42)
 
     # Resolve starting step
     if args.from_step:
@@ -2165,7 +2166,7 @@ def _run_people(config: ProjectConfig, args):
     else:
         from_step = "findymail"
 
-    # ── Apollo search (domains → people CSV) ────────────────────────────────
+    # ── Step: apollo-search (domains → Apollo CSV, no Exa) ──────────────────
     if from_step == "apollo-search":
         if not args.domains_csv:
             print("ERROR: --domains-csv required for apollo-search step")
@@ -2189,23 +2190,39 @@ def _run_people(config: ProjectConfig, args):
         )
         seg_label = segment_slug.upper()
         out_csv = config.csv_dir / f"apollo_people_{seg_label}_{today}.csv"
-        n = _apollo_search_to_csv(
+        n = _run_apollo_search_step(
             domains,
             titles,
             seniorities,
             args.max_people,
             out_csv,
-            use_apollo_enrich=getattr(args, "apollo_enrich", False),
+            project_id=project_id,
+            segment=seg_label,
         )
         if n == 0:
             print("  No people found — exiting")
             sys.exit(0)
-        if getattr(args, "search_only", False):
-            print(f"\n  ✓ --search-only: сохранено → {out_csv}")
-            sys.exit(0)
-        # Feed the freshly-written CSV into the findymail step below
-        args.csv = str(out_csv)
-        from_step = "findymail"
+        print(f"\n  ✓ apollo-search done → {out_csv}")
+        print(
+            f"  Next: python3 pipeline.py people --from-step exa-lookup --csv {out_csv} --segment {args.segment}"
+        )
+        sys.exit(0)
+
+    # ── Step: exa-lookup (Apollo CSV → add LinkedIn URLs) ───────────────────
+    if from_step == "exa-lookup":
+        if not args.csv:
+            print("ERROR: --csv required (apollo_people_*.csv from previous step)")
+            sys.exit(1)
+        in_csv = Path(args.csv)
+        seg_label = segment_slug.upper()
+        out_csv = in_csv.with_name(in_csv.stem + "_exa.csv")
+        found, cost = _run_exa_step(in_csv, out_csv, project_id=project_id)
+        print(f"\n  ✓ exa-lookup done: {found} LinkedIn URLs | ${cost:.3f}")
+        print(f"  Review: {out_csv}")
+        print(
+            f"  Next: python3 pipeline.py people --from-step findymail --csv {out_csv} --segment {args.segment}"
+        )
+        sys.exit(0)
 
     # ── Load contacts ────────────────────────────────────────────────────────
     if from_step == "findymail":
