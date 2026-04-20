@@ -2150,7 +2150,8 @@ def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
                             dc_id,
                             "exa_linkedin",
                             contacts_found=cnt,
-                            cost_usd=round(total_cost, 4),
+                            credits_used=calls_by_domain.get(dom, 0),
+                            cost_usd=round(cost_by_domain.get(dom, 0.0), 4),
                         )
 
             # ── Geo-match from discovered_companies ──────────────────────────
