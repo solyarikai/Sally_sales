@@ -1160,6 +1160,53 @@ async def _run_findymail(config: ProjectConfig, contacts: list[dict]) -> list[di
     )
     total_cost = (verified_count + unverified_count + found) * 0.01
     print(f"  Стоимость: ${total_cost:.2f}")
+
+    # ── DB logging — enrichment_attempts per domain ──────────────────────────
+    try:
+        from collections import defaultdict
+
+        stats = defaultdict(
+            lambda: {"contacts": 0, "emails": 0, "credits": 0, "verified": 0}
+        )
+        for c in already_have:
+            d = c.get("domain", "")
+            stats[d]["contacts"] += 1
+            if c.get("email"):
+                stats[d]["emails"] += 1
+            if c.get("email_verified"):
+                stats[d]["verified"] += 1
+                stats[d]["credits"] += 1  # verify_email always charges
+        for c in to_enrich:
+            d = c.get("domain", "")
+            stats[d]["contacts"] += 1
+            if c.get("email"):
+                stats[d]["emails"] += 1
+                stats[d]["credits"] += 1  # find_email charges only on success
+
+        conn = _db_conn()
+        project_id = getattr(config, "project_id", 42)
+        dc_map = _dc_ids_by_domains(conn, list(stats.keys()), project_id)
+        logged = 0
+        for dom, st in stats.items():
+            dc_id = dc_map.get(dom)
+            if not dc_id:
+                continue
+            _db_log_enrichment(
+                conn,
+                dc_id,
+                "findymail",
+                contacts_found=st["contacts"],
+                emails_found=st["emails"],
+                credits_used=st["credits"],
+                cost_usd=round(st["credits"] * 0.01, 4),
+                config={"verified": st["verified"]},
+            )
+            logged += 1
+        conn.close()
+        print(f"  DB: logged findymail for {logged} domains")
+    except Exception as e:
+        print(f"  ⚠ DB findymail log failed (non-fatal): {e}")
+
     return all_enriched
 
 
