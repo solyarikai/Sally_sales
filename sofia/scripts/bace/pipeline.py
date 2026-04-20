@@ -2176,28 +2176,28 @@ def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
             print(f"    {i}/{total} | found: {found} | cost: ${total_cost:.3f}")
         time.sleep(0.15)
 
-    # enrichment_attempts summary — one row per domain that had LinkedIn found
+    # enrichment_attempts — per-domain row for each domain where Exa was called
     if db_ok and conn:
         try:
-            domains_found: dict[str, int] = {}
+            found_by_domain: dict[str, int] = {}
             for row in rows:
                 if row.get("Person Linkedin Url"):
-                    domains_found[row.get("Website", "")] = (
-                        domains_found.get(row.get("Website", ""), 0) + 1
+                    found_by_domain[row.get("Website", "")] = (
+                        found_by_domain.get(row.get("Website", ""), 0) + 1
                     )
-            if domains_found:
+            if calls_by_domain:
                 dc_map = _dc_ids_by_domains(
-                    conn, list(domains_found.keys()), project_id
+                    conn, list(calls_by_domain.keys()), project_id
                 )
-                for dom, cnt in domains_found.items():
+                for dom, calls in calls_by_domain.items():
                     dc_id = dc_map.get(dom)
                     if dc_id:
                         _db_log_enrichment(
                             conn,
                             dc_id,
                             "exa_linkedin",
-                            contacts_found=cnt,
-                            credits_used=calls_by_domain.get(dom, 0),
+                            contacts_found=found_by_domain.get(dom, 0),
+                            credits_used=calls,
                             cost_usd=round(cost_by_domain.get(dom, 0.0), 4),
                         )
 
