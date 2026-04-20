@@ -2076,6 +2076,8 @@ def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
     total = len(rows)
     found = 0
     total_cost = 0.0
+    cost_by_domain: dict[str, float] = {}
+    calls_by_domain: dict[str, int] = {}
     print(f"\n  Exa LinkedIn lookup: {total} people from {in_csv.name}")
 
     try:
@@ -2100,10 +2102,13 @@ def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
         first = row.get("First Name", "")
         last = row.get("Last Name", "")
         title = row.get("Title", "")
-        company = row.get("Company", "") or row.get("Website", "")
+        domain = row.get("Website", "")
+        company = row.get("Company", "") or domain
 
         li_url, cost = _exa_find_linkedin(first, last, title, company)
         total_cost += cost
+        cost_by_domain[domain] = cost_by_domain.get(domain, 0.0) + cost
+        calls_by_domain[domain] = calls_by_domain.get(domain, 0) + 1
         row["Person Linkedin Url"] = li_url
 
         if li_url:
