@@ -238,23 +238,131 @@ def save_csv(path: Path, rows: list[dict], sheet_name: str = None):
         _upload_to_sheets(keys, rows, sheet_name)
 
 
+_LOWER_WORDS = {
+    "a",
+    "an",
+    "the",
+    "and",
+    "but",
+    "or",
+    "nor",
+    "for",
+    "so",
+    "yet",
+    "at",
+    "by",
+    "in",
+    "of",
+    "on",
+    "to",
+    "up",
+    "as",
+    "is",
+    "via",
+    "with",
+    "from",
+}
+_UPPER_WORDS = {
+    "AI",
+    "API",
+    "B2B",
+    "B2C",
+    "CEO",
+    "CFO",
+    "CMO",
+    "COO",
+    "CPO",
+    "CTO",
+    "CRM",
+    "DTC",
+    "ESG",
+    "GDP",
+    "IMC",
+    "INC",
+    "LLC",
+    "LLP",
+    "LTD",
+    "MCN",
+    "NFC",
+    "PR",
+    "ROI",
+    "SaaS",
+    "SEO",
+    "SMB",
+    "SME",
+    "SMM",
+    "UK",
+    "US",
+    "USA",
+    "UAE",
+    "EU",
+    "APAC",
+    "EMEA",
+    "LATAM",
+    "IM",
+    "KOL",
+    "UGC",
+    "MCM",
+    "KPI",
+}
+_COMPANY_OVERRIDES = {
+    "imagency": "iMagency",
+    "immagency": "iMagency",
+    "sideqik": "Sideqik",
+    "traackr": "Traackr",
+    "grin": "GRIN",
+    "mavrck": "Mavrck",
+    "tagger": "Tagger",
+    "klear": "Klear",
+    "heepsy": "Heepsy",
+    "lefty": "Lefty",
+    "modash": "Modash",
+    "hypeauditor": "HypeAuditor",
+    "upfluence": "Upfluence",
+    "aspire": "Aspire",
+    "captiv8": "Captiv8",
+    "creator.co": "Creator.co",
+    "socialbakers": "Socialbakers",
+    "sociallypowerful": "Socially Powerful",
+    "ykone": "Ykone",
+    "whalar": "Whalar",
+    "samy alliance": "SAMY Alliance",
+    "webedia": "Webedia",
+    "billion dollar boy": "Billion Dollar Boy",
+    "influencer": "Influencer",
+    "viral nation": "Viral Nation",
+    "ogilvy": "Ogilvy",
+}
+
+
 def normalize_company(name: str) -> str:
-    if not name:
-        return ""
-    name = re.sub(r"\s+", " ", name).strip()
-    for suffix in [
-        ", Inc.",
-        " Inc.",
-        ", LLC",
-        " LLC",
-        ", Ltd.",
-        " Ltd.",
-        ", Corp.",
-        " Corp.",
-    ]:
-        if name.endswith(suffix):
-            name = name[: -len(suffix)]
-    return name.strip()
+    if not name or not name.strip():
+        return name or ""
+    s = re.sub(r"\s+", " ", name).strip()
+    lower_key = s.lower()
+    if lower_key in _COMPANY_OVERRIDES:
+        return _COMPANY_OVERRIDES[lower_key]
+    has_upper = any(c.isupper() for c in s)
+    has_lower = any(c.islower() for c in s)
+    if has_upper and has_lower:
+        return s
+    tokens = re.split(r"(\s+|-)", s)
+    actual_words = [t for t in tokens if t.strip() and t != "-"]
+    result = []
+    word_index = 0
+    for token in tokens:
+        if not token.strip() or token == "-":
+            result.append(token)
+            continue
+        upper = token.upper()
+        if upper in _UPPER_WORDS:
+            result.append(upper)
+        elif token.lower() in _LOWER_WORDS and 0 < word_index < len(actual_words) - 1:
+            result.append(token.lower())
+        else:
+            result.append(token[0].upper() + token[1:].lower())
+        word_index += 1
+    return "".join(result)
 
 
 def _normalize_domain(raw: str) -> str:
