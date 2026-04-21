@@ -18,7 +18,6 @@ EXA_BASE = "https://api.exa.ai"
 _EXA_KEYS = [
     os.environ.get("EXA_API_KEY", "39f2648c-681a-460f-ac5b-bd04d8c468a4"),
     "197fc32a-3563-4e29-bdb1-5f5a796034c9",
-    "39f2648c-681a-460f-ac5b-bd04d8c468a4",
     "a4f6a3c4-5000-4d55-8a06-0f345487e27c",
 ]
 _exa_key_idx = 0
