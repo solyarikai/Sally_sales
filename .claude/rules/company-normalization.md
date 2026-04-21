@@ -1,5 +1,13 @@
 # Company Name Normalization Rules
 
+**ALWAYS apply these rules when:**
+- User asks to normalize company names (in chat or via script)
+- Loading leads into SmartLead (via MCP `mcp__smartlead__*`, API, or pipeline)
+- Loading leads into Google Sheets (via MCP `mcp__google-sheets__*` or script)
+- Any CSV/data prep that includes a `company_name` field
+
+**Never skip normalization** for these operations even if not explicitly asked.
+
 Source of truth: `sofia/scripts/bace/pipeline.py` → `normalize_company()` (mirrored in `magnum-opus/scripts/sofia/bace/pipeline.py`)
 
 ## Logic (in order)
