@@ -13,7 +13,12 @@ OnSocial Lead Pipeline
   python3 pipeline.py people --csv apollo_export.csv --project-id 42 --segment SOCCOM
   python3 pipeline.py people --csv apollo_export.csv --project-id 42 --segment SOCCOM --from-step upload
 
-Env: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY
+  # 2a. Apollo people search (домены → поиск людей → FindyMail → SmartLead)
+  python3 pipeline.py people --domains-csv targets.csv --project-id 42 --segment SOCCOM
+  # + override фильтров (опционально):
+  #   --titles "CEO,Founder,VP Marketing" --seniorities "vp,director" --max-people 50
+
+Env: FINDYMAIL_API_KEY, SMARTLEAD_API_KEY, APOLLO_API_KEY (для --domains-csv)
 Backend: localhost:8000 (Hetzner)
 """
 
@@ -46,6 +51,64 @@ FINDYMAIL_CONCURRENT = 5
 
 SMARTLEAD_API_KEY = os.environ.get("SMARTLEAD_API_KEY", "")
 SMARTLEAD_BASE = "https://server.smartlead.ai/api/v1"
+
+APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY", "")
+APOLLO_BASE = "https://api.apollo.io/api/v1"
+
+# Default people filter (cross-segment)
+APOLLO_DEFAULT_TITLES = [
+    "CEO",
+    "Co-Founder",
+    "Founder",
+    "COO",
+    "Managing Director",
+    "Managing Partner",
+    "General Manager",
+    "CTO",
+    "Chief Technology Officer",
+    "CPO",
+    "Chief Product Officer",
+    "CDO",
+    "Chief Data Officer",
+    "CMO",
+    "VP Marketing",
+    "VP Engineering",
+    "VP of Engineering",
+    "VP Technology",
+    "VP Product",
+    "VP of Product",
+    "VP Data",
+    "VP Analytics",
+    "VP Platform",
+    "VP Partnerships",
+    "VP Growth",
+    "Head of Engineering",
+    "Head of Technology",
+    "Head of Product",
+    "Head of Data",
+    "Head of Analytics",
+    "Head of Platform",
+    "Head of Integrations",
+    "Head of Digital",
+    "Head of Partnerships",
+    "Head of Growth",
+    "Head of Martech",
+    "Director of Engineering",
+    "Director of Technology",
+    "Director of Product",
+    "Director of Data",
+    "Director of Analytics",
+    "Director of Partnerships",
+    "Director of Growth",
+    "Director of Martech",
+    "Technical Director",
+    "Technology Director",
+    "Chief Architect",
+    "Co-Founder CTO",
+    "Founding Engineer",
+    "Technical Co-Founder",
+]
+APOLLO_DEFAULT_SENIORITIES = ["owner", "founder", "c_suite", "vp", "head", "director"]
 
 BATCH_SIZE = 500
 
@@ -175,23 +238,131 @@ def save_csv(path: Path, rows: list[dict], sheet_name: str = None):
         _upload_to_sheets(keys, rows, sheet_name)
 
 
+_LOWER_WORDS = {
+    "a",
+    "an",
+    "the",
+    "and",
+    "but",
+    "or",
+    "nor",
+    "for",
+    "so",
+    "yet",
+    "at",
+    "by",
+    "in",
+    "of",
+    "on",
+    "to",
+    "up",
+    "as",
+    "is",
+    "via",
+    "with",
+    "from",
+}
+_UPPER_WORDS = {
+    "AI",
+    "API",
+    "B2B",
+    "B2C",
+    "CEO",
+    "CFO",
+    "CMO",
+    "COO",
+    "CPO",
+    "CTO",
+    "CRM",
+    "DTC",
+    "ESG",
+    "GDP",
+    "IMC",
+    "INC",
+    "LLC",
+    "LLP",
+    "LTD",
+    "MCN",
+    "NFC",
+    "PR",
+    "ROI",
+    "SaaS",
+    "SEO",
+    "SMB",
+    "SME",
+    "SMM",
+    "UK",
+    "US",
+    "USA",
+    "UAE",
+    "EU",
+    "APAC",
+    "EMEA",
+    "LATAM",
+    "IM",
+    "KOL",
+    "UGC",
+    "MCM",
+    "KPI",
+}
+_COMPANY_OVERRIDES = {
+    "imagency": "iMagency",
+    "immagency": "iMagency",
+    "sideqik": "Sideqik",
+    "traackr": "Traackr",
+    "grin": "GRIN",
+    "mavrck": "Mavrck",
+    "tagger": "Tagger",
+    "klear": "Klear",
+    "heepsy": "Heepsy",
+    "lefty": "Lefty",
+    "modash": "Modash",
+    "hypeauditor": "HypeAuditor",
+    "upfluence": "Upfluence",
+    "aspire": "Aspire",
+    "captiv8": "Captiv8",
+    "creator.co": "Creator.co",
+    "socialbakers": "Socialbakers",
+    "sociallypowerful": "Socially Powerful",
+    "ykone": "Ykone",
+    "whalar": "Whalar",
+    "samy alliance": "SAMY Alliance",
+    "webedia": "Webedia",
+    "billion dollar boy": "Billion Dollar Boy",
+    "influencer": "Influencer",
+    "viral nation": "Viral Nation",
+    "ogilvy": "Ogilvy",
+}
+
+
 def normalize_company(name: str) -> str:
-    if not name:
-        return ""
-    name = re.sub(r"\s+", " ", name).strip()
-    for suffix in [
-        ", Inc.",
-        " Inc.",
-        ", LLC",
-        " LLC",
-        ", Ltd.",
-        " Ltd.",
-        ", Corp.",
-        " Corp.",
-    ]:
-        if name.endswith(suffix):
-            name = name[: -len(suffix)]
-    return name.strip()
+    if not name or not name.strip():
+        return name or ""
+    s = re.sub(r"\s+", " ", name).strip()
+    lower_key = s.lower()
+    if lower_key in _COMPANY_OVERRIDES:
+        return _COMPANY_OVERRIDES[lower_key]
+    has_upper = any(c.isupper() for c in s)
+    has_lower = any(c.islower() for c in s)
+    if has_upper and has_lower:
+        return s
+    tokens = re.split(r"(\s+|-)", s)
+    actual_words = [t for t in tokens if t.strip() and t != "-"]
+    result = []
+    word_index = 0
+    for token in tokens:
+        if not token.strip() or token == "-":
+            result.append(token)
+            continue
+        upper = token.upper()
+        if upper in _UPPER_WORDS:
+            result.append(upper)
+        elif token.lower() in _LOWER_WORDS and 0 < word_index < len(actual_words) - 1:
+            result.append(token.lower())
+        else:
+            result.append(token[0].upper() + token[1:].lower())
+        word_index += 1
+    return "".join(result)
 
 
 def _normalize_domain(raw: str) -> str:
@@ -599,11 +770,20 @@ def _run_companies(config: ProjectConfig, args):
         else:
             batches = [domains]
 
-        run_ids = [_create_run(config, batch) for batch in batches]
-        # Process each run through dedup→blacklist→prefilter→scrape→classify
-        for rid in run_ids:
+        # Create and process one batch at a time to avoid overwhelming backend
+        defer = getattr(args, "defer_export", False)
+        accumulated: dict[str, list[dict]] = {}
+        for i, batch in enumerate(batches):
+            print(f"\n  Batch {i + 1}/{len(batches)}")
+            rid = _create_run(config, batch)
             _wait_for_phase(rid, "gathered")
-            _run_companies_pipeline(config, rid, args)
+            result = _run_companies_pipeline(config, rid, args, defer_export=defer)
+            if defer:
+                for seg, rows in result.items():
+                    accumulated.setdefault(seg, []).extend(rows)
+
+        if defer and accumulated:
+            _export_accumulated(config, accumulated, tag())
         return
 
     # ── Resume existing run ─────────────────────────────────────────────────
@@ -612,8 +792,12 @@ def _run_companies(config: ProjectConfig, args):
 
 
 def _run_companies_pipeline(
-    config: ProjectConfig, run_id: int, args, from_step: str = "blacklist"
-):
+    config: ProjectConfig,
+    run_id: int,
+    args,
+    from_step: str = "blacklist",
+    defer_export: bool = False,
+) -> dict:
     STEPS = [
         "blacklist",
         "prefilter",
@@ -811,14 +995,20 @@ def _run_companies_pipeline(
                 )
         if not targets:
             print("  No targets found for this run")
-            return
+            return {}
         today = tag()
-        by_seg = {}
+        by_seg: dict[str, list[dict]] = {}
         for t in targets:
             by_seg.setdefault(t["segment"], []).append(t)
         print(f"  Targets: {len(targets)}")
         for seg_name, seg_targets in sorted(by_seg.items()):
             print(f"    {seg_name}: {len(seg_targets)}")
+
+        if defer_export:
+            # Не сохраняем — возвращаем для накопления
+            return by_seg
+
+        for seg_name, seg_targets in sorted(by_seg.items()):
             safe = seg_name.replace("/", "-").replace(" ", "_").replace("|", "-")
             save_csv(
                 config.csv_dir / f"targets_{safe}_r{run_id}_{today}.csv",
@@ -826,6 +1016,41 @@ def _run_companies_pipeline(
                 sheet_name=f"OS | Targets | {seg_name} r{run_id} — {today}",
             )
         print("\n  Готово. Идёшь в Apollo, берёшь людей → pipeline.py people --csv ...")
+        return {}
+
+
+def _export_accumulated(
+    config: ProjectConfig, accumulated: dict[str, list[dict]], today: str
+):
+    """Final export after all batches: one CSV + one Google Sheet per segment."""
+    total = sum(len(v) for v in accumulated.values())
+    print(f"\n{'═' * 60}")
+    print(f"  FINAL EXPORT — {total} targets across {len(accumulated)} segments")
+    print(f"{'═' * 60}")
+    for seg_name, rows in sorted(accumulated.items()):
+        if not rows:
+            continue
+        # dedup by domain within segment
+        seen: set[str] = set()
+        deduped = []
+        for r in rows:
+            key = r.get("domain", "") or r.get("company_name", "")
+            if key and key not in seen:
+                seen.add(key)
+                deduped.append(r)
+            elif not key:
+                deduped.append(r)
+        safe = (
+            seg_name.replace("/", "-")
+            .replace(":", "_")
+            .replace(" ", "_")
+            .replace("|", "-")
+        )
+        csv_path = config.csv_dir / f"targets_{safe}_{today}.csv"
+        sheet_name = f"OS | Targets | {seg_name} — {today}"
+        save_csv(csv_path, deduped, sheet_name=sheet_name)
+        print(f"  {seg_name}: {len(deduped)} unique targets")
+    print("\n  Готово. Идёшь в Apollo, берёшь людей → pipeline.py people --csv ...")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1043,6 +1268,53 @@ async def _run_findymail(config: ProjectConfig, contacts: list[dict]) -> list[di
     )
     total_cost = (verified_count + unverified_count + found) * 0.01
     print(f"  Стоимость: ${total_cost:.2f}")
+
+    # ── DB logging — enrichment_attempts per domain ──────────────────────────
+    try:
+        from collections import defaultdict
+
+        stats = defaultdict(
+            lambda: {"contacts": 0, "emails": 0, "credits": 0, "verified": 0}
+        )
+        for c in already_have:
+            d = c.get("domain", "")
+            stats[d]["contacts"] += 1
+            if c.get("email"):
+                stats[d]["emails"] += 1
+            if c.get("email_verified"):
+                stats[d]["verified"] += 1
+                stats[d]["credits"] += 1  # verify_email always charges
+        for c in to_enrich:
+            d = c.get("domain", "")
+            stats[d]["contacts"] += 1
+            if c.get("email"):
+                stats[d]["emails"] += 1
+                stats[d]["credits"] += 1  # find_email charges only on success
+
+        conn = _db_conn()
+        project_id = getattr(config, "project_id", 42)
+        dc_map = _dc_ids_by_domains(conn, list(stats.keys()), project_id)
+        logged = 0
+        for dom, st in stats.items():
+            dc_id = dc_map.get(dom)
+            if not dc_id:
+                continue
+            _db_log_enrichment(
+                conn,
+                dc_id,
+                "findymail",
+                contacts_found=st["contacts"],
+                emails_found=st["emails"],
+                credits_used=st["credits"],
+                cost_usd=round(st["credits"] * 0.01, 4),
+                config={"verified": st["verified"]},
+            )
+            logged += 1
+        conn.close()
+        print(f"  DB: logged findymail for {logged} domains")
+    except Exception as e:
+        print(f"  ⚠ DB findymail log failed (non-fatal): {e}")
+
     return all_enriched
 
 
@@ -1381,8 +1653,8 @@ def _get_sequences(config: ProjectConfig, segment_slug: str) -> list:
 
 
 def _fetch_kb_blocklist() -> tuple[set, set]:
-    """Fetch kb_blocklist from DB. Returns (blocked_domains, blocked_emails)."""
-    sql = "SELECT domain, email FROM kb_blocklist"
+    """Fetch blocked domains/emails from kb_blocklist + project_blacklist. Returns (blocked_domains, blocked_emails)."""
+    sql = "SELECT domain, email FROM kb_blocklist UNION SELECT domain, NULL FROM project_blacklist WHERE project_id = 42"
     psql_cmd = f"docker exec leadgen-postgres psql -U leadgen -d leadgen -t -A -F'|' -c \"{sql}\""
     is_hetzner = os.path.exists("/home/leadokol/magnum-opus-project")
     run_args = ["bash", "-c", psql_cmd] if is_hetzner else ["ssh", "hetzner", psql_cmd]
@@ -1493,10 +1765,686 @@ def _dedup_vs_crm(contacts: list[dict], project_id: int = 42) -> list[dict]:
     return contacts
 
 
+# ── Apollo People Search ───────────────────────────────────────────────────────
+
+# Endpoints tracked via /usage_stats (people_search may or may not cost credits)
+_APOLLO_CREDIT_ENDPOINTS = {
+    '["api/v1/mixed_people", "search"]': "people_search",
+}
+
+
+def _apollo_headers() -> dict:
+    return {
+        "X-Api-Key": APOLLO_API_KEY,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+    }
+
+
+def _apollo_fetch_usage() -> dict[str, int]:
+    """Return {endpoint_key: consumed_today} for credit-consuming endpoints.
+    Returns empty dict on failure (we still report request counts)."""
+    try:
+        r = httpx.post(
+            f"{APOLLO_BASE}/usage_stats/api_usage_stats",
+            headers=_apollo_headers(),
+            json={},
+            timeout=30,
+        )
+        if r.status_code != 200:
+            return {}
+        data = r.json()
+        return {
+            key: data.get(key, {}).get("day", {}).get("consumed", 0)
+            for key in _APOLLO_CREDIT_ENDPOINTS
+        }
+    except Exception:
+        return {}
+
+
+def _apollo_report_usage(
+    before: dict,
+    after: dict,
+    search_calls_made: int,
+    exa_cost: float = 0.0,
+) -> None:
+    """Print Apollo + Exa usage summary."""
+    print(f"\n  {'─' * 56}")
+    print("  API USAGE")
+    print(f"  {'─' * 56}")
+    if before and after:
+        for key, name in _APOLLO_CREDIT_ENDPOINTS.items():
+            delta = after.get(key, 0) - before.get(key, 0)
+            total = after.get(key, 0)
+            print(f"  Apollo {name}: +{delta} call(s) | today total: {total}")
+    else:
+        print("  (Apollo usage_stats unavailable)")
+        if search_calls_made:
+            print(f"  Apollo people_search: +{search_calls_made} call(s)")
+    if exa_cost > 0:
+        print(f"  Exa LinkedIn lookup: ${exa_cost:.3f}")
+
+
+def _apollo_search_one_domain(
+    domain: str,
+    titles: list[str],
+    seniorities: list[str],
+    max_people: int,
+    counters: dict,
+    per_page: int = 100,
+) -> list[dict]:
+    """Search people at one domain via /mixed_people/api_search.
+    Returns raw person dicts (obfuscated last_name). Mutates counters['search']."""
+    out = []
+    page = 1
+    while len(out) < max_people and page <= 10:
+        payload = {
+            "page": page,
+            "per_page": min(per_page, max_people - len(out)),
+            "q_organization_domains_list": [domain],
+            "person_titles": titles,
+            "person_seniorities": seniorities,
+            "include_similar_titles": True,
+        }
+        try:
+            r = httpx.post(
+                f"{APOLLO_BASE}/mixed_people/api_search",
+                headers=_apollo_headers(),
+                json=payload,
+                timeout=60,
+            )
+            counters["search"] = counters.get("search", 0) + 1
+        except Exception as e:
+            print(f"    ✗ {domain}: {e}")
+            return out
+        if r.status_code == 429:
+            print(f"    ⏳ {domain}: rate limit, waiting 70s...")
+            time.sleep(70)
+            continue
+        if r.status_code != 200:
+            print(f"    ✗ {domain}: HTTP {r.status_code} {r.text[:200]}")
+            return out
+        people = r.json().get("people", [])
+        out.extend(people)
+        if len(people) < payload["per_page"]:
+            break
+        page += 1
+        time.sleep(0.3)
+    return out[:max_people]
+
+
+EXA_BASE = "https://api.exa.ai"
+_EXA_KEYS = [
+    os.environ.get("EXA_API_KEY", "39f2648c-681a-460f-ac5b-bd04d8c468a4"),
+    "197fc32a-3563-4e29-bdb1-5f5a796034c9",
+    "a4f6a3c4-5000-4d55-8a06-0f345487e27c",
+]
+_exa_key_idx = 0
+
+
+def _exa_find_linkedin(
+    first_name: str, last_name: str, title: str, company: str
+) -> tuple[str, float]:
+    """Search LinkedIn profile via Exa API with auto key rotation on 402.
+    Returns (linkedin_url, cost_usd). linkedin_url is '' if not found."""
+    global _exa_key_idx
+    query = f"{first_name} {last_name} {title} {company} site:linkedin.com/in"
+    for attempt in range(len(_EXA_KEYS)):
+        key = _EXA_KEYS[_exa_key_idx]
+        try:
+            r = httpx.post(
+                f"{EXA_BASE}/search",
+                headers={"x-api-key": key, "Content-Type": "application/json"},
+                json={
+                    "query": query,
+                    "numResults": 1,
+                    "type": "neural",
+                    "includeDomains": ["linkedin.com"],
+                },
+                timeout=15,
+            )
+            if r.status_code == 402:
+                print(f"    ⚠ Exa key [{_exa_key_idx}] exhausted → rotating")
+                _exa_key_idx = (_exa_key_idx + 1) % len(_EXA_KEYS)
+                continue
+            if r.status_code != 200:
+                return "", 0.0
+            data = r.json()
+            results = data.get("results", [])
+            cost = data.get("costDollars", {}).get("total", 0.0)
+            if results:
+                url = results[0].get("url", "")
+                if "/in/" in url:
+                    return url, cost
+            return "", cost
+        except Exception:
+            return "", 0.0
+    print("    ✗ All Exa keys exhausted")
+    return "", 0.0
+
+
+# ── DB helpers (best-effort, non-fatal) ───────────────────────────────────────
+
+
+def _db_conn():
+    """psycopg2 connection to leadgen DB on localhost (host access via exposed port)."""
+    import psycopg2
+
+    raw = os.environ.get("DATABASE_URL", "")
+    # DATABASE_URL uses docker hostname; replace with localhost for host-side access
+    url = (
+        raw.replace("@leadgen-postgres:", "@localhost:")
+        if raw
+        else "postgresql://leadgen:leadgen_secret@localhost:5432/leadgen"
+    )
+    return psycopg2.connect(url)
+
+
+def _dc_ids_by_domains(conn, domains: list, project_id: int = 42) -> dict:
+    """Return {domain: discovered_company_id} for all matching domains in project."""
+    if not domains:
+        return {}
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT domain, id FROM discovered_companies WHERE domain = ANY(%s) AND project_id = %s",
+            (list(domains), project_id),
+        )
+        return {row[0]: row[1] for row in cur.fetchall()}
+
+
+def _db_log_enrichment(conn, dc_id: int, source_type: str, **kwargs):
+    """Insert enrichment_attempts row. Non-fatal."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO enrichment_attempts
+               (discovered_company_id, source_type, contacts_found, emails_found,
+                credits_used, cost_usd, status, config)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (
+                dc_id,
+                source_type,
+                kwargs.get("contacts_found", 0),
+                kwargs.get("emails_found", 0),
+                kwargs.get("credits_used", 0),
+                kwargs.get("cost_usd", 0.0),
+                kwargs.get("status", "SUCCESS"),
+                json.dumps(kwargs.get("config", {})),
+            ),
+        )
+    conn.commit()
+
+
+def _db_save_apollo_people(
+    conn, people_by_domain: dict, project_id: int, segment: str
+) -> dict:
+    """Insert extracted_contacts for Apollo search results.
+    people_by_domain: {domain: [{"first_name","last_name","title","seniority","apollo_id"}]}
+    Returns {apollo_id: ec_id} mapping."""
+    if not people_by_domain:
+        return {}
+    import psycopg2.extras
+
+    domains = list(people_by_domain.keys())
+    dc_map = _dc_ids_by_domains(conn, domains, project_id)
+
+    rows_to_insert = []
+    apollo_id_order = []
+    for domain, people in people_by_domain.items():
+        dc_id = dc_map.get(domain)
+        if not dc_id:
+            continue
+        for p in people:
+            rows_to_insert.append(
+                (
+                    dc_id,
+                    p.get("first_name", ""),
+                    p.get("last_name", ""),
+                    p.get("title", ""),
+                    "APOLLO",
+                    project_id,
+                    json.dumps(
+                        {
+                            "segment": segment,
+                            "seniority": p.get("seniority", ""),
+                            "apollo_id": p.get("apollo_id", ""),
+                        }
+                    ),
+                )
+            )
+            apollo_id_order.append(p.get("apollo_id", ""))
+
+    if not rows_to_insert:
+        return {}
+
+    with conn.cursor() as cur:
+        psycopg2.extras.execute_values(
+            cur,
+            """INSERT INTO extracted_contacts
+               (discovered_company_id, first_name, last_name, job_title, source, project_id, apollo_search_context)
+               VALUES %s RETURNING id""",
+            rows_to_insert,
+        )
+        ec_ids = [row[0] for row in cur.fetchall()]
+    conn.commit()
+
+    return dict(zip(apollo_id_order, ec_ids))
+
+
+def _apollo_bulk_enrich(person_ids: list[str]) -> dict[str, dict]:
+    """Enrich people by Apollo person IDs via /people/bulk_match.
+    Returns {person_id: enriched_data} with email, real name, linkedin_url.
+    Costs Apollo credits (~1 per person)."""
+    enriched: dict[str, dict] = {}
+    batch_size = 10
+    total = len(person_ids)
+    print(f"\n  Apollo bulk_enrich: {total} people (batches of {batch_size})...")
+    for i in range(0, total, batch_size):
+        batch = person_ids[i : i + batch_size]
+        payload = {
+            "reveal_personal_emails": False,
+            "details": [{"id": pid} for pid in batch],
+        }
+        try:
+            r = httpx.post(
+                f"{APOLLO_BASE}/people/bulk_match",
+                headers=_apollo_headers(),
+                json=payload,
+                timeout=60,
+            )
+            if r.status_code != 200:
+                print(f"    ✗ batch {i // batch_size + 1}: HTTP {r.status_code}")
+                continue
+            data = r.json()
+            matches = data.get("matches", [])
+            for person in matches:
+                pid = person.get("id")
+                if pid:
+                    enriched[pid] = person
+        except Exception as e:
+            print(f"    ✗ batch {i // batch_size + 1}: {e}")
+        if (i // batch_size + 1) % 5 == 0 or i + batch_size >= total:
+            print(
+                f"    {min(i + batch_size, total)}/{total} | enriched: {len(enriched)}"
+            )
+        time.sleep(0.5)
+    print(f"\n  Bulk enrich complete: {len(enriched)}/{total} matched")
+    return enriched
+
+
+def _run_apollo_search_step(
+    domains: list[str],
+    titles: list[str],
+    seniorities: list[str],
+    max_per_domain: int,
+    out_csv: Path,
+    project_id: int = 42,
+    segment: str = "",
+) -> int:
+    """Apollo people search only (no Exa). Writes CSV with EC_ID + Apollo_ID columns.
+    DB: extracted_contacts INSERT + enrichment_attempts + discovered_companies UPDATE.
+    Returns row count."""
+    print(f"\n  Apollo search: {len(domains)} domains, max {max_per_domain}/domain")
+    print(f"  Titles: {len(titles)} | Seniorities: {', '.join(seniorities)}")
+
+    counters = {"search": 0}
+    usage_before = _apollo_fetch_usage()
+
+    raw_by_id: dict[str, dict] = {}
+    hits = 0
+    for i, domain in enumerate(domains, 1):
+        people = _apollo_search_one_domain(
+            domain, titles, seniorities, max_per_domain, counters
+        )
+        if people:
+            hits += 1
+        for p in people:
+            pid = p.get("id")
+            if pid and pid not in raw_by_id:
+                raw_by_id[pid] = {"raw": p, "domain": domain}
+        if i % 10 == 0 or i == len(domains):
+            print(
+                f"    {i}/{len(domains)} | {hits} with hits | {len(raw_by_id)} unique"
+            )
+        time.sleep(0.2)
+
+    total = len(raw_by_id)
+    print(f"\n  Found {total} unique people ({hits}/{len(domains)} domains had hits)")
+    if total == 0:
+        _apollo_report_usage(usage_before, _apollo_fetch_usage(), counters["search"])
+        return 0
+
+    # Build rows
+    rows = []
+    people_by_domain: dict[str, list] = {}
+    for pid, entry in raw_by_id.items():
+        raw = entry["raw"]
+        org = raw.get("organization") or {}
+        domain = entry["domain"]
+        rows.append(
+            {
+                "EC_ID": "",
+                "Apollo_ID": pid,
+                "First Name": raw.get("first_name", ""),
+                "Last Name": raw.get("last_name_obfuscated", ""),
+                "Title": raw.get("title", ""),
+                "Seniority": raw.get("seniority", ""),
+                "Email": "",
+                "Person Linkedin Url": "",
+                "Company": org.get("name", ""),
+                "Website": domain,
+                "Company Linkedin Url": org.get("linkedin_url", "") or "",
+                "# Employees": str(org.get("estimated_num_employees", "") or ""),
+                "Industry": org.get("industry", "") or "",
+                "City": raw.get("city", "") or "",
+                "Country": raw.get("country", "") or "",
+                "Company Country": org.get("country", "") or "",
+            }
+        )
+        people_by_domain.setdefault(domain, []).append(
+            {
+                "first_name": raw.get("first_name", ""),
+                "last_name": raw.get("last_name_obfuscated", ""),
+                "title": raw.get("title", ""),
+                "seniority": raw.get("seniority", ""),
+                "segment": segment,
+                "apollo_id": pid,
+            }
+        )
+
+    rows.sort(key=lambda r: (r["Website"], r["Title"]))
+
+    # DB logging (best-effort)
+    apollo_id_to_ec: dict[str, int] = {}
+    try:
+        conn = _db_conn()
+        apollo_id_to_ec = _db_save_apollo_people(
+            conn, people_by_domain, project_id, segment
+        )
+
+        # enrichment_attempts + discovered_companies update per domain
+        dc_map = _dc_ids_by_domains(conn, list(people_by_domain.keys()), project_id)
+        for domain, people in people_by_domain.items():
+            dc_id = dc_map.get(domain)
+            if not dc_id:
+                continue
+            _db_log_enrichment(
+                conn,
+                dc_id,
+                "apollo_people",
+                contacts_found=len(people),
+                config={"segment": segment, "titles_sample": titles[:5]},
+            )
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE discovered_companies SET apollo_people_count = %s, apollo_enriched_at = NOW() WHERE id = %s",
+                    (len(people), dc_id),
+                )
+            conn.commit()
+        conn.close()
+        print(f"  DB: saved {len(apollo_id_to_ec)} contacts to extracted_contacts")
+    except Exception as e:
+        print(f"  ⚠ DB logging failed (non-fatal): {e}")
+
+    # Fill EC_ID in rows
+    for row in rows:
+        ec_id = apollo_id_to_ec.get(row["Apollo_ID"])
+        if ec_id:
+            row["EC_ID"] = str(ec_id)
+
+    # Preview
+    print(f"\n{'=' * 60}")
+    print("  PREVIEW — first 20 people")
+    print(f"{'=' * 60}")
+    for row in rows[:20]:
+        print(
+            f"  {row['First Name']} {row['Last Name']} | "
+            f"{row['Title'] or 'N/A'} @ {row['Company'] or row['Website']}"
+        )
+    print(f"\n  Total: {total} people")
+
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    with out_csv.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w.writeheader()
+        w.writerows(rows)
+    print(f"  ✓ Saved → {out_csv}")
+
+    _apollo_report_usage(usage_before, _apollo_fetch_usage(), counters["search"])
+    return len(rows)
+
+
+def _run_exa_step(in_csv: Path, out_csv: Path, project_id: int = 42) -> tuple:
+    """Exa LinkedIn lookup on Apollo search CSV.
+    Reads CSV (with EC_ID), adds Person Linkedin Url, writes out_csv.
+    DB: UPDATE extracted_contacts.linkedin_url + INSERT enrichment_attempts.
+    Returns (found_count, total_cost_usd)."""
+    rows = []
+    fieldnames = []
+    with in_csv.open(encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+
+    if not rows:
+        print("  No rows in CSV")
+        return 0, 0.0
+
+    total = len(rows)
+    found = 0
+    total_cost = 0.0
+    cost_by_domain: dict[str, float] = {}
+    calls_by_domain: dict[str, int] = {}
+    print(f"\n  Exa LinkedIn lookup: {total} people from {in_csv.name}")
+
+    try:
+        conn = _db_conn()
+        db_ok = True
+    except Exception as e:
+        print(f"  ⚠ DB unavailable (non-fatal): {e}")
+        conn = None
+        db_ok = False
+
+    for i, row in enumerate(rows, 1):
+        # Skip if LinkedIn URL already present
+        existing_li = row.get("Person Linkedin Url", "").strip()
+        if existing_li:
+            found += 1
+            if i % 20 == 0 or i == total:
+                print(
+                    f"    {i}/{total} | found: {found} | cost: ${total_cost:.3f} (skip)"
+                )
+            continue
+
+        first = row.get("First Name", "")
+        last = row.get("Last Name", "")
+        title = row.get("Title", "")
+        domain = row.get("Website", "")
+        company = row.get("Company", "") or domain
+
+        li_url, cost = _exa_find_linkedin(first, last, title, company)
+        total_cost += cost
+        cost_by_domain[domain] = cost_by_domain.get(domain, 0.0) + cost
+        calls_by_domain[domain] = calls_by_domain.get(domain, 0) + 1
+        row["Person Linkedin Url"] = li_url
+
+        if li_url:
+            found += 1
+            ec_id_str = row.get("EC_ID", "")
+            if db_ok and conn and ec_id_str:
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE extracted_contacts SET linkedin_url = %s WHERE id = %s",
+                            (li_url, int(ec_id_str)),
+                        )
+                    conn.commit()
+                except Exception:
+                    pass
+
+        if i % 20 == 0 or i == total:
+            print(f"    {i}/{total} | found: {found} | cost: ${total_cost:.3f}")
+        time.sleep(0.15)
+
+    # enrichment_attempts — per-domain row for each domain where Exa was called
+    if db_ok and conn:
+        try:
+            found_by_domain: dict[str, int] = {}
+            for row in rows:
+                if row.get("Person Linkedin Url"):
+                    found_by_domain[row.get("Website", "")] = (
+                        found_by_domain.get(row.get("Website", ""), 0) + 1
+                    )
+            if calls_by_domain:
+                dc_map = _dc_ids_by_domains(
+                    conn, list(calls_by_domain.keys()), project_id
+                )
+                for dom, calls in calls_by_domain.items():
+                    dc_id = dc_map.get(dom)
+                    if dc_id:
+                        _db_log_enrichment(
+                            conn,
+                            dc_id,
+                            "exa_linkedin",
+                            contacts_found=found_by_domain.get(dom, 0),
+                            credits_used=calls,
+                            cost_usd=round(cost_by_domain.get(dom, 0.0), 4),
+                        )
+
+            # ── Geo-match from discovered_companies ──────────────────────────
+            all_domains = list({r.get("Website", "") for r in rows if r.get("Website")})
+            if all_domains:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT
+                            domain,
+                            COALESCE(NULLIF(country, ''),
+                                     NULLIF(company_info->>'country', ''),
+                                     NULLIF(apollo_org_data->>'country', '')) AS country,
+                            COALESCE(NULLIF(city, ''),
+                                     NULLIF(company_info->>'city', ''),
+                                     NULLIF(apollo_org_data->>'city', '')) AS city,
+                            COALESCE(NULLIF(employee_range, ''),
+                                     NULLIF(company_info->>'employees', ''),
+                                     NULLIF(apollo_org_data->>'estimated_num_employees', ''),
+                                     CASE WHEN employee_count > 0 THEN employee_count::text ELSE NULL END) AS employees
+                        FROM discovered_companies
+                        WHERE domain = ANY(%s) AND project_id = %s
+                        """,
+                        (all_domains, project_id),
+                    )
+                    geo_map = {
+                        row[0]: {
+                            "country": row[1] or "",
+                            "city": row[2] or "",
+                            "employees": row[3] or "",
+                        }
+                        for row in cur.fetchall()
+                    }
+                for col in ["Company Country", "City", "# Employees"]:
+                    if col not in fieldnames:
+                        fieldnames.append(col)
+                filled = 0
+                for row in rows:
+                    dom = row.get("Website", "")
+                    geo = geo_map.get(dom, {})
+                    if not row.get("Company Country") and geo.get("country"):
+                        row["Company Country"] = geo["country"]
+                        filled += 1
+                    if not row.get("City") and geo.get("city"):
+                        row["City"] = geo["city"]
+                    if not row.get("# Employees") and geo.get("employees"):
+                        row["# Employees"] = geo["employees"]
+                print(
+                    f"  ✓ Geo-match: {filled}/{total} company countries filled from DB"
+                )
+
+            conn.close()
+        except Exception as e:
+            print(f"  ⚠ DB enrichment log failed: {e}")
+
+    print(f"\n  Exa: {found}/{total} LinkedIn URLs found | Cost: ${total_cost:.3f}")
+
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    with out_csv.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print(f"  ✓ Saved → {out_csv}")
+
+    return found, total_cost
+
+
 def _run_people(config: ProjectConfig, args):
-    from_step = args.from_step or "findymail"
     today = tag()
     segment_slug = args.segment.lower() if args.segment else ""
+    project_id = getattr(args, "project_id", 42)
+
+    # Resolve starting step
+    if args.from_step:
+        from_step = args.from_step
+    elif args.domains_csv:
+        from_step = "apollo-search"
+    else:
+        from_step = "findymail"
+
+    # ── Step: apollo-search (domains → Apollo CSV, no Exa) ──────────────────
+    if from_step == "apollo-search":
+        if not args.domains_csv:
+            print("ERROR: --domains-csv required for apollo-search step")
+            sys.exit(1)
+        if not APOLLO_API_KEY:
+            print("ERROR: APOLLO_API_KEY not set")
+            sys.exit(1)
+        domains = _read_domains_from_csv(Path(args.domains_csv))
+        if not domains:
+            print("ERROR: no domains found in CSV")
+            sys.exit(1)
+        titles = (
+            [t.strip() for t in args.titles.split(",") if t.strip()]
+            if args.titles
+            else APOLLO_DEFAULT_TITLES
+        )
+        seniorities = (
+            [s.strip() for s in args.seniorities.split(",") if s.strip()]
+            if args.seniorities
+            else APOLLO_DEFAULT_SENIORITIES
+        )
+        seg_label = segment_slug.upper()
+        out_csv = config.csv_dir / f"apollo_people_{seg_label}_{today}.csv"
+        n = _run_apollo_search_step(
+            domains,
+            titles,
+            seniorities,
+            args.max_people,
+            out_csv,
+            project_id=project_id,
+            segment=seg_label,
+        )
+        if n == 0:
+            print("  No people found — exiting")
+            sys.exit(0)
+        print(f"\n  ✓ apollo-search done → {out_csv}")
+        print(
+            f"  Next: python3 pipeline.py people --from-step exa-lookup --csv {out_csv} --segment {args.segment}"
+        )
+        sys.exit(0)
+
+    # ── Step: exa-lookup (Apollo CSV → add LinkedIn URLs) ───────────────────
+    if from_step == "exa-lookup":
+        if not args.csv:
+            print("ERROR: --csv required (apollo_people_*.csv from previous step)")
+            sys.exit(1)
+        in_csv = Path(args.csv)
+        seg_label = segment_slug.upper()
+        out_csv = in_csv.with_name(in_csv.stem + "_exa.csv")
+        found, cost = _run_exa_step(in_csv, out_csv, project_id=project_id)
+        print(f"\n  ✓ exa-lookup done: {found} LinkedIn URLs | ${cost:.3f}")
+        print(f"  Review: {out_csv}")
+        print(
+            f"  Next: python3 pipeline.py people --from-step findymail --csv {out_csv} --segment {args.segment}"
+        )
+        sys.exit(0)
 
     # ── Load contacts ────────────────────────────────────────────────────────
     if from_step == "findymail":
@@ -1606,16 +2554,56 @@ def main():
     )
     p_comp.add_argument("--prompt-file", help="Новый промпт для --from-step adjust")
     p_comp.add_argument("--auto-approve", action="store_true")
+    p_comp.add_argument(
+        "--defer-export",
+        action="store_true",
+        help="Не сохранять CSV/Sheets после каждого батча — один экспорт per segment в конце",
+    )
 
     # people
-    p_ppl = sub.add_parser("people", help="Apollo CSV → FindyMail → SmartLead")
+    p_ppl = sub.add_parser(
+        "people",
+        help="Apollo search / CSV → FindyMail → SmartLead",
+    )
     p_ppl.add_argument("--csv", help="Apollo CSV export с людьми")
+    p_ppl.add_argument(
+        "--domains-csv",
+        help="CSV с доменами → Apollo people search (вместо --csv)",
+    )
     p_ppl.add_argument("--project-id", type=int, default=42)
     p_ppl.add_argument(
         "--segment", required=True, help="Сегмент: soccom / imagency / infplat"
     )
-    p_ppl.add_argument("--from-step", choices=["findymail", "upload"])
+    p_ppl.add_argument(
+        "--from-step",
+        choices=["apollo-search", "exa-lookup", "findymail", "upload"],
+        help="apollo-search→exa-lookup→findymail→upload",
+    )
+    p_ppl.add_argument(
+        "--titles",
+        help='Override default titles, comma-separated: "CEO,Founder"',
+    )
+    p_ppl.add_argument(
+        "--seniorities",
+        help='Override default seniorities, comma-separated: "vp,director"',
+    )
+    p_ppl.add_argument(
+        "--max-people",
+        type=int,
+        default=100,
+        help="Макс людей на домен (default 100)",
+    )
     p_ppl.add_argument("--auto-approve", action="store_true")
+    p_ppl.add_argument(
+        "--search-only",
+        action="store_true",
+        help="Остановиться после Apollo search, не запускать FindyMail",
+    )
+    p_ppl.add_argument(
+        "--apollo-enrich",
+        action="store_true",
+        help="Использовать платный Apollo bulk_match вместо Exa для получения реальных имён и emails",
+    )
     p_ppl.add_argument(
         "--no-upload",
         action="store_true",
@@ -1628,7 +2616,9 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    _AUTO_APPROVE = getattr(args, "auto_approve", False)
+    _AUTO_APPROVE = getattr(args, "auto_approve", False) or getattr(
+        args, "search_only", False
+    )
 
     print("═" * 60)
     print(f"  OnSocial Pipeline — {ts()}")
