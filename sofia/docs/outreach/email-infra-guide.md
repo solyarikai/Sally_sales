@@ -372,23 +372,20 @@ DKIM генерится **в Google Admin Console**, НЕ через Namecheap. 
 
 #### Ручной workflow — проверен 2026-04-24
 
-Для **одного** домена (последовательно, быстро):
+**Стандартный workflow — batch через new-tab-per-domain** (оптимально для 2+ доменов):
 
-1. [admin.google.com/ac/apps/gmail/authenticateemail](https://admin.google.com/ac/apps/gmail/authenticateemail)
-2. Select domain → Generate new record (2048-bit) → **копируй TXT value**
-3. Сразу записать TXT в Namecheap (helper ниже)
-4. Подожди propagation (~30 мин, TTL 1800)
-5. В той же вкладке → **Start authentication** → Google делает DNS-запрос, видит TXT, включает DKIM
-6. Status = `Authenticating email with DKIM` ✅
+1. **Cmd+T** → [admin.google.com/ac/apps/gmail/authenticateemail](https://admin.google.com/ac/apps/gmail/authenticateemail)
+2. `Selected domain` → выбрать домен → если пусто, нажать **Generate new record** (2048-bit)
+3. Скопировать TXT value (строка `v=DKIM1; k=rsa; p=...`) в подготовленный JSON/блокнот
+4. **Вкладку оставить открытой** (вернёшься для Start auth)
+5. **Cmd+T** снова → следующий домен → повтор шагов 2-4
+6. Когда все N ключей собраны → записать все TXT в Namecheap **batch-скриптом** (см. ниже)
+7. Пройти по каждой открытой вкладке → **Start authentication** (новая вкладка = свежий DNS-query, TXT уже пропагирован)
+8. Status на каждой = `Authenticating email with DKIM` ✅
 
-Для **batch** (собрать ключи для N доменов подряд, записать всё разом) — **новую вкладку на каждый**:
+Почему так: клик `Start auth` триггерит Google сделать DNS-query на `google._domainkey.<domain>`. Если TXT ещё нет — вкладка «запоминает» fail, повторный клик не спасает. Новая вкладка на каждый домен = свежий запрос уже после того, как TXT-запись пропагировалась.
 
-1. Cmd+T → admin.google.com/ac/apps/gmail/authenticateemail
-2. Select domain → Generate → скопируй ключ (в JSON/блокнот)
-3. **Вкладку не закрывать** (вернёшься через шаг)
-4. Cmd+T снова → следующий домен → повтор
-5. Когда все ключи собраны → записать все TXT в Namecheap batch-скриптом
-6. Вернуться по каждой вкладке → Start authentication (новая DNS-query, TXT уже есть)
+> Edge case — 1 домен: открыть admin → Generate → записать TXT → wait 30 мин → Start auth в той же вкладке. Без необходимости в new-tab.
 
 #### Почему новая вкладка на каждый
 
