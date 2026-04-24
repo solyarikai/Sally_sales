@@ -1,10 +1,9 @@
 # Email Infrastructure — Build Guide
 
-Пошаговый гайд по созданию почтовой инфры для cold outreach: от покупки доменов до запуска spam-тестов. Внутренний документ, содержит креды.
+Создание почтовой инфры для cold outreach: от покупки доменов до warmup в SmartLead.
 
-> Базовый SOP: [magnum-opus/infra/Instruction](../../../magnum-opus/infra/Instruction). Этот гайд — расширенная версия со скринами, текущим состоянием и ссылками на автоматизацию.
->
-> **Скрипты автоматизации** лежат в submodule: [magnum-opus/infra/](../../../magnum-opus/infra/). Все `aivy-*.js` и `.ps1` файлы. Причина отделения гайда: `auto_git_pull.sh` хук удаляет `infra/` каталог в submodule как "ghost directory" — подробнее в разделе «Известные подводные камни» ниже.
+**Скрипты**: [magnum-opus/infra/](../../../magnum-opus/infra/) — все `aivy-*.js` и `.ps1`.
+**Единый реестр доменов**: [Ops | Infra | Domains](https://docs.google.com/spreadsheets/d/1nht7tNVXdbLtLdUxbDguxnGbV-Zv1q5pMK3Uter7oyI).
 
 ---
 
@@ -12,582 +11,412 @@
 
 | Сервис | Логин | Пароль / Key | Примечание |
 |--------|-------|--------------|------------|
-| Namecheap (основной для новых доменов) | `Sally2` | `A5(m+zgvm4xDDZc` | email: `services@getsally.io` |
-| Namecheap API (Sally2) | `Sally2` | `d736e84e16b141b3a8cf0f51302c3aeb` | whitelisted IP: `46.62.210.24` (Hetzner) |
-| Namecheap (legacy) | `decaster3` | `wP#DSVN-8X/yF&6` | старые домены, API в `.ps1` |
-| Namecheap API (decaster3) | `decaster3` | `f3335861b92247779364649ae2beb014` | whitelisted IPs: `150.241.224.134`, `46.62.210.24` |
-| Google Workspace — `aivy-digital.com` | `artem@aivy-digital.com` | `~7R8zsWJPTxB`, 2FA: `4156 3178` | **основной tenant для новых доменов** |
-| Google Workspace — legacy | `services@getsally.io` | см. [Instruction](../../../magnum-opus/infra/Instruction) | legacy OnSocial tenant |
-| GCP project (OAuth) | `easystaff-instantly-freshboxes` | client_id: `978895579994-duj44rs0l93rpbt2vrp844nptv23k940` | creds: `sofia-oauth-client.json` + `sofia-oauth-token.json` |
-| SmartLead | `services@getsally.io` | `RHHvSacOKxxzp80N` | обновлён 2026-04-24 |
+| Namecheap (новые домены) | `Sally2` | `A5(m+zgvm4xDDZc` | email: `services@getsally.io` |
+| Namecheap API (Sally2) | `Sally2` | `d736e84e16b141b3a8cf0f51302c3aeb` | whitelisted IP: `46.62.210.24` |
+| Namecheap (legacy) | `decaster3` | `wP#DSVN-8X/yF&6` | старые домены, `.ps1` |
+| Namecheap API (decaster3) | `decaster3` | `f3335861b92247779364649ae2beb014` | whitelisted: `150.241.224.134`, `46.62.210.24` |
+| Google Workspace — aivy-digital.com | `artem@aivy-digital.com` | `~7R8zsWJPTxB`, 2FA: `4156 3178` | основной tenant |
+| GCP project (OAuth) | `easystaff-instantly-freshboxes` | client_id `978895579994-duj44rs0l93rpbt2vrp844nptv23k940` | `sofia-oauth-*.json` |
+| SmartLead | `services@getsally.io` | `RHHvSacOKxxzp80N` | API key в `.aivy-credentials.json` |
 | Instantly API | Bearer token | см. [instantly-inbox-placement.md](../../../magnum-opus/infra/instantly-inbox-placement.md) | |
 
-### Какой Namecheap-аккаунт использовать
-
-- **Sally2** — все новые покупки под `aivy-digital` tenant. В `aivy-*.js` скриптах.
-- **decaster3** — legacy домены, старые `.ps1` скрипты. Не трогать без нужды.
+Креды сенситивные — в `.aivy-credentials.json` (gitignored).
 
 ---
 
 ## Этапы
 
-1. [Покупка доменов на Namecheap](#шаг-1--покупка-доменов-на-namecheap)
-2. [Подключение доменов к Google Workspace](#шаг-2--подключение-доменов-к-google-workspace)
-3. DNS-записи (MX, SPF, DMARC, DKIM, email tracking, redirect)
-4. Создание почтовых ящиков + 2FA + backup codes
-5. Подключение к SmartLead и warmup
-6. Подключение к Instantly и spam-тесты
+1. [Покупка доменов на Namecheap](#шаг-1--покупка-доменов)
+2. [Подключение к Google Workspace + verification](#шаг-2--google-workspace)
+3. [DNS-записи (MX, SPF, DMARC, tracking, redirect)](#шаг-3--dns)
+4. [DKIM](#шаг-35--dkim)
+5. [Создание почтовых ящиков](#шаг-4--почтовые-ящики)
+6. [SmartLead + warmup](#шаг-5--smartlead--warmup)
+7. [Instantly spam-тесты](#шаг-6--instantly)
 
-После каждого шага обновляем [Domain Tracker](#domain-tracker) — единый реестр доменов со сроками экспирации и статусом инфры.
+После каждого шага обновляем Domain Tracker.
 
 ---
 
 ## Domain Tracker
 
-Единый реестр всех доменов Sally (не только OnSocial). Поскольку auto-renew OFF — это **единственный источник правды** по тому, когда что продлевать.
+**Ссылка**: [Ops | Infra | Domains](https://docs.google.com/spreadsheets/d/1nht7tNVXdbLtLdUxbDguxnGbV-Zv1q5pMK3Uter7oyI) (папка [Ops / Infra](https://drive.google.com/drive/folders/1pdHLW18i3RM7LtmTjD_vHBs4ZKpkBHNg))
 
-**Ссылка**: [Ops | Infra | Domains](https://docs.google.com/spreadsheets/d/1nht7tNVXdbLtLdUxbDguxnGbV-Zv1q5pMK3Uter7oyI)
-**Папка Drive**: [Ops / Infra](https://drive.google.com/drive/folders/1pdHLW18i3RM7LtmTjD_vHBs4ZKpkBHNg)
+Auto-renew OFF везде — это единственный источник правды по экспирации.
 
 ### Схема (19 колонок)
 
-| # | Колонка | Пример | Заполняется на шаге |
-|---|---------|--------|---------------------|
+| # | Колонка | Пример | Заполняется на |
+|---|---------|--------|----------------|
 | A | `domain` | `voxpilot.co` | Шаг 1 |
 | B | `tld` | `.co` | Шаг 1 |
 | C | `registrar` | `Namecheap` | Шаг 1 |
 | D | `registrar_account` | `Sally2` | Шаг 1 |
-| E | `client` | `OnSocial` / `INXY` / `Crona` / `Sally` | Шаг 1 |
-| F | `purchased_at` | `2026-04-24` | Шаг 1 (после оплаты) |
-| G | `expires_at` | `=F+365*H` (авто-формула) | auto |
+| E | `client` | `OnSocial` / `INXY` / `Sally` | Шаг 1 |
+| F | `purchased_at` | `2026-04-24` | Шаг 1 |
+| G | `expires_at` | `=F+365*H` (формула) | auto |
 | H | `years_paid` | `1` | Шаг 1 |
-| I | `days_left` | `=G-TODAY()` (авто-формула) | auto |
-| J | `auto_renew` | `N` | Шаг 1 (по умолчанию `N`) |
+| I | `days_left` | `=G-TODAY()` (формула) | auto |
+| J | `auto_renew` | `N` | Шаг 1 |
 | K | `dns_configured` | `Y` / `partial` / `N` | Шаг 3 |
 | L | `workspace_linked` | `Y` / `N` | Шаг 2 |
-| M | `redirect_url` | `https://onsocial.com` | Шаг 3 |
-| N | `last_health_check` | `2026-04-24` | auto (cron, TODO) |
+| M | `redirect_url` | `https://onsocial.ai/` | Шаг 3 |
+| N | `last_health_check` | `2026-04-24` | auto (TODO cron) |
 | O | `mailboxes_count` | `2` | Шаг 4 |
 | P | `smartlead_connected` | `Y` / `N` | Шаг 5 |
 | Q | `instantly_connected` | `Y` / `N` | Шаг 6 |
 | R | `status` | `active` / `expired` / `paused` / `dropped` | lifecycle |
-| S | `notes` | `batch INXY #2` | любые комменты |
+| S | `notes` | `batch aivy-1` | свободный текст |
 
-### Ручные улучшения (сделать один раз)
+### Ручные улучшения (один раз)
 
-- **Freeze header**: View → Freeze → 1 row
-- **Conditional formatting на `days_left`**:
-  - `<30` → красный фон (скоро экспирация)
-  - `<90` → жёлтый фон (пора планировать продление)
-  - `<0` → тёмно-красный + bold (пропущено продление!)
-- **Data validation** для быстрого ввода (Y/N, статусы) — Data → Data validation на колонках J, K, L, P, Q, R
-
-### Автоматизации (TODO)
-
-1. **Health-check cron** — раз в сутки на Hetzner: dig MX/TXT/CNAME + HEAD на redirect → обновляет `dns_configured` + `last_health_check`. Закрывает запрос Петра из [From Petr](../../../magnum-opus/infra/From%20Petr).
-2. **Slack alert** — раз в неделю: «домены с `days_left < 30`» → в канал `#infra-renewals`
-3. **Auto-sync из Namecheap API** — при покупке через `namecheap-register-domains.ps1` автоматически аппендить строку в tracker (сейчас скрипт этого не делает)
+- Freeze header row
+- Conditional formatting на `days_left`: `<30` красный, `<90` жёлтый, `<0` тёмно-красный + bold
+- Data validation (Y/N, статусы) на колонках J, K, L, P, Q, R
 
 ---
 
-## Шаг 1 — Покупка доменов на Namecheap
+## Шаг 1 — Покупка доменов
 
-### 1.1 Принцип именования
+### 1.1 Именование
 
-Домены формируются по паттерну `client + field`. Пример для клиента `inxy` (crypto payments):
+Паттерн `client + field`. Минимум 2 ящика на домен (см. Шаг 4), поэтому закупаем пачки созвучных.
 
-```
-inxycrypto.com
-inxypayments.com
-inxy-crypto.com
-...
-```
+### 1.2 Beast Mode на Namecheap
 
-Цель — закупить пачку созвучных доменов, чтобы потом разнести ящики по разным доменам (минимум 2 ящика на домен, см. Шаг 4).
+1. Залогиниться как `Sally2`
+2. Рядом с поиском на главной — **Beast Mode**
+3. Ввести keywords (до 5000)
+4. Фильтры:
+   - Price Range: верхний лимит под бюджет
+   - Show Premiums: OFF
+   - Hide Unavailable: ON
+5. **Generate** → выбрать нужные → в корзину
 
-### 1.2 Открыть Beast Mode
+### 1.3 Checkout
 
-Заходим на namecheap.com под аккаунтом `Sally2`. В строке поиска на главной рядом с кнопкой `Search` — ссылка **Beast Mode**. Переходим туда.
+- **Free Domain Privacy** — автоматом (не снимаем)
+- **Renewal Settings**: `Do not auto-renew` ⚠️ (дату экспирации ведём в Domain Tracker)
+- **Pay Now**
 
-![Namecheap homepage — Beast Mode entry](images/email-infra/01-namecheap-home.png)
+После оплаты → **Account → Domain List**.
 
-### 1.3 Сгенерировать и отфильтровать список
+### 1.4 Автоматизация массовой регистрации
 
-В Beast Mode в строке поиска вводим список нужных доменов (до 5000 keywords). Настройки:
-
-- **Price Range** — ставим верхний лимит по цене (дефолт — $500k, реально ограничиваем под бюджет)
-- **Show Premiums** — OFF (убираем премиум-домены, они дорогие)
-- **Hide Unavailable** — ON (показывать только свободные)
-- **TLD** — можно выбрать зоны (`.com`, `.io`, `.net`), но обычно не ограничиваем — берём что доступно
-
-Жмём **Generate** и из результатов выбираем нужные.
-
-![Namecheap Beast Mode — filters and keyword input](images/email-infra/02-namecheap-beast-mode.png)
-
-### 1.4 Оформление заказа и оплата
-
-После выбора подходящих доменов в Beast Mode идём в корзину и оформляем заказ. На странице checkout:
-
-- **Free Domain Privacy** — включается автоматически для каждого домена (FREE Forever, не снимаем)
-- **Renewal Settings** — `Do not auto-renew` ⚠️ выключаем авто-продление (чтобы не списало за домены, которые больше не нужны). Вместо этого дату экспирации трекаем в Domain Tracker
-- **Payment Method** — дефолтная карта аккаунта
-
-Жмём **Pay Now**.
-
-> **Важно**: раз auto-renew OFF — дату покупки + дату экспирации (purchase + 1 year) ОБЯЗАТЕЛЬНО заносим в **Domain Tracker**, иначе потеряем домены.
-
-![Namecheap checkout page](images/email-infra/03-namecheap-checkout.png)
-
-### 1.5 Где смотреть купленные домены
-
-После оплаты домены появляются в разделе **Domain List**. Путь: правый верхний угол → клик по **Account** → в выпадающем меню выбрать **Domain List**.
-
-![Account menu — Domain List entry](images/email-infra/04-namecheap-account-menu.png)
-
-В Domain List отсюда дальше заходим в настройки каждого домена (Шаг 3 — прописывание DNS-записей).
-
-### 1.6 Автоматизация
-
-| Что | Как | Файл (в submodule) |
-|-----|-----|--------------------|
-| **Регистрация пачки доменов** | Namecheap API, батч | [namecheap-register-domains.ps1](../../../magnum-opus/infra/namecheap-register-domains.ps1) |
-| **WhoisGuard enable** | авто при регистрации (`WGEnabled=yes`) | same script |
-| **Set DNS** | после регистрации | [namecheap-set-dns.ps1](../../../magnum-opus/infra/namecheap-set-dns.ps1) |
-| **Add MX records** | для Google Workspace | [namecheap-add-mx.js](../../../magnum-opus/infra/namecheap-add-mx.js) |
-
-Пример:
 ```powershell
-# На Hetzner (IP 46.62.210.24 в whitelist обоих аккаунтов)
+# Только на Hetzner или whitelisted IP
 .\namecheap-register-domains.ps1 -DomainsFile crona-domains.txt
 ```
 
-**Ещё не автоматизировано** (TODO):
-- Генерация списка доменов из `client + field` (сейчас ручной брейнштурм в Beast Mode) → можно LLM-скриптом
-- Авто-запись купленных доменов в Domain Tracker
-- Health-check: проверка DNS-записей + redirect, см. [From Petr](../../../magnum-opus/infra/From%20Petr)
+Скрипты в [magnum-opus/infra/](../../../magnum-opus/infra/):
+- [namecheap-register-domains.ps1](../../../magnum-opus/infra/namecheap-register-domains.ps1) — батч-регистрация + WhoisGuard
+- [namecheap-set-dns.ps1](../../../magnum-opus/infra/namecheap-set-dns.ps1) — установка DNS
+- [namecheap-add-mx.js](../../../magnum-opus/infra/namecheap-add-mx.js) — MX only
+
+### 1.5 Заполнить Domain Tracker
+
+Добавить новые строки (колонки A-F, H, J):
+- `domain`, `tld`, `registrar=Namecheap`, `registrar_account=Sally2`
+- `client` (кому принадлежит)
+- `purchased_at` (сегодня), `years_paid=1`, `auto_renew=N`
 
 ---
 
-## Шаг 2 — Подключение доменов к Google Workspace
+## Шаг 2 — Google Workspace
 
-Задача: добавить домен в Google Workspace tenant (у нас — `aivy-digital.com`), пройти **ownership verification** через TXT-запись в DNS.
+Добавить домены в aivy-digital tenant + подтвердить ownership через TXT.
 
-### 2.1 Ручной процесс (для понимания)
+### 2.1 Pre-flight
 
-1. Admin Console ([admin.google.com](https://admin.google.com)) → **Domains** → **Add a domain** → ввести имя
-2. Google выдаёт TXT-challenge вида `google-site-verification=XXXXX`
-3. В Namecheap (Domain List → Advanced DNS) добавить TXT с host `@` и этим значением
-4. Подождать 5-15 мин propagation → вернуться в Admin Console → **Verify**
-
-Для 20-50 доменов это ~час кликов — поэтому автоматизируем.
-
-### 2.2 Полная автоматизация — цепочка скриптов
-
-Процесс разбит на 2 этапа, потому что каждый требует разных Google API:
-
-**Этап A — добавить домены в tenant** (без verification)
-- Скрипт: [aivy-add-domains.js](../../../magnum-opus/infra/aivy-add-domains.js)
-- Что делает: `admin.domains.insert()` для каждого домена из списка
-- Scope: `admin.directory.domain`
-- После запуска: домены в tenant со статусом `verified: false`
-
-**Этап B — получить TXT challenge + прописать + верифицировать**
-- Скрипт: [aivy-finish-verification.js](../../../magnum-opus/infra/aivy-finish-verification.js)
-- Что делает для каждого домена:
-  1. `siteVerification.webResource.getToken()` → получить `google-site-verification=...`
-  2. Namecheap API → добавить TXT-запись (сохраняя existing hosts)
-  3. `dig +short TXT` каждые 10 сек, ждать пока запись не пропагируется (default 180 сек)
-  4. `siteVerification.webResource.insert()` → Google подтверждает ownership
-  5. `admin.domains.get()` → проверить `verified: true`
-- Scope: `admin.directory.domain` + **`siteverification`**
-
-### 2.3 Pre-flight — что должно быть готово
+Один раз на tenant:
 
 | Требование | Как проверить |
 |------------|---------------|
-| **Site Verification API** включён в GCP project `easystaff-instantly-freshboxes` | [Library](https://console.developers.google.com/apis/api/siteverification.googleapis.com/overview?project=978895579994) → должно быть Enabled |
-| **OAuth token с scope `siteverification`** | `python3 -c 'import json; print(json.load(open("sofia-oauth-token.json"))["scope"])'` — должен включать `siteverification` |
-| **Namecheap API Sally2 активен**, IP `46.62.210.24` в whitelist | Test: `curl "https://api.namecheap.com/xml.response?ApiUser=Sally2&ApiKey=d736e84e16b141b3a8cf0f51302c3aeb&UserName=Sally2&ClientIp=46.62.210.24&Command=namecheap.domains.dns.getHosts&SLD=<domain>&TLD=co"` — `Status="OK"` |
+| Site Verification API включён в GCP project `easystaff-instantly-freshboxes` | [API library](https://console.developers.google.com/apis/api/siteverification.googleapis.com/overview?project=978895579994) → должно быть Enabled |
+| OAuth token со scope `siteverification` | `cat sofia-oauth-token.json` → `scope` должен содержать `siteverification` |
+| Namecheap API Sally2 на `46.62.210.24` | `curl "https://api.namecheap.com/xml.response?ApiUser=Sally2&...&Command=namecheap.domains.dns.getHosts&SLD=X&TLD=co"` → `Status="OK"` |
 
-### 2.4 Если нужно обновить OAuth scope (первый раз)
+### 2.2 Refresh OAuth token (если токен протух или scope нужен)
 
-OAuth consent происходит в браузере → делается один раз на Mac, потом токен живёт вечно через `refresh_token`:
+Запускается **один раз** на Mac (нужен браузер):
 
 ```bash
 cd /Users/user/sales_engineer/magnum-opus/infra
 node aivy-oauth-login.js
-# открывается браузер → логин под artem@aivy-digital.com → consent всех 4 scope
-# токен сохраняется в sofia-oauth-token.json
+# браузер → login artem@aivy-digital.com → consent
 scp sofia-oauth-token.json hetzner:~/magnum-opus-project/repo/infra/
 ```
 
-Источник: [aivy-oauth-login.js](../../../magnum-opus/infra/aivy-oauth-login.js)
+Refresh token живёт вечно — после SCP больше возвращаться на Mac не нужно, всё работает с Hetzner.
 
-### 2.5 Боевой запуск
-
-На Hetzner:
-```bash
-cd ~/magnum-opus-project/repo/infra
-
-# Этап A — добавить 7 доменов в tenant
-node aivy-add-domains.js --domains-file aivy-domains-batch1.txt
-
-# Dry-run проверка (опционально) — какие домены уже есть vs будут добавлены
-node aivy-dryrun-add-domains.js --domains-file aivy-domains-batch1.txt
-
-# Этап B — получить TXT, прописать, верифицировать (полный цикл)
-node aivy-finish-verification.js --domains-file aivy-domains-batch1.txt --max-wait 300
-
-# Запуск только на одном домене (для дебага)
-node aivy-finish-verification.js --domains-file aivy-domains-batch1.txt --only syntab.co
-```
-
-### 2.6 Что делать если упал
-
-| Ошибка | Причина | Фикс |
-|--------|---------|------|
-| `Site Verification API has not been used in project 978895579994` | API не включён в GCP | Кликнуть Enable на [странице API](https://console.developers.google.com/apis/api/siteverification.googleapis.com/overview?project=978895579994), подождать 1-2 мин |
-| `The domain (X) doesn't seem to be associated with your account` | Wrong Namecheap account | Домен куплен не на `Sally2`, проверить owner, возможно надо использовать `decaster3` API key |
-| `TIMEOUT waiting for TXT propagation` | DNS долго пропагируется | Запустить скрипт повторно — он умеет читать существующие записи и не дублирует |
-| `admin.domains.get`: `Resource Not Found: domain` | Домен не добавлен в tenant на Этапе A | Запустить `aivy-add-domains.js` сначала |
-
-### 2.7 Результат сессии 2026-04-24
-
-| Домен | Status | Пояснение |
-|-------|--------|-----------|
-| syntab.co | verified ✓ | pilot run, потеряли дефолтный Namecheap URL-redirect (переопределим в Шаге 3) |
-| voxpilot.co | verified ✓ | |
-| contactpilot.co | verified ✓ | |
-| salestide.co | verified ✓ | |
-| verostack.co | verified ✓ | |
-| growthnode.co | verified ✓ | |
-| fronttide.co | verified ✓ | был добавлен ранее (2026-04-22), скрипт пропустил |
-
-Все 7 доменов в Domain Tracker помечены `workspace_linked = Y`.
-
-### 2.8 Known issues в существующих скриптах Артёма
-
-⚠️ **Regex-баг в `google-workspace-add-domains.js` и `namecheap-add-mx.js`** (строки ~109, ~22 соответственно):
-
-```js
-const hostMatches = [...getXml.matchAll(/<host\s([^/]*?)\/>/g)];
-//                                         ^^^ стопорится на '/' внутри Address
-```
-
-Проблема: `[^/]*?` не матчит host-записи типа URL-redirect (Address содержит `http://...`). При SetHosts эти записи теряются. Исправление — замена на `[^>]*?`:
-
-```js
-const hostMatches = [...getXml.matchAll(/<host\s([^>]*?)\/>/g)];
-```
-
-Уже исправлено в [aivy-finish-verification.js](../../../magnum-opus/infra/aivy-finish-verification.js). **Старые скрипты Артёма не трогал** — если запустишь их на доменах с URL/CNAME, получишь тихое удаление записей.
-
----
-
-## Шаг 3 — DNS-записи
-
-Задача: прописать полный пакет DNS на каждом домене — MX, SPF, DMARC, email tracking CNAME, redirect URL. **DKIM идёт отдельно** (нужен Google Admin Console, см. Шаг 3.5).
-
-### 3.1 Что прописываем (Sally SOP)
-
-| Host | Type | Value | Purpose |
-|------|------|-------|---------|
-| `@` | MX | `SMTP.GOOGLE.COM` pref=1 | доставка в Gmail |
-| `@` | TXT | `v=spf1 include:_spf.google.com ~all` | SPF — кто имеет право отправлять |
-| `_dmarc` | TXT | `v=DMARC1; p=reject; rua=mailto:dmarc-reports@{domain}; ruf=mailto:dmarc-reports@{domain}; sp=reject; adkim=s; fo=1;` | DMARC политика |
-| `emailtracking` | CNAME | `open.sleadtrack.com` | SmartLead tracking domain |
-| `www` | URL301 | `https://onsocial.ai/` | redirect корня домена |
-| `@` | TXT | `google-site-verification=...` | **preserve** из Шага 2 |
-| `google._domainkey` | TXT | `v=DKIM1; k=rsa; p=MII...` | **preserve** если уже есть DKIM (Шаг 3.5) |
-
-### 3.2 MX — какую запись использовать
-
-У Петра два скрипта с разной MX-конфигурацией:
-
-| Скрипт | MX value |
-|--------|----------|
-| [Instruction](../../../magnum-opus/infra/Instruction) + [namecheap-set-dns.ps1](../../../magnum-opus/infra/namecheap-set-dns.ps1) | `SMTP.GOOGLE.COM` pref=1 |
-| [namecheap-add-mx.js](../../../magnum-opus/infra/namecheap-add-mx.js) | `ASPMX.L.GOOGLE.COM` pref=1 |
-
-**Мы следуем SOP → используем `SMTP.GOOGLE.COM`**. Оба варианта работают с Gmail.
-
-Для справки: Google docs рекомендует 5 MX (ASPMX.L + 4 ALT), но для совместимости с Petrовской документацией идём через `SMTP.GOOGLE.COM`.
-
-### 3.3 Автоматизация — `aivy-set-dns.js`
-
-Файл: [aivy-set-dns.js](../../../magnum-opus/infra/aivy-set-dns.js)
+### 2.3 Dry-run — сверка с текущим состоянием tenant
 
 ```bash
 # На Hetzner
-cd ~/magnum-opus-project/repo/infra
+node aivy-dryrun-add-domains.js --domains-file aivy-domains-batch1.txt
+```
 
-# Dry-run (обязательно сначала!)
+Покажет какие домены **уже в tenant** (SKIP) и какие **будут добавлены** (ADD).
+
+### 2.4 Добавление + verification
+
+```bash
+# Этап A — insert в tenant
+node aivy-add-domains.js --domains-file aivy-domains-batch1.txt
+
+# Этап B — получить TXT challenge, записать в Namecheap, verify
+node aivy-finish-verification.js --domains-file aivy-domains-batch1.txt --max-wait 300
+
+# Отладка одного домена
+node aivy-finish-verification.js --domains-file X.txt --only syntab.co
+```
+
+`aivy-finish-verification.js` цикл на домен:
+1. `siteVerification.webResource.getToken` → TXT challenge от Google
+2. Namecheap API → `setHosts` (сохраняет existing + добавляет TXT challenge)
+3. `dig TXT` каждые 10 сек до propagation (default 180 сек)
+4. `siteVerification.webResource.insert` → Google верифицирует
+5. `admin.domains.get` → `verified: true`
+
+### 2.5 Заполнить Domain Tracker
+
+После `verified: true` → колонка L (`workspace_linked`) = `Y`.
+
+---
+
+## Шаг 3 — DNS
+
+Полный пакет DNS на каждом домене.
+
+### 3.1 Записи
+
+| Host | Type | Value | Purpose |
+|------|------|-------|---------|
+| `@` | MX pref=1 | `SMTP.GOOGLE.COM` | доставка в Gmail (SOP-стандарт) |
+| `@` | TXT | `v=spf1 include:_spf.google.com ~all` | SPF |
+| `_dmarc` | TXT | `v=DMARC1; p=reject; rua=mailto:dmarc-reports@{domain}; ruf=mailto:dmarc-reports@{domain}; sp=reject; adkim=s; fo=1;` | DMARC |
+| `emailtracking` | CNAME | `open.sleadtrack.com` | SmartLead tracking |
+| `www` | URL301 | `https://onsocial.ai/` | redirect корня |
+| `@` | TXT | `google-site-verification=...` | preserve из Шага 2 |
+| `google._domainkey` | TXT | `v=DKIM1; k=rsa; p=MII...` | preserve из Шага 3.5 (DKIM) |
+
+### 3.2 Запуск
+
+```bash
+# На Hetzner — dry-run
 node aivy-set-dns.js --domains-file aivy-domains-batch1.txt --redirect-url https://onsocial.ai/ --dry-run
 
-# Боевой запуск на чистых доменах (--skip-if-has-mx защищает уже настроенные)
+# Боевой запуск (не трогает домены у которых MX уже есть)
 node aivy-set-dns.js --domains-file aivy-domains-batch1.txt --redirect-url https://onsocial.ai/ --skip-if-has-mx
 
-# Для replace MX на доменах где MX уже есть — отдельный файл без уже настроенных
-node aivy-set-dns.js --domains-file aivy-domains-batch1-except-fronttide.txt --redirect-url https://onsocial.ai/
+# Принудительно переписать всё (для свежих доменов)
+node aivy-set-dns.js --domains-file aivy-domains-batch1-without-configured.txt --redirect-url https://onsocial.ai/
 ```
 
-Скрипт:
-1. Читает `existing hosts` через Namecheap API (regex `[^>]*?` — спец-фикс чтобы URL-записи с `/` не терялись)
-2. Сохраняет TXT google-site-verification + TXT google._domainkey (DKIM) — они НЕ перетираются
-3. Добавляет новый пакет (MX/SPF/DMARC/CNAME/URL)
-4. Делает `setHosts` с `&EmailType=MX` — обязательный параметр, иначе Namecheap накроет MX eforward'ами
+Скрипт сохраняет существующие google-site-verification и DKIM TXT при перезаписи.
 
-### 3.4 Подводные камни
+### 3.3 Важный параметр `&EmailType=MX`
 
-#### ⚠️ `EmailType=FWD` (критичный)
+Скрипт передаёт `&EmailType=MX` в `setHosts`. **Без него** Namecheap на Sally2-аккаунте подставляет свои `eforward*.registrar-servers.com` MX-записи (default = Email Forwarding), перезаписывая custom Google MX.
 
-На **Sally2** аккаунте новые домены по умолчанию идут с `EmailType=FWD` — Namecheap email forwarding. При `setHosts` без `&EmailType=MX` Namecheap **удаляет все custom MX записи** и вставляет свои `eforward1-5.registrar-servers.com`.
+### 3.4 Проверка
 
-Признак: `dig MX domain.co` показывает `*.registrar-servers.com` вместо Google.
+```bash
+# Swежий кэш (Cloudflare)
+dig +short MX voxpilot.co @1.1.1.1
+dig +short TXT voxpilot.co @1.1.1.1 | grep spf1
+dig +short TXT _dmarc.voxpilot.co @1.1.1.1
+dig +short CNAME emailtracking.voxpilot.co @1.1.1.1
 
-Фикс: в URL setHosts добавить `&EmailType=MX` — наш `aivy-set-dns.js` это делает. Оригинальный `namecheap-set-dns.ps1` Петра **этого не делает** — на `decaster3` домены могут быть с `EmailType=MX` по дефолту (другой профиль аккаунта), поэтому там проблема не проявлялась.
-
-#### ⚠️ Regex-баг в старых скриптах Петра
-
-В [namecheap-add-mx.js](../../../magnum-opus/infra/namecheap-add-mx.js:22) и `google-workspace-add-domains.js`:
-
-```js
-const hostMatches = [...getXml.matchAll(/<host\s([^/]*?)\/>/g)];
-//                                         ^^^ стопорится на '/' внутри Address
+# Source of truth — Namecheap API
+curl -s "https://api.namecheap.com/xml.response?ApiUser=Sally2&ApiKey=d736e84e16b141b3a8cf0f51302c3aeb&UserName=Sally2&ClientIp=46.62.210.24&Command=namecheap.domains.dns.getHosts&SLD=voxpilot&TLD=co"
 ```
 
-URL-redirect записи (`http://...`) содержат `/` в Address → regex обрывается → запись **не попадает в preserve list** → теряется при setHosts.
+8.8.8.8 может держать старый кэш до 30 мин (TTL 1800).
 
-В `aivy-set-dns.js` использован `[^>]*?` — фикс. Старые скрипты Петра не чиню (могут быть рабочие зависимости), но **не запускай их на доменах с URL-записями** без форка.
+### 3.5 Заполнить Domain Tracker
 
-#### ⚠️ DNS propagation lag
+Колонки K (`dns_configured=Y`), M (`redirect_url=https://onsocial.ai/`).
 
-TTL 1800 сек (30 мин). `dig @8.8.8.8` может показывать старое содержимое ещё полчаса. Для свежей проверки используй:
-- Namecheap API `getHosts` — мгновенно из source of truth
-- `dig @1.1.1.1` (Cloudflare) — часто быстрее обновляется чем Google
+---
 
-### 3.5 DKIM — отдельная подзадача ⚠️ automation fails, run manually
+## Шаг 3.5 — DKIM
 
-DKIM генерится **в Google Admin Console**, НЕ через Namecheap. **Автоматизация Puppeteer через Admin UI не работает надёжно** — подробнее см. «Подводные камни DKIM».
+DKIM генерится **только в Google Admin Console** — нет public API.
 
-#### Ручной workflow — проверен 2026-04-24
+### Workflow (batch через new-tab-per-domain)
 
-**Стандартный workflow — batch через new-tab-per-domain** (оптимально для 2+ доменов):
+Оптимально для 2+ доменов:
 
 1. **Cmd+T** → [admin.google.com/ac/apps/gmail/authenticateemail](https://admin.google.com/ac/apps/gmail/authenticateemail)
-2. `Selected domain` → выбрать домен → если пусто, нажать **Generate new record** (2048-bit)
-3. Скопировать TXT value (строка `v=DKIM1; k=rsa; p=...`) в подготовленный JSON/блокнот
-4. **Вкладку оставить открытой** (вернёшься для Start auth)
-5. **Cmd+T** снова → следующий домен → повтор шагов 2-4
-6. Когда все N ключей собраны → записать все TXT в Namecheap **batch-скриптом** (см. ниже)
-7. Пройти по каждой открытой вкладке → **Start authentication** (новая вкладка = свежий DNS-query, TXT уже пропагирован)
-8. Status на каждой = `Authenticating email with DKIM` ✅
+2. `Selected domain` → выбрать домен
+3. Если записи нет → **Generate new record** (2048-bit) → скопировать TXT value
+4. **Вкладку не закрывать** (вернёшься на шаге 7)
+5. **Cmd+T** снова → следующий домен → шаги 2-4
+6. Когда все N ключей собраны → записать все TXT в Namecheap (см. ниже)
+7. Пройти по каждой открытой вкладке → **Start authentication**
+8. Status = `Authenticating email with DKIM` ✓
 
-Почему так: клик `Start auth` триггерит Google сделать DNS-query на `google._domainkey.<domain>`. Если TXT ещё нет — вкладка «запоминает» fail, повторный клик не спасает. Новая вкладка на каждый домен = свежий запрос уже после того, как TXT-запись пропагировалась.
+**Почему new tab**: клик `Start auth` триггерит DNS-запрос Google. Если TXT в DNS ещё нет — вкладка «запоминает» fail. Новая вкладка = свежий запрос после записи TXT.
 
-> Edge case — 1 домен: открыть admin → Generate → записать TXT → wait 30 мин → Start auth в той же вкладке. Без необходимости в new-tab.
+### Batch-запись TXT в Namecheap
 
-#### Почему новая вкладка на каждый
-
-Это не про DOM-кэш. Это про **порядок действий**:
-
-1. `Start authentication` триггерит Google сделать **DNS-запрос** для `google._domainkey.<domain>`
-2. Если TXT в DNS ещё нет → Google отклоняет → кнопка «не срабатывает»
-3. Вкладка «запоминает» неудачный результат запроса — повторный клик не помогает
-
-Идеальный flow для **одного домена**:
-- Сгенерить ключ → **сразу записать в DNS** → подождать propagation → нажать Start authentication. Всё в одной вкладке.
-
-Когда делаешь **batch** (собрать 5-10 ключей сначала, потом писать в DNS скопом), идеал сломан:
-- Хочешь сэкономить время — открываешь **новую вкладку на каждый домен**, копируешь ключ, **не возвращаешься**
-- После записи всех TXT в DNS — по каждой вкладке жмёшь Start authentication (новая вкладка = свежий DNS-query)
-
-Альтернатива: закрыть все вкладки, после записи в DNS открывать `admin.google.com/ac/apps/gmail/authenticateemail` снова на каждый домен → Start authentication. Но по-факту то же самое действие, только в другом порядке.
-
-#### Автоматизация записи TXT — работает
-
-Extract DKIM из Admin UI — **ручной** (см. выше). А вот запись TXT в Namecheap — **автомат**:
+Helper: [aivy-namecheap-add-txt.js](../../../magnum-opus/infra/aivy-namecheap-add-txt.js) — принимает JSON через stdin (stdin, а не argv — SSH ломает `;` в value).
 
 ```bash
 # На Hetzner (whitelisted IP)
 echo '{"domain":"X.co","host":"google._domainkey","value":"v=DKIM1; k=rsa; p=..."}' \
-  | ssh hetzner 'node /home/leadokol/magnum-opus-project/repo/infra/aivy-namecheap-add-txt.js'
+  | node /home/leadokol/magnum-opus-project/repo/infra/aivy-namecheap-add-txt.js
+
+# Из Mac через SSH (для batch)
+for pair in "syntab.co:$KEY1" "voxpilot.co:$KEY2"; do
+  DOMAIN="${pair%%:*}"; VALUE="${pair#*:}"
+  python3 -c "import json,sys; print(json.dumps({'domain':sys.argv[1],'host':'google._domainkey','value':sys.argv[2]}))" \
+    "$DOMAIN" "$VALUE" | ssh hetzner 'node /home/leadokol/magnum-opus-project/repo/infra/aivy-namecheap-add-txt.js'
+done
 ```
 
-Helper: [aivy-namecheap-add-txt.js](../../../magnum-opus/infra/aivy-namecheap-add-txt.js) — принимает JSON через stdin (stdin, не argv — потому что SSH ломает `;` в value).
-
-Для batch записи многих ключей — скрипт на локальной машине shell-loop через ssh, см. historical запуск в git log.
-
-#### Подводные камни DKIM automation
-
-Пытались сделать Puppeteer-скрипт [aivy-enable-dkim.js](../../../magnum-opus/infra/aivy-enable-dkim.js) для полной автоматизации. **Не работает надёжно** из-за:
-
-1. **Google Admin — SPA, DOM state persists между вкладками** → нельзя просто select через dropdown и читать ключ
-2. **Material Select с virtual scrolling** — 319+ domains в tenant, реально в DOM одновременно ~50. Keyboard navigation (ArrowDown × N) не scales — options вне visible area не достижимы
-3. **Programmatic `.click()` на option не триггерит Material change event** — нужен real mouse click через bounding box, но option может быть не в viewport
-4. **Extraction regex захватывал UI текст** (`IDAQAB` + `Generate`) — фикс через `+?IDAQAB={0,2}` non-greedy
-
-**Урок 2026-04-24**: скрипт 4 раза «работал», но записывал в DNS DKIM ключ **primary домена (aivy-digital.com)** — потому что dropdown не переключался. Все 4 домена (fronttide, scalevox, nodemind, syntab) получили один и тот же ключ, **который Google не ждёт для них** → warmup на этих доменах слал emails с **DKIM FAIL** в течение ~2 суток (fronttide с 22 апреля).
-
-Починили руками через new-tab-per-domain workflow. DNS обновлён 2026-04-24 ~17:00 UTC.
-
-#### Что делать если SmartLead warmup уже запущен на broken-DKIM домене
-
-1. В SmartLead UI → Email Accounts → **pause warmup** на broken ящиках (до подтверждения DKIM)
-2. Записать правильный DKIM в DNS
-3. Admin Console → Stop authentication → Start authentication (force Google re-check)
-4. Подождать ~30 мин пока Status станет `Authenticating email with DKIM`
-5. Resume warmup
-
-#### Долгосрочная автоматизация (TODO)
-
-- Попробовать Puppeteer + `puppeteer-extra-plugin-stealth` + real mouse click через coordinates (не handle.click)
-- Или написать minimal headed browser с persistent profile + daemon на Hetzner через xvfb + VNC для initial login
-- Самый чистый — ждать когда Google откроет DKIM API (сейчас нет, проверено 2026-04)
-
-### 3.6 Результат сессии 2026-04-24
-
-| Домен | MX | SPF | DMARC | Tracking | Redirect | DKIM | dns_configured |
-|-------|----|----|-------|----------|----------|------|----------------|
-| syntab.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
-| voxpilot.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
-| contactpilot.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
-| salestide.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
-| verostack.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
-| growthnode.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
-| fronttide.co | ✓ (не трогали) | ✓ | ✓ | ✓ | нет | ✓ | Y |
-
-**Следующий шаг — DKIM на 6 новых доменах**, потом Шаг 4 (создание ящиков).
+Helper удаляет старую `google._domainkey` TXT (если была) и вставляет новую, сохраняя все остальные hosts + `&EmailType=MX`.
 
 ---
 
-## Шаг 4 — Создание почтовых ящиков
+## Шаг 4 — Почтовые ящики
 
-_TODO_
+По SOP — 2 ящика на домен (`<login>@` + `<login>.<n>@`).
+
+### 4.1 Скрипт
+
+[aivy-create-users.js](../../../magnum-opus/infra/aivy-create-users.js) — кастомизировать `USERS` и `PASSWORD` под персону batch:
+
+```js
+const PASSWORD = 'J7eRk7Gf';  // один на batch
+const USERS = [
+  { login: 'sofia',   givenName: 'Sofia', familyName: 'Novak' },
+  { login: 'sofia.n', givenName: 'Sofia', familyName: 'Novak' },
+];
+```
+
+### 4.2 Запуск
+
+```bash
+# На Hetzner — dry-run
+node aivy-create-users.js --domains-file aivy-domains-batch1.txt --dry-run
+
+# Боевой — создание через admin.directory API
+node aivy-create-users.js --domains-file aivy-domains-batch1.txt
+```
+
+**~1.5 сек на ящик**. Error `Entity already exists` (HTTP 409) — уже есть, не ошибка.
+
+### 4.3 2FA + backup codes (по SOP)
+
+```bash
+node sofia-backup-codes.js --domains-file X.txt
+```
+
+Генерит через Admin API + сохраняет CSV `<domains-file>-backup-codes.csv` (формат `email,code1,code2,...`). Этот CSV потом используется в Шаге 5 (SmartLead OAuth, если ящики с 2FA).
+
+### 4.4 Заполнить Domain Tracker + креды
+
+- Колонка O (`mailboxes_count=2`)
+- В `.aivy-credentials.json` добавить запись batch (список ящиков, пароль, 2fa_enabled)
 
 ---
 
 ## Шаг 5 — SmartLead + Warmup
 
-Подключение ящиков к SmartLead через **Google OAuth** + настройка warmup по SOP.
-
-### 5.1 Ручной OAuth — стандартный путь Sally
-
-**Все рабочие ящики** в SmartLead сейчас (Sofia Kamyshenko, Eleonora Easystaff, Rinat Crona и т.д. — type=GMAIL) подключались **руками через UI**. Автоматизация не работает — см. раздел 5.4.
+### 5.1 Подключение — через UI
 
 Для каждого ящика в [app.smartlead.ai/app/email-accounts](https://app.smartlead.ai/app/email-accounts):
 
-1. **Add Account** (кнопка сверху справа)
+1. **Add Account** (сверху справа)
 2. **Smartlead Infrastructure** → **Google OAuth**
-3. В модалке «Connect your Gsuite account» → **Connect Account**
-4. Открывается Google OAuth окно:
-   - Введи email конкретного ящика (например `sofia@syntab.co`)
-   - Password: `J7eRk7Gf` (для Sofia Novak aivy-batch-1)
-   - При необходимости — 2FA backup code (если 2FA включено на ящике)
-   - **Allow** permissions для SmartLead
-5. SmartLead вернётся с подключённым ящиком
-6. Настроить warmup (см. 5.2)
+3. Модалка «Connect your Gsuite account» → **Connect Account**
+4. Google OAuth окно:
+   - Email конкретного ящика (например `sofia@syntab.co`)
+   - Password (batch password)
+   - 2FA backup code если 2FA включено
+   - **Allow** permissions
+5. Вернуться в SmartLead → настройки warmup (см. 5.2)
 
-**Время**: ~30 сек на ящик. 12 ящиков = ~6 минут.
+**~30 сек на ящик**.
 
-### 5.2 Warmup настройки (по SOP)
+### 5.2 Warmup параметры (по SOP)
 
 В Mailbox settings каждого ящика:
 
 | Раздел | Параметр | Значение |
 |--------|----------|----------|
-| **Warmup Settings** | Enable Warmup | **ON** |
+| Warmup Settings | Enable Warmup | **ON** |
 | Warmup Settings | Total number of warm up emails per day | **40** |
 | Warmup Settings | Bulk Update Daily Rampup | **ON** |
 | Warmup Settings | Reply Rate | **35%** |
 | Warmup Settings | Bulk update Auto-adjust warmup/sending ratio | **ON** |
-| **General** | Messages per day | **50** |
+| General | Messages per day | **50** |
 | General | Use a custom tracking domain | **ON** |
 | General | Custom tracking domain URL | `http://emailtracking.<domain>` |
 
-**Пример для sofia@syntab.co**:
-- Custom tracking domain: `http://emailtracking.syntab.co`
+Tracking domain — конкретный на каждый ящик (`emailtracking.syntab.co` для ящиков на syntab.co, и т.д.). CNAME уже настроен в Шаге 3.
 
-Пример для `sofia.n@voxpilot.co`:
-- Custom tracking domain: `http://emailtracking.voxpilot.co`
+### 5.3 Проверка
 
-### 5.3 Почему tracking domain именно такой
-
-CNAME-запись `emailtracking.<domain>` → `open.sleadtrack.com` мы уже прописали в Шаге 3 для всех 9 доменов. Это **собственный tracking** SmartLead'а под нашим брендом (вместо shared `open.sleadtrack.com`) — улучшает deliverability (ссылки в signature не ведут на known tracker домен).
-
-Проверить что CNAME работает: `dig CNAME emailtracking.syntab.co` → должен вернуть `open.sleadtrack.com`.
-
-### 5.4 Автоматизация — почему не работает
-
-Пытались **3 пути**, все не подходят:
-
-| Путь | Результат | Причина |
-|------|-----------|---------|
-| `smartlead-connect-oauth.js` (Puppeteer OAuth) | `Google OAuth popup not found` | SmartLead UI обновил flow; теперь требует domain-wide delegation вместо popup login |
-| `smartlead-connect-oauth.js` + `puppeteer-extra-plugin-stealth` + system Chrome | Тот же fail | stealth не помогает на login page (Google активно детектит automation с 2019) |
-| `aivy-smartlead-add.js` (SMTP/IMAP через API) | `Email account verification failed` | Google Workspace по умолчанию блокирует SMTP auth с обычным паролем для новых ящиков (Less Secure Apps deprecated, App Passwords требуют 2FA) |
-
-Рабочие альтернативы **требуют много setup**:
-- **Domain-Wide Delegation** в GW Admin + SmartLead API с service account — недокументированный flow для SmartLead, может не поддерживаться
-- **App Passwords** на каждый ящик → 2FA enable на каждом + генерация pair'а → SMTP auth работает. Но 12 ящиков × 3 шага = 30+ мин ручной работы, та же цена что и просто OAuth через UI
-
-**Итог**: для batches < 20 ящиков **всегда руками** (стандарт Sally). Автоматизация окупается только на 50+.
-
-### 5.5 Pause/Resume warmup при DKIM issue
-
-Если после подключения обнаружили что DKIM на домене broken (как в истории с shared key 2026-04-24):
-
-1. В SmartLead UI → Email Accounts → найти ящик → **Warmup Settings** → **Pause**
-2. Починить DKIM (см. 3.5)
-3. Подождать что Google status = `Authenticating email with DKIM`
-4. Resume warmup
-
-**Не важно**: broken DKIM → DKIM FAIL header в каждом warmup письме → репутация ящика падает.
-
-### 5.6 Результат сессии 2026-04-24
-
-Подключены ранее (Sofia Kamyshenko batch, ~22 апреля):
-- sofia@fronttide.co, sofia.k@fronttide.co
-- sofia@scalevox.co, sofia.k@scalevox.co
-- sofia@nodemind.co, sofia.k@nodemind.co
-
-**TODO после починки DKIM 2026-04-24**: Stop/Start authentication в Admin Console + perhaps resume warmup (мы не паузили, продолжал идти с broken DKIM).
-
-Предстоит подключить (Sofia Novak batch — ящики созданы, DNS готов, осталось добавить в SmartLead):
-- sofia@syntab.co, sofia.n@syntab.co
-- sofia@voxpilot.co, sofia.n@voxpilot.co
-- sofia@contactpilot.co, sofia.n@contactpilot.co
-- sofia@salestide.co, sofia.n@salestide.co
-- sofia@verostack.co, sofia.n@verostack.co
-- sofia@growthnode.co, sofia.n@growthnode.co
-
-Пароль: `J7eRk7Gf`. Tracking domain: `http://emailtracking.<domain>` на каждом.
-
----
-
-## Шаг 6 — Instantly + Spam-тесты
-
-_TODO_
-
----
-
-## Известные подводные камни
-
-### Гайд живёт вне submodule — почему
-
-В `~/.claude/hooks/auto_git_pull.sh` есть блок:
 ```bash
-GHOST_DIRS="backend checks ... infra mcp ..."
-for dir in $GHOST_DIRS; do
-    if [[ -d "$GIT_ROOT/$dir" ]]; then rm -rf "$GIT_ROOT/$dir"; fi
-done
+# API list через MCP или curl
+curl -s "https://server.smartlead.ai/api/v1/email-accounts?api_key=<KEY>&limit=100&offset=0" | jq '.[] | .from_email'
 ```
 
-Hook сносит `infra/` когда GIT_ROOT = submodule `magnum-opus`. **Это сломало работу с гайдом внутри submodule**: каждая `Write/Edit` триггерила pre-hook, который рекурсивно удалял `infra/` (и гайд, и все скрины).
+### 5.4 Заполнить Domain Tracker
 
-Решение:
-- **Гайд** лежит в parent repo: `sofia/docs/outreach/email-infra-guide.md`
-- **Скрины** тоже в parent: `sofia/docs/outreach/images/email-infra/`
-- **Скрипты** остаются в submodule: `magnum-opus/infra/*.js, *.ps1` — они tracked в git и восстанавливаются через `git restore infra/` когда hook их сносит
+Колонка P (`smartlead_connected=Y`).
 
-TODO: поправить hook чтобы не трогал `infra/` внутри submodule. Или добавить `magnum-opus/infra` в exception.
+---
+
+## Шаг 6 — Instantly
+
+Spam-тесты по SOP — 2 раза в неделю (пн/чт 10:00 MSK).
+
+### 6.1 Подключение
+
+Процесс аналогичен SmartLead (Google OAuth через UI).
+
+### 6.2 Spam-тест
+
+1. Instantly → **Inbox Placement** → **Add New**
+2. Client Name (например `aivy-batch-1`)
+3. One time → From Instantly → Continue → Save
+
+Если расширение существующего клиента — добавить ящики в существующий тест.
+
+### 6.3 Анализ результатов
+
+Cron раз в 2 дня (Tue/Fri 06:00 UTC) → Slack отчёт (см. [reference_instantly_monitoring](../../../.claude/projects/-Users-user-sales-engineer/memory/reference_instantly_monitoring.md)).
+
+Если deliverability < 80% для ящика:
+1. Отправить ящик в Slack канал проекта
+2. Удалить/выделить в Domain Tracker
+3. Удалить ящик из Google Workspace
+
+### 6.4 Заполнить Domain Tracker
+
+Колонка Q (`instantly_connected=Y`).
+
+Детали API и токены: [instantly-inbox-placement.md](../../../magnum-opus/infra/instantly-inbox-placement.md).
+
+---
+
+## Troubleshooting
+
+### Namecheap `Invalid request IP`
+Проверь с какого IP запускаешь — whitelist'ены только `46.62.210.24` (Hetzner) и `150.241.224.134`. Local run из Вьетнама/etc упадёт.
+
+### Namecheap eforward-MX вместо Google
+Не передал `&EmailType=MX` в `setHosts`. Скрипт `aivy-set-dns.js` это делает; при ручном `curl` — добавить параметр.
+
+### DKIM `Not authenticating email` в Admin
+TXT запись в DNS не совпадает с тем, что ждёт Google. Открой Admin → selected domain → скопируй expected TXT value → запиши в Namecheap через helper → Stop/Start authentication в новой вкладке.
+
+### DNS propagation delay
+TTL 1800 (30 мин). 8.8.8.8 кэширует долго — используй `dig @1.1.1.1` или API Namecheap для мгновенной сверки.
+
+### `infra/` каталог пропал из submodule
+`~/.claude/hooks/auto_git_pull.sh` содержит `rm -rf infra/` как cleanup ghost dirs. Фикс: `cd magnum-opus && git restore infra/`. Гайд и скрины хранятся в parent repo (`sofia/docs/outreach/`) чтобы не попадать под хук.
