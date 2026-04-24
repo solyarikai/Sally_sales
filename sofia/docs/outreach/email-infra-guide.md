@@ -19,7 +19,7 @@
 | Google Workspace — `aivy-digital.com` | `artem@aivy-digital.com` | `~7R8zsWJPTxB`, 2FA: `4156 3178` | **основной tenant для новых доменов** |
 | Google Workspace — legacy | `services@getsally.io` | см. [Instruction](../../../magnum-opus/infra/Instruction) | legacy OnSocial tenant |
 | GCP project (OAuth) | `easystaff-instantly-freshboxes` | client_id: `978895579994-duj44rs0l93rpbt2vrp844nptv23k940` | creds: `sofia-oauth-client.json` + `sofia-oauth-token.json` |
-| SmartLead | `services@getsally.io` | `yLBuCn%P&&TJ8aM<1` | |
+| SmartLead | `services@getsally.io` | `RHHvSacOKxxzp80N` | обновлён 2026-04-24 |
 | Instantly API | Bearer token | см. [instantly-inbox-placement.md](../../../magnum-opus/infra/instantly-inbox-placement.md) | |
 
 ### Какой Namecheap-аккаунт использовать
