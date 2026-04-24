@@ -372,22 +372,23 @@ DKIM генерится **в Google Admin Console**, НЕ через Namecheap. 
 
 #### Ручной workflow — проверен 2026-04-24
 
-**Критично: каждый домен в ОТДЕЛЬНОЙ вкладке.** Иначе `Start authentication` не срабатывает.
+Для **одного** домена (последовательно, быстро):
 
-Для каждого домена:
+1. [admin.google.com/ac/apps/gmail/authenticateemail](https://admin.google.com/ac/apps/gmail/authenticateemail)
+2. Select domain → Generate new record (2048-bit) → **копируй TXT value**
+3. Сразу записать TXT в Namecheap (helper ниже)
+4. Подожди propagation (~30 мин, TTL 1800)
+5. В той же вкладке → **Start authentication** → Google делает DNS-запрос, видит TXT, включает DKIM
+6. Status = `Authenticating email with DKIM` ✅
 
-1. **Cmd+T** (новая вкладка) → открой [admin.google.com/ac/apps/gmail/authenticateemail](https://admin.google.com/ac/apps/gmail/authenticateemail)
-2. **Cmd+Shift+R** (hard refresh — обязательно, иначе словишь кэш от предыдущего домена!)
-3. В dropdown `Selected domain` выбери нужный домен
-4. Если Status = `Not authenticating email` + есть DKIM TXT value → **копируй value** (строка `v=DKIM1; k=rsa; p=...`)
-5. Если нет записи — нажми **Generate new record** (2048-bit) → скопируй полученный value
-6. **Запиши TXT в Namecheap** (через наш helper `aivy-namecheap-add-txt.js` на Hetzner или руками — см. ниже)
-7. Вернись во вкладку Admin → **Start authentication**
-   - ⚠️ **Не сработает**, пока TXT не записана в DNS + propagation (TTL 1800 = до 30 мин)
-   - Если показывает «Waiting for update», подожди 10-15 мин, перепроверь
-8. Status должен сменитьcя на `Authenticating email with DKIM` ✅
+Для **batch** (собрать ключи для N доменов подряд, записать всё разом) — **новую вкладку на каждый**:
 
-Повтори для следующего домена в **новой вкладке** (старую **не использовать**, в ней уже state с предыдущим доменом).
+1. Cmd+T → admin.google.com/ac/apps/gmail/authenticateemail
+2. Select domain → Generate → скопируй ключ (в JSON/блокнот)
+3. **Вкладку не закрывать** (вернёшься через шаг)
+4. Cmd+T снова → следующий домен → повтор
+5. Когда все ключи собраны → записать все TXT в Namecheap batch-скриптом
+6. Вернуться по каждой вкладке → Start authentication (новая DNS-query, TXT уже есть)
 
 #### Почему новая вкладка на каждый
 
