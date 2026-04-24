@@ -286,7 +286,112 @@ const hostMatches = [...getXml.matchAll(/<host\s([^>]*?)\/>/g)];
 
 ## Шаг 3 — DNS-записи
 
-_TODO — будет на следующей итерации. Задача: прописать MX (Google), TXT SPF, TXT DMARC, CNAME emailtracking, URL301 redirect. Скрипт: [namecheap-set-dns.ps1](../../../magnum-opus/infra/namecheap-set-dns.ps1) — но помни про regex-баг выше, возможно нужен fork по аналогии с `aivy-*`._
+Задача: прописать полный пакет DNS на каждом домене — MX, SPF, DMARC, email tracking CNAME, redirect URL. **DKIM идёт отдельно** (нужен Google Admin Console, см. Шаг 3.5).
+
+### 3.1 Что прописываем (Sally SOP)
+
+| Host | Type | Value | Purpose |
+|------|------|-------|---------|
+| `@` | MX | `SMTP.GOOGLE.COM` pref=1 | доставка в Gmail |
+| `@` | TXT | `v=spf1 include:_spf.google.com ~all` | SPF — кто имеет право отправлять |
+| `_dmarc` | TXT | `v=DMARC1; p=reject; rua=mailto:dmarc-reports@{domain}; ruf=mailto:dmarc-reports@{domain}; sp=reject; adkim=s; fo=1;` | DMARC политика |
+| `emailtracking` | CNAME | `open.sleadtrack.com` | SmartLead tracking domain |
+| `www` | URL301 | `https://onsocial.ai/` | redirect корня домена |
+| `@` | TXT | `google-site-verification=...` | **preserve** из Шага 2 |
+| `google._domainkey` | TXT | `v=DKIM1; k=rsa; p=MII...` | **preserve** если уже есть DKIM (Шаг 3.5) |
+
+### 3.2 MX — какую запись использовать
+
+У Петра два скрипта с разной MX-конфигурацией:
+
+| Скрипт | MX value |
+|--------|----------|
+| [Instruction](../../../magnum-opus/infra/Instruction) + [namecheap-set-dns.ps1](../../../magnum-opus/infra/namecheap-set-dns.ps1) | `SMTP.GOOGLE.COM` pref=1 |
+| [namecheap-add-mx.js](../../../magnum-opus/infra/namecheap-add-mx.js) | `ASPMX.L.GOOGLE.COM` pref=1 |
+
+**Мы следуем SOP → используем `SMTP.GOOGLE.COM`**. Оба варианта работают с Gmail.
+
+Для справки: Google docs рекомендует 5 MX (ASPMX.L + 4 ALT), но для совместимости с Petrовской документацией идём через `SMTP.GOOGLE.COM`.
+
+### 3.3 Автоматизация — `aivy-set-dns.js`
+
+Файл: [aivy-set-dns.js](../../../magnum-opus/infra/aivy-set-dns.js)
+
+```bash
+# На Hetzner
+cd ~/magnum-opus-project/repo/infra
+
+# Dry-run (обязательно сначала!)
+node aivy-set-dns.js --domains-file aivy-domains-batch1.txt --redirect-url https://onsocial.ai/ --dry-run
+
+# Боевой запуск на чистых доменах (--skip-if-has-mx защищает уже настроенные)
+node aivy-set-dns.js --domains-file aivy-domains-batch1.txt --redirect-url https://onsocial.ai/ --skip-if-has-mx
+
+# Для replace MX на доменах где MX уже есть — отдельный файл без уже настроенных
+node aivy-set-dns.js --domains-file aivy-domains-batch1-except-fronttide.txt --redirect-url https://onsocial.ai/
+```
+
+Скрипт:
+1. Читает `existing hosts` через Namecheap API (regex `[^>]*?` — спец-фикс чтобы URL-записи с `/` не терялись)
+2. Сохраняет TXT google-site-verification + TXT google._domainkey (DKIM) — они НЕ перетираются
+3. Добавляет новый пакет (MX/SPF/DMARC/CNAME/URL)
+4. Делает `setHosts` с `&EmailType=MX` — обязательный параметр, иначе Namecheap накроет MX eforward'ами
+
+### 3.4 Подводные камни
+
+#### ⚠️ `EmailType=FWD` (критичный)
+
+На **Sally2** аккаунте новые домены по умолчанию идут с `EmailType=FWD` — Namecheap email forwarding. При `setHosts` без `&EmailType=MX` Namecheap **удаляет все custom MX записи** и вставляет свои `eforward1-5.registrar-servers.com`.
+
+Признак: `dig MX domain.co` показывает `*.registrar-servers.com` вместо Google.
+
+Фикс: в URL setHosts добавить `&EmailType=MX` — наш `aivy-set-dns.js` это делает. Оригинальный `namecheap-set-dns.ps1` Петра **этого не делает** — на `decaster3` домены могут быть с `EmailType=MX` по дефолту (другой профиль аккаунта), поэтому там проблема не проявлялась.
+
+#### ⚠️ Regex-баг в старых скриптах Петра
+
+В [namecheap-add-mx.js](../../../magnum-opus/infra/namecheap-add-mx.js:22) и `google-workspace-add-domains.js`:
+
+```js
+const hostMatches = [...getXml.matchAll(/<host\s([^/]*?)\/>/g)];
+//                                         ^^^ стопорится на '/' внутри Address
+```
+
+URL-redirect записи (`http://...`) содержат `/` в Address → regex обрывается → запись **не попадает в preserve list** → теряется при setHosts.
+
+В `aivy-set-dns.js` использован `[^>]*?` — фикс. Старые скрипты Петра не чиню (могут быть рабочие зависимости), но **не запускай их на доменах с URL-записями** без форка.
+
+#### ⚠️ DNS propagation lag
+
+TTL 1800 сек (30 мин). `dig @8.8.8.8` может показывать старое содержимое ещё полчаса. Для свежей проверки используй:
+- Namecheap API `getHosts` — мгновенно из source of truth
+- `dig @1.1.1.1` (Cloudflare) — часто быстрее обновляется чем Google
+
+### 3.5 DKIM — отдельная подзадача
+
+DKIM генерится **в Google Admin Console**, НЕ через Namecheap. Путь:
+1. [admin.google.com](https://admin.google.com) → Apps → Google Workspace → Gmail → **Authenticate email**
+2. Выбрать домен → **Generate new record** (2048-bit recommended)
+3. Google выдаст TXT запись с `Host: google._domainkey` и value `v=DKIM1; k=rsa; p=...`
+4. Прописать в Namecheap (host `google._domainkey`, type `TXT`)
+5. В Admin вернуться → **Start authentication**
+
+**Автоматизация**: есть [google-workspace-enable-dkim.js](../../../magnum-opus/infra/google-workspace-enable-dkim.js) — Puppeteer скрипт для батч-enable, но написан под **русский UI** Admin Console. На `artem@aivy-digital.com` UI может быть английским — потребуется адаптация.
+
+**Рекомендация**: на первый батч **6 доменов вручную** (~12 минут), потом если доменов будет много — адаптировать Puppeteer.
+
+### 3.6 Результат сессии 2026-04-24
+
+| Домен | MX | SPF | DMARC | Tracking | Redirect | DKIM | dns_configured |
+|-------|----|----|-------|----------|----------|------|----------------|
+| syntab.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
+| voxpilot.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
+| contactpilot.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
+| salestide.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
+| verostack.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
+| growthnode.co | ✓ | ✓ | ✓ | ✓ | ✓ | **TODO** | Y |
+| fronttide.co | ✓ (не трогали) | ✓ | ✓ | ✓ | нет | ✓ | Y |
+
+**Следующий шаг — DKIM на 6 новых доменах**, потом Шаг 4 (создание ящиков).
 
 ---
 
