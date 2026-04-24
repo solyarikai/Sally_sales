@@ -469,7 +469,99 @@ _TODO_
 
 ## Шаг 5 — SmartLead + Warmup
 
-_TODO_
+Подключение ящиков к SmartLead через **Google OAuth** + настройка warmup по SOP.
+
+### 5.1 Ручной OAuth — стандартный путь Sally
+
+**Все рабочие ящики** в SmartLead сейчас (Sofia Kamyshenko, Eleonora Easystaff, Rinat Crona и т.д. — type=GMAIL) подключались **руками через UI**. Автоматизация не работает — см. раздел 5.4.
+
+Для каждого ящика в [app.smartlead.ai/app/email-accounts](https://app.smartlead.ai/app/email-accounts):
+
+1. **Add Account** (кнопка сверху справа)
+2. **Smartlead Infrastructure** → **Google OAuth**
+3. В модалке «Connect your Gsuite account» → **Connect Account**
+4. Открывается Google OAuth окно:
+   - Введи email конкретного ящика (например `sofia@syntab.co`)
+   - Password: `J7eRk7Gf` (для Sofia Novak aivy-batch-1)
+   - При необходимости — 2FA backup code (если 2FA включено на ящике)
+   - **Allow** permissions для SmartLead
+5. SmartLead вернётся с подключённым ящиком
+6. Настроить warmup (см. 5.2)
+
+**Время**: ~30 сек на ящик. 12 ящиков = ~6 минут.
+
+### 5.2 Warmup настройки (по SOP)
+
+В Mailbox settings каждого ящика:
+
+| Раздел | Параметр | Значение |
+|--------|----------|----------|
+| **Warmup Settings** | Enable Warmup | **ON** |
+| Warmup Settings | Total number of warm up emails per day | **40** |
+| Warmup Settings | Bulk Update Daily Rampup | **ON** |
+| Warmup Settings | Reply Rate | **35%** |
+| Warmup Settings | Bulk update Auto-adjust warmup/sending ratio | **ON** |
+| **General** | Messages per day | **50** |
+| General | Use a custom tracking domain | **ON** |
+| General | Custom tracking domain URL | `http://emailtracking.<domain>` |
+
+**Пример для sofia@syntab.co**:
+- Custom tracking domain: `http://emailtracking.syntab.co`
+
+Пример для `sofia.n@voxpilot.co`:
+- Custom tracking domain: `http://emailtracking.voxpilot.co`
+
+### 5.3 Почему tracking domain именно такой
+
+CNAME-запись `emailtracking.<domain>` → `open.sleadtrack.com` мы уже прописали в Шаге 3 для всех 9 доменов. Это **собственный tracking** SmartLead'а под нашим брендом (вместо shared `open.sleadtrack.com`) — улучшает deliverability (ссылки в signature не ведут на known tracker домен).
+
+Проверить что CNAME работает: `dig CNAME emailtracking.syntab.co` → должен вернуть `open.sleadtrack.com`.
+
+### 5.4 Автоматизация — почему не работает
+
+Пытались **3 пути**, все не подходят:
+
+| Путь | Результат | Причина |
+|------|-----------|---------|
+| `smartlead-connect-oauth.js` (Puppeteer OAuth) | `Google OAuth popup not found` | SmartLead UI обновил flow; теперь требует domain-wide delegation вместо popup login |
+| `smartlead-connect-oauth.js` + `puppeteer-extra-plugin-stealth` + system Chrome | Тот же fail | stealth не помогает на login page (Google активно детектит automation с 2019) |
+| `aivy-smartlead-add.js` (SMTP/IMAP через API) | `Email account verification failed` | Google Workspace по умолчанию блокирует SMTP auth с обычным паролем для новых ящиков (Less Secure Apps deprecated, App Passwords требуют 2FA) |
+
+Рабочие альтернативы **требуют много setup**:
+- **Domain-Wide Delegation** в GW Admin + SmartLead API с service account — недокументированный flow для SmartLead, может не поддерживаться
+- **App Passwords** на каждый ящик → 2FA enable на каждом + генерация pair'а → SMTP auth работает. Но 12 ящиков × 3 шага = 30+ мин ручной работы, та же цена что и просто OAuth через UI
+
+**Итог**: для batches < 20 ящиков **всегда руками** (стандарт Sally). Автоматизация окупается только на 50+.
+
+### 5.5 Pause/Resume warmup при DKIM issue
+
+Если после подключения обнаружили что DKIM на домене broken (как в истории с shared key 2026-04-24):
+
+1. В SmartLead UI → Email Accounts → найти ящик → **Warmup Settings** → **Pause**
+2. Починить DKIM (см. 3.5)
+3. Подождать что Google status = `Authenticating email with DKIM`
+4. Resume warmup
+
+**Не важно**: broken DKIM → DKIM FAIL header в каждом warmup письме → репутация ящика падает.
+
+### 5.6 Результат сессии 2026-04-24
+
+Подключены ранее (Sofia Kamyshenko batch, ~22 апреля):
+- sofia@fronttide.co, sofia.k@fronttide.co
+- sofia@scalevox.co, sofia.k@scalevox.co
+- sofia@nodemind.co, sofia.k@nodemind.co
+
+**TODO после починки DKIM 2026-04-24**: Stop/Start authentication в Admin Console + perhaps resume warmup (мы не паузили, продолжал идти с broken DKIM).
+
+Предстоит подключить (Sofia Novak batch — ящики созданы, DNS готов, осталось добавить в SmartLead):
+- sofia@syntab.co, sofia.n@syntab.co
+- sofia@voxpilot.co, sofia.n@voxpilot.co
+- sofia@contactpilot.co, sofia.n@contactpilot.co
+- sofia@salestide.co, sofia.n@salestide.co
+- sofia@verostack.co, sofia.n@verostack.co
+- sofia@growthnode.co, sofia.n@growthnode.co
+
+Пароль: `J7eRk7Gf`. Tracking domain: `http://emailtracking.<domain>` на каждом.
 
 ---
 
