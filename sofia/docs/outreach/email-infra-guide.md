@@ -366,18 +366,77 @@ TTL 1800 сек (30 мин). `dig @8.8.8.8` может показывать ст
 - Namecheap API `getHosts` — мгновенно из source of truth
 - `dig @1.1.1.1` (Cloudflare) — часто быстрее обновляется чем Google
 
-### 3.5 DKIM — отдельная подзадача
+### 3.5 DKIM — отдельная подзадача ⚠️ automation fails, run manually
 
-DKIM генерится **в Google Admin Console**, НЕ через Namecheap. Путь:
-1. [admin.google.com](https://admin.google.com) → Apps → Google Workspace → Gmail → **Authenticate email**
-2. Выбрать домен → **Generate new record** (2048-bit recommended)
-3. Google выдаст TXT запись с `Host: google._domainkey` и value `v=DKIM1; k=rsa; p=...`
-4. Прописать в Namecheap (host `google._domainkey`, type `TXT`)
-5. В Admin вернуться → **Start authentication**
+DKIM генерится **в Google Admin Console**, НЕ через Namecheap. **Автоматизация Puppeteer через Admin UI не работает надёжно** — подробнее см. «Подводные камни DKIM».
 
-**Автоматизация**: есть [google-workspace-enable-dkim.js](../../../magnum-opus/infra/google-workspace-enable-dkim.js) — Puppeteer скрипт для батч-enable, но написан под **русский UI** Admin Console. На `artem@aivy-digital.com` UI может быть английским — потребуется адаптация.
+#### Ручной workflow — проверен 2026-04-24
 
-**Рекомендация**: на первый батч **6 доменов вручную** (~12 минут), потом если доменов будет много — адаптировать Puppeteer.
+**Критично: каждый домен в ОТДЕЛЬНОЙ вкладке.** Иначе `Start authentication` не срабатывает.
+
+Для каждого домена:
+
+1. **Cmd+T** (новая вкладка) → открой [admin.google.com/ac/apps/gmail/authenticateemail](https://admin.google.com/ac/apps/gmail/authenticateemail)
+2. **Cmd+Shift+R** (hard refresh — обязательно, иначе словишь кэш от предыдущего домена!)
+3. В dropdown `Selected domain` выбери нужный домен
+4. Если Status = `Not authenticating email` + есть DKIM TXT value → **копируй value** (строка `v=DKIM1; k=rsa; p=...`)
+5. Если нет записи — нажми **Generate new record** (2048-bit) → скопируй полученный value
+6. **Запиши TXT в Namecheap** (через наш helper `aivy-namecheap-add-txt.js` на Hetzner или руками — см. ниже)
+7. Вернись во вкладку Admin → **Start authentication**
+   - ⚠️ **Не сработает**, пока TXT не записана в DNS + propagation (TTL 1800 = до 30 мин)
+   - Если показывает «Waiting for update», подожди 10-15 мин, перепроверь
+8. Status должен сменитьcя на `Authenticating email with DKIM` ✅
+
+Повтори для следующего домена в **новой вкладке** (старую **не использовать**, в ней уже state с предыдущим доменом).
+
+#### Почему новая вкладка на каждый
+
+Google Admin — SPA с агрессивным DOM-caching. Когда в одной вкладке переключаешь Selected domain через dropdown, DOM обновляется **не всегда корректно**:
+- Показанный TXT value может остаться от предыдущего домена (extract fail)
+- Кнопка `Start authentication` жмётся, но side-effect теряется
+
+Новая вкладка = полный reset state.
+
+#### Автоматизация записи TXT — работает
+
+Extract DKIM из Admin UI — **ручной** (см. выше). А вот запись TXT в Namecheap — **автомат**:
+
+```bash
+# На Hetzner (whitelisted IP)
+echo '{"domain":"X.co","host":"google._domainkey","value":"v=DKIM1; k=rsa; p=..."}' \
+  | ssh hetzner 'node /home/leadokol/magnum-opus-project/repo/infra/aivy-namecheap-add-txt.js'
+```
+
+Helper: [aivy-namecheap-add-txt.js](../../../magnum-opus/infra/aivy-namecheap-add-txt.js) — принимает JSON через stdin (stdin, не argv — потому что SSH ломает `;` в value).
+
+Для batch записи многих ключей — скрипт на локальной машине shell-loop через ssh, см. historical запуск в git log.
+
+#### Подводные камни DKIM automation
+
+Пытались сделать Puppeteer-скрипт [aivy-enable-dkim.js](../../../magnum-opus/infra/aivy-enable-dkim.js) для полной автоматизации. **Не работает надёжно** из-за:
+
+1. **Google Admin — SPA, DOM state persists между вкладками** → нельзя просто select через dropdown и читать ключ
+2. **Material Select с virtual scrolling** — 319+ domains в tenant, реально в DOM одновременно ~50. Keyboard navigation (ArrowDown × N) не scales — options вне visible area не достижимы
+3. **Programmatic `.click()` на option не триггерит Material change event** — нужен real mouse click через bounding box, но option может быть не в viewport
+4. **Extraction regex захватывал UI текст** (`IDAQAB` + `Generate`) — фикс через `+?IDAQAB={0,2}` non-greedy
+
+**Урок 2026-04-24**: скрипт 4 раза «работал», но записывал в DNS DKIM ключ **primary домена (aivy-digital.com)** — потому что dropdown не переключался. Все 4 домена (fronttide, scalevox, nodemind, syntab) получили один и тот же ключ, **который Google не ждёт для них** → warmup на этих доменах слал emails с **DKIM FAIL** в течение ~2 суток (fronttide с 22 апреля).
+
+Починили руками через new-tab-per-domain workflow. DNS обновлён 2026-04-24 ~17:00 UTC.
+
+#### Что делать если SmartLead warmup уже запущен на broken-DKIM домене
+
+1. В SmartLead UI → Email Accounts → **pause warmup** на broken ящиках (до подтверждения DKIM)
+2. Записать правильный DKIM в DNS
+3. Admin Console → Stop authentication → Start authentication (force Google re-check)
+4. Подождать ~30 мин пока Status станет `Authenticating email with DKIM`
+5. Resume warmup
+
+#### Долгосрочная автоматизация (TODO)
+
+- Попробовать Puppeteer + `puppeteer-extra-plugin-stealth` + real mouse click через coordinates (не handle.click)
+- Или написать minimal headed browser с persistent profile + daemon на Hetzner через xvfb + VNC для initial login
+- Самый чистый — ждать когда Google откроет DKIM API (сейчас нет, проверено 2026-04)
 
 ### 3.6 Результат сессии 2026-04-24
 
