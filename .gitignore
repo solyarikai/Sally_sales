@@ -60,3 +60,8 @@ screenshots/
 .claude/skills/**/__pycache__/
 sofia/archive/Apollo.mp4
 sofia/archive/data/conversations_export.json
+
+# OAuth tokens — machine-local, never commit
+.claude/mcp/google-sheets/token.json
+.claude/mcp/**/token.json
+.claude/mcp/**/credentials.json
