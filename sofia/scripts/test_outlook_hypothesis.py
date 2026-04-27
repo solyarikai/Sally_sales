@@ -273,53 +273,35 @@ async def main(sample_per_campaign: int | None) -> None:
     for lead, history in results:
         domain = lead["email"].split("@", 1)[-1] if "@" in lead["email"] else ""
         esp = esp_by_domain.get(domain, "unknown")
+        last_sender_email = None
         for evt in history:
-            etype = (evt.get("type") or evt.get("email_seq_type") or "").upper()
-            mailbox = (
-                evt.get("email_account_id")
-                or evt.get("mailbox_id")
-                or evt.get("from_id")
-            )
-            if not mailbox:
+            etype = (evt.get("type") or "").upper()
+            sender_email = (evt.get("from") or "").strip().lower()
+            if not sender_email:
                 continue
-            if mailbox not in BHASKAR_IDS:
-                # We only care about bhaskar pool for this hypothesis test.
-                # Petr sender events still tracked under "_other_pool" if you want.
-                key = (mailbox, esp)
-            else:
-                key = (mailbox, esp)
+            key = (sender_email, esp)
             if etype == "SENT":
                 cell[key]["sent"] += 1
                 if (evt.get("open_count") or 0) > 0 or evt.get("opened_time"):
                     cell[key]["opened"] += 1
-            elif etype == "REPLY" or etype == "REPLIED":
+                last_sender_email = sender_email
+            elif etype in {"REPLY", "REPLIED"}:
                 cell[key]["replied"] += 1
-        # lead-level bounce
-        if (lead.get("status") or "").upper() in bounce_status:
-            # attribute to last sender
-            last_mb = next(
-                (
-                    e.get("email_account_id") or e.get("mailbox_id")
-                    for e in reversed(history)
-                    if (e.get("type") or "").upper() == "SENT"
-                ),
-                None,
-            )
-            if last_mb:
-                cell[(last_mb, esp)]["leads_bounced"] += 1
+        if (lead.get("status") or "").upper() in bounce_status and last_sender_email:
+            cell[(last_sender_email, esp)]["leads_bounced"] += 1
 
-    # Build mailbox label map
-    mailbox_label = {mb: f"id:{mb}" for mb in BHASKAR_IDS}
-
-    # Output: TSV per (mailbox, esp)
+    # Output: TSV per (mailbox_email, esp)
     out_rows = []
-    for (mb, esp), c in cell.items():
+    for (mb_email, esp), c in cell.items():
         sent = c["sent"]
         oprate = (c["opened"] / sent) if sent else 0.0
         rrate = (c["replied"] / sent) if sent else 0.0
+        sender_domain = mb_email.split("@", 1)[-1] if "@" in mb_email else mb_email
         out_rows.append(
             {
-                "mailbox_id": mb,
+                "sender_email": mb_email,
+                "sender_domain": sender_domain,
+                "mailbox_id": BHASKAR_POOL.get(mb_email, ""),
                 "recipient_esp": esp,
                 "sent": sent,
                 "opened": c["opened"],
@@ -327,11 +309,15 @@ async def main(sample_per_campaign: int | None) -> None:
                 "leads_bounced": c["leads_bounced"],
                 "open_rate": round(oprate, 4),
                 "reply_rate": round(rrate, 4),
-                "in_bhaskar_pool": mb in BHASKAR_IDS,
+                "in_bhaskar_pool": mb_email in BHASKAR_POOL,
             }
         )
     out_rows.sort(
-        key=lambda r: (-int(r["in_bhaskar_pool"]), r["mailbox_id"], r["recipient_esp"])
+        key=lambda r: (
+            -int(r["in_bhaskar_pool"]),
+            r["sender_email"],
+            r["recipient_esp"],
+        )
     )
 
     out_path = "/tmp/onsocial_outlook_hypothesis.tsv"
