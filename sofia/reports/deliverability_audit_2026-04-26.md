@@ -19,6 +19,23 @@
 - Скорее всего — **Send mail as alias'ы** на одном primary `petr@prospectscrona.com` (единственный рабочий)
 - **Action: проверить admin.google.com → User → Send mail as настройки на 9 alias-доменах**
 
+### Сводная таблица здоровья всех 10 petr@ ящиков
+
+O365 deliverability измерено через eleonora@ на тех же доменах (proxy, т.к. petr@ заблокированы Workspace).
+
+| # | Mailbox | Workspace | O365 Deliverability | Статус | Action |
+|---|---|---|---|---|---|
+| 1 | `petr@prospectscrona.com` | ✅ active | ✅ inbox | **Production-ready** | — |
+| 2 | `petr@crona-base.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
+| 3 | `petr@crona-flow.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
+| 4 | `petr@crona-force.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
+| 5 | `petr@segment-crona.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
+| 6 | `petr@cronaaiprospects.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
+| 7 | `petr@crona-stack.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
+| 8 | `petr@leads-crona.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
+| 9 | `petr@cronaaipipeline.com` | ❌ blocked | ❌ 50% spam (O365) | Проблемный | Фикс Workspace + warmup 4-6 нед или замена домена |
+| 10 | `petr@crona-b2b.com` | ❌ blocked | ❌ 58% spam (O365) | Проблемный | Фикс Workspace + warmup 4-6 нед или замена домена |
+
 ### 🟡 Bhaskar OnSocial — 3 проблемных домена
 - `onsocial-analytics.com`, `onsocial-influence.com`, `onsocial-insights.com`
 - Тест 399820: 100% inbox в Google, 100% spam в Office365 (для всех 6 mailbox'ов на этих доменах)
