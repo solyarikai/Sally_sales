@@ -240,55 +240,93 @@ async def main(sample_per_campaign: int | None) -> None:
         counts[v] += 1
     print(f"     -> {len(domains)} domains: {dict(counts)}", flush=True)
 
-    print(f"[3/4] Pull message-history for {len(leads)} leads...", flush=True)
-    async with aiohttp.ClientSession() as session:
-        sem = asyncio.Semaphore(CONCURRENCY)
+    raw_path = "/tmp/onsocial_leads_raw.jsonl"
+    if os.path.exists(raw_path) and not os.environ.get("FORCE_REFETCH"):
+        print(f"[3/4] Reuse cached lead-level data: {raw_path}", flush=True)
+        leads_raw: list[dict] = []
+        with open(raw_path) as f:
+            for line in f:
+                leads_raw.append(json.loads(line))
+    else:
+        print(
+            f"[3/4] Pull message-history for {len(leads)} leads (saving raw)...",
+            flush=True,
+        )
+        leads_raw = []
+        async with aiohttp.ClientSession() as session:
+            sem = asyncio.Semaphore(CONCURRENCY)
 
-        async def fetch(l: dict):
-            async with sem:
-                try:
-                    history = await fetch_message_history(
-                        session, l["campaign_id"], l["lead_id"]
-                    )
-                except Exception as e:  # noqa
-                    return l, []
-                return l, history
+            async def fetch(l: dict):
+                async with sem:
+                    try:
+                        history = await fetch_message_history(
+                            session, l["campaign_id"], l["lead_id"]
+                        )
+                    except Exception:
+                        history = []
+                    domain = l["email"].split("@", 1)[-1] if "@" in l["email"] else ""
+                    sends = [
+                        (evt.get("from") or "").strip().lower()
+                        for evt in history
+                        if (evt.get("type") or "").upper() == "SENT" and evt.get("from")
+                    ]
+                    return {
+                        "campaign_id": l["campaign_id"],
+                        "lead_id": l["lead_id"],
+                        "email": l["email"],
+                        "recipient_domain": domain,
+                        "status": (l.get("status") or "").upper(),
+                        "n_sends": len(sends),
+                        "first_sender": sends[0] if sends else None,
+                        "last_sender": sends[-1] if sends else None,
+                    }
 
-        results = []
-        done = 0
-        for fut in asyncio.as_completed([fetch(l) for l in leads]):
-            results.append(await fut)
-            done += 1
-            if done % 200 == 0:
-                print(f"     {done}/{len(leads)}", flush=True)
+            done = 0
+            for fut in asyncio.as_completed([fetch(l) for l in leads]):
+                row = await fut
+                leads_raw.append(row)
+                done += 1
+                if done % 200 == 0:
+                    print(f"     {done}/{len(leads)}", flush=True)
+        with open(raw_path, "w") as f:
+            for row in leads_raw:
+                f.write(json.dumps(row) + "\n")
+        print(f"     saved {len(leads_raw)} rows -> {raw_path}", flush=True)
 
-    print("[4/4] Aggregate matrix...", flush=True)
-    # cell key: (mailbox_id, recipient_esp) -> dict counts
-    cell: dict[tuple[int, str], dict[str, int]] = defaultdict(
-        lambda: {"sent": 0, "opened": 0, "replied": 0, "leads_bounced": 0}
+    print(
+        "[4/4] Aggregate matrix (lead-level, attribute = first_sender)...", flush=True
     )
     bounce_status = {"BOUNCED", "BOUNCE", "INVALID"}
     reply_status = {"REPLIED"}
 
-    for lead, history in results:
-        domain = lead["email"].split("@", 1)[-1] if "@" in lead["email"] else ""
-        esp = esp_by_domain.get(domain, "unknown")
-        last_sender_email = None
-        for evt in history:
-            etype = (evt.get("type") or "").upper()
-            sender_email = (evt.get("from") or "").strip().lower()
-            if not sender_email:
-                continue
-            key = (sender_email, esp)
-            if etype == "SENT":
-                cell[key]["sent"] += 1
-                if (evt.get("open_count") or 0) > 0 or evt.get("opened_time"):
-                    cell[key]["opened"] += 1
-                last_sender_email = sender_email
-            elif etype in {"REPLY", "REPLIED"}:
-                cell[key]["replied"] += 1
-        if (lead.get("status") or "").upper() in bounce_status and last_sender_email:
-            cell[(last_sender_email, esp)]["leads_bounced"] += 1
+    cell: dict[tuple[str, str], dict[str, int]] = defaultdict(
+        lambda: {
+            "leads": 0,
+            "leads_replied": 0,
+            "leads_bounced": 0,
+            "leads_completed": 0,
+            "leads_inprogress": 0,
+            "sends_total": 0,
+        }
+    )
+    for r in leads_raw:
+        if not r.get("first_sender"):
+            continue
+        sender = r["first_sender"]
+        esp = esp_by_domain.get(r["recipient_domain"], "unknown")
+        key = (sender, esp)
+        c = cell[key]
+        c["leads"] += 1
+        c["sends_total"] += r["n_sends"]
+        st = r["status"]
+        if st in reply_status:
+            c["leads_replied"] += 1
+        elif st in bounce_status:
+            c["leads_bounced"] += 1
+        elif st == "COMPLETED":
+            c["leads_completed"] += 1
+        elif st in {"INPROGRESS", "IN_PROGRESS"}:
+            c["leads_inprogress"] += 1
 
     # Output: TSV per (mailbox_email, esp)
     out_rows = []
