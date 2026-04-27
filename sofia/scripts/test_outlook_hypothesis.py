@@ -49,26 +49,29 @@ ONSOCIAL_CAMPAIGNS = [
     3096746,
 ]
 
-# 17 bhaskar mailboxes pulled from get_campaign_email_accounts
-BHASKAR_IDS = {
-    17459681,
-    17459602,
-    17459561,
-    17459504,
-    17459362,
-    17459316,
-    17459284,
-    17459241,
-    17459195,
-    17459132,
-    17459098,
-    17459065,
-    17459006,
-    17458886,
-    15090446,
-    15090416,
-    15090400,
+# 17 bhaskar mailboxes — pool used by all 10 OnSocial campaigns.
+# Map: from_email -> id (we match events by `from` field since the API's
+# message-history payload doesn't expose email_account_id).
+BHASKAR_POOL = {
+    "bhaskar.v@onsocial-analytics.com": 17459681,
+    "bhaskar@onsocial-platform.com": 17459602,
+    "bhaskar@onsocial-network.com": 17459561,
+    "bhaskar@onsocial-metrics.com": 17459504,
+    "bhaskar@onsocial-insights.com": 17459362,
+    "bhaskar@onsocial-influence.com": 17459316,
+    "bhaskar@onsocial-data.com": 17459284,
+    "bhaskar@onsocial-analytics.com": 17459241,
+    "bhaskar.v@onsocial-platform.com": 17459195,
+    "bhaskar.v@onsocial-network.com": 17459132,
+    "bhaskar.v@onsocial-metrics.com": 17459098,
+    "bhaskar.v@onsocial-insights.com": 17459065,
+    "bhaskar.v@onsocial-influence.com": 17459006,
+    "bhaskar.v@onsocial-data.com": 17458886,
+    "bhaskar@onsocialmetrics.com": 15090446,
+    "bhaskar.v@onsocialplatform.com": 15090416,
+    "bhaskar.v@onsocialmetrics.com": 15090400,
 }
+BHASKAR_IDS = set(BHASKAR_POOL.values())
 
 CONCURRENCY = 12
 RETRY = 3
