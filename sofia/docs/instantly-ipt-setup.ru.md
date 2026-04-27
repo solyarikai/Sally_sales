@@ -406,8 +406,8 @@ DNS misconfiguration где-то.
   2. Instantly подменил на другой sender того же домена (видно в per-sender
     table — будет неожиданное имя) → проверь какие ещё ящики на этом
      домене активны.
-  3. Все 22 recipient'а отвергли на SMTP → серьёзный deliverability
-    failure, домен в крупном blacklist.
+  3. Все recipient'ы (22 на pid_ip_g тарифе) отвергли на SMTP →
+     серьёзный deliverability failure, домен в крупном blacklist.
 
 ### Шаг 7 (альтернатива): Automated test + Slack вместо cron-скриптов
 
