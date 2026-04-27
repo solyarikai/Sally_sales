@@ -1,32 +1,25 @@
 # Instantly Inbox Placement Tests — гайд по настройке
 
-**Аудитория:** sales engineers Sally
-**Зачем:** настроить inbox placement tests (IPT) в Instantly так, чтобы
-результаты реально показывали deliverability ящиков. Не silent failures, не
+**Аудитория:** sales engineers Sally  
+**Зачем:** настроить inbox placement tests (IPT) в Instantly так, чтобы  
+результаты реально показывали deliverability ящиков. Не silent failures, не  
 самоподтверждающие warmup-цифры.
-
-Гайд собран по итогам отладки OnSocial 2026-04-23..27, когда мы прошли путь
-от «0 records, 27 ящиков silent» до рабочего отчёта с per-provider
-deliverability.
 
 ---
 
 ## TL;DR — что нужно, чтобы тест работал
 
 1. **Тариф Instantly Inbox Placement Growth** (`pid_ip_g`, ~$47/мес) на
-   workspace. Без него API возвращает 402 на всё что связано с IPT.
+  workspace. Без него API возвращает 402 на всё что связано с IPT.
 2. **Все sender-ящики активны** (`status=1`) **в момент создания теста**.
-   Paused/errored Instantly молча исключает — у них в отчёте будет 0
+  Paused/errored Instantly молча исключает — у них в отчёте будет 0
    записей и непонятно почему.
 3. **Используй встроенный seed pool Instantly** (`recipients_labels` с тремя
-   ESP: Google Pro, Google Personal, Outlook Pro). Не пиши свои recipients
+  ESP: Google Pro, Google Personal, Outlook Pro). Не пиши свои recipients
    списком — теряешь per-provider breakdown.
 4. **Реалистичный subject и body** из боевой кампании этого проекта в
-   SmartLead. Spam-фильтры скорят содержимое — заглушка даст бесполезные
+  SmartLead. Spam-фильтры скорят содержимое — заглушка даст бесполезные  
    цифры.
-
-Если что-то из этого пропущено — смотри [Troubleshooting](#troubleshooting),
-там разобраны типовые провалы.
 
 ---
 
@@ -41,8 +34,7 @@ deliverability.
 
 ### Промпт 1 — настроить cron-мониторинг (Tue/Fri)
 
-Заполни плейсхолдеры в `<...>`, вставь Claude в рабочей директории
-`/Users/user/sales_engineer`.
+Заполни плейсхолдеры в `<...>`
 
 - `<PROJECT>` — кодовое имя (`Onsocial`, `Palark`, `TFP` и т.д.)
 - `<SENDERS>` — sender-ящики через запятую
@@ -86,11 +78,28 @@ IPT. Настрой автоматический IPT-мониторинг для
 7. ScheduleWakeup на ~2 часа, после wakeup → проверь status, запусти
    spam-report.js, покажи финальный отчёт.
 
-8. Закоммить изменения в git submodule magnum-opus.
+8. Закоммить изменения в gitlab magnum-opus.
 
 Если что-то требует деструктивного действия не из этого списка — стоп и
 спроси меня.
 ```
+
+#### Где взять `<SLACK_WEBHOOK>`
+
+- **Существующий проект Sally** — все webhook-и для уже настроенных проектов
+  лежат в одном файле: [magnum-opus/infra/instantly-spam-report.js](../../magnum-opus/infra/instantly-spam-report.js)
+  → const `WEBHOOKS` (squarefi, easyglobal, palark, easystaff, tfp,
+  onsocial, rizzult, inxy, mifort, internal, paybis, gwc). Скопируй URL
+  оттуда.
+- **Новый проект** — создай incoming webhook в Slack:
+  1. В целевом канале: меню канала → **Integrations** → **Add an App**
+  2. Найди **Incoming Webhooks** → **Add to Slack**
+  3. Выбери канал → **Add Incoming WebHooks integration**
+  4. Скопируй **Webhook URL** (`https://hooks.slack.com/services/T.../B.../...`)
+  5. Добавь его в `WEBHOOKS` в `instantly-spam-report.js` под ключом
+     проекта (для будущей переиспользуемости)
+
+  Если нет прав на интеграции в workspace — попроси админа Slack у Sally.
 
 ### Промпт 2 — одноразовый ручной тест
 
@@ -135,10 +144,10 @@ cron, никаких файлов, никакого Slack.
 ### Что эти промпты НЕ делают
 
 - Не добавляют новые ящики в Instantly если их там нет — это руками через
-  UI accounts page.
+UI accounts page.
 - Не оплачивают тариф — биллинг руками через UI Billing page.
 - Не чинят Google domain reputation — IPT покажет ГДЕ проблема, а чинится
-  она отдельно через Google Postmaster Tools, прогрев и контент.
+она отдельно через Google Postmaster Tools, прогрев и контент.
 
 ---
 
@@ -156,10 +165,11 @@ cron, никаких файлов, никакого Slack.
 
 Сайдбар → **Email Accounts**. Отфильтруй ящики проекта. У каждой строки
 смотри бейдж справа:
+
 - Нет бейджа → ящик активен (`status=1`), готов к тесту.
 - **Paused** → меню `…` → **Resume**.
 - Красный/error бейдж → меню `…` → **Mark as fixed** (только если SMTP/
-  IMAP реально починен; иначе ящик через несколько минут вернётся в error).
+IMAP реально починен; иначе ящик через несколько минут вернётся в error).
 
 После этого все ящики проекта должны быть без бейджей. Если какого-то
 ящика нет в списке вообще — его надо добавить через **+ Add Account** или
@@ -170,20 +180,20 @@ cron, никаких файлов, никакого Slack.
 Сайдбар → **Inbox Placement** → **Create Test** (вверху справа).
 
 В форме:
+
 - **Test name** — `<ProjectName> manual YYYY-MM-DD` или похоже.
 - **Test type** — **One-time test**.
 - **Delivery mode** — **One by one**.
 - **Sending method** — **Send from Instantly**.
 - **Email subject** — точный subject из боевой кампании.
 - **Email body** — точный HTML body. Используй HTML source view чтобы
-  избежать авто-форматирования.
+избежать авто-форматирования.
 - **Senders** — multi-select ящиков. Все без Paused/error бейджей.
 - **Recipients** — это место где обычно ошибаются. Ищи toggle/tab «Use
-  Instantly seed pool» или «Recipient labels». Выбери все 3 опции:
+Instantly seed pool» или «Recipient labels». Выбери все 3 опции:
   - Google · Professional · US
   - Google · Personal · US
   - Outlook · Professional · US
-
   **Не добавляй** свои custom recipients сверху — потеряешь per-provider
   breakdown.
 
@@ -201,27 +211,28 @@ cron, никаких файлов, никакого Slack.
 
 - **Overall placement** — общий % inbox vs spam. Sanity check.
 - **Per-sender table** — строка на ящик с колонками: emails sent, inbox,
-  spam, deliverability. Сортируй по возрастанию deliverability — увидишь
-  худших. Всё <80% это action list.
+spam, deliverability. Сортируй по возрастанию deliverability — увидишь
+худших. Всё <80% это action list.
 - **Per-recipient/provider breakdown** — обычно график с колонками Google
-  Pro / Google Personal / Outlook Pro. Кликаешь problematic ящик — видишь
-  per-recipient детали.
+Pro / Google Personal / Outlook Pro. Кликаешь problematic ящик — видишь
+per-recipient детали.
 - **Authentication results** — % проходимости SPF/DKIM/DMARC. Меньше 100% =
-  DNS misconfiguration где-то.
+DNS misconfiguration где-то.
 
 ### Шаг 6: интерпретация
 
 Для каждого problematic sender'а:
+
 - **Spam в Google + inbox в Outlook** → Google domain reputation. Чинится
-  через Google Postmaster Tools, прогрев, контент. Дни-недели.
+через Google Postmaster Tools, прогрев, контент. Дни-недели.
 - **Spam везде** → SPF/DKIM/DMARC сломан. Проверь auth-панель.
 - **Silent** (0 записей) → один из:
   1. Был paused/errored в момент создания теста → resume + пересоздать.
   2. Instantly подменил на другой sender того же домена (видно в per-sender
-     table — будет неожиданное имя) → проверь какие ещё ящики на этом
+    table — будет неожиданное имя) → проверь какие ещё ящики на этом
      домене активны.
   3. Все 22 recipient'а отвергли на SMTP → серьёзный deliverability
-     failure, домен в крупном blacklist.
+    failure, домен в крупном blacklist.
 
 ---
 
@@ -229,12 +240,14 @@ cron, никаких файлов, никакого Slack.
 
 Главные сигналы:
 
-| Метрика | Что означает |
-|---|---|
-| **Deliverability ≥ 80%** | Healthy. Mailbox в inbox у большинства провайдеров. |
+
+| Метрика                   | Что означает                                                              |
+| ------------------------- | ------------------------------------------------------------------------- |
+| **Deliverability ≥ 80%**  | Healthy. Mailbox в inbox у большинства провайдеров.                       |
 | **Deliverability 50-80%** | Borderline. Один провайдер режет, остальные принимают. Чаще всего Google. |
-| **Deliverability < 50%** | Problematic. Ящик в спаме у >половины recipient'ов. |
-| **0 records (silent)** | Не отправил вообще. Либо paused, либо подменён, либо blacklist. |
+| **Deliverability < 50%**  | Problematic. Ящик в спаме у >половины recipient'ов.                       |
+| **0 records (silent)**    | Не отправил вообще. Либо paused, либо подменён, либо blacklist.           |
+
 
 Главное правило интерпретации: **смотри per-recipient breakdown**, не общий %.
 60% deliverability на одного ящика и 60% на другого могут означать совершенно
@@ -243,22 +256,25 @@ cron, никаких файлов, никакого Slack.
 там, половина тут — проблема с контентом или агрессивностью отправки.
 
 **Что НЕ использовать как сигнал deliverability:**
+
 - SmartLead `warmup_reputation` — закрытый цикл, показывает 100% даже когда
-  Gmail режет ящик 100% времени.
+Gmail режет ящик 100% времени.
 - `open_rate` соло — Apple MPP и corporate firewalls вырезают tracking
-  pixels. 0% open при ненулевых replies = трекинг сломан, не спам.
+pixels. 0% open при ненулевых replies = трекинг сломан, не спам.
 
 ---
 
 ## OnSocial — конкретный пример
 
 Тест 2026-04-27:
-- 27 senders (14 `bhaskar@onsocial-*.com`, 3 без дефиса, 10 `petr@crona-*`)
+
+- 27 senders (14 `bhaskar@onsocial-*.com`, 3 без дефиса, 10 `petr@crona-`*)
 - recipients_labels (3 ESP) → 22 авто-сгенерированных recipient inbox
 - Subject + body из боевой OnSocial-кампании
 - Cron 03:00/06:00 UTC Tue/Fri
 
 Результат:
+
 - 24 из 26 senders → 100% inbox
 - `eleonora@crona-b2b.com` → 60% (Google → spam, Outlook → inbox)
 - `eleonora@cronaaipipeline.com` → 33% (Google → spam, Outlook → inbox)
@@ -275,16 +291,19 @@ cron, никаких файлов, никакого Slack.
 ## Troubleshooting
 
 ### Тест уже час крутится, 0 записей
+
 Чаще всего: senders были paused в момент создания. Они исключаются молча.
 Проверь текущий статус всех ящиков — если paused, удали тест и пересоздай
 после активации. Если все active — это нормально, IMAP-poll Instantly
 работает батчами раз в ~25 мин, первая партия может прийти через 30+ минут.
 
 ### Биллинг 402 на всём
+
 Подписка Instantly Inbox Placement отвалилась. Идти в UI Billing, оплатить.
 Это не rate limit (тот возвращает 429), а реально неактивный тариф.
 
 ### В отчёте ящики которых нет в моём списке
+
 Instantly иногда (а) лекает записи между тестами одного workspace, (б)
 подменяет один ящик на другой того же домена (видели petr@→eleonora@). При
 любом анализе фильтруй analytics по configured emails из конфига теста и
@@ -292,17 +311,20 @@ Instantly иногда (а) лекает записи между тестами 
 имена.
 
 ### Один ящик 0% Google, 100% Outlook
+
 Domain reputation у Google. Не SPF/DKIM/DMARC (их видно в auth-панели,
 будут pass), не контент (тогда падал бы и в Outlook). Ящик попал в Google
 spam classifier. Лечится через Google Postmaster Tools (проверка
 домена/IP), прогрев и работу с контентом. Может занять дни-недели.
 
 ### Все ящики 0% — везде в спам
+
 Проверь SPF/DKIM/DMARC в auth-панели. Если не pass — DNS misconfig у
 sender-домена. Если pass — контент письма триггерит spam-фильтры (слова,
 ссылки, html-структура).
 
 ### `warmup_reputation` 100%, но в IPT всё в спам
+
 Так и есть. `warmup_reputation` мерит трафик внутри Superwarm (юзеры
 SmartLead → друг другу), где у всех настроены фильтры пропускать. Это
 закрытый цикл. Реальный сигнал — IPT и реальный bounce_rate в кампаниях.
@@ -321,6 +343,6 @@ SmartLead → друг другу), где у всех настроены фил
 - `POST /api/v2/accounts/{email}/mark-fixed` — сбросить error (body `{}`)
 - `GET /api/v2/workspace-billing/subscription-details` — проверить тариф
 - `GET /api/v2/inbox-placement-tests/{id}/email-service-provider-options` —
-  список доступных ESP labels
+список доступных ESP labels
 
 Rate limit: 100 req/sec, 6000 req/min, при превышении 429 (не 402).
