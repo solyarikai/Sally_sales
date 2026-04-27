@@ -241,11 +241,17 @@
 - DELETE /inbox-placement-tests/{id} — без Content-Type header.
 
 Логика отчёта:
-- Бакеты per sender: Healthy (deliverability ≥ 80%) / Problematic (< 80%)
-  / Silent (0 records).
+- Бакеты per sender:
+  - Healthy: deliverability ≥ 80% (по `is_spam`)
+  - Problematic: < 80%
+  - Categorized: ≥1 запись с `has_category=true` — письмо попало в
+    Gmail-вкладки (Promotions/Social/Updates), отдельный warning
+  - Silent: 0 records
 - Deliverability = (1 - spam_count / total_count) * 100.
 - Фильтр analytics строго по configured emails (Instantly подмешивает
   foreign senders из других тестов — отбрось их).
+- `has_category` бинарный — без указания вкладки. Если непустой —
+  скорее всего Promotions.
 - Records появляются батчами через ~25 мин (IMAP poll cycle Instantly).
 
 Шаги:
