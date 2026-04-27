@@ -245,6 +245,66 @@
 6. Спроси — удалять тест или оставить.
 ```
 
+### Промпт 3 — обновить существующий cron-мониторинг
+
+Используй когда у проекта уже настроены `instantly-<project>-start-test.js`
++ `instantly-spam-report-<project>.js` на Hetzner и нужно что-то
+поправить: добавить/убрать ящики, сменить Slack-канал, обновить
+subject/body под новую кампанию, изменить расписание, поменять порог
+deliverability.
+
+```text
+Обнови существующий Instantly IPT cron-мониторинг для проекта <PROJECT>.
+Изменение: <ОПИСАНИЕ ИЗМЕНЕНИЯ>.
+
+Возможные изменения (примеры):
+- "Добавить sender newuser@domain.com в список ящиков"
+- "Убрать sender olduser@domain.com из списка"
+- "Сменить Slack webhook на <URL>"
+- "Обновить subject/body под текущую кампанию SmartLead <campaign_id>"
+- "Сменить расписание с Tue/Fri 03:00/06:00 на Mon/Wed/Fri 04:00/07:00"
+- "Сменить порог deliverability с 80% на 75%"
+- "Сменить ESP labels (например добавить Yahoo если появился в плане)"
+
+Контекст:
+- Source of truth: magnum-opus/infra/instantly-<project>-start-test.js
+  + instantly-spam-report-<project>.js (GitLab sally-saas/magnum-opus).
+- Деплой на Hetzner (SSH alias `hetzner`): /home/leadokol/scripts/.
+- Cron: пользовательский crontab leadokol на Hetzner, ищи строки
+  `instantly-<project>`.
+- API endpoints, status коды, body форматы — как в Промпт 1.
+
+Шаги:
+
+1. Покажи мне:
+   - Текущие оба скрипта из /home/leadokol/scripts/ на Hetzner.
+   - Текущие cron-записи: `crontab -l | grep <project>`.
+   - git log -3 этих файлов в magnum-opus (когда последний раз менялись
+     и кем).
+
+2. Если изменение касается senders — проверь статусы новых ящиков через
+   GET /accounts. Активируй paused (resume), errored (mark-fixed только
+   если коннекция реально ок). Отсутствующих в Instantly скажи.
+
+3. Внеси минимальное изменение в magnum-opus/infra/<file>.js локально.
+   Покажи мне diff (только то что меняешь — без лишних правок).
+
+4. Деплой обновлённый файл(ы) на Hetzner в /home/leadokol/scripts/.
+
+5. Запусти start-test один раз для валидации — только если меняли
+   senders, subject/body или recipients_labels. Для смены webhook,
+   расписания, порога — пропусти этот шаг.
+
+6. Если меняли расписание — отредактируй crontab leadokol на Hetzner,
+   покажи мне `crontab -l | grep <project>` после.
+
+7. Закоммить изменение в magnum-opus (push на GitLab) и bump submodule
+   pointer в sales_engineer (push на GitHub).
+
+Не трогай чужие проекты. Не делай "пока я тут — давай ещё что-нибудь
+обновлю". Если в изменении сомнение — спроси меня, не угадывай.
+```
+
 ---
 
 ## Способ 2: через UI (app.instantly.ai)
