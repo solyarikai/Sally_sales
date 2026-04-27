@@ -487,8 +487,11 @@ pixels. 0% open при ненулевых replies = трекинг сломан,
 
 - 27 senders (14 `bhaskar@onsocial-*.com`, 3 без дефиса, 10 `petr@crona-*.com`)
 - recipients_labels (3 ESP) → 22 авто-сгенерированных recipient inbox
-- Subject + body из боевой OnSocial-кампании
-- Cron 03:00/06:00 UTC Tue/Fri
+- Subject + body из боевой OnSocial-кампании (SmartLead campaign 3169118
+  c-OnSocial_IMAGENCY_FOUNDERS, step 1, шаблонные переменные подменены
+  на realistic placeholders: Jordan/Atlas Creative/Dentsu)
+- Cron 22:00 UTC Mon/Thu (unified monitor запускается на ночь, отчёт в
+  Slack утром Tue/Fri)
 
 Результат:
 
