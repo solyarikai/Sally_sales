@@ -305,19 +305,47 @@ const USERS = [
 ];
 ```
 
-### 4.2 Запуск
+### 4.2 Фото персоны (опционально, но рекомендуется)
+
+Кладём фото в `magnum-opus/infra/sofia.jpg` (или указываем `--photo <file>`). Скрипт сам поставит profile photo через Admin Directory API (`users.photos.update`) после создания ящиков.
+
+- 1 фото на всю персону (одно лицо у всех ящиков одной персоны = единый identity в LinkedIn / Gmail / SmartLead avatar)
+- JPEG/PNG, 640×640+ норм, ≤2MB
+- Если файла нет — скрипт пропустит этот шаг (warning, не ошибка)
+
+### 4.3 Запуск
 
 ```bash
 # На Hetzner — dry-run
 node aivy-create-users.js --domains-file <your-batch>.txt --dry-run
 
-# Боевой — создание через admin.directory API
+# Боевой — создание + установка фото в один проход
 node aivy-create-users.js --domains-file <your-batch>.txt
+
+# Если фото отдельным файлом
+node aivy-create-users.js --domains-file <your-batch>.txt --photo <persona>.jpg
+
+# Без фото
+node aivy-create-users.js --domains-file <your-batch>.txt --no-photo
 ```
 
-**~1.5 сек на ящик**. Error `Entity already exists` (HTTP 409) — уже есть, не ошибка.
+**~1.5 сек на ящик** (создание) + **~0.5 сек на ящик** (фото). Error `Entity already exists` (HTTP 409) — уже есть, не ошибка; фото на existing ящики тоже проставится.
 
-### 4.3 2FA + backup codes (по SOP)
+### 4.4 Установка фото на существующие ящики (standalone)
+
+Если ящики уже созданы (или хочется сменить фото / поставить на смешанный набор персон):
+
+```bash
+# Через explicit список email
+node aivy-set-photos.js --emails-file <your-list>.txt --photo <persona>.jpg
+
+# Через домены (раскрывает в sofia@/sofia.n@ × домены — Novak-шаблон)
+node aivy-set-photos.js --domains-file <your-batch>.txt --photo <persona>.jpg
+```
+
+Идемпотентно — можно гонять повторно.
+
+### 4.5 2FA + backup codes (по SOP)
 
 ```bash
 node sofia-backup-codes.js --domains-file <your-batch>.txt
@@ -325,7 +353,7 @@ node sofia-backup-codes.js --domains-file <your-batch>.txt
 
 Генерит через Admin API + сохраняет CSV `<your-batch>-backup-codes.csv` (формат `email,code1,code2,...`). Этот CSV потом используется в Шаге 5 (SmartLead OAuth, если ящики с 2FA).
 
-### 4.4 Заполнить Domain Tracker + креды
+### 4.6 Заполнить Domain Tracker + креды
 
 - Колонка O (`mailboxes_count=2`)
 - В `.aivy-credentials.json` добавить запись batch (список ящиков, пароль, 2fa_enabled)
