@@ -58,8 +58,10 @@
   breakdown.
 - Дожидаются завершения теста (status=3) через ScheduleWakeup.
 - Парсят analytics, фильтруют по твоему списку senders (отбрасывают
-  foreign), считают deliverability per sender, разбивают на бакеты
-  Healthy/Problematic/Silent.
+  foreign), считают deliverability per sender, разбивают на бакеты:
+  Healthy / Problematic (<80% по `is_spam`) / Categorized (≥1 запись с
+  `has_category=true` — попало в Gmail Promotions/Social/Updates вкладки)
+  / Silent (0 записей).
 
 Различия:
 
