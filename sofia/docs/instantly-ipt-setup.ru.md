@@ -315,11 +315,16 @@ deliverability.
 
 4. Деплой обновлённый файл(ы) на Hetzner в /home/leadokol/scripts/.
 
-5. Полный end-to-end run только если меняли senders, subject/body или
-   recipients_labels (~3-6 часов из-за wait-loop'а в unified-скрипте — для
-
-   senders, subject/body или recipients_labels. Для смены webhook,
-   расписания, порога — пропусти этот шаг.
+5. Валидация только если меняли senders, subject/body или
+   recipients_labels:
+   - Для unified monitor.js: запусти тест через прямой POST
+     /inbox-placement-tests (теми же полями что в скрипте), получи test
+     id, покажи мне. Не запускай весь monitor через node — он будет
+     ждать 3-6 часов в polling-loop.
+   - Для legacy start-test.js: запусти просто `node start-test.js`,
+     покажи test id.
+   Для смены webhook, расписания, порога — этот шаг пропускай, новое
+   значение применится в следующий cron-tick.
 
 6. Если меняли расписание — отредактируй crontab leadokol на Hetzner,
    покажи мне `crontab -l | grep <project>` после.
