@@ -417,27 +417,19 @@ DNS misconfiguration где-то.
 
 - **Schedule** — дни недели (отметь Tue + Fri) + время запуска + timezone
   (под API это `schedule.days[0..6]`, `schedule.timing`, `schedule.timezone`).
-- **Automations** (часто называется «Actions on completion» или похоже) —
-  условие + действие. Полезные пресеты:
-  - When `placement < threshold` → **Send to Slack** (если в твоём
-    workspace есть Slack-интеграция уровня workspace) или **Webhook URL** с
-    Slack incoming webhook URL для канала проекта.
+- **Automations / Actions on completion** — условие + действие. По API
+  (`automations`) известно: action может быть webhook, pause campaign,
+  add/remove tag. В UI ищи аналог по смыслу. Полезные пресеты:
+  - When `placement < threshold` → **Webhook URL**, в URL подставь Slack
+    incoming webhook канала проекта. Slack принимает `{"text": "..."}`
+    payload — Instantly должен его сформировать (если шлёт другой формат,
+    нужен middleware). Если в UI есть готовый «Send to Slack» preset —
+    используй его, он чище.
   - When `mailbox went to spam` → **Pause campaign** или **Add tag**.
 
-Сохраняешь — Instantly сам гоняет тест по расписанию, парсит результаты,
-шлёт уведомление в Slack при отклонении. **Это полностью заменяет наш
-Промпт 1** (cron + два скрипта на Hetzner) — proще и не зависит от
-доступности Hetzner.
-
-Когда брать какой подход:
-
-| Подход | Когда |
-|---|---|
-| Automated test в UI | Стандартный мониторинг, простой trigger «<80% → alert» |
-| Промпт 1 (cron + скрипты) | Нужна кастомная логика отчёта (бакеты Healthy/Problematic/Silent, фильтр foreign senders, наш формат сообщения), либо нет workspace Slack-интеграции, либо хочется иметь все кампании в едином cron-плане Sally |
-
-Если нет уверенности — начинай с UI Automated, переключишься на скрипты
-если упрёшься в ограничения встроенного отчёта.
+Сохраняешь — Instantly сам гоняет тест по расписанию и шлёт уведомление
+по сконфигурированному automation. **Это альтернатива Промпту 1** (cron +
+скрипты на Hetzner). Trade-offs описаны в TL;DR-табличке в начале гайда.
 
 ---
 
