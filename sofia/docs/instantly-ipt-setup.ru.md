@@ -267,8 +267,7 @@
 
 ### Промпт 3 — обновить существующий cron-мониторинг
 
-Используй когда у проекта уже настроены `instantly-<project>-start-test.js`
-+ `instantly-spam-report-<project>.js` на Hetzner и нужно что-то
+Используй когда у проекта уже настроен мониторинг на Hetzner и нужно
 поправить: добавить/убрать ящики, сменить Slack-канал, обновить
 subject/body под новую кампанию, изменить расписание, поменять порог
 deliverability.
@@ -282,13 +281,17 @@ deliverability.
 - "Убрать sender olduser@domain.com из списка"
 - "Сменить Slack webhook на <URL>"
 - "Обновить subject/body под текущую кампанию SmartLead <campaign_id>"
-- "Сменить расписание с Tue/Fri 03:00/06:00 на Mon/Wed/Fri 04:00/07:00"
+- "Сменить расписание с Mon/Thu 22:00 UTC на Mon/Wed/Fri 22:00 UTC"
 - "Сменить порог deliverability с 80% на 75%"
 - "Сменить ESP labels (например добавить Yahoo если появился в плане)"
 
 Контекст:
-- Source of truth: magnum-opus/infra/instantly-<project>-start-test.js
-  + instantly-spam-report-<project>.js (GitLab sally-saas/magnum-opus).
+- Source of truth (NEW unified стиль): magnum-opus/infra/instantly-<project>-monitor.js
+  (GitLab sally-saas/magnum-opus). Один скрипт create+wait+report.
+- Source of truth (LEGACY двухскриптовый стиль, может ещё остаться у
+  старых проектов): magnum-opus/infra/instantly-<project>-start-test.js
+  + instantly-spam-report-<project>.js. Сначала проверь какой стиль —
+  смотри что лежит в /home/leadokol/scripts/ и какие cron-записи есть.
 - Деплой на Hetzner (SSH alias `hetzner`): /home/leadokol/scripts/.
 - Cron: пользовательский crontab leadokol на Hetzner, ищи строки
   `instantly-<project>`.
@@ -297,7 +300,8 @@ deliverability.
 Шаги:
 
 1. Покажи мне:
-   - Текущие оба скрипта из /home/leadokol/scripts/ на Hetzner.
+   - Текущие скрипт(ы) из /home/leadokol/scripts/ на Hetzner.
+     Определи стиль (unified monitor.js или legacy start-test+spam-report).
    - Текущие cron-записи: `crontab -l | grep <project>`.
    - git log -3 этих файлов в magnum-opus (когда последний раз менялись
      и кем).
@@ -311,7 +315,9 @@ deliverability.
 
 4. Деплой обновлённый файл(ы) на Hetzner в /home/leadokol/scripts/.
 
-5. Запусти start-test один раз для валидации — только если меняли
+5. Полный end-to-end run только если меняли senders, subject/body или
+   recipients_labels (~3-6 часов из-за wait-loop'а в unified-скрипте — для
+
    senders, subject/body или recipients_labels. Для смены webhook,
    расписания, порога — пропусти этот шаг.
 
