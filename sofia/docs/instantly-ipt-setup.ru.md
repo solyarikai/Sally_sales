@@ -32,6 +32,32 @@
 Два готовых промпта ниже — для постоянного мониторинга через cron и для
 разовой проверки.
 
+### Что эти промпты делают
+
+- Проверяют, что Instantly Inbox Placement Growth активен (биллинг).
+- Перебирают список твоих ящиков и активируют paused (`resume`), errored
+  (`mark-fixed`). Отсутствующие в Instantly помечают и исключают из теста.
+- Создают inbox placement test с правильными параметрами:
+  `recipients_labels` со всеми 3 ESP (Google Pro/Personal + Outlook Pro),
+  без custom recipients — это даёт встроенный seed pool и per-provider
+  breakdown.
+- Дожидаются завершения теста (status=3) через ScheduleWakeup.
+- Парсят analytics, фильтруют по твоему списку senders (отбрасывают
+  foreign), считают deliverability per sender, разбивают на бакеты
+  Healthy/Problematic/Silent.
+- **Промпт 1** дополнительно создаёт два Node-скрипта по образцу
+  OnSocial, деплоит на Hetzner, ставит cron Tue/Fri, отправляет отчёты в
+  Slack.
+- **Промпт 2** показывает результат прямо в чат, без файлов и cron.
+
+### Что эти промпты НЕ делают
+
+- Не добавляют новые ящики в Instantly если их там нет — это руками через
+  UI accounts page.
+- Не оплачивают тариф — биллинг руками через UI Billing page.
+- Не чинят Google domain reputation — IPT покажет ГДЕ проблема, а чинится
+  она отдельно через Google Postmaster Tools, прогрев и контент.
+
 ### Промпт 1 — настроить cron-мониторинг (Tue/Fri)
 
 Заполни плейсхолдеры в `<...>`
