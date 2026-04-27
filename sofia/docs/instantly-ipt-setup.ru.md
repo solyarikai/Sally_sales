@@ -322,6 +322,36 @@ DNS misconfiguration где-то.
   3. Все 22 recipient'а отвергли на SMTP → серьёзный deliverability
     failure, домен в крупном blacklist.
 
+### Шаг 7 (альтернатива): Automated test + Slack вместо cron-скриптов
+
+Если нужен **постоянный мониторинг** — Instantly умеет всё сам через UI,
+без нашего cron-сетапа на Hetzner. На шаге 3 при создании теста выбери
+**Automated test** вместо One-time, тогда появятся дополнительные поля:
+
+- **Schedule** — дни недели (отметь Tue + Fri) + время запуска + timezone
+  (под API это `schedule.days[0..6]`, `schedule.timing`, `schedule.timezone`).
+- **Automations** (часто называется «Actions on completion» или похоже) —
+  условие + действие. Полезные пресеты:
+  - When `placement < threshold` → **Send to Slack** (если в твоём
+    workspace есть Slack-интеграция уровня workspace) или **Webhook URL** с
+    Slack incoming webhook URL для канала проекта.
+  - When `mailbox went to spam` → **Pause campaign** или **Add tag**.
+
+Сохраняешь — Instantly сам гоняет тест по расписанию, парсит результаты,
+шлёт уведомление в Slack при отклонении. **Это полностью заменяет наш
+Промпт 1** (cron + два скрипта на Hetzner) — proще и не зависит от
+доступности Hetzner.
+
+Когда брать какой подход:
+
+| Подход | Когда |
+|---|---|
+| Automated test в UI | Стандартный мониторинг, простой trigger «<80% → alert» |
+| Промпт 1 (cron + скрипты) | Нужна кастомная логика отчёта (бакеты Healthy/Problematic/Silent, фильтр foreign senders, наш формат сообщения), либо нет workspace Slack-интеграции, либо хочется иметь все кампании в едином cron-плане Sally |
+
+Если нет уверенности — начинай с UI Automated, переключишься на скрипты
+если упрёшься в ограничения встроенного отчёта.
+
 ---
 
 ## Как читать результат
