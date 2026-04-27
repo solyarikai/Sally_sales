@@ -129,11 +129,19 @@
   product_type=inbox_placement и all_subs_cancelled=false.
 
 Логика отчёта:
-- Бакеты per sender: Healthy (deliverability ≥ 80%) / Problematic (< 80%)
-  / Silent (0 records).
+- Бакеты per sender:
+  - Healthy: deliverability ≥ 80% (по `is_spam`)
+  - Problematic: deliverability < 80%
+  - Categorized: ≥1 запись с `has_category=true` (письмо попало в
+    Gmail-вкладки Promotions/Social/Updates — отдельный warning, даже
+    если по spam-rate ящик Healthy)
+  - Silent: 0 records (paused/blocked/substituted при создании теста)
 - Deliverability = (1 - spam_count / total_count) * 100.
 - Фильтр analytics строго по configured `emails` из теста (Instantly
   иногда подмешивает foreign senders из других тестов).
+- `has_category` бинарный — Instantly не различает какая именно вкладка
+  (Promotions vs Social vs Updates). Если bucket Categorized непустой —
+  скорее всего Promotions, нужно проверить контент письма.
 
 Шаги:
 
