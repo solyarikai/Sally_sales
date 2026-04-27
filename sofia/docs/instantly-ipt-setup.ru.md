@@ -141,27 +141,34 @@
    errored (mark-fixed только если уверен что коннекция ок — иначе спроси).
    Отсутствующих в Instantly accounts исключи и скажи мне.
 
-3. Создай два Node-скрипта по образцу OnSocial:
-   - magnum-opus/infra/instantly-<project>-start-test.js (creator с
-     recipients_labels на 3 ESP, payload как описано выше)
-   - magnum-opus/infra/instantly-spam-report-<project>.js (читает
-     latest completed test name="<PROJECT>*", аналитику фильтрует по
-     configured emails, формирует Slack-сообщение с тремя бакетами
-     Healthy/Problematic/Silent + per-recipient breakdown по problematic)
+3. Создай ОДИН unified Node-скрипт по образцу OnSocial
+   (magnum-opus/infra/instantly-onsocial-monitor.js). Скрипт делает три
+   вещи в одном цикле:
+   - magnum-opus/infra/instantly-<project>-monitor.js должен:
+     a) Создать тест с recipients_labels на 3 ESP (payload как описано
+        выше).
+     b) Polls статус каждые 15 мин до status=3 или timeout 8h.
+     c) Когда тест завершился (или timeout) — вытащить analytics,
+        отфильтровать по configured emails, разбить на Healthy/
+        Problematic/Silent (+ foreign), сформировать Slack-сообщение с
+        per-recipient breakdown по problematic, отправить в webhook.
+     d) При timeout — отправить partial-отчёт с пометкой.
+     e) При любой ошибке создания/чтения — отдельное сообщение в Slack
+        «monitor error» (best-effort, чтобы тихо не молчать).
 
-4. Задеплой оба на Hetzner: scp в /home/leadokol/scripts/ (SSH alias
-   `hetzner`).
+4. Задеплой на Hetzner: scp в /home/leadokol/scripts/ (SSH alias
+   `hetzner`). Проверь синтаксис: `node -c path/to/script.js`.
 
-5. Добавь две cron-записи в crontab leadokol:
-   - 03:00 Tue/Fri → start-test
-   - 06:00 Tue/Fri → spam-report
+5. Добавь ОДНУ cron-запись в crontab leadokol:
+   `0 22 * * 1,4 cd /home/leadokol/scripts && node instantly-<project>-monitor.js >> /home/leadokol/logs/instantly-<project>-monitor.log 2>&1`
+   (Mon/Thu 22:00 UTC — тест крутится ночью, отчёт в Slack утром Tue/Fri.)
 
-6. Запусти start-test один раз для валидации, покажи мне test id.
+6. Запусти monitor один раз ВРУЧНУЮ для end-to-end валидации (займёт
+   ~3-6 часов из-за wait-loop'а — лучше делать в выходной/в фон). Если
+   надо быстрее — запусти только createTest()+первый getStatus() для
+   sanity check, polling прервёшь Ctrl-C.
 
-7. ScheduleWakeup на ~2 часа, после wakeup → проверь status. Когда
-   status=3 → запусти spam-report.js один раз, покажи финальный отчёт.
-
-8. Закоммить локальные изменения в git submodule magnum-opus.
+7. Закоммить локальные изменения в git submodule magnum-opus.
 
 Если что-то требует деструктивного действия не из этого списка — стоп
 и спроси меня.
