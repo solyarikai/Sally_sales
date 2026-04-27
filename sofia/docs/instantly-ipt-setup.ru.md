@@ -139,9 +139,9 @@
 Без cron, без Slack — результат прямо в чат.
 
 ```text
-Прочитай sofia/docs/instantly-ipt-setup.ru.md — гайд по настройке Instantly
-IPT. Запусти ОДИН разовый тест для <PROJECT> и покажи результат. Никакого
-cron, никаких файлов, никакого Slack.
+Запусти ОДИН разовый Instantly inbox placement test для <PROJECT> и покажи
+результат. Никакого cron, никаких файлов, никакого Slack — результат прямо
+в чат.
 
 Параметры:
 - Project name: <PROJECT>
@@ -149,27 +149,61 @@ cron, никаких файлов, никакого Slack.
 - Email subject: <SUBJECT>
 - Email body (HTML): <BODY_HTML>
 
+Контекст (всё что нужно знать):
+
+- API base: https://api.instantly.ai/api/v2
+- Auth: `Authorization: Bearer $INSTANTLY_API_KEY` (env на Hetzner в
+  ~/magnum-opus-project/repo/.env). Если 401 на конкретном endpoint —
+  попробуй другие ключи из magnum-opus/infra/instantly-spam-report.js.
+- Account status коды: 1=active, 2=paused, -1/-2/-3=errored.
+- POST /accounts/{email}/resume — body {}.
+- POST /accounts/{email}/mark-fixed — body {}.
+- POST /inbox-placement-tests — body: name, type=1, delivery_mode=1,
+  sending_method=1, email_subject, email_body, emails (массив активных
+  senders), recipients_labels — массив из 3 объектов:
+    {region:"North America", sub_region:"US", type:"Professional", esp:"Google"}
+    {region:"North America", sub_region:"US", type:"Personal",     esp:"Google"}
+    {region:"North America", sub_region:"US", type:"Professional", esp:"Outlook"}
+  Custom recipients НЕ передавай — Instantly авто-сгенерит из labels.
+- GET /inbox-placement-tests/{id} — status: 1=active, 3=completed.
+- GET /inbox-placement-analytics?test_id=X&limit=100 — paginated через
+  next_starting_after. Поля записи: sender_email, recipient_email, is_spam,
+  recipient_esp (1=Google, 2=Outlook), recipient_type (1=Pro, 2=Personal).
+- /workspace-billing/subscription-details — проверка биллинга, ищи
+  product_type=inbox_placement, all_subs_cancelled=false.
+- DELETE /inbox-placement-tests/{id} — без Content-Type header.
+
+Логика отчёта:
+- Бакеты per sender: Healthy (deliverability ≥ 80%) / Problematic (< 80%)
+  / Silent (0 records).
+- Deliverability = (1 - spam_count / total_count) * 100.
+- Фильтр analytics строго по configured emails (Instantly подмешивает
+  foreign senders из других тестов — отбрось их).
+- Records появляются батчами через ~25 мин (IMAP poll cycle Instantly).
+
 Шаги:
 
-1. Проверь биллинг. Если IPT не активен — стоп.
+1. Проверь биллинг. Если IPT не активен — стоп, скажи мне.
 
-2. Проверь статусы ящиков. Активируй paused, errored — только если
-   уверен что коннекция ок. Отсутствующих в Instantly исключи и скажи.
+2. Проверь статусы всех <SENDERS>. Активируй paused (resume), errored
+   (mark-fixed только если коннекция реально ок — иначе спроси).
+   Отсутствующих в Instantly исключи и скажи мне.
 
-3. Создай один тест: type=1 (one-time), delivery_mode=1, sending_method=1,
-   recipients_labels со всеми 3 ESP (Google Pro, Google Personal, Outlook
-   Pro), без custom recipients. Покажи test id и сколько recipient inboxes
-   Instantly авто-сгенерил.
+3. Создай один тест с recipients_labels на 3 ESP. Покажи test id и
+   сколько actual recipient inboxes Instantly авто-сгенерил.
 
 4. ScheduleWakeup на ~30 мин. На пробуждении: если status=3 → шаг 5. Если
-   status=1 и records растут → ещё wakeup. Если status=1 records=0 через
-   час — диагностируй по Troubleshooting в гайде.
+   status=1 и records растут → ещё wakeup на 30 мин. Если status=1 и
+   records=0 через час — диагностируй (вероятнее всего senders были
+   paused в момент создания, либо Instantly подменяет ящик на другого
+   sender'а того же домена).
 
-5. Когда status=3: вытащи analytics, отфильтруй по configured emails,
-   покажи:
+5. Когда status=3: вытащи analytics постранично, отфильтруй по configured
+   emails (foreign senders отметь отдельно), покажи мне:
    - Сводку: total / Healthy (≥80%) / Problematic (<80%) / Silent (0 records)
    - Per-sender таблицу с deliverability %
-   - Per-recipient breakdown по проблемным (esp + type + verdict)
+   - Per-recipient breakdown по problematic (sender → recipient → esp /
+     type / verdict)
 
 6. Спроси — удалять тест или оставить.
 ```
