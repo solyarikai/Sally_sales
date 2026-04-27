@@ -339,27 +339,67 @@ async def main(sample_per_campaign: int | None) -> None:
             indent=2,
         )
 
-    # Console summary: bhaskar mailboxes ranked by Outlook open_rate
-    print("\n=== Bhaskar mailboxes -- ranked by Outlook open_rate (asc) ===")
-    bh = [
+    def _print_table(title: str, rows: list[dict]):
+        print(f"\n=== {title} ===")
+        print(
+            f"{'sender':<42}  {'sent':>5} {'open':>5}  {'open%':>6}  "
+            f"{'reply':>5} {'reply%':>6}  {'bnc':>4}"
+        )
+        for r in rows:
+            print(
+                f"{r['sender_email']:<42}  "
+                f"{r['sent']:>5} {r['opened']:>5}  {r['open_rate'] * 100:>5.1f}%  "
+                f"{r['replied']:>5} {r['reply_rate'] * 100:>5.1f}%  "
+                f"{r['leads_bounced']:>4}"
+            )
+
+    bh_outlook = [
         r for r in out_rows if r["in_bhaskar_pool"] and r["recipient_esp"] == "outlook"
     ]
-    bh.sort(key=lambda r: (r["open_rate"], -r["sent"]))
-    print(f"{'mailbox_id':>12}  {'sent':>5} {'opened':>6}  {'open%':>6}  {'reply%':>6}")
-    for r in bh:
-        print(
-            f"{r['mailbox_id']:>12}  {r['sent']:>5} {r['opened']:>6}  "
-            f"{r['open_rate'] * 100:>5.1f}%  {r['reply_rate'] * 100:>5.1f}%"
-        )
+    bh_outlook.sort(key=lambda r: (r["open_rate"], -r["sent"]))
+    _print_table("Bhaskar mailboxes -- Outlook recipients (worst -> best)", bh_outlook)
 
-    print("\n=== Bhaskar mailboxes -- Gmail baseline ===")
-    bg = [r for r in out_rows if r["in_bhaskar_pool"] and r["recipient_esp"] == "gmail"]
-    bg.sort(key=lambda r: (r["open_rate"], -r["sent"]))
-    print(f"{'mailbox_id':>12}  {'sent':>5} {'opened':>6}  {'open%':>6}  {'reply%':>6}")
-    for r in bg:
+    bh_gmail = [
+        r for r in out_rows if r["in_bhaskar_pool"] and r["recipient_esp"] == "gmail"
+    ]
+    bh_gmail.sort(key=lambda r: (r["open_rate"], -r["sent"]))
+    _print_table("Bhaskar mailboxes -- Gmail baseline (worst -> best)", bh_gmail)
+
+    # Per-domain rollup (3 mailboxes per domain × 2 personas = data point)
+    dom = defaultdict(lambda: {"sent": 0, "opened": 0, "replied": 0, "bounced": 0})
+    for r in out_rows:
+        if not r["in_bhaskar_pool"] or r["recipient_esp"] != "outlook":
+            continue
+        d = dom[r["sender_domain"]]
+        d["sent"] += r["sent"]
+        d["opened"] += r["opened"]
+        d["replied"] += r["replied"]
+        d["bounced"] += r["leads_bounced"]
+    dom_rows = []
+    for sender_domain, c in dom.items():
+        sent = c["sent"]
+        dom_rows.append(
+            {
+                "sender_domain": sender_domain,
+                "sent": sent,
+                "opened": c["opened"],
+                "replied": c["replied"],
+                "leads_bounced": c["bounced"],
+                "open_rate": round((c["opened"] / sent) if sent else 0.0, 4),
+                "reply_rate": round((c["replied"] / sent) if sent else 0.0, 4),
+            }
+        )
+    dom_rows.sort(key=lambda r: (r["open_rate"], -r["sent"]))
+    print("\n=== Per-domain rollup -- Outlook recipients (worst -> best) ===")
+    print(
+        f"{'sender_domain':<28}  {'sent':>5} {'open':>5}  {'open%':>6}  "
+        f"{'reply':>5} {'reply%':>6}  {'bnc':>4}"
+    )
+    for r in dom_rows:
         print(
-            f"{r['mailbox_id']:>12}  {r['sent']:>5} {r['opened']:>6}  "
-            f"{r['open_rate'] * 100:>5.1f}%  {r['reply_rate'] * 100:>5.1f}%"
+            f"{r['sender_domain']:<28}  {r['sent']:>5} {r['opened']:>5}  "
+            f"{r['open_rate'] * 100:>5.1f}%  {r['replied']:>5} {r['reply_rate'] * 100:>5.1f}%  "
+            f"{r['leads_bounced']:>4}"
         )
 
     print(f"\nElapsed: {time.time() - started:.1f}s")
