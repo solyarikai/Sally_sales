@@ -19,22 +19,47 @@
 - Скорее всего — **Send mail as alias'ы** на одном primary `petr@prospectscrona.com` (единственный рабочий)
 - **Action: проверить admin.google.com → User → Send mail as настройки на 9 alias-доменах**
 
-### Сводная таблица здоровья всех 10 petr@ ящиков
+### Сводная таблица здоровья всех 24 ящиков (10 petr@ + 14 bhaskar)
 
-O365 deliverability измерено через eleonora@ на тех же доменах (proxy, т.к. petr@ заблокированы Workspace).
+petr@crona-* — Send mail as алиасы на едином Workspace-аккаунте `petr@prospectscrona.com`. Gmail-deliverability на 9 алиасах померен через `eleonora@` на тех же доменах (мирроред-аккаунты, общий FROM-домен и DNS).
 
-| # | Mailbox | Workspace | O365 Deliverability | Статус | Action |
-|---|---|---|---|---|---|
-| 1 | `petr@prospectscrona.com` | ✅ active | ✅ inbox | **Production-ready** | — |
-| 2 | `petr@crona-base.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
-| 3 | `petr@crona-flow.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
-| 4 | `petr@crona-force.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
-| 5 | `petr@segment-crona.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
-| 6 | `petr@cronaaiprospects.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
-| 7 | `petr@crona-stack.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
-| 8 | `petr@leads-crona.com` | ❌ blocked | ✅ inbox | Готов после фикса | Enable Mail service в admin.google.com |
-| 9 | `petr@cronaaipipeline.com` | ❌ blocked | ❌ 50% spam (O365) | Проблемный | Фикс Workspace + warmup 4-6 нед или замена домена |
-| 10 | `petr@crona-b2b.com` | ❌ blocked | ❌ 58% spam (O365) | Проблемный | Фикс Workspace + warmup 4-6 нед или замена домена |
+**Account Infra** — наличие записи в `Outreach: Internal → Accounts infra` (sheet `1MepWTwCGJX-fGQPkygQouF-hfL8WYV4DRAdmqI3DbDg`).
+
+| # | Mailbox | Тип / Owner | Account Infra | Gmail | O365 | Статус |
+|---|---|---|---|---|---|---|
+| 1 | `petr@prospectscrona.com` | Primary Workspace / Petr | ❌ нет в реестре | ✅ inbox | ✅ inbox | **Production-ready** |
+| 2 | `petr@crona-base.com` | Alias (#1) / Petr | ✅ Pavel (eleonora@) | ✅ inbox (proxy) | ✅ inbox | Алиас, FROM ок |
+| 3 | `petr@crona-flow.com` | Alias (#1) / Petr | ✅ Pavel (eleonora@) | ✅ inbox (proxy) | ✅ inbox | Алиас, FROM ок |
+| 4 | `petr@crona-force.com` | Alias (#1) / Petr | ✅ Pavel (eleonora@) | 🟡 promo (proxy) | ✅ inbox | Алиас, Gmail в promo |
+| 5 | `petr@segment-crona.com` | Alias (#1) / Petr | ✅ Pavel (eleonora@) | 🟡 promo (proxy) | ✅ inbox | Алиас, Gmail в promo |
+| 6 | `petr@leads-crona.com` | Alias (#1) / Petr | ❌ нет в реестре | 🟡 promo (proxy) | ✅ inbox | Алиас, Gmail в promo |
+| 7 | `petr@cronaaiprospects.com` | Alias (#1) / Petr | ✅ Pavel (eleonora@) | 🟡 promo (proxy) | ✅ inbox | Алиас, Gmail в promo |
+| 8 | `petr@crona-stack.com` | Alias (#1) / Petr | ✅ Pavel (eleonora@) | 🟡 promo (proxy) | ✅ inbox | Алиас, Gmail в promo |
+| 9 | `petr@crona-b2b.com` | Alias (#1) / Petr | ✅ Pavel (eleonora@) | ❌ spam (proxy) | ❌ 58% spam | **Проблемный FROM** |
+| 10 | `petr@cronaaipipeline.com` | Alias (#1) / Petr | ✅ Pavel (eleonora@) | ❌ spam (proxy) | ❌ 50% spam | **Проблемный FROM** |
+| 11 | `bhaskar@onsocial-platform.com` | Primary / — | ❌ нет в реестре | ✅ inbox | ✅ inbox | **Production-ready** |
+| 12 | `bhaskar.v@onsocial-platform.com` | Primary / — | ❌ нет в реестре | ✅ inbox | ✅ inbox | **Production-ready** |
+| 13 | `bhaskar@onsocial-network.com` | Primary / — | ❌ нет в реестре | ✅ inbox | ✅ inbox | **Production-ready** |
+| 14 | `bhaskar.v@onsocial-network.com` | Primary / — | ❌ нет в реестре | ✅ inbox | ✅ inbox | **Production-ready** |
+| 15 | `bhaskar@onsocial-metrics.com` | Primary / — | ❌ нет в реестре | ✅ inbox | ✅ inbox | **Production-ready** |
+| 16 | `bhaskar.v@onsocial-metrics.com` | Primary / — | ❌ нет в реестре | ✅ inbox | ✅ inbox | **Production-ready** |
+| 17 | `bhaskar@onsocial-data.com` | Primary / — | ❌ нет в реестре | ✅ inbox | ✅ inbox | **Production-ready** |
+| 18 | `bhaskar.v@onsocial-data.com` | Primary / — | ❌ нет в реестре | ✅ inbox | ✅ inbox | **Production-ready** |
+| 19 | `bhaskar@onsocial-analytics.com` | Primary / — | ❌ нет в реестре | ✅ 100% inbox | ❌ 100% spam | **Gmail-only** |
+| 20 | `bhaskar.v@onsocial-analytics.com` | Primary / — | ❌ нет в реестре | ✅ 100% inbox | ❌ 100% spam | **Gmail-only** |
+| 21 | `bhaskar@onsocial-influence.com` | Primary / — | ❌ нет в реестре | ✅ 100% inbox | ❌ 100% spam | **Gmail-only** |
+| 22 | `bhaskar.v@onsocial-influence.com` | Primary / — | ❌ нет в реестре | ✅ 100% inbox | ❌ 100% spam | **Gmail-only** |
+| 23 | `bhaskar@onsocial-insights.com` | Primary / — | ❌ нет в реестре | ✅ 100% inbox | ❌ 100% spam | **Gmail-only** |
+| 24 | `bhaskar.v@onsocial-insights.com` | Primary / — | ❌ нет в реестре | ✅ 100% inbox | ❌ 100% spam | **Gmail-only** |
+
+**Сводка по реальным sender-аккаунтам:**
+- 🟢 **Production-ready (9)**: 1 petr (`prospectscrona`) + 8 bhaskar
+- 🟡 **Gmail-only кандидаты (6)**: 6 bhaskar на 3 проблемных доменах (`onsocial-analytics/influence/insights`)
+- 🔵 **9 алиасов petr@** на едином аккаунте: 7 с приличным FROM, 2 (`crona-b2b`, `cronaaipipeline`) — спалённый FROM
+
+**Gaps в Accounts infra реестре:**
+- 16 bhaskar записей отсутствуют (вся инфра bhaskar не задокументирована)
+- 2 крона-домена не в реестре: `prospectscrona.com`, `leads-crona.com`
 
 ### 🟡 Bhaskar OnSocial — 3 проблемных домена
 - `onsocial-analytics.com`, `onsocial-influence.com`, `onsocial-insights.com`
