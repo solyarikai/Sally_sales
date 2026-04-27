@@ -480,6 +480,7 @@ DNS misconfiguration где-то.
 | **Deliverability ≥ 80%**  | Healthy. Mailbox в inbox у большинства провайдеров.                       |
 | **Deliverability 50-80%** | Borderline. Один провайдер режет, остальные принимают. Чаще всего Google. |
 | **Deliverability < 50%**  | Problematic. Ящик в спаме у >половины recipient'ов.                       |
+| **`has_category: true`**  | Categorized. Письмо в Gmail-вкладке (Promotions/Social/Updates), не Primary. Не spam, но почти как — почти никто не открывает. Чинится переработкой контента (картинки, ссылки, unsubscribe-блок, продвиженческие фразы). |
 | **0 records (silent)**    | Не отправил вообще. Либо paused, либо подменён, либо blacklist.           |
 
 
