@@ -503,8 +503,14 @@ pixels. 0% open при ненулевых replies = трекинг сломан,
 Без per-provider breakdown увидели бы просто 60% и 33% и не знали ГДЕ
 чинить. С breakdown'ом — Google reputation на двух доменах.
 
-Скрипты-образец: `magnum-opus/infra/instantly-onsocial-start-test.js` +
-`instantly-spam-report-onsocial.js`. Деплой на `hetzner:/home/leadokol/scripts/`.
+Скрипт-образец: `magnum-opus/infra/instantly-onsocial-monitor.js`
+(unified create+wait+report). Деплой на `hetzner:/home/leadokol/scripts/`.
+
+Старая legacy-версия двумя скриптами (`instantly-onsocial-start-test.js`
++ `instantly-spam-report-onsocial.js`) больше из cron не запускается —
+файлы остались в репо и на Hetzner для истории, но cron указывает на
+unified monitor. Если у других проектов ещё legacy-стиль — Промпт 3
+поддерживает оба.
 
 ---
 
