@@ -273,8 +273,9 @@
 
 5. Когда status=3: вытащи analytics постранично, отфильтруй по configured
    emails (foreign senders отметь отдельно), покажи мне:
-   - Сводку: total / Healthy (≥80%) / Problematic (<80%) / Silent (0 records)
-   - Per-sender таблицу с deliverability %
+   - Сводку: total / Healthy (≥80%) / Problematic (<80%) / Categorized
+     (has_category=true) / Silent (0 records)
+   - Per-sender таблицу с deliverability % + кол-вом categorized записей
    - Per-recipient breakdown по problematic (sender → recipient → esp /
      type / verdict)
 
