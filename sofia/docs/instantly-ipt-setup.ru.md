@@ -43,8 +43,7 @@
 - `<BODY_HTML>` — HTML body из той же кампании (одной строкой)
 
 ```text
-Прочитай sofia/docs/instantly-ipt-setup.ru.md — гайд по настройке Instantly
-IPT. Настрой автоматический IPT-мониторинг для проекта <PROJECT> по гайду:
+Настрой автоматический Instantly IPT-мониторинг для проекта <PROJECT>.
 
 Параметры:
 - Project name: <PROJECT>
@@ -53,35 +52,69 @@ IPT. Настрой автоматический IPT-мониторинг для
 - Email subject: <SUBJECT>
 - Email body (HTML): <BODY_HTML>
 
+Контекст (всё что нужно знать):
+
+- API base: https://api.instantly.ai/api/v2
+- Auth: `Authorization: Bearer $INSTANTLY_API_KEY` (env на Hetzner в
+  ~/magnum-opus-project/repo/.env). Если 401 — попробуй другой ключ из
+  существующих скриптов в magnum-opus/infra/instantly-spam-report.js.
+- Account status коды: 1=active, 2=paused, -1/-2/-3=errored.
+- POST /accounts/{email}/resume — body {} (обязательно непустой JSON).
+- POST /accounts/{email}/mark-fixed — body {}.
+- POST /inbox-placement-tests — body с полями name, type=1,
+  delivery_mode=1, sending_method=1, email_subject, email_body, emails,
+  recipients_labels (массив из 3 объектов: Google Professional, Google
+  Personal, Outlook Professional, regions North America US). Recipients
+  НЕ передавай — Instantly авто-сгенерит из labels.
+- GET /inbox-placement-tests/{id} — поле status: 1=active, 2=paused,
+  3=completed.
+- GET /inbox-placement-analytics?test_id=X&limit=100 — paginated через
+  next_starting_after. Записи: sender_email, recipient_email, is_spam,
+  recipient_esp (1=Google, 2=Outlook), recipient_type (1=Pro, 2=Personal).
+- DELETE /inbox-placement-tests/{id} — без Content-Type header (иначе
+  400 FST_ERR_CTP_EMPTY_JSON_BODY).
+- /workspace-billing/subscription-details — проверка биллинга, ищи
+  product_type=inbox_placement и all_subs_cancelled=false.
+
+Логика отчёта:
+- Бакеты per sender: Healthy (deliverability ≥ 80%) / Problematic (< 80%)
+  / Silent (0 records).
+- Deliverability = (1 - spam_count / total_count) * 100.
+- Фильтр analytics строго по configured `emails` из теста (Instantly
+  иногда подмешивает foreign senders из других тестов).
+
 Шаги:
 
-1. Проверь биллинг (subscription-details). Если product_type=inbox_placement
-   не активен — стоп, скажи мне.
+1. Проверь биллинг. Если product_type=inbox_placement не активен — стоп.
 
-2. Проверь статусы всех ящиков из списка. Активируй paused (resume),
+2. Проверь статусы всех ящиков из <SENDERS>. Активируй paused (resume),
    errored (mark-fixed только если уверен что коннекция ок — иначе спроси).
-   Если ящика нет в Instantly accounts — исключи из теста, скажи мне.
+   Отсутствующих в Instantly accounts исключи и скажи мне.
 
-3. Создай два скрипта по образцу OnSocial из magnum-opus/infra/:
-   - instantly-<project>-start-test.js (creator с recipients_labels на 3 ESP)
-   - instantly-spam-report-<project>.js (фильтр по configured emails, бакеты
-     Healthy/Problematic/Silent, отчёт в Slack)
+3. Создай два Node-скрипта по образцу OnSocial:
+   - magnum-opus/infra/instantly-<project>-start-test.js (creator с
+     recipients_labels на 3 ESP, payload как описано выше)
+   - magnum-opus/infra/instantly-spam-report-<project>.js (читает
+     latest completed test name="<PROJECT>*", аналитику фильтрует по
+     configured emails, формирует Slack-сообщение с тремя бакетами
+     Healthy/Problematic/Silent + per-recipient breakdown по problematic)
 
-4. Задеплой на Hetzner: /home/leadokol/scripts/
+4. Задеплой оба на Hetzner: scp в /home/leadokol/scripts/ (SSH alias
+   `hetzner`).
 
-5. Добавь cron-записи в crontab leadokol:
+5. Добавь две cron-записи в crontab leadokol:
    - 03:00 Tue/Fri → start-test
    - 06:00 Tue/Fri → spam-report
 
 6. Запусти start-test один раз для валидации, покажи мне test id.
 
-7. ScheduleWakeup на ~2 часа, после wakeup → проверь status, запусти
-   spam-report.js, покажи финальный отчёт.
+7. ScheduleWakeup на ~2 часа, после wakeup → проверь status. Когда
+   status=3 → запусти spam-report.js один раз, покажи финальный отчёт.
 
-8. Закоммить изменения в gitlab magnum-opus.
+8. Закоммить локальные изменения в git submodule magnum-opus.
 
-Если что-то требует деструктивного действия не из этого списка — стоп и
-спроси меня.
+Если что-то требует деструктивного действия не из этого списка — стоп
+и спроси меня.
 ```
 
 #### Где взять `<SLACK_WEBHOOK>`
