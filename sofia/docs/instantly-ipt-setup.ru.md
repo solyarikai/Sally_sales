@@ -465,7 +465,7 @@ pixels. 0% open при ненулевых replies = трекинг сломан,
 
 Тест 2026-04-27:
 
-- 27 senders (14 `bhaskar@onsocial-*.com`, 3 без дефиса, 10 `petr@crona-`*)
+- 27 senders (14 `bhaskar@onsocial-*.com`, 3 без дефиса, 10 `petr@crona-*.com`)
 - recipients_labels (3 ESP) → 22 авто-сгенерированных recipient inbox
 - Subject + body из боевой OnSocial-кампании
 - Cron 03:00/06:00 UTC Tue/Fri
