@@ -91,30 +91,38 @@ def upsert_all_to_mcp(
             print(f"    ... and {len(domains) - 10} more")
         return {"updated": 0, "inserted": 0}
 
-    # Step 1: UPDATE existing not-yet-blacklisted rows.
-    update_values = ",".join(f"('{_esc(d)}', '{_esc(c)}')" for d, c in domains.items())
-    update_sql = (
-        "UPDATE discovered_companies dc "
-        "SET is_blacklisted = TRUE, "
-        "    blacklist_reason = 'smartlead_existing_contact:' || v.campaign, "
-        "    updated_at = NOW() "
-        f"FROM (VALUES {update_values}) AS v(domain, campaign) "
-        f"WHERE dc.project_id = {project_id} "
-        "  AND LOWER(dc.domain) = LOWER(v.domain) "
-        "  AND dc.is_blacklisted = FALSE "
-        "RETURNING dc.domain;"
-    )
-    upd = _psql("mcp", update_sql, timeout=600)
-    if upd.returncode != 0:
-        raise RuntimeError(f"UPDATE failed: {upd.stderr.strip()[:500]}")
-    updated = [ln.strip() for ln in upd.stdout.splitlines() if ln.strip()]
-
-    # Step 2: INSERT hollow rows for unknown domains in BATCHES (avoid huge SQL).
     BATCH = 500
     items = list(domains.items())
+    updated_total = 0
     inserted_total = 0
+    n_batches = (len(items) + BATCH - 1) // BATCH
+
     for i in range(0, len(items), BATCH):
         chunk = items[i : i + BATCH]
+        bnum = i // BATCH + 1
+
+        # Step 1: UPDATE existing not-yet-blacklisted rows in this chunk.
+        update_values = ",".join(f"('{_esc(d)}', '{_esc(c)}')" for d, c in chunk)
+        update_sql = (
+            "UPDATE discovered_companies dc "
+            "SET is_blacklisted = TRUE, "
+            "    blacklist_reason = 'smartlead_existing_contact:' || v.campaign, "
+            "    updated_at = NOW() "
+            f"FROM (VALUES {update_values}) AS v(domain, campaign) "
+            f"WHERE dc.project_id = {project_id} "
+            "  AND LOWER(dc.domain) = LOWER(v.domain) "
+            "  AND dc.is_blacklisted = FALSE "
+            "RETURNING dc.domain;"
+        )
+        upd = _psql("mcp", update_sql, timeout=600)
+        if upd.returncode != 0:
+            raise RuntimeError(
+                f"UPDATE failed at batch {bnum}: {upd.stderr.strip()[:500]}"
+            )
+        chunk_updated = [ln.strip() for ln in upd.stdout.splitlines() if ln.strip()]
+        updated_total += len(chunk_updated)
+
+        # Step 2: INSERT hollow rows for unknown domains in this chunk.
         insert_values = ",".join(
             f"({project_id}, {company_id}, '{_esc(d)}', TRUE, "
             f"'smartlead_existing_contact:{_esc(c)}', NOW(), NOW())"
@@ -131,13 +139,16 @@ def upsert_all_to_mcp(
         ins = _psql("mcp", insert_sql, timeout=600)
         if ins.returncode != 0:
             raise RuntimeError(
-                f"INSERT failed at batch {i}: {ins.stderr.strip()[:500]}"
+                f"INSERT failed at batch {bnum}: {ins.stderr.strip()[:500]}"
             )
         chunk_inserted = [ln.strip() for ln in ins.stdout.splitlines() if ln.strip()]
         inserted_total += len(chunk_inserted)
-        print(f"  batch {i // BATCH + 1}: +{len(chunk_inserted)} inserted")
+        print(
+            f"  batch {bnum}/{n_batches}: +{len(chunk_updated)} updated, "
+            f"+{len(chunk_inserted)} inserted"
+        )
 
-    return {"updated": len(updated), "inserted": inserted_total}
+    return {"updated": updated_total, "inserted": inserted_total}
 
 
 def main() -> int:
