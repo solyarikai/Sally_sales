@@ -9,15 +9,40 @@
 
 ---
 
-## Что меняется vs v1
+## Что говорит SmartLead v5 data (источник переработки)
 
-| Шаг | v1 | v2 | Зачем |
+Кампания `c-OnSocial_IMAGENCY_TECHLEAD` (id: 3169092), окно 2026-03-01 → 04-28:
+
+| Step | Sent | Reply | Positive | Что внутри |
+|------|------|-------|----------|------------|
+| 1 (Day 0)  | 182 | 4 | **2** (~1.1%) | qualifier `"what API are you calling today?"` + pitch + 15-min CTA |
+| 2 (Day +3) | 131 | 1 | **0** | handle-JSON trick |
+| 3 (Day +6) | 78  | 1 | **0** | specs compare (freshness/depth) + route-to-DM |
+
+**Вывод**: только Step 1 даёт positive. Step 2/3 email — мёртвые. Перетаскивать их в LI «как было» = повторить мёртвую гипотезу. **Нужно использовать рабочее ядро Step 1 + переизобрести follow-up под LI**.
+
+Что забираем из v5:
+- **Qualifier-фраза Step 1**: `"when {{company_name}}'s team needs creator data, what API are you calling today?"` — это Pattern A в полупрятанном виде. Извлекаем в opener.
+- **Handle-trick из Step 2** (не сработал в email, но в LI контекст принципиально другой): после accept'a TECHLEAD проявил активный интерес, attention высокая → hook работает иначе.
+- **Custom field `{{custom2}}`** = social_proof (e.g. "HypeAuditor, Modash, Captiv8") — переносим как `{{cf_competitor_client}}`.
+- **`{{first_name}}` + `{{company_name}}`** — те же variables.
+
+Что НЕ копируем:
+- 15-min call CTA из Step 1 (email-CTA не работает в LI connect note из-за char-limit и tone).
+- Длинный pitch абзац (450M / 9 years / specs) — в LI это идёт после accept'a, не в opener.
+- Email Step 3 закрытие (`"last note"` + route) — оставляем форму, но смягчаем тон под LI.
+
+---
+
+## Что меняется vs v1 LI draft
+
+| Шаг | v1 LI | v2 LI | Зачем |
 |-----|----|----|-------|
-| Connect note | 200 chars, описание продукта + soft вопрос | **Pattern A**: 1 строка, 1 yes/no qualifier, без описания продукта | EasyStaff/SquareFi data: 1-line qualifier > opener-pitch. Меньше signal of automation. |
-| Step 2 (DM after accept) | ~600 chars, длинный pitch с handle-hook в конце | **Hook-first**: handle-JSON trick в первых 2 строках, контекст в одну строку | Engineer reads first 3 lines. Если hook там — поймает. |
-| Step 3 | "Stitching Modash/Phyllo/HypeAuditor" comparison | **Pattern C**: 1-line product + IMAGENCY-specific case (1 number) | IMAGENCY редко stitch'ат API — обычно 1 vendor (Modash/CreatorIQ). Comparison нужен против одной тулзы, не trio. |
-| Step 4 | Route-to-DM close-out | Без изменений (формат рабочий) | OK. |
-| Step 5 | — | **+30 day re-touch** опциональный, "checking back in" | Long sales cycle для tech-аудитории. Дёшево по credit, дорого если упустить. |
+| Connect note | 200 chars, описание продукта + soft вопрос | **Pattern A**: 1 строка, qualifier из v5 Step 1, без описания продукта | EasyStaff/SquareFi data + v5 Step 1 — qualifier reading > opener-pitch. |
+| Step 2 (after accept) | ~600 chars, длинный pitch с handle-hook в конце | **Hook-first compact**: handle-JSON trick в первых 2 строках (формулировка из v5 Step 2), pitch одной строкой | Engineer reads first 3 lines. v5 формулировка `"easier to show than tell - drop a handle"` уже отшлифована. |
+| Step 3 | "Stitching Modash/Phyllo/HypeAuditor" comparison | **Pattern C**: одна цифра на одну агентство (60% saving), сравнение **против одной тулзы**, не trio | IMAGENCY редко stitch'ат API — обычно 1 vendor (Modash/CreatorIQ). |
+| Step 4 | Hard "last note" + route | **Soft route с reverse-psych** ("no follow-up unless you'd like one") | EasyStaff Day +N pattern. v5 hard "last note" в email не дал positive. |
+| Step 5 | — | **+30 day re-touch** опциональный | Long sales cycle, дешёвый второй шанс. |
 
 ---
 
