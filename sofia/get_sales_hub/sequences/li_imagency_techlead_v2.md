@@ -109,19 +109,21 @@ Hi {{first_name}}, does {{company_name}}'s team pull creator data from vendor AP
 
 ---
 
-## Step 2 — Day +1 after accept (DM) — **Hook-first** (v5 Step 2 formulation)
+## Step 2 — Day +1 after accept (DM) — **Hook-first + migration anti-bias**
 
 ```
 Thanks for the connect, {{first_name}}. Easier to show than tell.
 
-Drop any creator handle in reply and I'll send back raw JSON from our endpoint: audience demographics down to city, fraud breakdown by type, engagement depth, 24-48h refresh.
+Drop any creator handle in reply and I'll send back raw JSON from our endpoint: audience demographics down to city, fraud breakdown by type, engagement depth, 24-48h refresh. Sandbox key on request, no call needed.
 
 Context: OnSocial = creator data API, 450M+ profiles across IG / TikTok / YouTube, 9 years in production. Teams like {{cf_competitor_client}} moved to us for one endpoint instead of stitching multiple APIs.
 
-If the JSON beats what {{company_name}} is calling today, worth a chat. If not, you have a benchmark.
+On integration side - schema mirrors what most creator-data APIs already return (Modash, HypeAuditor, Phyllo). Swap is mostly field-level, not architectural.
+
+If the JSON beats what {{company_name}} is calling today, worth a chat. If not, you've got a benchmark.
 ```
 
-**Char count**: ~575.
+**Char count**: ~750.
 
 **Logic**: формулировка `"Easier to show than tell. Drop any creator handle in reply..."` — буквально из v5 Step 2 (который не сработал в email). В LI после accept'а контекст принципиально другой — engineer открыл DM сам, attention свежая. Same hook, new channel, valid гипотеза для smoke.
 
