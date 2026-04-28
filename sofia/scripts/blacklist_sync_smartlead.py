@@ -223,13 +223,14 @@ def _passes_since(row: dict, since: datetime | None) -> bool:
 
 def collect_negative_domains(
     api_key: str,
+    campaign_prefix: str,
     since: datetime | None,
     skip_unsubscribed: bool = False,
 ) -> dict[str, BlacklistEntry]:
     """Returns dict[domain -> BlacklistEntry], deduped by domain."""
     domains: dict[str, BlacklistEntry] = {}
-    campaigns = list_onsocial_campaigns(api_key)
-    print(f"OnSocial campaigns to scan: {len(campaigns)}")
+    campaigns = list_project_campaigns(api_key, campaign_prefix)
+    print(f"Campaigns matching prefix {campaign_prefix!r}: {len(campaigns)}")
     for camp in campaigns:
         camp_id = camp["id"]
         camp_name = camp.get("name", f"#{camp_id}")
