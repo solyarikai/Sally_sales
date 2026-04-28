@@ -125,9 +125,38 @@ Whitelist `_OWN_DOMAINS` общий для всех (наши собственн
 
 ## Что осталось (не блокирует)
 
-1. **Косметика — sync `project_blacklist` → `OS | Ops | Blacklist` (Exclusion Lists sheet).** БД уже правильная, sheet используется как просмотр. Можно повесить второй cron, который раз в день экспортирует. Полчаса работы.
-2. **Удалить дохлый `leads_to_blacklist_sync.gs`** или переименовать в `_deprecated_*` с комментарием. Минута.
-3. **Обобщение под все проекты.** Сейчас project_id и префикс зашиты. Если хотим — принимать `--project` argument с маппингом.
+### Сделано follow-up'ом (2026-04-28, evening)
+
+1. ✅ **Дохлый Apps Script переименован.** `sofia/scripts/leads_to_blacklist_sync.gs` → `sofia/scripts/_deprecated_leads_to_blacklist_sync.gs` с комментарием в шапке (почему не работал, чем заменён). Префикс `_deprecated_` гарантирует что Apps Script trigger его уже не подхватит. Если в Google Apps Script consoles остался активный trigger — снять руками: https://script.google.com/home/triggers.
+
+2. ✅ **Скрипт обобщён под `--project`.** `blacklist_sync_smartlead.py` теперь принимает:
+   - `--project onsocial` (default, registry с project_id=42 и префиксом `c-OnSocial_`)
+   - `--project-id N --campaign-prefix s-Foo_` для ad-hoc проектов вне registry
+   
+   Backwards-compatible: cron на Hetzner (без `--project`) продолжает работать с OnSocial. Чтобы добавить новый проект — extend `PROJECT_REGISTRY` в начале файла.
+
+3. ✅ **Sheet-sync скрипт написан** — `sofia/scripts/blacklist_export_to_sheet.py`. Делает: читает `project_blacklist` из БД → пишет в новую вкладку `Mirror — project_blacklist (auto)` в `OS | Ops | Blacklist`. Существующие вкладки (`Exclusion Lists`, `Blacklist from onsocial`) **не трогает**. Schema: `Domain | Source | Reason | Created At | Project ID`. Полный overwrite на каждом запуске.
+
+### Заблокировано
+
+4. ⛔ **Cron для sheet-sync — заблокирован отсутствием Google Sheets OAuth token на Hetzner.** Скрипт ищет `token.json` по тем же путям что `bace/pipeline.py` (`~/.claude/google-sheets/`, `sofia/.google-sheets/`, etc) — на Hetzner ни одного нет. Что нужно перед деплоем cron:
+   - Сгенерировать OAuth user-token локально (либо переиспользовать MCP-токен из `~/.claude/mcp/google-sheets/token.json` если есть)
+   - SCP на Hetzner: `scp token.json hetzner:~/magnum-opus-project/repo/sofia/.google-sheets/token.json`
+   - Проверить: `ssh hetzner "cd magnum-opus-project/repo && python3 scripts/sofia/blacklist_export_to_sheet.py --dry-run"` (dry-run даже без токена покажет сколько строк в БД)
+   - После проверки добавить cron строкой ниже.
+   
+   Запасной вариант: запускать локально руками раз в неделю (`python3 sofia/scripts/blacklist_export_to_sheet.py`), пока авторизованный Mac доступен.
+
+5. **Обобщение под все проекты — частично сделано.** Registry готов, но добавлен только `onsocial`. Когда понадобится Mosta / SquareFi / Palark — дописать одну строку в `PROJECT_REGISTRY`.
+
+### Cron для sheet-sync (когда токен будет)
+
+```cron
+# Daily project_blacklist -> OS | Ops | Blacklist mirror tab (OnSocial)
+30 3 * * * cd /home/leadokol/magnum-opus-project/repo && python3 scripts/sofia/blacklist_export_to_sheet.py >> /home/leadokol/logs/blacklist_sheet_sync.log 2>&1
+```
+
+03:30 UTC — через 30 минут после `blacklist_sync_smartlead.py` (03:00), чтобы новые `smartlead_negative` записи уже попали в зеркало.
 
 ---
 
