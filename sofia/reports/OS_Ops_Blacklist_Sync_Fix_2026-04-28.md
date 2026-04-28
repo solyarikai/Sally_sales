@@ -163,6 +163,10 @@ Whitelist `_OWN_DOMAINS` общий для всех (наши собственн
 ## Files
 
 - `sofia/scripts/blacklist_sync_smartlead.py` — основной скрипт (на Hetzner: `magnum-opus-project/repo/scripts/sofia/`)
+- `sofia/scripts/blacklist_export_to_sheet.py` — DB → Sheets mirror (готов, не задеплоен — нужен `token.json` на Hetzner)
+- `sofia/scripts/_deprecated_leads_to_blacklist_sync.gs` — старый Apps Script, deprecated с шапкой-объяснением
 - `sofia/reports/OS_Ops_Blacklist_Sync_Fix_2026-04-28.md` — этот отчёт
-- Cron entry: `crontab -l | grep blacklist_sync`
-- Лог: `hetzner:~/logs/blacklist_sync.log`
+- Cron entry (active): `crontab -l | grep blacklist_sync`
+- Cron entry (pending sheet-sync): см. секцию выше
+- Лог (sync): `hetzner:~/logs/blacklist_sync.log`
+- Лог (sheet-sync, когда задеплоят): `hetzner:~/logs/blacklist_sheet_sync.log`
