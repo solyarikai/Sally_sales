@@ -380,8 +380,48 @@ def parse_since(value: str | None) -> datetime | None:
     return datetime.now(timezone.utc) - delta
 
 
+def resolve_project(args) -> tuple[str, int, str]:
+    """Resolve (display_name, project_id, campaign_prefix) from CLI args.
+
+    Precedence:
+      1. --project-id + --campaign-prefix (ad-hoc override)
+      2. --project <name> via PROJECT_REGISTRY
+      3. default 'onsocial'
+    """
+    if args.project_id is not None or args.campaign_prefix is not None:
+        if args.project_id is None or not args.campaign_prefix:
+            raise SystemExit(
+                "Pass --project-id and --campaign-prefix together (or use --project)."
+            )
+        return (f"id={args.project_id}", args.project_id, args.campaign_prefix)
+
+    name = (args.project or "onsocial").lower()
+    if name not in PROJECT_REGISTRY:
+        known = ", ".join(sorted(PROJECT_REGISTRY))
+        raise SystemExit(f"Unknown --project {name!r}. Known: {known}.")
+    pid, prefix = PROJECT_REGISTRY[name]
+    return (name, pid, prefix)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--project",
+        default=None,
+        help=f"Project name from registry. Known: {', '.join(sorted(PROJECT_REGISTRY))}. "
+        "Default: onsocial.",
+    )
+    parser.add_argument(
+        "--project-id",
+        type=int,
+        default=None,
+        help="Override project_id (use with --campaign-prefix for ad-hoc projects).",
+    )
+    parser.add_argument(
+        "--campaign-prefix",
+        default=None,
+        help="Override SmartLead campaign-name prefix (use with --project-id).",
+    )
     parser.add_argument(
         "--since",
         default=None,
@@ -390,7 +430,7 @@ def main() -> int:
     parser.add_argument(
         "--backfill",
         action="store_true",
-        help="One-shot full sweep across all OnSocial campaigns.",
+        help="One-shot full sweep across all matching campaigns.",
     )
     parser.add_argument(
         "--dry-run",
@@ -413,6 +453,11 @@ def main() -> int:
     if args.backfill and args.since:
         raise SystemExit("Use either --backfill or --since, not both.")
 
+    project_name, project_id, campaign_prefix = resolve_project(args)
+    print(
+        f"Project: {project_name} (project_id={project_id}, prefix={campaign_prefix!r})"
+    )
+
     since = None if args.backfill else parse_since(args.since)
     if since:
         print(f"Mode: incremental, since {since.isoformat()}")
@@ -421,14 +466,12 @@ def main() -> int:
 
     api_key = load_api_key()
     collected = collect_negative_domains(
-        api_key, since, skip_unsubscribed=args.skip_unsubscribed
+        api_key, campaign_prefix, since, skip_unsubscribed=args.skip_unsubscribed
     )
     print(f"\nUnique negative domains collected: {len(collected)}")
 
-    existing = existing_blacklisted_domains()
-    print(
-        f"Already in project_blacklist (project {ONSOCIAL_PROJECT_ID}): {len(existing)}"
-    )
+    existing = existing_blacklisted_domains(project_id)
+    print(f"Already in project_blacklist (project {project_id}): {len(existing)}")
 
     new_entries = [e for d, e in collected.items() if d not in existing]
     print(f"New domains to insert: {len(new_entries)}")
@@ -442,7 +485,7 @@ def main() -> int:
         )
         print(f"  wrote {args.export_json}")
 
-    inserted = insert_new_entries(new_entries, dry_run=args.dry_run)
+    inserted = insert_new_entries(new_entries, project_id, dry_run=args.dry_run)
     if not args.dry_run:
         print(f"\nInserted: {inserted} (idempotent — duplicates skipped)")
     return 0
