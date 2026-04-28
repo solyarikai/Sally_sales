@@ -328,12 +328,12 @@ async def main(sample_per_campaign: int | None) -> None:
         elif st in {"INPROGRESS", "IN_PROGRESS"}:
             c["leads_inprogress"] += 1
 
-    # Output: TSV per (mailbox_email, esp)
+    # Output: TSV per (sender_email, esp)
     out_rows = []
     for (mb_email, esp), c in cell.items():
-        sent = c["sent"]
-        oprate = (c["opened"] / sent) if sent else 0.0
-        rrate = (c["replied"] / sent) if sent else 0.0
+        n = c["leads"]
+        rrate = (c["leads_replied"] / n) if n else 0.0
+        brate = (c["leads_bounced"] / n) if n else 0.0
         sender_domain = mb_email.split("@", 1)[-1] if "@" in mb_email else mb_email
         out_rows.append(
             {
@@ -341,12 +341,14 @@ async def main(sample_per_campaign: int | None) -> None:
                 "sender_domain": sender_domain,
                 "mailbox_id": BHASKAR_POOL.get(mb_email, ""),
                 "recipient_esp": esp,
-                "sent": sent,
-                "opened": c["opened"],
-                "replied": c["replied"],
+                "leads": n,
+                "leads_replied": c["leads_replied"],
                 "leads_bounced": c["leads_bounced"],
-                "open_rate": round(oprate, 4),
+                "leads_completed": c["leads_completed"],
+                "leads_inprogress": c["leads_inprogress"],
+                "sends_total": c["sends_total"],
                 "reply_rate": round(rrate, 4),
+                "bounce_rate": round(brate, 4),
                 "in_bhaskar_pool": mb_email in BHASKAR_POOL,
             }
         )
@@ -368,7 +370,7 @@ async def main(sample_per_campaign: int | None) -> None:
     with open(json_path, "w") as f:
         json.dump(
             {
-                "leads_total": len(leads),
+                "leads_total": len(leads_raw),
                 "domains_total": len(domains),
                 "esp_domain_counts": dict(counts),
                 "rows": out_rows,
@@ -380,64 +382,104 @@ async def main(sample_per_campaign: int | None) -> None:
     def _print_table(title: str, rows: list[dict]):
         print(f"\n=== {title} ===")
         print(
-            f"{'sender':<42}  {'sent':>5} {'open':>5}  {'open%':>6}  "
-            f"{'reply':>5} {'reply%':>6}  {'bnc':>4}"
+            f"{'sender':<42}  {'leads':>5} {'reply':>5}  {'reply%':>6}  "
+            f"{'bnc':>3} {'bnc%':>5}  {'compl':>5}"
         )
         for r in rows:
             print(
                 f"{r['sender_email']:<42}  "
-                f"{r['sent']:>5} {r['opened']:>5}  {r['open_rate'] * 100:>5.1f}%  "
-                f"{r['replied']:>5} {r['reply_rate'] * 100:>5.1f}%  "
-                f"{r['leads_bounced']:>4}"
+                f"{r['leads']:>5} {r['leads_replied']:>5}  "
+                f"{r['reply_rate'] * 100:>5.1f}%  "
+                f"{r['leads_bounced']:>3} {r['bounce_rate'] * 100:>4.1f}%  "
+                f"{r['leads_completed']:>5}"
             )
 
     bh_outlook = [
         r for r in out_rows if r["in_bhaskar_pool"] and r["recipient_esp"] == "outlook"
     ]
-    bh_outlook.sort(key=lambda r: (r["open_rate"], -r["sent"]))
+    bh_outlook.sort(key=lambda r: (r["reply_rate"], r["bounce_rate"] * -1, -r["leads"]))
     _print_table("Bhaskar mailboxes -- Outlook recipients (worst -> best)", bh_outlook)
 
     bh_gmail = [
         r for r in out_rows if r["in_bhaskar_pool"] and r["recipient_esp"] == "gmail"
     ]
-    bh_gmail.sort(key=lambda r: (r["open_rate"], -r["sent"]))
+    bh_gmail.sort(key=lambda r: (r["reply_rate"], r["bounce_rate"] * -1, -r["leads"]))
     _print_table("Bhaskar mailboxes -- Gmail baseline (worst -> best)", bh_gmail)
 
-    # Per-domain rollup (3 mailboxes per domain × 2 personas = data point)
-    dom = defaultdict(lambda: {"sent": 0, "opened": 0, "replied": 0, "bounced": 0})
-    for r in out_rows:
-        if not r["in_bhaskar_pool"] or r["recipient_esp"] != "outlook":
-            continue
-        d = dom[r["sender_domain"]]
-        d["sent"] += r["sent"]
-        d["opened"] += r["opened"]
-        d["replied"] += r["replied"]
-        d["bounced"] += r["leads_bounced"]
-    dom_rows = []
-    for sender_domain, c in dom.items():
-        sent = c["sent"]
-        dom_rows.append(
-            {
-                "sender_domain": sender_domain,
-                "sent": sent,
-                "opened": c["opened"],
-                "replied": c["replied"],
-                "leads_bounced": c["bounced"],
-                "open_rate": round((c["opened"] / sent) if sent else 0.0, 4),
-                "reply_rate": round((c["replied"] / sent) if sent else 0.0, 4),
-            }
+    # Per-domain rollup
+    def _rollup(esp: str) -> list[dict]:
+        dom = defaultdict(
+            lambda: {"leads": 0, "replied": 0, "bounced": 0, "completed": 0}
         )
-    dom_rows.sort(key=lambda r: (r["open_rate"], -r["sent"]))
-    print("\n=== Per-domain rollup -- Outlook recipients (worst -> best) ===")
-    print(
-        f"{'sender_domain':<28}  {'sent':>5} {'open':>5}  {'open%':>6}  "
-        f"{'reply':>5} {'reply%':>6}  {'bnc':>4}"
-    )
-    for r in dom_rows:
+        for r in out_rows:
+            if not r["in_bhaskar_pool"] or r["recipient_esp"] != esp:
+                continue
+            d = dom[r["sender_domain"]]
+            d["leads"] += r["leads"]
+            d["replied"] += r["leads_replied"]
+            d["bounced"] += r["leads_bounced"]
+            d["completed"] += r["leads_completed"]
+        rows = []
+        for sender_domain, c in dom.items():
+            n = c["leads"]
+            rows.append(
+                {
+                    "sender_domain": sender_domain,
+                    "leads": n,
+                    "replied": c["replied"],
+                    "bounced": c["bounced"],
+                    "completed": c["completed"],
+                    "reply_rate": round((c["replied"] / n) if n else 0.0, 4),
+                    "bounce_rate": round((c["bounced"] / n) if n else 0.0, 4),
+                }
+            )
+        rows.sort(key=lambda r: (r["reply_rate"], -r["leads"]))
+        return rows
+
+    for esp in ("outlook", "gmail"):
         print(
-            f"{r['sender_domain']:<28}  {r['sent']:>5} {r['opened']:>5}  "
-            f"{r['open_rate'] * 100:>5.1f}%  {r['replied']:>5} {r['reply_rate'] * 100:>5.1f}%  "
-            f"{r['leads_bounced']:>4}"
+            f"\n=== Per-domain rollup -- {esp.upper()} recipients (worst -> best) ==="
+        )
+        print(
+            f"{'sender_domain':<28}  {'leads':>5} {'reply':>5}  {'reply%':>6}  "
+            f"{'bnc':>3} {'bnc%':>5}  {'compl':>5}"
+        )
+        for r in _rollup(esp):
+            print(
+                f"{r['sender_domain']:<28}  "
+                f"{r['leads']:>5} {r['replied']:>5}  "
+                f"{r['reply_rate'] * 100:>5.1f}%  "
+                f"{r['bounced']:>3} {r['bounce_rate'] * 100:>4.1f}%  "
+                f"{r['completed']:>5}"
+            )
+
+    # Aggregate Outlook vs Gmail at pool level
+    def _pool_total(esp: str):
+        n = sum(
+            r["leads"]
+            for r in out_rows
+            if r["in_bhaskar_pool"] and r["recipient_esp"] == esp
+        )
+        rep = sum(
+            r["leads_replied"]
+            for r in out_rows
+            if r["in_bhaskar_pool"] and r["recipient_esp"] == esp
+        )
+        bnc = sum(
+            r["leads_bounced"]
+            for r in out_rows
+            if r["in_bhaskar_pool"] and r["recipient_esp"] == esp
+        )
+        return n, rep, bnc
+
+    print("\n=== Pool aggregate (all 17 bhaskar mailboxes) ===")
+    for esp in ("outlook", "gmail", "other"):
+        n, rep, bnc = _pool_total(esp)
+        if not n:
+            continue
+        print(
+            f"  {esp:<8} leads={n:>5}  reply={rep:>4} ({rep / n * 100:>5.2f}%)  "
+            f"bounce={bnc:>3} ({bnc / n * 100:>4.2f}%)"
         )
 
     print(f"\nElapsed: {time.time() - started:.1f}s")
