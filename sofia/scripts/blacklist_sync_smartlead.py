@@ -116,7 +116,7 @@ def get_campaign_total_leads(
     return len(data) if isinstance(data, list) else 0
 
 
-def list_onsocial_campaigns(api_key: str) -> list[dict]:
+def list_project_campaigns(api_key: str, campaign_prefix: str) -> list[dict]:
     data = smartlead_get("/campaigns", api_key)
     if isinstance(data, dict):
         data = data.get("campaigns") or data.get("data") or []
