@@ -117,9 +117,28 @@ WHERE project_id=42 AND domain IN ('hype-lab.co.uk','rosasagency.com');
 
 ## Scope
 
-**Только OnSocial** (`project_id=42`, кампании `c-OnSocial_*`). Mosta / SquareFi / Palark / другие проекты не затронуты — у них свои pipelines и им нужны свои blacklist-syncs, если такая дыра существует и там.
+**Только OnSocial** (`project_id=42` в leadgen / `project_id=438` в mcp_leadgen, кампании `c-OnSocial_*`). Mosta / SquareFi / Palark / другие проекты не затронуты — у них свои pipelines и им нужны свои blacklist-syncs, если такая дыра существует и там.
 
 Whitelist `_OWN_DOMAINS` общий для всех (наши собственные домены, чтобы не самозаблеклистились на test-forward).
+
+## Two-blacklist architecture (discovered 2026-04-28 evening)
+
+В системе **две независимых blacklist-БД**, обе живут на Hetzner в разных контейнерах:
+
+| | Blacklist A — pipeline | Blacklist B — MCP (gtm-mcp.com) |
+|---|---|---|
+| Контейнер | `leadgen-postgres` | `mcp-postgres` |
+| Database | `leadgen` | `mcp_leadgen` |
+| Таблица | `project_blacklist` (project_id, domain, source, reason) | `discovered_companies.is_blacklisted` (bool) + `blacklist_reason` (text) |
+| OnSocial project_id | `42` | `438` (company_id=199) |
+| Кто читает | `bace/pipeline.py`, `onsocial_universal_pipeline.py` → `_filter_project_blacklist()` | `mcp/backend/.../gathering_service.py:217 blacklist_check()` |
+
+Скрипт пишет в обе через `--target both` (default), один cron, один проход по SmartLead API. Каждая база пишется через свой `docker exec`-вызов. Per-project семантика MCP сохранена: пишем только в project 438 (не размазываем на чужих MCP-юзеров с тестовыми проектами OnSocial).
+
+**Backfill результат для MCP** (запуск 2026-04-28 17:06 UTC):
+- Уже было `is_blacklisted=true` в project 438: 305
+- После backfill: 349 (+44)
+- Hype Lab + Rosas обновлены: `is_blacklisted=true`, `blacklist_reason='smartlead_negative:smartlead category 4 (Do Not Contact)'`
 
 ---
 
