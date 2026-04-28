@@ -555,15 +555,35 @@ def main() -> int:
         help="Skip the expensive unsubscribed sweep (no server-side filter). "
         "Use for daily incremental runs; backfill should keep it on.",
     )
+    parser.add_argument(
+        "--target",
+        choices=["main", "mcp", "both"],
+        default="both",
+        help="Where to write blacklist updates. "
+        "'main' = leadgen-postgres / project_blacklist (used by bace pipeline). "
+        "'mcp' = mcp-postgres / discovered_companies.is_blacklisted (used by gtm-mcp.com). "
+        "'both' = write to both (default).",
+    )
     args = parser.parse_args()
 
     if args.backfill and args.since:
         raise SystemExit("Use either --backfill or --since, not both.")
 
-    project_name, project_id, campaign_prefix = resolve_project(args)
+    project_name, target_cfg, campaign_prefix = resolve_project(args)
     print(
-        f"Project: {project_name} (project_id={project_id}, prefix={campaign_prefix!r})"
+        f"Project: {project_name} (prefix={campaign_prefix!r}, targets={list(target_cfg)})"
     )
+
+    targets_requested = ["main", "mcp"] if args.target == "both" else [args.target]
+    targets_to_run = [t for t in targets_requested if t in target_cfg]
+    skipped = [t for t in targets_requested if t not in target_cfg]
+    if skipped:
+        print(f"  ! skipping target(s) with no registry entry: {skipped}")
+    if not targets_to_run:
+        raise SystemExit(
+            f"No usable targets for project {project_name}. Want: {targets_requested}, "
+            f"have: {list(target_cfg)}"
+        )
 
     since = None if args.backfill else parse_since(args.since)
     if since:
@@ -577,24 +597,49 @@ def main() -> int:
     )
     print(f"\nUnique negative domains collected: {len(collected)}")
 
-    existing = existing_blacklisted_domains(project_id)
-    print(f"Already in project_blacklist (project {project_id}): {len(existing)}")
-
-    new_entries = [e for d, e in collected.items() if d not in existing]
-    print(f"New domains to insert: {len(new_entries)}")
-
-    if args.export_json and new_entries:
+    if args.export_json and collected:
         Path(args.export_json).write_text(
             json.dumps(
-                [{"domain": e.domain, "reason": e.reason} for e in new_entries],
+                [{"domain": d, "reason": e.reason} for d, e in collected.items()],
                 indent=2,
             )
         )
         print(f"  wrote {args.export_json}")
 
-    inserted = insert_new_entries(new_entries, project_id, dry_run=args.dry_run)
-    if not args.dry_run:
-        print(f"\nInserted: {inserted} (idempotent — duplicates skipped)")
+    summary: list[str] = []
+
+    if "main" in targets_to_run:
+        main_pid = target_cfg["main"]["project_id"]
+        existing = existing_blacklisted_domains_main(main_pid)
+        print(
+            f"\n[main] Already in project_blacklist (project {main_pid}): {len(existing)}"
+        )
+        new_entries = [e for d, e in collected.items() if d not in existing]
+        print(f"[main] New domains to insert: {len(new_entries)}")
+        inserted = insert_new_entries_main(new_entries, main_pid, dry_run=args.dry_run)
+        if not args.dry_run:
+            summary.append(f"main: inserted {inserted}")
+
+    if "mcp" in targets_to_run:
+        mcp_cfg = target_cfg["mcp"]
+        mcp_pid = mcp_cfg["project_id"]
+        mcp_cid = mcp_cfg["company_id"]
+        existing = existing_blacklisted_domains_mcp(mcp_pid)
+        print(
+            f"\n[mcp] Already blacklisted in discovered_companies (project {mcp_pid}): {len(existing)}"
+        )
+        # We pass ALL collected domains (not just "new"): UPDATE handles dedup,
+        # INSERT uses ON CONFLICT DO NOTHING. Idempotent.
+        candidates = [e for d, e in collected.items() if d not in existing]
+        print(f"[mcp] Candidate domains for update/insert: {len(candidates)}")
+        result = upsert_mcp_entries(candidates, mcp_pid, mcp_cid, dry_run=args.dry_run)
+        if not args.dry_run:
+            summary.append(
+                f"mcp: updated {result['updated']}, inserted {result['inserted']}"
+            )
+
+    if summary:
+        print(f"\nDone. {' | '.join(summary)}")
     return 0
 
 
