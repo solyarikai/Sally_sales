@@ -136,10 +136,23 @@ Whitelist `_OWN_DOMAINS` общий для всех (наши собственн
 
 Скрипт пишет в обе через `--target both` (default), один cron, один проход по SmartLead API. Каждая база пишется через свой `docker exec`-вызов. Per-project семантика MCP сохранена: пишем только в project 438 (не размазываем на чужих MCP-юзеров с тестовыми проектами OnSocial).
 
-**Backfill результат для MCP** (запуск 2026-04-28 17:06 UTC):
-- Уже было `is_blacklisted=true` в project 438: 305
-- После backfill: 349 (+44)
-- Hype Lab + Rosas обновлены: `is_blacklisted=true`, `blacklist_reason='smartlead_negative:smartlead category 4 (Do Not Contact)'`
+**Backfill результаты для MCP** (project 438):
+
+| Этап | Когда | Запуск | Результат |
+|---|---|---|---|
+| Negative-only | 17:06 UTC | `--target both` | 305 → 349 (+44 negative-домена, в т.ч. Hype Lab + Rosas) |
+| Full ever-contacted | 17:30 UTC | `import_smartlead_contacts_to_mcp.py` (one-shot) | 349 → **4627** (+4278 existing-contact доменов) |
+
+Финальный breakdown в MCP `discovered_companies` project 438 (where `is_blacklisted=true`):
+
+| `blacklist_reason` префикс | Кол-во |
+|---|---|
+| `smartlead_existing_contact:*` | 4278 |
+| `onsocial_crm_sync` | 305 |
+| `smartlead_negative:*` | 44 |
+| **Итого** | **4627** |
+
+Симметрия с Blacklist A: A = 10 694 (включая 10 656 разовый дамп SaaS-конкурентов), B = 4627 (только ever-contacted через SmartLead). Если позже захотим залить `onsocial_20k` и в B — это ещё один one-shot, но не сейчас.
 
 ---
 
