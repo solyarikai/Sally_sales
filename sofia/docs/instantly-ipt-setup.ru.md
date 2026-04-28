@@ -240,20 +240,43 @@ Hypergrowth ($97/мо) даёт расширенный seed-пул (вероят
    errored (mark-fixed только если уверен что коннекция ок — иначе спроси).
    Отсутствующих в Instantly accounts исключи и скажи мне.
 
-3. Создай ОДИН unified Node-скрипт по образцу OnSocial
-   (magnum-opus/infra/instantly-onsocial-monitor.js). Скрипт делает три
-   вещи в одном цикле:
+3. **Архитектура: один тест или параллельные батчи?**
+
+   Размер seed-пула Instantly фиксирован (~90 seeds на тест, делится между
+   всеми senders). Если в `<SENDERS>` **больше 10 ящиков** — раздели на 2
+   параллельных батча (см. секцию [Размер пула и параллельные батчи]
+   (#размер-пула-и-параллельные-батчи)). Каждый батч получает свой
+   независимый пул ~90 seeds → per-sender семпл удваивается.
+
+   Образец single-test и параллельных батчей — в OnSocial monitor:
+   `magnum-opus/infra/instantly-onsocial-monitor.js`. Сейчас он работает
+   в режиме батчей (Batch A bhaskar.v + Batch B bhaskar).
+
+   Создай unified Node-скрипт по этому образцу. Скрипт делает (для каждого
+   батча параллельно через `Promise.all`):
    - magnum-opus/infra/instantly-<project>-monitor.js должен:
      a) Создать тест с recipients_labels на 3 ESP (payload как описано
-        выше).
+        выше). Если батчей несколько — отдельный тест на каждый батч,
+        name-prefix включает batch key (`<Project> monitor batch A`).
      b) Polls статус каждые 15 мин до status=3 или timeout 8h.
+        ⚠️ Тесты с recipients_labels часто **зависают в status=1** даже
+        после полного резолва — это баг Instantly, не наш. Поэтому
+        timeout обязателен.
      c) Когда тест завершился (или timeout) — вытащить analytics,
-        отфильтровать по configured emails, разбить на Healthy/
-        Problematic/Silent (+ foreign), сформировать Slack-сообщение с
-        per-recipient breakdown по problematic, отправить в webhook.
-     d) При timeout — отправить partial-отчёт с пометкой.
-     e) При любой ошибке создания/чтения — отдельное сообщение в Slack
+        отфильтровать по configured emails (для каждого батча — свой
+        configuredSet), разбить на Healthy/Problematic/Silent
+        (+ foreign), сформировать Slack-сообщение с per-recipient
+        breakdown по problematic.
+     d) Финальный Slack — **один объединённый** с шапкой-сводкой и
+        секциями per batch (как в OnSocial). Не плодить отдельные
+        сообщения на каждый батч.
+     e) При timeout — partial-отчёт с пометкой (часть данных есть, статус
+        не дошёл до 3).
+     f) При любой ошибке создания/чтения — отдельное сообщение в Slack
         «monitor error» (best-effort, чтобы тихо не молчать).
+
+   Идемпотентность: `findActiveTest()` проверяет конфликты per batch
+   prefix — зависший batch A не блокирует свежий batch B.
 
 4. Задеплой на Hetzner: scp в /home/leadokol/scripts/ (SSH alias
    `hetzner`). Проверь синтаксис: `node -c path/to/script.js`.
