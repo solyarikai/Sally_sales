@@ -120,9 +120,7 @@ def list_project_campaigns(api_key: str, campaign_prefix: str) -> list[dict]:
     data = smartlead_get("/campaigns", api_key)
     if isinstance(data, dict):
         data = data.get("campaigns") or data.get("data") or []
-    return [
-        c for c in data if str(c.get("name", "")).startswith(ONSOCIAL_CAMPAIGN_PREFIX)
-    ]
+    return [c for c in data if str(c.get("name", "")).startswith(campaign_prefix)]
 
 
 def iter_campaign_leads(
