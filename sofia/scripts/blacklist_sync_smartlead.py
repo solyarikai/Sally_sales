@@ -482,11 +482,14 @@ def parse_since(value: str | None) -> datetime | None:
     return datetime.now(timezone.utc) - delta
 
 
-def resolve_project(args) -> tuple[str, int, str]:
-    """Resolve (display_name, project_id, campaign_prefix) from CLI args.
+def resolve_project(args) -> tuple[str, dict, str]:
+    """Resolve (display_name, target_config, campaign_prefix) from CLI args.
+
+    Returns target_config as a dict like:
+      {"main": {"project_id": 42}, "mcp": {"project_id": 438, "company_id": 199}}
 
     Precedence:
-      1. --project-id + --campaign-prefix (ad-hoc override)
+      1. --project-id + --campaign-prefix (ad-hoc override; main-only)
       2. --project <name> via PROJECT_REGISTRY
       3. default 'onsocial'
     """
@@ -495,14 +498,16 @@ def resolve_project(args) -> tuple[str, int, str]:
             raise SystemExit(
                 "Pass --project-id and --campaign-prefix together (or use --project)."
             )
-        return (f"id={args.project_id}", args.project_id, args.campaign_prefix)
+        cfg = {"main": {"project_id": args.project_id}}
+        return (f"id={args.project_id}", cfg, args.campaign_prefix)
 
     name = (args.project or "onsocial").lower()
     if name not in PROJECT_REGISTRY:
         known = ", ".join(sorted(PROJECT_REGISTRY))
         raise SystemExit(f"Unknown --project {name!r}. Known: {known}.")
-    pid, prefix = PROJECT_REGISTRY[name]
-    return (name, pid, prefix)
+    entry = PROJECT_REGISTRY[name]
+    cfg = {k: v for k, v in entry.items() if k != "campaign_prefix"}
+    return (name, cfg, entry["campaign_prefix"])
 
 
 def main() -> int:
