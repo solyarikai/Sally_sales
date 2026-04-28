@@ -320,7 +320,9 @@ def existing_blacklisted_domains(project_id: int) -> set[str]:
     return {ln.strip() for ln in result.stdout.splitlines() if ln.strip()}
 
 
-def insert_new_entries(entries: list[BlacklistEntry], dry_run: bool) -> int:
+def insert_new_entries(
+    entries: list[BlacklistEntry], project_id: int, dry_run: bool
+) -> int:
     if not entries:
         return 0
     if dry_run:
@@ -333,7 +335,7 @@ def insert_new_entries(entries: list[BlacklistEntry], dry_run: bool) -> int:
 
     # Build a single multi-row INSERT with ON CONFLICT DO NOTHING for idempotency.
     values_sql = ",".join(
-        f"({ONSOCIAL_PROJECT_ID}, '{e.domain.replace(chr(39), chr(39) * 2)}', "
+        f"({project_id}, '{e.domain.replace(chr(39), chr(39) * 2)}', "
         f"'{e.reason.replace(chr(39), chr(39) * 2)}', 'smartlead_negative', NOW())"
         for e in entries
     )
