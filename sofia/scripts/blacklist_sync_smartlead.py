@@ -8,14 +8,21 @@ in future pipeline runs because their domains were never added to the
 blacklist.
 
 How it works:
-  1. List all SmartLead campaigns whose name starts with `c-OnSocial_`.
+  1. List all SmartLead campaigns whose name starts with the project's
+     campaign prefix (e.g. `c-OnSocial_` for OnSocial).
   2. For each campaign, fetch leads filtered by negative `lead_category_id`
      (3, 4, 77594, 77596, 78987) using SmartLead's server-side filter.
   3. Also fetch unsubscribed leads (no category filter — scan all, keep
      `is_unsubscribed=True`).
   4. Extract domain from email (preferred) or website. Normalize.
-  5. Upsert into `project_blacklist` (project_id=42) with
-     source='smartlead_negative', reason='lead_category_id=N' or 'unsubscribed'.
+  5. Upsert into `project_blacklist` (per-project project_id) with
+     source='smartlead_negative', reason='smartlead category N (Name)'
+     or 'smartlead unsubscribed'.
+
+Project routing:
+  --project onsocial   (default; project_id=42, prefix `c-OnSocial_`)
+  --project <name>     uses a built-in registry (PROJECT_REGISTRY below).
+  --project-id N --campaign-prefix s-Foo_   ad-hoc override for any project.
 
 Run locations:
   - Backfill (one-shot): `python3 blacklist_sync_smartlead.py --backfill`
@@ -88,7 +95,9 @@ def smartlead_get(path: str, api_key: str, params: dict | None = None) -> dict |
     raise RuntimeError(f"SmartLead API rate-limited after retries: {path}")
 
 
-def get_campaign_total_leads(campaign_id: int, api_key: str, lead_category_id: int | None) -> int:
+def get_campaign_total_leads(
+    campaign_id: int, api_key: str, lead_category_id: int | None
+) -> int:
     """One lightweight call. Returns total_leads for filter, or 0 if unknown."""
     params = {"limit": 1, "offset": 0}
     if lead_category_id is not None:
@@ -108,8 +117,7 @@ def list_onsocial_campaigns(api_key: str) -> list[dict]:
     if isinstance(data, dict):
         data = data.get("campaigns") or data.get("data") or []
     return [
-        c for c in data
-        if str(c.get("name", "")).startswith(ONSOCIAL_CAMPAIGN_PREFIX)
+        c for c in data if str(c.get("name", "")).startswith(ONSOCIAL_CAMPAIGN_PREFIX)
     ]
 
 
@@ -164,17 +172,37 @@ def extract_domain_from_lead(lead: dict) -> str:
 
 # Our own domains — never blacklist (test forwards, internal addresses).
 _OWN_DOMAINS = {
-    "getsally.io", "sally.io", "onsocial.io", "onsocial-influence.com",
+    "getsally.io",
+    "sally.io",
+    "onsocial.io",
+    "onsocial-influence.com",
     "magnumops.com",
 }
 
 # Free email providers — never blacklist a whole provider domain.
 _FREE_EMAIL_DOMAINS = {
-    "gmail.com", "googlemail.com", "yahoo.com", "ymail.com",
-    "hotmail.com", "outlook.com", "live.com", "msn.com",
-    "icloud.com", "me.com", "mac.com", "aol.com", "proton.me",
-    "protonmail.com", "gmx.com", "gmx.de", "mail.com", "yandex.ru",
-    "yandex.com", "qq.com", "163.com", "126.com",
+    "gmail.com",
+    "googlemail.com",
+    "yahoo.com",
+    "ymail.com",
+    "hotmail.com",
+    "outlook.com",
+    "live.com",
+    "msn.com",
+    "icloud.com",
+    "me.com",
+    "mac.com",
+    "aol.com",
+    "proton.me",
+    "protonmail.com",
+    "gmx.com",
+    "gmx.de",
+    "mail.com",
+    "yandex.ru",
+    "yandex.com",
+    "qq.com",
+    "163.com",
+    "126.com",
 }
 
 
@@ -207,7 +235,9 @@ def collect_negative_domains(
         total_per_cat = {}
         for cat_id in NEGATIVE_CATEGORY_IDS:
             try:
-                total_per_cat[cat_id] = get_campaign_total_leads(camp_id, api_key, cat_id)
+                total_per_cat[cat_id] = get_campaign_total_leads(
+                    camp_id, api_key, cat_id
+                )
             except Exception as exc:
                 print(f"    {camp_id} cat {cat_id} probe failed: {exc}")
                 total_per_cat[cat_id] = 0
@@ -227,7 +257,11 @@ def collect_negative_domains(
                     continue
                 lead = row.get("lead") or {}
                 domain = extract_domain_from_lead(lead)
-                if not domain or domain in _FREE_EMAIL_DOMAINS or domain in _OWN_DOMAINS:
+                if (
+                    not domain
+                    or domain in _FREE_EMAIL_DOMAINS
+                    or domain in _OWN_DOMAINS
+                ):
                     continue
                 if domain not in domains:
                     domains[domain] = BlacklistEntry(
@@ -253,7 +287,9 @@ def collect_negative_domains(
             if not domain or domain in _FREE_EMAIL_DOMAINS or domain in _OWN_DOMAINS:
                 continue
             if domain not in domains:
-                domains[domain] = BlacklistEntry(domain=domain, reason="smartlead unsubscribed")
+                domains[domain] = BlacklistEntry(
+                    domain=domain, reason="smartlead unsubscribed"
+                )
             unsub_count += 1
         if unsub_count:
             print(f"    unsubscribed: {unsub_count} leads")
@@ -263,8 +299,16 @@ def collect_negative_domains(
 def existing_blacklisted_domains() -> set[str]:
     """Read existing project_blacklist via docker exec. Hetzner-only."""
     cmd = [
-        "docker", "exec", "leadgen-postgres",
-        "psql", "-U", "leadgen", "-d", "leadgen", "-tA", "-c",
+        "docker",
+        "exec",
+        "leadgen-postgres",
+        "psql",
+        "-U",
+        "leadgen",
+        "-d",
+        "leadgen",
+        "-tA",
+        "-c",
         f"SELECT LOWER(domain) FROM project_blacklist WHERE project_id = {ONSOCIAL_PROJECT_ID};",
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
@@ -286,8 +330,8 @@ def insert_new_entries(entries: list[BlacklistEntry], dry_run: bool) -> int:
 
     # Build a single multi-row INSERT with ON CONFLICT DO NOTHING for idempotency.
     values_sql = ",".join(
-        f"({ONSOCIAL_PROJECT_ID}, '{e.domain.replace(chr(39), chr(39)*2)}', "
-        f"'{e.reason.replace(chr(39), chr(39)*2)}', 'smartlead_negative', NOW())"
+        f"({ONSOCIAL_PROJECT_ID}, '{e.domain.replace(chr(39), chr(39) * 2)}', "
+        f"'{e.reason.replace(chr(39), chr(39) * 2)}', 'smartlead_negative', NOW())"
         for e in entries
     )
     sql = (
@@ -297,8 +341,18 @@ def insert_new_entries(entries: list[BlacklistEntry], dry_run: bool) -> int:
         "RETURNING domain;"
     )
     cmd = [
-        "docker", "exec", "-i", "leadgen-postgres",
-        "psql", "-U", "leadgen", "-d", "leadgen", "-tA", "-c", sql,
+        "docker",
+        "exec",
+        "-i",
+        "leadgen-postgres",
+        "psql",
+        "-U",
+        "leadgen",
+        "-d",
+        "leadgen",
+        "-tA",
+        "-c",
+        sql,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     if result.returncode != 0:
@@ -324,25 +378,30 @@ def parse_since(value: str | None) -> datetime | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--since", default=None,
+        "--since",
+        default=None,
         help="Time window: '24h', '7d', etc. Omit or use --backfill to scan all leads.",
     )
     parser.add_argument(
-        "--backfill", action="store_true",
+        "--backfill",
+        action="store_true",
         help="One-shot full sweep across all OnSocial campaigns.",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Show what would be inserted, don't write to DB.",
     )
     parser.add_argument(
-        "--export-json", default=None,
+        "--export-json",
+        default=None,
         help="Optional: dump collected new domains to a JSON file.",
     )
     parser.add_argument(
-        "--skip-unsubscribed", action="store_true",
+        "--skip-unsubscribed",
+        action="store_true",
         help="Skip the expensive unsubscribed sweep (no server-side filter). "
-             "Use for daily incremental runs; backfill should keep it on.",
+        "Use for daily incremental runs; backfill should keep it on.",
     )
     args = parser.parse_args()
 
@@ -356,18 +415,25 @@ def main() -> int:
         print("Mode: full backfill")
 
     api_key = load_api_key()
-    collected = collect_negative_domains(api_key, since, skip_unsubscribed=args.skip_unsubscribed)
+    collected = collect_negative_domains(
+        api_key, since, skip_unsubscribed=args.skip_unsubscribed
+    )
     print(f"\nUnique negative domains collected: {len(collected)}")
 
     existing = existing_blacklisted_domains()
-    print(f"Already in project_blacklist (project {ONSOCIAL_PROJECT_ID}): {len(existing)}")
+    print(
+        f"Already in project_blacklist (project {ONSOCIAL_PROJECT_ID}): {len(existing)}"
+    )
 
     new_entries = [e for d, e in collected.items() if d not in existing]
     print(f"New domains to insert: {len(new_entries)}")
 
     if args.export_json and new_entries:
         Path(args.export_json).write_text(
-            json.dumps([{"domain": e.domain, "reason": e.reason} for e in new_entries], indent=2)
+            json.dumps(
+                [{"domain": e.domain, "reason": e.reason} for e in new_entries],
+                indent=2,
+            )
         )
         print(f"  wrote {args.export_json}")
 
