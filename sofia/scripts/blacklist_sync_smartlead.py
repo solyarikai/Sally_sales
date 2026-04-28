@@ -315,44 +315,60 @@ def collect_negative_domains(
     return domains
 
 
-def existing_blacklisted_domains(project_id: int) -> set[str]:
-    """Read existing project_blacklist via docker exec. Hetzner-only."""
+def _psql(target: str, sql: str, timeout: int = 120) -> subprocess.CompletedProcess:
+    """Run a psql query against the given target's container."""
+    db = DB_TARGETS[target]
     cmd = [
         "docker",
         "exec",
-        "leadgen-postgres",
+        "-i",
+        db["container"],
         "psql",
         "-U",
-        "leadgen",
+        db["user"],
         "-d",
-        "leadgen",
+        db["db"],
         "-tA",
         "-c",
-        f"SELECT LOWER(domain) FROM project_blacklist WHERE project_id = {project_id};",
+        sql,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+
+def _esc(value: str) -> str:
+    """Single-quote escape for inline SQL values."""
+    return value.replace("'", "''")
+
+
+# ── Target: main (project_blacklist on leadgen-postgres) ──────────────────────
+
+
+def existing_blacklisted_domains_main(project_id: int) -> set[str]:
+    sql = (
+        f"SELECT LOWER(domain) FROM project_blacklist WHERE project_id = {project_id};"
+    )
+    result = _psql("main", sql, timeout=60)
     if result.returncode != 0:
-        raise RuntimeError(f"psql read failed: {result.stderr.strip()[:200]}")
+        raise RuntimeError(f"main psql read failed: {result.stderr.strip()[:200]}")
     return {ln.strip() for ln in result.stdout.splitlines() if ln.strip()}
 
 
-def insert_new_entries(
+def insert_new_entries_main(
     entries: list[BlacklistEntry], project_id: int, dry_run: bool
 ) -> int:
     if not entries:
         return 0
     if dry_run:
-        print(f"  [dry-run] would insert {len(entries)} entries")
+        print(f"  [main dry-run] would insert {len(entries)} entries")
         for e in entries[:10]:
             print(f"    + {e.domain}  ({e.reason})")
         if len(entries) > 10:
             print(f"    ... and {len(entries) - 10} more")
         return 0
 
-    # Build a single multi-row INSERT with ON CONFLICT DO NOTHING for idempotency.
     values_sql = ",".join(
-        f"({project_id}, '{e.domain.replace(chr(39), chr(39) * 2)}', "
-        f"'{e.reason.replace(chr(39), chr(39) * 2)}', 'smartlead_negative', NOW())"
+        f"({project_id}, '{_esc(e.domain)}', "
+        f"'{_esc(e.reason)}', 'smartlead_negative', NOW())"
         for e in entries
     )
     sql = (
@@ -361,25 +377,95 @@ def insert_new_entries(
         "ON CONFLICT (project_id, domain) DO NOTHING "
         "RETURNING domain;"
     )
-    cmd = [
-        "docker",
-        "exec",
-        "-i",
-        "leadgen-postgres",
-        "psql",
-        "-U",
-        "leadgen",
-        "-d",
-        "leadgen",
-        "-tA",
-        "-c",
-        sql,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    result = _psql("main", sql, timeout=300)
     if result.returncode != 0:
-        raise RuntimeError(f"psql insert failed: {result.stderr.strip()[:500]}")
+        raise RuntimeError(f"main psql insert failed: {result.stderr.strip()[:500]}")
     inserted = [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
     return len(inserted)
+
+
+# ── Target: mcp (discovered_companies on mcp-postgres) ────────────────────────
+
+
+def existing_blacklisted_domains_mcp(project_id: int) -> set[str]:
+    """Domains that are already blacklisted for this MCP project."""
+    sql = (
+        "SELECT LOWER(domain) FROM discovered_companies "
+        f"WHERE project_id = {project_id} AND is_blacklisted = TRUE;"
+    )
+    result = _psql("mcp", sql, timeout=60)
+    if result.returncode != 0:
+        raise RuntimeError(f"mcp psql read failed: {result.stderr.strip()[:200]}")
+    return {ln.strip() for ln in result.stdout.splitlines() if ln.strip()}
+
+
+def upsert_mcp_entries(
+    entries: list[BlacklistEntry],
+    project_id: int,
+    company_id: int,
+    dry_run: bool,
+) -> dict[str, int]:
+    """
+    Two operations on mcp-postgres for project `project_id`:
+      1. UPDATE existing discovered_companies rows that match a negative domain
+         and aren't blacklisted yet.
+      2. INSERT hollow rows for negative domains that don't exist yet so future
+         gathering runs auto-blacklist them via the existing blacklist_check()
+         logic in gathering_service.py.
+    """
+    if not entries:
+        return {"updated": 0, "inserted": 0}
+
+    if dry_run:
+        print(
+            f"  [mcp dry-run] would upsert {len(entries)} entries (project {project_id})"
+        )
+        for e in entries[:10]:
+            print(f"    ? {e.domain}  ({e.reason})")
+        if len(entries) > 10:
+            print(f"    ... and {len(entries) - 10} more")
+        return {"updated": 0, "inserted": 0}
+
+    # Step 1: UPDATE rows MCP already discovered but hadn't blacklisted.
+    update_values = ",".join(
+        f"('{_esc(e.domain)}', '{_esc(e.reason)}')" for e in entries
+    )
+    update_sql = (
+        "UPDATE discovered_companies dc "
+        "SET is_blacklisted = TRUE, "
+        "    blacklist_reason = 'smartlead_negative:' || v.reason, "
+        "    updated_at = NOW() "
+        f"FROM (VALUES {update_values}) AS v(domain, reason) "
+        f"WHERE dc.project_id = {project_id} "
+        "  AND LOWER(dc.domain) = LOWER(v.domain) "
+        "  AND dc.is_blacklisted = FALSE "
+        "RETURNING dc.domain;"
+    )
+    upd_result = _psql("mcp", update_sql, timeout=300)
+    if upd_result.returncode != 0:
+        raise RuntimeError(f"mcp UPDATE failed: {upd_result.stderr.strip()[:500]}")
+    updated = [ln.strip() for ln in upd_result.stdout.splitlines() if ln.strip()]
+
+    # Step 2: INSERT hollow rows for unknown domains (idempotent via ON CONFLICT).
+    insert_values = ",".join(
+        f"({project_id}, {company_id}, '{_esc(e.domain)}', TRUE, "
+        f"'smartlead_negative:{_esc(e.reason)}', NOW(), NOW())"
+        for e in entries
+    )
+    insert_sql = (
+        "INSERT INTO discovered_companies "
+        "(project_id, company_id, domain, is_blacklisted, blacklist_reason, "
+        " created_at, updated_at) "
+        f"VALUES {insert_values} "
+        "ON CONFLICT (project_id, domain) DO NOTHING "
+        "RETURNING domain;"
+    )
+    ins_result = _psql("mcp", insert_sql, timeout=300)
+    if ins_result.returncode != 0:
+        raise RuntimeError(f"mcp INSERT failed: {ins_result.stderr.strip()[:500]}")
+    inserted = [ln.strip() for ln in ins_result.stdout.splitlines() if ln.strip()]
+
+    return {"updated": len(updated), "inserted": len(inserted)}
 
 
 def parse_since(value: str | None) -> datetime | None:
