@@ -109,29 +109,31 @@ Hi {{first_name}}, does {{company_name}}'s team pull creator data from vendor AP
 
 ---
 
-## Step 2 — Day +1 after accept (DM) — **Hook-first**
+## Step 2 — Day +1 after accept (DM) — **Hook-first** (v5 Step 2 formulation)
 
 ```
-Thanks for the connect, {{first_name}}.
+Thanks for the connect, {{first_name}}. Easier to show than tell.
 
-Easiest way to show what we do: drop any creator handle below and I'll DM back the raw JSON - audience demographics down to city, fraud breakdown by type, engagement depth, refresh in last 24-48h.
+Drop any creator handle in reply and I'll send back raw JSON from our endpoint: audience demographics down to city, fraud breakdown by type, engagement depth, 24-48h refresh.
 
-Context if useful: OnSocial = creator data API, 450M profiles across IG / TikTok / YouTube, 9 years in production. Teams like {{cf_competitor_client}} switched from stitched vendors to one endpoint.
+Context: OnSocial = creator data API, 450M+ profiles across IG / TikTok / YouTube, 9 years in production. Teams like {{cf_competitor_client}} moved to us for one endpoint instead of stitching multiple APIs.
 
-If the JSON beats what {{company_name}} sees from current tooling, worth a chat. If not, you've got a benchmark.
+If the JSON beats what {{company_name}} is calling today, worth a chat. If not, you have a benchmark.
 ```
 
-**Char count**: ~590.
+**Char count**: ~575.
+
+**Logic**: формулировка `"Easier to show than tell. Drop any creator handle in reply..."` — буквально из v5 Step 2 (который не сработал в email). В LI после accept'а контекст принципиально другой — engineer открыл DM сам, attention свежая. Same hook, new channel, valid гипотеза для smoke.
 
 **Fallback if `{{cf_competitor_client}}` is empty:**
 
-> "Context if useful: OnSocial = creator data API, 450M profiles across IG / TikTok / YouTube, 9 years in production. Some IM-first teams use us in place of two or three stitched vendor APIs."
+> "Context: OnSocial = creator data API, 450M+ profiles across IG / TikTok / YouTube, 9 years in production. Some IM-first teams use us in place of two or three stitched vendor APIs."
 
-**Why this works (vs v1):**
-- **Hook moves to top** (line 2). Engineer scans 3 lines — hook caught.
-- Pitch reduced to **one paragraph**, not three.
-- Tone reads peer-to-peer engineer ("worth a chat / you've got a benchmark"), not BD-rep.
-- "Drop a handle" = concrete action, low friction. Doesn't ask for a call.
+**Why this works (vs v1 LI):**
+- **Hook line 2** (не line 4-5). Engineer видит actionable trick без пролистывания.
+- Pitch — один абзац, не три.
+- "Worth a chat / you have a benchmark" — peer tone, не BD-rep.
+- Concrete action (drop a handle), low friction, no call-ask.
 
 ---
 
