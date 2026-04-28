@@ -53,9 +53,25 @@ import requests
 SMARTLEAD_BASE = "https://server.smartlead.ai/api/v1"
 
 # Built-in project registry. Add new projects here as we automate them.
-# Each entry: project name -> (project_id in leadgen DB, SmartLead campaign-name prefix).
-PROJECT_REGISTRY: dict[str, tuple[int, str]] = {
-    "onsocial": (42, "c-OnSocial_"),
+# Each entry maps a project name to its SmartLead prefix and per-target IDs.
+#
+# `main`  → leadgen-postgres  / project_blacklist  (used by bace pipeline + onsocial_universal_pipeline)
+# `mcp`   → mcp-postgres      / discovered_companies.is_blacklisted (used by gtm-mcp.com gathering flow)
+#
+# `mcp.company_id` is needed for INSERTs because discovered_companies has
+# a NOT NULL foreign key to companies.id; reuse the project's company_id.
+PROJECT_REGISTRY: dict[str, dict] = {
+    "onsocial": {
+        "campaign_prefix": "c-OnSocial_",
+        "main": {"project_id": 42},
+        "mcp": {"project_id": 438, "company_id": 199},
+    },
+}
+
+# Containers / DB names for each write target.
+DB_TARGETS = {
+    "main": {"container": "leadgen-postgres", "user": "leadgen", "db": "leadgen"},
+    "mcp": {"container": "mcp-postgres", "user": "mcp", "db": "mcp_leadgen"},
 }
 
 NEGATIVE_CATEGORY_IDS = {
