@@ -51,8 +51,12 @@ from typing import Iterable
 import requests
 
 SMARTLEAD_BASE = "https://server.smartlead.ai/api/v1"
-ONSOCIAL_PROJECT_ID = 42
-ONSOCIAL_CAMPAIGN_PREFIX = "c-OnSocial_"
+
+# Built-in project registry. Add new projects here as we automate them.
+# Each entry: project name -> (project_id in leadgen DB, SmartLead campaign-name prefix).
+PROJECT_REGISTRY: dict[str, tuple[int, str]] = {
+    "onsocial": (42, "c-OnSocial_"),
+}
 
 NEGATIVE_CATEGORY_IDS = {
     3: "Not Interested",
