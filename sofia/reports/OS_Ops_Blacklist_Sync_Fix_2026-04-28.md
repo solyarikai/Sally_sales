@@ -198,7 +198,8 @@ Whitelist `_OWN_DOMAINS` общий для всех (наши собственн
 
 ## Files
 
-- `sofia/scripts/blacklist_sync_smartlead.py` — основной скрипт (на Hetzner: `magnum-opus-project/repo/scripts/sofia/`)
+- `sofia/scripts/blacklist_sync_smartlead.py` — основной cron-скрипт, `--target {main,mcp,both}` (на Hetzner: `magnum-opus-project/repo/scripts/sofia/`)
+- `sofia/scripts/import_smartlead_contacts_to_mcp.py` — one-shot full-import всех ever-contacted доменов в MCP (запущен 2026-04-28 17:30 UTC, больше не нужен пока не появится новый MCP-проект)
 - `sofia/scripts/blacklist_export_to_sheet.py` — DB → Sheets mirror (готов, не задеплоен — нужен `token.json` на Hetzner)
 - `sofia/scripts/_deprecated_leads_to_blacklist_sync.gs` — старый Apps Script, deprecated с шапкой-объяснением
 - `sofia/reports/OS_Ops_Blacklist_Sync_Fix_2026-04-28.md` — этот отчёт
