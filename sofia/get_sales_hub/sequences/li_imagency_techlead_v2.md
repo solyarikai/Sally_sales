@@ -273,14 +273,50 @@ Anything moved on the creator-data side at {{company_name}}? Happy to reopen if 
 
 ---
 
+## Anti-bias map: hidden TECHLEAD objections → где закрыты
+
+| Hidden objection | Что engineer думает молча | Где закрыто |
+|---|---|---|
+| Schema rewrite cost | "Поля не совпадут, месяц на ETL" | Step 2 last paragraph + Step 3 Variant A |
+| Doc / SDK quality | "Опять чужая PDF на 80 страниц" | Step 3 Variant A ("one-page cheatsheet") |
+| Time-to-first-call | "Дайте ключ, я curl'ом проверю" | Step 2 hook ("sandbox key on request, no call") + Step 3 Variant A |
+| Auth complexity | "OAuth dance vs API-key?" | Step 3 Variant A ("API-key, not OAuth") |
+| Vendor lock-in | "А если уйти обратно?" | **Не закрываем в cold** - это discovery topic |
+| SLA / rate limits | "% на пиках, 50M/мес?" | **Не закрываем в cold** - discovery |
+| Pricing model | "Per-call? Per-seat? Минимум?" | **Не закрываем в cold** - discovery |
+| Cost ($) | "Сколько стоит vs Modash?" | Step 3 Variant B (60% saving case) |
+
+Cold touch не должен пытаться закрыть всё. Schema + DX + sandbox = первая дверь. Lock / SLA / pricing — discovery. Cost — Variant B как rotation.
+
+---
+
+## Claims requiring verification before launch (с продактом)
+
+Эти утверждения в текстах нужно подтвердить у Sally/продакта **до** заливки контактов:
+
+| Claim в тексте | Где | Что подтвердить |
+|---------------|-----|-----------------|
+| `"Sandbox key on request, no card"` | Step 2 | Реально ли существует sandbox / trial-key flow без onboarding call? |
+| `"Schema is 1:1 with Modash / HypeAuditor / Phyllo"` | Step 2, Step 3 Var A | Подтвердить что audience + engagement objects действительно совместимы по полям |
+| `"One-page migration cheatsheet"` | Step 3 Var A | Cheatsheet существует или нужно сделать? Если нет - убрать упоминание |
+| `"API-key auth, not OAuth"` | Step 3 Var A | Подтвердить (наверное так, но проверить) |
+| `"60% creator-data spend cut"` | Step 3 Var B | Это claim из v5 лор? Нужен реальный case или формулировку смягчить ("some agencies report meaningful cost reduction") |
+| `"24-48h refresh"` | Step 2 | Подтвердить реальный refresh interval |
+
+**Если хоть один claim неподтверждён — заменить на softer formulation** (rule: "Hedging is required when unverified" из CLAUDE.md).
+
+---
+
 ## Open questions / TODO before launch
 
 1. **Sender headline check**: посмотреть как у Albina LinkedIn-заголовок звучит. Если sales-positioned — попросить временно сменить на BD/Partnerships-нейтральный.
-2. **Variant A vs B opener**: для первого smoke — погнали с **Variant A** (build vs buy qualifier). B держим для второй итерации, если Albina даёт <10% accept rate.
-3. **GetSales branching support**: проверить через UI поддерживает ли flow auto-stop на no-accept (если нет — manual cleanup через 14 дней).
-4. **`cf_competitor_client` data fill**: для IMAGENCY_TECHLEAD - убедиться что `social_proof` заполнено в CSV до upload (fallback есть, но work-in-context лучше).
-5. **No em dashes** (rule из `smartlead-formatting.md`) — все тексты выше уже на regular `-`.
-6. **LI не поддерживает `<br>`** — реальные newlines (через `\n` в API payload).
+2. **Variant A vs B opener (Step 1)**: для первого smoke — **Variant A** (proven qualifier из v5). B держим для второй итерации.
+3. **Variant A vs B Step 3**: первые 50 sends — **Variant A (DX/migration)**, потом ротация по reply-rate.
+4. **GetSales branching support**: проверить через UI поддерживает ли flow auto-stop на no-accept.
+5. **`cf_competitor_client` data fill**: убедиться что `social_proof` заполнено в CSV до upload.
+6. **No em dashes** (rule из `smartlead-formatting.md`) — все тексты выше уже на regular `-`.
+7. **LI не поддерживает `<br>`** — реальные newlines (через `\n` в API payload).
+8. **Verify claims с продактом** (см. таблицу выше) **до** заливки контактов.
 
 ---
 
