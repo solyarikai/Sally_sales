@@ -80,27 +80,29 @@
 
 **Char limit: 300** (LinkedIn cap; safe target ≤200).
 
-### Variant A (build-vs-buy)
+### Variant A (recommended) — extracted from v5 Step 1 qualifier
 
 ```
-Hi {{first_name}}, quick one: does {{company_name}}'s team pull creator data from vendor APIs (Modash, HypeAuditor, etc) or roll your own?
+Hi {{first_name}}, quick one - when {{company_name}}'s team needs creator data, what API are you calling today?
 ```
 
-**Char count**: ~150.
+**Char count**: ~125.
 
-### Variant B (vendor-named qualifier)
+**Logic**: это **тот самый qualifier** что дал 2 positive в email v5 Step 1. В email он был спрятан в первой строке pitch'а; здесь — единственный месседж. Чистый Pattern A.
+
+### Variant B — build-vs-buy framing
 
 ```
-Hi {{first_name}}, building OnSocial (creator data API, 450M profiles). Curious - is creator-data plumbing on your team's roadmap at {{company_name}}, or someone else's?
+Hi {{first_name}}, does {{company_name}}'s team pull creator data from vendor APIs (Modash, HypeAuditor, etc) or roll your own?
 ```
 
-**Char count**: ~190.
+**Char count**: ~140.
 
-**Pick one, не оба сразу в одной группе**. Рекомендация для smoke: **Variant A**, чище Pattern A.
+**Pick one, не оба в одной группе**. **Recommendation для первого smoke: Variant A** — копирует proven qualifier из email v5, контролирует переменные (только канал меняется).
 
 **Why this works:**
-- 1 предложение, 1 yes/no вопрос ("vendor APIs vs roll your own").
-- Никакого продукта в opener (Variant A) — pure qualifier.
+- 1 предложение, 1 yes/no вопрос.
+- Никакого продукта в opener — pure qualifier.
 - Имя + компания в первой строке.
 - Никакого CTA, никакой ссылки, никакого pitch.
 - Лид сразу понимает: «отвечаю да / нет / не я / некогда».
