@@ -91,12 +91,13 @@ scoop.app, thetimeless.club, fabulate.com.au, iganatech.com, digimag.co.in (пл
 ### 3. Cron на Hetzner
 
 ```cron
-# Daily SmartLead negative leads -> project_blacklist sync (OnSocial)
-0 3 * * * cd /home/leadokol/magnum-opus-project/repo && python3 scripts/sofia/blacklist_sync_smartlead.py --since 48h >> /home/leadokol/logs/blacklist_sync.log 2>&1
+# Daily SmartLead negative -> project_blacklist + MCP discovered_companies (OnSocial)
+0 3 * * * cd /home/leadokol/magnum-opus-project/repo && python3 scripts/sofia/blacklist_sync_smartlead.py --target both --since 48h >> /home/leadokol/logs/blacklist_sync.log 2>&1
 ```
 
 - 03:00 UTC ежедневно (после `daily_reply_refetch.sh` в 02:00, чтобы свежие категории SmartLead уже подтянулись)
 - `--since 48h` даёт overlap на случай сбоя одного запуска
+- `--target both` пишет одновременно в `leadgen-postgres / project_blacklist` (project 42) и `mcp-postgres / discovered_companies` (project 438)
 - Лог: `~/logs/blacklist_sync.log`
 
 ### 4. Verification
