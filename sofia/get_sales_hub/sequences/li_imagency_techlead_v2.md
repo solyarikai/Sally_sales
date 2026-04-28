@@ -139,25 +139,59 @@ If the JSON beats what {{company_name}} is calling today, worth a chat. If not, 
 
 ---
 
-## Step 3 — Day +5 (DM) — **Pattern C**
+## Step 3 — Day +5 (DM) — **Pattern C with DX framing**
+
+Two variants — pick by smoke phase. Variant A первое, Variant B как ротация если A не даёт reply.
+
+### Variant A (default) — DX / migration-focused
 
 ```
-{{first_name}}, one comparable point if relevant.
+{{first_name}}, one anti-bias note since you've heard the pitch.
 
-Most IM agencies we talk to use Modash or CreatorIQ as their primary creator-data source. We sit one layer below: same audience / fraud / engagement signals, but via raw API at city-level granularity, refreshed every 24-48h instead of weekly.
+Most TECHLEADs ask the same thing first: "what does swap look like in code?". Honest answer for us:
 
-One IM-first agency cut their creator-data spend ~60% by routing campaign discovery through our API instead of paying per-seat for Modash + ad-hoc HypeAuditor lookups.
+- Field schema is 1:1 with Modash / HypeAuditor / Phyllo on the audience + engagement objects (so DB models don't change).
+- Auth is API-key, not OAuth dance.
+- One-page migration cheatsheet with field mapping if you want it.
+- Sandbox key, no call, no card - so you can curl from your laptop and decide on the JSON, not on a deck.
 
-If {{company_name}} ever scopes a build vs buy on this, happy to drop tech specs (latency, rate limits, schema) - 5 mins async over LI, no call needed.
+If {{company_name}} ever puts creator-data API on a scoping doc, I can drop the cheatsheet here.
+```
+
+**Char count**: ~640.
+
+**Why this Variant works**:
+- **Closes the real first-blocker** (migration cost) before it becomes silent objection.
+- Concrete DX commitments engineer can validate himself (sandbox, API-key auth, no OAuth).
+- "1:1 with Modash / HypeAuditor / Phyllo" — frames OnSocial as **drop-in replacement**, not new architecture decision.
+- "No deck, no call, curl from laptop" — peer engineer tone, removes BD friction.
+
+### Variant B (rotation) — cost-savings case
+
+```
+{{first_name}}, one comparable data point if relevant.
+
+Most IM agencies we talk to use Modash or CreatorIQ as primary creator-data source. We sit one layer below: same audience / fraud / engagement signals, but via raw API at city-level granularity, 24-48h refresh.
+
+One IM-first agency cut creator-data spend ~60% by routing campaign discovery through our API instead of paying per-seat for Modash + ad-hoc HypeAuditor lookups.
+
+If {{company_name}} scopes build vs buy on this, happy to drop tech specs (latency, rate limits, schema). 5 mins async over LI, no call.
 ```
 
 **Char count**: ~610.
 
-**Why this works (vs v1):**
-- **One specific case** (1 agency, 60% saving) — Pattern C: vertical-specific number.
-- Frames OnSocial **against one tool** (Modash OR CreatorIQ), not three — matches how IMAGENCY actually buys.
-- "Tech specs over LI, no call needed" — engineer-friendly CTA, removes call-ask friction.
-- Doesn't claim "we're better" — claims "we're a layer below + here's the math".
+**Why this Variant works**:
+- One specific case (1 agency, 60%) — pure Pattern C.
+- Frames against **one tool**, not trio.
+- Engineer-friendly CTA (specs over LI).
+
+### Which Variant when
+
+| Phase | Variant | Why |
+|-------|---------|-----|
+| First 50 sends | **A (DX/migration)** | Closes biggest hidden blocker first. Lower assumption: that target already has budget conversation. |
+| Next 50 sends (if A reply rate < 5%) | **B (cost-savings)** | Different lever (procurement / margins) for cost-conscious tech-business hybrid leads. |
+| If both <5% | Step 3 dies, Albina переключается на INFPLAT | Smoke kill. |
 
 ---
 
