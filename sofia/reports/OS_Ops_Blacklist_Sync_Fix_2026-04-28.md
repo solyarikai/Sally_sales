@@ -148,11 +148,14 @@ Whitelist `_OWN_DOMAINS` общий для всех (наши собственн
 
 1. ✅ **Дохлый Apps Script переименован.** `sofia/scripts/leads_to_blacklist_sync.gs` → `sofia/scripts/_deprecated_leads_to_blacklist_sync.gs` с комментарием в шапке (почему не работал, чем заменён). Префикс `_deprecated_` гарантирует что Apps Script trigger его уже не подхватит. Если в Google Apps Script consoles остался активный trigger — снять руками: https://script.google.com/home/triggers.
 
-2. ✅ **Скрипт обобщён под `--project`.** `blacklist_sync_smartlead.py` теперь принимает:
-   - `--project onsocial` (default, registry с project_id=42 и префиксом `c-OnSocial_`)
-   - `--project-id N --campaign-prefix s-Foo_` для ad-hoc проектов вне registry
+2. ✅ **Скрипт обобщён под `--project` + `--target`.** `blacklist_sync_smartlead.py` теперь принимает:
+   - `--project onsocial` (default, registry с main+mcp project_id и префиксом `c-OnSocial_`)
+   - `--project-id N --campaign-prefix s-Foo_` для ad-hoc проектов вне registry (только main target)
+   - `--target {main,mcp,both}` (default `both`) — куда писать blacklist
    
-   Backwards-compatible: cron на Hetzner (без `--project`) продолжает работать с OnSocial. Чтобы добавить новый проект — extend `PROJECT_REGISTRY` в начале файла.
+   Backwards-compatible: registry-based; добавить новый проект = одна строка в `PROJECT_REGISTRY`. Cron обновлён до `--target both` — за один проход скрипт пишет в обе БД (project_blacklist и discovered_companies).
+
+   ✅ **Закрыта вторая blacklist-дыра в MCP.** Backfill 2026-04-28 evening залил 44 negative-домена в `discovered_companies` project 438 (UPDATE 45, INSERT 1, было 305 → стало 349 blacklisted).
 
 3. ✅ **Sheet-sync скрипт написан** — `sofia/scripts/blacklist_export_to_sheet.py`. Делает: читает `project_blacklist` из БД → пишет в новую вкладку `Mirror — project_blacklist (auto)` в `OS | Ops | Blacklist`. Существующие вкладки (`Exclusion Lists`, `Blacklist from onsocial`) **не трогает**. Schema: `Domain | Source | Reason | Created At | Project ID`. Полный overwrite на каждом запуске.
 
