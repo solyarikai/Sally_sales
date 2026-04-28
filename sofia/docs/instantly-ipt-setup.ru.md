@@ -590,28 +590,48 @@ pixels. 0% open при ненулевых replies = трекинг сломан,
 
 ## OnSocial — конкретный пример
 
-Тест 2026-04-27:
+### Эволюция мониторинга
 
-- 27 senders (14 `bhaskar@onsocial-*.com`, 3 без дефиса, 10 `petr@crona-*.com`)
-- recipients_labels (3 ESP) → 22 авто-сгенерированных recipient inbox
+**Текущая версия (с 2026-04-28):** 2 параллельных батча на 17 bhaskar-ящиков.
+
+- **Batch A** — 9 ящиков `bhaskar.v@*` → ~10 писем/sender
+- **Batch B** — 8 ящиков `bhaskar@*` → ~11 писем/sender
+- Каждый домен (`onsocial-analytics`, `onsocial-data`, ..., `onsocialmetrics`)
+  попадает в оба батча с разными local-parts → cross-batch comparison
+  быстро отделяет user-issues от domain-issues.
+- 10 `petr@crona-*` ящиков **выкинуты из мониторинга**: Instantly постоянно
+  подменяет их на `eleonora@*` (sender-side redirect, не лечится).
+- recipients_labels (3 ESP: Google Pro/Personal + Outlook Pro)
 - Subject + body из боевой OnSocial-кампании (SmartLead campaign 3169118
   c-OnSocial_IMAGENCY_FOUNDERS, step 1, шаблонные переменные подменены
   на realistic placeholders: Jordan/Atlas Creative/Dentsu)
-- Cron 22:00 UTC Mon/Thu (unified monitor запускается на ночь, отчёт в
-  Slack утром Tue/Fri)
+- Cron 22:00 UTC Mon/Thu — оба батча стартуют одновременно через
+  `Promise.all`, итоговый Slack-отчёт один с двумя секциями.
 
-Результат:
+### Что узнали по дороге (журнал)
 
-- 24 из 26 senders → 100% inbox
-- `eleonora@crona-b2b.com` → 60% (Google → spam, Outlook → inbox)
-- `eleonora@cronaaipipeline.com` → 33% (Google → spam, Outlook → inbox)
-- 1 ящик (`petr@prospects-crona.com`) — нет в Instantly accounts вообще
+**2026-04-08:** Запустили single-test на 27 senders (17 bhaskar + 10 petr).
+Получили 93 записи всего → ~3 письма/sender → шум. Показалось, что план
+Growth даёт мало семпла на каждый ящик.
 
-Без per-provider breakdown увидели бы просто 60% и 33% и не знали ГДЕ
-чинить. С breakdown'ом — Google reputation на двух доменах.
+**2026-04-28:** Дёрнули `/inbox-placement-tests/email-service-provider-options`
+— узнали что **пул фиксированный** (~90 seeds на тест, делится между всеми
+senders). Сравнили с другими Sally-проектами: их тесты «завершались» (status=3)
+просто потому что отправляли 0-2 письма (silent senders), наш с 93
+записями реально работал. Решили — split на 2 параллельных батча.
 
-Скрипт-образец: `magnum-opus/infra/instantly-onsocial-monitor.js`
-(unified create+wait+report). Деплой на `hetzner:/home/leadokol/scripts/`.
+**2026-04-28 (тот же день):** Раскрыли баг Instantly — тесты с
+`recipients_labels` не переходят в status=3 даже после полного резолва.
+Monitor.js ждёт TIMEOUT_MS (8h) и берёт partial-analytics — это
+по дизайну, а не bug в нашем коде.
+
+### Скрипт и файлы
+
+- Source of truth: `magnum-opus/infra/instantly-onsocial-monitor.js`
+  (unified create+wait+report для обоих батчей)
+- Деплой: `hetzner:/home/leadokol/scripts/instantly-onsocial-monitor.js`
+- Логи cron: `/home/leadokol/logs/instantly-onsocial-monitor.log`
+- Per-run JSON dumps: `/home/leadokol/logs/runs/onsocial-<timestamp>.json`
 
 Старая legacy-версия двумя скриптами (`instantly-onsocial-start-test.js`
 + `instantly-spam-report-onsocial.js`) больше из cron не запускается —
