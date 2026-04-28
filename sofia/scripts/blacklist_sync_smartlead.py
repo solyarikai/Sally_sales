@@ -299,7 +299,7 @@ def collect_negative_domains(
     return domains
 
 
-def existing_blacklisted_domains() -> set[str]:
+def existing_blacklisted_domains(project_id: int) -> set[str]:
     """Read existing project_blacklist via docker exec. Hetzner-only."""
     cmd = [
         "docker",
@@ -312,7 +312,7 @@ def existing_blacklisted_domains() -> set[str]:
         "leadgen",
         "-tA",
         "-c",
-        f"SELECT LOWER(domain) FROM project_blacklist WHERE project_id = {ONSOCIAL_PROJECT_ID};",
+        f"SELECT LOWER(domain) FROM project_blacklist WHERE project_id = {project_id};",
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if result.returncode != 0:
