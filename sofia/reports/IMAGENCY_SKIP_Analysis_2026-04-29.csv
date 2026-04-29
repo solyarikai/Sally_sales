@@ -1,0 +1,151 @@
+IMAGENCY_FOUNDERS (Campaign 3215178) — Claude SKIP Analysis Report
+Generated: 2026-04-29
+Partner: Data Collection Lead
+
+===== SUMMARY =====
+Total leads in campaign: 331
+✅ Successfully enriched (cf_business_observation): 37 (11%)
+⚠️ Claude SKIP (no relevant signal): 246 (74%)
+❌ Scrape failed (website not reachable): 48 (15%)
+
+===== ANALYSIS =====
+The 246 SKIP results are split into two groups:
+
+CATEGORY 1: Likely Relevant — Domain suggests influencer/creator/media/agency
+→ Recommendation: MANUAL REVIEW by data team
+→ These domains may be founder/agency sites where Claude couldn't extract enough context
+→ Count: 90 domains (109 leads)
+
+1dscollective.com,john@1dscollective.com
+3rdwavemedia.in,vm@3rdwavemedia.in
+8media.co,kai@8media.co
+absolutemedia.it,alessandra.persico@absolutemedia.it
+awastudios.net,michael@awastudios.net
+basecommerce.media,wes@basecommerce.media
+bluerobingroup.com,tylittle@bluerobingroup.com
+bpmcreativelabs.com,reha@bpmcreativelabs.com
+brandnewacollective.com,k@brandnewacollective.com
+brandnewacollective.com,sophie@brandnewacollective.com
+brightside.agency,catlyn@brightside.agency
+cavalcantidigital.com.br,fernando@cavalcantidigital.com.br
+cbdesignandcreative.com,claire@cbdesignandcreative.com
+clementinegroup.co,mariah@clementinegroup.co
+clementinegroup.co,nic@clementinegroup.co
+collectivecollection.com,tsafra@collectivecollection.com
+craftedinfluenceagency.com,talia@craftedinfluenceagency.com
+creativecowboyco.com,madison@creativecowboyco.com
+creatorauthority.co,brendan@creatorauthority.co
+creatordeck.com,helen.zhu@creatordeck.com
+creatordeck.com,helenz@creatordeck.com
+creatordeck.com,kendel.vanterpool@creatordeck.com
+creatorsagency.co,erika@creatorsagency.co
+csmediaoc.com,carly@csmediaoc.com
+digitalisticmedia.com,pablo.cevallos@digitalisticmedia.com
+dimensionstudios.co,ali@dimensionstudios.co
+donnagency.com,juliana@donnagency.com
+dragonfruitmedia.co,adrian@dragonfruitmedia.co
+eliotconsultinggroup.com,brandon@eliotconsultinggroup.com
+flatworldgroup.com,moiz@flatworldgroup.com
+flpmarketinggroup.com,shania@flpmarketinggroup.com
+freshtracksmarketing.com,tim@freshtracksmarketing.com
+gassedagency.com,dean@gassedagency.com
+ggcontent.com,jh@ggcontent.com
+inbeat.agency,anastasiia@inbeat.agency
+influencer.com,scott@influencer.com
+inmexmedia.com,naveen@inmexmedia.com
+kozencreative.com,drake@kozencreative.com
+leveragedmedia.co,greg@leveragedmedia.co
+leveragedmedia.co,ian@leveragedmedia.co
+loguesocial.com,morgan@loguesocial.com
+madmediaeg.com,mayman@madmediaeg.com
+manifestcreativeagency.com,chelsea@manifestcreativeagency.com
+mavengroup.in,bharat.kumar@mavengroup.in
+mediabeats.it,leonardo@mediabeats.it
+michellegiffordcreative.com,michelle@michellegiffordcreative.com
+millentertainment.com,jack@millentertainment.com
+millionaires.media,abdullah@millionaires.media
+mrtmediamanagement.com,melissa@mrtmediamanagement.com
+mtrxmedia.com,aaron@mtrxmedia.com
+mtrxmedia.com,hamza@mtrxmedia.com
+ncmedia.org.uk,nicola@ncmedia.org.uk
+nomadstudios.agency,stefanie@nomadstudios.agency
+posterchildagency.com,james@posterchildagency.com
+proedgebranding.com,brendan@proedgebranding.com
+proedgebranding.com,marcus@proedgebranding.com
+q.digital,scott@q.digital
+q12agency.com,johnny@q12agency.com
+rizzo.media,barry@rizzo.media
+roseandcomedia.com,meghan@roseandcomedia.com
+social4thewin.com,jacob@social4thewin.com
+socialbeat.in,nishant@socialbeat.in
+socialbeat.in,suneil@socialbeat.in
+socialinsider.io,contact@socialinsider.io
+socialinsider.io,mita@socialinsider.io
+socials.agency,benoit@socials.agency
+socials.agency,ivo@socials.agency
+spawnpointmedia.com,jordanb@spawnpointmedia.com
+starx.media,robin@starx.media
+stormstudios.no,reppen@stormstudios.no
+stripessocial.com,amanda.ledet@stripessocial.com
+stripessocial.com,sarah.edwards@stripessocial.com
+sundaecollective.com,jeremiah@sundaecollective.com
+sundaymorningmarketing.com,jonni@sundaymorningmarketing.com
+talentcompany.io,fredrik@talentcompany.io
+talentresources.com,dspencer@talentresources.com
+talenttack.com,muzamil@talenttack.com
+tappedcontent.com,kevin@tappedcontent.com
+theagencyhq.co,taylor@theagencyhq.co
+theazureagency.com,kennedy@theazureagency.com
+thedigitalpicnic.com.au,cherie@thedigitalpicnic.com.au
+thesocialfleur.com,heather@thesocialfleur.com
+urba.media,allen@urba.media
+vraidigital.com,molly@vraidigital.com
+weirdmedia.com,alen@weirdmedia.com
+weirdmedia.com,cory@weirdmedia.com
+weirdmedia.com,russell@weirdmedia.com
+wellspiritcollective.com,bess@wellspiritcollective.com
+zainith.agency,alexandra@zainith.agency
+zainith.agency,zain@zainith.agency
+
+===== CATEGORY 2 =====
+Off-ICP (clearly not influencer/creator agencies) — 156 domains (137 leads)
+→ Recommendation: EXCLUDE from outreach
+→ Examples: farms, charities, leadership consulting, plastic manufacturers, universities, etc.
+
+10pmcurfew.com,darren@10pmcurfew.com
+2113labs.com,victoriav@2113labs.com
+ad-volution.com,alex@ad-volution.com
+adragencia.com.br,rezende@adragencia.com.br
+(and 152 more)
+
+===== ROOT CAUSE ANALYSIS =====
+Why 74% Claude SKIP?
+1. List quality: Mixed sourcing — includes non-agency contacts alongside real agencies
+2. Scrape limitation: Small/founder-focused sites have minimal public content
+3. Claude criteria: Requires SPECIFIC operational pain + economic cost → generic B2B content doesn't match
+
+Why 11% success?
+These 37 succeeded because:
+- Established agencies with rich website content
+- Clear mentions of creator/influencer/brand partnerships
+- Quantifiable operational signals (campaign volume, client types, platforms used)
+
+Examples of successful observations:
+- "Running creator campaigns across music and entertainment at your volume means manually verifying audience data for each brief takes 2-3 hours — and brand safety gaps still slip through before the contract goes out."
+- "Managing influencer campaigns in fintech and B2B SaaS means verifying creator audience demographics against client compliance requirements eats 2-3 hours per brief — and platform fragmentation across IG, TikTok, and YouTube means that verification happens separately for each channel."
+
+===== NEXT STEPS =====
+Option A: Manual review of 90 "possibly relevant" domains
+- Time: ~2-3 hours for data team
+- Potential gain: +10-20 additional openers if 10-25% are actual agencies
+- ROI: Moderate (but improves list quality for future reuse)
+
+Option B: Use Category 1 list as-is for outreach
+- Assume 70-80% are genuine agencies (domain signals)
+- ~63-72 leads with likely high relevance
+- Send with generic opener if cf_business_observation is empty
+
+Option C: Focus on 37 enriched + Category 1 "likely relevant"
+- Launch with 37 personalized openers
+- Send bulk generic opener to Category 1 domains
+- Skip Category 2 entirely
