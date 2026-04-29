@@ -29,13 +29,14 @@ GET /campaigns/{campaign_id}/leads
 
 Промпты: `sofia/projects/OnSocial/prompts/`
 
-### 4. Exa search
-2 запроса на домен с сегментными keywords (без domain-фильтра).
-Берём до **2 × 800 символов** контента → передаём в промпт как `{{exa_content}}`.
+### 4. HTTP scrape (приоритетный источник)
+Прямой GET на сайт компании → `{{scraped_content}}`.
+Полный текст homepage — самый надёжный источник.
 
-### 5. HTTP scrape fallback
-Если Exa не вернул результат — прямой GET на сайт компании.
-Результат → `{{scraped_content}}`.
+### 5. Exa search (fallback)
+2 запроса на домен с сегментными keywords (без domain-фильтра).
+Берём до **2 × 800 символов** контента → `{{exa_content}}`.
+Используется если scrape пустой или недоступен.
 Если оба пусты — Haiku получает пустые поля и вернёт `OTHER | No website data`.
 
 ### 6. Классификация через Haiku
