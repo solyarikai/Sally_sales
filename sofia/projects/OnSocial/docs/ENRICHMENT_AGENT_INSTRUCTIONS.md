@@ -235,11 +235,116 @@ sofia/projects/OnSocial/data/other/other_soccom.json
 
 ---
 
+## Sequence — написать и загрузить в SmartLead
+
+После завершения enrichment (записи `cf_business_observation`) — для каждой кампании написать и загрузить 3-шаговую email-sequence через SmartLead API.
+
+### Паттерн sequence
+
+**Step 1 (Day 0) — персонализированный opener:**
+```
+{{cf_business_observation}}
+
+OnSocial — creator/influencer data API: 450M+ profiles across IG, TikTok, YouTube. One API call returns audience demographics, fraud scoring, engagement analytics. 9 years in market.
+
+Worth a quick look?
+
+{{sender_name}}
+```
+
+**Step 2 (Day +3) — социальное доказательство + снятие возражений:**
+```
+{{first_name}}, two things that come up most before teams get started:
+
+"Will it break our current workflow?" — No. We sit in the data layer; your team keeps their tools.
+"Will it actually save time?" — One API call replaces 3-4 manual steps. Largest coverage = no gaps to fill.
+
+15 min — I'll walk through coverage, pricing, and the workflow change. Or send you API docs to try it first.
+
+{{sender_name}}
+```
+
+**Step 3 (Day +6) — мягкое закрытие:**
+```
+{{first_name}}, last note — if creator data infrastructure isn't the priority right now, totally understood.
+
+If that changes, feel free to reach out. We'll be here.
+
+{{sender_name}}
+```
+
+### Subject lines
+
+- Step 1: `{{first_name}}, creator data — {{company_name}}`
+- Step 2: (пустой — thread reply)
+- Step 3: (пустой — thread reply)
+
+### Правила написания
+
+- Step 1 **всегда** начинается с `{{cf_business_observation}}` — это и есть opener
+- Если у кампании нет ни одного обогащённого лида (все skip/fail) — Step 1 писать **без** `{{cf_business_observation}}`, использовать generic opener по сегменту (см. ниже)
+- Не менять Step 2 и Step 3 — они одинаковы для всех кампаний
+- Не добавлять восклицательные знаки, комплименты, "I noticed"
+
+### Generic opener по сегменту (если нет cf_business_observation)
+
+| Сегмент | Generic Step 1 opener |
+|---|---|
+| INFPLAT | `When {{company_name}}'s team pulls creator data for a brief — how long does that workflow take today?` |
+| IMAGENCY | `Running influencer campaigns across multiple platforms means verifying creator audiences from separate sources before every brief — a reconciliation step that compounds with every new client.` |
+| AFFPERF | `Affiliate programs where creators are publishers means vetting audience quality at onboarding happens outside your platform — typically a manual check across IG and TikTok before each partner goes live.` |
+| SOCCOM | `Scaling a creator marketplace means verifying creator audience quality and authenticity before onboarding — a check that currently happens manually, creator by creator.` |
+
+### Загрузка sequence в SmartLead
+
+Использовать MCP tool `mcp__smartlead__save_campaign_sequence` или REST API:
+
+```
+POST /campaigns/{campaign_id}/sequence?api_key=...
+{
+  "sequences": [
+    {
+      "seq_number": 1,
+      "seq_delay_details": {"delay_in_days": 0},
+      "subject": "{{first_name}}, creator data — {{company_name}}",
+      "email_body": "<step 1 текст>"
+    },
+    {
+      "seq_number": 2,
+      "seq_delay_details": {"delay_in_days": 3},
+      "subject": "",
+      "email_body": "<step 2 текст>"
+    },
+    {
+      "seq_number": 3,
+      "seq_delay_details": {"delay_in_days": 3},
+      "subject": "",
+      "email_body": "<step 3 текст>"
+    }
+  ]
+}
+```
+
+Если кампания уже имеет sequence — **не перезаписывать**, залогировать `sequence_exists`, пропустить.
+
+### Итоговый отчёт по sequences
+
+Добавить в summary:
+```
+Sequences:
+  ✅ Загружено: N кампаний
+  ↩️  Уже есть (пропущено): N кампаний
+  ✗   Ошибка загрузки: N кампаний
+```
+
+---
+
 ## Что НЕ делать
 
 - Не останавливаться и не запрашивать подтверждений в процессе
 - Не перезаписывать `cf_business_observation` если уже заполнен
 - Не обрабатывать кампании не из предоставленного списка
 - Не активировать кампании в SmartLead
+- Не перезаписывать существующие sequences в SmartLead
 - Не использовать `includeDomains` в Exa search — это даёт пустые результаты
 - Не запускать несколько инстансов скрипта одновременно
