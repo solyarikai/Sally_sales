@@ -346,33 +346,39 @@ Step 1 писать с generic opener по сегменту:
 
 ### Загрузка sequence в SmartLead
 
-Использовать MCP tool `mcp__smartlead__save_campaign_sequence` или REST API:
+**Шаг 1 — проверить, есть ли уже sequence:**
+Использовать MCP tool `mcp__smartlead__get_campaign_sequences` (или `GET /campaigns/{id}/sequences`).
+Если вернул 1+ steps — **не трогать**, залогировать `sequence_exists`, пропустить кампанию.
 
+**Шаг 2 — загрузить (только если sequence пустая):**
+Использовать MCP tool `mcp__smartlead__save_campaign_sequence`:
+```python
+save_campaign_sequence(
+    campaign_id=<id>,
+    sequences=[
+        {
+            "seq_number": 1,
+            "seq_delay_details": {"delay_in_days": 0},
+            "subject": "{{first_name}}, creator data — {{company_name}}",
+            "email_body": "<step 1 текст>"
+        },
+        {
+            "seq_number": 2,
+            "seq_delay_details": {"delay_in_days": 3},
+            "subject": "",
+            "email_body": "<step 2 текст>"
+        },
+        {
+            "seq_number": 3,
+            "seq_delay_details": {"delay_in_days": 3},
+            "subject": "",
+            "email_body": "<step 3 текст>"
+        }
+    ]
+)
 ```
-POST /campaigns/{campaign_id}/sequence?api_key=...
-{
-  "sequences": [
-    {
-      "seq_number": 1,
-      "seq_delay_details": {"delay_in_days": 0},
-      "subject": "{{first_name}}, creator data — {{company_name}}",
-      "email_body": "<step 1 текст>"
-    },
-    {
-      "seq_number": 2,
-      "seq_delay_details": {"delay_in_days": 3},
-      "subject": "",
-      "email_body": "<step 2 текст>"
-    },
-    {
-      "seq_number": 3,
-      "seq_delay_details": {"delay_in_days": 3},
-      "subject": "",
-      "email_body": "<step 3 текст>"
-    }
-  ]
-}
-```
+
+⚠️ `save_campaign_sequence` **заменяет** всю существующую sequence — поэтому проверка на шаге 1 обязательна.
 
 Если кампания уже имеет sequence — **не перезаписывать**, залогировать `sequence_exists`, пропустить.
 
