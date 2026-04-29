@@ -62,7 +62,7 @@ INFPLAT_FOUNDERS:
   default_email_3_body: |
     {{first_name}}, last note.
 
-    When Lefty moved off in-house scrapers to our API, they freed two engineers and expanded from 3 to 5 social networks in a week.
+    When platforms like {{cf_competitor_client}} moved off in-house scrapers to our API, they freed engineering bandwidth and expanded coverage across more networks within a week.
 
     For platforms like {{company_name}} the question is what your engineers spend time on - data plumbing, or product.
 
@@ -355,7 +355,7 @@ AFFPERF_FOUNDERS:
 
     {{company_name}} connects brands with creators on a performance model. Question: how do you verify a creator partner will drive real conversions vs. inflated traffic?
 
-    impact.com was burning budget on fake-audience partners - until they started checking quality before payout, not after. One API call per creator: fraud score, real demographics, follower quality. Your team plugs it in, clients see it as your feature.
+    Performance platforms like {{cf_competitor_client}} were burning budget on fake-audience partners — until they moved to us and started checking quality before payout, not after. One API call per creator: fraud score, real demographics, follower quality. Your team plugs it in, clients see it as your feature.
 
     Can demo on any specific partner - 15 min.
 
@@ -365,7 +365,7 @@ AFFPERF_FOUNDERS:
   default_email_2_body: |
     {{first_name}}, one more thing.
 
-    When a client runs a program with 50 partners, they want to know upfront who has real audience. Without that - part of the budget just burns. Captiv8 and Phyllo plugged in our API as a competitive edge for exactly this.
+    When a client runs a program with 50 partners, they want to know upfront who has real audience. Without that - part of the budget just burns. Platforms like {{cf_competitor_client}} plugged in our API as a competitive edge for exactly this.
 
     Drop any creator handle in reply - I'll run it right here. No call needed.
 
