@@ -66,8 +66,6 @@ INFPLAT_FOUNDERS:
 
     If coverage or freshness beats what {{company_name}} is calling today, worth a conversation.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
@@ -103,8 +101,6 @@ INFPLAT_TECHLEAD:
 
     If coverage or freshness beats what {{company_name}} is calling today, worth a conversation. If not, you have a benchmark.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
@@ -142,8 +138,6 @@ INFPLAT_ACCOUNT_OPS:
 
     What works?
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one from me.
 
@@ -179,8 +173,6 @@ INFPLAT_HEAD:
 
     If {{company_name}} is thinking about that defense, I can send a sample white-label report we ship for senior platform teams. Email only, no call.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
 
@@ -218,8 +210,6 @@ IMAGENCY_FOUNDERS:
 
     If {{company_name}} is in those conversations - 15 min on positioning the data. Or I'll send a sample client report. Email only.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
@@ -253,8 +243,6 @@ IMAGENCY_TECHLEAD:
 
     If coverage or freshness beats what {{company_name}} is using today, worth a conversation. If not, you have a benchmark.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
@@ -291,8 +279,6 @@ IMAGENCY_ACCOUNT_OPS:
 
     15 min - I'll walk through coverage, pricing and the workflow change. Or trial it with the team.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one from me.
 
@@ -326,8 +312,6 @@ IMAGENCY_HEAD:
 
     If {{company_name}} is thinking about that defense, I can send a sample white-label client report we ship for senior IM teams. Email only, no call.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
 
@@ -361,8 +345,6 @@ IMAGENCY_CREATIVE:
 
     Send me one creator handle and a brand name - I'll send back a fit read (audience match, content style, fraud check). 10 min on my side.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
 
@@ -401,8 +383,6 @@ AFFPERF_FOUNDERS:
 
     Drop any creator handle in reply - I'll run it right here. No call needed.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one.
 
@@ -434,8 +414,6 @@ AFFPERF_TECHLEAD:
 
     If coverage or freshness beats what {{company_name}} is calling today, worth a conversation. If not, you have a benchmark.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
@@ -470,8 +448,6 @@ AFFPERF_ACCOUNT_OPS:
 
     15 min call - I'll walk through coverage, pricing, and the workflow change. Or trial it with the team.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one from me.
 
@@ -505,8 +481,6 @@ AFFPERF_HEAD:
 
     If {{company_name}} is thinking about that defense, I can send a sample white-label partner report we ship for senior performance teams. Email only, no call.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
 
