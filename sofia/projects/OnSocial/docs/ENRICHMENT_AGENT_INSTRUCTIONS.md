@@ -237,63 +237,112 @@ sofia/projects/OnSocial/data/other/other_soccom.json
 
 ## Sequence — написать и загрузить в SmartLead
 
-После завершения enrichment (записи `cf_business_observation`) — для каждой кампании написать и загрузить 3-шаговую email-sequence через SmartLead API.
+После завершения enrichment — для каждой кампании написать и загрузить 3-шаговую sequence.
 
-### Паттерн sequence
+### Принцип icebreaker
 
-**Step 1 (Day 0) — персонализированный opener:**
+`{{cf_business_observation}}` — это **одна строка**, которая используется во всех трёх шагах, но под разными углами:
+
+| Шаг | Угол | Функция |
+|---|---|---|
+| Step 1 | Проблема | Observation = opener. Читатель думает "этот человек понимает мою ситуацию". Добавляется одна строка о OnSocial + мягкий CTA |
+| Step 2 | Механизм решения | Возвращается к той же боли, но показывает как именно OnSocial её закрывает (конкретика: что заменяет, сколько экономит) |
+| Step 3 | Лёгкое закрытие | Та же боль упоминается как контекст, но давление снимается. Либо soft exit, либо переадресация к другому ЛПР |
+
+**Icebreaker никогда не повторяется дословно** — каждый шаг берёт из него другой элемент (объём, канал, временные потери, cost).
+
+---
+
+### Шаблон Step 1 (Day 0)
+
 ```
 {{cf_business_observation}}
 
-OnSocial — creator/influencer data API: 450M+ profiles across IG, TikTok, YouTube. One API call returns audience demographics, fraud scoring, engagement analytics. 9 years in market.
+OnSocial — 450M+ creator profiles across IG, TikTok, YouTube. One API call: audience demographics, fraud scoring, engagement analytics. 9 years in the market.
 
 Worth a quick look?
 
 {{sender_name}}
 ```
 
-**Step 2 (Day +3) — социальное доказательство + снятие возражений:**
+**Subject:** `{{first_name}}, creator data — {{company_name}}`
+
+---
+
+### Шаблон Step 2 (Day +3)
+
+Берёт конкретный элемент из observation (платформы, объём, временные потери) и показывает как OnSocial его закрывает. Добавляет социальное доказательство или снимает возражение.
+
+Пример (creatorev.com — "40-60 hours per campaign"):
 ```
-{{first_name}}, two things that come up most before teams get started:
+{{first_name}}, on the 40-60 hours.
 
-"Will it break our current workflow?" — No. We sit in the data layer; your team keeps their tools.
-"Will it actually save time?" — One API call replaces 3-4 manual steps. Largest coverage = no gaps to fill.
+One API call to OnSocial returns verified audience data across TikTok, Instagram, and YouTube simultaneously — no manual cross-referencing between platforms. Teams that switched say creator briefing prep dropped from days to under an hour.
 
-15 min — I'll walk through coverage, pricing, and the workflow change. Or send you API docs to try it first.
+If {{company_name}} is running campaigns at that volume, 15 min to walk through the data layer might be worth it.
 
 {{sender_name}}
 ```
 
-**Step 3 (Day +6) — мягкое закрытие:**
+Пример (haveninfluence.com — "72-hour SLA"):
 ```
-{{first_name}}, last note — if creator data infrastructure isn't the priority right now, totally understood.
+{{first_name}}, on the SLA pressure.
 
-If that changes, feel free to reach out. We'll be here.
+The manual vetting step — checking wellness creator audiences for buyer intent — is what eats that window. OnSocial returns audience demographics, purchase intent signals, and engagement quality in one call. The shortlist that takes a day now takes minutes.
+
+15 min this week to show you a live pull on a creator you're evaluating?
 
 {{sender_name}}
 ```
 
-### Subject lines
+**Subject:** (пустой — thread reply)
 
-- Step 1: `{{first_name}}, creator data — {{company_name}}`
-- Step 2: (пустой — thread reply)
-- Step 3: (пустой — thread reply)
+---
 
-### Правила написания
+### Шаблон Step 3 (Day +6)
 
-- Step 1 **всегда** начинается с `{{cf_business_observation}}` — это и есть opener
-- Если у кампании нет ни одного обогащённого лида (все skip/fail) — Step 1 писать **без** `{{cf_business_observation}}`, использовать generic opener по сегменту (см. ниже)
-- Не менять Step 2 и Step 3 — они одинаковы для всех кампаний
-- Не добавлять восклицательные знаки, комплименты, "I noticed"
+Лёгкое закрытие. Либо soft exit, либо переадресация к другому ЛПР в компании.
 
-### Generic opener по сегменту (если нет cf_business_observation)
+```
+{{first_name}}, last note.
 
-| Сегмент | Generic Step 1 opener |
+If creator data infrastructure isn't the priority right now — totally fine, will leave it here.
+
+If the right person at {{company_name}} for this is your Head of Data or CTO, happy to reach out to them directly instead.
+
+{{sender_name}}
+```
+
+**Subject:** (пустой — thread reply)
+
+---
+
+### Правила написания sequence
+
+- Step 1 **всегда начинается** с `{{cf_business_observation}}` дословно — не перефразировать
+- Step 2 **не повторяет** observation дословно — берёт один конкретный элемент (число, канал, временные потери) и раскрывает механизм решения
+- Step 3 — давление снято, один soft CTA, не более двух предложений
+- Нет восклицательных знаков, нет "I noticed", нет комплиментов
+- Тон: peer-to-peer, matter-of-fact
+- Sender var: `{{sender_name}}` (не хардкодить имя)
+- Каждый step пишется **индивидуально** под конкретную observation — не один шаблон на все кампании
+
+---
+
+### Если у кампании нет cf_business_observation (все skip/fail)
+
+Step 1 писать с generic opener по сегменту:
+
+| Сегмент | Generic opener |
 |---|---|
 | INFPLAT | `When {{company_name}}'s team pulls creator data for a brief — how long does that workflow take today?` |
 | IMAGENCY | `Running influencer campaigns across multiple platforms means verifying creator audiences from separate sources before every brief — a reconciliation step that compounds with every new client.` |
-| AFFPERF | `Affiliate programs where creators are publishers means vetting audience quality at onboarding happens outside your platform — typically a manual check across IG and TikTok before each partner goes live.` |
+| AFFPERF | `Affiliate programs where creators are the publishers means vetting audience quality at onboarding happens outside your platform — typically a manual check across IG and TikTok before each partner goes live.` |
 | SOCCOM | `Scaling a creator marketplace means verifying creator audience quality and authenticity before onboarding — a check that currently happens manually, creator by creator.` |
+
+В Step 2 и Step 3 — использовать generic pain по сегменту без ссылки на конкретные детали.
+
+---
 
 ### Загрузка sequence в SmartLead
 
