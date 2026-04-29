@@ -75,8 +75,6 @@ INFPLAT_FOUNDERS:
 
     If data infra sits with your CTO or Head of Product, happy to loop them in.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -108,8 +106,6 @@ INFPLAT_TECHLEAD:
 
     If API vendor selection isn't your call, happy to loop in whoever owns it. Usually CTO or Head of Data.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -147,8 +143,6 @@ INFPLAT_ACCOUNT_OPS:
 
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -180,8 +174,6 @@ INFPLAT_HEAD:
 
     If timing's wrong - will check back next quarter.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -217,8 +209,6 @@ IMAGENCY_FOUNDERS:
 
     If I should be talking to your Head of Strategy or COO at {{company_name}}, point me there.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -250,8 +240,6 @@ IMAGENCY_TECHLEAD:
 
     If API vendor selection isn't your call, happy to loop in whoever owns it.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -286,8 +274,6 @@ IMAGENCY_ACCOUNT_OPS:
 
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -319,8 +305,6 @@ IMAGENCY_HEAD:
 
     If timing's wrong - will check back next quarter.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -352,8 +336,6 @@ IMAGENCY_CREATIVE:
 
     If not on the radar, will leave it.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -388,8 +370,6 @@ AFFPERF_FOUNDERS:
 
     Not relevant right now - all good. But if I'm reaching the wrong person, who should I talk to? Usually CTO or Head of Partnerships.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -421,8 +401,6 @@ AFFPERF_TECHLEAD:
 
     If API vendor selection isn't your call, happy to loop in whoever owns it. Usually CTO or Head of Engineering.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -455,8 +433,6 @@ AFFPERF_ACCOUNT_OPS:
 
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -488,7 +464,5 @@ AFFPERF_HEAD:
 
     If timing's wrong - will check back next quarter.
 
-    Bhaskar from OnSocial
-    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
