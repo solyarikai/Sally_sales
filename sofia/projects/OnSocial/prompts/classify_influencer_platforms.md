@@ -29,10 +29,8 @@ Otherwise → TIER_1.
 ══ INPUT ══
 Company: {{company_name}}
 Employees: {{employees}}  ← may be empty; skip employee disqualifiers if so
-Exa search: {{exa_content}}  ← up to 1600 chars, queries: "[company] influencer creator analytics platform"
-Website scrape: {{scraped_content}}  ← direct scrape; may be empty
-
-Priority: scraped_content > exa_content.
+Website scrape: {{scraped_content}}  ← direct scrape of homepage; primary source
+Exa search: {{exa_content}}  ← up to 1600 chars, queries: "[company] influencer creator analytics platform"; fallback if scrape empty
 
 ══ OUTPUT ══
 SEGMENT | TIER | observation
