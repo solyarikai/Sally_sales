@@ -50,7 +50,12 @@ Exa рендерит JS-сайты и возвращает чистый markdown
 - `{{exa_content}}`
 - `{{scraped_content}}`
 
-Haiku возвращает: `SEGMENT | TIER | evidence`
+Haiku возвращает: `SEGMENT | TIER | observation`
+
+Для TIER_0 `observation` — это готовый текст в формате:
+`[что делает компания] + [операционная боль с creator data] + [стоимость боли]`
+
+Именно этот текст и записывается в `cf_business_observation` на шаге 7.
 
 ### 7. Запись результата
 
