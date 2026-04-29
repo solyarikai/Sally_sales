@@ -52,9 +52,25 @@ Exa рендерит JS-сайты и возвращает чистый markdown
 
 Haiku возвращает: `SEGMENT | TIER | evidence`
 
-### 7. Запись результата в SmartLead
+### 7. Запись результата
+
+**SmartLead** (только целевые):
 - **TIER_0** → обновляем `cf_business_observation` для всех лидов домена через SmartLead API
-- **TIER_1 / OTHER** → `cf_business_observation` оставляем пустым
+- **TIER_1** → `cf_business_observation` оставляем пустым
+- **OTHER** → в SmartLead не пишем вообще
+
+**OTHER → отдельные JSON-файлы по сегменту:**
+По завершению работы OTHER-компании сохраняются в отдельный файл на каждый сегмент:
+
+```
+sofia/projects/OnSocial/data/other/
+  other_infplat.json
+  other_imagency.json
+  other_affperf.json
+  other_soccom.json
+```
+
+Каждый файл — массив объектов с доменом, названием компании и evidence от Haiku.
 
 ### 8. Логирование
 Пишем в JSONL-файл. При перезапуске — пропускаем домены, которые уже есть в логе (идемпотентность).
