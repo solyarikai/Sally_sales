@@ -57,8 +57,7 @@ INFPLAT_FOUNDERS:
     Can run any creator through the API live - 15 min?
 
     Kind regards,
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, easier to show than tell.
@@ -67,8 +66,7 @@ INFPLAT_FOUNDERS:
 
     If coverage or freshness beats what {{company_name}} is calling today, worth a conversation.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
@@ -79,8 +77,7 @@ INFPLAT_FOUNDERS:
 
     If data infra sits with your CTO or Head of Product, happy to loop them in.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -97,8 +94,7 @@ INFPLAT_TECHLEAD:
 
     Worth a 15-min call to walk through the API for {{company_name}}'s use case?
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, easier to show than tell.
@@ -107,8 +103,7 @@ INFPLAT_TECHLEAD:
 
     If coverage or freshness beats what {{company_name}} is calling today, worth a conversation. If not, you have a benchmark.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
@@ -117,8 +112,7 @@ INFPLAT_TECHLEAD:
 
     If API vendor selection isn't your call, happy to loop in whoever owns it. Usually CTO or Head of Data.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -135,8 +129,7 @@ INFPLAT_ACCOUNT_OPS:
 
     Worth a 15-min call to walk through how it'd fit {{company_name}}'s workflow?
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, two things ops leaders bring up most before getting started:
@@ -149,8 +142,7 @@ INFPLAT_ACCOUNT_OPS:
 
     What works?
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one from me.
@@ -161,8 +153,7 @@ INFPLAT_ACCOUNT_OPS:
 
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -179,8 +170,7 @@ INFPLAT_HEAD:
 
     Worth a 15-min call? I'll pull real data on a creator {{company_name}} is recommending this week.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, the in-house question.
@@ -189,8 +179,7 @@ INFPLAT_HEAD:
 
     If {{company_name}} is thinking about that defense, I can send a sample white-label report we ship for senior platform teams. Email only, no call.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
@@ -199,8 +188,7 @@ INFPLAT_HEAD:
 
     If timing's wrong - will check back next quarter.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -221,8 +209,7 @@ IMAGENCY_FOUNDERS:
 
     Worth a 15-min call? I'll show you a live pull on a creator {{company_name}} is evaluating right now.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, on bigger pitches.
@@ -231,8 +218,7 @@ IMAGENCY_FOUNDERS:
 
     If {{company_name}} is in those conversations - 15 min on positioning the data. Or I'll send a sample client report. Email only.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
@@ -241,8 +227,7 @@ IMAGENCY_FOUNDERS:
 
     If I should be talking to your Head of Strategy or COO at {{company_name}}, point me there.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -259,8 +244,7 @@ IMAGENCY_TECHLEAD:
 
     Worth a 15-min call to walk through the API for {{company_name}}'s use case?
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, easier to show than tell.
@@ -269,8 +253,7 @@ IMAGENCY_TECHLEAD:
 
     If coverage or freshness beats what {{company_name}} is using today, worth a conversation. If not, you have a benchmark.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
@@ -279,8 +262,7 @@ IMAGENCY_TECHLEAD:
 
     If API vendor selection isn't your call, happy to loop in whoever owns it.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -299,8 +281,7 @@ IMAGENCY_ACCOUNT_OPS:
 
     15 min to see if it'd cut your prep time in half?
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, two things ops leaders bring up most:
@@ -310,8 +291,7 @@ IMAGENCY_ACCOUNT_OPS:
 
     15 min - I'll walk through coverage, pricing and the workflow change. Or trial it with the team.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one from me.
@@ -320,8 +300,7 @@ IMAGENCY_ACCOUNT_OPS:
 
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -338,8 +317,7 @@ IMAGENCY_HEAD:
 
     Worth a 15-min call? I'll pull real data on a creator {{company_name}} is recommending this week.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, the in-house question.
@@ -348,8 +326,7 @@ IMAGENCY_HEAD:
 
     If {{company_name}} is thinking about that defense, I can send a sample white-label client report we ship for senior IM teams. Email only, no call.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
@@ -358,8 +335,7 @@ IMAGENCY_HEAD:
 
     If timing's wrong - will check back next quarter.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -376,8 +352,7 @@ IMAGENCY_CREATIVE:
 
     Worth a 15-min call? I'll pull data on any creator you're working with right now.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, on brief turnaround.
@@ -386,8 +361,7 @@ IMAGENCY_CREATIVE:
 
     Send me one creator handle and a brand name - I'll send back a fit read (audience match, content style, fraud check). 10 min on my side.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
@@ -396,8 +370,7 @@ IMAGENCY_CREATIVE:
 
     If not on the radar, will leave it.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -419,8 +392,7 @@ AFFPERF_FOUNDERS:
     Can demo on any specific partner - 15 min.
 
     Kind regards,
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, one more thing.
@@ -429,16 +401,14 @@ AFFPERF_FOUNDERS:
 
     Drop any creator handle in reply - I'll run it right here. No call needed.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one.
 
     Not relevant right now - all good. But if I'm reaching the wrong person, who should I talk to? Usually CTO or Head of Partnerships.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -455,8 +425,7 @@ AFFPERF_TECHLEAD:
 
     Worth a 15-min call to walk through the API for {{company_name}}'s use case?
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, easier to show than tell.
@@ -465,8 +434,7 @@ AFFPERF_TECHLEAD:
 
     If coverage or freshness beats what {{company_name}} is calling today, worth a conversation. If not, you have a benchmark.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
@@ -475,8 +443,7 @@ AFFPERF_TECHLEAD:
 
     If API vendor selection isn't your call, happy to loop in whoever owns it. Usually CTO or Head of Engineering.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -493,8 +460,7 @@ AFFPERF_ACCOUNT_OPS:
 
     Worth a 15-min call to walk through how it'd fit {{company_name}}'s onboarding workflow?
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, two things ops leaders ask first:
@@ -504,8 +470,7 @@ AFFPERF_ACCOUNT_OPS:
 
     15 min call - I'll walk through coverage, pricing, and the workflow change. Or trial it with the team.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one from me.
@@ -514,8 +479,7 @@ AFFPERF_ACCOUNT_OPS:
 
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -532,8 +496,7 @@ AFFPERF_HEAD:
 
     Worth a 15-min call? I'll pull real data on a partner {{company_name}} is evaluating right now.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, the in-house question.
@@ -542,8 +505,7 @@ AFFPERF_HEAD:
 
     If {{company_name}} is thinking about that defense, I can send a sample white-label partner report we ship for senior performance teams. Email only, no call.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
@@ -552,8 +514,7 @@ AFFPERF_HEAD:
 
     If timing's wrong - will check back next quarter.
 
-    Bhaskar Vishnu
-    From OnSocial
+    Bhaskar from OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
