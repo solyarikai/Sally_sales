@@ -492,14 +492,23 @@ def get_lead_message_history(
     campaign_id: int,
     lead_id: int,
     event_time_gt: str = None,
+    reply_body_chars: int = 8000,
+    sent_body_chars: int = 300,
 ) -> str:
     """
     Get full email conversation history for a lead in a campaign.
+
+    REPLY messages (inbound) get full body up to `reply_body_chars` — needed for
+    parsing OOO autoresponders, extracting return dates, sanity checks, etc.
+    SENT messages (outbound, our own) stay short (`sent_body_chars`) since we
+    rarely need their full text in the response.
 
     Args:
         campaign_id: Campaign ID
         lead_id: Lead ID
         event_time_gt: Optional ISO date filter — only show messages after this time
+        reply_body_chars: Max chars for inbound REPLY bodies (default 8000)
+        sent_body_chars: Max chars for outbound SENT bodies (default 300)
     """
     query: dict = {}
     if event_time_gt:
@@ -508,11 +517,17 @@ def get_lead_message_history(
     messages = data if isinstance(data, list) else data.get("history", [])
     lines = [f"Message history for lead {lead_id} in campaign {campaign_id} ({len(messages)} messages)\n"]
     for msg in messages:
+        msg_type = str(msg.get("type", "")).upper()
+        is_reply = msg_type == "REPLY" or msg.get("direction") == "inbound"
+        max_chars = reply_body_chars if is_reply else sent_body_chars
+        body = str(msg.get("email_body", ""))
+        body_truncated = body[:max_chars]
+        ellipsis = "..." if len(body) > max_chars else ""
         lines.append(
             f"[{msg.get('type', 'N/A')}] {msg.get('time', 'N/A')}\n"
             f"  Subject: {msg.get('email_subject', 'N/A')}\n"
             f"  Opens: {msg.get('open_count', 0)} | Clicks: {msg.get('click_count', 0)}\n"
-            f"  Body: {str(msg.get('email_body', ''))[:300]}..."
+            f"  Body: {body_truncated}{ellipsis}"
         )
     return "\n".join(lines)
 
@@ -647,13 +662,14 @@ def fetch_inbox_replies(
         cat_id = r.get("lead_category_id", "N/A")
         reply_time = r.get("last_reply_time", r.get("reply_time", "N/A"))
         lead_id = r.get("email_lead_id", "N/A")
+        map_id = r.get("email_lead_map_id", "N/A")
         status = r.get("lead_status", "N/A")
         unread = r.get("has_new_unread_email", False)
         lines.append(
             f"- {email} | {first} {last} | "
             f"campaign: {camp} | category_id: {cat_id} | "
             f"status: {status} | replied: {reply_time} | "
-            f"lead_id: {lead_id} | unread: {unread}"
+            f"lead_id: {lead_id} | map_id: {map_id} | unread: {unread}"
         )
     return "\n".join(lines)
 
