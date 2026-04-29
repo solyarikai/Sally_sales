@@ -471,11 +471,6 @@ function renderCamps(){
     tr.appendChild(el('td',{class:'right',text:String(c.t1)}));
     tr.appendChild(el('td',{class:'right warn',text:String(c.t2)}));
     tr.appendChild(el('td',{class:'right'},[el('b',{class:c.t3>0?'bad':'muted',text:String(c.t3)})]));
-    const m = el('td');
-    if (c._a.status==='critical') m.appendChild(el('span',{class:'bad',text:'🔴 T1 кампания + T3 ящик'}));
-    else if (c._a.status==='risk') m.appendChild(el('span',{class:'warn',text:'⚠ T3 ящик в пуле'}));
-    else m.appendChild(el('span',{class:'muted',text:'✓ ok'}));
-    tr.appendChild(m);
     ctbody.appendChild(tr);
   });
   document.getElementById('ccount').textContent = view.length+' of '+CAMPS.length;
