@@ -35,10 +35,15 @@ Website scrape: {{scraped_content}}  ← direct scrape; may be empty
 Priority: scraped_content > exa_content.
 
 ══ OUTPUT ══
-SEGMENT | TIER | one-sentence evidence
+SEGMENT | TIER | observation
+
+For TIER_0, observation must follow this structure:
+[what company does] + [operational pain with creator data] + [cost of that pain]
+
+For TIER_1 and OTHER: one-sentence evidence is enough.
 
 Examples:
-AFFILIATE_PERFORMANCE | TIER_0 | Creator-focused CPA network (50–200 employees) with per-conversion payouts and explicit influencer fraud detection
+AFFILIATE_PERFORMANCE | TIER_0 | CPA network connecting advertisers with creator-publishers + no way to verify publisher audience quality at onboarding + fraudulent publishers drain advertiser budgets and kill platform trust
 AFFILIATE_PERFORMANCE | TIER_1 | Large affiliate network (800+ employees) with creator publishers but enterprise pricing only
 OTHER | Marketing analytics SaaS — tracks attribution but not a publisher/advertiser network
 OTHER | Brand running its own affiliate program — not a network platform
