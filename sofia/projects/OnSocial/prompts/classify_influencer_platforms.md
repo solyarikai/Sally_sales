@@ -35,10 +35,15 @@ Website scrape: {{scraped_content}}  ← direct scrape; may be empty
 Priority: scraped_content > exa_content.
 
 ══ OUTPUT ══
-SEGMENT | TIER | one-sentence evidence
+SEGMENT | TIER | observation
+
+For TIER_0, observation must follow this structure:
+[what company does] + [operational pain with creator data] + [cost of that pain]
+
+For TIER_1 and OTHER: one-sentence evidence is enough.
 
 Examples:
-INFLUENCER_PLATFORMS | TIER_0 | Creator discovery SaaS with audience analytics, demo CTA, and 50 brand logos — creator data is the core product
+INFLUENCER_PLATFORMS | TIER_0 | Creator discovery SaaS helping brands find and analyze influencers + manually vetting fake followers slows campaign setup + bad data leads to wasted spend and client churn
 INFLUENCER_PLATFORMS | TIER_1 | UGC platform with creator tools but enterprise-only, no self-serve pricing
 OTHER | Full-service marketing agency offering influencer as one of 8 services
 OTHER | E-commerce brand that uses creators for ads — not a tool provider
