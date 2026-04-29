@@ -58,6 +58,43 @@
 
 ---
 
+## Объединённая таблица (все 27, sorted by Apr replies desc)
+
+| # | Mailbox | Owner | Mar | Apr | Inbox % (n) | Flag |
+|---:|---|---|---:|---:|---|---|
+| 1 | bhaskar.v@onsocial-network.com | bhaskar | 0 | 10 | 100% (7) | |
+| 2 | bhaskar@onsocial-data.com | bhaskar | 0 | 9 | 100% (4) | |
+| 3 | bhaskar@onsocial-analytics.com | bhaskar | 0 | 8 | 100% (7) | |
+| 4 | bhaskar.v@onsocial-analytics.com | bhaskar | 0 | 8 | 80% (5) | ⚠ |
+| 5 | bhaskar@onsocial-metrics.com | bhaskar | 0 | 8 | 100% (5) | |
+| 6 | bhaskar@onsocial-platform.com | bhaskar | 0 | 8 | 100% (6) | |
+| 7 | bhaskar@onsocial-influence.com | bhaskar | 0 | 7 | 100% (6) | |
+| 8 | bhaskar.v@onsocial-insights.com | bhaskar | 0 | 7 | 100% (5) | |
+| 9 | bhaskar.v@onsocial-platform.com | bhaskar | 0 | 6 | 100% (7) | |
+| 10 | bhaskar.v@onsocial-metrics.com | bhaskar | 0 | 6 | 100% (5) | |
+| 11 | bhaskar@onsocial-network.com | bhaskar | 0 | 6 | 100% (6) | |
+| 12 | bhaskar@onsocial-insights.com | bhaskar | 0 | 3 | 80% (5) | ⚠ |
+| 13 | bhaskar.v@onsocial-data.com | bhaskar | 0 | 3 | 100% (4) | |
+| 14 | bhaskar.v@onsocialmetrics.com | bhaskar | 4 | 3 | **62% (8)** | 🔴 |
+| 15 | petr@crona-flow.com | petr | 0 | 2 | 100% (6)¹ | |
+| 16 | petr@crona-force.com | petr | 3 | 2 | 100% (4)¹ | |
+| 17 | petr@segment-crona.com | petr | 0 | 2 | 100% (4)¹ | |
+| 18 | bhaskar.v@onsocial-influence.com | bhaskar | 0 | 1 | 80% (5) | ⚠ |
+| 19 | bhaskar@onsocialmetrics.com | bhaskar | 4 | 1 | 100% (3) | |
+| 20 | petr@leads-crona.com | petr | 3 | 1 | 100% (4)¹ | |
+| 21 | petr@cronaaiprospects.com | petr | 0 | 1 | 100% (5)¹ | |
+| 22 | petr@prospects-crona.com | petr | 0 | 1 | — | нет в тестах |
+| 23 | bhaskar.v@onsocialplatform.com | bhaskar | 2 | 0 | 100% (7) | замолчал |
+| 24 | petr@crona-base.com | petr | 2 | 0 | 100% (5)¹ | |
+| 25 | petr@crona-b2b.com | petr | 0 | 0 | 100% (4)¹ | 0 за 2 мес |
+| 26 | petr@crona-stack.com | petr | 0 | 0 | 100% (5)¹ | 0 за 2 мес |
+| 27 | petr@cronaaipipeline.com | petr | 0 | 0 | **71% (7)¹** | ⚠ + 0 реплаев |
+| | **Total (27)** | | **18** | **103** | | |
+
+¹ Inbox % замерено по домену (тест-отправитель `eleonora@<domain>`).
+
+---
+
 ## Off rotation (исторический контекст)
 
 Ящики, давшие реплаи в марте и **отсутствующие** в каноническом 27 — сняты ранее (предположительно при подключении 14 новых apr-доменов). В отчёте только для полноты картины.
