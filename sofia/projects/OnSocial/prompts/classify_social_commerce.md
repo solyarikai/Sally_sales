@@ -35,10 +35,15 @@ Website scrape: {{scraped_content}}  ← direct scrape; may be empty
 Priority: scraped_content > exa_content.
 
 ══ OUTPUT ══
-SEGMENT | TIER | one-sentence evidence
+SEGMENT | TIER | observation
+
+For TIER_0, observation must follow this structure:
+[what company does] + [operational pain with creator data] + [cost of that pain]
+
+For TIER_1 and OTHER: one-sentence evidence is enough.
 
 Examples:
-SOCIAL_COMMERCE | TIER_0 | Live shopping marketplace (100–300 employees) where creators run storefronts — creator verification at onboarding is a stated feature
+SOCIAL_COMMERCE | TIER_0 | Live shopping marketplace where creators run storefronts for brands + no scalable way to vet creator audience quality at onboarding + low-quality creators reduce GMV and erode merchant trust in the platform
 SOCIAL_COMMERCE | TIER_1 | Shoppable video SaaS sold to enterprise retail brands only, no creator marketplace component
 OTHER | E-commerce SaaS (Shopify-like) — creators are not part of the product model
 OTHER | Brand selling products via creator ads — not a platform
