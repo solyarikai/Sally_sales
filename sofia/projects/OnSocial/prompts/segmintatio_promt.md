@@ -52,12 +52,14 @@ TIER_1 — everything else in the target segments (real prospect, but lower prio
 
 ══ INPUT ══
 Company: {{company_name}}
-Employees: {{employees}}
-Google result: {{google_result}}
-Website content: {{website_content}}
+Employees: {{employees}}  ← may be empty; if so, skip employee-count disqualifiers
+Exa search: {{exa_content}}  ← up to 1600 chars from 2 queries: "[company] influencer creator affiliate marketing" — may include snippets from multiple pages
+Website scrape: {{scraped_content}}  ← direct HTTP scrape of company homepage; may be empty if Exa gave sufficient data
+
+Priority: scraped_content > exa_content. If both are empty → OTHER | No website data.
 
 ══ OUTPUT ══
-SEGMENT | TIER | one-sentence evidence from website/google
+SEGMENT | TIER | one-sentence evidence from exa/scrape
 
 Examples:
 INFLUENCER_PLATFORMS | TIER_0 | Creator discovery SaaS with audience analytics dashboard, demo CTA, and 50 brand logos — creator data is the core product
