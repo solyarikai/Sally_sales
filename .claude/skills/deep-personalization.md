@@ -152,6 +152,8 @@ For each company that has at least one verified contact, run ONE WebSearch:
 "{company_name}" interview OR raised OR growth OR revenue site:linkedin.com OR site:crunchbase.com OR site:techcrunch.com
 ```
 
+**Data currency rule**: We are in 2026. Always prefer 2026 sources. When searching, add a year filter or include "2026" in the query to surface fresh results. If only 2025 data is available, tag it "(reported 2025)" when cited in email copy — never present 2025 figures as current. If you find a 2026 update (new funding round, revised revenue, new hire), use that instead. Include the month when available: "raised $14M in August 2025" is better than "raised $14M". Never cite a "2025 roadmap" or "2025 plan" as if it's forward-looking — from the reader's perspective it's already past.
+
 Extract structured facts:
 
 ```json
