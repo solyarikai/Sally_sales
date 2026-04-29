@@ -35,10 +35,15 @@ Website scrape: {{scraped_content}}  ← direct scrape; may be empty
 Priority: scraped_content > exa_content.
 
 ══ OUTPUT ══
-SEGMENT | TIER | one-sentence evidence
+SEGMENT | TIER | observation
+
+For TIER_0, observation must follow this structure:
+[what company does] + [operational pain with creator data] + [cost of that pain]
+
+For TIER_1 and OTHER: one-sentence evidence is enough.
 
 Examples:
-IM_FIRST_AGENCIES | TIER_0 | Pure TikTok influencer agency, all 8 case studies are creator activations, ~50 employees, active brand roster
+IM_FIRST_AGENCIES | TIER_0 | Pure TikTok influencer agency running campaigns for 30+ brands + manually checking creator authenticity for every brief + fake follower risk kills campaign ROI and damages client relationships
 IM_FIRST_AGENCIES | TIER_1 | MCN managing 200+ creators but part of a major holding group
 OTHER | Full-service agency: SEO, PPC, email, and influencer listed as one of 9 equal services
 OTHER | PR agency that occasionally places influencers — not primary business
