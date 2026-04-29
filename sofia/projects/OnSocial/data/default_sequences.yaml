@@ -16,7 +16,8 @@
 # ============================================================
 # {{first_name}}            — имя лида (всегда заполнено)
 # {{company_name}}          — название компании (всегда)
-# {{cf_competitor_client}}  — cf_competitor_client (per-lead custom field в SmartLead)
+# {{cf_competitor_client}}  — используется ТОЛЬКО в подписи "Trusted by ..."
+#                              (per-lead custom field в SmartLead)
 #                              Источник: lead.custom_fields.cf_competitor_client
 #                              Пример: "Whalar, Kolsquare, Billion Dollar Boy"
 #
@@ -31,6 +32,13 @@
 #
 # Это нужно потому что SmartLead не подставляет fallback для пустых custom fields —
 # в инбоксе появится литеральный "{{cf_competitor_client}}".
+#
+# ============================================================
+# ПОДПИСЬ (стандартная для всех писем)
+# ============================================================
+# Bhaskar Vishnu
+# From OnSocial
+# Trusted by {{cf_competitor_client}}
 
 # ====================================================================
 # INFPLAT (Influencer Platforms)
@@ -44,12 +52,13 @@ INFPLAT_FOUNDERS:
 
     Checked {{company_name}} - you're giving clients creator analytics. Is the data layer yours, or do you pull from a vendor?
 
-    Platforms like {{cf_competitor_client}} run on our API. Building creator data in-house breaks every time TikTok changes something - our endpoint handles that, 450M+ profiles, city-level demographics.
+    Building creator data in-house breaks every time TikTok changes something - our endpoint handles that, 450M+ profiles, city-level demographics.
 
     Can run any creator through the API live - 15 min?
 
     Kind regards,
-    Bhaskar Vishnu from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, easier to show than tell.
@@ -58,17 +67,21 @@ INFPLAT_FOUNDERS:
 
     If coverage or freshness beats what {{company_name}} is calling today, worth a conversation.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
-    When platforms like {{cf_competitor_client}} moved off in-house scrapers to our API, they freed engineering bandwidth and expanded coverage across more networks within a week.
+    Platform teams that moved off in-house scrapers to our API freed engineering bandwidth and expanded coverage across more networks within a week.
 
     For platforms like {{company_name}} the question is what your engineers spend time on - data plumbing, or product.
 
     If data infra sits with your CTO or Head of Product, happy to loop them in.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -80,11 +93,13 @@ INFPLAT_TECHLEAD:
 
     We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. Fraud breakdown by type, audience demographics down to city level, raw real-time access.
 
-    9 years in production. Teams like {{cf_competitor_client}} moved to us for 10x the coverage and one endpoint instead of stitching multiple APIs.
+    9 years in production. Tech teams that moved to us got 10x the coverage and one endpoint instead of stitching multiple APIs.
 
     Worth a 15-min call to walk through the API for {{company_name}}'s use case?
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, easier to show than tell.
 
@@ -92,7 +107,9 @@ INFPLAT_TECHLEAD:
 
     If coverage or freshness beats what {{company_name}} is calling today, worth a conversation. If not, you have a benchmark.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
@@ -100,7 +117,9 @@ INFPLAT_TECHLEAD:
 
     If API vendor selection isn't your call, happy to loop in whoever owns it. Usually CTO or Head of Data.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -112,11 +131,13 @@ INFPLAT_ACCOUNT_OPS:
 
     We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. One call returns fraud scoring, audience demographics, city-level data.
 
-    9 years in the market. Teams like {{cf_competitor_client}} moved to us and cut creator-vetting time from hours to minutes.
+    9 years in the market. Teams that moved to us cut creator-vetting time from hours to minutes.
 
     Worth a 15-min call to walk through how it'd fit {{company_name}}'s workflow?
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, two things ops leaders bring up most before getting started:
 
@@ -128,7 +149,9 @@ INFPLAT_ACCOUNT_OPS:
 
     What works?
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one from me.
 
@@ -138,7 +161,8 @@ INFPLAT_ACCOUNT_OPS:
 
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -151,11 +175,13 @@ INFPLAT_HEAD:
 
     One API call returns 450M+ creator profiles across Instagram, TikTok and YouTube. Real audience demographics, geo splits, fraud signals, engagement depth - not just follower counts.
 
-    Platform leaders at companies like {{cf_competitor_client}} moved to us for data their clients actually trust.
+    Platform leaders that moved to us did it for data their clients actually trust.
 
     Worth a 15-min call? I'll pull real data on a creator {{company_name}} is recommending this week.
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, the in-house question.
 
@@ -163,7 +189,9 @@ INFPLAT_HEAD:
 
     If {{company_name}} is thinking about that defense, I can send a sample white-label report we ship for senior platform teams. Email only, no call.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
 
@@ -171,7 +199,9 @@ INFPLAT_HEAD:
 
     If timing's wrong - will check back next quarter.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -187,11 +217,13 @@ IMAGENCY_FOUNDERS:
 
     450M+ creator profiles across Instagram, TikTok and YouTube. Fraud scoring, audience demographics to city level. Your brand on it, not ours.
 
-    9 years in the market. Teams like {{cf_competitor_client}} already run it this way.
+    9 years in the market. Other agency teams already run it this way.
 
     Worth a 15-min call? I'll show you a live pull on a creator {{company_name}} is evaluating right now.
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, on bigger pitches.
 
@@ -199,7 +231,9 @@ IMAGENCY_FOUNDERS:
 
     If {{company_name}} is in those conversations - 15 min on positioning the data. Or I'll send a sample client report. Email only.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
@@ -207,7 +241,9 @@ IMAGENCY_FOUNDERS:
 
     If I should be talking to your Head of Strategy or COO at {{company_name}}, point me there.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -219,11 +255,13 @@ IMAGENCY_TECHLEAD:
 
     We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. Fraud breakdown by type, audience demographics down to city level, raw real-time access.
 
-    9 years in production. Agencies like {{cf_competitor_client}} moved to us for 10x the coverage and one endpoint instead of stitching vendors.
+    9 years in production. Agency tech teams that moved to us got 10x the coverage and one endpoint instead of stitching vendors.
 
     Worth a 15-min call to walk through the API for {{company_name}}'s use case?
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, easier to show than tell.
 
@@ -231,7 +269,9 @@ IMAGENCY_TECHLEAD:
 
     If coverage or freshness beats what {{company_name}} is using today, worth a conversation. If not, you have a benchmark.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
@@ -239,7 +279,9 @@ IMAGENCY_TECHLEAD:
 
     If API vendor selection isn't your call, happy to loop in whoever owns it.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -253,11 +295,13 @@ IMAGENCY_ACCOUNT_OPS:
 
     Most agency teams stitch 2-4 vendors - one for audience data, one for fraud, one for reports. We collapse it into a single API: 450M+ profiles, city-level demographics, fraud scoring.
 
-    9 years in the market. Teams like {{cf_competitor_client}} consolidated to us.
+    9 years in the market. Agency ops teams consolidated to us.
 
     15 min to see if it'd cut your prep time in half?
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, two things ops leaders bring up most:
 
@@ -266,7 +310,9 @@ IMAGENCY_ACCOUNT_OPS:
 
     15 min - I'll walk through coverage, pricing and the workflow change. Or trial it with the team.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one from me.
 
@@ -274,7 +320,8 @@ IMAGENCY_ACCOUNT_OPS:
 
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -287,11 +334,13 @@ IMAGENCY_HEAD:
 
     One API call returns 450M+ creator profiles across Instagram, TikTok and YouTube. Real audience demographics, geo splits, fraud signals, engagement depth - not just follower counts.
 
-    IM leaders at agencies like {{cf_competitor_client}} moved to us for data their brands actually trust.
+    IM leaders that moved to us did it for data their brands actually trust.
 
     Worth a 15-min call? I'll pull real data on a creator {{company_name}} is recommending this week.
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, the in-house question.
 
@@ -299,7 +348,9 @@ IMAGENCY_HEAD:
 
     If {{company_name}} is thinking about that defense, I can send a sample white-label client report we ship for senior IM teams. Email only, no call.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
 
@@ -307,7 +358,9 @@ IMAGENCY_HEAD:
 
     If timing's wrong - will check back next quarter.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -319,11 +372,13 @@ IMAGENCY_CREATIVE:
 
     450M+ creator profiles across Instagram, TikTok and YouTube. Audience fit, content style, engagement quality, who actually follows them and where.
 
-    Creative teams at agencies like {{cf_competitor_client}} use it to shortlist faster with better audience match.
+    Creative teams use it to shortlist faster with better audience match.
 
     Worth a 15-min call? I'll pull data on any creator you're working with right now.
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, on brief turnaround.
 
@@ -331,7 +386,9 @@ IMAGENCY_CREATIVE:
 
     Send me one creator handle and a brand name - I'll send back a fit read (audience match, content style, fraud check). 10 min on my side.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
 
@@ -339,7 +396,9 @@ IMAGENCY_CREATIVE:
 
     If not on the radar, will leave it.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -355,27 +414,32 @@ AFFPERF_FOUNDERS:
 
     {{company_name}} connects brands with creators on a performance model. Question: how do you verify a creator partner will drive real conversions vs. inflated traffic?
 
-    Performance platforms like {{cf_competitor_client}} were burning budget on fake-audience partners — until they moved to us and started checking quality before payout, not after. One API call per creator: fraud score, real demographics, follower quality. Your team plugs it in, clients see it as your feature.
+    Performance platforms were burning budget on fake-audience partners — until they moved to us and started checking quality before payout, not after. One API call per creator: fraud score, real demographics, follower quality. Your team plugs it in, clients see it as your feature.
 
     Can demo on any specific partner - 15 min.
 
     Kind regards,
-    Bhaskar Vishnu from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, one more thing.
 
-    When a client runs a program with 50 partners, they want to know upfront who has real audience. Without that - part of the budget just burns. Platforms like {{cf_competitor_client}} plugged in our API as a competitive edge for exactly this.
+    When a client runs a program with 50 partners, they want to know upfront who has real audience. Without that - part of the budget just burns. Performance platforms plugged in our API as a competitive edge for exactly this.
 
     Drop any creator handle in reply - I'll run it right here. No call needed.
 
-    Bhaskar
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one.
 
     Not relevant right now - all good. But if I'm reaching the wrong person, who should I talk to? Usually CTO or Head of Partnerships.
 
-    Bhaskar
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -387,11 +451,13 @@ AFFPERF_TECHLEAD:
 
     We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. Fraud breakdown by type, audience demographics down to city level, raw real-time access.
 
-    9 years in production. Performance platforms like {{cf_competitor_client}} plugged in our endpoint instead of stitching vendor data per partner.
+    9 years in production. Performance tech teams plugged in our endpoint instead of stitching vendor data per partner.
 
     Worth a 15-min call to walk through the API for {{company_name}}'s use case?
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, easier to show than tell.
 
@@ -399,7 +465,9 @@ AFFPERF_TECHLEAD:
 
     If coverage or freshness beats what {{company_name}} is calling today, worth a conversation. If not, you have a benchmark.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last note.
 
@@ -407,7 +475,9 @@ AFFPERF_TECHLEAD:
 
     If API vendor selection isn't your call, happy to loop in whoever owns it. Usually CTO or Head of Engineering.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -419,11 +489,13 @@ AFFPERF_ACCOUNT_OPS:
 
     We provide creator data via API: 450M+ profiles across IG, TikTok, YouTube. One call per partner returns fraud score, audience demographics, follower quality.
 
-    9 years in the market. Performance teams like {{cf_competitor_client}} cut partner-vetting time from hours to minutes - and stopped paying out on fake traffic.
+    9 years in the market. Performance teams that moved to us cut partner-vetting time from hours to minutes - and stopped paying out on fake traffic.
 
     Worth a 15-min call to walk through how it'd fit {{company_name}}'s onboarding workflow?
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, two things ops leaders ask first:
 
@@ -432,7 +504,9 @@ AFFPERF_ACCOUNT_OPS:
 
     15 min call - I'll walk through coverage, pricing, and the workflow change. Or trial it with the team.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last one from me.
 
@@ -440,7 +514,8 @@ AFFPERF_ACCOUNT_OPS:
 
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
     Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
@@ -453,11 +528,13 @@ AFFPERF_HEAD:
 
     One API call returns 450M+ creator profiles across Instagram, TikTok and YouTube. Real audience demographics, geo splits, fraud signals, engagement depth - not just follower counts.
 
-    Performance leaders at platforms like {{cf_competitor_client}} moved to us for data their advertisers actually trust.
+    Performance leaders that moved to us did it for data their advertisers actually trust.
 
     Worth a 15-min call? I'll pull real data on a partner {{company_name}} is evaluating right now.
 
-    Bhaskar from OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, the in-house question.
 
@@ -465,7 +542,9 @@ AFFPERF_HEAD:
 
     If {{company_name}} is thinking about that defense, I can send a sample white-label partner report we ship for senior performance teams. Email only, no call.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_3_body: |
     {{first_name}}, last from me.
 
@@ -473,6 +552,8 @@ AFFPERF_HEAD:
 
     If timing's wrong - will check back next quarter.
 
-    Bhaskar, OnSocial
+    Bhaskar Vishnu
+    From OnSocial
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
