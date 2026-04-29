@@ -1,0 +1,457 @@
+# Default sequences для deep-personalization (tier=default fallback)
+# Структура: SEGMENT_ROLE → 3-step sequence
+# Источник: production sequences из v5_proposed_2026-04-27.md и активных кампаний
+#
+# 13 комбинаций для 30 кампаний:
+#   INFPLAT × {FOUNDERS, TECHLEAD, ACCOUNT_OPS, HEAD}
+#   IMAGENCY × {FOUNDERS, TECHLEAD, ACCOUNT_OPS, HEAD, CREATIVE}
+#   AFFPERF × {FOUNDERS, TECHLEAD, ACCOUNT_OPS, HEAD}
+#
+# Маппинг кампания → segment_role:
+#   из имени `c-OnSocial_<SEGMENT>_<ROLE>_<...>` извлечь SEGMENT и ROLE
+#   ROLE_FALLBACK: если роль не из набора → использовать FOUNDERS (универсальный)
+
+# ====================================================================
+# INFPLAT (Influencer Platforms)
+# ====================================================================
+
+INFPLAT_FOUNDERS:
+  source: "v5 INFPLAT_ALL_GEO (3096747)"
+  default_subject_1: "Creator data API for {{company_name}}"
+  default_email_1_body: |
+    Hey {{first_name}},
+
+    Checked {{company_name}} - you're giving clients creator analytics. Is the data layer yours, or do you pull from a vendor?
+
+    Modash, Captiv8, Kolsquare, Influencity, Phyllo and Lefty all run on our API. Building creator data in-house breaks every time TikTok changes something - our endpoint handles that, 450M+ profiles, city-level demographics.
+
+    Can run any creator through the API live - 15 min?
+
+    Kind regards,
+    Bhaskar Vishnu from OnSocial
+    Trusted by Traackr, Audiense, and Upfluence
+  default_email_2_body: |
+    {{first_name}}, easier to show than tell.
+
+    Drop any creator handle in reply and I'll run it through our API - send back raw output: demographics, audience quality, fraud score, engagement.
+
+    If coverage or freshness beats what {{company_name}} is calling today, worth a conversation.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last note.
+
+    When Lefty moved off in-house scrapers to our API, they freed two engineers and expanded from 3 to 5 social networks in a week.
+
+    For platforms like {{company_name}} the question is what your engineers spend time on - data plumbing, or product.
+
+    If data infra sits with your CTO or Head of Product, happy to loop them in.
+
+    Bhaskar, OnSocial
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+INFPLAT_TECHLEAD:
+  source: "v5 TECHLEAD (3169092)"
+  default_subject_1: "Creator data API for {{company_name}}"
+  default_email_1_body: |
+    Hey {{first_name}}, when {{company_name}}'s team needs creator data for a new feature or client report - what API are you calling today?
+
+    We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. Fraud breakdown by type, audience demographics down to city level, raw real-time access.
+
+    9 years in production. Teams like Traackr moved to us for 10x the coverage and one endpoint instead of stitching multiple APIs.
+
+    Worth a 15-min call to walk through the API for {{company_name}}'s use case?
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, easier to show than tell.
+
+    Drop any creator handle in reply and I'll send back raw JSON from our endpoint: demographics, audience quality, fraud breakdown, engagement depth.
+
+    If coverage or freshness beats what {{company_name}} is calling today, worth a conversation. If not, you have a benchmark.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last note.
+
+    Two things tech teams usually compare on: data freshness (we refresh every 24-48h) and depth (450M+ profiles across IG, TikTok, YouTube in 50+ countries at city level).
+
+    If API vendor selection isn't your call, happy to loop in whoever owns it. Usually CTO or Head of Data.
+
+    Bhaskar, OnSocial
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+INFPLAT_ACCOUNT_OPS:
+  source: "v5 ACCOUNT_OPS_TOP (3124575) — production-proven"
+  default_subject_1: "{{first_name}}, 450M influencer profiles ready for your API"
+  default_email_1_body: |
+    Hey {{first_name}}, when {{company_name}}'s account teams pull creator data for a brief - how long does that workflow take today?
+
+    We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. One call returns fraud scoring, audience demographics, city-level data.
+
+    9 years in the market. Teams like Traackr moved to us and cut creator-vetting time from hours to minutes.
+
+    Worth a 15-min call to walk through how it'd fit {{company_name}}'s workflow?
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, two things ops leaders bring up most before getting started:
+
+    Two ways to see if it fits {{company_name}}:
+    - "Will it disrupt our team's workflow?" - No. We sit in the data layer; your team keeps their tools and process.
+    - "Will it actually save time?" - One API call replaces 3-4 manual steps (export, cross-check, patch). Largest coverage = no gaps to fill.
+
+    15 min call - I'll walk through coverage, pricing and the workflow change. Or trial it with the team.
+
+    What works?
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last one from me.
+
+    Leaders that moved to us say the same thing: fewer hours per campaign on creator vetting, cleaner deliverables to clients.
+
+    If this is relevant - 15 min this week to see if it fits.
+
+    If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
+
+    Bhaskar, OnSocial
+    Trusted by Traackr, Audiense, and Upfluence
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+INFPLAT_HEAD:
+  source: "v5 SENIOR_LEADERSHIP (3188673) — adapted for INFPLAT"
+  default_subject_1: "Creator data API for {{company_name}}"
+  default_email_1_body: |
+    {{first_name}}, when a client asks {{company_name}} "why this creator?" - what data backs the recommendation?
+
+    One API call returns 450M+ creator profiles across Instagram, TikTok and YouTube. Real audience demographics, geo splits, fraud signals, engagement depth - not just follower counts.
+
+    Platform leaders at companies like Traackr moved to us for data their clients actually trust.
+
+    Worth a 15-min call? I'll pull real data on a creator {{company_name}} is recommending this week.
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, the in-house question.
+
+    More clients at the senior level are evaluating bringing creator data in-house. Platforms winning that fight have one thing in common: their data layer is proprietary - reports, audience depth, audit trail clients can't replicate.
+
+    If {{company_name}} is thinking about that defense, I can send a sample white-label report we ship for senior platform teams. Email only, no call.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last from me.
+
+    If the call on data tooling sits with your Head of Product or CTO, happy to loop them in directly.
+
+    If timing's wrong - will check back next quarter.
+
+    Bhaskar, OnSocial
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+# ====================================================================
+# IMAGENCY (IM-First Agencies)
+# ====================================================================
+
+IMAGENCY_FOUNDERS:
+  source: "v5 FOUNDERS_US_CA (3188669) — production-proven for IMAGENCY"
+  default_subject_1: "{{first_name}}, 450M influencer profiles ready for your API"
+  default_email_1_body: |
+    {{first_name}}, is the creator data layer at {{company_name}} yours - or a vendor's your clients could find on their own?
+
+    450M+ creator profiles across Instagram, TikTok and YouTube. Fraud scoring, audience demographics to city level. Your brand on it, not ours.
+
+    9 years in the market. Teams like Modash, Captiv8 and Obviously already run it this way.
+
+    Worth a 15-min call? I'll show you a live pull on a creator {{company_name}} is evaluating right now.
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, on bigger pitches.
+
+    Brands evaluating IM partners now ask "can you show me audience-level depth that's yours, not licensed?" The agencies winning those pitches ship reports under their own brand, not a HypeAuditor PDF.
+
+    If {{company_name}} is in those conversations - 15 min on positioning the data. Or I'll send a sample client report. Email only.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last note.
+
+    If creator data tooling isn't a priority - all good, will leave it.
+
+    If I should be talking to your Head of Strategy or COO at {{company_name}}, point me there.
+
+    Bhaskar, OnSocial
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+IMAGENCY_TECHLEAD:
+  source: "v5 TECHLEAD (3169092) — adapted for agency tech leads"
+  default_subject_1: "Creator data API for {{company_name}}"
+  default_email_1_body: |
+    Hey {{first_name}}, when {{company_name}}'s team needs creator data for a client deliverable or internal tool - what API or data source are you calling today?
+
+    We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. Fraud breakdown by type, audience demographics down to city level, raw real-time access.
+
+    9 years in production. Agencies like Ykone and InfluencerUK moved to us for 10x the coverage and one endpoint instead of stitching vendors.
+
+    Worth a 15-min call to walk through the API for {{company_name}}'s use case?
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, easier to show than tell.
+
+    Drop any creator handle in reply and I'll send back raw JSON from our endpoint: demographics, audience quality, fraud breakdown, engagement depth.
+
+    If coverage or freshness beats what {{company_name}} is using today, worth a conversation. If not, you have a benchmark.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last note.
+
+    Two things agency tech teams usually compare on: data freshness (we refresh every 24-48h) and depth (450M+ profiles across IG, TikTok, YouTube in 50+ countries at city level).
+
+    If API vendor selection isn't your call, happy to loop in whoever owns it.
+
+    Bhaskar, OnSocial
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+IMAGENCY_ACCOUNT_OPS:
+  source: "v5 OPS_ACCOUNT (3188671)"
+  default_subject_1: "{{first_name}}, 450M influencer profiles ready for your API"
+  default_email_1_body: |
+    Hi {{first_name}},
+
+    How many tools is {{company_name}}'s team pulling from to prep a creator shortlist for a brand?
+
+    Most agency teams stitch 2-4 vendors - one for audience data, one for fraud, one for reports. We collapse it into a single API: 450M+ profiles, city-level demographics, fraud scoring.
+
+    9 years in the market. Teams like Modash and Obviously consolidated to us.
+
+    15 min to see if it'd cut your prep time in half?
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, two things ops leaders bring up most:
+
+    - "Will it disrupt our workflow?" - No. We sit in the data layer; your team keeps their tools.
+    - "Will it actually save time?" - One API call replaces 3-4 manual steps. Largest coverage in market.
+
+    15 min - I'll walk through coverage, pricing and the workflow change. Or trial it with the team.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last one from me.
+
+    Ops leaders that moved to us say the same thing: fewer hours per campaign on creator vetting, cleaner deliverables to clients.
+
+    If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
+
+    Bhaskar, OnSocial
+    Trusted by Traackr, Audiense, and Upfluence
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+IMAGENCY_HEAD:
+  source: "v5 SENIOR_LEADERSHIP (3188673)"
+  default_subject_1: "Creator data API for {{company_name}}"
+  default_email_1_body: |
+    {{first_name}}, when a brand asks {{company_name}} "why this creator?" - what data backs the recommendation?
+
+    One API call returns 450M+ creator profiles across Instagram, TikTok and YouTube. Real audience demographics, geo splits, fraud signals, engagement depth - not just follower counts.
+
+    IM leaders at agencies like Ykone and InfluencerUK moved to us for data their brands actually trust.
+
+    Worth a 15-min call? I'll pull real data on a creator {{company_name}} is recommending this week.
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, the in-house question.
+
+    More brands at the senior level are evaluating bringing IM in-house. Agencies winning that fight have one thing in common: their data layer is proprietary - reports, audience depth, audit trail brands can't replicate.
+
+    If {{company_name}} is thinking about that defense, I can send a sample white-label client report we ship for senior IM teams. Email only, no call.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last from me.
+
+    If the call on data tooling sits with your Head of Product or CTO, happy to loop them in directly.
+
+    If timing's wrong - will check back next quarter.
+
+    Bhaskar, OnSocial
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+IMAGENCY_CREATIVE:
+  source: "v5 CREATIVE_CONTENT (3188672)"
+  default_subject_1: "Creator data API for {{company_name}}"
+  default_email_1_body: |
+    {{first_name}}, when {{company_name}} puts creators in a brief - is that data yours, or a screenshot from someone else's tool?
+
+    450M+ creator profiles across Instagram, TikTok and YouTube. Audience fit, content style, engagement quality, who actually follows them and where.
+
+    Creative teams at agencies like Ykone and InfluencerUK use it to shortlist faster with better audience match.
+
+    Worth a 15-min call? I'll pull data on any creator you're working with right now.
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, on brief turnaround.
+
+    Creative teams that switched stopped stitching audience data across multiple tools and native platform stats. The shortlist comes back same day instead of three.
+
+    Send me one creator handle and a brand name - I'll send back a fit read (audience match, content style, fraud check). 10 min on my side.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last from me.
+
+    If creator vetting sits with strategy or account director at {{company_name}}, happy to send the same offer to them - saves your time.
+
+    If not on the radar, will leave it.
+
+    Bhaskar, OnSocial
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+# ====================================================================
+# AFFPERF (Affiliate Performance)
+# ====================================================================
+
+AFFPERF_FOUNDERS:
+  source: "production AFFILIATE & PERFORMANCE (407b152299eb)"
+  default_subject_1: "{{first_name}}, one API call - real vs. fake creators"
+  default_email_1_body: |
+    Hey {{first_name}},
+
+    {{company_name}} connects brands with creators on a performance model. Question: how do you verify a creator partner will drive real conversions vs. inflated traffic?
+
+    impact.com was burning budget on fake-audience partners - until they started checking quality before payout, not after. One API call per creator: fraud score, real demographics, follower quality. Your team plugs it in, clients see it as your feature.
+
+    Can demo on any specific partner - 15 min.
+
+    Kind regards,
+    Bhaskar Vishnu from OnSocial
+    Trusted by Traackr, Audiense, and Upfluence
+  default_email_2_body: |
+    {{first_name}}, one more thing.
+
+    When a client runs a program with 50 partners, they want to know upfront who has real audience. Without that - part of the budget just burns. Captiv8 and Phyllo plugged in our API as a competitive edge for exactly this.
+
+    Drop any creator handle in reply - I'll run it right here. No call needed.
+
+    Bhaskar
+  default_email_3_body: |
+    {{first_name}}, last one.
+
+    Not relevant right now - all good. But if I'm reaching the wrong person, who should I talk to? Usually CTO or Head of Partnerships.
+
+    Bhaskar
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+AFFPERF_TECHLEAD:
+  source: "TECHLEAD adapted for affiliate platforms"
+  default_subject_1: "Creator data API for {{company_name}}"
+  default_email_1_body: |
+    Hey {{first_name}}, when {{company_name}}'s team needs creator data to verify a publisher partner or score audience quality - what API are you calling today?
+
+    We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. Fraud breakdown by type, audience demographics down to city level, raw real-time access.
+
+    9 years in production. Performance platforms like Captiv8 and Phyllo plugged in our endpoint instead of stitching vendor data per partner.
+
+    Worth a 15-min call to walk through the API for {{company_name}}'s use case?
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, easier to show than tell.
+
+    Drop any creator handle in reply and I'll send back raw JSON: demographics, audience quality, fraud breakdown, engagement depth.
+
+    If coverage or freshness beats what {{company_name}} is calling today, worth a conversation. If not, you have a benchmark.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last note.
+
+    Two things performance tech teams compare on: data freshness (we refresh every 24-48h) and depth (450M+ profiles across IG, TikTok, YouTube in 50+ countries at city level).
+
+    If API vendor selection isn't your call, happy to loop in whoever owns it. Usually CTO or Head of Engineering.
+
+    Bhaskar, OnSocial
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+AFFPERF_ACCOUNT_OPS:
+  source: "ACCOUNT_OPS adapted for affiliate ops"
+  default_subject_1: "{{first_name}}, fake-traffic protection for {{company_name}}'s programs"
+  default_email_1_body: |
+    Hey {{first_name}}, when {{company_name}}'s team onboards a new creator partner - how long does it take to verify audience quality before they start driving conversions?
+
+    We provide creator data via API: 450M+ profiles across IG, TikTok, YouTube. One call per partner returns fraud score, audience demographics, follower quality.
+
+    9 years in the market. Performance teams like Captiv8 and Phyllo cut partner-vetting time from hours to minutes - and stopped paying out on fake traffic.
+
+    Worth a 15-min call to walk through how it'd fit {{company_name}}'s onboarding workflow?
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, two things ops leaders ask first:
+
+    - "Will it disrupt our workflow?" - No. We sit in the data layer; your team keeps their tools and partner pipeline.
+    - "Will it actually save time?" - One API call replaces manual cross-referencing across 2-3 vendor dashboards. Largest coverage = no gaps.
+
+    15 min call - I'll walk through coverage, pricing, and the workflow change. Or trial it with the team.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last one from me.
+
+    Ops leaders that moved to us say the same thing: cleaner partner pipelines, less budget burn on fake-traffic accounts.
+
+    If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
+
+    Bhaskar, OnSocial
+    Trusted by Traackr, Audiense, and Upfluence
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
+
+AFFPERF_HEAD:
+  source: "SENIOR_LEADERSHIP adapted for affiliate / performance heads"
+  default_subject_1: "Creator data API for {{company_name}}"
+  default_email_1_body: |
+    {{first_name}}, when a brand asks {{company_name}} "why this partner will drive real conversions?" - what data backs the answer?
+
+    One API call returns 450M+ creator profiles across Instagram, TikTok and YouTube. Real audience demographics, geo splits, fraud signals, engagement depth - not just follower counts.
+
+    Performance leaders at platforms like Captiv8 and Phyllo moved to us for data their advertisers actually trust.
+
+    Worth a 15-min call? I'll pull real data on a partner {{company_name}} is evaluating right now.
+
+    Bhaskar from OnSocial
+  default_email_2_body: |
+    {{first_name}}, the in-house question.
+
+    More advertisers at the senior level are evaluating bringing partner-quality verification in-house. Performance platforms winning that fight have one thing in common: their data layer is proprietary - audience depth, audit trail brands can't replicate.
+
+    If {{company_name}} is thinking about that defense, I can send a sample white-label partner report we ship for senior performance teams. Email only, no call.
+
+    Bhaskar, OnSocial
+  default_email_3_body: |
+    {{first_name}}, last from me.
+
+    If the call on data tooling sits with your Head of Product or CTO, happy to loop them in directly.
+
+    If timing's wrong - will check back next quarter.
+
+    Bhaskar, OnSocial
+  default_email_2_delay_days: 3
+  default_email_3_delay_days: 3
