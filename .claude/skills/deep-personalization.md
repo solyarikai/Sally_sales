@@ -957,3 +957,5 @@ Highest-priority overrides — applied for the rest of the run AND saved to `~/.
 - **Identical openers across contacts at same company**: if Rafi and his CFO both get "growing 600% in a year means..." → comparing notes exposes the templating. Vary role-framing.
 - **Personalizing low-tier as if high-tier**: thin signal stretched into a full custom email reads worse than honest default. If quality_score < 2, don't fake it — use default tier.
 - **Re-researching across runs**: company research is project-persistent. Don't re-WebSearch a company already in `companies[domain].research`.
+- **Em dashes in body copy**: using — in email text (e.g. "without adding headcount — and reduced disputes") is a hard ban. Replace with comma, colon, period, or parentheses every time.
+- **2025 framing in 2026**: "Is X on your 2025 roadmap?" or "your 2025 targets" reads as stale and damages credibility. Always frame as 2026 or present-tense. If citing 2025 data, label it "(reported 2025)".
