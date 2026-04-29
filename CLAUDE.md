@@ -26,12 +26,14 @@ All scripts, DB queries, scrapers run on Hetzner. Local machine = code editing o
 - Hetzner python = `python3` (3.12), local python = `python3.11` (homebrew, has google-auth)
 - `sofia/` scripts not on Hetzner by default — SCP first
 
-## Integration Rules (live in `.claude/rules/`)
+## Integration Rules (`.claude/reference/` — read on demand)
 
-- **SmartLead formatting** → `smartlead-formatting.md` (no em-dashes, `<br>` breaks, POST replaces all seqs)
-- **GetSales CSV format** → `getsales-formatting.md` (49-column schema, required fields)
-- **Pipeline phase state machine** → `pipeline-phases.md` (which endpoint needs which phase)
-- **Classify prompt format** → `classify-prompt-format.md` (no OUTPUT FORMAT sections)
+- **SmartLead formatting** → `.claude/reference/smartlead-formatting.md`
+- **GetSales CSV format** → `.claude/reference/getsales-formatting.md`
+- **Pipeline phase state machine** → `.claude/reference/pipeline-phases.md`
+- **Classify prompt format** → `.claude/reference/classify-prompt-format.md`
+- **Company normalization** → `.claude/reference/company-normalization.md`
+- **Google Sheets naming** → `.claude/reference/sheets-reference.md`
 - **Sheets naming & protected tabs** → `sheets-reference.md`
 
 Google Sheets/Drive — use MCP tools only, never Python/service-account. Dual save: local CSV ↔ Sheets with same name.
