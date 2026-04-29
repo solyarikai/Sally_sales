@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>OnSocial — Mailbox Audit 2026-04-29</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#171a21; --panel2:#1d2129; --line:#2a2f3a;
+  --fg:#e8ecf1; --muted:#8a93a3; --accent:#6cb4ff;
+  --t1:#1f8a4c; --t1bg:#0f2b1b;
+  --t2:#b58b1f; --t2bg:#2c2210;
+  --t3:#c0392b; --t3bg:#2b110e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}
+.wrap{max-width:1280px;margin:0 auto;padding:32px 24px 80px}
+h1{font-size:28px;margin:0 0 4px;font-weight:700}
+h2{font-size:18px;margin:32px 0 12px;font-weight:600;color:#fff}
+.sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0 8px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.kpi .v{font-size:26px;font-weight:700;letter-spacing:-.5px}
+.kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:16px}
+.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.rule{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px}
+.rule h3{margin:0 0 6px;font-size:14px;display:flex;align-items:center;gap:8px}
+.rule p{margin:0;color:var(--muted);font-size:13px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%}
+.t1 .dot{background:var(--t1)} .t2 .dot{background:var(--t2)} .t3 .dot{background:var(--t3)}
+.t1 h3{color:#7ee2a4} .t2 h3{color:#f0c970} .t3 h3{color:#f08880}
+.alloc{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.alloc .card{padding:18px;border-radius:10px;border:1px solid var(--line)}
+.alloc .t1{background:var(--t1bg);border-color:#1c5f3a}
+.alloc .t2{background:var(--t2bg);border-color:#6b521a}
+.alloc .t3{background:var(--t3bg);border-color:#7a2c25}
+.alloc .pct{font-size:32px;font-weight:700}
+.alloc .lbl{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.alloc .desc{font-size:13px;margin-top:8px;color:#c8cfd9}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:12px 0}
+.controls input[type=text]{background:var(--panel2);border:1px solid var(--line);color:var(--fg);padding:8px 10px;border-radius:6px;font-size:13px;width:240px;outline:none}
+.controls input[type=text]:focus{border-color:var(--accent)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);border-radius:20px;cursor:pointer;font-size:12px;background:var(--panel2);user-select:none}
+.chip input{accent-color:var(--accent);margin:0}
+.chip.active{border-color:var(--accent);background:#1f2a3a}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+thead{position:sticky;top:0;background:#1d2129;z-index:2}
+th{text-align:left;padding:10px 12px;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);border-bottom:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--fg)}
+th.sorted{color:var(--accent)}
+th.sorted:after{content:attr(data-arrow);margin-left:4px}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr.t1{background:linear-gradient(90deg,rgba(31,138,76,.12),transparent 60%)}
+tr.t2{background:linear-gradient(90deg,rgba(181,139,31,.10),transparent 60%)}
+tr.t3{background:linear-gradient(90deg,rgba(192,57,43,.18),transparent 60%)}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;letter-spacing:.3px}
+.b-t1{background:var(--t1);color:#fff}
+.b-t2{background:var(--t2);color:#fff}
+.b-t3{background:var(--t3);color:#fff}
+.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#2a2f3a;color:var(--muted);margin-left:6px;text-transform:uppercase;letter-spacing:.3px}
+.right{text-align:right}
+.muted{color:var(--muted)}
+.warn{color:#f0c970}
+.bad{color:#f08880;font-weight:600}
+.tierlist{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+.tierlist .col{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px;font-size:12px}
+.tierlist h3{margin:0 0 10px;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+.tierlist ul{margin:0;padding-left:18px;color:#c8cfd9}
+.tierlist li{margin:3px 0}
+details{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 18px}
+details summary{cursor:pointer;font-weight:600;color:var(--fg)}
+.foot{margin-top:32px;color:var(--muted);font-size:12px;line-height:1.7}
+.foot ul{margin:6px 0;padding-left:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>OnSocial — Mailbox Audit</h1>
+<div class="sub">2026-04-29 · Reply data: SmartLead Mar+Apr · Inbox %: Instantly tests started 28.04 (sample 3–8/mailbox, partial)</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="v">27</div><div class="l">mailboxes (canonical)</div></div>
+  <div class="kpi"><div class="v">103</div><div class="l">replies in April</div></div>
+  <div class="kpi"><div class="v" id="kpi-tiers">—</div><div class="l">T1 / T2 / T3</div></div>
+  <div class="kpi"><div class="v" id="kpi-bad">—</div><div class="l">проблемных (T3)</div></div>
+</div>
+
+<h2>Tier rules</h2>
+<div class="panel">
+  <div class="rules">
+    <div class="rule t1"><h3><span class="dot"></span>T1 — Healthy</h3>
+      <p>Inbox ≥95% <b>AND</b> Apr replies ≥6</p>
+      <p style="margin-top:6px">→ грузить полную капасити</p></div>
+    <div class="rule t2"><h3><span class="dot"></span>T2 — Mid</h3>
+      <p>Всё, что не T1 и не T3</p>
+      <p style="margin-top:6px">Sub-flags: <span class="tag">warming</span> · <span class="tag">watch</span> · <span class="tag">silent</span> · <span class="tag">no-test</span></p></div>
+    <div class="rule t3"><h3><span class="dot"></span>T3 — Problematic</h3>
+      <p>Inbox &lt;80% <b>OR</b> (Inbox &lt;100% <b>AND</b> Apr=0)</p>
+      <p style="margin-top:6px">→ пауза / warmup-only</p></div>
+  </div>
+</div>
+
+<h2>Volume allocation</h2>
+<div class="alloc">
+  <div class="card t1">
+    <div class="lbl">Tier 1</div>
+    <div class="pct">100%</div>
+    <div class="desc">Полная дневная капасити. Основной поток лидов.</div>
+  </div>
+  <div class="card t2">
+    <div class="lbl">Tier 2</div>
+    <div class="pct">20–50%</div>
+    <div class="desc">warming = 50% · watch = 30% · silent / no-test = 20%</div>
+  </div>
+  <div class="card t3">
+    <div class="lbl">Tier 3</div>
+    <div class="pct">0%</div>
+    <div class="desc">Снять с outreach. Оставить только warmup до восстановления inbox %.</div>
+  </div>
+</div>
+
+<h2>Mailbox table</h2>
+<div class="controls">
+  <input type="text" id="q" placeholder="поиск по mailbox / домену…">
+  <label class="chip active" data-tier="T1"><input type="checkbox" checked> T1</label>
+  <label class="chip active" data-tier="T2"><input type="checkbox" checked> T2</label>
+  <label class="chip active" data-tier="T3"><input type="checkbox" checked> T3</label>
+  <span style="width:1px;height:20px;background:var(--line)"></span>
+  <label class="chip active" data-owner="bhaskar"><input type="checkbox" checked> bhaskar</label>
+  <label class="chip active" data-owner="petr"><input type="checkbox" checked> petr</label>
+  <span class="muted" id="count" style="margin-left:auto;font-size:12px"></span>
+</div>
+
+<table id="tbl">
+<thead>
+<tr>
+  <th data-key="tier">Tier</th>
+  <th data-key="mailbox">Mailbox</th>
+  <th data-key="owner">Owner</th>
+  <th data-key="mar" class="right">Mar</th>
+  <th data-key="apr" class="right">Apr</th>
+  <th data-key="inbox" class="right">Inbox %</th>
+  <th data-key="n" class="right">n</th>
+  <th data-key="vol" class="right">Volume</th>
+  <th data-key="flag">Flag</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<h2>Per-tier breakdown</h2>
+<div class="tierlist" id="breakdown"></div>
+
+<details>
+  <summary>Off-rotation (исторический контекст)</summary>
+  <p class="muted" style="margin:10px 0">Ящики с реплаями в марте, отсутствуют в каноническом 27 — сняты ранее.</p>
+  <ul style="margin:0;color:#c8cfd9">
+    <li>bhaskar@onsocialplatform.com — Mar 5, Apr 0</li>
+    <li>bhaskar@onsocialinsights.com — Mar 3, Apr 0</li>
+    <li>bhaskar@onsocialdata.com — Mar 3, Apr 0</li>
+    <li>bhaskar@onsocialanalytics.com — Mar 2, Apr 0</li>
+    <li>bhaskar@onsocialnetwork.com — Mar 2, Apr 0</li>
+    <li>bhaskar.v@onsocialanalytics.com — Mar 1, Apr 0</li>
+    <li>bhaskar.v@onsocialinsights.com — Mar 1, Apr 0</li>
+  </ul>
+</details>
+
+<h2>Campaigns × Mailbox Pool</h2>
+<div class="panel" style="border-color:#7a2c25;background:#2b110e">
+  <div style="font-weight:600;color:#f08880;font-size:15px;margin-bottom:6px">⚠ Tier-разделение НЕ настроено</div>
+  <div style="color:#c8cfd9;font-size:13px">Все 39 OnSocial-кампаний (T1, T2, T3 и legacy) используют <b>один и тот же пул из 25 ящиков</b> через round-robin. Проблемный <code>bhaskar.v@onsocialmetrics.com</code> (62% inbox) шлёт от лица всех T1-кампаний.</div>
+</div>
+
+<div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+  <div class="kpi"><div class="v" id="kpi-camps">—</div><div class="l">campaigns total</div></div>
+  <div class="kpi"><div class="v" id="kpi-pool">—</div><div class="l">mailboxes in pool</div></div>
+  <div class="kpi"><div class="v" id="kpi-poolt3">—</div><div class="l">T3-ящиков в пуле</div></div>
+</div>
+
+<details open style="margin-top:12px">
+  <summary>Pool vs Canonical-27 diff</summary>
+  <div id="pool-diff" style="margin-top:10px;font-size:13px;color:#c8cfd9"></div>
+</details>
+
+<div class="controls" style="margin-top:18px">
+  <input type="text" id="cq" placeholder="поиск по кампании…">
+  <label class="chip active" data-ctier="T1"><input type="checkbox" checked> T1</label>
+  <label class="chip active" data-ctier="T2"><input type="checkbox" checked> T2</label>
+  <label class="chip active" data-ctier="T3"><input type="checkbox" checked> T3</label>
+  <label class="chip active" data-ctier="—"><input type="checkbox" checked> no-tier</label>
+  <span style="width:1px;height:20px;background:var(--line)"></span>
+  <label class="chip active" data-cstatus="ACTIVE"><input type="checkbox" checked> ACTIVE</label>
+  <label class="chip active" data-cstatus="DRAFTED"><input type="checkbox" checked> DRAFTED</label>
+  <label class="chip active" data-cstatus="PAUSED"><input type="checkbox" checked> PAUSED</label>
+  <label class="chip" data-cstatus="COMPLETED"><input type="checkbox"> COMPLETED</label>
+  <span class="muted" id="ccount" style="margin-left:auto;font-size:12px"></span>
+</div>
+
+<table id="ctbl">
+<thead>
+<tr>
+  <th data-ckey="tier">Tier</th>
+  <th data-ckey="status">Status</th>
+  <th data-ckey="name">Campaign</th>
+  <th data-ckey="geo">Geo</th>
+  <th data-ckey="nmb" class="right">Mailboxes</th>
+  <th data-ckey="t1" class="right">T1</th>
+  <th data-ckey="t2" class="right">T2</th>
+  <th data-ckey="t3" class="right">T3</th>
+  <th data-ckey="match">Alignment</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+
+<div class="foot">
+  <b>Caveats</b>
+  <ul>
+    <li>Instantly тесты запущены 28.04, идут ~сутки, сэмпл 3–8 писем/ящик. Цифры будут уточняться.</li>
+    <li>March attribution неполная (35/85): 50 реплаев — старые/паузные кампании с пустым message-history.</li>
+    <li>Inbox % для petr — proxy через <code>eleonora@&lt;domain&gt;</code>.</li>
+    <li>Реплаи cat 9 (эхо-баг 14–21 Apr) исключены.</li>
+    <li>Volume % — рекомендация. Read-only audit, никаких write-операций в SmartLead не выполнено.</li>
+  </ul>
+</div>
+
+</div>
+
+<script>
+const DATA = [
+  ["bhaskar.v@onsocial-network.com","bhaskar",0,10,100,7,""],
+  ["bhaskar@onsocial-data.com","bhaskar",0,9,100,4,""],
+  ["bhaskar@onsocial-analytics.com","bhaskar",0,8,100,7,""],
+  ["bhaskar.v@onsocial-analytics.com","bhaskar",0,8,80,5,""],
+  ["bhaskar@onsocial-metrics.com","bhaskar",0,8,100,5,""],
+  ["bhaskar@onsocial-platform.com","bhaskar",0,8,100,6,""],
+  ["bhaskar@onsocial-influence.com","bhaskar",0,7,100,6,""],
+  ["bhaskar.v@onsocial-insights.com","bhaskar",0,7,100,5,""],
+  ["bhaskar.v@onsocial-platform.com","bhaskar",0,6,100,7,""],
+  ["bhaskar.v@onsocial-metrics.com","bhaskar",0,6,100,5,""],
+  ["bhaskar@onsocial-network.com","bhaskar",0,6,100,6,""],
+  ["bhaskar@onsocial-insights.com","bhaskar",0,3,80,5,""],
+  ["bhaskar.v@onsocial-data.com","bhaskar",0,3,100,4,""],
+  ["bhaskar.v@onsocialmetrics.com","bhaskar",4,3,62,8,""],
+  ["petr@crona-flow.com","petr",0,2,100,6,"p"],
+  ["petr@crona-force.com","petr",3,2,100,4,"p"],
+  ["petr@segment-crona.com","petr",0,2,100,4,"p"],
+  ["bhaskar.v@onsocial-influence.com","bhaskar",0,1,80,5,""],
+  ["bhaskar@onsocialmetrics.com","bhaskar",4,1,100,3,""],
+  ["petr@leads-crona.com","petr",3,1,100,4,"p"],
+  ["petr@cronaaiprospects.com","petr",0,1,100,5,"p"],
+  ["petr@prospects-crona.com","petr",0,1,null,0,""],
+  ["bhaskar.v@onsocialplatform.com","bhaskar",2,0,100,7,""],
+  ["petr@crona-base.com","petr",2,0,100,5,"p"],
+  ["petr@crona-b2b.com","petr",0,0,100,4,"p"],
+  ["petr@crona-stack.com","petr",0,0,100,5,"p"],
+  ["petr@cronaaipipeline.com","petr",0,0,71,7,"p"],
+];
+
+function classify(r){
+  const inbox=r.inbox, apr=r.apr, mar=r.mar;
+  let tier, sub="", vol=0;
+  if (inbox!==null && inbox<80) { tier="T3"; sub="spam"; vol=0; }
+  else if (inbox!==null && inbox<100 && apr===0) { tier="T3"; sub="suspicious"; vol=0; }
+  else if (inbox!==null && inbox>=95 && apr>=6) { tier="T1"; vol=100; }
+  else {
+    tier="T2";
+    if (inbox===null) { sub="no-test"; vol=20; }
+    else if (inbox===80) { sub="watch"; vol=30; }
+    else if (inbox===100 && apr===0 && mar===0) { sub="silent"; vol=20; }
+    else if (inbox===100 && apr===0 && mar>0) { sub="fading"; vol=20; }
+    else { sub="warming"; vol=50; }
+  }
+  return {tier,sub,vol};
+}
+
+const rows = DATA.map(function(d){
+  const r = {mailbox:d[0],owner:d[1],mar:d[2],apr:d[3],inbox:d[4],n:d[5],note:d[6]};
+  Object.assign(r, classify(r));
+  return r;
+});
+
+let sortKey="apr", sortDir=-1;
+const tbody = document.querySelector("#tbl tbody");
+const ths = document.querySelectorAll("#tbl th");
+
+function el(tag, attrs, children){
+  const e = document.createElement(tag);
+  if (attrs) for (const k in attrs) {
+    if (k==="class") e.className = attrs[k];
+    else if (k==="text") e.textContent = attrs[k];
+    else e.setAttribute(k, attrs[k]);
+  }
+  if (children) children.forEach(function(c){ if (c) e.appendChild(typeof c==="string"?document.createTextNode(c):c); });
+  return e;
+}
+
+function inboxCell(r){
+  if (r.inbox===null) return el("span",{class:"muted",text:"—"});
+  const cls = r.inbox<80?"bad":r.inbox<100?"warn":"";
+  return el("span",{class:cls,text:r.inbox+"%"});
+}
+
+function render(){
+  const q = document.getElementById("q").value.toLowerCase();
+  const tiers = new Set(Array.from(document.querySelectorAll('.chip[data-tier]')).filter(function(c){return c.classList.contains('active')}).map(function(c){return c.dataset.tier}));
+  const owners = new Set(Array.from(document.querySelectorAll('.chip[data-owner]')).filter(function(c){return c.classList.contains('active')}).map(function(c){return c.dataset.owner}));
+
+  let view = rows.filter(function(r){ return r.mailbox.toLowerCase().includes(q) && tiers.has(r.tier) && owners.has(r.owner); });
+
+  view.sort(function(a,b){
+    let va=a[sortKey], vb=b[sortKey];
+    if (sortKey==="tier") { va = {T1:1,T2:2,T3:3}[a.tier]; vb = {T1:1,T2:2,T3:3}[b.tier]; }
+    if (sortKey==="vol") { va=a.vol; vb=b.vol; }
+    if (sortKey==="inbox") { va = a.inbox===null?-1:a.inbox; vb = b.inbox===null?-1:b.inbox; }
+    if (sortKey==="flag") { va=a.sub||""; vb=b.sub||""; }
+    if (typeof va==="string") return sortDir*va.localeCompare(vb);
+    return sortDir*((va==null?-1:va)-(vb==null?-1:vb));
+  });
+
+  tbody.textContent = "";
+  view.forEach(function(r){
+    const tr = el("tr",{class:r.tier.toLowerCase()});
+    tr.appendChild(el("td",null,[el("span",{class:"badge b-"+r.tier.toLowerCase(),text:r.tier})]));
+    const mailCell = el("td");
+    mailCell.appendChild(document.createTextNode(r.mailbox));
+    if (r.note==='p') mailCell.appendChild(el("span",{class:"tag",title:"Inbox замерен по домену через eleonora@",text:"proxy"}));
+    tr.appendChild(mailCell);
+    tr.appendChild(el("td",{text:r.owner}));
+    tr.appendChild(el("td",{class:"right",text:r.mar?String(r.mar):""}));
+    tr.appendChild(el("td",{class:"right"},[el("b",{text:String(r.apr||0)})]));
+    tr.appendChild(el("td",{class:"right"},[inboxCell(r)]));
+    tr.appendChild(el("td",{class:"right muted",text:r.n?String(r.n):""}));
+    tr.appendChild(el("td",{class:"right",text:r.vol+"%"}));
+    const flagCell = el("td");
+    if (r.tier==='T3') flagCell.appendChild(el("span",{class:"bad",text:r.sub==='spam'?'spam':'нет реплаев + spam-сигнал'}));
+    else if (r.sub) flagCell.appendChild(el("span",{class:"muted",text:r.sub}));
+    tr.appendChild(flagCell);
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("count").textContent = view.length+" of "+rows.length;
+  ths.forEach(function(th){
+    th.classList.toggle("sorted", th.dataset.key===sortKey);
+    th.dataset.arrow = th.dataset.key===sortKey ? (sortDir>0?"▲":"▼") : "";
+  });
+}
+
+ths.forEach(function(th){th.addEventListener("click",function(){
+  const k = th.dataset.key;
+  if (sortKey===k) sortDir=-sortDir;
+  else { sortKey=k; sortDir = (k==="mailbox"||k==="owner"||k==="tier") ? 1 : -1; }
+  render();
+})});
+document.getElementById("q").addEventListener("input",render);
+document.querySelectorAll(".chip").forEach(function(c){c.addEventListener("click",function(e){
+  if (e.target.tagName!=='INPUT') c.querySelector("input").checked = !c.querySelector("input").checked;
+  c.classList.toggle("active", c.querySelector("input").checked);
+  render();
+})});
+
+const counts = {T1:0,T2:0,T3:0};
+rows.forEach(function(r){counts[r.tier]++});
+document.getElementById("kpi-tiers").textContent = counts.T1+" / "+counts.T2+" / "+counts.T3;
+document.getElementById("kpi-bad").textContent = counts.T3+" ("+Math.round(counts.T3/rows.length*100)+"%)";
+
+const groups = {T1:[],T2:[],T3:[]};
+rows.forEach(function(r){groups[r.tier].push(r)});
+const subOrder = {warming:1,watch:2,fading:3,silent:4,'no-test':5,spam:6,suspicious:7};
+groups.T2.sort(function(a,b){return (subOrder[a.sub]||9)-(subOrder[b.sub]||9) || b.apr-a.apr});
+groups.T3.sort(function(a,b){return (a.inbox==null?0:a.inbox)-(b.inbox==null?0:b.inbox)});
+
+const titles = {T1:'Tier 1 — Healthy', T2:'Tier 2 — Mid', T3:'Tier 3 — Problematic'};
+const bd = document.getElementById("breakdown");
+bd.textContent = "";
+['T1','T2','T3'].forEach(function(t){
+  const col = el("div",{class:"col"});
+  const head = el("h3");
+  const left = el("span");
+  left.appendChild(el("span",{class:"dot",style:"background:var(--"+t.toLowerCase()+")"}));
+  left.appendChild(document.createTextNode(" "+titles[t]));
+  head.appendChild(left);
+  head.appendChild(el("span",{class:"muted",text:String(groups[t].length)}));
+  col.appendChild(head);
+  const ul = el("ul");
+  if (groups[t].length===0) ul.appendChild(el("li",{class:"muted",text:"—"}));
+  groups[t].forEach(function(r){
+    const li = el("li");
+    li.appendChild(document.createTextNode(r.mailbox+" "));
+    li.appendChild(el("span",{class:"muted",text:"· Apr "+r.apr+" · "+(r.inbox===null?"—":r.inbox+"%")}));
+    if (r.sub) { li.appendChild(document.createTextNode(" ")); li.appendChild(el("span",{class:"tag",text:r.sub})); }
+    ul.appendChild(li);
+  });
+  col.appendChild(ul);
+  bd.appendChild(col);
+});
+
+render();
+
+
+// === Campaigns × Pool ===
+CAMPS=[{"id": 3241493, "name": "c-OnSocial_INFPLAT_FOUNDERS_SMB_EMEA", "status": "ACTIVE", "tier": "T2", "geo": "BER", "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215354, "name": "c-OnSocial_AFFPERF_ACCOUNT_OPS_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215353, "name": "c-OnSocial_AFFPERF_HEAD_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215352, "name": "c-OnSocial_AFFPERF_TECHLEAD_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215317, "name": "c-OnSocial_INFPLAT_ACCOUNT_OPS_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": "NY", "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215316, "name": "c-OnSocial_INFPLAT_ACCOUNT_OPS_SMB", "status": "DRAFTED", "tier": "T2", "geo": "NY", "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215315, "name": "c-OnSocial_INFPLAT_HEAD_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215314, "name": "c-OnSocial_INFPLAT_HEAD_SMB", "status": "DRAFTED", "tier": "T2", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215313, "name": "c-OnSocial_INFPLAT_TECHLEAD_MidMarket", "status": "ACTIVE", "tier": "T3", "geo": "NY", "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215312, "name": "c-OnSocial_INFPLAT_TECHLEAD_SMB", "status": "ACTIVE", "tier": "T1", "geo": "NY", "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215199, "name": "c-OnSocial_INFPLAT_FOUNDERS_MidMarket", "status": "ACTIVE", "tier": "T3", "geo": "NY", "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215198, "name": "c-OnSocial_AFFPERF_FOUNDERS_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215197, "name": "c-OnSocial_IMAGENCY_TECHLEAD_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215196, "name": "c-OnSocial_IMAGENCY_ACCOUNT_OPS_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215194, "name": "c-OnSocial_IMAGENCY_HEAD_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215193, "name": "c-OnSocial_IMAGENCY_FOUNDERS_MidMarket", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215189, "name": "c-OnSocial_INFPLAT_FOUNDERS_SMB_AMERICAS", "status": "ACTIVE", "tier": "T2", "geo": "NY", "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215188, "name": "c-OnSocial_AFFPERF_ACCOUNT_OPS_SMB", "status": "DRAFTED", "tier": "T2", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215187, "name": "c-OnSocial_AFFPERF_HEAD_SMB", "status": "DRAFTED", "tier": "T2", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215186, "name": "c-OnSocial_AFFPERF_TECHLEAD_SMB", "status": "DRAFTED", "tier": "T1", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215185, "name": "c-OnSocial_IMAGENCY_TECHLEAD_SMB", "status": "DRAFTED", "tier": "T1", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215183, "name": "c-OnSocial_IMAGENCY_ACCOUNT_OPS_SMB", "status": "DRAFTED", "tier": "T2", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215182, "name": "c-OnSocial_IMAGENCY_HEAD_SMB", "status": "DRAFTED", "tier": "T2", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215181, "name": "c-OnSocial_AFFPERF_FOUNDERS_SMB_AMERICAS", "status": "DRAFTED", "tier": "T1", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215180, "name": "c-OnSocial_AFFPERF_FOUNDERS_SMB_EMEA", "status": "DRAFTED", "tier": "T1", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215179, "name": "c-OnSocial_IMAGENCY_FOUNDERS_SMB_INDIA_APAC", "status": "DRAFTED", "tier": "T1", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215178, "name": "c-OnSocial_IMAGENCY_FOUNDERS_SMB_AMERICAS", "status": "DRAFTED", "tier": "T1", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3215177, "name": "c-OnSocial_IMAGENCY_FOUNDERS_SMB_EMEA", "status": "DRAFTED", "tier": "T1", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3207897, "name": "c-OnSocial_IMAGENCY_CREATIVE_LATAM", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3207895, "name": "c-OnSocial_IMAGENCY_CREATIVE_US_CA", "status": "DRAFTED", "tier": "T3", "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3188673, "name": "c-OnSocial_IMAGENCY_SENIOR_LEADERSHIP", "status": "ACTIVE", "tier": null, "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3188672, "name": "c-OnSocial_IMAGENCY_CREATIVE_CONTENT", "status": "ACTIVE", "tier": null, "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3188671, "name": "c-OnSocial_IMAGENCY_OPS_ACCOUNT", "status": "ACTIVE", "tier": null, "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3188670, "name": "c-OnSocial_IMAGENCY_FOUNDERS_LATAM", "status": "ACTIVE", "tier": null, "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3188669, "name": "c-OnSocial_IMAGENCY_FOUNDERS_US_CA", "status": "ACTIVE", "tier": null, "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3169118, "name": "c-OnSocial_IMAGENCY_FOUNDERS", "status": "ACTIVE", "tier": null, "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3169092, "name": "c-OnSocial_IMAGENCY_TECHLEAD", "status": "ACTIVE", "tier": null, "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3124575, "name": "c-OnSocial_IMAGENCY_ACCOUNT_OPS", "status": "ACTIVE", "tier": null, "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}, {"id": 3096746, "name": "c-OnSocial_IM-FIRST AGENCIES ALL GEO #C", "status": "ACTIVE", "tier": null, "geo": null, "mailboxes": ["bhaskar.v@onsocial-analytics.com", "bhaskar@onsocial-platform.com", "bhaskar@onsocial-network.com", "bhaskar@onsocial-metrics.com", "bhaskar@onsocial-insights.com", "bhaskar@onsocial-influence.com", "bhaskar@onsocial-data.com", "bhaskar@onsocial-analytics.com", "bhaskar.v@onsocial-platform.com", "bhaskar.v@onsocial-network.com", "bhaskar.v@onsocial-metrics.com", "bhaskar.v@onsocial-insights.com", "bhaskar.v@onsocial-influence.com", "bhaskar.v@onsocial-data.com", "bhaskar@onsocialmetrics.com", "bhaskar.v@onsocialplatform.com", "bhaskar.v@onsocialmetrics.com", "petr@cronaaiprospects.com", "petr@leads-crona.com", "petr@crona-stack.com", "petr@crona-flow.com", "petr@crona-base.com", "petr@segment-crona.com", "petr@crona-force.com", "petr@prospectscrona.com"]}];
+
+const POOL = Array.from(new Set(CAMPS.flatMap(c=>c.mailboxes))).sort();
+const CANONICAL = rows.map(r=>r.mailbox);
+const tierMap = {}; rows.forEach(r=>tierMap[r.mailbox]=r.tier);
+
+document.getElementById('kpi-camps').textContent = CAMPS.length;
+document.getElementById('kpi-pool').textContent = POOL.length;
+document.getElementById('kpi-poolt3').textContent = POOL.filter(m=>tierMap[m]==='T3').length;
+
+const inPoolNotCanon = POOL.filter(m=>!CANONICAL.includes(m));
+const inCanonNotPool = CANONICAL.filter(m=>!POOL.includes(m));
+const diffEl = document.getElementById('pool-diff');
+function diffBlock(title, list, cls){
+  const wrap = el('div',{style:'margin-bottom:10px'});
+  wrap.appendChild(el('div',{style:'font-weight:600;margin-bottom:4px;color:#fff',text:title+' ('+list.length+')'}));
+  if (list.length===0) wrap.appendChild(el('div',{class:'muted',text:'—'}));
+  else { const ul = el('ul',{style:'margin:0;padding-left:18px'}); list.forEach(m=>ul.appendChild(el('li',{class:cls||'',text:m}))); wrap.appendChild(ul); }
+  return wrap;
+}
+diffEl.appendChild(diffBlock('В пуле, но НЕТ в Instantly-каноническом (не тестировались)', inPoolNotCanon, 'warn'));
+diffEl.appendChild(diffBlock('В каноническом, но НЕ в пуле кампаний (висят без работы)', inCanonNotPool, 'muted'));
+
+let cSortKey='tier', cSortDir=1;
+const ctbody = document.querySelector('#ctbl tbody');
+const cths = document.querySelectorAll('#ctbl th');
+
+function alignmentFor(c){
+  const tiers = c.mailboxes.map(m=>tierMap[m]||'?');
+  const counts = {T1:0,T2:0,T3:0,'?':0};
+  tiers.forEach(t=>counts[t]++);
+  let status = 'ok';
+  if (counts.T3>0) status = 'risk';
+  if (c.tier==='T1' && counts.T3>0) status = 'critical';
+  return {counts, status};
+}
+
+function renderCamps(){
+  const q = document.getElementById('cq').value.toLowerCase();
+  const tiers = new Set(Array.from(document.querySelectorAll('.chip[data-ctier]')).filter(c=>c.classList.contains('active')).map(c=>c.dataset.ctier));
+  const stats = new Set(Array.from(document.querySelectorAll('.chip[data-cstatus]')).filter(c=>c.classList.contains('active')).map(c=>c.dataset.cstatus));
+  let view = CAMPS.filter(c=>{
+    const t = c.tier||'—';
+    return c.name.toLowerCase().includes(q) && tiers.has(t) && stats.has(c.status);
+  });
+  view.forEach(c=>{ const a=alignmentFor(c); c._a=a; c.nmb=c.mailboxes.length; c.t1=a.counts.T1; c.t2=a.counts.T2; c.t3=a.counts.T3; });
+  view.sort((a,b)=>{
+    let va=a[cSortKey], vb=b[cSortKey];
+    if (cSortKey==='tier') { va={T1:1,T2:2,T3:3,'—':4}[a.tier||'—']; vb={T1:1,T2:2,T3:3,'—':4}[b.tier||'—']; }
+    if (cSortKey==='match') { va={critical:1,risk:2,ok:3}[a._a.status]; vb={critical:1,risk:2,ok:3}[b._a.status]; }
+    if (typeof va==='string') return cSortDir*va.localeCompare(vb||'');
+    return cSortDir*((va==null?-1:va)-(vb==null?-1:vb));
+  });
+  ctbody.textContent='';
+  view.forEach(c=>{
+    const tr = el('tr');
+    if (c._a.status==='critical') tr.style.background='rgba(192,57,43,.18)';
+    else if (c._a.status==='risk') tr.style.background='rgba(181,139,31,.10)';
+    const tval = c.tier||'—';
+    const tclass = c.tier? 'b-'+c.tier.toLowerCase() : '';
+    tr.appendChild(el('td',null,[c.tier? el('span',{class:'badge '+tclass,text:c.tier}) : el('span',{class:'muted',text:'—'})]));
+    tr.appendChild(el('td',{class:'muted',text:c.status}));
+    const ncell = el('td');
+    ncell.appendChild(document.createTextNode(c.name));
+    tr.appendChild(ncell);
+    tr.appendChild(el('td',{class:'muted',text:c.geo||''}));
+    tr.appendChild(el('td',{class:'right',text:String(c.nmb)}));
+    tr.appendChild(el('td',{class:'right',text:String(c.t1)}));
+    tr.appendChild(el('td',{class:'right warn',text:String(c.t2)}));
+    tr.appendChild(el('td',{class:'right'},[el('b',{class:c.t3>0?'bad':'muted',text:String(c.t3)})]));
+    const m = el('td');
+    if (c._a.status==='critical') m.appendChild(el('span',{class:'bad',text:'🔴 T1 кампания + T3 ящик'}));
+    else if (c._a.status==='risk') m.appendChild(el('span',{class:'warn',text:'⚠ T3 ящик в пуле'}));
+    else m.appendChild(el('span',{class:'muted',text:'✓ ok'}));
+    tr.appendChild(m);
+    ctbody.appendChild(tr);
+  });
+  document.getElementById('ccount').textContent = view.length+' of '+CAMPS.length;
+  cths.forEach(th=>{ th.classList.toggle('sorted', th.dataset.ckey===cSortKey); th.dataset.arrow = th.dataset.ckey===cSortKey?(cSortDir>0?'▲':'▼'):''; });
+}
+cths.forEach(th=>th.addEventListener('click',()=>{
+  const k=th.dataset.ckey;
+  if (cSortKey===k) cSortDir=-cSortDir;
+  else { cSortKey=k; cSortDir = (k==='name'||k==='status'||k==='tier'||k==='geo'||k==='match') ? 1 : -1; }
+  renderCamps();
+}));
+document.getElementById('cq').addEventListener('input',renderCamps);
+document.querySelectorAll('.chip[data-ctier],.chip[data-cstatus]').forEach(c=>c.addEventListener('click',e=>{
+  if (e.target.tagName!=='INPUT') c.querySelector('input').checked=!c.querySelector('input').checked;
+  c.classList.toggle('active', c.querySelector('input').checked);
+  renderCamps();
+}));
+renderCamps();
+
+</script>
+</body>
+</html>
