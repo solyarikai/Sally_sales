@@ -16,21 +16,21 @@
 # ============================================================
 # {{first_name}}            — имя лида (всегда заполнено)
 # {{company_name}}          — название компании (всегда)
-# {{social proof}}  — social proof (per-lead custom field в SmartLead)
-#                              Источник: lead.custom_fields.social proof
+# {{cf_competitor_client}}  — cf_competitor_client (per-lead custom field в SmartLead)
+#                              Источник: lead.custom_fields.cf_competitor_client
 #                              Пример: "Whalar, Kolsquare, Billion Dollar Boy"
 #
-# ⚠️ ВАЖНО — обработка пустого social proof:
+# ⚠️ ВАЖНО — обработка пустого cf_competitor_client:
 # Перед загрузкой sequence в SmartLead проверить что у всех лидов кампании
-# есть непустой social proof. Если у части лидов поле пустое:
+# есть непустой cf_competitor_client. Если у части лидов поле пустое:
 #   1. Заполнить generic значением для соответствующего сегмента:
 #      INFPLAT  → "Modash, Captiv8, Kolsquare, Phyllo and Lefty"
 #      IMAGENCY → "Whalar, Billion Dollar Boy and Ykone"
 #      AFFPERF  → "Captiv8, Phyllo and impact.com"
-#   2. Записать через mcp__smartlead__update_lead с custom_fields={"social proof": "<generic>"}
+#   2. Записать через mcp__smartlead__update_lead с custom_fields={"cf_competitor_client": "<generic>"}
 #
 # Это нужно потому что SmartLead не подставляет fallback для пустых custom fields —
-# в инбоксе появится литеральный "{{social proof}}".
+# в инбоксе появится литеральный "{{cf_competitor_client}}".
 
 # ====================================================================
 # INFPLAT (Influencer Platforms)
@@ -44,13 +44,13 @@ INFPLAT_FOUNDERS:
 
     Checked {{company_name}} - you're giving clients creator analytics. Is the data layer yours, or do you pull from a vendor?
 
-    Platforms like {{social proof}} run on our API. Building creator data in-house breaks every time TikTok changes something - our endpoint handles that, 450M+ profiles, city-level demographics.
+    Platforms like {{cf_competitor_client}} run on our API. Building creator data in-house breaks every time TikTok changes something - our endpoint handles that, 450M+ profiles, city-level demographics.
 
     Can run any creator through the API live - 15 min?
 
     Kind regards,
     Bhaskar Vishnu from OnSocial
-    Trusted by {{social proof}}
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, easier to show than tell.
 
@@ -80,7 +80,7 @@ INFPLAT_TECHLEAD:
 
     We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. Fraud breakdown by type, audience demographics down to city level, raw real-time access.
 
-    9 years in production. Teams like {{social proof}} moved to us for 10x the coverage and one endpoint instead of stitching multiple APIs.
+    9 years in production. Teams like {{cf_competitor_client}} moved to us for 10x the coverage and one endpoint instead of stitching multiple APIs.
 
     Worth a 15-min call to walk through the API for {{company_name}}'s use case?
 
@@ -112,7 +112,7 @@ INFPLAT_ACCOUNT_OPS:
 
     We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. One call returns fraud scoring, audience demographics, city-level data.
 
-    9 years in the market. Teams like {{social proof}} moved to us and cut creator-vetting time from hours to minutes.
+    9 years in the market. Teams like {{cf_competitor_client}} moved to us and cut creator-vetting time from hours to minutes.
 
     Worth a 15-min call to walk through how it'd fit {{company_name}}'s workflow?
 
@@ -139,7 +139,7 @@ INFPLAT_ACCOUNT_OPS:
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
     Bhaskar, OnSocial
-    Trusted by {{social proof}}
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -151,7 +151,7 @@ INFPLAT_HEAD:
 
     One API call returns 450M+ creator profiles across Instagram, TikTok and YouTube. Real audience demographics, geo splits, fraud signals, engagement depth - not just follower counts.
 
-    Platform leaders at companies like {{social proof}} moved to us for data their clients actually trust.
+    Platform leaders at companies like {{cf_competitor_client}} moved to us for data their clients actually trust.
 
     Worth a 15-min call? I'll pull real data on a creator {{company_name}} is recommending this week.
 
@@ -187,7 +187,7 @@ IMAGENCY_FOUNDERS:
 
     450M+ creator profiles across Instagram, TikTok and YouTube. Fraud scoring, audience demographics to city level. Your brand on it, not ours.
 
-    9 years in the market. Teams like {{social proof}} already run it this way.
+    9 years in the market. Teams like {{cf_competitor_client}} already run it this way.
 
     Worth a 15-min call? I'll show you a live pull on a creator {{company_name}} is evaluating right now.
 
@@ -219,7 +219,7 @@ IMAGENCY_TECHLEAD:
 
     We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. Fraud breakdown by type, audience demographics down to city level, raw real-time access.
 
-    9 years in production. Agencies like {{social proof}} moved to us for 10x the coverage and one endpoint instead of stitching vendors.
+    9 years in production. Agencies like {{cf_competitor_client}} moved to us for 10x the coverage and one endpoint instead of stitching vendors.
 
     Worth a 15-min call to walk through the API for {{company_name}}'s use case?
 
@@ -253,7 +253,7 @@ IMAGENCY_ACCOUNT_OPS:
 
     Most agency teams stitch 2-4 vendors - one for audience data, one for fraud, one for reports. We collapse it into a single API: 450M+ profiles, city-level demographics, fraud scoring.
 
-    9 years in the market. Teams like {{social proof}} consolidated to us.
+    9 years in the market. Teams like {{cf_competitor_client}} consolidated to us.
 
     15 min to see if it'd cut your prep time in half?
 
@@ -275,7 +275,7 @@ IMAGENCY_ACCOUNT_OPS:
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
     Bhaskar, OnSocial
-    Trusted by {{social proof}}
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -287,7 +287,7 @@ IMAGENCY_HEAD:
 
     One API call returns 450M+ creator profiles across Instagram, TikTok and YouTube. Real audience demographics, geo splits, fraud signals, engagement depth - not just follower counts.
 
-    IM leaders at agencies like {{social proof}} moved to us for data their brands actually trust.
+    IM leaders at agencies like {{cf_competitor_client}} moved to us for data their brands actually trust.
 
     Worth a 15-min call? I'll pull real data on a creator {{company_name}} is recommending this week.
 
@@ -319,7 +319,7 @@ IMAGENCY_CREATIVE:
 
     450M+ creator profiles across Instagram, TikTok and YouTube. Audience fit, content style, engagement quality, who actually follows them and where.
 
-    Creative teams at agencies like {{social proof}} use it to shortlist faster with better audience match.
+    Creative teams at agencies like {{cf_competitor_client}} use it to shortlist faster with better audience match.
 
     Worth a 15-min call? I'll pull data on any creator you're working with right now.
 
@@ -361,7 +361,7 @@ AFFPERF_FOUNDERS:
 
     Kind regards,
     Bhaskar Vishnu from OnSocial
-    Trusted by {{social proof}}
+    Trusted by {{cf_competitor_client}}
   default_email_2_body: |
     {{first_name}}, one more thing.
 
@@ -387,7 +387,7 @@ AFFPERF_TECHLEAD:
 
     We provide creator data via API: 450M+ profiles across Instagram, TikTok and YouTube. Fraud breakdown by type, audience demographics down to city level, raw real-time access.
 
-    9 years in production. Performance platforms like {{social proof}} plugged in our endpoint instead of stitching vendor data per partner.
+    9 years in production. Performance platforms like {{cf_competitor_client}} plugged in our endpoint instead of stitching vendor data per partner.
 
     Worth a 15-min call to walk through the API for {{company_name}}'s use case?
 
@@ -419,7 +419,7 @@ AFFPERF_ACCOUNT_OPS:
 
     We provide creator data via API: 450M+ profiles across IG, TikTok, YouTube. One call per partner returns fraud score, audience demographics, follower quality.
 
-    9 years in the market. Performance teams like {{social proof}} cut partner-vetting time from hours to minutes - and stopped paying out on fake traffic.
+    9 years in the market. Performance teams like {{cf_competitor_client}} cut partner-vetting time from hours to minutes - and stopped paying out on fake traffic.
 
     Worth a 15-min call to walk through how it'd fit {{company_name}}'s onboarding workflow?
 
@@ -441,7 +441,7 @@ AFFPERF_ACCOUNT_OPS:
     If tooling decisions aren't your call - happy to loop in whoever owns vendor selection at {{company_name}}.
 
     Bhaskar, OnSocial
-    Trusted by {{social proof}}
+    Trusted by {{cf_competitor_client}}
   default_email_2_delay_days: 3
   default_email_3_delay_days: 3
 
@@ -453,7 +453,7 @@ AFFPERF_HEAD:
 
     One API call returns 450M+ creator profiles across Instagram, TikTok and YouTube. Real audience demographics, geo splits, fraud signals, engagement depth - not just follower counts.
 
-    Performance leaders at platforms like {{social proof}} moved to us for data their advertisers actually trust.
+    Performance leaders at platforms like {{cf_competitor_client}} moved to us for data their advertisers actually trust.
 
     Worth a 15-min call? I'll pull real data on a partner {{company_name}} is evaluating right now.
 
