@@ -1,7 +1,10 @@
 # Enrichment Agent — Полная инструкция
 
-**Задача:** Обогатить `cf_business_observation` в SmartLead для заданного списка кампаний.  
+**Задача:** Обогатить `cf_business_observation` в SmartLead для заданного списка кампаний, затем написать и загрузить 3-шаговую sequence для каждой кампании.  
 **Автономность:** Полная. Не останавливаться и не запрашивать подтверждений в процессе работы.
+
+**Инструменты:** Используй MCP tools из SmartLead MCP (`mcp__smartlead__*`). Это наш собственный MCP, не GTM-MCP (https://github.com/impecablemee/gtm-mcp — другой проект, `cf_business_observation` там отсутствует).  
+Если MCP tools недоступны — использовать прямые HTTP запросы к SmartLead API.
 
 ---
 
@@ -118,11 +121,24 @@ claude -p "<промпт с подставленными значениями>" 
 
 **Если TIER_0:**
 - `observation` = текст после второго `|` (evidence)
-- Обновить `cf_business_observation` для **всех лидов домена** через SmartLead:
+- Обновить `cf_business_observation` для **всех лидов домена**.
+
+MCP tool (предпочтительно):
+```python
+mcp__smartlead__update_lead(
+    campaign_id=<id>,
+    lead_id=<id>,
+    custom_fields={"cf_business_observation": "<observation>"}
+)
+```
+
+Прямой HTTP (fallback):
 ```
 POST /campaigns/{campaign_id}/leads/{lead_id}?api_key=...
-{"email": "...", "custom_fields": {...existing_cf..., "cf_business_observation": "<observation>"}}
+{"custom_fields": {"cf_business_observation": "<observation>"}}
 ```
+
+⚠️ Не передавать `email` в теле запроса если не меняешь — достаточно только `custom_fields`.  
 Retry: 3 попытки с backoff 5s / 15s / 30s на 429. При fail → логировать `update_fail`, продолжить.
 
 **Если TIER_1:**
@@ -347,13 +363,22 @@ Step 1 писать с generic opener по сегменту:
 ### Загрузка sequence в SmartLead
 
 **Шаг 1 — проверить, есть ли уже sequence:**
-Использовать MCP tool `mcp__smartlead__get_campaign_sequences` (или `GET /campaigns/{id}/sequences`).
-Если вернул 1+ steps — **не трогать**, залогировать `sequence_exists`, пропустить кампанию.
 
-**Шаг 2 — загрузить (только если sequence пустая):**
-Использовать MCP tool `mcp__smartlead__save_campaign_sequence`:
+MCP tool:
 ```python
-save_campaign_sequence(
+mcp__smartlead__get_campaign_sequences(campaign_id=<id>)
+```
+Возвращает строку вида `Campaign 3215181: 3 sequence steps\n--- Step 1...`.  
+Парсить: если в строке `0 sequence steps` — sequence пустая, можно писать.  
+Если 1+ steps — **не трогать**, залогировать `sequence_exists`, пропустить кампанию.
+
+**Шаг 2 — написать текст sequence** (индивидуально под кампанию, см. раздел Sequence выше).
+
+**Шаг 3 — загрузить (только если sequence пустая):**
+
+MCP tool:
+```python
+mcp__smartlead__save_campaign_sequence(
     campaign_id=<id>,
     sequences=[
         {
@@ -378,9 +403,7 @@ save_campaign_sequence(
 )
 ```
 
-⚠️ `save_campaign_sequence` **заменяет** всю существующую sequence — поэтому проверка на шаге 1 обязательна.
-
-Если кампания уже имеет sequence — **не перезаписывать**, залогировать `sequence_exists`, пропустить.
+⚠️ `mcp__smartlead__save_campaign_sequence` **заменяет** всю sequence целиком (не аппендит) — поэтому проверка на шаге 1 обязательна перед каждой кампанией.
 
 ### Итоговый отчёт по sequences
 
